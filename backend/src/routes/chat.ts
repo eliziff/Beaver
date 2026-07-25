@@ -157,19 +157,27 @@ async function getAccessibleChat(
 // are merely *shared with* the user are NOT included here — those are
 // listed per-project via GET /projects/:projectId/chats.
 chatRouter.get("/", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const db = createServerSupabase();
-    const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
-    const limit = Number.isFinite(requestedLimit)
-        ? Math.min(Math.max(requestedLimit, 1), 100)
-        : null;
+    try {
+        const userId = res.locals.userId as string;
+        const db = createServerSupabase();
+        const requestedLimit = Number.parseInt(
+            String(req.query.limit ?? ""),
+            10,
+        );
+        const limit = Number.isFinite(requestedLimit)
+            ? Math.min(Math.max(requestedLimit, 1), 100)
+            : null;
 
-    const { data, error } = await db.rpc("get_chats_overview", {
-        p_user_id: userId,
-        p_limit: limit,
-    });
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json(data ?? []);
+        const { data, error } = await db.rpc("get_chats_overview", {
+            p_user_id: userId,
+            p_limit: limit,
+        });
+        if (error) return void res.status(500).json({ detail: error.message });
+        res.json(data ?? []);
+    } catch (error) {
+        console.error("[chat/list] failed to load chats", error);
+        res.status(500).json({ detail: "Failed to load chats" });
+    }
 });
 
 // POST /chat/create
