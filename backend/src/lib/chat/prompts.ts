@@ -73,6 +73,14 @@ GENERAL GUIDANCE:
 - Do not use emojis.
 `;
 
+const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
+Use A2AJ for Canadian case law and legislation. It is a public API and does not require a user key.
+- Use a2aj_search for concepts, case names, or statute titles; use a2aj_fetch for a known citation such as "2020 SCC 5" or "RSC 1985, c C-46".
+- Base quoted or source-specific claims on text returned by a2aj_fetch, not on search metadata or memory.
+- Preserve the returned upstreamLicense notice when producing a source list or document that includes the fetched text.
+- When relying on an A2AJ source, include its returned source URL as a clickable markdown link and an inline [N] marker. Add a matching entry to <CITATIONS>: {"ref": N, "source": "a2aj", "citation": "...", "name": "...", "dataset": "...", "url": "...", "quotes": [{"quote": "exact returned text"}]}.
+- If A2AJ does not return a document, say that the citation was not found; do not infer that the source or proposition does not exist.`;
+
 /**
  * Assemble the chat system prompt. When `includeResearchTools` is true the
  * CourtListener (US case-law) research instructions are spliced in; when
@@ -81,7 +89,7 @@ GENERAL GUIDANCE:
  */
 export function buildSystemPrompt(includeResearchTools = true): string {
   return includeResearchTools
-    ? `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n${SYSTEM_PROMPT_AFTER_RESEARCH}`
+    ? `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}\n${SYSTEM_PROMPT_AFTER_RESEARCH}`
     : `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${SYSTEM_PROMPT_AFTER_RESEARCH}`;
 }
 

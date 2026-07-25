@@ -59,7 +59,6 @@ import { TRTable } from "./TRTable";
 import type { TRTableHandle } from "./TRTable";
 import { TRChatPanel } from "./TRChatPanel";
 import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
-import { exportTabularReviewToExcel } from "./exportToExcel";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { PageHeader } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
@@ -759,15 +758,21 @@ export function TRView({ reviewId, projectId }: Props) {
                                             {
                                                 label: "Export",
                                                 icon: Download,
-                                                onSelect: () =>
-                                                    exportTabularReviewToExcel({
-                                                        reviewTitle:
-                                                            review?.title ||
-                                                            "Tabular Review",
-                                                        columns,
-                                                        documents,
-                                                        cells,
-                                                    }),
+                                                onSelect: () => {
+                                                    void import("./exportToExcel").then(
+                                                        ({
+                                                            exportTabularReviewToExcel,
+                                                        }) =>
+                                                            exportTabularReviewToExcel({
+                                                                reviewTitle:
+                                                                    review?.title ||
+                                                                    "Tabular Review",
+                                                                columns,
+                                                                documents,
+                                                                cells,
+                                                            }),
+                                                    );
+                                                },
                                                 disabled:
                                                     columns.length === 0 ||
                                                     documents.length === 0,

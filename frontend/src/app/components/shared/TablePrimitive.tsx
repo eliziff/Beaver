@@ -30,9 +30,14 @@ import {
 } from "@/app/components/ui/liquid-surface";
 
 export const CLOSE_ROW_ACTIONS_EVENT = "mike:close-row-actions";
+export const TABLE_SCROLL_CLOSE_EVENT = "mike:table-scroll-close";
 
 export function closeRowActionMenus() {
     document.dispatchEvent(new Event(CLOSE_ROW_ACTIONS_EVENT));
+}
+
+export function closeTablePopups() {
+    window.dispatchEvent(new Event(TABLE_SCROLL_CLOSE_EVENT));
 }
 
 function canPortalToDocument() {

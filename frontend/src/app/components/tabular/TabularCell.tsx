@@ -1,25 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AlertCircle, Expand } from "lucide-react";
 import type { ColumnConfig, TabularCell as TCell } from "../shared/types";
 import { preprocessCitations, type ParsedCitation } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
-import { SkeletonLine } from "../shared/TablePrimitive";
+import {
+    SkeletonLine,
+    TABLE_SCROLL_CLOSE_EVENT,
+} from "../shared/TablePrimitive";
 
 interface Props {
     cell: TCell;
     column?: ColumnConfig;
     closeSignal?: number;
-    onExpand: () => void;
+    onExpand: (cell: TCell) => void;
     onCitationClick?: (
+        cell: TCell,
         page: number | undefined,
         quote: string,
         citationRef: number,
         sheet?: string,
-        cell?: string,
+        citationCell?: string,
     ) => void;
 }
 
@@ -178,7 +182,7 @@ function formatCitationLocation(citation: ParsedCitation): string {
     return `Page ${citation.page ?? 1}`;
 }
 
-export function TabularCell({
+export const TabularCell = memo(function TabularCell({
     cell,
     column,
     closeSignal,
@@ -193,6 +197,13 @@ export function TabularCell({
         const timeout = window.setTimeout(() => setInlineExpanded(false), 0);
         return () => window.clearTimeout(timeout);
     }, [closeSignal]);
+
+    useEffect(() => {
+        const close = () => setInlineExpanded(false);
+        window.addEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
+        return () =>
+            window.removeEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
+    }, []);
 
     useEffect(() => {
         if (!inlineExpanded) return;
@@ -240,12 +251,22 @@ export function TabularCell({
         citationCell?: string,
     ) {
         setInlineExpanded(false);
-        onCitationClick?.(page, quote, citationRef, sheet, citationCell);
+        handleCitationClick(page, quote, citationRef, sheet, citationCell);
+    }
+
+    function handleCitationClick(
+        page: number | undefined,
+        quote: string,
+        citationRef: number,
+        sheet?: string,
+        citationCell?: string,
+    ) {
+        onCitationClick?.(cell, page, quote, citationRef, sheet, citationCell);
     }
 
     function handleSeeDetails() {
         setInlineExpanded(false);
-        onExpand();
+        onExpand(cell);
     }
 
     return (
@@ -267,8 +288,8 @@ export function TabularCell({
                         citations={citations}
                         pills={pills}
                         column={column}
-                        onCitationClick={onCitationClick}
-                        onExpand={onExpand}
+                        onCitationClick={handleCitationClick}
+                        onExpand={handleSeeDetails}
                         inline
                     />
                 </div>
@@ -306,4 +327,4 @@ export function TabularCell({
             )}
         </div>
     );
-}
+});

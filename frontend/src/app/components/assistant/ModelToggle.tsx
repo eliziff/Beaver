@@ -18,7 +18,7 @@ import type { ApiKeyState } from "@/app/lib/mikeApi";
 export interface ModelOption {
     id: string;
     label: string;
-    group: "Anthropic" | "Google" | "OpenAI";
+    group: "Anthropic" | "Google" | "OpenAI" | "Codex";
 }
 
 export const MODELS: ModelOption[] = [
@@ -31,6 +31,7 @@ export const MODELS: ModelOption[] = [
     { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", group: "Google" },
     { id: "gpt-5.5", label: "GPT-5.5", group: "OpenAI" },
     { id: "gpt-5.4", label: "GPT-5.4", group: "OpenAI" },
+    { id: "codex-exec", label: "Codex (local)", group: "Codex" },
 ];
 
 export const SETTINGS_MODELS: ModelOption[] = [
@@ -44,11 +45,19 @@ export const SETTINGS_MODELS: ModelOption[] = [
     { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI" },
 ];
 
-export const DEFAULT_MODEL_ID = "gemini-3-flash-preview";
+export const DEFAULT_MODEL_ID =
+    process.env.NEXT_PUBLIC_DEFAULT_MODEL === "codex-exec"
+        ? "codex-exec"
+        : "gemini-3-flash-preview";
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
-const GROUP_ORDER: ModelOption["group"][] = ["Anthropic", "Google", "OpenAI"];
+const GROUP_ORDER: ModelOption["group"][] = [
+    "Anthropic",
+    "Google",
+    "OpenAI",
+    "Codex",
+];
 const itemClassName =
     "rounded-xl px-2.5 py-1.5 text-gray-700 focus:bg-app-surface-hover focus:text-gray-900 data-[highlighted]:bg-app-surface-hover data-[highlighted]:text-gray-900";
 

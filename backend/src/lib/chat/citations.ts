@@ -36,7 +36,20 @@ type ParsedCaseCitation = {
   }[];
 };
 
-type ParsedCitation = ParsedDocumentCitation | ParsedCaseCitation;
+type ParsedA2AJCitation = {
+  kind: "a2aj";
+  ref: number;
+  citation: string | null;
+  name: string | null;
+  dataset: string | null;
+  url: string | null;
+  quotes: { quote: string }[];
+};
+
+type ParsedCitation =
+  | ParsedDocumentCitation
+  | ParsedCaseCitation
+  | ParsedA2AJCitation;
 
 function normalizeCitation(raw: unknown): ParsedCitation | null {
   if (!raw || typeof raw !== "object") return null;
@@ -53,6 +66,38 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
         : null;
   if (typeof ref !== "number") return null;
   const quote = typeof c.quote === "string" ? c.quote : c.text;
+
+  if (c.source === "a2aj" || c.kind === "a2aj") {
+    const citation =
+      typeof c.citation === "string" && c.citation.trim()
+        ? c.citation.trim()
+        : null;
+    const quotes = Array.isArray(c.quotes)
+      ? c.quotes
+          .slice(0, 3)
+          .map((raw) => {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+            const value = (raw as Record<string, unknown>).quote;
+            return typeof value === "string" && value.trim()
+              ? { quote: value }
+              : null;
+          })
+          .filter((value): value is { quote: string } => !!value)
+      : [];
+    if (!quotes.length && typeof quote === "string" && quote.trim()) {
+      quotes.push({ quote });
+    }
+    if (!quotes.length) return null;
+    return {
+      kind: "a2aj",
+      ref,
+      citation,
+      name: typeof c.name === "string" ? c.name : null,
+      dataset: typeof c.dataset === "string" ? c.dataset : null,
+      url: typeof c.url === "string" ? c.url : null,
+      quotes,
+    };
+  }
 
   const rawClusterId =
     typeof c.cluster_id === "number"
@@ -275,6 +320,18 @@ export function createCitation(
   docIndex: DocIndex,
   casesByClusterId?: CasesByClusterId,
 ) {
+  if (citation.kind === "a2aj") {
+    return {
+      type: "citation_data",
+      kind: "a2aj",
+      ref: citation.ref,
+      citation: citation.citation,
+      name: citation.name,
+      dataset: citation.dataset,
+      url: citation.url,
+      quotes: citation.quotes,
+    };
+  }
   if (citation.kind === "case") {
     const caseRecord = casesByClusterId?.get(citation.cluster_id);
     return {

@@ -106,10 +106,10 @@ export default function FeaturesPage() {
                                 htmlFor="jurisdiction-us"
                                 className="min-w-0 cursor-pointer select-none"
                             >
-                                <p className="text-sm text-gray-900">US</p>
+                                <p className="text-sm text-gray-900">US + Canada</p>
                                 <p className="text-sm text-gray-500">
-                                    Enable US case law research (CourtListener)
-                                    in chat.
+                                    Enable case law research in chat
+                                    (CourtListener for US and A2AJ for Canada).
                                 </p>
                             </label>
                             <button

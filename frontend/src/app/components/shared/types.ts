@@ -367,6 +367,17 @@ export type CaseCitation = {
   quotes: CaseCitationQuote[];
 };
 
+export type A2AJCitation = {
+  type: "citation_data";
+  kind: "a2aj";
+  ref: number;
+  citation?: string | null;
+  name?: string | null;
+  dataset?: string | null;
+  url?: string | null;
+  quotes: { quote: string }[];
+};
+
 /**
  * A citation emitted by the assistant. Document citations have doc/page
  * anchors. Case citations anchor to a CourtListener cluster and include a
@@ -374,7 +385,8 @@ export type CaseCitation = {
  */
 export type Citation =
   | DocumentCitation
-  | CaseCitation;
+  | CaseCitation
+  | A2AJCitation;
 
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 
@@ -414,7 +426,7 @@ function formatCellLocatorReadable(sheet?: string, cell?: string): string {
 export function getCitationCells(
   a: Citation,
 ): { sheet?: string; cell?: string }[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "a2aj") return [];
   return getDocumentCitationQuotes(a)
     .filter((q) => q.cell || q.sheet)
     .map((q) => ({ sheet: q.sheet, cell: q.cell }));
@@ -445,7 +457,7 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
 export function getDocumentCitationQuotes(
   a: Citation,
 ): DocumentCitationQuote[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "a2aj") return [];
   if (Array.isArray(a.quotes) && a.quotes.length) {
     return a.quotes.filter((entry) => entry.quote.trim().length > 0);
   }
@@ -460,7 +472,7 @@ export function getDocumentCitationQuotes(
 export function expandCitationToEntries(
   a: Citation,
 ): CitationQuote[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "a2aj") return [];
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
 
@@ -473,6 +485,7 @@ export function formatCitationPage(a: Citation): string {
   if (a.kind === "case") {
     return a.citation || a.case_name || `Case ${a.cluster_id}`;
   }
+  if (a.kind === "a2aj") return a.citation || a.name || "A2AJ source";
   const quotes = getDocumentCitationQuotes(a);
   // Spreadsheets are located by cell, e.g. "Sheet1!B7" (or several).
   if (isSpreadsheetFilename(a.filename)) {
@@ -497,7 +510,7 @@ export function formatCitationQuotePage(
   page: number | string,
   quote?: DocumentCitationQuote,
 ): string {
-  if (a.kind !== "case" && isSpreadsheetFilename(a.filename)) {
+  if (a.kind !== "case" && a.kind !== "a2aj" && isSpreadsheetFilename(a.filename)) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
   return `Page ${page}`;
@@ -517,6 +530,11 @@ export function cleanCitationQuoteText(
 /** Produce a reader-friendly version of the quote (replaces [[PAGE_BREAK]] with "..."). */
 export function displayCitationQuote(a: Citation): string {
   if (a.kind === "case") {
+    return a.quotes
+      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
+      .join(" / ");
+  }
+  if (a.kind === "a2aj") {
     return a.quotes
       .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
       .join(" / ");

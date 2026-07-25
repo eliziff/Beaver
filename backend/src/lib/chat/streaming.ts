@@ -16,6 +16,7 @@ import {
   type CaseCitationEvent,
   type CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
+import { A2AJ_TOOLS } from "./tools/a2ajTools";
 import {
   type DocStore,
   type DocIndex,
@@ -186,7 +187,9 @@ export async function runLLMStream(params: {
     signal,
     projectId,
   } = params;
-  const researchTools = includeResearchTools ? COURTLISTENER_TOOLS : [];
+  const researchTools = includeResearchTools
+    ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS]
+    : [];
   const mcpTools = await buildUserMcpTools(userId, db);
   const baseTools = [...TOOLS, ...researchTools, ...WORKFLOW_TOOLS];
   const activeTools = extraTools?.length

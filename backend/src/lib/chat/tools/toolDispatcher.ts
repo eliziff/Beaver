@@ -8,6 +8,8 @@ import {
   type CaseCitationEvent,
   type CourtlistenerToolEvent,
 } from "./courtlistenerTools";
+import { A2AJ_TOOL_NAMES } from "./a2ajTools";
+import { fetchA2AJDocument, searchA2AJ } from "../../a2aj";
 import {
   executeMcpToolCall,
   type McpToolEvent,
@@ -828,6 +830,81 @@ export async function runToolCalls(
         tool_call_id: tc.id,
         content: lines.join("\n") || "No cells found.",
       });
+    } else if (tc.function.name === A2AJ_TOOL_NAMES.search) {
+      try {
+        const result = await searchA2AJ({
+          query: typeof args.query === "string" ? args.query : "",
+          docType: args.doc_type === "laws" ? "laws" : "cases",
+          searchType: args.search_type === "name" ? "name" : "full_text",
+          language: args.search_language === "fr" ? "fr" : "en",
+          size: typeof args.size === "number" ? args.size : undefined,
+          dataset: typeof args.dataset === "string" ? args.dataset : undefined,
+          startDate: typeof args.start_date === "string" ? args.start_date : undefined,
+          endDate: typeof args.end_date === "string" ? args.end_date : undefined,
+          sortResults:
+            args.sort_results === "newest_first" || args.sort_results === "oldest_first"
+              ? args.sort_results
+              : "default",
+        });
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            ok: true,
+            source: "A2AJ",
+            result_count: result.length,
+            results: result,
+            next_required_action:
+              "Use a2aj_fetch with a returned citation before relying on source text in the final answer.",
+          }),
+        });
+      } catch (err) {
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            ok: false,
+            source: "A2AJ",
+            error: err instanceof Error ? err.message : "A2AJ search failed.",
+          }),
+        });
+      }
+    } else if (tc.function.name === A2AJ_TOOL_NAMES.fetch) {
+      try {
+        const document = await fetchA2AJDocument({
+          citation: typeof args.citation === "string" ? args.citation : "",
+          docType: args.doc_type === "laws" ? "laws" : "cases",
+          language: args.output_language === "fr" ? "fr" : "en",
+          section: typeof args.section === "string" ? args.section : undefined,
+        });
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(
+            document
+              ? {
+                    ok: true,
+                    source: "A2AJ",
+                    ...document,
+                }
+              : {
+                    ok: false,
+                    source: "A2AJ",
+                    error: "A2AJ did not find an exact matching document.",
+                },
+          ),
+        });
+      } catch (err) {
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            ok: false,
+            source: "A2AJ",
+            error: err instanceof Error ? err.message : "A2AJ fetch failed.",
+          }),
+        });
+      }
     } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
       const query = typeof args.query === "string" ? args.query : "";
       write(

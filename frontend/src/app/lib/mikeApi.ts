@@ -3,7 +3,7 @@
  * Attaches the Supabase auth token for user authentication.
  */
 
-import { supabase } from "@/app/lib/supabase";
+import { isAnonymousMode, supabase } from "@/app/lib/supabase";
 import type {
     AssistantEvent,
     Chat,
@@ -66,6 +66,7 @@ export function isMfaRequiredError(error: unknown) {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
+    if (isAnonymousMode) return {};
     const {
         data: { session },
     } = await supabase.auth.getSession();

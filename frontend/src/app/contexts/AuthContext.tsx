@@ -8,7 +8,7 @@ import React, {
     ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { supabase } from "@/app/lib/supabase";
+import { isAnonymousMode, supabase } from "@/app/lib/supabase";
 
 interface User {
     id: string;
@@ -25,6 +25,10 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const ANONYMOUS_USER: User = {
+    id: "00000000-0000-0000-0000-000000000001",
+    email: "anonymous@localhost",
+};
 
 function toUser(user: SupabaseUser): User {
     return {
@@ -35,10 +39,14 @@ function toUser(user: SupabaseUser): User {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [authLoading, setAuthLoading] = useState(true);
+    const [user, setUser] = useState<User | null>(
+        isAnonymousMode ? ANONYMOUS_USER : null,
+    );
+    const [authLoading, setAuthLoading] = useState(!isAnonymousMode);
 
     useEffect(() => {
+        if (isAnonymousMode) return;
+
         const checkUser = async () => {
             const {
                 data: { session },
@@ -69,11 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const signOut = async () => {
+        if (isAnonymousMode) return;
         await supabase.auth.signOut({ scope: "local" });
         setUser(null);
     };
 
     const updateEmail = async (email: string) => {
+        if (isAnonymousMode) {
+            throw new Error("Accounts are disabled in anonymous mode");
+        }
         const redirectTo =
             typeof window === "undefined"
                 ? undefined

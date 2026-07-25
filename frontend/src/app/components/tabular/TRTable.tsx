@@ -2,9 +2,11 @@
 
 import {
     forwardRef,
+    useCallback,
+    useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
-    useState,
 } from "react";
 import { Loader2, Plus, Upload } from "lucide-react";
 import type {
@@ -19,6 +21,7 @@ import {
     SkeletonDot,
     SkeletonLine,
     TableScrollArea,
+    closeTablePopups,
 } from "../shared/TablePrimitive";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
@@ -96,7 +99,59 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
 ) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const lastScrollLeftRef = useRef(0);
-    const [scrollCloseSignal, setScrollCloseSignal] = useState(0);
+    const scrollCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
+
+    const sortedColumns = useMemo(
+        () => [...columns].sort((a, b) => a.index - b.index),
+        [columns],
+    );
+    const cellsByKey = useMemo(() => {
+        const next = new Map<string, TabularCell>();
+        for (const cell of cells) {
+            next.set(`${cell.document_id}:${cell.column_index}`, cell);
+        }
+        return next;
+    }, [cells]);
+    const selectedDocIdSet = useMemo(
+        () => new Set(selectedDocIds),
+        [selectedDocIds],
+    );
+    const columnPositionByIndex = useMemo(
+        () => new Map(sortedColumns.map((column, index) => [column.index, index])),
+        [sortedColumns],
+    );
+
+    const onExpandRef = useRef(onExpand);
+    const onCitationClickRef = useRef(onCitationClick);
+    useEffect(() => {
+        onExpandRef.current = onExpand;
+        onCitationClickRef.current = onCitationClick;
+    }, [onExpand, onCitationClick]);
+    const handleCellExpand = useCallback((cell: TabularCell) => {
+        onExpandRef.current(cell);
+    }, []);
+    const handleCellCitationClick = useCallback(
+        (
+            cell: TabularCell,
+            page: number | undefined,
+            quote: string,
+            citationRef: number,
+            sheet?: string,
+            citationCell?: string,
+        ) => {
+            onCitationClickRef.current(
+                cell,
+                page,
+                quote,
+                citationRef,
+                sheet,
+                citationCell,
+            );
+        },
+        [],
+    );
 
     function handleRowsScroll() {
         const container = scrollContainerRef.current;
@@ -104,11 +159,23 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
 
         if (container.scrollLeft !== lastScrollLeftRef.current) {
             lastScrollLeftRef.current = container.scrollLeft;
-            setScrollCloseSignal((signal) => signal + 1);
+            if (scrollCloseTimerRef.current === null) {
+                scrollCloseTimerRef.current = setTimeout(() => {
+                    scrollCloseTimerRef.current = null;
+                    closeTablePopups();
+                }, 16);
+            }
         }
     }
 
-    const sortedColumns = [...columns].sort((a, b) => a.index - b.index);
+    useEffect(() => {
+        return () => {
+            if (scrollCloseTimerRef.current !== null) {
+                clearTimeout(scrollCloseTimerRef.current);
+            }
+        };
+    }, []);
+
     const totalContentWidth =
         DOC_COL_W_PX + sortedColumns.length * DATA_COL_W_PX + 32;
     const skeletonContentWidth =
@@ -141,16 +208,14 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     }));
 
     function getCell(docId: string, colIdx: number) {
-        return cells.find(
-            (c) => c.document_id === docId && c.column_index === colIdx,
-        );
+        return cellsByKey.get(`${docId}:${colIdx}`);
     }
 
     const allSelected =
         documents.length > 0 &&
-        documents.every((d) => selectedDocIds.includes(d.id));
+        documents.every((d) => selectedDocIdSet.has(d.id));
     const someSelected =
-        !allSelected && documents.some((d) => selectedDocIds.includes(d.id));
+        !allSelected && documents.some((d) => selectedDocIdSet.has(d.id));
 
     function toggleAll() {
         if (allSelected) {
@@ -161,7 +226,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     }
 
     function toggleDoc(id: string) {
-        if (selectedDocIds.includes(id)) {
+        if (selectedDocIdSet.has(id)) {
             onSelectionChange(selectedDocIds.filter((x) => x !== id));
         } else {
             onSelectionChange([...selectedDocIds, id]);
@@ -308,7 +373,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                 <span className="truncate">{col.name}</span>
                                 <TREditColumnMenu
                                     column={col}
-                                    closeSignal={scrollCloseSignal}
                                     disabled={savingColumn || savingColumnsConfig}
                                     onSave={onUpdateColumn}
                                     onDelete={onDeleteColumn}
@@ -363,7 +427,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     </div>
                     ))}
                     {documents.map((doc, docIdx) => {
-                    const isSelected = selectedDocIds.includes(doc.id);
+                    const isSelected = selectedDocIdSet.has(doc.id);
                     const rowBg = isSelected
                         ? APP_SURFACE_ACTIVE_CLASS
                         : APP_SURFACE_HOVER_CLASS;
@@ -381,7 +445,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                             >
                                 <input
                                     type="checkbox"
-                                    checked={selectedDocIds.includes(doc.id)}
+                                    checked={selectedDocIdSet.has(doc.id)}
                                     onChange={() => toggleDoc(doc.id)}
                                     className={TABLE_CHECKBOX_CLASS}
                                 />
@@ -394,9 +458,8 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                             </div>
                             {columns.map((col) => {
                                 const cell = getCell(doc.id, col.index);
-                                const colPos = sortedColumns.findIndex(
-                                    (c) => c.index === col.index,
-                                );
+                                const colPos =
+                                    columnPositionByIndex.get(col.index) ?? 0;
                                 const isHighlighted =
                                     highlightedCell?.colIdx === colPos &&
                                     highlightedCell?.rowIdx === docIdx;
@@ -409,23 +472,9 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                             <TabularCellComponent
                                                 cell={cell}
                                                 column={col}
-                                                closeSignal={scrollCloseSignal}
-                                                onExpand={() => onExpand(cell)}
-                                                onCitationClick={(
-                                                    page,
-                                                    quote,
-                                                    citationRef,
-                                                    sheet,
-                                                    citationCell,
-                                                ) =>
-                                                    onCitationClick(
-                                                        cell,
-                                                        page,
-                                                        quote,
-                                                        citationRef,
-                                                        sheet,
-                                                        citationCell,
-                                                    )
+                                                onExpand={handleCellExpand}
+                                                onCitationClick={
+                                                    handleCellCitationClick
                                                 }
                                             />
                                         )}

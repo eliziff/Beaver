@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   streamChat,
@@ -98,21 +98,62 @@ export function useAssistantChat({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const eventsRef = useRef<AssistantEvent[]>([]);
+  const pendingEventsSnapshotRef = useRef<AssistantEvent[] | null>(null);
+  const pendingEventsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const updateLatestAssistantMessage = (
     updater: (message: Message) => Message,
   ) => {
     setMessages((prev) => {
-      const assistantIndex = [...prev]
-        .map((message, index) => ({ message, index }))
-        .reverse()
-        .find(({ message }) => message.role === "assistant")?.index;
-      if (assistantIndex === undefined) return prev;
+      let assistantIndex = -1;
+      for (let index = prev.length - 1; index >= 0; index--) {
+        if (prev[index].role === "assistant") {
+          assistantIndex = index;
+          break;
+        }
+      }
+      if (assistantIndex < 0) return prev;
       const updated = [...prev];
       updated[assistantIndex] = updater(updated[assistantIndex]);
       return updated;
     });
   };
+
+  // Streaming deltas can arrive faster than the browser can paint. Keep the
+  // event ref authoritative, but publish at most once per short frame so the
+  // whole chat tree is not reconciled for every token-sized SSE chunk.
+  const flushPendingEventsSnapshot = () => {
+    if (pendingEventsTimerRef.current !== null) {
+      clearTimeout(pendingEventsTimerRef.current);
+      pendingEventsTimerRef.current = null;
+    }
+    const snapshot = pendingEventsSnapshotRef.current;
+    pendingEventsSnapshotRef.current = null;
+    if (!snapshot) return;
+    updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
+  };
+
+  const scheduleEventsSnapshot = () => {
+    pendingEventsSnapshotRef.current = [...eventsRef.current];
+    if (pendingEventsTimerRef.current !== null) return;
+    pendingEventsTimerRef.current = setTimeout(() => {
+      pendingEventsTimerRef.current = null;
+      const snapshot = pendingEventsSnapshotRef.current;
+      pendingEventsSnapshotRef.current = null;
+      if (!snapshot) return;
+      updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
+    }, 16);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingEventsTimerRef.current !== null) {
+        clearTimeout(pendingEventsTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Finalize any in-flight streaming content event so the next
@@ -125,6 +166,7 @@ export function useAssistantChat({
     const events = eventsRef.current;
     const last = events[events.length - 1];
     if (last?.type === "content" && last.isStreaming) {
+      flushPendingEventsSnapshot();
       eventsRef.current = [
         ...events.slice(0, -1),
         { type: "content", text: last.text },
@@ -144,6 +186,7 @@ export function useAssistantChat({
     const events = eventsRef.current;
     const last = events[events.length - 1];
     if (last?.type !== "reasoning" || !last.isStreaming) return;
+    flushPendingEventsSnapshot();
     eventsRef.current = [
       ...events.slice(0, -1),
       { type: "reasoning", text: last.text },
@@ -182,6 +225,7 @@ export function useAssistantChat({
   const cancel = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      flushPendingEventsSnapshot();
       const snapshot = cancelStreamingEvents(eventsRef.current);
       eventsRef.current = snapshot;
       updateLatestAssistantMessage((message) => ({
@@ -197,6 +241,7 @@ export function useAssistantChat({
     const before = eventsRef.current;
     const after = before.filter((e) => !isStreamingPlaceholder(e));
     if (after.length === before.length) return;
+    flushPendingEventsSnapshot();
     eventsRef.current = after;
     const snapshot = [...after];
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
@@ -207,6 +252,7 @@ export function useAssistantChat({
     const last = events[events.length - 1];
     // Don't stack placeholders back-to-back; one "Thinking…" line is plenty.
     if (last && isStreamingPlaceholder(last)) return;
+    flushPendingEventsSnapshot();
     eventsRef.current = [
       ...events,
       { type: "thinking" as const, isStreaming: true },
@@ -216,6 +262,7 @@ export function useAssistantChat({
   };
 
   const pushEvent = (event: AssistantEvent) => {
+    flushPendingEventsSnapshot();
     finalizeStreamingContent();
     finalizeStreamingReasoning();
     // A real event, or a more specific placeholder such as
@@ -231,11 +278,15 @@ export function useAssistantChat({
     updater: (e: AssistantEvent) => AssistantEvent,
   ) => {
     const events = eventsRef.current;
-    const idx = [...events]
-      .map((_, i) => i)
-      .reverse()
-      .find((i) => predicate(events[i]));
-    if (idx === undefined) return false;
+    let idx = -1;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (predicate(events[i])) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return false;
+    flushPendingEventsSnapshot();
     const newEvents = [...events];
     newEvents[idx] = updater(events[idx]);
     eventsRef.current = newEvents;
@@ -256,6 +307,7 @@ export function useAssistantChat({
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
 
+    flushPendingEventsSnapshot();
     setIsResponseLoading(true);
 
     const lastMessage = messages[messages.length - 1];
@@ -458,11 +510,7 @@ export function useAssistantChat({
                     isStreaming: true,
                   },
                 ];
-                const snapshot = [...eventsRef.current];
-                updateLatestAssistantMessage((message) => ({
-                  ...message,
-                  events: snapshot,
-                }));
+                scheduleEventsSnapshot();
               } else {
                 const nextEvents = [...events];
                 nextEvents[nextEvents.length - 1] = {
@@ -471,11 +519,7 @@ export function useAssistantChat({
                   isStreaming: true,
                 };
                 eventsRef.current = nextEvents;
-                const snapshot = [...nextEvents];
-                updateLatestAssistantMessage((message) => ({
-                  ...message,
-                  events: snapshot,
-                }));
+                scheduleEventsSnapshot();
               }
               continue;
             }
@@ -509,11 +553,7 @@ export function useAssistantChat({
                   },
                 ];
               }
-              const snapshot = [...eventsRef.current];
-              updateLatestAssistantMessage((message) => ({
-                ...message,
-                events: snapshot,
-              }));
+              scheduleEventsSnapshot();
               continue;
             }
 
@@ -529,6 +569,7 @@ export function useAssistantChat({
                   },
                 ];
               }
+              flushPendingEventsSnapshot();
               const snapshot = [...eventsRef.current];
               updateLatestAssistantMessage((message) => ({
                 ...message,
@@ -1157,6 +1198,7 @@ export function useAssistantChat({
               const incoming = (data.citations ??
                 []) as Citation[];
               if (status === "started" || status === "partial") {
+                flushPendingEventsSnapshot();
                 updateLatestAssistantMessage((message) => ({
                   ...message,
                   citations: incoming,
@@ -1190,6 +1232,7 @@ export function useAssistantChat({
         if (done) break;
       }
 
+      flushPendingEventsSnapshot();
       finalizeStreamingReasoning();
       setIsResponseLoading(false);
       setIsLoadingCitations(false);

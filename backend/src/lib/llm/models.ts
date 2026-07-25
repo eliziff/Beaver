@@ -27,6 +27,7 @@ export const OPENAI_MID_MODELS = ["gpt-5.4"] as const;
 export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
+export const CODEX_MAIN_MODELS = ["codex-exec"] as const;
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -42,6 +43,7 @@ const ALL_MODELS = new Set<string>([
     ...CLAUDE_LOW_MODELS,
     ...GEMINI_LOW_MODELS,
     ...OPENAI_LOW_MODELS,
+    ...CODEX_MAIN_MODELS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ export function providerForModel(model: string): Provider {
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
+    if (model.startsWith("codex")) return "codex";
     throw new Error(`Unknown model id: ${model}`);
 }
 
