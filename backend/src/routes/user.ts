@@ -524,15 +524,20 @@ userRouter.get("/lookup", requireAuth, async (req, res) => {
 
 // GET /user/profile
 userRouter.get("/profile", requireAuth, async (_req, res) => {
-    const userId = res.locals.userId as string;
-    const db = createServerSupabase();
-    const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-    const { data, error } = await loadProfile(db, userId, {
-        repairMissing: true,
-        apiKeyStatus,
-    });
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json({ ...data, apiKeyStatus });
+    try {
+        const userId = res.locals.userId as string;
+        const db = createServerSupabase();
+        const apiKeyStatus = await getUserApiKeyStatus(userId, db);
+        const { data, error } = await loadProfile(db, userId, {
+            repairMissing: true,
+            apiKeyStatus,
+        });
+        if (error) return void res.status(500).json({ detail: error.message });
+        res.json({ ...data, apiKeyStatus });
+    } catch (error) {
+        console.error("[user/profile] failed to load profile", error);
+        res.status(500).json({ detail: "Failed to load user profile" });
+    }
 });
 
 // PATCH /user/profile

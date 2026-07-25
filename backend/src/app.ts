@@ -16,6 +16,13 @@ import { caseLawRouter } from "./routes/caseLaw";
 
 export const app = express();
 const isProduction = process.env.NODE_ENV === "production";
+const configuredFrontendUrl =
+  process.env.FRONTEND_URL ?? "http://localhost:3000";
+const allowedDevelopmentFrontendUrls = new Set([
+  configuredFrontendUrl,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]);
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -113,7 +120,17 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:3000",
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        (!isProduction && allowedDevelopmentFrontendUrls.has(origin)) ||
+        (isProduction && origin === configuredFrontendUrl)
+      ) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
