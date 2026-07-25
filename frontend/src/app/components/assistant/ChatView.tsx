@@ -222,6 +222,12 @@ export function ChatView({
     const openCitation = useCallback(
         (citation: Citation, options?: { showQuotes?: boolean }) => {
             const showQuotes = options?.showQuotes ?? true;
+            if (citation.kind === "a2aj") {
+                if (citation.url) {
+                    window.open(citation.url, "_blank", "noopener,noreferrer");
+                }
+                return;
+            }
             if (citation.kind === "case") {
                 if (!chatId) return;
                 upsertTab({

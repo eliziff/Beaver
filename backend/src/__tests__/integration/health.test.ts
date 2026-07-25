@@ -6,6 +6,7 @@ import request from "supertest";
 // though imported modules evaluate before this assignment runs.
 process.env.SUPABASE_URL = "http://supabase.test.local";
 process.env.SUPABASE_SECRET_KEY = "test-service-key";
+process.env.AUTH_MODE = "required";
 
 // Mock the supabase-js client factory so the real requireAuth middleware never
 // makes a network call: auth.getUser() resolves to no user for any token,
@@ -48,6 +49,18 @@ describe("GET /health", () => {
 });
 
 describe("requireAuth middleware", () => {
+    it("accepts protected requests without a token in anonymous mode", async () => {
+        const previousMode = process.env.AUTH_MODE;
+        process.env.AUTH_MODE = "anonymous";
+        try {
+            const res = await request(app).get("/chat");
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual([]);
+        } finally {
+            process.env.AUTH_MODE = previousMode;
+        }
+    });
+
     it("rejects requests with no Authorization header (401)", async () => {
         const res = await request(app).get("/chat");
         expect(res.status).toBe(401);

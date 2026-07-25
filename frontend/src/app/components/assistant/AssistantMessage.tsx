@@ -241,7 +241,7 @@ export function AssistantMessage({
             onOpenCitationSource(citation);
             return;
         }
-        if (citation.kind === "case" || !onOpenDocument) return;
+        if (citation.kind === "case" || citation.kind === "a2aj" || !onOpenDocument) return;
         onOpenDocument({
             documentId: citation.document_id,
             filename: citation.filename,
@@ -251,7 +251,7 @@ export function AssistantMessage({
     };
     const canOpenCitationSource = (citation: Citation) =>
         !!onOpenCitationSource ||
-        (citation.kind !== "case" && !!onOpenDocument);
+        (citation.kind !== "case" && citation.kind !== "a2aj" && !!onOpenDocument);
     const showCitationBlock =
         !!citationStatus || (!isStreaming && citations.length > 0);
     const handleCopy = async () => {
@@ -414,7 +414,7 @@ export function AssistantMessage({
         }
         if (event.type === "doc_read") {
             const ann = citations.find(
-                (a) => a.kind !== "case" && a.filename === event.filename,
+                (a) => a.kind !== "case" && a.kind !== "a2aj" && a.filename === event.filename,
             );
             return (
                 <DocReadBlock

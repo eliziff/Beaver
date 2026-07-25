@@ -17,6 +17,7 @@ import {
     LiquidDropdownRadioItem,
 } from "@/app/components/ui/liquid-dropdown";
 import { PillButton } from "@/app/components/ui/pill-button";
+import { TABLE_SCROLL_CLOSE_EVENT } from "../shared/TablePrimitive";
 
 // Liquid-glass field styling shared by the menu's inputs/controls, matching the
 // modal's glass treatment (translucent white over the light-gray panel).
@@ -100,6 +101,13 @@ export function TREditColumnMenu({
         const timeout = window.setTimeout(() => setOpen(false), 0);
         return () => window.clearTimeout(timeout);
     }, [closeSignal]);
+
+    useEffect(() => {
+        const close = () => setOpen(false);
+        window.addEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
+        return () =>
+            window.removeEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
+    }, []);
 
     useEffect(() => {
         if (!open) {

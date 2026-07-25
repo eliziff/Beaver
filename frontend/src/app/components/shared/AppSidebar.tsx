@@ -8,6 +8,7 @@ import {
     ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { isAnonymousMode } from "@/app/lib/supabase";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useRouter, usePathname } from "next/navigation";
@@ -430,7 +431,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
 
                 {/* User Profile */}
                 <div className="mt-auto p-1">
-                    {user && (
+                    {user && !isAnonymousMode && (
                         <div className="relative">
                             <button
                                 onClick={() =>

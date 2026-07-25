@@ -504,6 +504,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
 
     const handleCitationClick = (citation: Citation) => {
         if (citation.kind === "case") return;
+        if (citation.kind === "a2aj") {
+            if (citation.url) {
+                window.open(citation.url, "_blank", "noopener,noreferrer");
+            }
+            return;
+        }
         openTab(
             citation.document_id,
             citation.filename,

@@ -29,7 +29,8 @@ repository.
 - A Supabase project
 - A Cloudflare R2 bucket, MinIO bucket, or another S3-compatible bucket
 - At least one supported model provider API key: Anthropic, Google Gemini, or OpenAI
-- Optional: a CourtListener API token for case law lookup and citation verification
+- Or a locally authenticated Codex CLI (`codex login`) for the built-in Codex provider
+- Optional: a CourtListener API token for US case law lookup and citation verification
 - LibreOffice installed locally if you need DOC/DOCX to PDF conversion
 
 ## Database Setup
@@ -59,6 +60,8 @@ Create `backend/.env`:
 ```bash
 PORT=3001
 FRONTEND_URL=http://localhost:3000
+AUTH_MODE=anonymous
+ANONYMOUS_USER_ID=00000000-0000-0000-0000-000000000001
 DOWNLOAD_SIGNING_SECRET=replace-with-a-random-32-byte-hex-string
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=your-supabase-service-role-key
@@ -74,7 +77,7 @@ OPENAI_API_KEY=your-openai-key
 RESEND_API_KEY=your-resend-key
 USER_API_KEYS_ENCRYPTION_SECRET=your-long-random-secret
 
-# Optional: enables CourtListener case law and citation tools.
+# Optional: enables CourtListener US case law and citation tools.
 COURTLISTENER_API_TOKEN=your-courtlistener-token
 
 # Optional: use locally imported CourtListener bulk data for faster case reads.
@@ -86,6 +89,7 @@ Create `frontend/.env.local`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-supabase-anon-key
+NEXT_PUBLIC_AUTH_MODE=anonymous
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 ```
 
@@ -93,7 +97,39 @@ Supabase values come from the project dashboard. Use the project URL for `SUPABA
 
 Provider keys are only needed for the models, legal research, and email features you plan to use. Model provider keys and the CourtListener token can be configured in `backend/.env` for the whole instance, or per user in **Account > Models & API Keys**. If a provider key is present in `backend/.env`, that provider is available by default and the matching browser API key field is read-only.
 
-## CourtListener Integration
+Mike also includes a local **Codex (local)** model. It invokes the installed
+`codex exec` CLI in read-only mode with an isolated per-request configuration,
+so it uses the Codex CLI's existing login and does not require another API-key
+field. Set
+`NEXT_PUBLIC_DEFAULT_MODEL=codex-exec` to make it the default model; the local
+environment created for this checkout already does that. For chat turns that
+have Mike tools, the backend starts a short-lived loopback MCP bridge and routes
+Codex tool calls through Mike's existing dispatcher, so document, A2AJ,
+CourtListener, workflow, and connector tools use the same handlers as the other
+providers. Each turn is stateless at the Codex layer (`--ephemeral`); Mike's
+chat history remains the persisted context. When Codex emits reasoning
+summaries, Mike forwards only the safe summary channel to the reasoning UI and
+never exposes raw reasoning content.
+
+### Anonymous local mode
+
+For a local single-user instance that does not use login or signup, set
+`AUTH_MODE=anonymous` in `backend/.env` and
+`NEXT_PUBLIC_AUTH_MODE=anonymous` in `frontend/.env.local`. Mike uses one local
+anonymous identity and skips Supabase Auth. Supabase Postgres is still used for
+chat/document persistence, so `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, the schema,
+and any storage/model keys required by the features you use are still needed.
+This mode is intended for local/private use, not a public deployment.
+
+## Legal research integrations
+
+Mike includes the public [A2AJ Canadian Legal Data API](https://api.a2aj.ca/docs)
+for Canadian case law and legislation. A2AJ requires no API key; the assistant
+uses `a2aj_search` for discovery and `a2aj_fetch` to retrieve source text by
+citation. The existing CourtListener integration remains available for US case
+law and still requires its optional token.
+
+### CourtListener Integration
 
 Mike can use CourtListener for US case law citation verification, case fetching, targeted opinion search, and case-law panels in assistant responses.
 
@@ -136,7 +172,7 @@ Open `http://localhost:3000`.
 
 ## First Run
 
-1. Sign up in the app.
+1. In the default account-backed mode, sign up in the app. In anonymous local mode, skip sign-up and open the assistant directly.
 2. If you did not set provider keys in `backend/.env`, open **Account > Models & API Keys** and add an Anthropic, Gemini, or OpenAI API key.
 3. To use legal research tools, add a CourtListener token in `backend/.env` or **Account > Models & API Keys**.
 4. Create or open a project and start chatting with documents.

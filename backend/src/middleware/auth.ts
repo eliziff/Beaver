@@ -7,6 +7,13 @@ const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
 };
 
+const ANONYMOUS_USER_ID =
+  process.env.ANONYMOUS_USER_ID || "00000000-0000-0000-0000-000000000001";
+
+function isAnonymousMode() {
+  return process.env.AUTH_MODE === "anonymous";
+}
+
 function summarizeMfaFactors(
   factors: Array<{
     factor_type?: string;
@@ -92,6 +99,14 @@ export async function requireAuth(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (isAnonymousMode()) {
+    res.locals.userId = ANONYMOUS_USER_ID;
+    res.locals.userEmail = "anonymous@localhost";
+    res.locals.token = "";
+    next();
+    return;
+  }
+
   const auth = req.headers.authorization ?? "";
   if (!auth.startsWith("Bearer ")) {
     res.status(401).json({ detail: "Missing or invalid Authorization header" });
@@ -143,6 +158,11 @@ export async function requireMfaIfEnrolled(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (isAnonymousMode()) {
+    next();
+    return;
+  }
+
   const token = typeof res.locals.token === "string" ? res.locals.token : "";
   if (!token) {
     devLog("[auth/mfa] missing auth session", {

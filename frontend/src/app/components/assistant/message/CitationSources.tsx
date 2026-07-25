@@ -15,6 +15,9 @@ function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "case") {
         return `case:${annotation.cluster_id}`;
     }
+    if (annotation.kind === "a2aj") {
+        return `a2aj:${annotation.url ?? annotation.citation ?? annotation.ref}`;
+    }
     return `document:${annotation.document_id}`;
 }
 
@@ -24,6 +27,9 @@ function citationSourceLabel(annotation: Citation): string {
         const citation = annotation.citation?.trim();
         if (caseName && citation) return `${caseName}, ${citation}`;
         return caseName || citation || `Case ${annotation.cluster_id}`;
+    }
+    if (annotation.kind === "a2aj") {
+        return annotation.name || annotation.citation || "A2AJ source";
     }
     return annotation.filename;
 }
@@ -39,7 +45,7 @@ function CitationSourceIcon({
 }: {
     annotation: Citation;
 }) {
-    if (annotation.kind === "case") {
+    if (annotation.kind === "case" || annotation.kind === "a2aj") {
         return <Scale className="h-3.5 w-3.5 text-slate-600" />;
     }
     return (
