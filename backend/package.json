@@ -6,6 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "import:a2aj-bulk": "python scripts/import_a2aj_bulk.py",
+    "import:courtlistener-bulk": "python scripts/import_courtlistener_bulk.py",
     "test": "vitest run",
     "test:stack": "bash scripts/test-stack.sh",
     "test:coverage": "vitest run --coverage"

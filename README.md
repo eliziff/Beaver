@@ -81,6 +81,12 @@ USER_API_KEYS_ENCRYPTION_SECRET=your-long-random-secret
 COURTLISTENER_API_TOKEN=your-courtlistener-token
 
 # Optional: use locally imported CourtListener bulk data for faster case reads.
+# Provider databases and caches default to the shared local AppData directory.
+OPEN_LEGAL_DATA_HOME=
+MIKE_A2AJ_BULK_DB=
+MIKE_COURTLISTENER_BULK_DB=
+
+# Legacy Supabase/R2 bulk cache.
 COURTLISTENER_BULK_DATA_ENABLED=false
 ```
 
@@ -126,8 +132,43 @@ This mode is intended for local/private use, not a public deployment.
 Mike includes the public [A2AJ Canadian Legal Data API](https://api.a2aj.ca/docs)
 for Canadian case law and legislation. A2AJ requires no API key; the assistant
 uses `a2aj_search` for discovery and `a2aj_fetch` to retrieve source text by
-citation. The existing CourtListener integration remains available for US case
-law and still requires its optional token.
+citation. TNA Find Case Law, GOV.UK Employment Tribunal decisions, and GovInfo
+USCOURTS records are also available through provider-neutral fetch and pinpoint
+tools. The existing CourtListener integration remains available for US case law
+and still requires its optional token.
+
+### Shared local legal data
+
+All applications use `OpenLegalData/` and the same cross-platform root. On
+Windows this is `%LOCALAPPDATA%\OpenLegalProducts\LegalData`; set
+`OPEN_LEGAL_DATA_HOME` to override it. Provider databases are separate,
+read-only SQLite snapshots under `providers/<provider>/`, while disposable
+caches live under `cache/<provider>/`. Application preferences and generated
+outputs remain app-specific.
+
+SQLite is the only runtime database dependency. Python uses its standard
+library and Mike uses Node 22's built-in SQLite. Parquet libraries are optional
+bulk-import dependencies and are never required to start Mike or perform a
+lookup against an existing database. The full decision is recorded in
+`OpenLegalData/docs/ADR-0001-local-storage-and-runtime.md`.
+
+To inspect the installation:
+
+```powershell
+python -m pip install -e .\OpenLegalData
+open-legal-data doctor --check-write
+```
+
+To create the shared A2AJ database from downloaded A2AJ JSONL or Parquet
+snapshots:
+
+```powershell
+python -m pip install -e '.\OpenLegalData[bulk]'
+open-legal-data import-a2aj C:\bulk\a2aj --fts
+```
+
+JSONL import and all runtime operations are standard-library-only; the `bulk`
+extra is needed only when an input is Parquet.
 
 ### CourtListener Integration
 
@@ -137,13 +178,42 @@ To enable live CourtListener access, set `COURTLISTENER_API_TOKEN` in `backend/.
 
 Fresh databases created from `backend/schema.sql` already include the CourtListener support tables. Existing deployments should apply the matching dated migration in `backend/migrations/` before enabling the feature.
 
-Bulk data is optional. When `COURTLISTENER_BULK_DATA_ENABLED=true`, Mike first tries local Supabase/R2 data before falling back to CourtListener's API:
+Bulk data is optional. For an account-free local copy, download CourtListener's
+official quarterly `citations`, `opinion-clusters`, and `opinions` CSV snapshots
+(`.csv` or `.csv.bz2`) and build one local SQLite database:
+
+```powershell
+python backend/scripts/import_courtlistener_bulk.py `
+  --citations C:\bulk\citations-YYYY-MM-DD.csv.bz2 `
+  --clusters C:\bulk\opinion-clusters-YYYY-MM-DD.csv.bz2 `
+  --opinions C:\bulk\opinions-YYYY-MM-DD.csv.bz2 `
+  --opinion-fts
+```
+
+Omit `--output` to publish to the shared AppData location, or set
+`MIKE_COURTLISTENER_BULK_DB` to an explicit completed database. Restart the
+backend after importing. The importer streams the compressed official files, builds
+indexes in a temporary database, and atomically publishes the completed
+snapshot. Mike uses local SQLite first for citation verification, case-name
+search, cluster metadata, and opinion text, then falls back to the live API for
+misses when a valid token is available. This path requires no Supabase, R2, or
+CourtListener account.
+
+`--opinion-fts` also enables offline full-opinion search, at the cost of a
+substantially larger database and a longer one-time import. Omit it when exact
+citation/case-name lookup and case reading are sufficient.
+
+The older cloud cache remains supported. When
+`COURTLISTENER_BULK_DATA_ENABLED=true`, Mike tries Supabase/R2 after local
+SQLite and before CourtListener's API:
 
 - citation metadata is read from `public.courtlistener_citation_index`
 - case cluster metadata is read from `public.courtlistener_opinion_cluster_index`
 - cached opinion JSON is read from the R2 prefix `courtlistener/opinions/by-cluster/{clusterId}/{opinionId}.json`
 
-If you do not import bulk data, leave `COURTLISTENER_BULK_DATA_ENABLED=false`; live CourtListener tools still work with a valid token, subject to CourtListener rate limits.
+If you do not import bulk data, leave both local bulk settings empty and
+`COURTLISTENER_BULK_DATA_ENABLED=false`; live CourtListener tools still work
+with a valid token, subject to CourtListener rate limits.
 
 ## Install
 
@@ -185,7 +255,13 @@ Open `http://localhost:3000`.
 
 **CourtListener tools say the API token is missing.** Set `COURTLISTENER_API_TOKEN` in `backend/.env`, or add a CourtListener token in **Account > Models & API Keys** for the signed-in user. Restart the backend after changing `.env`.
 
-**CourtListener bulk lookup is not returning local results.** Confirm `COURTLISTENER_BULK_DATA_ENABLED=true`, the two CourtListener tables have been populated, and opinion JSON exists in R2 under `courtlistener/opinions/by-cluster/`. If bulk data is unavailable, Mike falls back to the live API when a token is configured.
+**CourtListener bulk lookup is not returning local results.** For the local
+path, confirm `MIKE_COURTLISTENER_BULK_DB` points to the completed SQLite file
+created by `import_courtlistener_bulk.py`. For the legacy cloud path, confirm
+`COURTLISTENER_BULK_DATA_ENABLED=true`, the two CourtListener tables are
+populated, and opinion JSON exists in R2 under
+`courtlistener/opinions/by-cluster/`. Mike falls back to the live API when a
+valid token is configured.
 
 **DOC or DOCX conversion fails.** Install LibreOffice locally and restart the backend so document conversion commands are available on the process path.
 

@@ -1,42 +1,49 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
-import {
-    createServerSupabase,
-} from "../lib/supabase";
+import { createServerSupabase } from "../lib/supabase";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
-    buildDocContext,
-    buildMessages,
-    enrichWithPriorEvents,
-    buildWorkflowStore,
-    appendAskInputsResponseToLastAssistantMessage,
-    appendAssistantEventsToLastAssistantMessage,
-    AssistantStreamError,
-    buildCancelledAssistantMessage,
-    extractCitations,
-    isAbortError,
-    runLLMStream,
-    stripTransientAssistantEvents,
-    parseAskInputsResponsePayload,
-    type ChatMessage,
+  buildDocContext,
+  buildMessages,
+  enrichWithPriorEvents,
+  buildWorkflowStore,
+  appendAskInputsResponseToLastAssistantMessage,
+  appendAssistantEventsToLastAssistantMessage,
+  AssistantStreamError,
+  buildCancelledAssistantMessage,
+  extractCitations,
+  isAbortError,
+  runLLMStream,
+  stripTransientAssistantEvents,
+  parseAskInputsResponsePayload,
+  type ChatMessage,
 } from "../lib/chat";
 import { completeText, streamCodex } from "../lib/llm";
 import {
-    LOCAL_ASSISTANT_TOOLS,
-    runLocalAssistantTools,
+  LOCAL_ASSISTANT_TOOLS,
+  runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
+import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
+import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
-    getUserModelSettings,
-} from "../lib/userSettings";
+  createCitation,
+  CITATIONS_OPEN_TAG,
+  parseCitations,
+} from "../lib/chat/citations";
+import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
+import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
+import type { LocalCourtlistenerState } from "../lib/chat/localCourtlistenerTools";
+import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
+import { getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 import {
-    appendAnonymousMessage,
-    createAnonymousChat,
-    deleteAnonymousChat,
-    getAnonymousChat,
-    listAnonymousChats,
-    updateAnonymousChatTitle,
+  appendAnonymousMessage,
+  createAnonymousChat,
+  deleteAnonymousChat,
+  getAnonymousChat,
+  listAnonymousChats,
+  updateAnonymousChatTitle,
 } from "../lib/anonymousChatStore";
 
 export const chatRouter = Router();
@@ -44,231 +51,305 @@ export const chatRouter = Router();
 type Db = ReturnType<typeof createServerSupabase>;
 const isDev = process.env.NODE_ENV !== "production";
 const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
+  if (isDev) console.log(...args);
 };
 
 const TITLE_FALLBACK = "Misc. Query";
 
 function normalizeGeneratedTitle(raw: string): string {
-    const title = raw.trim().replace(/^["'`]+|["'`.,:;!?]+$/g, "").trim();
-    if (!title) return TITLE_FALLBACK;
-    return title.slice(0, 80);
+  const title = raw
+    .trim()
+    .replace(/^["'`]+|["'`.,:;!?]+$/g, "")
+    .trim();
+  if (!title) return TITLE_FALLBACK;
+  return title.slice(0, 80);
 }
 
 type AccessibleChat = {
-    id: string;
-    title: string | null;
-    user_id: string;
-    project_id: string | null;
+  id: string;
+  title: string | null;
+  user_id: string;
+  project_id: string | null;
 } & Record<string, unknown>;
 
 function sseWrite(res: import("express").Response, payload: unknown) {
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
 async function streamAnonymousCodex(params: {
-    res: import("express").Response;
-    userId: string;
-    chatId: string | null;
+  res: import("express").Response;
+  userId: string;
+  chatId: string | null;
   messages: ChatMessage[];
   model?: string;
   reasoningEffort?: string;
 }) {
-    const { res, userId, messages } = params;
-    const chat = params.chatId
-        ? getAnonymousChat(userId, params.chatId)
-        : createAnonymousChat(userId);
-    if (!chat) {
-        res.status(404).json({ detail: "Chat not found" });
-        return;
-    }
+  const { res, userId, messages } = params;
+  const chat = params.chatId
+    ? getAnonymousChat(userId, params.chatId)
+    : createAnonymousChat(userId);
+  if (!chat) {
+    res.status(404).json({ detail: "Chat not found" });
+    return;
+  }
 
-    const lastUser = [...messages].reverse().find((message) => {
-        return message.role === "user" && typeof message.content === "string";
+  const lastUser = [...messages].reverse().find((message) => {
+    return message.role === "user" && typeof message.content === "string";
+  });
+  if (lastUser) {
+    appendAnonymousMessage(chat, {
+      role: "user",
+      content: lastUser.content,
+      files: lastUser.files ?? null,
+      workflow: lastUser.workflow ?? null,
     });
-    if (lastUser) {
-        appendAnonymousMessage(chat, {
-            role: "user",
-            content: lastUser.content,
-            files: lastUser.files ?? null,
-            workflow: lastUser.workflow ?? null,
-        });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const streamAbort = new AbortController();
+  let streamFinished = false;
+  res.on("close", () => {
+    if (!streamFinished) streamAbort.abort();
+  });
+
+  let rawText = "";
+  let visibleText = "";
+  let visibleTail = "";
+  let citationsOpen = false;
+  const a2ajLookups: A2AJLocatorLookup[] = [];
+  const a2ajDocuments: A2AJDocument[] = [];
+  const courtlistenerState: LocalCourtlistenerState = {
+    casesByClusterId: new Map(),
+  };
+  const publicLegalState = createPublicLegalSourceState();
+  const streamVisible = (delta: string) => {
+    if (!delta || citationsOpen) return;
+    const combined = visibleTail + delta;
+    const markerIndex = combined.indexOf(CITATIONS_OPEN_TAG);
+    if (markerIndex >= 0) {
+      const visible = combined.slice(0, markerIndex);
+      if (visible) {
+        visibleText += visible;
+        sseWrite(res, { type: "content_delta", text: visible });
+      }
+      visibleTail = "";
+      citationsOpen = true;
+      return;
     }
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    const streamAbort = new AbortController();
-    let streamFinished = false;
-    res.on("close", () => {
-        if (!streamFinished) streamAbort.abort();
+    const retained = Math.min(CITATIONS_OPEN_TAG.length - 1, combined.length);
+    const visible = combined.slice(0, combined.length - retained);
+    visibleTail = combined.slice(combined.length - retained);
+    if (visible) {
+      visibleText += visible;
+      sseWrite(res, { type: "content_delta", text: visible });
+    }
+  };
+  try {
+    sseWrite(res, { type: "chat_id", chatId: chat.id });
+    await streamCodex({
+      model: params.model || "codex-exec",
+      systemPrompt:
+        "The user's local Mike Library is connected through library_list, library_read, and library_find. Use library_list before claiming a Library document is unavailable. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Mike attaches verified pinpoint links automatically.\n\n" +
+        COURTLISTENER_SYSTEM_PROMPT +
+        "\n\n" +
+        PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
+      messages: messages.map((message) => ({
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: message.content ?? "",
+      })),
+      enableThinking: true,
+      reasoningEffort: params.reasoningEffort,
+      abortSignal: streamAbort.signal,
+      tools: LOCAL_ASSISTANT_TOOLS,
+      runTools: (calls) =>
+        runLocalAssistantTools(
+          userId,
+          calls,
+          a2ajLookups,
+          a2ajDocuments,
+          courtlistenerState,
+          publicLegalState,
+        ),
+      callbacks: {
+        onContentDelta: (text: string) => {
+          rawText += text;
+          streamVisible(text);
+        },
+        onReasoningDelta: (text: string) =>
+          sseWrite(res, { type: "reasoning_delta", text }),
+        onReasoningBlockEnd: () =>
+          sseWrite(res, { type: "reasoning_block_end" }),
+        onToolCallStart: (call) =>
+          sseWrite(res, {
+            type: "tool_call_start",
+            name: call.name,
+          }),
+      },
     });
 
-    let fullText = "";
-    try {
-        sseWrite(res, { type: "chat_id", chatId: chat.id });
-        await streamCodex({
-            model: params.model || "codex-exec",
-            systemPrompt:
-                "The user's local Mike Library is connected through library_list, library_read, and library_find. Use library_list before claiming a Library document is unavailable. Use A2AJ tools for Canadian case law and legislation.",
-            messages: messages.map((message) => ({
-                role: message.role === "assistant" ? "assistant" : "user",
-                content: message.content ?? "",
-            })),
-            enableThinking: true,
-            reasoningEffort: params.reasoningEffort,
-            abortSignal: streamAbort.signal,
-            tools: LOCAL_ASSISTANT_TOOLS,
-            runTools: (calls) => runLocalAssistantTools(userId, calls),
-            callbacks: {
-                onContentDelta: (text: string) => {
-                    fullText += text;
-                    sseWrite(res, { type: "content_delta", text });
-                },
-                onReasoningDelta: (text: string) =>
-                    sseWrite(res, { type: "reasoning_delta", text }),
-                onReasoningBlockEnd: () =>
-                    sseWrite(res, { type: "reasoning_block_end" }),
-                onToolCallStart: (call) =>
-                    sseWrite(res, {
-                        type: "tool_call_start",
-                        name: call.name,
-                    }),
-            },
-        });
-
-        appendAnonymousMessage(chat, {
-            role: "assistant",
-            content: fullText
-                ? [{ type: "content", text: fullText }]
-                : [{ type: "error", message: "Codex returned no response." }],
-            citations: null,
-        });
-        if (!chat.title && lastUser?.content) {
-            chat.title = normalizeGeneratedTitle(lastUser.content);
-        }
-        sseWrite(res, { type: "content_done" });
-        sseWrite(res, { type: "citations", status: "final", citations: [] });
-        res.write("data: [DONE]\n\n");
-    } catch (error) {
-        const message = safeErrorMessage(error, "Codex exec failed");
-        console.error("[chat/anonymous-codex]", safeErrorLog(error));
-        if (!res.headersSent) {
-            res.status(502).json({ detail: message });
-        } else if (!streamAbort.signal.aborted) {
-            sseWrite(res, { type: "error", message });
-            res.write("data: [DONE]\n\n");
-        }
-    } finally {
-        streamFinished = true;
-        res.end();
+    if (!citationsOpen && visibleTail) {
+      visibleText += visibleTail;
+      sseWrite(res, { type: "content_delta", text: visibleTail });
+      visibleTail = "";
     }
+    const linkedText = appendA2AJPinpointLinks(
+      visibleText.trimEnd(),
+      a2ajLookups,
+    );
+    const linkDelta = linkedText.slice(visibleText.trimEnd().length);
+    if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
+    visibleText = linkedText;
+    const citations = parseCitations(rawText).map((citation) =>
+      createCitation(
+        citation,
+        {},
+        courtlistenerState.casesByClusterId,
+        a2ajLookups,
+        a2ajDocuments,
+        publicLegalState,
+      ),
+    );
+
+    appendAnonymousMessage(chat, {
+      role: "assistant",
+      content: visibleText
+        ? [{ type: "content", text: visibleText }]
+        : [{ type: "error", message: "Codex returned no response." }],
+      citations,
+    });
+    if (!chat.title && lastUser?.content) {
+      chat.title = normalizeGeneratedTitle(lastUser.content);
+    }
+    sseWrite(res, { type: "content_done" });
+    sseWrite(res, {
+      type: "citations",
+      status: "final",
+      citations,
+    });
+    res.write("data: [DONE]\n\n");
+  } catch (error) {
+    const message = safeErrorMessage(error, "Codex exec failed");
+    console.error("[chat/anonymous-codex]", safeErrorLog(error));
+    if (!res.headersSent) {
+      res.status(502).json({ detail: message });
+    } else if (!streamAbort.signal.aborted) {
+      sseWrite(res, { type: "error", message });
+      res.write("data: [DONE]\n\n");
+    }
+  } finally {
+    streamFinished = true;
+    res.end();
+  }
 }
 
-function parseOptionalProjectId(value: unknown):
-    | { ok: true; provided: boolean; projectId: string | null }
-    | { ok: false; detail: string } {
-    if (value === undefined)
-        return { ok: true, provided: false, projectId: null };
-    if (value === null) return { ok: true, provided: true, projectId: null };
-    if (typeof value !== "string" || !value.trim()) {
-        return {
-            ok: false,
-            detail: "project_id must be a non-empty string or null",
-        };
-    }
-    return { ok: true, provided: true, projectId: value.trim() };
+function parseOptionalProjectId(
+  value: unknown,
+):
+  | { ok: true; provided: boolean; projectId: string | null }
+  | { ok: false; detail: string } {
+  if (value === undefined)
+    return { ok: true, provided: false, projectId: null };
+  if (value === null) return { ok: true, provided: true, projectId: null };
+  if (typeof value !== "string" || !value.trim()) {
+    return {
+      ok: false,
+      detail: "project_id must be a non-empty string or null",
+    };
+  }
+  return { ok: true, provided: true, projectId: value.trim() };
 }
 
-function parseOptionalChatId(value: unknown):
-    | { ok: true; chatId: string | null }
-    | { ok: false; detail: string } {
-    if (value === undefined || value === null) return { ok: true, chatId: null };
-    if (typeof value !== "string" || !value.trim()) {
-        return { ok: false, detail: "chat_id must be a non-empty string" };
-    }
-    return { ok: true, chatId: value.trim() };
+function parseOptionalChatId(
+  value: unknown,
+): { ok: true; chatId: string | null } | { ok: false; detail: string } {
+  if (value === undefined || value === null) return { ok: true, chatId: null };
+  if (typeof value !== "string" || !value.trim()) {
+    return { ok: false, detail: "chat_id must be a non-empty string" };
+  }
+  return { ok: true, chatId: value.trim() };
 }
 
-function parseChatMessages(value: unknown):
-    | { ok: true; messages: ChatMessage[] }
-    | { ok: false; detail: string } {
-    if (!Array.isArray(value) || value.length === 0) {
-        return { ok: false, detail: "messages must be a non-empty array" };
-    }
+function parseChatMessages(
+  value: unknown,
+): { ok: true; messages: ChatMessage[] } | { ok: false; detail: string } {
+  if (!Array.isArray(value) || value.length === 0) {
+    return { ok: false, detail: "messages must be a non-empty array" };
+  }
 
-    for (const message of value) {
-        if (!message || typeof message !== "object" || Array.isArray(message)) {
-            return { ok: false, detail: "messages must contain objects" };
-        }
-        const row = message as Record<string, unknown>;
-        if (typeof row.role !== "string") {
-            return { ok: false, detail: "message.role must be a string" };
-        }
-        if (row.content !== null && typeof row.content !== "string") {
-            return {
-                ok: false,
-                detail: "message.content must be a string or null",
-            };
-        }
+  for (const message of value) {
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      return { ok: false, detail: "messages must contain objects" };
     }
+    const row = message as Record<string, unknown>;
+    if (typeof row.role !== "string") {
+      return { ok: false, detail: "message.role must be a string" };
+    }
+    if (row.content !== null && typeof row.content !== "string") {
+      return {
+        ok: false,
+        detail: "message.content must be a string or null",
+      };
+    }
+  }
 
-    return { ok: true, messages: value as ChatMessage[] };
+  return { ok: true, messages: value as ChatMessage[] };
 }
 
-function parseOptionalModel(value: unknown):
-    | { ok: true; model: string | undefined }
-    | { ok: false; detail: string } {
-    if (value === undefined) return { ok: true, model: undefined };
-    if (typeof value !== "string" || !value.trim()) {
-        return { ok: false, detail: "model must be a non-empty string" };
-    }
-    return { ok: true, model: value.trim() };
+function parseOptionalModel(
+  value: unknown,
+): { ok: true; model: string | undefined } | { ok: false; detail: string } {
+  if (value === undefined) return { ok: true, model: undefined };
+  if (typeof value !== "string" || !value.trim()) {
+    return { ok: false, detail: "model must be a non-empty string" };
+  }
+  return { ok: true, model: value.trim() };
 }
 
 async function validateAccessibleProjectId(
-    projectId: string | null,
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
+  projectId: string | null,
+  userId: string,
+  userEmail: string | null | undefined,
+  db: Db,
 ): Promise<{ ok: true } | { ok: false; status: number; detail: string }> {
-    if (!projectId) return { ok: true };
-    const access = await checkProjectAccess(projectId, userId, userEmail, db);
-    if (!access.ok)
-        return { ok: false, status: 404, detail: "Project not found" };
-    return { ok: true };
+  if (!projectId) return { ok: true };
+  const access = await checkProjectAccess(projectId, userId, userEmail, db);
+  if (!access.ok)
+    return { ok: false, status: 404, detail: "Project not found" };
+  return { ok: true };
 }
 
 async function getAccessibleChat(
-    chatId: string,
-    userId: string,
-    userEmail: string | null | undefined,
-    db: Db,
+  chatId: string,
+  userId: string,
+  userEmail: string | null | undefined,
+  db: Db,
 ): Promise<AccessibleChat | null> {
-    const { data: chat, error } = await db
-        .from("chats")
-        .select("*")
-        .eq("id", chatId)
-        .maybeSingle();
-    if (error || !chat) return null;
+  const { data: chat, error } = await db
+    .from("chats")
+    .select("*")
+    .eq("id", chatId)
+    .maybeSingle();
+  if (error || !chat) return null;
 
-    const row = chat as AccessibleChat;
-    if (row.user_id === userId) return row;
+  const row = chat as AccessibleChat;
+  if (row.user_id === userId) return row;
 
-    if (row.project_id) {
-        const access = await checkProjectAccess(
-            row.project_id,
-            userId,
-            userEmail,
-            db,
-        );
-        if (access.ok) return row;
-    }
+  if (row.project_id) {
+    const access = await checkProjectAccess(
+      row.project_id,
+      userId,
+      userEmail,
+      db,
+    );
+    if (access.ok) return row;
+  }
 
-    return null;
+  return null;
 }
 
 // GET /chat
@@ -278,112 +359,105 @@ async function getAccessibleChat(
 // are merely *shared with* the user are NOT included here — those are
 // listed per-project via GET /projects/:projectId/chats.
 chatRouter.get("/", requireAuth, async (req, res) => {
-    if (isAnonymousLocalMode()) {
-        const userId = res.locals.userId as string;
-        const requestedLimit = Number.parseInt(
-            String(req.query.limit ?? ""),
-            10,
-        );
-        const limit = Number.isFinite(requestedLimit)
-            ? Math.min(Math.max(requestedLimit, 1), 100)
-            : 20;
-        res.json(
-            listAnonymousChats(userId)
-                .slice(0, limit)
-                .map(({ messages: _messages, ...chat }) => chat),
-        );
-        return;
-    }
-    try {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        const requestedLimit = Number.parseInt(
-            String(req.query.limit ?? ""),
-            10,
-        );
-        const limit = Number.isFinite(requestedLimit)
-            ? Math.min(Math.max(requestedLimit, 1), 100)
-            : null;
+  if (isAnonymousLocalMode()) {
+    const userId = res.locals.userId as string;
+    const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 100)
+      : 20;
+    res.json(
+      listAnonymousChats(userId)
+        .slice(0, limit)
+        .map(({ messages: _messages, ...chat }) => chat),
+    );
+    return;
+  }
+  try {
+    const userId = res.locals.userId as string;
+    const db = createServerSupabase();
+    const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 100)
+      : null;
 
-        const { data, error } = await db.rpc("get_chats_overview", {
-            p_user_id: userId,
-            p_limit: limit,
-        });
-        if (error) return void res.status(500).json({ detail: error.message });
-        res.json(data ?? []);
-    } catch (error) {
-        console.error("[chat/list] failed to load chats", error);
-        res.status(500).json({ detail: "Failed to load chats" });
-    }
+    const { data, error } = await db.rpc("get_chats_overview", {
+      p_user_id: userId,
+      p_limit: limit,
+    });
+    if (error) return void res.status(500).json({ detail: error.message });
+    res.json(data ?? []);
+  } catch (error) {
+    console.error("[chat/list] failed to load chats", error);
+    res.status(500).json({ detail: "Failed to load chats" });
+  }
 });
 
 // POST /chat/create
 chatRouter.post("/create", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const userEmail = res.locals.userEmail as string | undefined;
-    const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
-    if (!parsedProjectId.ok) {
-        return void res.status(400).json({ detail: parsedProjectId.detail });
+  const userId = res.locals.userId as string;
+  const userEmail = res.locals.userEmail as string | undefined;
+  const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
+  if (!parsedProjectId.ok) {
+    return void res.status(400).json({ detail: parsedProjectId.detail });
+  }
+  const projectId = parsedProjectId.projectId;
+  if (isAnonymousLocalMode()) {
+    if (projectId) {
+      return void res.status(503).json({
+        detail: "Projects require Supabase persistence in local mode",
+      });
     }
-    const projectId = parsedProjectId.projectId;
-    if (isAnonymousLocalMode()) {
-        if (projectId) {
-            return void res.status(503).json({
-                detail: "Projects require Supabase persistence in local mode",
-            });
-        }
-        const chat = createAnonymousChat(userId);
-        res.json({ id: chat.id });
-        return;
-    }
-    const db = createServerSupabase();
-    const projectAccess = await validateAccessibleProjectId(
-        projectId,
-        userId,
-        userEmail,
-        db,
-    );
-    if (!projectAccess.ok)
-        return void res
-            .status(projectAccess.status)
-            .json({ detail: projectAccess.detail });
+    const chat = createAnonymousChat(userId);
+    res.json({ id: chat.id });
+    return;
+  }
+  const db = createServerSupabase();
+  const projectAccess = await validateAccessibleProjectId(
+    projectId,
+    userId,
+    userEmail,
+    db,
+  );
+  if (!projectAccess.ok)
+    return void res
+      .status(projectAccess.status)
+      .json({ detail: projectAccess.detail });
 
-    const { data, error } = await db
-        .from("chats")
-        .insert({ user_id: userId, project_id: projectId ?? null })
-        .select("id")
-        .single();
+  const { data, error } = await db
+    .from("chats")
+    .insert({ user_id: userId, project_id: projectId ?? null })
+    .select("id")
+    .single();
 
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json({ id: data.id });
+  if (error) return void res.status(500).json({ detail: error.message });
+  res.json({ id: data.id });
 });
 
 // GET /chat/:chatId
 chatRouter.get("/:chatId", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const userEmail = res.locals.userEmail as string | undefined;
-    const { chatId } = req.params;
-    if (isAnonymousLocalMode()) {
-        const chat = getAnonymousChat(userId, chatId);
-        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-        const { messages, ...chatData } = chat;
-        res.json({ chat: chatData, messages });
-        return;
-    }
-    const db = createServerSupabase();
+  const userId = res.locals.userId as string;
+  const userEmail = res.locals.userEmail as string | undefined;
+  const { chatId } = req.params;
+  if (isAnonymousLocalMode()) {
+    const chat = getAnonymousChat(userId, chatId);
+    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+    const { messages, ...chatData } = chat;
+    res.json({ chat: chatData, messages });
+    return;
+  }
+  const db = createServerSupabase();
 
-    const chat = await getAccessibleChat(chatId, userId, userEmail, db);
-    if (!chat)
-        return void res.status(404).json({ detail: "Chat not found" });
+  const chat = await getAccessibleChat(chatId, userId, userEmail, db);
+  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
 
-    const { data: messages } = await db
-        .from("chat_messages")
-        .select("*")
-        .eq("chat_id", chatId)
-        .order("created_at", { ascending: true });
+  const { data: messages } = await db
+    .from("chat_messages")
+    .select("*")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true });
 
-    const hydrated = await hydrateEditStatuses(messages ?? [], db);
-    res.json({ chat, messages: hydrated });
+  const hydrated = await hydrateEditStatuses(messages ?? [], db);
+  res.json({ chat, messages: hydrated });
 });
 
 // Stored doc_edited events capture the `status` at the time the assistant
@@ -391,537 +465,511 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
 // `document_edits.status` is updated but the stored event is not. On chat load
 // we merge the current DB status in so EditCards render with the real state.
 async function hydrateEditStatuses(
-    messages: Record<string, unknown>[],
-    db: ReturnType<typeof createServerSupabase>,
+  messages: Record<string, unknown>[],
+  db: ReturnType<typeof createServerSupabase>,
 ): Promise<Record<string, unknown>[]> {
-    const editIds = new Set<string>();
-    const versionIds = new Set<string>();
-    const collectFromAnnList = (list: unknown) => {
-        if (!Array.isArray(list)) return;
-        for (const a of list as Record<string, unknown>[]) {
-            if (typeof a?.edit_id === "string") editIds.add(a.edit_id);
-            if (typeof a?.version_id === "string")
-                versionIds.add(a.version_id);
-        }
-    };
-    for (const m of messages) {
-        const content = m.content;
-        if (Array.isArray(content)) {
-            for (const ev of content as Record<string, unknown>[]) {
-                if (ev?.type === "doc_edited") {
-                    collectFromAnnList(ev.annotations);
-                    if (typeof ev.version_id === "string")
-                        versionIds.add(ev.version_id);
-                }
-            }
-        }
+  const editIds = new Set<string>();
+  const versionIds = new Set<string>();
+  const collectFromAnnList = (list: unknown) => {
+    if (!Array.isArray(list)) return;
+    for (const a of list as Record<string, unknown>[]) {
+      if (typeof a?.edit_id === "string") editIds.add(a.edit_id);
+      if (typeof a?.version_id === "string") versionIds.add(a.version_id);
     }
-    if (editIds.size === 0 && versionIds.size === 0) return messages;
-
-    // Edit status patch.
-    const statusById = new Map<string, "pending" | "accepted" | "rejected">();
-    if (editIds.size > 0) {
-        const { data: rows } = await db
-            .from("document_edits")
-            .select("id, status")
-            .in("id", Array.from(editIds));
-        for (const r of (rows ?? []) as { id: string; status: string }[]) {
-            if (
-                r.status === "pending" ||
-                r.status === "accepted" ||
-                r.status === "rejected"
-            ) {
-                statusById.set(r.id, r.status);
-            }
+  };
+  for (const m of messages) {
+    const content = m.content;
+    if (Array.isArray(content)) {
+      for (const ev of content as Record<string, unknown>[]) {
+        if (ev?.type === "doc_edited") {
+          collectFromAnnList(ev.annotations);
+          if (typeof ev.version_id === "string") versionIds.add(ev.version_id);
         }
+      }
     }
+  }
+  if (editIds.size === 0 && versionIds.size === 0) return messages;
 
-    // Version-number patch — old stored events don't carry `version_number`
-    // because they predate the schema change. Look it up from
-    // document_versions so the UI can render "V3" chips + download filenames.
-    const versionNumberById = new Map<string, number | null>();
-    if (versionIds.size > 0) {
-        const { data: vrows } = await db
-            .from("document_versions")
-            .select("id, version_number")
-            .in("id", Array.from(versionIds));
-        for (const r of (vrows ?? []) as {
-            id: string;
-            version_number: number | null;
-        }[]) {
-            versionNumberById.set(r.id, r.version_number ?? null);
-        }
+  // Edit status patch.
+  const statusById = new Map<string, "pending" | "accepted" | "rejected">();
+  if (editIds.size > 0) {
+    const { data: rows } = await db
+      .from("document_edits")
+      .select("id, status")
+      .in("id", Array.from(editIds));
+    for (const r of (rows ?? []) as { id: string; status: string }[]) {
+      if (
+        r.status === "pending" ||
+        r.status === "accepted" ||
+        r.status === "rejected"
+      ) {
+        statusById.set(r.id, r.status);
+      }
     }
+  }
 
-    const patchAnnList = (list: unknown): unknown => {
-        if (!Array.isArray(list)) return list;
-        return (list as Record<string, unknown>[]).map((a) => {
-            let next = a;
-            if (typeof a?.edit_id === "string" && statusById.has(a.edit_id)) {
-                next = { ...next, status: statusById.get(a.edit_id) };
-            }
-            if (
-                typeof a?.version_id === "string" &&
-                versionNumberById.has(a.version_id)
-            ) {
-                next = {
-                    ...next,
-                    version_number: versionNumberById.get(a.version_id) ?? null,
-                };
-            }
-            return next;
-        });
-    };
-    return messages.map((m) => {
-        const next: Record<string, unknown> = { ...m };
-        if (Array.isArray(m.content)) {
-            next.content = (m.content as Record<string, unknown>[]).map(
-                (ev) => {
-                    if (ev?.type !== "doc_edited") return ev;
-                    let patched: Record<string, unknown> = {
-                        ...ev,
-                        annotations: patchAnnList(ev.annotations),
-                    };
-                    if (
-                        typeof ev.version_id === "string" &&
-                        versionNumberById.has(ev.version_id)
-                    ) {
-                        patched = {
-                            ...patched,
-                            version_number:
-                                versionNumberById.get(ev.version_id) ?? null,
-                        };
-                    }
-                    return patched;
-                },
-            );
-        }
-        return next;
+  // Version-number patch — old stored events don't carry `version_number`
+  // because they predate the schema change. Look it up from
+  // document_versions so the UI can render "V3" chips + download filenames.
+  const versionNumberById = new Map<string, number | null>();
+  if (versionIds.size > 0) {
+    const { data: vrows } = await db
+      .from("document_versions")
+      .select("id, version_number")
+      .in("id", Array.from(versionIds));
+    for (const r of (vrows ?? []) as {
+      id: string;
+      version_number: number | null;
+    }[]) {
+      versionNumberById.set(r.id, r.version_number ?? null);
+    }
+  }
+
+  const patchAnnList = (list: unknown): unknown => {
+    if (!Array.isArray(list)) return list;
+    return (list as Record<string, unknown>[]).map((a) => {
+      let next = a;
+      if (typeof a?.edit_id === "string" && statusById.has(a.edit_id)) {
+        next = { ...next, status: statusById.get(a.edit_id) };
+      }
+      if (
+        typeof a?.version_id === "string" &&
+        versionNumberById.has(a.version_id)
+      ) {
+        next = {
+          ...next,
+          version_number: versionNumberById.get(a.version_id) ?? null,
+        };
+      }
+      return next;
     });
+  };
+  return messages.map((m) => {
+    const next: Record<string, unknown> = { ...m };
+    if (Array.isArray(m.content)) {
+      next.content = (m.content as Record<string, unknown>[]).map((ev) => {
+        if (ev?.type !== "doc_edited") return ev;
+        let patched: Record<string, unknown> = {
+          ...ev,
+          annotations: patchAnnList(ev.annotations),
+        };
+        if (
+          typeof ev.version_id === "string" &&
+          versionNumberById.has(ev.version_id)
+        ) {
+          patched = {
+            ...patched,
+            version_number: versionNumberById.get(ev.version_id) ?? null,
+          };
+        }
+        return patched;
+      });
+    }
+    return next;
+  });
 }
 
 // PATCH /chat/:chatId
 chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const { chatId } = req.params;
-    const title = (req.body.title ?? "").trim();
-    if (!title)
-        return void res.status(400).json({ detail: "title is required" });
+  const userId = res.locals.userId as string;
+  const { chatId } = req.params;
+  const title = (req.body.title ?? "").trim();
+  if (!title) return void res.status(400).json({ detail: "title is required" });
 
-    if (isAnonymousLocalMode()) {
-        const chat = getAnonymousChat(userId, chatId);
-        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-        updateAnonymousChatTitle(chat, title);
-        res.json({ id: chat.id, title: chat.title });
-        return;
-    }
+  if (isAnonymousLocalMode()) {
+    const chat = getAnonymousChat(userId, chatId);
+    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+    updateAnonymousChatTitle(chat, title);
+    res.json({ id: chat.id, title: chat.title });
+    return;
+  }
 
-    const db = createServerSupabase();
-    const { data, error } = await db
-        .from("chats")
-        .update({ title })
-        .eq("id", chatId)
-        .eq("user_id", userId)
-        .select("id, title")
-        .single();
+  const db = createServerSupabase();
+  const { data, error } = await db
+    .from("chats")
+    .update({ title })
+    .eq("id", chatId)
+    .eq("user_id", userId)
+    .select("id, title")
+    .single();
 
-    if (error || !data)
-        return void res.status(404).json({ detail: "Chat not found" });
-    res.json(data);
+  if (error || !data)
+    return void res.status(404).json({ detail: "Chat not found" });
+  res.json(data);
 });
 
 // DELETE /chat/:chatId
 chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const { chatId } = req.params;
-    if (isAnonymousLocalMode()) {
-        if (!deleteAnonymousChat(userId, chatId)) {
-            return void res.status(404).json({ detail: "Chat not found" });
-        }
-        res.status(204).send();
-        return;
+  const userId = res.locals.userId as string;
+  const { chatId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!deleteAnonymousChat(userId, chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
-    const db = createServerSupabase();
-    const { error } = await db
-        .from("chats")
-        .delete()
-        .eq("id", chatId)
-        .eq("user_id", userId);
-
-    if (error) return void res.status(500).json({ detail: error.message });
     res.status(204).send();
+    return;
+  }
+  const db = createServerSupabase();
+  const { error } = await db
+    .from("chats")
+    .delete()
+    .eq("id", chatId)
+    .eq("user_id", userId);
+
+  if (error) return void res.status(500).json({ detail: error.message });
+  res.status(204).send();
 });
 
 // POST /chat/:chatId/generate-title
 chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const userEmail = res.locals.userEmail as string | undefined;
-    const { chatId } = req.params;
-    const message =
-        typeof req.body?.message === "string" ? req.body.message.trim() : "";
-    if (!message)
-        return void res.status(400).json({ detail: "message is required" });
+  const userId = res.locals.userId as string;
+  const userEmail = res.locals.userEmail as string | undefined;
+  const { chatId } = req.params;
+  const message =
+    typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message)
+    return void res.status(400).json({ detail: "message is required" });
 
-    if (isAnonymousLocalMode()) {
-        const chat = getAnonymousChat(userId, chatId);
-        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-        const title = normalizeGeneratedTitle(message);
-        updateAnonymousChatTitle(chat, title);
-        res.json({ title });
-        return;
-    }
+  if (isAnonymousLocalMode()) {
+    const chat = getAnonymousChat(userId, chatId);
+    if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+    const title = normalizeGeneratedTitle(message);
+    updateAnonymousChatTitle(chat, title);
+    res.json({ title });
+    return;
+  }
 
-    const db = createServerSupabase();
-    const chat = await getAccessibleChat(chatId, userId, userEmail, db);
-    if (!chat)
-        return void res.status(404).json({ detail: "Chat not found" });
+  const db = createServerSupabase();
+  const chat = await getAccessibleChat(chatId, userId, userEmail, db);
+  if (!chat) return void res.status(404).json({ detail: "Chat not found" });
 
-    try {
-        const { title_model, api_keys } = await getUserModelSettings(
-            userId,
-            db,
-        );
-        const titleText = await completeText({
-            model: title_model,
-            user: `Generate a concise title (3–6 words) for a chat in an AI Legal Platform that starts with this message. The title should describe the topic or document — do NOT include words like "Legal Assistant", "AI", "Chat", or any similar prefix. If there is not enough information to generate a title, return exactly "${TITLE_FALLBACK}". Return only the title, no quotes or punctuation.\n\nMessage: ${message.slice(0, 500)}`,
-            maxTokens: 64,
-            apiKeys: api_keys,
-        });
-        const title = normalizeGeneratedTitle(titleText);
+  try {
+    const { title_model, api_keys } = await getUserModelSettings(userId, db);
+    const titleText = await completeText({
+      model: title_model,
+      user: `Generate a concise title (3–6 words) for a chat in an AI Legal Platform that starts with this message. The title should describe the topic or document — do NOT include words like "Legal Assistant", "AI", "Chat", or any similar prefix. If there is not enough information to generate a title, return exactly "${TITLE_FALLBACK}". Return only the title, no quotes or punctuation.\n\nMessage: ${message.slice(0, 500)}`,
+      maxTokens: 64,
+      apiKeys: api_keys,
+    });
+    const title = normalizeGeneratedTitle(titleText);
 
-        await db
-            .from("chats")
-            .update({ title })
-            .eq("id", chatId);
+    await db.from("chats").update({ title }).eq("id", chatId);
 
-        res.json({ title });
-    } catch (err) {
-        console.error("[generate-title]", safeErrorLog(err));
-        res.status(500).json({ detail: "Failed to generate title" });
-    }
+    res.json({ title });
+  } catch (err) {
+    console.error("[generate-title]", safeErrorLog(err));
+    res.status(500).json({ detail: "Failed to generate title" });
+  }
 });
 
 // POST /chat — streaming
 chatRouter.post("/", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const body =
-        req.body && typeof req.body === "object" && !Array.isArray(req.body)
-            ? (req.body as Record<string, unknown>)
-            : {};
-    const parsedMessages = parseChatMessages(body.messages);
-    if (!parsedMessages.ok) {
-        return void res.status(400).json({ detail: parsedMessages.detail });
+  const userId = res.locals.userId as string;
+  const body =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const parsedMessages = parseChatMessages(body.messages);
+  if (!parsedMessages.ok) {
+    return void res.status(400).json({ detail: parsedMessages.detail });
+  }
+  const parsedChatId = parseOptionalChatId(body.chat_id);
+  if (!parsedChatId.ok) {
+    return void res.status(400).json({ detail: parsedChatId.detail });
+  }
+  const parsedProjectId = parseOptionalProjectId(body.project_id);
+  if (!parsedProjectId.ok) {
+    return void res.status(400).json({ detail: parsedProjectId.detail });
+  }
+  const parsedModel = parseOptionalModel(body.model);
+  if (!parsedModel.ok) {
+    return void res.status(400).json({ detail: parsedModel.detail });
+  }
+  const askInputsResponse = parseAskInputsResponsePayload(
+    body.ask_inputs_response,
+  );
+
+  const messages = parsedMessages.messages;
+  const chat_id = parsedChatId.chatId;
+  const project_id = parsedProjectId.projectId;
+  const model = parsedModel.model;
+  const reasoningEffort =
+    typeof body.reasoning_effort === "string"
+      ? body.reasoning_effort.trim().slice(0, 32) || undefined
+      : undefined;
+
+  if (isAnonymousLocalMode()) {
+    if (project_id) {
+      return void res.status(503).json({
+        detail: "Project chat requires Supabase persistence in local mode",
+      });
     }
-    const parsedChatId = parseOptionalChatId(body.chat_id);
-    if (!parsedChatId.ok) {
-        return void res.status(400).json({ detail: parsedChatId.detail });
+    if (model && !model.startsWith("codex")) {
+      return void res.status(503).json({
+        detail: "Local mode supports the Codex model only",
+      });
     }
-    const parsedProjectId = parseOptionalProjectId(body.project_id);
-    if (!parsedProjectId.ok) {
-        return void res.status(400).json({ detail: parsedProjectId.detail });
+    await streamAnonymousCodex({
+      res,
+      userId: res.locals.userId as string,
+      chatId: chat_id,
+      messages,
+      model,
+      reasoningEffort,
+    });
+    return;
+  }
+
+  devLog("[chat/stream] incoming request", {
+    userId,
+    chat_id,
+    project_id,
+    model,
+    messageCount: messages?.length,
+  });
+
+  const userEmail = res.locals.userEmail as string | undefined;
+  const db = createServerSupabase();
+  let chatId = chat_id ?? null;
+  let chatTitle: string | null = null;
+  let resolvedProjectId: string | null = parsedProjectId.projectId;
+
+  if (chatId) {
+    const existing = await getAccessibleChat(chatId, userId, userEmail, db);
+    if (!existing)
+      return void res.status(404).json({ detail: "Chat not found" });
+
+    const existingProjectId = existing.project_id ?? null;
+    if (
+      parsedProjectId.provided &&
+      parsedProjectId.projectId !== existingProjectId
+    ) {
+      return void res
+        .status(400)
+        .json({ detail: "project_id does not match chat" });
     }
-    const parsedModel = parseOptionalModel(body.model);
-    if (!parsedModel.ok) {
-        return void res.status(400).json({ detail: parsedModel.detail });
-    }
-    const askInputsResponse = parseAskInputsResponsePayload(
-        body.ask_inputs_response,
+    resolvedProjectId = existingProjectId;
+    chatTitle = existing.title;
+  }
+
+  if (!chatId) {
+    // If creating a chat tied to a project, the user must have access
+    // to the project (own or shared).
+    const projectAccess = await validateAccessibleProjectId(
+      resolvedProjectId,
+      userId,
+      userEmail,
+      db,
     );
+    if (!projectAccess.ok)
+      return void res
+        .status(projectAccess.status)
+        .json({ detail: projectAccess.detail });
 
-    const messages = parsedMessages.messages;
-    const chat_id = parsedChatId.chatId;
-    const project_id = parsedProjectId.projectId;
-    const model = parsedModel.model;
-    const reasoningEffort =
-        typeof body.reasoning_effort === "string"
-            ? body.reasoning_effort.trim().slice(0, 32) || undefined
-            : undefined;
-
-    if (isAnonymousLocalMode()) {
-        if (project_id) {
-            return void res.status(503).json({
-                detail: "Project chat requires Supabase persistence in local mode",
-            });
-        }
-        if (model && !model.startsWith("codex")) {
-            return void res.status(503).json({
-                detail: "Local mode supports the Codex model only",
-            });
-        }
-        await streamAnonymousCodex({
-            res,
-            userId: res.locals.userId as string,
-            chatId: chat_id,
-            messages,
-            model,
-            reasoningEffort,
-        });
-        return;
+    const { data: newChat, error } = await db
+      .from("chats")
+      .insert({ user_id: userId, project_id: resolvedProjectId })
+      .select("id, title")
+      .single();
+    if (error || !newChat) {
+      console.error("[chat/stream] failed to create chat", error);
+      return void res.status(500).json({ detail: "Failed to create chat" });
     }
+    chatId = newChat.id as string;
+    chatTitle = newChat.title;
+  }
 
-    devLog("[chat/stream] incoming request", {
-        userId,
-        chat_id,
-        project_id,
-        model,
-        messageCount: messages?.length,
+  devLog("[chat/stream] resolved chatId", chatId);
+
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (askInputsResponse) {
+    await appendAskInputsResponseToLastAssistantMessage(
+      db,
+      chatId,
+      askInputsResponse,
+    );
+  } else if (lastUser) {
+    await db.from("chat_messages").insert({
+      chat_id: chatId,
+      role: "user",
+      content: lastUser.content,
+      files: lastUser.files ?? null,
+      workflow: lastUser.workflow ?? null,
+    });
+  }
+
+  const { docIndex, docStore } = await buildDocContext(
+    messages,
+    userId,
+    db,
+    chatId,
+  );
+  const docAvailability = Object.entries(docIndex).map(([doc_id, info]) => ({
+    doc_id,
+    filename: info.filename,
+  }));
+  const enrichedMessages = await enrichWithPriorEvents(
+    messages,
+    chatId,
+    db,
+    docIndex,
+  );
+  const { api_keys: apiKeys, legal_research_us: legalResearchUs } =
+    await getUserModelSettings(userId, db);
+  const apiMessages = buildMessages(
+    enrichedMessages,
+    docAvailability,
+    undefined,
+    undefined,
+    legalResearchUs,
+  );
+
+  const workflowStore = await buildWorkflowStore(userId, userEmail, db);
+
+  devLog("[chat/stream] starting LLM stream", {
+    apiMessageCount: apiMessages.length,
+    docCount: Object.keys(docIndex).length,
+    workflowCount: Object.keys(workflowStore).length,
+  });
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const write = (line: string) => res.write(line);
+  const streamAbort = new AbortController();
+  let streamFinished = false;
+  res.on("close", () => {
+    if (!streamFinished) streamAbort.abort();
+  });
+
+  try {
+    write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
+
+    const { fullText, events, citations } = await runLLMStream({
+      apiMessages,
+      docStore,
+      docIndex,
+      userId,
+      db,
+      write,
+      workflowStore,
+      includeResearchTools: legalResearchUs,
+      model,
+      apiKeys,
+      reasoningEffort,
+      signal: streamAbort.signal,
+      projectId: resolvedProjectId,
     });
 
-    const userEmail = res.locals.userEmail as string | undefined;
-    const db = createServerSupabase();
-    let chatId = chat_id ?? null;
-    let chatTitle: string | null = null;
-    let resolvedProjectId: string | null = parsedProjectId.projectId;
+    devLog("[chat/stream] LLM stream finished", {
+      fullTextLen: fullText?.length ?? 0,
+      eventCount: events?.length ?? 0,
+    });
 
-    if (chatId) {
-        const existing = await getAccessibleChat(chatId, userId, userEmail, db);
-        if (!existing)
-            return void res.status(404).json({ detail: "Chat not found" });
-
-        const existingProjectId = existing.project_id ?? null;
-        if (
-            parsedProjectId.provided &&
-            parsedProjectId.projectId !== existingProjectId
-        ) {
-            return void res
-                .status(400)
-                .json({ detail: "project_id does not match chat" });
-        }
-        resolvedProjectId = existingProjectId;
-        chatTitle = existing.title;
-    }
-
-    if (!chatId) {
-        // If creating a chat tied to a project, the user must have access
-        // to the project (own or shared).
-        const projectAccess = await validateAccessibleProjectId(
-            resolvedProjectId,
-            userId,
-            userEmail,
-            db,
-        );
-        if (!projectAccess.ok)
-            return void res
-                .status(projectAccess.status)
-                .json({ detail: projectAccess.detail });
-
-        const { data: newChat, error } = await db
-            .from("chats")
-            .insert({ user_id: userId, project_id: resolvedProjectId })
-            .select("id, title")
-            .single();
-        if (error || !newChat) {
-            console.error("[chat/stream] failed to create chat", error);
-            return void res
-                .status(500)
-                .json({ detail: "Failed to create chat" });
-        }
-        chatId = newChat.id as string;
-        chatTitle = newChat.title;
-    }
-
-    devLog("[chat/stream] resolved chatId", chatId);
-
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const persistedEvents = stripTransientAssistantEvents(events);
     if (askInputsResponse) {
-        await appendAskInputsResponseToLastAssistantMessage(
-            db,
-            chatId,
-            askInputsResponse,
-        );
-    } else if (lastUser) {
-        await db.from("chat_messages").insert({
-            chat_id: chatId,
-            role: "user",
-            content: lastUser.content,
-            files: lastUser.files ?? null,
-            workflow: lastUser.workflow ?? null,
-        });
+      await appendAssistantEventsToLastAssistantMessage(
+        db,
+        chatId,
+        persistedEvents,
+        citations,
+      );
+    } else {
+      await db.from("chat_messages").insert({
+        chat_id: chatId,
+        role: "assistant",
+        content: persistedEvents.length ? persistedEvents : null,
+        citations: citations.length ? citations : null,
+      });
     }
 
-    const { docIndex, docStore } = await buildDocContext(
-        messages,
-        userId,
-        db,
-        chatId,
-    );
-    const docAvailability = Object.entries(docIndex).map(([doc_id, info]) => ({
-        doc_id,
-        filename: info.filename,
-    }));
-    const enrichedMessages = await enrichWithPriorEvents(
-        messages,
-        chatId,
-        db,
-        docIndex,
-    );
-    const {
-        api_keys: apiKeys,
-        legal_research_us: legalResearchUs,
-    } = await getUserModelSettings(userId, db);
-    const apiMessages = buildMessages(
-        enrichedMessages,
-        docAvailability,
-        undefined,
-        undefined,
-        legalResearchUs,
-    );
-
-    const workflowStore = await buildWorkflowStore(userId, userEmail, db);
-
-    devLog("[chat/stream] starting LLM stream", {
-        apiMessageCount: apiMessages.length,
-        docCount: Object.keys(docIndex).length,
-        workflowCount: Object.keys(workflowStore).length,
-    });
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    const write = (line: string) => res.write(line);
-    const streamAbort = new AbortController();
-    let streamFinished = false;
-    res.on("close", () => {
-        if (!streamFinished) streamAbort.abort();
-    });
-
-    try {
-        write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
-
-        const { fullText, events, citations } = await runLLMStream({
-            apiMessages,
-            docStore,
-            docIndex,
-            userId,
-            db,
-            write,
-            workflowStore,
-            includeResearchTools: legalResearchUs,
-            model,
-            apiKeys,
-            reasoningEffort,
-            signal: streamAbort.signal,
-            projectId: resolvedProjectId,
+    if (!chatTitle && lastUser?.content) {
+      await db
+        .from("chats")
+        .update({ title: lastUser.content.slice(0, 120) })
+        .eq("id", chatId);
+    }
+  } catch (err) {
+    if (isAbortError(err)) {
+      devLog("[chat/stream] client aborted stream", { chatId });
+      if (err instanceof AssistantStreamError) {
+        const partial = buildCancelledAssistantMessage({
+          fullText: err.fullText,
+          events: err.events,
+          buildCitations: (fullText, events) =>
+            extractCitations(fullText, docIndex, events),
         });
-
-        devLog("[chat/stream] LLM stream finished", {
-            fullTextLen: fullText?.length ?? 0,
-            eventCount: events?.length ?? 0,
-        });
-
-        const persistedEvents = stripTransientAssistantEvents(events);
-        if (askInputsResponse) {
-            await appendAssistantEventsToLastAssistantMessage(
-                db,
-                chatId,
-                persistedEvents,
-                citations,
-            );
-        } else {
-            await db.from("chat_messages").insert({
+        const saveError = askInputsResponse
+          ? null
+          : (
+              await db.from("chat_messages").insert({
                 chat_id: chatId,
                 role: "assistant",
-                content: persistedEvents.length ? persistedEvents : null,
-                citations: citations.length ? citations : null,
-            });
+                content: partial.events.length ? partial.events : null,
+                citations: partial.citations.length ? partial.citations : null,
+              })
+            ).error;
+        if (askInputsResponse) {
+          await appendAssistantEventsToLastAssistantMessage(
+            db,
+            chatId,
+            partial.events,
+            partial.citations,
+          );
         }
-
-        if (!chatTitle && lastUser?.content) {
-            await db
-                .from("chats")
-                .update({ title: lastUser.content.slice(0, 120) })
-                .eq("id", chatId);
+        if (saveError) {
+          console.error(
+            "[chat/stream] failed to save aborted stream",
+            saveError,
+          );
         }
-    } catch (err) {
-        if (isAbortError(err)) {
-            devLog("[chat/stream] client aborted stream", { chatId });
-            if (err instanceof AssistantStreamError) {
-                const partial = buildCancelledAssistantMessage({
-                    fullText: err.fullText,
-                    events: err.events,
-                    buildCitations: (fullText, events) =>
-                        extractCitations(fullText, docIndex, events),
-                });
-                const saveError = askInputsResponse
-                    ? null
-                    : (
-                          await db.from("chat_messages").insert({
-                              chat_id: chatId,
-                              role: "assistant",
-                              content: partial.events.length
-                                  ? partial.events
-                                  : null,
-                              citations: partial.citations.length
-                                  ? partial.citations
-                                  : null,
-                          })
-                      ).error;
-                if (askInputsResponse) {
-                    await appendAssistantEventsToLastAssistantMessage(
-                        db,
-                        chatId,
-                        partial.events,
-                        partial.citations,
-                    );
-                }
-                if (saveError) {
-                    console.error(
-                        "[chat/stream] failed to save aborted stream",
-                        saveError,
-                    );
-                }
-            }
-            return;
-        }
-        console.error("[chat/stream] error:", safeErrorLog(err));
-        const message = safeErrorMessage(err, "Stream error");
-        const errorEvents = err instanceof AssistantStreamError
-            ? stripTransientAssistantEvents(err.events)
-            : [{ type: "error" as const, message }];
-        const errorFullText =
-            err instanceof AssistantStreamError ? err.fullText : "";
-        try {
-            const citations = extractCitations(
-                errorFullText,
-                docIndex,
-                errorEvents,
-            );
-            const saveError = askInputsResponse
-                ? null
-                : (
-                      await db.from("chat_messages").insert({
-                          chat_id: chatId,
-                          role: "assistant",
-                          content: errorEvents.length ? errorEvents : null,
-                          citations: citations.length ? citations : null,
-                      })
-                  ).error;
-            if (askInputsResponse) {
-                await appendAssistantEventsToLastAssistantMessage(
-                    db,
-                    chatId,
-                    errorEvents,
-                    citations,
-                );
-            }
-            if (saveError)
-                console.error("[chat/stream] failed to save error", saveError);
-        } catch (saveErr) {
-            console.error("[chat/stream] failed to save error", saveErr);
-        }
-        try {
-            write(
-                `data: ${JSON.stringify({ type: "error", message })}\n\n`,
-            );
-            write("data: [DONE]\n\n");
-        } catch {
-            /* ignore */
-        }
-    } finally {
-        streamFinished = true;
-        res.end();
+      }
+      return;
     }
+    console.error("[chat/stream] error:", safeErrorLog(err));
+    const message = safeErrorMessage(err, "Stream error");
+    const errorEvents =
+      err instanceof AssistantStreamError
+        ? stripTransientAssistantEvents(err.events)
+        : [{ type: "error" as const, message }];
+    const errorFullText =
+      err instanceof AssistantStreamError ? err.fullText : "";
+    try {
+      const citations = extractCitations(errorFullText, docIndex, errorEvents);
+      const saveError = askInputsResponse
+        ? null
+        : (
+            await db.from("chat_messages").insert({
+              chat_id: chatId,
+              role: "assistant",
+              content: errorEvents.length ? errorEvents : null,
+              citations: citations.length ? citations : null,
+            })
+          ).error;
+      if (askInputsResponse) {
+        await appendAssistantEventsToLastAssistantMessage(
+          db,
+          chatId,
+          errorEvents,
+          citations,
+        );
+      }
+      if (saveError)
+        console.error("[chat/stream] failed to save error", saveError);
+    } catch (saveErr) {
+      console.error("[chat/stream] failed to save error", saveErr);
+    }
+    try {
+      write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
+      write("data: [DONE]\n\n");
+    } catch {
+      /* ignore */
+    }
+  } finally {
+    streamFinished = true;
+    res.end();
+  }
 });

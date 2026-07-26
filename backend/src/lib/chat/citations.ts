@@ -1,4 +1,15 @@
 import { type DocIndex, resolveDoc } from "./types";
+import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
+import {
+  buildA2AJCitationPinpointUrl,
+  buildCourtlistenerCitationPinpointUrl,
+} from "../legalSourceLinks";
+import {
+  buildPublicLegalCitationUrl,
+  getPublicLegalCitationDocument,
+  type PublicLegalCitationIdentity,
+  type PublicLegalSourceState,
+} from "./publicLegalSourceState";
 
 // ---------------------------------------------------------------------------
 // Internal citation parse types
@@ -46,10 +57,16 @@ type ParsedA2AJCitation = {
   quotes: { quote: string }[];
 };
 
+type ParsedPublicLegalCitation = PublicLegalCitationIdentity & {
+  kind: "public_legal";
+  ref: number;
+};
+
 type ParsedCitation =
   | ParsedDocumentCitation
   | ParsedCaseCitation
-  | ParsedA2AJCitation;
+  | ParsedA2AJCitation
+  | ParsedPublicLegalCitation;
 
 function normalizeCitation(raw: unknown): ParsedCitation | null {
   if (!raw || typeof raw !== "object") return null;
@@ -67,6 +84,43 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
   if (typeof ref !== "number") return null;
   const quote = typeof c.quote === "string" ? c.quote : c.text;
 
+  if (c.source === "public_legal" || c.kind === "public_legal") {
+    const provider =
+      c.provider === "tna" ||
+      c.provider === "govuk-et" ||
+      c.provider === "govinfo"
+        ? c.provider
+        : null;
+    const identifier =
+      typeof c.identifier === "string" && c.identifier.trim()
+        ? c.identifier.trim()
+        : null;
+    const quotes = Array.isArray(c.quotes)
+      ? c.quotes
+          .slice(0, 3)
+          .map((raw) => {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw))
+              return null;
+            const value = (raw as Record<string, unknown>).quote;
+            return typeof value === "string" && value.trim()
+              ? { quote: value }
+              : null;
+          })
+          .filter((value): value is { quote: string } => !!value)
+      : [];
+    if (!quotes.length && typeof quote === "string" && quote.trim()) {
+      quotes.push({ quote });
+    }
+    if (!provider || !identifier || !quotes.length) return null;
+    return {
+      kind: "public_legal",
+      ref,
+      provider,
+      identifier,
+      quotes,
+    };
+  }
+
   if (c.source === "a2aj" || c.kind === "a2aj") {
     const citation =
       typeof c.citation === "string" && c.citation.trim()
@@ -76,7 +130,8 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
       ? c.quotes
           .slice(0, 3)
           .map((raw) => {
-            if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+            if (!raw || typeof raw !== "object" || Array.isArray(raw))
+              return null;
             const value = (raw as Record<string, unknown>).quote;
             return typeof value === "string" && value.trim()
               ? { quote: value }
@@ -141,9 +196,10 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
 }
 
 /** Pull an optional spreadsheet `{sheet, cell}` locator off a raw object. */
-function normalizeCellLocator(
-  c: Record<string, unknown>,
-): { sheet?: string; cell?: string } {
+function normalizeCellLocator(c: Record<string, unknown>): {
+  sheet?: string;
+  cell?: string;
+} {
   const out: { sheet?: string; cell?: string } = {};
   if (typeof c.sheet === "string" && c.sheet.trim()) out.sheet = c.sheet.trim();
   if (typeof c.cell === "string" && c.cell.trim()) out.cell = c.cell.trim();
@@ -209,7 +265,9 @@ function normalizeCaseCitationQuotes(c: Record<string, unknown>) {
       };
     })
     .filter(
-      (quote): quote is {
+      (
+        quote,
+      ): quote is {
         opinionId: number | null;
         type: string | null;
         author: string | null;
@@ -238,7 +296,10 @@ export function parseCitationsWithDiagnostics(text: string): {
 } {
   const match = text.match(CITATIONS_BLOCK_RE);
   if (!match) {
-    return { citations: [], diagnostics: { hasBlock: false, rawLength: 0, error: null } };
+    return {
+      citations: [],
+      diagnostics: { hasBlock: false, rawLength: 0, error: null },
+    };
   }
   const raw = match[1] ?? "";
   try {
@@ -246,11 +307,17 @@ export function parseCitationsWithDiagnostics(text: string): {
     if (!Array.isArray(parsed)) {
       return {
         citations: [],
-        diagnostics: { hasBlock: true, rawLength: raw.length, error: "CITATIONS block JSON was not an array." },
+        diagnostics: {
+          hasBlock: true,
+          rawLength: raw.length,
+          error: "CITATIONS block JSON was not an array.",
+        },
       };
     }
     return {
-      citations: parsed.map(normalizeCitation).filter((c): c is ParsedCitation => c !== null),
+      citations: parsed
+        .map(normalizeCitation)
+        .filter((c): c is ParsedCitation => c !== null),
       diagnostics: { hasBlock: true, rawLength: raw.length, error: null },
     };
   } catch (error) {
@@ -282,9 +349,18 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
 
   for (let i = arrayStart + 1; i < beforeClose.length; i += 1) {
     const char = beforeClose[i];
-    if (escaped) { escaped = false; continue; }
-    if (char === "\\") { escaped = inString; continue; }
-    if (char === '"') { inString = !inString; continue; }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (char === "{") {
       if (depth === 0) objectStart = i;
@@ -297,7 +373,9 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
           const raw = JSON.parse(beforeClose.slice(objectStart, i + 1));
           const citation = normalizeCitation(raw);
           if (citation) parsed.push(citation);
-        } catch { /* ignore incomplete/malformed partial object */ }
+        } catch {
+          /* ignore incomplete/malformed partial object */
+        }
         objectStart = -1;
       }
     } else if (char === "]" && depth === 0) {
@@ -307,19 +385,39 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
   return parsed;
 }
 
-type CasesByClusterId = Map<number, {
-  caseName: string | null;
-  citations: string[];
-  url: string | null;
-  pdfUrl: string | null;
-  dateFiled: string | null;
-}>;
+type CasesByClusterId = Map<
+  number,
+  {
+    caseName: string | null;
+    citations: string[];
+    url: string | null;
+    pdfUrl: string | null;
+    dateFiled: string | null;
+    opinions?: unknown[];
+  }
+>;
 
 export function createCitation(
   citation: ParsedCitation,
   docIndex: DocIndex,
   casesByClusterId?: CasesByClusterId,
+  a2ajLookups: A2AJLocatorLookup[] = [],
+  a2ajDocuments: A2AJDocument[] = [],
+  publicLegalState?: PublicLegalSourceState,
 ) {
+  if (citation.kind === "public_legal") {
+    const document = getPublicLegalCitationDocument(citation, publicLegalState);
+    return {
+      type: "citation_data",
+      kind: "public_legal",
+      ref: citation.ref,
+      provider: citation.provider,
+      identifier: document?.identity ?? citation.identifier,
+      title: document?.title ?? null,
+      url: buildPublicLegalCitationUrl(citation, publicLegalState),
+      quotes: citation.quotes,
+    };
+  }
   if (citation.kind === "a2aj") {
     return {
       type: "citation_data",
@@ -328,7 +426,7 @@ export function createCitation(
       citation: citation.citation,
       name: citation.name,
       dataset: citation.dataset,
-      url: citation.url,
+      url: buildA2AJCitationPinpointUrl(citation, a2ajLookups, a2ajDocuments),
       quotes: citation.quotes,
     };
   }
@@ -341,7 +439,7 @@ export function createCitation(
       cluster_id: citation.cluster_id,
       case_name: caseRecord?.caseName ?? null,
       citation: caseRecord?.citations[0] ?? null,
-      url: caseRecord?.url ?? null,
+      url: buildCourtlistenerCitationPinpointUrl(citation, caseRecord),
       pdfUrl: caseRecord?.pdfUrl ?? null,
       dateFiled: caseRecord?.dateFiled ?? null,
       quotes: citation.quotes,

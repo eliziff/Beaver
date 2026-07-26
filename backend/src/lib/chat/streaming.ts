@@ -7,16 +7,14 @@ import {
 } from "../llm";
 import { safeErrorMessage } from "../safeError";
 import { createServerSupabase } from "../supabase";
-import {
-  buildUserMcpTools,
-  type McpToolEvent,
-} from "../mcpConnectors";
+import { buildUserMcpTools, type McpToolEvent } from "../mcpConnectors";
 import {
   COURTLISTENER_TOOLS,
   type CaseCitationEvent,
   type CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
 import { A2AJ_TOOLS } from "./tools/a2ajTools";
+import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
   type DocStore,
   type DocIndex,
@@ -38,11 +36,12 @@ import {
   runToolCalls,
   type CourtlistenerTurnState,
 } from "./tools/toolDispatcher";
+import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
+import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
-  type TurnEditState,
-  type TurnReadState,
-} from "./tools/documentOps";
-
+  createPublicLegalSourceState,
+  type PublicLegalSourceState,
+} from "./publicLegalSourceState";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string }
@@ -132,9 +131,7 @@ class AssistantStreamAskInputsPause extends Error {
 export function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const record = error as { name?: unknown; message?: unknown };
-  return (
-    record.name === "AbortError" || record.message === "Stream aborted."
-  );
+  return record.name === "AbortError" || record.message === "Stream aborted.";
 }
 
 function throwIfAborted(signal?: AbortSignal) {
@@ -190,7 +187,7 @@ export async function runLLMStream(params: {
     projectId,
   } = params;
   const researchTools = includeResearchTools
-    ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS]
+    ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS]
     : [];
   const mcpTools = await buildUserMcpTools(userId, db);
   const baseTools = [...TOOLS, ...researchTools, ...WORKFLOW_TOOLS];
@@ -222,8 +219,12 @@ export async function runLLMStream(params: {
   // changes that document so a post-edit verification read can still happen.
   const turnReadState: TurnReadState = new Map();
   const courtlistenerTurnState: CourtlistenerTurnState = {
-      casesByClusterId: new Map(),
-    };
+    casesByClusterId: new Map(),
+  };
+  const a2ajLookups: A2AJLocatorLookup[] = [];
+  const a2ajDocuments: A2AJDocument[] = [];
+  const publicLegalState: PublicLegalSourceState =
+    createPublicLegalSourceState();
   let fullText = "";
   let iterText = "";
   let iterVisibleText = "";
@@ -238,7 +239,9 @@ export async function runLLMStream(params: {
     citations: unknown[],
   ) => {
     if (buildCitations) return;
-    write(`data: ${JSON.stringify({ type: "citations", status, citations })}\n\n`);
+    write(
+      `data: ${JSON.stringify({ type: "citations", status, citations })}\n\n`,
+    );
   };
 
   const streamHiddenCitationContent = (delta: string) => {
@@ -252,6 +255,9 @@ export async function runLLMStream(params: {
         c,
         docIndex,
         courtlistenerTurnState.casesByClusterId,
+        a2ajLookups,
+        a2ajDocuments,
+        publicLegalState,
       ),
     );
     emitCitationStreamSnapshot("partial", citations);
@@ -406,6 +412,8 @@ export async function runLLMStream(params: {
           courtlistenerEvents,
           caseCitationEvents,
           mcpEvents,
+          a2ajLookups: batchA2AJLookups,
+          a2ajDocuments: batchA2AJDocuments,
         } = await runToolCalls(
           toolCalls,
           docStore,
@@ -420,7 +428,10 @@ export async function runLLMStream(params: {
           projectId,
           courtlistenerTurnState,
           apiKeys,
+          publicLegalState,
         );
+        a2ajLookups.push(...batchA2AJLookups);
+        a2ajDocuments.push(...batchA2AJDocuments);
         throwIfAborted(signal);
         for (const r of docsRead) {
           events.push({
@@ -540,6 +551,9 @@ export async function runLLMStream(params: {
           c,
           docIndex,
           courtlistenerTurnState.casesByClusterId,
+          a2ajLookups,
+          a2ajDocuments,
+          publicLegalState,
         ),
       );
   devLog("[chat/stream] final citations", {
