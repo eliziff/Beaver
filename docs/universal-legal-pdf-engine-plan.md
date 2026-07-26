@@ -313,10 +313,12 @@ outside this package.
 
 ### DOCX-grounded degraded-export track
 
-Treat each ALR DOCX as the structural ground truth for one or more generated PDF
-equivalents. Read body order, paragraphs, headings, footnote/endnote references
-and bodies, labels, propositions, and citation text from OOXML. Do not assume
-that a rich, well-tagged PDF export represents the real workload.
+Use the suite of `.docx` files in ALR-Quote-Verifier as structural ground truth
+for their PDF equivalents. Read body order, paragraphs, headings,
+footnote/endnote references and bodies, labels, propositions, and citation text
+from OOXML. Do not assume a good or semantically rich PDF export. Deliberately
+use poorer, less information-rich PDF export settings and measure what the
+engine can still reconstruct.
 
 Generate a reproducible export matrix:
 
