@@ -132,11 +132,14 @@ export function ModelToggle({
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : true;
-    const selectedCatalogModel = value.startsWith("codex:")
-        ? codexCatalog?.models.find(
-              (model) => `codex:${model.slug}` === value,
-          )
-        : undefined;
+    const selectedCatalogModel =
+        value === "codex-exec"
+            ? codexCatalog?.models[0]
+            : value.startsWith("codex:")
+              ? codexCatalog?.models.find(
+                    (model) => `codex:${model.slug}` === value,
+                )
+              : undefined;
     const supportedEfforts = useMemo(
         () => selectedCatalogModel?.supportedReasoningLevels ?? [],
         [selectedCatalogModel],

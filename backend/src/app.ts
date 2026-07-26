@@ -16,6 +16,7 @@ import { caseLawRouter } from "./routes/caseLaw";
 import { codexRouter } from "./routes/codex";
 import { localDocumentsRouter } from "./routes/localDocuments";
 import { localLibraryRouter } from "./routes/localLibrary";
+import { isAnonymousLocalMode } from "./lib/localMode";
 
 export const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -166,6 +167,15 @@ app.use((req, res, next) =>
   express.json({ limit: jsonLimitForPath(req.path) })(req, res, next),
 );
 
+const requirePersistentData: express.RequestHandler = (req, res, next) => {
+  if (!isAnonymousLocalMode()) return next();
+  if (req.method === "GET" && req.path === "/") {
+    res.json([]);
+    return;
+  }
+  res.status(503).json({ detail: "This feature requires Supabase persistence" });
+};
+
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
 app.use("/projects/:projectId/chat", projectChatRouter);
@@ -173,8 +183,8 @@ app.use("/single-documents", localDocumentsRouter);
 app.use("/single-documents", documentsRouter);
 app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
-app.use("/tabular-review", tabularRouter);
-app.use("/workflows", workflowsRouter);
+app.use("/tabular-review", requirePersistentData, tabularRouter);
+app.use("/workflows", requirePersistentData, workflowsRouter);
 app.use("/user", userRouter);
 app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
