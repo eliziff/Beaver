@@ -23,7 +23,7 @@ import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
-import { ModelToggle } from "./ModelToggle";
+import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 import {
     useSelectedModel,
     useSelectedReasoningEffort,
@@ -436,12 +436,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         </div>
 
                         <div className="flex items-center gap-1">
+                            {model.startsWith("codex") && (
+                                <ReasoningEffortToggle
+                                    model={model}
+                                    value={reasoningEffort}
+                                    onChange={setReasoningEffort}
+                                />
+                            )}
                             <ModelToggle
                                 value={model}
                                 onChange={setModel}
                                 apiKeys={apiKeys}
-                                reasoningEffort={reasoningEffort}
-                                onReasoningEffortChange={setReasoningEffort}
                             />
                             <button
                                 type="button"
