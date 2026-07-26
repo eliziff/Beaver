@@ -22,6 +22,10 @@ import {
 } from "../lib/chat";
 import { completeText, streamCodex } from "../lib/llm";
 import {
+    LOCAL_ASSISTANT_TOOLS,
+    runLocalAssistantTools,
+} from "../lib/chat/localAssistantTools";
+import {
     getUserModelSettings,
 } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
@@ -108,7 +112,8 @@ async function streamAnonymousCodex(params: {
         sseWrite(res, { type: "chat_id", chatId: chat.id });
         await streamCodex({
             model: params.model || "codex-exec",
-            systemPrompt: "",
+            systemPrompt:
+                "The user's local Mike Library is connected through library_list, library_read, and library_find. Use library_list before claiming a Library document is unavailable. Use A2AJ tools for Canadian case law and legislation.",
             messages: messages.map((message) => ({
                 role: message.role === "assistant" ? "assistant" : "user",
                 content: message.content ?? "",
@@ -116,6 +121,8 @@ async function streamAnonymousCodex(params: {
             enableThinking: true,
             reasoningEffort: params.reasoningEffort,
             abortSignal: streamAbort.signal,
+            tools: LOCAL_ASSISTANT_TOOLS,
+            runTools: (calls) => runLocalAssistantTools(userId, calls),
             callbacks: {
                 onContentDelta: (text: string) => {
                     fullText += text;
@@ -125,6 +132,11 @@ async function streamAnonymousCodex(params: {
                     sseWrite(res, { type: "reasoning_delta", text }),
                 onReasoningBlockEnd: () =>
                     sseWrite(res, { type: "reasoning_block_end" }),
+                onToolCallStart: (call) =>
+                    sseWrite(res, {
+                        type: "tool_call_start",
+                        name: call.name,
+                    }),
             },
         });
 
