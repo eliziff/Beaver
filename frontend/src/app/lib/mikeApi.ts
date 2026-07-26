@@ -241,6 +241,31 @@ export interface UserLookupResult {
     display_name: string | null;
 }
 
+export interface CodexReasoningLevel {
+    effort: string;
+    description?: string;
+}
+
+export interface CodexModelDescriptor {
+    slug: string;
+    displayName: string;
+    description?: string;
+    defaultReasoningLevel?: string;
+    supportedReasoningLevels: CodexReasoningLevel[];
+    visibility?: string;
+    supportedInApi?: boolean;
+}
+
+export interface CodexModelCatalog {
+    models: CodexModelDescriptor[];
+    source: "live" | "bundled" | "unavailable";
+    error?: string;
+}
+
+export async function getCodexModelCatalog(): Promise<CodexModelCatalog> {
+    return apiRequest<CodexModelCatalog>("/codex/models");
+}
+
 export async function getUserProfile(): Promise<UserProfile> {
     return apiRequest<UserProfile>("/user/profile");
 }
@@ -962,6 +987,7 @@ export async function streamChat(payload: {
     chat_id?: string;
     project_id?: string;
     model?: string;
+    reasoning_effort?: string;
     ask_inputs_response?: {
         responses: (
             | {
@@ -1007,6 +1033,7 @@ export async function streamProjectChat(payload: {
     messages: StreamChatMessage[];
     chat_id?: string;
     model?: string;
+    reasoning_effort?: string;
     displayed_doc?: { filename: string; document_id: string };
     attached_documents?: { filename: string; document_id: string }[];
     ask_inputs_response?: {

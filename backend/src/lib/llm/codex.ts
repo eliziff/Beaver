@@ -7,6 +7,7 @@ import type {
   StreamChatParams,
   StreamChatResult,
 } from "./types";
+import { codexModelSlug } from "./models";
 
 type CodexSummaryPart = {
   type?: string;
@@ -147,6 +148,7 @@ function throwIfAborted(signal?: AbortSignal) {
 }
 
 async function runCodex(params: {
+  model: string;
   prompt: string;
   callbacks?: StreamChatParams["callbacks"];
   tools?: StreamChatParams["tools"];
@@ -154,6 +156,7 @@ async function runCodex(params: {
   apiKeys?: StreamChatParams["apiKeys"];
   abortSignal?: AbortSignal;
   enableThinking?: boolean;
+  reasoningEffort?: string;
   maxIterations?: number;
 }): Promise<string> {
   throwIfAborted(params.abortSignal);
@@ -169,7 +172,7 @@ async function runCodex(params: {
   let streamStatus: "completed" | "error" = "error";
   const rawStreamRecorder = createRawLlmStreamRecorder({
     provider: "codex",
-    model: "codex-exec",
+    model: params.model,
   });
   const endReasoning = () => {
     if (!reasoningOpen) return;
@@ -213,8 +216,11 @@ async function runCodex(params: {
     "--color",
     "never",
   ];
+  const modelSlug = codexModelSlug(params.model);
+  if (modelSlug) args.push("-m", modelSlug);
   if (params.enableThinking) {
-    args.push("-c", 'model_reasoning_effort="max"');
+    const effort = params.reasoningEffort?.trim() || "max";
+    args.push("-c", `model_reasoning_effort=${JSON.stringify(effort)}`);
     args.push("-c", 'model_reasoning_summary="auto"');
     args.push("-c", "show_raw_agent_reasoning=false");
   }
@@ -280,7 +286,7 @@ async function runCodex(params: {
       const rawLine = String(line);
       logRawLlmStream({
         provider: "codex",
-        model: "codex-exec",
+        model: params.model,
         iteration: 0,
         label: "jsonl_line",
         payload: rawLine,
@@ -359,6 +365,7 @@ export async function streamCodex(
   params.abortSignal?.addEventListener("abort", abort, { once: true });
   try {
     const fullText = await runCodex({
+      model: params.model,
       prompt: buildPrompt(params),
       callbacks: params.callbacks,
       tools: params.tools,
@@ -366,6 +373,7 @@ export async function streamCodex(
       apiKeys: params.apiKeys,
       abortSignal: controller.signal,
       enableThinking: params.enableThinking,
+      reasoningEffort: params.reasoningEffort,
       maxIterations: params.maxIterations,
     });
     return { fullText };
@@ -382,6 +390,7 @@ export async function completeCodexText(params: {
   apiKeys?: StreamChatParams["apiKeys"];
 }): Promise<string> {
   return runCodex({
+    model: params.model,
     prompt: buildPrompt({
       systemPrompt: params.systemPrompt,
       messages: [{ role: "user", content: params.user }],

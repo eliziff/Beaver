@@ -400,6 +400,7 @@ export function useAssistantChat({
             messages: apiMessages,
             chat_id: chatId,
             model,
+            reasoning_effort: message.reasoningEffort,
             displayed_doc: displayedDoc
               ? {
                   filename: displayedDoc.filename,
@@ -415,6 +416,7 @@ export function useAssistantChat({
             messages: apiMessages,
             chat_id: chatId,
             model,
+            reasoning_effort: message.reasoningEffort,
             ask_inputs_response: opts?.askInputsResponse,
             signal: controller.signal,
           }));

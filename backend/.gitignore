@@ -5,4 +5,5 @@ dist
 *.log
 *.raw-llm-stream.json
 logs/
+.mike-local/
 .DS_Store

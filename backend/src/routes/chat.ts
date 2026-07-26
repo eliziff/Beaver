@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
-import { createServerSupabase } from "../lib/supabase";
+import {
+    createServerSupabase,
+} from "../lib/supabase";
+import { isAnonymousLocalMode } from "../lib/localMode";
 import {
     buildDocContext,
     buildMessages,
@@ -17,12 +20,20 @@ import {
     parseAskInputsResponsePayload,
     type ChatMessage,
 } from "../lib/chat";
-import { completeText } from "../lib/llm";
+import { completeText, streamCodex } from "../lib/llm";
 import {
     getUserModelSettings,
 } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import {
+    appendAnonymousMessage,
+    createAnonymousChat,
+    deleteAnonymousChat,
+    getAnonymousChat,
+    listAnonymousChats,
+    updateAnonymousChatTitle,
+} from "../lib/anonymousChatStore";
 
 export const chatRouter = Router();
 
@@ -46,6 +57,104 @@ type AccessibleChat = {
     user_id: string;
     project_id: string | null;
 } & Record<string, unknown>;
+
+function sseWrite(res: import("express").Response, payload: unknown) {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+async function streamAnonymousCodex(params: {
+    res: import("express").Response;
+    userId: string;
+    chatId: string | null;
+  messages: ChatMessage[];
+  model?: string;
+  reasoningEffort?: string;
+}) {
+    const { res, userId, messages } = params;
+    const chat = params.chatId
+        ? getAnonymousChat(userId, params.chatId)
+        : createAnonymousChat(userId);
+    if (!chat) {
+        res.status(404).json({ detail: "Chat not found" });
+        return;
+    }
+
+    const lastUser = [...messages].reverse().find((message) => {
+        return message.role === "user" && typeof message.content === "string";
+    });
+    if (lastUser) {
+        appendAnonymousMessage(chat, {
+            role: "user",
+            content: lastUser.content,
+            files: lastUser.files ?? null,
+            workflow: lastUser.workflow ?? null,
+        });
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const streamAbort = new AbortController();
+    let streamFinished = false;
+    res.on("close", () => {
+        if (!streamFinished) streamAbort.abort();
+    });
+
+    let fullText = "";
+    try {
+        sseWrite(res, { type: "chat_id", chatId: chat.id });
+        await streamCodex({
+            model: params.model || "codex-exec",
+            systemPrompt: "",
+            messages: messages.map((message) => ({
+                role: message.role === "assistant" ? "assistant" : "user",
+                content: message.content ?? "",
+            })),
+            enableThinking: true,
+            reasoningEffort: params.reasoningEffort,
+            abortSignal: streamAbort.signal,
+            callbacks: {
+                onContentDelta: (text: string) => {
+                    fullText += text;
+                    sseWrite(res, { type: "content_delta", text });
+                },
+                onReasoningDelta: (text: string) =>
+                    sseWrite(res, { type: "reasoning_delta", text }),
+                onReasoningBlockEnd: () =>
+                    sseWrite(res, { type: "reasoning_block_end" }),
+            },
+        });
+
+        appendAnonymousMessage(chat, {
+            role: "assistant",
+            content: fullText
+                ? [{ type: "content", text: fullText }]
+                : [{ type: "error", message: "Codex returned no response." }],
+            citations: null,
+        });
+        if (!chat.title && lastUser?.content) {
+            chat.title = normalizeGeneratedTitle(lastUser.content);
+        }
+        sseWrite(res, { type: "content_done" });
+        sseWrite(res, { type: "citations", status: "final", citations: [] });
+        res.write("data: [DONE]\n\n");
+    } catch (error) {
+        const message = safeErrorMessage(error, "Codex exec failed");
+        console.error("[chat/anonymous-codex]", safeErrorLog(error));
+        if (!res.headersSent) {
+            res.status(502).json({ detail: message });
+        } else if (!streamAbort.signal.aborted) {
+            sseWrite(res, { type: "error", message });
+            res.write("data: [DONE]\n\n");
+        }
+    } finally {
+        streamFinished = true;
+        res.end();
+    }
+}
 
 function parseOptionalProjectId(value: unknown):
     | { ok: true; provided: boolean; projectId: string | null }
@@ -157,6 +266,22 @@ async function getAccessibleChat(
 // are merely *shared with* the user are NOT included here — those are
 // listed per-project via GET /projects/:projectId/chats.
 chatRouter.get("/", requireAuth, async (req, res) => {
+    if (isAnonymousLocalMode()) {
+        const userId = res.locals.userId as string;
+        const requestedLimit = Number.parseInt(
+            String(req.query.limit ?? ""),
+            10,
+        );
+        const limit = Number.isFinite(requestedLimit)
+            ? Math.min(Math.max(requestedLimit, 1), 100)
+            : 20;
+        res.json(
+            listAnonymousChats(userId)
+                .slice(0, limit)
+                .map(({ messages: _messages, ...chat }) => chat),
+        );
+        return;
+    }
     try {
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
@@ -189,6 +314,16 @@ chatRouter.post("/create", requireAuth, async (req, res) => {
         return void res.status(400).json({ detail: parsedProjectId.detail });
     }
     const projectId = parsedProjectId.projectId;
+    if (isAnonymousLocalMode()) {
+        if (projectId) {
+            return void res.status(503).json({
+                detail: "Projects require Supabase persistence in local mode",
+            });
+        }
+        const chat = createAnonymousChat(userId);
+        res.json({ id: chat.id });
+        return;
+    }
     const db = createServerSupabase();
     const projectAccess = await validateAccessibleProjectId(
         projectId,
@@ -216,6 +351,13 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { chatId } = req.params;
+    if (isAnonymousLocalMode()) {
+        const chat = getAnonymousChat(userId, chatId);
+        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+        const { messages, ...chatData } = chat;
+        res.json({ chat: chatData, messages });
+        return;
+    }
     const db = createServerSupabase();
 
     const chat = await getAccessibleChat(chatId, userId, userEmail, db);
@@ -354,6 +496,14 @@ chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
     if (!title)
         return void res.status(400).json({ detail: "title is required" });
 
+    if (isAnonymousLocalMode()) {
+        const chat = getAnonymousChat(userId, chatId);
+        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+        updateAnonymousChatTitle(chat, title);
+        res.json({ id: chat.id, title: chat.title });
+        return;
+    }
+
     const db = createServerSupabase();
     const { data, error } = await db
         .from("chats")
@@ -372,6 +522,13 @@ chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
 chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const { chatId } = req.params;
+    if (isAnonymousLocalMode()) {
+        if (!deleteAnonymousChat(userId, chatId)) {
+            return void res.status(404).json({ detail: "Chat not found" });
+        }
+        res.status(204).send();
+        return;
+    }
     const db = createServerSupabase();
     const { error } = await db
         .from("chats")
@@ -392,6 +549,15 @@ chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
         typeof req.body?.message === "string" ? req.body.message.trim() : "";
     if (!message)
         return void res.status(400).json({ detail: "message is required" });
+
+    if (isAnonymousLocalMode()) {
+        const chat = getAnonymousChat(userId, chatId);
+        if (!chat) return void res.status(404).json({ detail: "Chat not found" });
+        const title = normalizeGeneratedTitle(message);
+        updateAnonymousChatTitle(chat, title);
+        res.json({ title });
+        return;
+    }
 
     const db = createServerSupabase();
     const chat = await getAccessibleChat(chatId, userId, userEmail, db);
@@ -454,6 +620,32 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     const chat_id = parsedChatId.chatId;
     const project_id = parsedProjectId.projectId;
     const model = parsedModel.model;
+    const reasoningEffort =
+        typeof body.reasoning_effort === "string"
+            ? body.reasoning_effort.trim().slice(0, 32) || undefined
+            : undefined;
+
+    if (isAnonymousLocalMode()) {
+        if (project_id) {
+            return void res.status(503).json({
+                detail: "Project chat requires Supabase persistence in local mode",
+            });
+        }
+        if (model && !model.startsWith("codex")) {
+            return void res.status(503).json({
+                detail: "Local mode supports the Codex model only",
+            });
+        }
+        await streamAnonymousCodex({
+            res,
+            userId: res.locals.userId as string,
+            chatId: chat_id,
+            messages,
+            model,
+            reasoningEffort,
+        });
+        return;
+    }
 
     devLog("[chat/stream] incoming request", {
         userId,
@@ -598,6 +790,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             includeResearchTools: legalResearchUs,
             model,
             apiKeys,
+            reasoningEffort,
             signal: streamAbort.signal,
             projectId: resolvedProjectId,
         });
