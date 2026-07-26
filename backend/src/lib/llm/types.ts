@@ -60,8 +60,10 @@ export type StreamChatParams = {
      * benefits from seeing the thought stream. Bulk extraction jobs and
      * one-shot completions should leave this off to save tokens and latency.
      */
-    enableThinking?: boolean;
-    abortSignal?: AbortSignal;
+  enableThinking?: boolean;
+  /** Codex reasoning effort, passed through to the CLI when selected. */
+  reasoningEffort?: string;
+  abortSignal?: AbortSignal;
 };
 
 export type StreamChatResult = {

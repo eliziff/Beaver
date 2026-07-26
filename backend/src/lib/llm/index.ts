@@ -7,6 +7,7 @@ import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
 
 export * from "./types";
 export * from "./models";
+export { streamCodex };
 
 export async function streamChatWithTools(
     params: StreamChatParams,

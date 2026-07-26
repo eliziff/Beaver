@@ -13,6 +13,9 @@ import { workflowsRouter } from "./routes/workflows";
 import { userRouter } from "./routes/user";
 import { downloadsRouter } from "./routes/downloads";
 import { caseLawRouter } from "./routes/caseLaw";
+import { codexRouter } from "./routes/codex";
+import { localDocumentsRouter } from "./routes/localDocuments";
+import { localLibraryRouter } from "./routes/localLibrary";
 
 export const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -166,7 +169,9 @@ app.use((req, res, next) =>
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
 app.use("/projects/:projectId/chat", projectChatRouter);
+app.use("/single-documents", localDocumentsRouter);
 app.use("/single-documents", documentsRouter);
+app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
 app.use("/tabular-review", tabularRouter);
 app.use("/workflows", workflowsRouter);
@@ -174,5 +179,6 @@ app.use("/user", userRouter);
 app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
+app.use("/codex", codexRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));

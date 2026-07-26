@@ -4,6 +4,9 @@ import type { ApiKeyState } from "@/app/lib/mikeApi";
 export type ModelProvider = "claude" | "gemini" | "openai" | "codex";
 
 export function getModelProvider(modelId: string): ModelProvider | null {
+    if (modelId === "codex-exec" || modelId.startsWith("codex:")) {
+        return "codex";
+    }
     const model = SETTINGS_MODELS.find((m) => m.id === modelId);
     if (!model) return null;
     return modelGroupToProvider(model.group);

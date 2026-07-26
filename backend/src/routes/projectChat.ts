@@ -46,11 +46,13 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         displayed_doc,
         attached_documents,
         ask_inputs_response,
+        reasoning_effort,
     } =
         req.body as {
             messages: ChatMessage[];
             chat_id?: string;
             model?: string;
+            reasoning_effort?: string;
             displayed_doc?: { filename: string; document_id: string };
             attached_documents?: { filename: string; document_id: string }[];
             ask_inputs_response?: unknown;
@@ -205,6 +207,10 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
             includeResearchTools: legalResearchUs,
             model,
             apiKeys,
+            reasoningEffort:
+                typeof reasoning_effort === "string"
+                    ? reasoning_effort.trim().slice(0, 32) || undefined
+                    : undefined,
             signal: streamAbort.signal,
             projectId,
         });

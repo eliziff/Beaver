@@ -117,8 +117,8 @@ For a local single-user instance that does not use login or signup, set
 `AUTH_MODE=anonymous` in `backend/.env` and
 `NEXT_PUBLIC_AUTH_MODE=anonymous` in `frontend/.env.local`. Mike uses one local
 anonymous identity and skips Supabase Auth. Supabase Postgres is still used for
-chat/document persistence, so `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, the schema,
-and any storage/model keys required by the features you use are still needed.
+projects and tabular reviews. Without Supabase, Library metadata and files persist
+under `backend/.mike-local` (or `MIKE_LOCAL_DATA_DIR`), and chats are kept in memory.
 This mode is intended for local/private use, not a public deployment.
 
 ## Legal research integrations

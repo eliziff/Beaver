@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
+import { isAnonymousLocalMode } from "../lib/localMode";
 import { createClient } from "@supabase/supabase-js";
 import {
   attachActiveVersionPaths,
@@ -159,6 +160,10 @@ async function attachChatCreatorLabels(
 // could overwhelm the Supabase gateway. Batching keeps it at one request
 // and a fixed number of queries regardless of project count.
 projectsRouter.get("/", requireAuth, async (req, res) => {
+  if (isAnonymousLocalMode()) {
+    res.json([]);
+    return;
+  }
   try {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;

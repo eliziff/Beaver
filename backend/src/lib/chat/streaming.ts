@@ -158,6 +158,7 @@ export async function runLLMStream(params: {
   buildCitations?: (fullText: string) => unknown[];
   model?: string;
   apiKeys?: import("../llm").UserApiKeys;
+  reasoningEffort?: string;
   signal?: AbortSignal;
   /**
    * If set, generate_docx will attach created docs to this project so
@@ -184,6 +185,7 @@ export async function runLLMStream(params: {
     buildCitations,
     model,
     apiKeys,
+    reasoningEffort,
     signal,
     projectId,
   } = params;
@@ -343,6 +345,7 @@ export async function runLLMStream(params: {
       tools: activeTools as OpenAIToolSchema[],
       maxIterations: 10,
       apiKeys,
+      reasoningEffort,
       enableThinking: true,
       abortSignal: signal,
       callbacks: {

@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
-import { createServerSupabase } from "../lib/supabase";
+import {
+  createServerSupabase,
+} from "../lib/supabase";
+import { isAnonymousLocalMode } from "../lib/localMode";
 import { deleteFile } from "../lib/storage";
 import {
   attachActiveVersionPaths,
@@ -93,41 +96,51 @@ async function deleteLibraryDocumentsAndVersionFiles(
 
 // GET /library/:kind
 libraryRouter.get("/:kind", requireAuth, async (req, res) => {
-  const userId = res.locals.userId as string;
-  const kind = normalizeLibraryKind(req.params.kind);
-  if (!kind) return void res.status(404).json({ detail: "Library not found" });
+  try {
+    const userId = res.locals.userId as string;
+    const kind = normalizeLibraryKind(req.params.kind);
+    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (isAnonymousLocalMode()) {
+      res.json({ documents: [], folders: [] });
+      return;
+    }
 
-  const db = createServerSupabase();
-  let documentsQuery = db
-    .from("documents")
-    .select("*")
-    .eq("user_id", userId)
-    .is("project_id", null);
-  documentsQuery =
-    kind === "file"
-      ? documentsQuery.or("library_kind.eq.file,library_kind.is.null")
-      : documentsQuery.eq("library_kind", kind);
-  const [{ data: docs, error: docsError }, { data: folders, error: foldersError }] =
-    await Promise.all([
-      documentsQuery.order("created_at", { ascending: true }),
-      db
-        .from("library_folders")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("library_kind", kind)
-        .order("created_at", { ascending: true }),
-    ]);
-  if (docsError) return void res.status(500).json({ detail: docsError.message });
-  if (foldersError)
-    return void res.status(500).json({ detail: foldersError.message });
+    const db = createServerSupabase();
+    let documentsQuery = db
+      .from("documents")
+      .select("*")
+      .eq("user_id", userId)
+      .is("project_id", null);
+    documentsQuery =
+      kind === "file"
+        ? documentsQuery.or("library_kind.eq.file,library_kind.is.null")
+        : documentsQuery.eq("library_kind", kind);
+    const [{ data: docs, error: docsError }, { data: folders, error: foldersError }] =
+      await Promise.all([
+        documentsQuery.order("created_at", { ascending: true }),
+        db
+          .from("library_folders")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("library_kind", kind)
+          .order("created_at", { ascending: true }),
+      ]);
+    if (docsError) return void res.status(500).json({ detail: docsError.message });
+    if (foldersError)
+      return void res.status(500).json({ detail: foldersError.message });
 
-  const docsTyped = (docs ?? []).map(mapLibraryDocument) as {
-    id: string;
-    current_version_id?: string | null;
-  }[];
-  await attachLatestVersionNumbers(db, docsTyped);
-  await attachActiveVersionPaths(db, docsTyped);
-  res.json({ documents: docsTyped, folders: folders ?? [] });
+    const docsTyped = (docs ?? []).map(mapLibraryDocument) as {
+      id: string;
+      current_version_id?: string | null;
+    }[];
+    await attachLatestVersionNumbers(db, docsTyped);
+    await attachActiveVersionPaths(db, docsTyped);
+    res.json({ documents: docsTyped, folders: folders ?? [] });
+  } catch (error) {
+    res.status(500).json({
+      detail: error instanceof Error ? error.message : "Failed to load library",
+    });
+  }
 });
 
 // POST /library/:kind/documents

@@ -24,7 +24,10 @@ import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { ModelToggle } from "./ModelToggle";
-import { useSelectedModel } from "@/app/hooks/useSelectedModel";
+import {
+    useSelectedModel,
+    useSelectedReasoningEffort,
+} from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import {
     getModelProvider,
@@ -85,6 +88,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         title: string;
     } | null>(null);
     const [model, setModel] = useSelectedModel();
+    const [reasoningEffort, setReasoningEffort] =
+        useSelectedReasoningEffort();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -276,6 +281,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             files: files.length > 0 ? files : undefined,
             workflow: wf ?? undefined,
             model,
+            reasoningEffort: model.startsWith("codex:")
+                ? reasoningEffort
+                : undefined,
         });
     };
 
@@ -432,6 +440,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 value={model}
                                 onChange={setModel}
                                 apiKeys={apiKeys}
+                                reasoningEffort={reasoningEffort}
+                                onReasoningEffortChange={setReasoningEffort}
                             />
                             <button
                                 type="button"

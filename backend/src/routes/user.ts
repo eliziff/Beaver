@@ -1,7 +1,10 @@
 import crypto from "crypto";
 import { Router } from "express";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
-import { createServerSupabase } from "../lib/supabase";
+import {
+    createServerSupabase,
+} from "../lib/supabase";
+import { isAnonymousLocalMode } from "../lib/localMode";
 import {
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
@@ -298,6 +301,40 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
     };
 }
 
+function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
+    const reset = new Date();
+    reset.setDate(reset.getDate() + 30);
+    const providers: ApiKeyStatus["sources"] = {
+        claude: hasEnvApiKey("claude") ? "env" : null,
+        gemini: hasEnvApiKey("gemini") ? "env" : null,
+        openai: hasEnvApiKey("openai") ? "env" : null,
+        openrouter: hasEnvApiKey("openrouter") ? "env" : null,
+        courtlistener: hasEnvApiKey("courtlistener") ? "env" : null,
+    };
+    const apiKeyStatus: ApiKeyStatus = {
+        claude: providers.claude === "env",
+        gemini: providers.gemini === "env",
+        openai: providers.openai === "env",
+        openrouter: providers.openrouter === "env",
+        courtlistener: providers.courtlistener === "env",
+        sources: providers,
+    };
+    return serializeProfile(
+        {
+            display_name: null,
+            organisation: null,
+            message_credits_used: 0,
+            credits_reset_date: reset.toISOString(),
+            tier: "Free",
+            title_model: null,
+            tabular_model: DEFAULT_TABULAR_MODEL,
+            mfa_on_login: false,
+            legal_research_us: true,
+        },
+        apiKeyStatus,
+    );
+}
+
 function validateProfilePayload(body: unknown):
     | {
           ok: true;
@@ -524,6 +561,10 @@ userRouter.get("/lookup", requireAuth, async (req, res) => {
 
 // GET /user/profile
 userRouter.get("/profile", requireAuth, async (_req, res) => {
+    if (isAnonymousLocalMode()) {
+        res.json(localAnonymousProfile());
+        return;
+    }
     try {
         const userId = res.locals.userId as string;
         const db = createServerSupabase();

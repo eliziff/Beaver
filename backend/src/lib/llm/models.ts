@@ -28,6 +28,7 @@ export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
 export const CODEX_MAIN_MODELS = ["codex-exec"] as const;
+export const CODEX_MODEL_PREFIX = "codex:";
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -51,14 +52,25 @@ const ALL_MODELS = new Set<string>([
 // ---------------------------------------------------------------------------
 
 export function providerForModel(model: string): Provider {
+    if (model === "codex-exec" || model.startsWith(CODEX_MODEL_PREFIX)) {
+        return "codex";
+    }
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
-    if (model.startsWith("codex")) return "codex";
     throw new Error(`Unknown model id: ${model}`);
 }
 
 export function resolveModel(id: string | null | undefined, fallback: string): string {
+    if (id && (id === "codex-exec" || id.startsWith(CODEX_MODEL_PREFIX))) {
+        return id;
+    }
     if (id && ALL_MODELS.has(id)) return id;
     return fallback;
+}
+
+export function codexModelSlug(model: string): string | null {
+    if (!model.startsWith(CODEX_MODEL_PREFIX)) return null;
+    const slug = model.slice(CODEX_MODEL_PREFIX.length).trim();
+    return slug || null;
 }
