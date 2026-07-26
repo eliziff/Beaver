@@ -69,22 +69,17 @@ interface Props {
     value: string;
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
-    reasoningEffort?: string;
-    onReasoningEffortChange?: (value: string) => void;
 }
 
 export function ModelToggle({
     value,
     onChange,
     apiKeys,
-    reasoningEffort,
-    onReasoningEffortChange,
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [codexCatalog, setCodexCatalog] =
         useState<CodexModelCatalog | null>(null);
     const catalogRequestedRef = useRef(false);
-    const [catalogLoading, setCatalogLoading] = useState(false);
 
     useEffect(() => {
         if (!isOpen || codexCatalog || catalogRequestedRef.current) return;
@@ -93,7 +88,6 @@ export function ModelToggle({
         const loadCatalog = async () => {
             await Promise.resolve();
             if (cancelled) return;
-            setCatalogLoading(true);
             try {
                 const catalog = await getCodexModelCatalog();
                 if (!cancelled) setCodexCatalog(catalog);
@@ -104,8 +98,6 @@ export function ModelToggle({
                         source: "unavailable",
                     });
                 }
-            } finally {
-                if (!cancelled) setCatalogLoading(false);
             }
         };
         void loadCatalog();
@@ -132,60 +124,9 @@ export function ModelToggle({
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : true;
-    const selectedCatalogModel =
-        value === "codex-exec"
-            ? codexCatalog?.models[0]
-            : value.startsWith("codex:")
-              ? codexCatalog?.models.find(
-                    (model) => `codex:${model.slug}` === value,
-                )
-              : undefined;
-    const supportedEfforts = useMemo(
-        () => selectedCatalogModel?.supportedReasoningLevels ?? [],
-        [selectedCatalogModel],
-    );
-
-    useEffect(() => {
-        if (!onReasoningEffortChange || supportedEfforts.length === 0) return;
-        if (
-            reasoningEffort &&
-            supportedEfforts.some((level) => level.effort === reasoningEffort)
-        ) {
-            return;
-        }
-        const nextEffort =
-            selectedCatalogModel?.defaultReasoningLevel ??
-            supportedEfforts[0]?.effort;
-        if (nextEffort) onReasoningEffortChange(nextEffort);
-    }, [
-        onReasoningEffortChange,
-        reasoningEffort,
-        selectedCatalogModel,
-        supportedEfforts,
-    ]);
 
     const handleModelSelect = (id: string) => {
         onChange(id);
-        if (!onReasoningEffortChange) return;
-        const descriptor = id.startsWith("codex:")
-            ? codexCatalog?.models.find(
-                  (model) => `codex:${model.slug}` === id,
-              )
-            : undefined;
-        if (!descriptor) return;
-        const currentEffort = reasoningEffort?.trim();
-        if (
-            currentEffort &&
-            descriptor.supportedReasoningLevels.some(
-                (level) => level.effort === currentEffort,
-            )
-        ) {
-            return;
-        }
-        const nextEffort =
-            descriptor.defaultReasoningLevel ??
-            descriptor.supportedReasoningLevels[0]?.effort;
-        if (nextEffort) onReasoningEffortChange(nextEffort);
     };
 
     return (
@@ -255,36 +196,101 @@ export function ModelToggle({
                         </div>
                     );
                 })}
-                {selected?.group === "Codex" && onReasoningEffortChange && (
-                    <>
-                        <DropdownMenuSeparator className="-mx-1 my-1 bg-white/70" />
-                        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
-                            Reasoning effort
-                        </DropdownMenuLabel>
-                        <select
-                            aria-label="Codex reasoning effort"
-                            value={reasoningEffort ?? ""}
-                            disabled={supportedEfforts.length === 0}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                                onReasoningEffortChange(event.target.value)
-                            }
-                            className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded-lg border border-white/70 bg-white/70 px-2 py-1.5 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-gray-300 disabled:cursor-not-allowed disabled:text-gray-400"
-                        >
-                            {supportedEfforts.map((level) => (
-                                <option key={level.effort} value={level.effort}>
-                                    {level.effort}
-                                </option>
-                            ))}
-                        </select>
-                        {supportedEfforts.length === 0 && (
-                            <p className="px-2 pb-1 text-[11px] text-gray-400">
-                                {catalogLoading
-                                    ? "Loading Codex catalog..."
-                                    : "Codex catalog unavailable"}
-                            </p>
+            </LiquidDropdownContent>
+        </DropdownMenu>
+    );
+}
+
+interface ReasoningEffortToggleProps {
+    model: string;
+    value?: string;
+    onChange: (value: string) => void;
+}
+
+export function ReasoningEffortToggle({
+    model,
+    value,
+    onChange,
+}: ReasoningEffortToggleProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [catalog, setCatalog] = useState<CodexModelCatalog | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        void getCodexModelCatalog()
+            .then((next) => {
+                if (!cancelled) setCatalog(next);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setCatalog({ models: [], source: "unavailable" });
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const selectedModel =
+        model === "codex-exec"
+            ? catalog?.models[0]
+            : catalog?.models.find((item) => `codex:${item.slug}` === model);
+    const efforts = useMemo(
+        () => selectedModel?.supportedReasoningLevels ?? [],
+        [selectedModel],
+    );
+
+    useEffect(() => {
+        if (efforts.length === 0) return;
+        if (value && efforts.some((level) => level.effort === value)) return;
+        const next = selectedModel?.defaultReasoningLevel ?? efforts[0].effort;
+        onChange(next);
+    }, [efforts, onChange, selectedModel, value]);
+
+    return (
+        <DropdownMenu onOpenChange={setIsOpen}>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
+                    title="Choose reasoning effort"
+                    aria-label={`Reasoning effort: ${value ?? "loading"}`}
+                >
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                        Effort
+                    </span>
+                    <span className="capitalize text-gray-600">
+                        {value ?? "Loading"}
+                    </span>
+                    <ChevronDown
+                        className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                    />
+                </button>
+            </DropdownMenuTrigger>
+            <LiquidDropdownContent
+                className="z-50 w-44 p-1.5 text-gray-700"
+                side="top"
+                align="end"
+            >
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
+                    Reasoning effort
+                </DropdownMenuLabel>
+                {efforts.map((level) => (
+                    <LiquidDropdownItem
+                        key={level.effort}
+                        className={`${itemClassName} ${level.effort === value ? "bg-app-surface-hover text-gray-900" : ""}`}
+                        onSelect={() => onChange(level.effort)}
+                    >
+                        <span className="flex-1 capitalize">{level.effort}</span>
+                        {level.effort === value && (
+                            <Check className="ml-1 h-3.5 w-3.5 text-gray-600" />
                         )}
-                    </>
+                    </LiquidDropdownItem>
+                ))}
+                {catalog && efforts.length === 0 && (
+                    <p className="px-2 py-1 text-[11px] text-gray-400">
+                        Effort levels unavailable
+                    </p>
                 )}
             </LiquidDropdownContent>
         </DropdownMenu>
