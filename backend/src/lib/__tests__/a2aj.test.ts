@@ -1,75 +1,167 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchA2AJDocument, searchA2AJ } from "../a2aj";
+import {
+  clearA2AJCache,
+  fetchA2AJDocument,
+  lookupA2AJLocator,
+  searchA2AJ,
+} from "../a2aj";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  clearA2AJCache();
+  vi.unstubAllGlobals();
+});
 
 describe("A2AJ client", () => {
-    it("maps a fetched document and bounds returned text", async () => {
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            json: async () => ({
-                results: [
-                    {
-                        dataset: "SCC",
-                        citation_en: "2020 SCC 5",
-                        name_en: "Nevsun Resources Ltd. v. Araya",
-                        document_date_en: "2020-02-28",
-                        url_en: "https://decisions.scc-csc.ca/item/18169",
-                        unofficial_text_en: "abcdef",
-                    },
-                ],
-            }),
-        });
-        vi.stubGlobal("fetch", fetchMock);
-
-        const document = await fetchA2AJDocument({
-            citation: "2020 SCC 5",
-            maxChars: 3,
-        });
-
-        expect(document).toMatchObject({
+  it("maps a fetched document and bounds returned text", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
             dataset: "SCC",
-            citation: "2020 SCC 5",
-            name: "Nevsun Resources Ltd. v. Araya",
-            url: "https://decisions.scc-csc.ca/item/18169",
-            text: "abc",
-        });
-        expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-            "citation=2020+SCC+5",
-        );
+            citation_en: "2020 SCC 5",
+            name_en: "Nevsun Resources Ltd. v. Araya",
+            document_date_en: "2020-02-28",
+            url_en: "https://decisions.scc-csc.ca/item/18169",
+            unofficial_text_en: "abcdef",
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const document = await fetchA2AJDocument({
+      citation: "2020 SCC 5",
+      maxChars: 3,
     });
 
-    it("maps search metadata without exposing the raw API payload", async () => {
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue({
-                ok: true,
-                status: 200,
-                json: async () => ({
-                    results: [
-                        {
-                            dataset: "ONCA",
-                            citation_en: "2024 ONCA 1",
-                            name_en: "Example v. Example",
-                            url_en: "https://example.test/case",
-                            snippet: "A matching passage",
-                        },
-                    ],
-                }),
-            }),
-        );
+    expect(document).toMatchObject({
+      dataset: "SCC",
+      citation: "2020 SCC 5",
+      name: "Nevsun Resources Ltd. v. Araya",
+      url: "https://decisions.scc-csc.ca/item/18169",
+      text: "abc",
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "citation=2020+SCC+5",
+    );
+  });
 
-        await expect(searchA2AJ({ query: "privacy", size: 1 })).resolves.toEqual([
+  it("maps search metadata without exposing the raw API payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [
             {
-                dataset: "ONCA",
-                citation: "2024 ONCA 1",
-                alternateCitation: null,
-                name: "Example v. Example",
-                date: null,
-                url: "https://example.test/case",
-                snippet: "A matching passage",
+              dataset: "ONCA",
+              citation_en: "2024 ONCA 1",
+              name_en: "Example v. Example",
+              url_en: "https://example.test/case",
+              snippet: "A matching passage",
             },
-        ]);
+          ],
+        }),
+      }),
+    );
+
+    await expect(searchA2AJ({ query: "privacy", size: 1 })).resolves.toEqual([
+      {
+        dataset: "ONCA",
+        citation: "2024 ONCA 1",
+        alternateCitation: null,
+        name: "Example v. Example",
+        date: null,
+        url: "https://example.test/case",
+        snippet: "A matching passage",
+      },
+    ]);
+  });
+
+  it("indexes the full decision once and looks up one paragraph", async () => {
+    const text = Array.from(
+      { length: 6 },
+      (_, index) =>
+        `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language to establish a reliable sequence.`,
+    ).join("\n");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            dataset: "SCC",
+            citation_en: "2099 SCC 1",
+            unofficial_text_en: text,
+          },
+        ],
+      }),
     });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const document = await fetchA2AJDocument({ citation: "2099 SCC 1" });
+    const lookup = await lookupA2AJLocator({
+      citation: "2099 SCC 1",
+      kind: "paragraph",
+      locator: "para 3",
+      contextBlocks: 1,
+    });
+
+    expect(document?.structure.counts.paragraph).toBe(6);
+    expect(lookup).toMatchObject({
+      status: "found",
+      sourceMethod: "structure_index",
+      block: { label: "par3" },
+      before: [{ label: "par2" }],
+      after: [{ label: "par4" }],
+    });
+    expect(lookup?.block?.text).toContain("Decision paragraph 3");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses A2AJ's raw section map for nested provision lookup", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            dataset: "LEGISLATION-FED",
+            citation_en: "RSC 1985, c C-46",
+            name_en: "Criminal Code",
+            unofficial_text_en: "unstructured fallback",
+            unofficial_sections_en: JSON.stringify({
+              "34": [
+                "34(1) Parent defence provision.",
+                "(a) The requested nested statutory paragraph applies.",
+                "(b) A sibling paragraph applies.",
+              ].join("\n"),
+            }),
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const lookup = await lookupA2AJLocator({
+      citation: "RSC 1985, c C-46",
+      docType: "laws",
+      kind: "section",
+      locator: "s. 34(1)(a)",
+    });
+
+    expect(lookup).toMatchObject({
+      status: "found",
+      sourceMethod: "structure_index",
+      structure: { source: "section_map" },
+      block: { label: "sec34(1)(a)" },
+    });
+    expect(lookup?.block?.text).toContain(
+      "requested nested statutory paragraph",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
