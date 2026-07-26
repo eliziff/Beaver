@@ -87,6 +87,7 @@ describe("streamCodex", () => {
       systemPrompt: "Be concise.",
       messages: [{ role: "user", content: "Check this." }],
       enableThinking: true,
+      reasoningEffort: "ultra",
       callbacks: {
         onReasoningDelta: (text) => trace.push(`reasoning:${text}`),
         onReasoningBlockEnd: () => trace.push("reasoning:end"),
@@ -109,7 +110,7 @@ describe("streamCodex", () => {
         "--sandbox",
         "read-only",
         "--json",
-        'model_reasoning_effort="max"',
+        'model_reasoning_effort="ultra"',
         'model_reasoning_summary="auto"',
         "show_raw_agent_reasoning=false",
       ]),
