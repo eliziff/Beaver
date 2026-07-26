@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { fetchA2AJDocument, searchA2AJ } from "../a2aj";
+import { fetchA2AJDocument, lookupA2AJLocator, searchA2AJ } from "../a2aj";
 import { docxToPdf } from "../convert";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import {
@@ -7,10 +7,7 @@ import {
   isSpreadsheetDocumentType,
   isWordDocumentType,
 } from "../documentTypes";
-import {
-  getLocalVersionFile,
-  listLocalLibrary,
-} from "../localDocumentStore";
+import { getLocalVersionFile, listLocalLibrary } from "../localDocumentStore";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
@@ -139,7 +136,10 @@ async function extractLocalDocument(userId: string, documentId: string) {
   return { filename: file.document.filename, text };
 }
 
-function result(call: NormalizedToolCall, content: unknown): NormalizedToolResult {
+function result(
+  call: NormalizedToolCall,
+  content: unknown,
+): NormalizedToolResult {
   return {
     tool_use_id: call.id,
     content: typeof content === "string" ? content : JSON.stringify(content),
@@ -200,8 +200,7 @@ export async function runLocalAssistantTools(
             truncated: document.text.length > maxChars,
           });
         }
-        const query =
-          typeof args.query === "string" ? args.query.trim() : "";
+        const query = typeof args.query === "string" ? args.query.trim() : "";
         const maxResults =
           typeof args.max_results === "number"
             ? Math.min(Math.max(Math.trunc(args.max_results), 1), 50)
@@ -246,8 +245,7 @@ export async function runLocalAssistantTools(
           ok: true,
           source: "A2AJ",
           results: documents,
-          next_required_action:
-            "Use a2aj_fetch before relying on source text.",
+          next_required_action: "Use a2aj_fetch before relying on source text.",
         });
       }
 
@@ -262,6 +260,35 @@ export async function runLocalAssistantTools(
           call,
           document
             ? { ok: true, source: "A2AJ", ...document }
+            : { ok: false, source: "A2AJ", error: "Document not found" },
+        );
+      }
+
+      if (call.name === A2AJ_TOOL_NAMES.lookup) {
+        const lookup = await lookupA2AJLocator({
+          citation: typeof args.citation === "string" ? args.citation : "",
+          docType: args.doc_type === "laws" ? "laws" : "cases",
+          language: args.output_language === "fr" ? "fr" : "en",
+          kind:
+            args.locator_type === "page"
+              ? "page"
+              : args.locator_type === "section"
+                ? "section"
+                : "paragraph",
+          locator: typeof args.locator === "string" ? args.locator : "",
+          contextBlocks:
+            typeof args.context_blocks === "number"
+              ? args.context_blocks
+              : undefined,
+        });
+        return result(
+          call,
+          lookup
+            ? {
+                ok: lookup.status === "found",
+                source: "A2AJ",
+                ...lookup,
+              }
             : { ok: false, source: "A2AJ", error: "Document not found" },
         );
       }

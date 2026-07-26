@@ -9,11 +9,8 @@ import {
   type CourtlistenerToolEvent,
 } from "./courtlistenerTools";
 import { A2AJ_TOOL_NAMES } from "./a2ajTools";
-import { fetchA2AJDocument, searchA2AJ } from "../../a2aj";
-import {
-  executeMcpToolCall,
-  type McpToolEvent,
-} from "../../mcpConnectors";
+import { fetchA2AJDocument, lookupA2AJLocator, searchA2AJ } from "../../a2aj";
+import { executeMcpToolCall, type McpToolEvent } from "../../mcpConnectors";
 import { createServerSupabase } from "../../supabase";
 import {
   type DocStore,
@@ -27,11 +24,7 @@ import {
   devLog,
   resolveDocLabel,
 } from "../types";
-import {
-  downloadFile,
-  storageKey,
-  uploadFile,
-} from "../../storage";
+import { downloadFile, storageKey, uploadFile } from "../../storage";
 import { convertedPdfKey } from "../../convert";
 import { contentTypeForDocumentType } from "../../documentTypes";
 import { buildDownloadUrl } from "../../downloadTokens";
@@ -57,7 +50,6 @@ import {
   type DocReplicatedResult,
   type TextMatch,
 } from "./documentOps";
-
 
 type CourtlistenerCaseRecord = {
   clusterId: number;
@@ -93,7 +85,9 @@ function cleanAskInputString(value: unknown, fallback = ""): string {
   return text || fallback;
 }
 
-function normalizeAskInputsEvent(args: Record<string, unknown>): AskInputsEvent {
+function normalizeAskInputsEvent(
+  args: Record<string, unknown>,
+): AskInputsEvent {
   const rawItems = Array.isArray(args.items) ? args.items : [];
   const items = rawItems
     .map((item, index): AskInputItem | null => {
@@ -170,20 +164,21 @@ function upsertCourtlistenerCases(
 ): CourtlistenerCaseRecord[] {
   const records: CourtlistenerCaseRecord[] = [];
   for (const input of inputs) {
-    if (typeof input.clusterId !== "number" || !Number.isFinite(input.clusterId)) {
+    if (
+      typeof input.clusterId !== "number" ||
+      !Number.isFinite(input.clusterId)
+    ) {
       continue;
     }
     const clusterId = Math.floor(input.clusterId);
-    const current =
-      state.casesByClusterId.get(clusterId) ??
-      {
-        clusterId,
-        caseName: null,
-        citations: [],
-        url: null,
-        pdfUrl: null,
-        dateFiled: null,
-      };
+    const current = state.casesByClusterId.get(clusterId) ?? {
+      clusterId,
+      caseName: null,
+      citations: [],
+      url: null,
+      pdfUrl: null,
+      dateFiled: null,
+    };
     const nextCitations = [
       ...current.citations,
       ...(input.citation ? [input.citation] : []),
@@ -261,7 +256,9 @@ function courtlistenerCaseInputFromFetchedCase(
 ): CourtlistenerCaseInput {
   const record = recordFromUnknown(fetchedCase);
   const clusterId =
-    numberField(record, "clusterId") ?? numberField(record, "id") ?? fallbackClusterId;
+    numberField(record, "clusterId") ??
+    numberField(record, "id") ??
+    fallbackClusterId;
   return {
     clusterId,
     caseName: stringField(record, "caseName"),
@@ -287,8 +284,7 @@ function courtlistenerOpinionMetadata(raw: unknown) {
       ? stripCaseOpinionHtml(stringField(opinion, "html")!)
       : null);
   return {
-    opinion_id:
-      numberField(opinion, "opinionId") ?? numberField(opinion, "id"),
+    opinion_id: numberField(opinion, "opinionId") ?? numberField(opinion, "id"),
     type: stringField(opinion, "type"),
     author: stringField(opinion, "author"),
     per_curiam: stringField(opinion, "per_curiam"),
@@ -397,7 +393,8 @@ function parseFindInCaseArgs(args: Record<string, unknown>): FindInCaseArgs {
     clusterId:
       typeof args.clusterId === "number" && Number.isFinite(args.clusterId)
         ? Math.floor(args.clusterId)
-        : typeof args.cluster_id === "number" && Number.isFinite(args.cluster_id)
+        : typeof args.cluster_id === "number" &&
+            Number.isFinite(args.cluster_id)
           ? Math.floor(args.cluster_id)
           : null,
     query: typeof args.query === "string" ? args.query : "",
@@ -413,7 +410,10 @@ function parseFindInCaseArgs(args: Record<string, unknown>): FindInCaseArgs {
 }
 
 function findInCaseSearchSummary(
-  event: Extract<CourtlistenerToolEvent, { type: "courtlistener_find_in_case" }>,
+  event: Extract<
+    CourtlistenerToolEvent,
+    { type: "courtlistener_find_in_case" }
+  >,
 ) {
   return {
     cluster_id: event.cluster_id,
@@ -476,11 +476,9 @@ export async function runToolCalls(
   const courtlistenerEvents: CourtlistenerToolEvent[] = [];
   const caseCitationEvents: CaseCitationEvent[] = [];
   const mcpEvents: McpToolEvent[] = [];
-  const courtState: CourtlistenerTurnState =
-    courtlistenerState ??
-    {
-      casesByClusterId: new Map(),
-    };
+  const courtState: CourtlistenerTurnState = courtlistenerState ?? {
+    casesByClusterId: new Map(),
+  };
   const groupedFindInCaseSearches = toolCalls
     .filter((tc) => tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase)
     .map((tc) => {
@@ -839,10 +837,13 @@ export async function runToolCalls(
           language: args.search_language === "fr" ? "fr" : "en",
           size: typeof args.size === "number" ? args.size : undefined,
           dataset: typeof args.dataset === "string" ? args.dataset : undefined,
-          startDate: typeof args.start_date === "string" ? args.start_date : undefined,
-          endDate: typeof args.end_date === "string" ? args.end_date : undefined,
+          startDate:
+            typeof args.start_date === "string" ? args.start_date : undefined,
+          endDate:
+            typeof args.end_date === "string" ? args.end_date : undefined,
           sortResults:
-            args.sort_results === "newest_first" || args.sort_results === "oldest_first"
+            args.sort_results === "newest_first" ||
+            args.sort_results === "oldest_first"
               ? args.sort_results
               : "default",
         });
@@ -883,14 +884,14 @@ export async function runToolCalls(
           content: JSON.stringify(
             document
               ? {
-                    ok: true,
-                    source: "A2AJ",
-                    ...document,
+                  ok: true,
+                  source: "A2AJ",
+                  ...document,
                 }
               : {
-                    ok: false,
-                    source: "A2AJ",
-                    error: "A2AJ did not find an exact matching document.",
+                  ok: false,
+                  source: "A2AJ",
+                  error: "A2AJ did not find an exact matching document.",
                 },
           ),
         });
@@ -902,6 +903,52 @@ export async function runToolCalls(
             ok: false,
             source: "A2AJ",
             error: err instanceof Error ? err.message : "A2AJ fetch failed.",
+          }),
+        });
+      }
+    } else if (tc.function.name === A2AJ_TOOL_NAMES.lookup) {
+      try {
+        const lookup = await lookupA2AJLocator({
+          citation: typeof args.citation === "string" ? args.citation : "",
+          docType: args.doc_type === "laws" ? "laws" : "cases",
+          language: args.output_language === "fr" ? "fr" : "en",
+          kind:
+            args.locator_type === "page"
+              ? "page"
+              : args.locator_type === "section"
+                ? "section"
+                : "paragraph",
+          locator: typeof args.locator === "string" ? args.locator : "",
+          contextBlocks:
+            typeof args.context_blocks === "number"
+              ? args.context_blocks
+              : undefined,
+        });
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(
+            lookup
+              ? {
+                  ok: lookup.status === "found",
+                  source: "A2AJ",
+                  ...lookup,
+                }
+              : {
+                  ok: false,
+                  source: "A2AJ",
+                  error: "A2AJ did not find an exact matching document.",
+                },
+          ),
+        });
+      } catch (err) {
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            ok: false,
+            source: "A2AJ",
+            error: err instanceof Error ? err.message : "A2AJ lookup failed.",
           }),
         });
       }
@@ -1138,7 +1185,9 @@ export async function runToolCalls(
       }
 
       const record =
-        typeof clusterId === "number" ? courtState.casesByClusterId.get(clusterId) : undefined;
+        typeof clusterId === "number"
+          ? courtState.casesByClusterId.get(clusterId)
+          : undefined;
       if (!record) {
         const payload = cachedCaseNotFetchedResult(clusterId);
         const event: CourtlistenerToolEvent = {
@@ -1235,7 +1284,9 @@ export async function runToolCalls(
       );
 
       const record =
-        typeof clusterId === "number" ? courtState.casesByClusterId.get(clusterId) : undefined;
+        typeof clusterId === "number"
+          ? courtState.casesByClusterId.get(clusterId)
+          : undefined;
       if (!record) {
         const payload = cachedCaseNotFetchedResult(clusterId);
         const event: CourtlistenerToolEvent = {
@@ -1279,8 +1330,7 @@ export async function runToolCalls(
           opinions: (record.opinions ?? [])
             .map(courtlistenerOpinionMetadata)
             .filter(
-              (opinion): opinion is NonNullable<typeof opinion> =>
-                !!opinion,
+              (opinion): opinion is NonNullable<typeof opinion> => !!opinion,
             ),
           error: multipleOpinions
             ? "Multiple opinions are available. Call courtlistener_read_case again with the opinionId or opinionIds needed."
