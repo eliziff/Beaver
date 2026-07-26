@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { fetchA2AJDocument, lookupA2AJLocator, searchA2AJ } from "../a2aj";
+import {
+  fetchA2AJDocument,
+  lookupA2AJLocator,
+  searchA2AJ,
+  type A2AJDocument,
+  type A2AJLocatorLookup,
+} from "../a2aj";
 import { docxToPdf } from "../convert";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import {
@@ -16,7 +22,18 @@ import type {
 import { extractPresentationText } from "../officeText";
 import { spreadsheetToLLMText } from "../spreadsheet";
 import { A2AJ_TOOL_NAMES, A2AJ_TOOLS } from "./tools/a2ajTools";
+import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
+import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
+import {
+  createPublicLegalSourceState,
+  executePublicLegalSourceTool,
+  type PublicLegalSourceState,
+} from "./publicLegalSourceState";
 import { extractPdfText, findTextMatches } from "./tools/documentOps";
+import {
+  runLocalCourtlistenerTool,
+  type LocalCourtlistenerState,
+} from "./localCourtlistenerTools";
 
 const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   {
@@ -86,7 +103,9 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
 
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...LOCAL_LIBRARY_TOOLS,
+  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
   ...(A2AJ_TOOLS as OpenAIToolSchema[]),
+  ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
 ];
 
 const textCache = new Map<string, string>();
@@ -149,10 +168,28 @@ function result(
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
+  a2ajLookups?: A2AJLocatorLookup[],
+  a2ajDocuments?: A2AJDocument[],
+  courtlistenerState?: LocalCourtlistenerState,
+  publicLegalState?: PublicLegalSourceState,
 ): Promise<NormalizedToolResult[]> {
+  const publicState = publicLegalState ?? createPublicLegalSourceState();
   return Promise.all(
     calls.map(async (call) => {
       const args = call.input;
+      const publicLegalResult = await executePublicLegalSourceTool(
+        call.name,
+        args,
+        publicState,
+      );
+      if (publicLegalResult) return result(call, publicLegalResult);
+      if (courtlistenerState) {
+        const courtlistenerResult = await runLocalCourtlistenerTool(
+          call,
+          courtlistenerState,
+        );
+        if (courtlistenerResult) return courtlistenerResult;
+      }
       if (call.name === "library_list") {
         const kind =
           args.kind === "file" || args.kind === "template" ? args.kind : "all";
@@ -256,6 +293,7 @@ export async function runLocalAssistantTools(
           language: args.output_language === "fr" ? "fr" : "en",
           section: typeof args.section === "string" ? args.section : undefined,
         });
+        if (document?.url) a2ajDocuments?.push(document);
         return result(
           call,
           document
@@ -281,6 +319,9 @@ export async function runLocalAssistantTools(
               ? args.context_blocks
               : undefined,
         });
+        if (lookup?.status === "found" && lookup.block) {
+          a2ajLookups?.push(lookup);
+        }
         return result(
           call,
           lookup
@@ -288,6 +329,7 @@ export async function runLocalAssistantTools(
                 ok: lookup.status === "found",
                 source: "A2AJ",
                 ...lookup,
+                url: undefined,
               }
             : { ok: false, source: "A2AJ", error: "Document not found" },
         );

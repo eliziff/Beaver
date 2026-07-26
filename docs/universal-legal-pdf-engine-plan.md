@@ -338,6 +338,57 @@ change pagination and line wrapping without changing the correct paragraph,
 footnote, proposition, or citation relationships. Report results by export
 profile so a strong native export cannot conceal failures on poorer PDFs.
 
+### Public cross-jurisdiction diversity track
+
+Assign a research subagent to search the internet for and download a deliberately
+diverse corpus of public American, Canadian, and UK legal PDFs, then run every
+file through the frozen local parser. Prefer official court, tribunal,
+legislative, and government repositories; record the source URL, access date,
+jurisdiction, court/body, document class, language, apparent generation method,
+license/terms note, byte hash, and page count in a resumable manifest. Do not
+substitute search-result snippets for the actual PDF, and do not bulk-download
+from a source whose terms prohibit it.
+
+Stratify the corpus rather than taking only easy digital-born judgments:
+
+- US federal and state courts, trial and appellate material, slip opinions,
+  scanned reporter material, dockets/orders, and agency or tribunal decisions.
+- Canadian federal, provincial, and territorial courts and tribunals, including
+  bilingual and French documents, neutral-citation and older reporter formats.
+- UK Supreme Court, Privy Council, appellate and first-instance courts,
+  tribunals, and legislation or explanatory material.
+- Native tagged PDFs, untagged digital-born PDFs, print-to-PDF files, image-only
+  scans, mixed text/image documents, multi-column pages, appendices, tables,
+  stamps, signatures, restarted numbering, deep sections/subsections, footnotes,
+  endnotes, and marginal or running text.
+
+Freeze a balanced discovery manifest before inspecting parser scores. Keep a
+small manually audited diagnostic subset and a larger unattended robustness
+set. For each file, retain parse status, extraction route, warnings, page and
+region counts, ordering diagnostics, structure/footnote confidence, runtime,
+peak memory, and any crash or timeout. Render representative failures so the
+review is based on the PDF and output together.
+
+After the run, cluster failures by root cause and improve the parser under a
+complexity budget:
+
+1. Add a regression fixture before each change.
+2. Prefer tuning or one general rule over provider-, court-, or filename-specific
+   branches.
+3. Require a change to fix a recurring failure class or a correctness/safety
+   defect; do not add machinery for one cosmetic outlier.
+4. Measure the full frozen corpus after each change and reject fixes that trade
+   away another jurisdiction or document class.
+5. Track dependencies, production lines changed, branches added, and runtime
+   cost beside the accuracy delta. Favour deletion or consolidation when two
+   rules overlap.
+6. Escalate only the remaining diagnosed hard scopes to the r=1 model repair;
+   do not make model repair compensate for a simple deterministic bug.
+
+The deliverable is a ranked failure report, minimized regression fixtures, and
+a Pareto table showing robustness gained per added branch, dependency, runtime,
+and production line—not an open-ended collection of special cases.
+
 ### Profiles and arms
 
 Benchmark:

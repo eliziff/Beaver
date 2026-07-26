@@ -1,5 +1,7 @@
 import {
+  getCourtlistenerOpinionDocumentText,
   getCourtlistenerCases,
+  lookupCourtlistenerOpinionLocator,
   searchCourtlistenerCaseLaw,
   verifyCourtlistenerCitations,
 } from "../../courtlistener";
@@ -9,7 +11,19 @@ import {
   type CourtlistenerToolEvent,
 } from "./courtlistenerTools";
 import { A2AJ_TOOL_NAMES } from "./a2ajTools";
-import { fetchA2AJDocument, lookupA2AJLocator, searchA2AJ } from "../../a2aj";
+import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./publicLegalSourceTools";
+import {
+  fetchA2AJDocument,
+  lookupA2AJLocator,
+  searchA2AJ,
+  type A2AJDocument,
+  type A2AJLocatorLookup,
+} from "../../a2aj";
+import {
+  createPublicLegalSourceState,
+  executePublicLegalSourceTool,
+  type PublicLegalSourceState,
+} from "../publicLegalSourceState";
 import { executeMcpToolCall, type McpToolEvent } from "../../mcpConnectors";
 import { createServerSupabase } from "../../supabase";
 import {
@@ -334,6 +348,7 @@ type CachedCaseOpinionText = {
   author: string | null;
   url: string | null;
   text: string;
+  source: Record<string, unknown>;
 };
 
 function cachedCaseOpinionTexts(
@@ -344,7 +359,8 @@ function cachedCaseOpinionTexts(
       const opinion = recordFromUnknown(raw);
       if (!opinion) return null;
       const text =
-        stringField(opinion, "text") ??
+        getCourtlistenerOpinionDocumentText(opinion) ||
+        stringField(opinion, "text") ||
         (stringField(opinion, "html")
           ? stripCaseOpinionHtml(stringField(opinion, "html")!)
           : null);
@@ -356,6 +372,7 @@ function cachedCaseOpinionTexts(
         author: stringField(opinion, "author"),
         url: stringField(opinion, "url"),
         text,
+        source: opinion,
       };
     })
     .filter((opinion): opinion is CachedCaseOpinionText => !!opinion);
@@ -448,6 +465,7 @@ export async function runToolCalls(
   projectId?: string | null,
   courtlistenerState?: CourtlistenerTurnState,
   apiKeys?: import("../../llm").UserApiKeys,
+  publicLegalState?: PublicLegalSourceState,
 ): Promise<{
   toolResults: unknown[];
   docsRead: { filename: string; document_id?: string }[];
@@ -460,6 +478,8 @@ export async function runToolCalls(
   courtlistenerEvents: CourtlistenerToolEvent[];
   caseCitationEvents: CaseCitationEvent[];
   mcpEvents: McpToolEvent[];
+  a2ajLookups: A2AJLocatorLookup[];
+  a2ajDocuments: A2AJDocument[];
 }> {
   const toolResults: unknown[] = [];
   const docsRead: { filename: string; document_id?: string }[] = [];
@@ -476,9 +496,12 @@ export async function runToolCalls(
   const courtlistenerEvents: CourtlistenerToolEvent[] = [];
   const caseCitationEvents: CaseCitationEvent[] = [];
   const mcpEvents: McpToolEvent[] = [];
+  const a2ajLookups: A2AJLocatorLookup[] = [];
+  const a2ajDocuments: A2AJDocument[] = [];
   const courtState: CourtlistenerTurnState = courtlistenerState ?? {
     casesByClusterId: new Map(),
   };
+  const publicState = publicLegalState ?? createPublicLegalSourceState();
   const groupedFindInCaseSearches = toolCalls
     .filter((tc) => tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase)
     .map((tc) => {
@@ -828,6 +851,22 @@ export async function runToolCalls(
         tool_call_id: tc.id,
         content: lines.join("\n") || "No cells found.",
       });
+    } else if (
+      tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||
+      tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
+    ) {
+      const payload = await executePublicLegalSourceTool(
+        tc.function.name,
+        args,
+        publicState,
+      );
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(
+          payload ?? { ok: false, error: "Public legal tool unavailable." },
+        ),
+      });
     } else if (tc.function.name === A2AJ_TOOL_NAMES.search) {
       try {
         const result = await searchA2AJ({
@@ -878,6 +917,7 @@ export async function runToolCalls(
           language: args.output_language === "fr" ? "fr" : "en",
           section: typeof args.section === "string" ? args.section : undefined,
         });
+        if (document?.url) a2ajDocuments.push(document);
         toolResults.push({
           role: "tool",
           tool_call_id: tc.id,
@@ -924,6 +964,9 @@ export async function runToolCalls(
               ? args.context_blocks
               : undefined,
         });
+        if (lookup?.status === "found" && lookup.block) {
+          a2ajLookups.push(lookup);
+        }
         toolResults.push({
           role: "tool",
           tool_call_id: tc.id,
@@ -933,6 +976,7 @@ export async function runToolCalls(
                   ok: lookup.status === "found",
                   source: "A2AJ",
                   ...lookup,
+                  url: undefined,
                 }
               : {
                   ok: false,
@@ -1270,6 +1314,125 @@ export async function runToolCalls(
           truncated: totalMatches > hits.length,
           hits,
         }),
+      });
+    } else if (
+      tc.function.name === COURTLISTENER_TOOL_NAMES.lookupCaseLocator
+    ) {
+      const clusterId =
+        typeof args.clusterId === "number" && Number.isFinite(args.clusterId)
+          ? Math.floor(args.clusterId)
+          : typeof args.cluster_id === "number" &&
+              Number.isFinite(args.cluster_id)
+            ? Math.floor(args.cluster_id)
+            : null;
+      const locatorType =
+        args.locator_type === "page"
+          ? "page"
+          : args.locator_type === "section"
+            ? "section"
+            : "paragraph";
+      const locator = typeof args.locator === "string" ? args.locator : "";
+      const contextBlocks =
+        typeof args.context_blocks === "number" ? args.context_blocks : 0;
+      const record =
+        typeof clusterId === "number"
+          ? courtState.casesByClusterId.get(clusterId)
+          : undefined;
+      if (!record) {
+        const payload = cachedCaseNotFetchedResult(clusterId);
+        const event: CourtlistenerToolEvent = {
+          type: "courtlistener_lookup_case_locator",
+          cluster_id: clusterId,
+          locator_type: locatorType,
+          locator,
+          status: "unavailable",
+          error: payload.error,
+        };
+        write(`data: ${JSON.stringify(event)}\n\n`);
+        courtlistenerEvents.push(event);
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(payload),
+        });
+        continue;
+      }
+
+      const requestedOpinionIds = requestedCourtlistenerOpinionIds(args);
+      const candidates = (record.opinions ?? []).filter((raw) => {
+        if (!requestedOpinionIds.length) return true;
+        const opinion = recordFromUnknown(raw);
+        const opinionId =
+          numberField(opinion, "opinionId") ?? numberField(opinion, "id");
+        return opinionId !== null && requestedOpinionIds.includes(opinionId);
+      });
+      const found = candidates.flatMap((raw) => {
+        const opinion = recordFromUnknown(raw);
+        if (!opinion) return [];
+        const lookup = lookupCourtlistenerOpinionLocator(
+          opinion,
+          locatorType,
+          locator,
+          contextBlocks,
+        );
+        return lookup?.status === "found" && lookup.block
+          ? [
+              {
+                opinion_id:
+                  numberField(opinion, "opinionId") ??
+                  numberField(opinion, "id"),
+                lookup,
+              },
+            ]
+          : [];
+      });
+      const status =
+        found.length === 1
+          ? "found"
+          : found.length > 1
+            ? "ambiguous"
+            : "not_found";
+      const event: CourtlistenerToolEvent = {
+        type: "courtlistener_lookup_case_locator",
+        cluster_id: record.clusterId,
+        locator_type: locatorType,
+        locator,
+        status,
+        ...(found.length > 1
+          ? {
+              error: "The locator occurs in multiple opinions; pass opinionId.",
+            }
+          : {}),
+      };
+      write(`data: ${JSON.stringify(event)}\n\n`);
+      courtlistenerEvents.push(event);
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(
+          found.length === 1
+            ? {
+                ok: true,
+                cluster_id: record.clusterId,
+                case_name: record.caseName,
+                citation: record.citations[0] ?? null,
+                opinion_id: found[0].opinion_id,
+                requested: { kind: locatorType, locator },
+                ...found[0].lookup,
+                block: found[0].lookup.block
+                  ? { ...found[0].lookup.block, anchor: undefined }
+                  : null,
+              }
+            : {
+                ok: false,
+                cluster_id: record.clusterId,
+                status,
+                error:
+                  found.length > 1
+                    ? "The locator occurs in multiple opinions; pass opinionId."
+                    : "The requested locator was not found in the cached opinions.",
+              },
+        ),
       });
     } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.readCase) {
       const clusterId =
@@ -2019,5 +2182,7 @@ export async function runToolCalls(
     courtlistenerEvents,
     caseCitationEvents,
     mcpEvents,
+    a2ajLookups,
+    a2ajDocuments,
   };
 }

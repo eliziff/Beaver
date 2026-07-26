@@ -5,6 +5,11 @@ import {
   type A2AJLocatorKind,
   type A2AJStructure,
 } from "./a2ajStructure";
+import {
+  fetchLocalA2AJDocument,
+  getLocalA2AJStructure,
+  searchLocalA2AJ,
+} from "./a2ajLocalBulk";
 
 const A2AJ_BASE_URL = "https://api.a2aj.ca";
 const A2AJ_TIMEOUT_MS = 15_000;
@@ -60,6 +65,7 @@ export type A2AJLocatorLookup = {
 
 const rawRecords = new WeakMap<A2AJDocument, JsonRecord>();
 const structureIndexes = new WeakMap<A2AJDocument, A2AJStructure>();
+const lookupDocumentTexts = new WeakMap<A2AJLocatorLookup, string>();
 const documentCache = new Map<
   string,
   { expiresAt: number; promise: Promise<A2AJDocument | null> }
@@ -261,29 +267,47 @@ async function fullA2AJDocument(args: {
     return cached.promise;
   }
   if (cached) documentCache.delete(key);
-  const promise = request("/fetch", {
-    citation: args.citation,
-    doc_type: args.docType,
-    output_language: args.language,
-    section: args.section?.trim(),
-  }).then((payload) => {
+  const cachedPromise = (async () => {
+    if (!args.section?.trim()) {
+      const localDocument = fetchLocalA2AJDocument({
+        citation: args.citation,
+        docType: args.docType,
+        language: args.language,
+        maxChars: Number.MAX_SAFE_INTEGER,
+      });
+      if (localDocument) {
+        const localStructure = getLocalA2AJStructure(localDocument);
+        if (localStructure) structureIndexes.set(localDocument, localStructure);
+        return localDocument;
+      }
+    }
+    const payload = await request("/fetch", {
+      citation: args.citation,
+      doc_type: args.docType,
+      output_language: args.language,
+      section: args.section?.trim(),
+    });
     const document = (Array.isArray(payload.results) ? payload.results : [])
       .map((item) => documentFromResult(item, args.language))
       .find((item): item is A2AJDocument => !!item);
     if (document) structureFor(document, args.docType);
     return document ?? null;
-  });
+  })();
   const ttl = args.docType === "cases" ? 24 * 60 * 60_000 : 5 * 60_000;
-  documentCache.set(key, { expiresAt: now + ttl, promise });
+  documentCache.set(key, { expiresAt: now + ttl, promise: cachedPromise });
   if (documentCache.size > MAX_CACHED_DOCUMENTS) {
     documentCache.delete(documentCache.keys().next().value!);
   }
-  promise.catch(() => documentCache.delete(key));
-  return promise;
+  cachedPromise.catch(() => documentCache.delete(key));
+  return cachedPromise;
 }
 
 export function clearA2AJCache() {
   documentCache.clear();
+}
+
+export function getA2AJLookupDocumentText(lookup: A2AJLocatorLookup) {
+  return lookupDocumentTexts.get(lookup) ?? "";
 }
 
 export async function fetchA2AJDocument(args: {
@@ -354,7 +378,7 @@ export async function lookupA2AJLocator(args: {
         section,
       });
       if (native?.text.trim()) {
-        return {
+        const lookup: A2AJLocatorLookup = {
           status: "found",
           citation: document.citation,
           alternateCitation: document.alternateCitation,
@@ -376,10 +400,17 @@ export async function lookupA2AJLocator(args: {
           structure: document.structure,
           sourceMethod: "api_section",
         };
+        lookupDocumentTexts.set(
+          lookup,
+          structure.text.includes(native.text.trim())
+            ? structure.text
+            : native.text,
+        );
+        return lookup;
       }
     }
   }
-  return {
+  const lookup: A2AJLocatorLookup = {
     status: result.status,
     citation: document.citation,
     alternateCitation: document.alternateCitation,
@@ -399,6 +430,8 @@ export async function lookupA2AJLocator(args: {
     structure: document.structure,
     sourceMethod: "structure_index",
   };
+  lookupDocumentTexts.set(lookup, structure.text);
+  return lookup;
 }
 
 export async function searchA2AJ(args: {
@@ -415,6 +448,13 @@ export async function searchA2AJ(args: {
   const query = args.query.trim();
   if (!query) throw new Error("query is required");
   const language = args.language === "fr" ? "fr" : "en";
+  const localResults = searchLocalA2AJ({
+    ...args,
+    query,
+    language,
+    docType: args.docType ?? "cases",
+  });
+  if (localResults !== null) return localResults;
   const payload = await request("/search", {
     query,
     doc_type: args.docType ?? "cases",
