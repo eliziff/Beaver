@@ -1,6 +1,6 @@
 import type { ParagraphChild } from "docx";
 
-export type DocxMarkdownInline =
+type DocxMarkdownInline =
   | { type: "text"; text: string }
   | { type: "strong"; text: string }
   | { type: "emphasis"; text: string }
@@ -8,7 +8,7 @@ export type DocxMarkdownInline =
   | { type: "citation"; id: string }
   | { type: "control"; tag: string; occurrence: number };
 
-export type DocxMarkdownBlock =
+type DocxMarkdownBlock =
   | {
       type: "heading";
       level: 1 | 2 | 3;

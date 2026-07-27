@@ -29,7 +29,7 @@ import {
 import { guardedRemoteFetch } from "./remoteUrlSafety";
 import { sha256 } from "./hash";
 
-export type ProviderPdfFallbackProvider =
+type ProviderPdfFallbackProvider =
   | "a2aj"
   | "courtlistener"
   | "govinfo"
@@ -73,7 +73,7 @@ export type ProviderPdfLibraryResult = {
   parse_status: LocalPdfParseStatus;
 };
 
-export type ProviderPdfFreshnessStatus =
+type ProviderPdfFreshnessStatus =
   | "immutable"
   | "versioned"
   | "current"

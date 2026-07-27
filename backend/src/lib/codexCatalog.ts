@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 
-export type CodexReasoningLevel = {
+type CodexReasoningLevel = {
   effort: string;
   description?: string;
 };
 
-export type CodexCatalogModel = {
+type CodexCatalogModel = {
   slug: string;
   displayName: string;
   description?: string;

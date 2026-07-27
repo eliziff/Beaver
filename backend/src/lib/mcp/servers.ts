@@ -42,7 +42,7 @@ import {
     type ToolCacheRow,
 } from "./types";
 
-export { startUserMcpConnectorOAuth, validateRemoteMcpUrl };
+export { startUserMcpConnectorOAuth };
 
 const ENDPOINT_REVISION_KEY = "__mike_endpoint_revision";
 

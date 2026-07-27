@@ -1090,11 +1090,15 @@ describe("provider PDF Library bridge", () => {
 
     const queued =
       (await bridge.queueProviderPdfAttachment(govInfoAttachment))!;
-    await vi.waitFor(async () =>
-      expect(
-        JSON.parse(await readFile(pointerPath(queued.reference_id), "utf8"))
-          .status,
-      ).toBe("failed"),
+    // The failure pointer is written by a detached background task; under
+    // full-suite CPU contention it can land well after waitFor's 1s default.
+    await vi.waitFor(
+      async () =>
+        expect(
+          JSON.parse(await readFile(pointerPath(queued.reference_id), "utf8"))
+            .status,
+        ).toBe("failed"),
+      { timeout: 10_000, interval: 25 },
     );
     const inspected = await bridge.readProviderPdfAttachmentState(
       govInfoAttachment,
