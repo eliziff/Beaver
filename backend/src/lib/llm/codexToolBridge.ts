@@ -37,6 +37,11 @@ export type CodexToolBridgeParams = {
   abortSignal?: AbortSignal;
   /** Maximum number of tool calls this short-lived bridge may dispatch. */
   maxToolCalls?: number;
+  /**
+   * Bearer token this bridge accepts. Persistent Codex transports must pin the
+   * token their already-spawned process holds; leave unset to mint a fresh one.
+   */
+  token?: string;
 };
 
 export type CodexToolBridge = {
@@ -212,7 +217,7 @@ function protocolError(response: ServerResponse, message: string) {
 export async function startCodexToolBridge(
   params: CodexToolBridgeParams,
 ): Promise<CodexToolBridge> {
-  const token = randomBytes(32).toString("hex");
+  const token = params.token?.trim() || randomBytes(32).toString("hex");
   const tools = mcpTools(params.tools);
   const state: BridgeState = {
     toolCallCount: 0,

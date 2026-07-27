@@ -55,10 +55,11 @@ export type ParsedCodexEvent = {
   error?: string;
 };
 
-const CODEX_TIMEOUT_MS = 180_000;
-const CODEX_THREAD_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
+export const CODEX_TIMEOUT_MS = 180_000;
+export const CODEX_THREAD_ID =
+  /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
-function terminateProcessTree(child: ChildProcessWithoutNullStreams) {
+export function terminateProcessTree(child: ChildProcessWithoutNullStreams) {
   if (process.platform !== "win32" || !child.pid) {
     child.kill();
     return;
@@ -128,7 +129,7 @@ export function parseCodexEventLine(line: string): ParsedCodexEvent {
   return {};
 }
 
-function normalizeCodexUsage(
+export function normalizeCodexUsage(
   usage: CodexEvent["usage"],
 ): NormalizedLlmUsage | undefined {
   if (!usage) return undefined;
@@ -171,14 +172,14 @@ function reasoningSummary(item: CodexItem): string | undefined {
   return typeof item.text === "string" ? item.text : undefined;
 }
 
-function codexCommand() {
+export function codexCommand() {
   return (
     process.env.CODEX_EXEC_COMMAND?.trim() ||
     (process.platform === "win32" ? "codex.cmd" : "codex")
   );
 }
 
-function buildPrompt(params: {
+export function buildCodexPrompt(params: {
   systemPrompt?: string;
   messages: StreamChatParams["messages"];
 }) {
@@ -198,14 +199,78 @@ function buildPrompt(params: {
     .join("\n\n");
 }
 
-function abortError(): Error {
+export function codexAbortError(): Error {
   const error = new Error("Stream aborted.");
   error.name = "AbortError";
   return error;
 }
 
 function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
+  if (signal?.aborted) throw codexAbortError();
+}
+
+/**
+ * Codex streams reasoning summaries and answer text as separate blocks; both
+ * transports need the same "close the open reasoning block first" bookkeeping.
+ */
+export function codexStreamCallbacks(params: {
+  callbacks?: StreamChatParams["callbacks"];
+  enableThinking?: boolean;
+}) {
+  let reasoningOpen = false;
+  const endReasoning = () => {
+    if (!reasoningOpen) return;
+    reasoningOpen = false;
+    params.callbacks?.onReasoningBlockEnd?.();
+  };
+  return {
+    endReasoning,
+    callbacks: {
+      onContentDelta: (text: string) => {
+        endReasoning();
+        params.callbacks?.onContentDelta?.(text);
+      },
+      onReasoningDelta: (text: string) => {
+        if (!params.enableThinking) return;
+        reasoningOpen = true;
+        params.callbacks?.onReasoningDelta?.(text);
+      },
+      onReasoningBlockEnd: endReasoning,
+      onToolCallStart: (call: NormalizedToolCall) => {
+        endReasoning();
+        params.callbacks?.onToolCallStart?.(call);
+      },
+    } satisfies NonNullable<StreamChatParams["callbacks"]>,
+  };
+}
+
+/** Materializes inline message images as temp files for the duration of `run`. */
+export async function withCodexImages<T>(
+  messages: StreamChatParams["messages"],
+  run: (imagePaths: string[]) => Promise<T>,
+): Promise<T> {
+  const images = [...new Set(messages.flatMap((message) => message.images ?? []))];
+  if (!images.length) return run([]);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-codex-images-"));
+  try {
+    return await run(
+      await Promise.all(
+        images.map(async (image, index) => {
+          const extension =
+            image.mimeType === "image/jpeg"
+              ? "jpg"
+              : image.mimeType.slice("image/".length);
+          const imagePath = path.join(directory, `${index}.${extension}`);
+          await writeFile(imagePath, Buffer.from(image.data, "base64"), {
+            mode: 0o600,
+          });
+          return imagePath;
+        }),
+      ),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 async function runCodex(params: {
@@ -235,7 +300,6 @@ async function runCodex(params: {
   let usage: NormalizedLlmUsage | undefined;
   let providerInvocationId: string | undefined;
   let timedOut = false;
-  let reasoningOpen = false;
   let streamError: unknown;
   const reasoningByItemId = new Map<string, string>();
   let streamStatus: "completed" | "error" = "error";
@@ -243,27 +307,7 @@ async function runCodex(params: {
     provider: "codex",
     model: params.model,
   });
-  const endReasoning = () => {
-    if (!reasoningOpen) return;
-    reasoningOpen = false;
-    params.callbacks?.onReasoningBlockEnd?.();
-  };
-  const callbacks = {
-    onContentDelta: (text: string) => {
-      endReasoning();
-      params.callbacks?.onContentDelta?.(text);
-    },
-    onReasoningDelta: (text: string) => {
-      if (!params.enableThinking) return;
-      reasoningOpen = true;
-      params.callbacks?.onReasoningDelta?.(text);
-    },
-    onReasoningBlockEnd: endReasoning,
-    onToolCallStart: (call: NormalizedToolCall) => {
-      endReasoning();
-      params.callbacks?.onToolCallStart?.(call);
-    },
-  } satisfies NonNullable<StreamChatParams["callbacks"]>;
+  const { callbacks, endReasoning } = codexStreamCallbacks(params);
 
   if (params.tools?.length && params.runTools) {
     bridge = await startCodexToolBridge({
@@ -439,7 +483,7 @@ async function runCodex(params: {
     clearTimeout(timeout);
     params.abortSignal?.removeEventListener("abort", abort);
     await bridge?.close();
-    if (reasoningOpen) endReasoning();
+    endReasoning();
     await rawStreamRecorder?.flush(streamStatus, streamError);
   }
 }
@@ -451,46 +495,26 @@ export async function streamCodex(
   const abort = () => controller.abort();
   if (params.abortSignal?.aborted) controller.abort();
   params.abortSignal?.addEventListener("abort", abort, { once: true });
-  const images = [
-    ...new Set(params.messages.flatMap((message) => message.images ?? [])),
-  ];
-  const imageDirectory = images.length
-    ? await mkdtemp(path.join(os.tmpdir(), "beaver-codex-images-"))
-    : null;
   try {
-    const imagePaths = await Promise.all(
-      images.map(async (image, index) => {
-        const extension =
-          image.mimeType === "image/jpeg"
-            ? "jpg"
-            : image.mimeType.slice("image/".length);
-        const imagePath = path.join(imageDirectory!, `${index}.${extension}`);
-        await writeFile(imagePath, Buffer.from(image.data, "base64"), {
-          mode: 0o600,
-        });
-        return imagePath;
+    return await withCodexImages(params.messages, (imagePaths) =>
+      runCodex({
+        model: params.model,
+        prompt: buildCodexPrompt(params),
+        callbacks: params.callbacks,
+        tools: params.tools,
+        runTools: params.runTools,
+        apiKeys: params.apiKeys,
+        abortSignal: controller.signal,
+        enableThinking: params.enableThinking,
+        reasoningEffort: params.reasoningEffort,
+        maxIterations: params.maxIterations,
+        imagePaths,
+        persistSession: params.providerSession?.persist,
+        continuationId: params.providerSession?.continuationId,
       }),
     );
-    return await runCodex({
-      model: params.model,
-      prompt: buildPrompt(params),
-      callbacks: params.callbacks,
-      tools: params.tools,
-      runTools: params.runTools,
-      apiKeys: params.apiKeys,
-      abortSignal: controller.signal,
-      enableThinking: params.enableThinking,
-      reasoningEffort: params.reasoningEffort,
-      maxIterations: params.maxIterations,
-      imagePaths,
-      persistSession: params.providerSession?.persist,
-      continuationId: params.providerSession?.continuationId,
-    });
   } finally {
     params.abortSignal?.removeEventListener("abort", abort);
-    if (imageDirectory) {
-      await rm(imageDirectory, { recursive: true, force: true });
-    }
   }
 }
 
@@ -504,7 +528,7 @@ export async function completeCodexText(params: {
   return (
     await runCodex({
       model: params.model,
-      prompt: buildPrompt({
+      prompt: buildCodexPrompt({
         systemPrompt: params.systemPrompt,
         messages: [{ role: "user", content: params.user }],
       }),

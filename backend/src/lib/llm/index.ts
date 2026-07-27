@@ -8,7 +8,8 @@ export * from "./models";
 export async function streamCodex(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
-  return (await import("./codex")).streamCodex(params);
+  // The app-server adapter owns the exec fallback, so this stays a single door.
+  return (await import("./codexAppServer")).streamCodexAppServer(params);
 }
 
 export async function streamChatWithTools(
