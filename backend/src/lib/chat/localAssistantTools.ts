@@ -342,7 +342,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
           ...tool.function,
           name: "library_create_docx",
           description:
-            "Create a Word (.docx) document as a durable new item in the local Library. When this chat belongs to a matter, the document is attached to that matter automatically.",
+            `${tool.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
         },
       },
     ];

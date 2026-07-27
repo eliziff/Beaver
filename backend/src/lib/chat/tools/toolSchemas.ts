@@ -258,7 +258,7 @@ export const TOOLS = [
     function: {
       name: "generate_docx",
       description:
-        "Generate a Word (.docx) document from structured content. Use this when the user asks you to draft, create, or produce a legal document. Returns a download URL for the generated file.",
+        "Generate a durable Word (.docx) document from structured content. This is the default output when the user asks to draft an agreement or contract; return the artifact instead of dumping the full draft in chat. Put unresolved fields and editable clauses in modern Word content controls.",
       parameters: {
         type: "object",
         properties: {
@@ -289,7 +289,41 @@ export const TOOLS = [
                 content: {
                   type: "string",
                   description:
-                    "Prose text content (paragraphs separated by double newlines)",
+                    "Prose text content. Use {{tag}} where a contentControls item belongs.",
+                },
+                contentControls: {
+                  type: "array",
+                  maxItems: 50,
+                  description:
+                    "Editable Word fields or clauses used by {{tag}} markers in this section. Use stable lowercase tags. The generator, not the model, creates the OOXML.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      tag: {
+                        type: "string",
+                        pattern: "^[a-z][a-z0-9_.-]{0,63}$",
+                        description:
+                          "Stable identifier referenced as {{tag}} in content.",
+                      },
+                      label: {
+                        type: "string",
+                        description:
+                          "Short label Word displays for the editable control.",
+                      },
+                      value: {
+                        type: "string",
+                        description:
+                          "Initial field or clause text. Omit to show [label].",
+                      },
+                      kind: {
+                        type: "string",
+                        enum: ["field", "clause"],
+                        description:
+                          "field creates a plain-text control; clause creates a rich-text control.",
+                      },
+                    },
+                    required: ["tag"],
+                  },
                 },
                 pageBreak: {
                   type: "boolean",

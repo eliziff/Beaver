@@ -188,6 +188,7 @@ function cloneNode<T>(n: T): T {
 interface RunSlot {
     childIndex: number;         // index in paragraph.children
     rPr: XNode | null;          // reference (not cloned)
+    protectedByContentControl: boolean;
     /**
      * Per-w:t info. Slots preserve the relative order of the run's textual
      * children. Non-textual run children (w:tab, w:br, ...) are ignored for
@@ -212,7 +213,11 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
     const charTextNodeArr: number[] = [];
     const charOffsetArr: number[] = [];
 
-    const processRun = (rEl: XNode, topChildIdx: number) => {
+    const processRun = (
+        rEl: XNode,
+        topChildIdx: number,
+        protectedByContentControl: boolean,
+    ) => {
         const rKids = elChildren(rEl);
         let rPr: XNode | null = null;
         const textNodes: RunSlot["textNodes"] = [];
@@ -240,23 +245,42 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
             }
             // other run children (w:tab, w:br, w:sym, …) are left alone
         }
-        runs.push({ childIndex: topChildIdx, rPr, textNodes });
+        runs.push({
+            childIndex: topChildIdx,
+            rPr,
+            textNodes,
+            protectedByContentControl,
+        });
+    };
+
+    const processAcceptedNode = (
+        node: XNode,
+        topChildIdx: number,
+        protectedByContentControl = false,
+    ) => {
+        const name = elName(node);
+        if (name === "w:r") {
+            processRun(node, topChildIdx, protectedByContentControl);
+        } else if (name === "w:ins" || name === "w:sdtContent") {
+            for (const child of elChildren(node)) {
+                processAcceptedNode(
+                    child,
+                    topChildIdx,
+                    protectedByContentControl,
+                );
+            }
+        } else if (name === "w:sdt") {
+            for (const child of elChildren(node)) {
+                if (elName(child) === "w:sdtContent") {
+                    processAcceptedNode(child, topChildIdx, true);
+                }
+            }
+        }
+        // w:del and unsupported children are absent from accepted text.
     };
 
     for (let ci = 0; ci < paraChildren.length; ci++) {
-        const child = paraChildren[ci];
-        const name = elName(child);
-        if (name === "w:r") {
-            processRun(child, ci);
-        } else if (name === "w:ins") {
-            // Accepted view: include inner runs as if bare. childIndex points
-            // at the w:ins wrapper so reconstruction can drop the wrapper
-            // whole when a new edit touches any of these runs.
-            for (const inner of elChildren(child)) {
-                if (elName(inner) === "w:r") processRun(inner, ci);
-            }
-        }
-        // w:del: skip entirely — accepted view excludes deleted text.
+        processAcceptedNode(paraChildren[ci], ci);
     }
 
     return {
@@ -970,6 +994,30 @@ export async function applyTrackedEdits(
         const minStart = findStart + leadingEq;
         const minEnd = minStart + deleted.length;
         void findEnd;
+
+        const protectedAt = (position: number) =>
+            position >= 0 &&
+            position < paragraphs[paraIdx].flat.paraText.length &&
+            paragraphs[paraIdx].flat.runs[
+                paragraphs[paraIdx].flat.charRun[position]
+            ]?.protectedByContentControl;
+        let touchesContentControl =
+            minStart === minEnd &&
+            (protectedAt(minStart) || protectedAt(minStart - 1));
+        for (
+            let position = minStart;
+            !touchesContentControl && position < minEnd;
+            position += 1
+        ) {
+            touchesContentControl = Boolean(protectedAt(position));
+        }
+        if (touchesContentControl) {
+            errors.push({
+                index: editIdx,
+                reason: "This edit touches a Word content control. Edit the control in Word or regenerate the draft.",
+            });
+            continue;
+        }
 
         const changeId = `mike-${editIdx}-${Date.now()}`;
         const plan: PlannedChange = {

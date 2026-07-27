@@ -505,6 +505,8 @@ Acceptance:
 - Zero silent character loss, citation under-splitting, or uncertain OOXML
   mutation.
 - Every link has a source/evidence receipt and document-version binding.
+- Multiple passages from one authority remain one citation with one ordered,
+  deduplicated multi-pinpoint link.
 
 ### P1.6 Token-efficient DOCX operations
 
@@ -523,6 +525,9 @@ Implemented:
   tracked changes, hyperlinks, or unsafe field boundaries.
 - A Library HTTP action and assistant tool expose the same operation; the
   citation-linker and Table/Book of Authorities workflow are exposed beside it.
+- Generated agreement drafts can place explicit fields and clauses in stable,
+  tagged Word content controls. Reads include their accepted text; assistant
+  tracked edits fail closed at the control boundary.
 - **Document actions** is a non-modal floating side panel, not a focus-stealing
   dialog. It docks left/right, minimizes to a launcher, and leaves the Library
   interactive. A component test verifies background interaction, docking,
@@ -545,6 +550,8 @@ Acceptance:
   new version.
 - A simple find/replace uses a bounded deterministic operation, not a model
   rewrite.
+- An agreement-drafting request returns a durable DOCX artifact by default,
+  with editable fields/clauses as native controls and only a short chat handoff.
 
 ### P1.7 Token-efficient spreadsheet operations
 
@@ -809,6 +816,17 @@ repository/version/license and test:
 
 Adopt only the smallest phrasing that reduces output tokens without damaging
 legal gates.
+
+### Deferred experiment — legal-move ledger
+
+Status: **Parked**
+
+Do not implement or add this to the system prompt. The hypothesis is that a
+small durable ledger of roles such as rule, fact, application,
+counterargument, and conclusion could support genre-specific drafting and
+compaction. Revisit only after the Markdown/DOCX path and structural benchmark
+are complete, and only as an isolated same-model A/B against simpler
+work-product instructions. This experiment is not a release gate.
 
 ## Priority 2 — release and safety work
 
