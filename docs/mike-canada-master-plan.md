@@ -53,6 +53,9 @@ These decisions are not open backlog items:
    second product to redesign.
 10. Legal ontology artifacts use renderer-independent JSON. A viewer is a
     replaceable projection, not the data model.
+11. Accessibility is a cross-cutting product constraint. New and changed
+    browser workflows target WCAG 2.2 Level AA and use native HTML before
+    custom ARIA widgets.
 
 ## Implemented baseline
 
@@ -842,6 +845,38 @@ For each release record:
 - known blocked credentials/datasets; and
 - migration/rollback notes.
 
+### P2.7 Accessibility and assistive-technology gates
+
+Status: **Planned**
+
+Apply the current W3C WCAG 2.2 Level AA criteria throughout Mike, the embedded
+Table of Authorities workflow, Library viewers, document/action panels, and
+durable graph artifacts:
+
+- preserve semantic landmarks, headings, labels, names, descriptions, status
+  announcements, and logical reading order;
+- make every workflow operable by keyboard with visible, unobscured focus and
+  predictable focus return from dialogs and dockable panels;
+- meet contrast, target-size, zoom, 320-CSS-pixel reflow, text-spacing,
+  reduced-motion, high-contrast, and non-colour-only communication needs;
+- expose accessible alternatives for charts, legal ontology graphs, PDF/DOCX
+  page viewers, citation highlights, progress, errors, and drag/reorder actions;
+- keep account-free onboarding and authentication free of cognitive tests or
+  redundant re-entry barriers; and
+- run fast automated checks in normal development, then manually test critical
+  paths with keyboard-only use, browser zoom/reflow, Windows high contrast,
+  and at least NVDA plus one other screen-reader/browser combination.
+
+Acceptance:
+
+- Automated accessibility checks have no serious or critical violations on
+  each primary route, with documented exceptions rather than ignored rules.
+- A human can complete Library import/retrieval, assistant use, provider and
+  effort selection, Table of Authorities import/review/build/download, and
+  Settings using keyboard and a screen reader.
+- Accessibility claims are not based on automation alone; W3C notes that tools
+  cannot evaluate every accessibility requirement.
+
 ## Explicit non-goals
 
 - No runtime dependency on ALR Quote Verifier and no obligation to fork it.
@@ -873,8 +908,9 @@ For each release record:
    Table of Authorities parity/packaging, and curated examples.
 7. **Optimize measured bottlenecks**: frontend/runtime/build profiles and
    vector retrieval only where benchmarks justify them.
-8. **Validate provider breadth/cloud parity**: Muse credential, real
-   multimodal calls, provider registry, migrations, and release evidence.
+8. **Validate provider breadth/cloud parity and accessibility**: Muse
+   credential, real multimodal calls, provider registry, migrations, WCAG
+   gates, and release evidence.
 
 ## Requirement traceability
 
@@ -913,6 +949,8 @@ The consolidated backlog deliberately retains these user priorities:
   non-duplicated models, and usable icons;
 - optional role-aware onboarding plus an editable Settings area, deferred until
   litigator and solicitor presets can reflect real implemented capabilities;
+- WCAG 2.2 AA as a cross-cutting release gate, including keyboard, reflow,
+  contrast, reduced-motion, and manual screen-reader testing;
 - reliable startup, working Library import, responsive UI, and dramatically
   shorter measured builds without harmful warmup cuts;
 - curated example documents; and
