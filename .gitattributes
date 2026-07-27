@@ -5,4 +5,3 @@
 # explicit conflict; resolve by taking main's copy and regenerating:
 #   git checkout origin/main -- package-lock.json && npm install
 package-lock.json merge=binary
-bun.lock merge=binary
