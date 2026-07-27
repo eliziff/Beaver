@@ -24,6 +24,7 @@ import {
     type LegalSourceReference,
     type LegalSourceSearchResult,
 } from "@/app/lib/mikeApi";
+import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import { LegalSourceViewer } from "./LegalSourceViewer";
 
 function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
@@ -584,6 +585,7 @@ export function LegalLibraryDocumentPage({
     referenceId: string;
 }) {
     const router = useRouter();
+    const [markingOpen, setMarkingOpen] = useState(false);
     return (
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
@@ -598,9 +600,25 @@ export function LegalLibraryDocumentPage({
                     },
                     { label: "Source" },
                 ]}
+                actions={[
+                    {
+                        label: markingOpen ? "Close marks" : "Mark source",
+                        onClick: () => setMarkingOpen((open) => !open),
+                    },
+                ]}
             />
-            <div className="min-h-0 flex-1">
-                <LegalSourceViewer referenceId={referenceId} />
+            <div className="relative flex min-h-0 flex-1">
+                <div className="min-w-0 flex-1">
+                    <LegalSourceViewer referenceId={referenceId} />
+                </div>
+                {markingOpen ? (
+                    <aside
+                        aria-label="Project source marks"
+                        className="absolute inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-gray-200 bg-gray-50 p-3 md:static md:z-0 md:w-80 md:max-w-none"
+                    >
+                        <LegalSourceMarkingPanel sourceId={referenceId} />
+                    </aside>
+                ) : null}
             </div>
         </div>
     );

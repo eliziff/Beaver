@@ -847,6 +847,105 @@ export function getDirectLegalSourceDocument(args: {
   return cachedLegalSourceDocument(`/library/legal/document?${query}`);
 }
 
+export interface LegalResearchProject {
+  id: string;
+  name: string;
+  order: number;
+}
+
+export interface LegalResearchNode {
+  id: string;
+  project_id: string;
+  kind: string;
+  name: string;
+  color: string;
+  order: number;
+  data: Record<string, unknown>;
+}
+
+export interface LegalResearchEdge {
+  from_node_id: string;
+  to_node_id: string;
+  relation: string;
+  order: number;
+}
+
+export interface LegalSourceMark {
+  source_id: string;
+  project_id: string;
+  label_ids: string[];
+  note: string;
+}
+
+export interface LegalSourceMarking {
+  nodes: LegalResearchNode[];
+  edges: LegalResearchEdge[];
+  mark: LegalSourceMark | null;
+}
+
+export async function listLegalResearchProjects() {
+  return (
+    await apiRequest<{ projects: LegalResearchProject[] }>(
+      "/legal-knowledge/projects",
+    )
+  ).projects;
+}
+
+export async function createLegalResearchProject(name: string) {
+  return apiRequest<LegalResearchProject>("/legal-knowledge/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function getLegalSourceMarking(
+  projectId: string,
+  sourceId: string,
+) {
+  const query = new URLSearchParams({ source_id: sourceId });
+  return apiRequest<LegalSourceMarking>(
+    `/legal-knowledge/projects/${encodeURIComponent(projectId)}/marking?${query}`,
+  );
+}
+
+export async function createLegalResearchLabel(
+  projectId: string,
+  label: { name: string; color: string; parentId: string | null },
+) {
+  return apiRequest<LegalResearchNode>(
+    `/legal-knowledge/projects/${encodeURIComponent(projectId)}/nodes`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "label",
+        name: label.name,
+        color: label.color,
+        parent_id: label.parentId,
+      }),
+    },
+  );
+}
+
+export async function saveLegalSourceMark(
+  projectId: string,
+  sourceId: string,
+  mark: { labelIds: string[]; note: string },
+) {
+  return apiRequest<LegalSourceMark | null>(
+    `/legal-knowledge/projects/${encodeURIComponent(projectId)}/sources/${encodeURIComponent(sourceId)}/mark`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label_ids: mark.labelIds,
+        note: mark.note,
+      }),
+    },
+  );
+}
+
 export async function uploadLibraryDocument(
   kind: LibraryKind,
   file: File,
