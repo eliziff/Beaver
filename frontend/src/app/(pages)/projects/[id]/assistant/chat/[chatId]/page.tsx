@@ -95,18 +95,17 @@ const CHAT_DEFAULT = 420;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 
 function AssistantGreeting({ username }: { username: string }) {
-    const { profile } = useUserProfile();
     const [loaded, setLoaded] = useState(false);
     const [iconOffset, setIconOffset] = useState(0);
     const [textOffset, setTextOffset] = useState(0);
     const textRef = useRef<HTMLHeadingElement>(null);
 
     useLayoutEffect(() => {
-        if (!profile || !textRef.current) return;
+        if (!textRef.current) return;
         const h1Width = textRef.current.offsetWidth;
         setIconOffset((h1Width + GAP) / 2);
         setTextOffset((ICON_SIZE + GAP) / 2);
-    }, [profile]);
+    }, [username]);
 
     useEffect(() => {
         if (!iconOffset) return;
