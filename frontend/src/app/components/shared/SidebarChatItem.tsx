@@ -94,16 +94,8 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
                     <ChatSkeuoIcon className="ml-2.5 h-3.5 w-3.5 shrink-0" />
                     <button
                         onClick={onSelect}
-                        onMouseEnter={(e) => {
-                            const el = e.currentTarget;
-                            const overflow = el.scrollWidth - el.clientWidth;
-                            if (overflow > 0) el.scrollTo({ left: overflow, behavior: "smooth" });
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.scrollTo({ left: 0, behavior: "smooth" });
-                        }}
                         className={cn(
-                            "min-w-0 flex-1 overflow-x-hidden whitespace-nowrap scrollbar-none py-1 pl-2 text-left text-xs",
+                            "min-w-0 flex-1 truncate py-1 pl-2 text-left text-xs",
                             isActive
                                 ? "pr-3 text-gray-900"
                                 : "pr-0 text-gray-700 group-hover:pr-3",

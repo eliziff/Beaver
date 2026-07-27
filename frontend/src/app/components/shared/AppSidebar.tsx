@@ -171,6 +171,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
             <div className="px-2">
               <Link
                 href="/assistant"
+                prefetch={false}
                 className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
               >
                 <MikeIcon size={22} spin />
