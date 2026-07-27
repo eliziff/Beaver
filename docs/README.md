@@ -29,6 +29,7 @@
 - [ALR macro portability](alr-macro-portability-audit.md)
 - [Deterministic Word actions catalog](deterministic-word-actions-catalog.md)
   — **research complete**; implementation gaps remain under master-plan P1.6.
+- [Legal skill and plugin ecosystems compared to Mike](legal-skills-ecosystem-comparison.md)
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
 - [Runnable private-corpus harness](../benchmarks/docx_corpus/README.md)
