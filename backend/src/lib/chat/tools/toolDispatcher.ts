@@ -940,6 +940,15 @@ export async function runToolCalls(
                   ok: true,
                   source: "A2AJ",
                   ...document,
+                  // `truncated`/`total_chars` ride along in the spread. When
+                  // the text was cut, say so in words as well: the model must
+                  // not treat a 50,000-character slice of the Criminal Code as
+                  // the whole Act.
+                  ...(document.truncated
+                    ? {
+                        next_required_action: `Only the first ${document.text.length} of ${document.total_chars} characters are shown. Use a2aj_lookup for a specific paragraph or section, or a2aj_fetch with "section", before relying on any part of this document you cannot see.`,
+                      }
+                    : {}),
                 }
               : {
                   ok: false,
