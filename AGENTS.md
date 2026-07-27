@@ -22,6 +22,21 @@ Keep changes small, measured, and local-first.
 - Model and effort choices come from provider capabilities; do not hardcode a
   reduced catalog.
 
+## Engineering budget
+
+- Keep a modular monolith. Add a boundary only for a true external
+  provider/process or independently owned subrepo.
+- Prefer native browser features, Node/Python standard libraries, and existing
+  dependencies. A new runtime dependency must delete more risk or code than it
+  adds and must have a named production caller.
+- Keep one implementation of each workflow. Share small neutral algorithms or
+  versioned SQLite/JSON/CLI contracts, not private cross-repo imports.
+- Load cloud-only and heavy route-only code only when that path is used.
+- Do not add one-implementation interfaces, speculative configuration, wrapper
+  layers, or generalized frameworks without a second proven caller.
+- Record before/after build, bundle, startup, and interaction measurements.
+  Revert an optimization that is not a strict win.
+
 ## Checks
 
 ```powershell

@@ -56,6 +56,9 @@ These decisions are not open backlog items:
 11. Accessibility is a cross-cutting product constraint. New and changed
     browser workflows target WCAG 2.2 Level AA and use native HTML before
     custom ARIA widgets.
+12. Mike remains a modular monolith with small provider/process boundaries.
+    Extensibility comes from stable SQLite/JSON/CLI contracts and thin adapters,
+    not speculative services, duplicate UIs, or one-implementation interfaces.
 
 ## Implemented baseline
 
