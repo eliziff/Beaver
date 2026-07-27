@@ -6,7 +6,6 @@ import {
   buildCourtlistenerCitationPinpointUrl,
   buildLegalSourceMultiPassageUrl,
   buildLegalSourcePinpointUrl,
-  buildTnaPinpointUrl,
 } from "../legalSourceLinks";
 import { createCitation, parseCitations } from "../chat/citations";
 
@@ -416,17 +415,4 @@ describe("verified legal-source links", () => {
     ).toBe("https://www.courtlistener.com/opinion/42/example/");
   });
 
-  it("uses TNA's native paragraph eId plus a verified text directive", () => {
-    const paragraph =
-      "The tribunal stated the distinctive jurisdictional principle.";
-    const result = buildTnaPinpointUrl({
-      url: "https://caselaw.nationalarchives.gov.uk/ewhc/kb/2026/1925",
-      pinpoint: "para 24",
-      paragraphText: paragraph,
-      documentText: paragraph,
-      quotes: ["distinctive jurisdictional principle"],
-    });
-
-    expect(result).toContain("#para_24:~:text=");
-  });
 });

@@ -1,5 +1,3 @@
-import fs from "fs/promises";
-import path from "path";
 import { downloadFile, listFiles } from "./storage";
 import { createServerSupabase } from "./supabase";
 import {
@@ -35,16 +33,6 @@ function courtlistenerBulkDataEnabled() {
   return (
     courtlistenerLocalBulkAvailable() ||
     process.env.COURTLISTENER_BULK_DATA_ENABLED === "true"
-  );
-}
-
-async function logRawOpinionPayload(opinionId: number, opinion: JsonRecord) {
-  if (process.env.NODE_ENV === "production") return;
-  const logsDir = path.resolve(process.cwd(), "logs", "courtlistener-opinions");
-  await fs.mkdir(logsDir, { recursive: true });
-  await fs.writeFile(
-    path.join(logsDir, `courtlistener-opinion-${opinionId}.json`),
-    JSON.stringify(opinion, null, 2),
   );
 }
 

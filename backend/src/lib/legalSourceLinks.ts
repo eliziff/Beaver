@@ -682,23 +682,10 @@ function textField(value: Record<string, unknown>, key: string) {
 }
 
 function opinionText(value: Record<string, unknown>) {
-  const text = textField(value, "text") ?? textField(value, "plain_text");
-  if (text) return text;
-  const html = textField(value, "html");
-  return html
-    ? normalizeWhitespace(
-        html
-          .replace(/<style[\s\S]*?<\/style>/giu, " ")
-          .replace(/<script[\s\S]*?<\/script>/giu, " ")
-          .replace(/<[^>]+>/gu, " ")
-          .replace(/&nbsp;/giu, " ")
-          .replace(/&amp;/giu, "&")
-          .replace(/&lt;/giu, "<")
-          .replace(/&gt;/giu, ">")
-          .replace(/&quot;/giu, '"')
-          .replace(/&#39;/giu, "'"),
-      )
-    : "";
+  // Opinions arrive here already compacted (compactOpinion sets `text` from
+  // plain_text ?? stripped html), so the raw html/plain_text branches that
+  // used to live here were unreachable.
+  return textField(value, "text") ?? "";
 }
 
 function courtlistenerOpinions(
@@ -802,25 +789,6 @@ export function buildCourtlistenerCitationPinpointUrl(
       documentText,
     },
     citation.quotes.map(({ quote }) => quote),
-  );
-}
-
-export function buildTnaPinpointUrl(args: {
-  url: string;
-  pinpoint: string;
-  paragraphText: string;
-  documentText?: string;
-  quotes: string[];
-}) {
-  const number = args.pinpoint.trim().match(/^(?:para?[\s_]*)?(\d+)$/iu)?.[1];
-  return buildLegalSourcePinpointUrl(
-    {
-      url: args.url,
-      anchor: number ? `para_${Number(number)}` : undefined,
-      blockText: args.paragraphText,
-      documentText: args.documentText,
-    },
-    args.quotes,
   );
 }
 
