@@ -1,9 +1,19 @@
 import crypto from "crypto";
-import {
-    auth as runMcpOAuth,
-    type OAuthClientProvider,
-    type OAuthDiscoveryState,
+import type {
+    OAuthClientProvider,
+    OAuthDiscoveryState,
 } from "@modelcontextprotocol/sdk/client/auth.js";
+
+// The MCP SDK costs ~100ms+ to require; OAuth runs are rare, so load the
+// implementation on first use instead of at server boot.
+type McpAuthModule = typeof import("@modelcontextprotocol/sdk/client/auth.js");
+async function runMcpOAuth(
+    provider: OAuthClientProvider,
+    options: Parameters<McpAuthModule["auth"]>[1],
+): Promise<ReturnType<McpAuthModule["auth"]> extends Promise<infer T> ? T : never> {
+    const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
+    return auth(provider, options);
+}
 import type {
     OAuthClientInformationMixed,
     OAuthClientMetadata,

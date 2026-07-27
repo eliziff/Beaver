@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+// The MCP SDK costs ~270ms to require; load it on first connector use so
+// server boot stays fast for the common case of zero configured connectors.
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { OpenAIToolSchema } from "../llm";
 import { createServerSupabase } from "../supabase";
 import {
@@ -132,6 +133,10 @@ async function withMcpClient<T>(
         authConfig,
         authProvider,
     );
+    const [{ Client }, { StreamableHTTPClientTransport }] = await Promise.all([
+        import("@modelcontextprotocol/sdk/client/index.js"),
+        import("@modelcontextprotocol/sdk/client/streamableHttp.js"),
+    ]);
     const transport = new StreamableHTTPClientTransport(
         new URL(connector.server_url),
         {
