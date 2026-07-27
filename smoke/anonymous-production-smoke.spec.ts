@@ -102,7 +102,7 @@ test("anonymous production stack completes its release path", async ({
         uploadResponsePromise = page.waitForResponse((response) =>
             responsePath(response, "/library/files/documents"),
         );
-        await page.getByTitle("Add Files").click();
+        await page.locator('button[title="Add Files"]:visible').click();
         const chooser = await chooserPromise;
         uploadStarted = true;
         await chooser.setFiles({
