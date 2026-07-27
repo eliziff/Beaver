@@ -10,7 +10,7 @@ import { Modal } from "./Modal";
  * Any resource the modal can manage members for — projects today, tabular
  * reviews now, anything else with a `shared_with` email list later.
  */
-export interface SharedResource {
+interface SharedResource {
     id: string;
     shared_with?: string[] | null;
     owner_display_name?: string | null;

@@ -13,20 +13,13 @@ import { hasLlmKey, LLM_SKIP_REASON } from "./llm";
 
 /* ─── Helpers ────────────────────────────────────────────────────────────────── */
 
-/**
- * Ensure the app sidebar is expanded so that "Assistant History" is visible.
- *
- * layout.tsx initialises isSidebarOpen=true on desktop (≥768 px, which is
- * Playwright's Desktop Chrome viewport), but the project-chat page calls
- * setSidebarOpen(false) on mount.  This helper reopens it if needed.
- */
+/** Open the sidebar on narrow viewports so chat history is reachable. */
 async function ensureSidebarOpen(page: Page) {
-    const historySection = page.getByText("Assistant History");
+    const historySection = page.getByRole("region", {
+        name: "Assistant history",
+    });
     if (!(await historySection.isVisible())) {
-        // The toggle button's title alternates between "Open sidebar" and "Close sidebar"
-        // (AppSidebar.tsx onToggle handler).  Use the first match in case both the
-        // desktop and mobile toggle buttons are in the DOM simultaneously.
-        await page.getByTitle("Open sidebar").first().click();
+        await page.getByRole("button", { name: "Open sidebar" }).click();
         await expect(historySection).toBeVisible({ timeout: 5_000 });
     }
 }
@@ -43,27 +36,20 @@ async function ensureSidebarOpen(page: Page) {
  * Anthropic models as available. The default model, however, is
  * "gemini-3-flash-preview" (ModelToggle.DEFAULT_MODEL_ID), for which no key is
  * configured in CI; ChatInput.handleSubmit (ChatInput.tsx:116-119) then refuses
- * to send. ModelToggle renders a Radix DropdownMenu: the trigger is a button
- * whose title is "Choose model" (current model available) or "API key missing
- * for selected model" (current model not available — the default-Gemini case).
- * We open it, pick "Claude Sonnet 4.6" (the cheapest Anthropic entry in
- * ModelToggle.MODELS), and confirm the trigger now shows that label.
+ * to send. ModelToggle now exposes native provider and model selects.
  */
-const CLAUDE_MODEL_LABEL = "Claude Sonnet 4.6";
+const CLAUDE_MODEL_ID = "claude-sonnet-4-6";
 
 async function selectClaudeModel(page: Page) {
-    const trigger = page
-        .locator(
-            'button[title="Choose model"], button[title="API key missing for selected model"]',
-        )
+    const provider = page
+        .getByRole("combobox", { name: /^Model provider:/ })
         .first();
-    await expect(trigger).toBeVisible({ timeout: 10_000 });
-    await trigger.click();
-    await page.getByRole("menuitem", { name: CLAUDE_MODEL_LABEL }).click();
-    // After selection the trigger label reflects the chosen model.
-    await expect(
-        page.getByRole("button", { name: CLAUDE_MODEL_LABEL }),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(provider).toBeVisible({ timeout: 10_000 });
+    await provider.selectOption("Anthropic");
+
+    const model = page.getByRole("combobox", { name: /^Model:/ }).first();
+    await model.selectOption(CLAUDE_MODEL_ID);
+    await expect(model).toHaveValue(CLAUDE_MODEL_ID);
 }
 
 /* ─── Test 1: cold-load existing chat ───────────────────────────────────────── */
@@ -172,20 +158,11 @@ test("rename chat: sidebar rename interaction updates the title", async ({ page 
     // keeps parity with the inactive-item path.
     await activeItem.hover();
 
-    // ── Step 5: click the MoreHorizontal trigger (three-dot menu) ────────────────
-    // SidebarChatItem.tsx lines 104-115: DropdownMenuTrigger wraps a <button> with
-    // the MoreHorizontal icon.  In the non-renaming state the two buttons inside the
-    // item are [0] chat-title button and [1] the trigger; .last() picks the trigger.
-    const triggerBtn = activeItem.locator("button").last();
-    await triggerBtn.click();
+    // ── Step 5: click the direct Rename action ──────────────────────────────────
+    // SidebarChatItem exposes direct Rename and Delete buttons.
+    await activeItem.getByRole("button", { name: /^Rename / }).click();
 
-    // ── Step 6: click "Rename" in the Radix DropdownMenuContent ─────────────────
-    // SidebarChatItem.tsx lines 117-129: DropdownMenuItem with Pencil icon + "Rename"
-    const renameItem = page.getByRole("menuitem", { name: "Rename" });
-    await expect(renameItem).toBeVisible({ timeout: 5_000 });
-    await renameItem.click();
-
-    // ── Step 7: type the new title in the inline input ───────────────────────────
+    // ── Step 6: type the new title in the inline input ───────────────────────────
     // SidebarChatItem.tsx lines 56-68: isRenaming state shows an <input type="text">
     // that is focused automatically (editInputRef.current?.focus() in useEffect).
     // There is no data-testid; scope to the item container to avoid ambiguity.
@@ -196,11 +173,11 @@ test("rename chat: sidebar rename interaction updates the title", async ({ page 
     // SidebarChatItem.tsx line 63: Enter key calls handleRenameSave()
     await renameInput.press("Enter");
 
-    // ── Step 8: assert the new title appears in the sidebar ──────────────────────
+    // ── Step 7: assert the new title appears in the sidebar ──────────────────────
     // ChatHistoryContext.renameChatFn optimistically updates the chat title in state.
-    // SidebarChatItem re-renders the title button with the new text.
+    // SidebarChatItem re-renders the title link with the new text.
     await expect(
-        page.getByRole("button", { name: newTitle })
+        page.getByRole("link", { name: newTitle, exact: true })
     ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -261,32 +238,31 @@ test("delete chat: sidebar delete action removes the chat from history", async (
     // assertions are unreliable. Instead, give this chat a unique title and then
     // assert on that exact title — immune to pagination and to other chats. The
     // just-created chat is active and prepended, so it is the first row; rename it
-    // via the same three-dot menu the rename test exercises.
+    // via the same direct action the rename test exercises.
     const uniqueTitle = `Delete Target ${Date.now()}`;
     const firstRow = page.locator("div.group.relative.h-8.rounded-md").first();
     await firstRow.hover();
-    await firstRow.locator("button").last().click();
-    await page.getByRole("menuitem", { name: "Rename" }).click();
+    await firstRow.getByRole("button", { name: /^Rename / }).click();
     const renameInput = firstRow.locator("input[type='text']");
     await expect(renameInput).toBeVisible({ timeout: 5_000 });
     await renameInput.fill(uniqueTitle);
     await renameInput.press("Enter");
 
-    // The renamed chat's title button now uniquely identifies its row.
-    const targetTitle = page.getByRole("button", { name: uniqueTitle });
+    // The renamed chat's title link now uniquely identifies its row.
+    const targetTitle = page.getByRole("link", {
+        name: uniqueTitle,
+        exact: true,
+    });
     await expect(targetTitle).toBeVisible({ timeout: 10_000 });
-    // The row wrapper that contains that title button (for reaching its menu).
+    // The row wrapper that contains that title link.
     const targetRow = page
         .locator("div.group.relative.h-8.rounded-md")
         .filter({ has: targetTitle });
 
     // ── Step 5-7: delete that specific chat ──────────────────────────────────────
-    // deleteChatFn (ChatHistoryContext.tsx:157-168) optimistically removes the
-    // row. SidebarChatItem.tsx:132-144: the "Delete" DropdownMenuItem calls
-    // deleteChat(chat.id) directly — no confirmation dialog.
+    // deleteChatFn optimistically removes the row; no confirmation is shown.
     await targetRow.hover();
-    await targetRow.locator("button").last().click();
-    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await targetRow.getByRole("button", { name: /^Delete / }).click();
     await expect(targetTitle).toBeHidden({ timeout: 10_000 });
 });
 

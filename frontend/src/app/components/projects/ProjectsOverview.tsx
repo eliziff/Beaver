@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 import {
     listProjects,
     updateProject,
@@ -14,15 +14,8 @@ import type { Project } from "@/app/components/shared/types";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
-import {
-    RowActionMenuItems,
-    RowActions,
-} from "@/app/components/shared/RowActions";
+import { RowActions } from "@/app/components/shared/RowActions";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import {
-    ClosedProjectSvgIcon,
-    OpenProjectSvgIcon,
-} from "@/app/components/shared/FolderSvgIcon";
 import {
     TABLE_CHECKBOX_CLASS,
     SkeletonDot,
@@ -41,6 +34,7 @@ import {
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { PillButton } from "@/app/components/ui/pill-button";
+import { SearchBar } from "@/app/components/ui/search-bar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 
 function formatDate(iso: string) {
@@ -464,10 +458,10 @@ export function ProjectsOverview() {
                     <ChevronDown className="h-3.5 w-3.5" />
                 </TabPillButton>
                 {actionsOpen && (
-                    <div className="absolute top-full right-0 mt-1 w-36 rounded-lg border border-gray-100 bg-white shadow-lg z-50 overflow-hidden">
+                    <div className="absolute top-full right-0 z-50 mt-1 w-36 overflow-hidden rounded-lg border border-gray-300 bg-white">
                         <button
                             onClick={handleDeleteSelected}
-                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 transition-colors"
+                            className="w-full px-3 py-2 text-left text-sm text-red-700 transition-colors hover:bg-red-50"
                         >
                             Delete
                         </button>
@@ -478,26 +472,35 @@ export function ProjectsOverview() {
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Page header */}
-            <PageHeader
-                loading={loading}
-                actions={[
-                    {
-                        type: "search",
-                        value: search,
-                        onChange: setSearch,
-                        placeholder: "Search projects…",
-                    },
-                    {
-                        type: "new",
-                        onClick: () => setModalOpen(true),
-                        title: "New project",
-                    },
-                ]}
-            >
-                <h1 className="text-2xl font-medium font-serif text-gray-900">
-                    Projects
-                </h1>
+            <PageHeader loading={loading}>
+                <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="text-2xl font-medium font-serif text-gray-900">
+                        Projects
+                    </h1>
+                    <div className="flex min-w-0 items-center gap-2 sm:w-auto">
+                        <SearchBar
+                            data-page-search
+                            aria-keyshortcuts="/"
+                            value={search}
+                            onValueChange={setSearch}
+                            placeholder="Search projects..."
+                            aria-label="Search projects"
+                            disabled={loading}
+                            wrapperClassName="min-w-0 flex-1 border-gray-300 bg-white shadow-none sm:w-72"
+                        />
+                        <PillButton
+                            data-page-new
+                            aria-keyshortcuts="Alt+N"
+                            tone="black"
+                            size="normal"
+                            onClick={() => setModalOpen(true)}
+                            disabled={loading}
+                            className="h-9 shrink-0 shadow-none"
+                        >
+                            Create project +
+                        </PillButton>
+                    </div>
+                </div>
             </PageHeader>
 
             <TableToolbar
@@ -510,11 +513,11 @@ export function ProjectsOverview() {
                 actions={toolbarActions}
             />
 
-            {/* Table */}
             <TableScrollArea
+                className="[&>div]:bg-white"
                 header={
-                    <TableHeaderRow>
-                        <TableStickyCell header>
+                    <TableHeaderRow className="bg-white">
+                        <TableStickyCell header className="bg-white">
                             {effectiveLoading ? (
                                 <SkeletonDot className="mr-4" />
                             ) : (
@@ -583,6 +586,7 @@ export function ProjectsOverview() {
                             <TableRow
                                 key={i}
                                 interactive={false}
+                                className="bg-white"
                             >
                                 <TableStickyCell
                                     hover={false}
@@ -618,43 +622,28 @@ export function ProjectsOverview() {
                         ))}
                     </TableBody>
                 ) : loadError ? (
-                    <TableEmptyState>
-                        <OpenProjectSvgIcon className="mb-4 h-8 w-8" />
-                        <p className="text-2xl font-medium font-serif text-gray-900">
-                            Projects
-                        </p>
-                        <p className="mt-1 text-xs text-red-500 max-w-xs">
+                    <TableEmptyState className="items-center text-center">
+                        <Folder
+                            aria-hidden="true"
+                            className="mb-3 h-8 w-8 text-gray-700"
+                        />
+                        <p className="text-sm font-medium text-red-700">
                             {loadError}
                         </p>
                     </TableEmptyState>
                 ) : filtered.length === 0 ? (
-                    <TableEmptyState>
-                        {activeFilter === "all" || activeFilter === "mine" ? (
-                            <>
-                                <OpenProjectSvgIcon className="mb-4 h-8 w-8" />
-                                <p className="text-2xl font-medium font-serif text-gray-900">
-                                    Projects
-                                </p>
-                                <p className="mt-1 text-xs text-gray-400 max-w-xs">
-                                    Upload documents into projects and to
-                                    commence chats and tabular reviews with
-                                    them.
-                                </p>
-                                <PillButton
-                                    tone="black"
-                                    size="sm"
-                                    onClick={() => setModalOpen(true)}
-                                    className="mt-4 px-3"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Create
-                                </PillButton>
-                            </>
-                        ) : (
-                            <p className="text-sm text-gray-400">
-                                No {activeFilter} projects
-                            </p>
-                        )}
+                    <TableEmptyState className="items-center text-center">
+                        <Folder
+                            aria-hidden="true"
+                            className="mb-3 h-8 w-8 text-gray-700"
+                        />
+                        <p className="text-sm font-medium text-gray-700">
+                            {search.trim()
+                                ? "No projects match your search."
+                                : activeFilter === "shared-with-me"
+                                  ? "No shared projects"
+                                  : "No projects"}
+                        </p>
                     </TableEmptyState>
                 ) : (
                     <TableBody>
@@ -663,76 +652,54 @@ export function ProjectsOverview() {
                             <TableRow
                                 key={project.id}
                                 selected={selectedIds.includes(project.id)}
-                                rightClickDropdown={
-                                    (project.is_owner ??
-                                        project.user_id === user?.id)
-                                        ? (close, menuProps) => (
-                                              <RowActionMenuItems
-                                                  onClose={close}
-                                                  surfaceProps={menuProps}
-                                                  onEditDetails={() => {
-                                                      setDetailsProject(project);
-                                                  }}
-                                                  onDelete={async () => {
-                                                      await deleteProject(
-                                                          project.id,
-                                                      );
-                                                      setProjects((prev) =>
-                                                          prev.filter(
-                                                              (p) =>
-                                                                  p.id !==
-                                                                  project.id,
-                                                          ),
-                                                      );
-                                                  }}
-                                              />
-                                          )
-                                        : undefined
-                                }
+                                className="bg-white"
                                 onClick={() => {
                                     router.push(`/projects/${project.id}`);
                                 }}
                             >
-                                {/* Project Name */}
                                 <TablePrimaryCell
                                     selected={selectedIds.includes(project.id)}
                                     onSelectionChange={() =>
                                         toggleOne(project.id)
                                     }
+                                    bgClassName="bg-white"
                                 >
-                                    <ClosedProjectSvgIcon className="mr-2 h-4 w-4 shrink-0" />
-                                    <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
+                                    <Folder
+                                        aria-hidden="true"
+                                        className="mr-2 h-5 w-5 shrink-0 text-gray-700"
+                                    />
+                                    <span className="min-w-0 flex-1 truncate text-base font-medium text-gray-900">
                                         {project.name}
                                     </span>
                                 </TablePrimaryCell>
 
-                                <TableCell className="ml-auto w-32">
+                                <TableCell className="ml-auto w-32 text-gray-700">
                                     {project.cm_number ?? (
-                                        <span className="text-gray-300">
+                                        <span className="text-gray-500">
                                             —
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-36">
+                                <TableCell className="w-36 text-gray-700">
                                     {project.practice ?? (
-                                        <span className="text-gray-300">
+                                        <span className="text-gray-500">
                                             —
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-32">
+                                <TableCell className="w-32 text-gray-700">
                                     {getProjectOwnerLabel(project, user?.id)}
                                 </TableCell>
-                                <TableCell className="w-24">
+                                <TableCell className="w-24 text-gray-700">
                                     {project.document_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-24">
+                                <TableCell className="w-24 text-gray-700">
                                     {project.chat_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-36">
+                                <TableCell className="w-36 text-gray-700">
                                     {project.review_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-32">
+                                <TableCell className="w-32 text-gray-700">
                                     {formatDate(project.created_at)}
                                 </TableCell>
 

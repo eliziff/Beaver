@@ -14,8 +14,6 @@ import {
     ChevronRight,
     FileText,
     Loader2,
-    Pencil,
-    Trash2,
     Upload,
     X,
 } from "lucide-react";
@@ -97,7 +95,7 @@ function AssistantGreeting({ username }: { username: string }) {
     return (
         <div className="flex flex-1 items-center justify-center gap-3">
             <BeaverIcon size={28} />
-            <h1 className="whitespace-nowrap font-serif text-3xl font-light text-gray-900">
+            <h1 className="text-center font-serif text-3xl font-light text-gray-900">
                 Hi, {username}
             </h1>
         </div>
@@ -195,7 +193,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     );
 
     const activeTab = tabs.find((t) => t.documentId === activeTabId) ?? null;
-    const tabBarRef = useRef<HTMLDivElement | null>(null);
     const tabItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const chatInputRef = useRef<ChatInputHandle | null>(null);
@@ -385,9 +382,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         const el = tabItemRefs.current[activeTabId];
         if (!el) return;
         el.scrollIntoView({
-            behavior: "smooth",
             block: "nearest",
-            inline: "nearest",
         });
     }, [activeTabId, tabs.length]);
 
@@ -798,7 +793,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 items={[
                                     {
                                         label: "Rename",
-                                        icon: Pencil,
                                         onSelect: () =>
                                             void handleRenameChat(),
                                     },
@@ -806,11 +800,9 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                         label: deletingChat
                                             ? "Deleting..."
                                             : "Delete",
-                                        icon: Trash2,
                                         onSelect: () =>
                                             void handleDeleteChat(),
                                         disabled: deletingChat,
-                                        variant: "danger",
                                     },
                                 ]}
                             />
@@ -966,10 +958,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 {/* CENTER: Document Panel */}
                 <div className="flex-1 flex flex-col min-w-0 border-r border-gray-200">
                     {/* Tab bar */}
-                    <div
-                        ref={tabBarRef}
-                        className="h-10 flex items-end border-b border-gray-200 shrink-0 overflow-x-auto min-w-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                    >
+                    <div className="flex max-h-32 min-w-0 shrink-0 flex-wrap items-stretch overflow-y-auto border-b border-gray-200">
                         {tabs.length === 0 ? (
                             <span className="px-4 self-center text-xs text-gray-700">
                                 Document Viewer
@@ -1006,7 +995,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                         onClick={() =>
                                             switchTab(tab.documentId)
                                         }
-                                        className={`group flex items-center gap-1.5 px-3 h-full border-r border-gray-200 cursor-pointer shrink-0 max-w-[260px] transition-colors ${
+                                        className={`group flex min-h-10 min-w-0 basis-56 flex-1 cursor-pointer items-center gap-1.5 border-r border-gray-200 px-3 ${
                                             isActive
                                                 ? "bg-gray-100"
                                                 : "bg-white hover:bg-gray-50"
@@ -1016,7 +1005,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                             className={`h-3.5 w-3.5 shrink-0 ${iconColor}`}
                                         />
                                         <span
-                                            className={`text-xs truncate ${isActive ? "text-gray-900 font-medium" : "text-gray-500"}`}
+                                            className={`min-w-0 py-2 text-left text-xs leading-tight whitespace-normal ${isActive ? "text-gray-900 font-medium" : "text-gray-600"}`}
                                         >
                                             {tab.filename}
                                         </span>
@@ -1036,7 +1025,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                                 e.stopPropagation();
                                                 closeTab(tab.documentId);
                                             }}
-                                            className={`shrink-0 transition-colors ${isActive ? "text-gray-500 hover:text-gray-700" : "text-gray-300 hover:text-gray-600"}`}
+                                            className={`shrink-0 ${isActive ? "text-gray-600 hover:text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
+                                            aria-label={`Close ${tab.filename}`}
                                         >
                                             <X className="h-3 w-3" />
                                         </button>

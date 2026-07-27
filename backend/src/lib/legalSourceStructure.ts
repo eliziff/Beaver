@@ -1,10 +1,16 @@
 import {
-  buildA2AJStructure,
-  lookupA2AJStructure,
-  normalizeA2AJLocator,
-  type A2AJLocatorKind,
-  type A2AJStructureBlock,
-} from "./a2ajStructure";
+  normalizeSourceDocLocator,
+  type SourceDocBlock,
+  type SourceDocLocatorKind,
+} from "./sourceDoc";
+import { compileA2AJSourceDoc } from "./sourceDocA2AJ";
+
+/**
+ * Native provider markup (Akoma Ntoso eIds, CourtListener/TNA paragraph ids,
+ * page-number elements) rendered to one text with its block index, falling
+ * back to the A2AJ compiler's prose spine for whatever the markup does not
+ * label. Providers move onto their own SourceDoc compilers in P1.1a stage 4.
+ */
 
 export type LegalSourceProvider =
   | "a2aj"
@@ -16,16 +22,11 @@ export type LegalSourceProvider =
   | "scc"
   | "tna";
 
-export type LegalLocatorKind = A2AJLocatorKind | "footnote";
+export type LegalLocatorKind = SourceDocLocatorKind;
 
-export type LegalStructureBlock = Omit<A2AJStructureBlock, "kind"> & {
-  kind: LegalLocatorKind;
-  anchor?: string;
-  aliases?: string[];
+export type LegalStructureBlock = SourceDocBlock & {
   locator_kind?: LegalLocatorKind;
   provider_locator?: string;
-  origin: "native" | "heuristic";
-  parentLabel?: string;
 };
 
 export type LegalSourceStructure = {
@@ -47,7 +48,7 @@ export type LegalStructureLookup = {
 
 type PendingBlock = {
   tag: string;
-  kind: A2AJLocatorKind;
+  kind: LegalLocatorKind;
   label: string;
   start: number;
   anchor?: string;
@@ -336,44 +337,38 @@ export function buildLegalSourceStructure(args: {
   const native = args.markup?.trim()
     ? nativeMarkupStructure(args.provider, args.markup)
     : { text: "", blocks: [] as LegalStructureBlock[] };
-  const mappedLawStructure =
+  const docType = args.docType === "laws" ? "laws" : "cases";
+  // The provider section map only applies to its own rendition; once native
+  // markup has supplied the text, the map's offsets mean nothing.
+  const mapped =
     !native.text && args.docType === "laws" && args.sectionMap
-      ? buildA2AJStructure({
-          text: args.text,
+      ? compileA2AJSourceDoc({
+          citation: args.citation ?? "",
           docType: "laws",
+          text: args.text,
           name: args.name,
           sectionMap: args.sectionMap,
         })
       : null;
-  const text =
-    native.text ||
-    (mappedLawStructure?.source === "section_map"
-      ? mappedLawStructure.text
-      : args.text);
-  const caseStructure = buildA2AJStructure({
-    text,
-    docType: "cases",
-    citation: args.citation,
-    alternateCitation: args.alternateCitation,
-    dataset: args.dataset,
-    name: args.name,
-  });
-  const lawStructure =
-    mappedLawStructure?.source === "section_map"
-      ? mappedLawStructure
-      : buildA2AJStructure({
+  const fromSectionMap = !!mapped?.blocks.some(
+    ({ origin }) => origin === "native",
+  );
+  const text = native.text || (fromSectionMap ? mapped!.text : args.text);
+  const compiled =
+    fromSectionMap && text === mapped!.text
+      ? mapped!
+      : compileA2AJSourceDoc({
+          citation: args.citation ?? "",
+          docType,
           text,
-          docType: "laws",
+          alternateCitation: args.alternateCitation,
+          dataset: args.dataset,
           name: args.name,
         });
   const nativeKinds = new Set(native.blocks.map(({ kind }) => kind));
   const heuristicSource =
-    args.docType === "laws" && lawStructure.source === "section_map"
-      ? "section_map"
-      : "flat_text";
-  const heuristicBlocks =
-    args.docType === "laws" ? lawStructure.blocks : caseStructure.blocks;
-  const heuristic = heuristicBlocks
+    args.docType === "laws" && fromSectionMap ? "section_map" : "flat_text";
+  const heuristic = compiled.blocks
     .filter(({ kind }) => !nativeKinds.has(kind))
     .map((block) => ({ ...block, origin: "heuristic" as const }));
   const blocks = [...native.blocks, ...heuristic].sort(
@@ -406,14 +401,10 @@ function materialize(
 }
 
 function normalizeLegalLocator(kind: LegalLocatorKind, locator: string) {
-  if (kind === "footnote") {
-    const match = locator
-      .trim()
-      .match(/^(?:fn|footnotes?|notes?)?[\s#.]*(\d{1,5})$/iu);
-    return match ? `fn${Number(match[1])}` : "";
-  }
-  const standard = normalizeA2AJLocator(kind, locator);
+  const standard = normalizeSourceDocLocator(kind, locator);
   if (standard || kind !== "section") return standard;
+  // Native markup also labels provisions by roman numeral, bare letter, or
+  // title ("Interpretation"), which no numeric grammar admits.
   const compact = locator
     .trim()
     .replace(/^(?:ss?\.?|sections?)\s*/iu, "")

@@ -1,12 +1,12 @@
 "use client";
 
-import React, {
+import {
     createContext,
     useContext,
     useEffect,
     useRef,
     useState,
-    ReactNode,
+    type ReactNode,
     useCallback,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -121,11 +121,9 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             const profileData = await getUserProfile();
             nextProfile = toProfile(profileData);
         } catch {
-            // Calculate a default future reset date for fallback
             const futureResetDate = new Date();
             futureResetDate.setDate(futureResetDate.getDate() + 30);
 
-            // Set fallback profile data on exception
             nextProfile = {
                 displayName: null,
                 organisation: null,

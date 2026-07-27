@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Info, Loader2 } from "lucide-react";
-import {
-    DropdownMenu,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
-import {
-    LiquidDropdownContent,
-    LiquidDropdownItem,
-} from "@/app/components/ui/liquid-dropdown";
+import { AlertCircle, Check, Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import type { ApiKeyState } from "@/app/lib/beaverApi";
 import {
@@ -19,11 +9,7 @@ import {
     SETTINGS_MODELS,
     type ModelOption,
 } from "@/app/components/assistant/ModelToggle";
-import {
-    isModelAvailable,
-    modelGroupToProvider,
-    providerLabel,
-} from "@/app/lib/modelAvailability";
+import { isModelAvailable } from "@/app/lib/modelAvailability";
 import {
     accountGlassInputClassName,
 } from "../accountStyles";
@@ -139,93 +125,51 @@ function ModelPreferenceDropdown({
     isSaving?: boolean;
     isSaved?: boolean;
 }) {
-    const [isOpen, setIsOpen] = useState(false);
     const selected = options.find((m) => m.id === value);
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ModelOption["group"][] = [
-        "Anthropic",
-        "Google",
-        "OpenAI",
-        "DeepSeek",
-    ];
+    const groups = [...new Set(options.map((model) => model.group))];
 
     return (
-        <DropdownMenu onOpenChange={setIsOpen}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    disabled={isSaving}
-                    title={selected?.label ?? "Select a model"}
-                    className={`flex h-9 w-full max-w-xs items-center justify-between gap-2 px-3 text-sm hover:bg-white/78 ${accountGlassInputClassName}`}
-                >
-                    <span className="flex items-center gap-2 min-w-0">
-                        {!selectedAvailable && (
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-                        )}
-                        <span className="truncate text-gray-900">
-                            {selected?.label ?? "Select a model"}
-                        </span>
-                    </span>
-                    {isSaving ? (
-                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-500" />
-                    ) : isSaved ? (
-                        <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                    ) : (
-                        <ChevronDown
-                            className={`h-3.5 w-3.5 shrink-0 text-gray-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                        />
-                    )}
-                </button>
-            </DropdownMenuTrigger>
-            <LiquidDropdownContent
-                className="z-50"
-                style={{ width: "var(--radix-dropdown-menu-trigger-width)" }}
-                align="start"
+        <div className="flex w-full max-w-xs items-center gap-2">
+            {!selectedAvailable && (
+                <AlertCircle
+                    className="h-3.5 w-3.5 shrink-0 text-red-500"
+                    aria-label="API key missing"
+                />
+            )}
+            <select
+                value={value}
+                disabled={isSaving}
+                onChange={(event) => onChange(event.currentTarget.value)}
+                title={selected?.label ?? "Select a model"}
+                aria-label="Model"
+                className={`h-9 min-w-0 flex-1 px-3 text-sm ${accountGlassInputClassName}`}
             >
-                {groups.map((group, gi) => {
+                {groups.map((group) => {
                     const items = options.filter((m) => m.group === group);
-                    if (items.length === 0) return null;
                     return (
-                        <div key={group}>
-                            {gi > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
-                                {group}
-                            </DropdownMenuLabel>
+                        <optgroup key={group} label={group}>
                             {items.map((m) => {
-                                const provider = modelGroupToProvider(m.group);
                                 const available = apiKeys
                                     ? isModelAvailable(m.id, apiKeys)
                                     : true;
                                 return (
-                                    <LiquidDropdownItem
-                                        key={m.id}
-                                        className="cursor-pointer"
-                                        onSelect={() => onChange(m.id)}
-                                        title={
-                                            !available
-                                                ? `Add a ${providerLabel(provider)} API key to use this model`
-                                                : undefined
-                                        }
-                                    >
-                                        <span
-                                            className={`flex-1 ${available ? "" : "text-gray-400"}`}
-                                        >
-                                            {m.label}
-                                        </span>
-                                        {!available && (
-                                            <AlertCircle className="h-3.5 w-3.5 text-red-500 ml-1" />
-                                        )}
-                                        {m.id === value && available && (
-                                            <Check className="h-3.5 w-3.5 text-gray-600 ml-1" />
-                                        )}
-                                    </LiquidDropdownItem>
+                                    <option key={m.id} value={m.id}>
+                                        {m.label}
+                                        {available ? "" : " (API key missing)"}
+                                    </option>
                                 );
                             })}
-                        </div>
+                        </optgroup>
                     );
                 })}
-            </LiquidDropdownContent>
-        </DropdownMenu>
+            </select>
+            {isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-500" />
+            ) : isSaved ? (
+                <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
+            ) : null}
+        </div>
     );
 }
 

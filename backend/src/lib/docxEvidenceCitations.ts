@@ -6,6 +6,7 @@ import {
 } from "./localPdfLookup";
 import { getLocalVersionFile } from "./localDocumentStore";
 import {
+  automaticPinpointQuote,
   buildLegalSourceMultiPassageUrl,
   buildLegalSourcePinpointUrl,
   formatLegalLocator,
@@ -166,38 +167,6 @@ function absoluteLocalUrl(value: string) {
   return url.toString();
 }
 
-function normalizedText(value: string) {
-  return value.trim().replace(/\s+/gu, " ");
-}
-
-function quoteCandidates(blockText: string) {
-  const text = normalizedText(blockText);
-  const candidates: string[] = [];
-  for (const sentence of text.split(/(?<=[.!?])\s+/u)) {
-    const words = sentence.split(/\s+/u);
-    if (words.length >= 5 && words.length <= 32) candidates.push(sentence);
-  }
-  const words = text.split(/\s+/u);
-  for (const length of [12, 8, 16, 24, 32]) {
-    if (words.length < length) continue;
-    for (let start = 0; start <= words.length - length; start += 4) {
-      candidates.push(words.slice(start, start + length).join(" "));
-      if (candidates.length >= 80) break;
-    }
-    if (candidates.length >= 80) break;
-  }
-  if (!candidates.length && words.length >= 2) candidates.push(text);
-  return [...new Set(candidates)];
-}
-
-function automaticQuote(evidence: LegalSourceEvidence) {
-  for (const quote of quoteCandidates(evidence.blockText)) {
-    const url = buildLegalSourcePinpointUrl(evidence, [quote]);
-    if (url?.includes(":~:text=")) return quote;
-  }
-  return null;
-}
-
 function visibleCitation(citation: string, locators: string[]) {
   const unique = [...new Set(locators)];
   return unique.length ? `${citation} at ${unique.join(", ")}` : citation;
@@ -230,7 +199,7 @@ async function resolveProviderSource(input: SourceInput) {
     };
     const quote =
       input.quotes[index] ??
-      (restored.length > 1 ? automaticQuote(evidence) : null);
+      (restored.length > 1 ? automaticPinpointQuote(evidence) : null);
     if (restored.length > 1 && !quote) {
       throw new Error(
         `DOCX source "${input.id}" cannot verify a multi-pinpoint link.`,
@@ -347,7 +316,7 @@ async function resolveLocalSource(
     };
     const quote =
       input.quotes[index] ??
-      (links.length > 1 ? automaticQuote(evidence) : null);
+      (links.length > 1 ? automaticPinpointQuote(evidence) : null);
     if (links.length > 1 && !quote) {
       throw new Error(
         `DOCX source "${input.id}" cannot verify a multi-pinpoint link.`,
@@ -473,7 +442,7 @@ async function resolveProviderPdfSource(input: SourceInput) {
     };
     const quote =
       input.quotes[index] ??
-      (links.length > 1 ? automaticQuote(evidence) : null);
+      (links.length > 1 ? automaticPinpointQuote(evidence) : null);
     if (links.length > 1 && !quote) {
       throw new Error(
         `DOCX source "${input.id}" cannot verify a multi-pinpoint link.`,

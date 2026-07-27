@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Check, AlertCircle } from "lucide-react";
-import {
-    DropdownMenu,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
-import {
-    LiquidDropdownContent,
-    LiquidDropdownItem,
-} from "@/app/components/ui/liquid-dropdown";
+import { AlertCircle } from "lucide-react";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
 import {
     getCodexModelCatalog,
@@ -220,9 +210,6 @@ function fallbackCodexLabel(modelId: string): string | null {
         .join(" ");
 }
 
-const itemClassName =
-    "rounded-xl px-2.5 py-1.5 text-gray-700 focus:bg-app-surface-hover focus:text-gray-900 data-[highlighted]:bg-app-surface-hover data-[highlighted]:text-gray-900";
-
 interface Props {
     value: string;
     onChange: (id: string) => void;
@@ -234,7 +221,6 @@ export function ModelToggle({
     onChange,
     apiKeys,
 }: Props) {
-    const [isOpen, setIsOpen] = useState(false);
     const codexCatalog = useCodexCatalog();
     const allModels = useMemo(() => {
         const dynamicModels: ModelOption[] = (codexCatalog?.models ?? []).map(
@@ -249,84 +235,83 @@ export function ModelToggle({
     const selected = allModels.find((m) => m.id === value);
     const selectedLabel =
         selected?.label ?? fallbackCodexLabel(value) ?? "Model";
+    const selectedGroup =
+        selected?.group ?? (value.startsWith("codex:") ? "Codex" : MODELS[0].group);
+    const groups = GROUP_ORDER.filter(
+        (group) =>
+            group === selectedGroup ||
+            allModels.some((model) => model.group === group),
+    );
+    const groupModels = allModels.filter(
+        (model) => model.group === selectedGroup,
+    );
+    const visibleModels = groupModels.some((model) => model.id === value)
+        ? groupModels
+        : [
+              {
+                  id: value,
+                  label: selectedLabel,
+                  group: selectedGroup,
+              },
+              ...groupModels,
+          ];
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : true;
 
-    const handleModelSelect = (id: string) => {
-        onChange(id);
-    };
-
     return (
-        <DropdownMenu onOpenChange={setIsOpen}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
-                    title={
-                        !selectedAvailable
-                            ? "API key missing for selected model"
-                            : selectedLabel
-                    }
-                    aria-label={`Model: ${selectedLabel}`}
-                >
-                    {!selectedAvailable && (
-                        <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
-                    )}
-                    <span className="whitespace-nowrap">{selectedLabel}</span>
-                    <ChevronDown
-                        className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                    />
-                </button>
-            </DropdownMenuTrigger>
-            <LiquidDropdownContent
-                className="z-50 max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-max min-w-52 max-w-[calc(100vw-1rem)] overflow-y-auto p-1.5 text-gray-700"
-                side="top"
-                align="end"
+        <span className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
+            {!selectedAvailable && (
+                <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
+            )}
+            <select
+                value={selectedGroup}
+                onChange={(event) => {
+                    const models = allModels.filter(
+                        (model) => model.group === event.currentTarget.value,
+                    );
+                    const next =
+                        models.find(
+                            (model) =>
+                                !apiKeys ||
+                                isModelAvailable(model.id, apiKeys),
+                        ) ?? models[0];
+                    if (next) onChange(next.id);
+                }}
+                title="Choose model provider"
+                aria-label={`Model provider: ${selectedGroup}`}
+                className="h-8 w-24 cursor-pointer rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700"
             >
-                {GROUP_ORDER.map((group, gi) => {
-                    const items = allModels.filter((m) => m.group === group);
-                    if (items.length === 0) return null;
+                {groups.map((group) => (
+                    <option key={group} value={group}>
+                        {group}
+                    </option>
+                ))}
+            </select>
+            <select
+                value={value}
+                onChange={(event) => onChange(event.currentTarget.value)}
+                title={
+                    !selectedAvailable
+                        ? "API key missing for selected model"
+                        : selectedLabel
+                }
+                aria-label={`Model: ${selectedLabel}`}
+                className="h-8 min-w-0 flex-1 cursor-pointer rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 sm:w-44 sm:flex-none"
+            >
+                {visibleModels.map((model) => {
+                    const available = apiKeys
+                        ? isModelAvailable(model.id, apiKeys)
+                        : true;
                     return (
-                        <div key={group}>
-                            {gi > 0 && (
-                                <DropdownMenuSeparator className="-mx-1 my-1 bg-white/70" />
-                            )}
-                            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
-                                {group}
-                            </DropdownMenuLabel>
-                            {items.map((m) => {
-                                const available = apiKeys
-                                    ? isModelAvailable(m.id, apiKeys)
-                                    : true;
-                                return (
-                                    <LiquidDropdownItem
-                                        key={m.id}
-                                        className={`${itemClassName} ${m.id === value ? "bg-app-surface-hover text-gray-900" : ""}`}
-                                        onSelect={() => handleModelSelect(m.id)}
-                                    >
-                                        <span
-                                            className={`flex-1 ${available ? "" : "text-gray-400"}`}
-                                        >
-                                            {m.label}
-                                        </span>
-                                        {!available && (
-                                            <AlertCircle
-                                                className="h-3.5 w-3.5 text-red-500 ml-1"
-                                                aria-label="API key missing"
-                                            />
-                                        )}
-                                        {m.id === value && available && (
-                                            <Check className="h-3.5 w-3.5 text-gray-600 ml-1" />
-                                        )}
-                                    </LiquidDropdownItem>
-                                );
-                            })}
-                        </div>
+                        <option key={model.id} value={model.id}>
+                            {model.label}
+                            {available ? "" : " (API key missing)"}
+                        </option>
                     );
                 })}
-            </LiquidDropdownContent>
-        </DropdownMenu>
+            </select>
+        </span>
     );
 }
 
@@ -341,7 +326,6 @@ export function ReasoningEffortToggle({
     value,
     onChange,
 }: ReasoningEffortToggleProps) {
-    const [isOpen, setIsOpen] = useState(false);
     const catalog = useCodexCatalog();
     const selectedModel = catalog?.models.find(
         (item) => `codex:${item.slug}` === model,
@@ -384,46 +368,23 @@ export function ReasoningEffortToggle({
     }
 
     return (
-        <DropdownMenu onOpenChange={setIsOpen}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className={`reasoning-effort-toggle flex h-8 shrink-0 cursor-pointer items-center justify-end gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
-                    title="Choose reasoning effort"
-                    aria-label={`Reasoning effort: ${selectedEffort}`}
-                >
-                    <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-400">
-                        Effort
-                    </span>
-                    <span className="capitalize text-gray-600">
-                        {selectedEffort}
-                    </span>
-                    <ChevronDown
-                        className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                    />
-                </button>
-            </DropdownMenuTrigger>
-            <LiquidDropdownContent
-                className="z-50 min-w-36 p-1.5 text-gray-700"
-                side="top"
-                align="end"
+        <label className="reasoning-effort-toggle flex h-8 shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2">
+            <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-500">
+                Effort
+            </span>
+            <select
+                value={selectedEffort}
+                onChange={(event) => onChange(event.currentTarget.value)}
+                title="Choose reasoning effort"
+                aria-label={`Reasoning effort: ${selectedEffort}`}
+                className="min-w-0 cursor-pointer bg-white text-sm capitalize text-gray-700"
             >
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
-                    Reasoning effort
-                </DropdownMenuLabel>
                 {efforts.map((level) => (
-                    <LiquidDropdownItem
-                        key={level.effort}
-                        className={`${itemClassName} ${level.effort === selectedEffort ? "bg-app-surface-hover text-gray-900" : ""}`}
-                        onSelect={() => onChange(level.effort)}
-                    >
-                        <span className="flex-1 capitalize">{level.effort}</span>
-                        {level.effort === selectedEffort && (
-                            <Check className="ml-1 h-3.5 w-3.5 text-gray-600" />
-                        )}
-                    </LiquidDropdownItem>
+                    <option key={level.effort} value={level.effort}>
+                        {level.effort}
+                    </option>
                 ))}
-            </LiquidDropdownContent>
-        </DropdownMenu>
+            </select>
+        </label>
     );
 }

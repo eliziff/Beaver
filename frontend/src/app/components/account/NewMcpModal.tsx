@@ -240,7 +240,7 @@ function NewMcpForm({
                 >
                     Advanced
                     <ChevronDown
-                        className={`h-3.5 w-3.5 transition-transform ${
+                        className={`h-3.5 w-3.5 ${
                             showAdvanced ? "" : "-rotate-90"
                         }`}
                     />

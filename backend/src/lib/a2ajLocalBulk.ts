@@ -2,14 +2,18 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
-import { buildA2AJStructure, type A2AJStructure } from "./a2ajStructure";
 import { legalProviderDatabase } from "./legalDataPath";
+import type { SourceDoc } from "./sourceDoc";
+import {
+  compileA2AJSourceDoc,
+  summarizeA2AJSourceDoc,
+} from "./sourceDocA2AJ";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
-const documentStructures = new WeakMap<A2AJDocument, A2AJStructure>();
+const documentStructures = new WeakMap<A2AJDocument, SourceDoc>();
 
 function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
@@ -90,10 +94,11 @@ function document(row: Row, language: Language): A2AJDocument | null {
     languageField(row, "citation2", actualLanguage);
   if (!text || !citation) return null;
   const docType = string(row, "doc_type") === "laws" ? "laws" : "cases";
-  const structure = buildA2AJStructure({
-    text,
-    docType,
+  const compiled = compileA2AJSourceDoc({
     citation,
+    docType,
+    text,
+    url: languageField(row, "url", actualLanguage),
     alternateCitation: languageField(row, "citation2", actualLanguage),
     dataset: string(row, "dataset"),
     name: languageField(row, "name", actualLanguage),
@@ -109,13 +114,9 @@ function document(row: Row, language: Language): A2AJDocument | null {
     text,
     language: actualLanguage,
     upstreamLicense: string(row, "upstream_license"),
-    structure: {
-      status: structure.status,
-      source: structure.source,
-      counts: structure.counts,
-    },
+    structure: summarizeA2AJSourceDoc(compiled),
   };
-  documentStructures.set(document, structure);
+  documentStructures.set(document, compiled);
   return document;
 }
 

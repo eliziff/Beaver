@@ -1,5 +1,5 @@
 import {
-  getA2AJLookupDocumentText,
+  getA2AJLookupDocument,
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "./a2aj";
@@ -7,15 +7,27 @@ import {
   getCourtlistenerOpinionDocumentText,
   getCourtlistenerOpinionStructure,
 } from "./courtlistener";
+import {
+  createTextSourceDoc,
+  sourceDocContainsQuote,
+  sourceDocPhraseSpans,
+  sourceDocQuoteText,
+  sourceDocQuoteWords,
+  type SourceDoc,
+  type SourceDocQuoteSpan,
+} from "./sourceDoc";
 import { normalizeWhitespace } from "./text";
 
-type WordSpan = { word: string; start: number; end: number };
-type SourceSpan = {
-  start: number;
-  end: number;
-  firstWord: number;
-  lastWord: number;
-};
+/**
+ * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
+ * fragments verified to select exactly one place in the document.
+ *
+ * Everything here is a query over a SourceDoc. Callers that already hold the
+ * compiled artifact pass it; callers that only hold a rendition pass the text
+ * and the artifact is compiled once for the call, never once per quote.
+ */
+
+export type QuoteSource = string | SourceDoc;
 
 export type A2AJCitationIdentity = {
   citation: string | null;
@@ -28,10 +40,16 @@ export type A2AJCitationIdentity = {
 export type LegalSourceEvidence = {
   url: string;
   anchor?: string;
-  blockText: string;
-  documentText?: string;
+  /** The passage the quote must appear in. */
+  blockText: QuoteSource;
+  /** The corpus the fragment must be unique in; the block when absent. */
+  documentText?: QuoteSource;
   pageScoped?: boolean;
 };
+
+function asDoc(source: QuoteSource): SourceDoc {
+  return typeof source === "string" ? createTextSourceDoc(source) : source;
+}
 
 export type AutomaticLegalSourceLink = {
   key: string;
@@ -70,7 +88,6 @@ export type CourtlistenerCaseEvidence = {
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
-const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
 // Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
 // decisia.lexum.com tenants). Their default document URL is an iframe shell
 // with no text and no anchors; `?iframe=true` serves the document inline
@@ -88,51 +105,6 @@ function isDecisiaDocument(url: URL) {
   );
 }
 
-function quoteText(text: string) {
-  return normalizeWhitespace(
-    text
-      .trim()
-      .replace(/^["'“”]+|["'“”]+$/gu, "")
-      .replace(/\[([A-Za-z])\](?=[A-Za-z])/gu, "$1")
-      .replace(/\[([^\]]+)\]/gu, "$1")
-      .replace(/\.{3}|…/gu, " "),
-  );
-}
-
-function wordSpans(text: string): WordSpan[] {
-  return [...text.matchAll(WORD_RE)].map((match) => ({
-    word: match[0].toLowerCase(),
-    start: match.index,
-    end: match.index + match[0].length,
-  }));
-}
-
-function quoteWords(text: string) {
-  return wordSpans(quoteText(text)).map(({ word }) => word);
-}
-
-function phraseSpans(source: string, words: string[]): SourceSpan[] {
-  if (!source || !words.length) return [];
-  const sourceWords = wordSpans(source);
-  const spans: SourceSpan[] = [];
-  for (let index = 0; index <= sourceWords.length - words.length; index += 1) {
-    if (
-      words.every(
-        (word, offset) =>
-          sourceWords[index + offset].word === word.toLowerCase(),
-      )
-    ) {
-      spans.push({
-        start: sourceWords[index].start,
-        end: sourceWords[index + words.length - 1].end,
-        firstWord: index,
-        lastWord: index + words.length - 1,
-      });
-    }
-  }
-  return spans;
-}
-
 function extendTerminalPunctuation(source: string, end: number, quote: string) {
   const comma = quote.trim().endsWith(",") ? "," : "";
   const match = source
@@ -141,30 +113,45 @@ function extendTerminalPunctuation(source: string, end: number, quote: string) {
   return end + (match?.[0].length ?? 0);
 }
 
-function chooseSourceSpan(source: string, quote: string): SourceSpan | null {
-  const words = quoteWords(quote);
-  const spans = phraseSpans(source, words).map((span) => ({
-    ...span,
-    end: extendTerminalPunctuation(source, span.end, quote),
-  }));
+/**
+ * Where in `doc` a quote sits. When it sits in more than one place, the tie is
+ * broken by comparing the rendered text - first as written, then with editorial
+ * alterations resolved ("[T]he" is the document's "The"), then case-folded.
+ * Without the second comparison an altered quote that appears twice loses its
+ * link entirely, which is exactly what a court quotation looks like.
+ */
+function chooseSourceSpan(
+  doc: SourceDoc,
+  quote: string,
+): SourceDocQuoteSpan | null {
+  const spans = sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote)).map(
+    (span) => ({
+      ...span,
+      end: extendTerminalPunctuation(doc.text, span.end, quote),
+    }),
+  );
   if (spans.length === 1) return spans[0];
   if (!spans.length) return null;
 
-  const normalizedQuote = normalizeWhitespace(
-    quote.trim().replace(/^["'“”]+|["'“”]+$/gu, ""),
+  const rendered = spans.map((span) =>
+    normalizeWhitespace(doc.text.slice(span.start, span.end)),
   );
-  const exact = spans.filter(
-    (span) =>
-      normalizeWhitespace(source.slice(span.start, span.end)) ===
-      normalizedQuote,
-  );
-  if (exact.length === 1) return exact[0];
-  const folded = spans.filter(
-    (span) =>
-      normalizeWhitespace(source.slice(span.start, span.end)).toLowerCase() ===
-      normalizedQuote.toLowerCase(),
-  );
-  return folded.length === 1 ? folded[0] : null;
+  const wanted = [
+    normalizeWhitespace(quote.trim().replace(/^["'“”]+|["'“”]+$/gu, "")),
+    sourceDocQuoteText(quote),
+  ];
+  for (const candidate of wanted) {
+    for (const fold of [
+      (value: string) => value,
+      (value: string) => value.toLowerCase(),
+    ]) {
+      const matched = spans.filter(
+        (_span, index) => fold(rendered[index]) === fold(candidate),
+      );
+      if (matched.length === 1) return matched[0];
+    }
+  }
+  return null;
 }
 
 function encodeTextFragment(text: string) {
@@ -266,69 +253,48 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
 }
 
-function wordsEqual(
-  sourceWords: WordSpan[],
-  start: number,
-  expected: string[],
-) {
-  return expected.every(
-    (word, offset) => sourceWords[start + offset]?.word === word,
-  );
-}
-
+/**
+ * How many places in the document a `prefix-,target,-suffix` directive would
+ * select. A browser matches a text fragment within one block, so the whole
+ * run must sit on one line; counting stops at two because "not unique" is all
+ * the caller needs.
+ */
 function directiveMatchCount(
-  documentText: string,
+  document: SourceDoc,
   target: string,
   prefix = "",
   suffix = "",
 ) {
-  const targetWords = quoteWords(target);
-  const prefixWords = quoteWords(prefix);
-  const suffixWords = quoteWords(suffix);
-  let count = 0;
-  for (const line of documentText.split(/\r?\n/gu)) {
-    const words = wordSpans(line);
-    for (
-      let index = 0;
-      index <= words.length - targetWords.length;
-      index += 1
-    ) {
-      if (!wordsEqual(words, index, targetWords)) continue;
-      if (
-        prefixWords.length &&
-        (index < prefixWords.length ||
-          !wordsEqual(words, index - prefixWords.length, prefixWords))
-      ) {
-        continue;
-      }
-      const suffixStart = index + targetWords.length;
-      if (suffixWords.length && !wordsEqual(words, suffixStart, suffixWords)) {
-        continue;
-      }
-      count += 1;
-      if (count > 1) return count;
-    }
-  }
-  return count;
+  return sourceDocPhraseSpans(
+    document,
+    [
+      ...sourceDocQuoteWords(prefix),
+      ...sourceDocQuoteWords(target),
+      ...sourceDocQuoteWords(suffix),
+    ],
+    { sameLine: true, limit: 2 },
+  ).length;
 }
 
 function contextFor(
-  source: string,
-  span: SourceSpan,
+  block: SourceDoc,
+  span: SourceDocQuoteSpan,
   window: number,
 ): { prefix: string; suffix: string } {
-  const words = wordSpans(source);
+  const words = block.tokens;
   const firstPrefixWord = Math.max(0, span.firstWord - window);
   const lastSuffixWord = Math.min(words.length - 1, span.lastWord + window);
   let prefix =
     span.firstWord > firstPrefixWord
       ? normalizeWhitespace(
-          source.slice(words[firstPrefixWord].start, span.start),
+          block.text.slice(words[firstPrefixWord].start, span.start),
         )
       : "";
   const suffix =
     lastSuffixWord > span.lastWord
-      ? normalizeWhitespace(source.slice(span.end, words[lastSuffixWord].end))
+      ? normalizeWhitespace(
+          block.text.slice(span.end, words[lastSuffixWord].end),
+        )
       : "";
   prefix = prefix.replace(
     /^(?:\[\d+\]|\([A-Za-z0-9ivxlcdm]+\)|\d+[.)])\s*/iu,
@@ -338,18 +304,18 @@ function contextFor(
 }
 
 function buildDirective(
-  blockText: string,
+  block: SourceDoc,
   quote: string,
-  documentText: string,
+  document: SourceDoc,
   pageScoped: boolean,
 ) {
-  const span = chooseSourceSpan(blockText, quote);
+  const span = chooseSourceSpan(block, quote);
   if (!span) return null;
-  const target = normalizeWhitespace(blockText.slice(span.start, span.end));
-  const targetWords = quoteWords(target);
+  const target = normalizeWhitespace(block.text.slice(span.start, span.end));
+  const targetWords = sourceDocQuoteWords(target);
   if (!targetWords.length) return null;
 
-  const targetCount = directiveMatchCount(documentText, target);
+  const targetCount = directiveMatchCount(document, target);
   const needsContext =
     targetWords.length <= 3 ||
     targetCount !== 1 ||
@@ -359,7 +325,7 @@ function buildDirective(
   }
 
   for (const window of CONTEXT_WINDOWS) {
-    const { prefix, suffix } = contextFor(blockText, span, window);
+    const { prefix, suffix } = contextFor(block, span, window);
     const options: Array<[string, string]> = [
       [prefix, ""],
       ["", suffix],
@@ -369,7 +335,7 @@ function buildDirective(
       if (!candidatePrefix && !candidateSuffix) continue;
       if (
         directiveMatchCount(
-          documentText,
+          document,
           target,
           candidatePrefix,
           candidateSuffix,
@@ -398,7 +364,7 @@ function appendDirectives(url: string, directives: string[]) {
 export function buildA2AJPinpointUrl(
   lookup: A2AJLocatorLookup,
   quotes: string[],
-  documentText = getA2AJLookupDocumentText(lookup),
+  document: SourceDoc | null = getA2AJLookupDocument(lookup),
   block: A2AJLookupBlock | null = lookup.block,
 ) {
   if (!lookup.url) return null;
@@ -408,11 +374,24 @@ export function buildA2AJPinpointUrl(
     {
       url: baseUrl,
       blockText: lookup.status === "found" && block ? block.text : "",
-      documentText,
+      documentText: document ?? undefined,
       pageScoped: lookup.requested.kind === "page",
     },
     quotes,
   );
+}
+
+function verificationDoc(
+  passage: { documentText?: QuoteSource },
+  block: SourceDoc,
+) {
+  const document = passage.documentText;
+  if (document === undefined) return block;
+  return typeof document === "string"
+    ? document.trim()
+      ? createTextSourceDoc(document)
+      : block
+    : document;
 }
 
 export function buildLegalSourcePinpointUrl(
@@ -420,24 +399,18 @@ export function buildLegalSourcePinpointUrl(
   quotes: string[],
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
-  if (!baseUrl || !evidence.blockText) return baseUrl;
+  const block = asDoc(evidence.blockText);
+  if (!baseUrl || !block.text) return baseUrl;
   const uniqueQuotes = new Map<string, string>();
   for (const quote of quotes) {
-    const key = quoteWords(quote).join(" ");
+    const key = sourceDocQuoteWords(quote).join(" ");
     if (key && !uniqueQuotes.has(key)) uniqueQuotes.set(key, quote);
   }
   if (!uniqueQuotes.size) return baseUrl;
 
-  const verificationText = evidence.documentText?.trim()
-    ? evidence.documentText
-    : evidence.blockText;
+  const document = verificationDoc(evidence, block);
   const built = [...uniqueQuotes.values()].map((quote) =>
-    buildDirective(
-      evidence.blockText,
-      quote,
-      verificationText,
-      evidence.pageScoped === true,
-    ),
+    buildDirective(block, quote, document, evidence.pageScoped === true),
   );
   if (built.some((directive) => !directive)) return baseUrl;
   const directives = [
@@ -457,8 +430,8 @@ export function buildLegalSourceMultiPassageUrl(
   url: string,
   passages: {
     key: string;
-    blockText: string;
-    documentText?: string;
+    blockText: QuoteSource;
+    documentText?: QuoteSource;
     pageScoped?: boolean;
     quotes: string[];
   }[],
@@ -471,23 +444,20 @@ export function buildLegalSourceMultiPassageUrl(
   ];
   const directives: string[] = [];
   for (const passage of uniquePassages) {
-    const verificationText = passage.documentText?.trim()
-      ? passage.documentText
-      : passage.blockText;
+    const block = asDoc(passage.blockText);
+    const document = verificationDoc(passage, block);
     const quotes = [
       ...new Map(
-        passage.quotes.map((quote) => [quoteWords(quote).join(" "), quote]),
+        passage.quotes.map((quote) => [
+          sourceDocQuoteWords(quote).join(" "),
+          quote,
+        ]),
       ).values(),
-    ].filter((quote) => quoteWords(quote).length > 0);
+    ].filter((quote) => sourceDocQuoteWords(quote).length > 0);
     if (!quotes.length) return null;
     const built = quotes
       .map((quote) =>
-        buildDirective(
-          passage.blockText,
-          quote,
-          verificationText,
-          passage.pageScoped === true,
-        ),
+        buildDirective(block, quote, document, passage.pageScoped === true),
       )
       .sort((left, right) => (left?.start ?? 0) - (right?.start ?? 0));
     if (built.some((directive) => !directive)) return null;
@@ -500,6 +470,47 @@ export function buildLegalSourceMultiPassageUrl(
     );
   }
   return appendDirectives(baseUrl, [...new Set(directives)]);
+}
+
+function quoteCandidates(blockText: string) {
+  const text = normalizeWhitespace(blockText);
+  const candidates: string[] = [];
+  for (const sentence of text.split(/(?<=[.!?])\s+/u)) {
+    const words = sentence.split(/\s+/u);
+    if (words.length >= 5 && words.length <= 32) candidates.push(sentence);
+  }
+  const words = text.split(/\s+/u);
+  for (const length of [12, 8, 16, 24, 32]) {
+    if (words.length < length) continue;
+    for (let start = 0; start <= words.length - length; start += 4) {
+      candidates.push(words.slice(start, start + length).join(" "));
+      if (candidates.length >= 80) break;
+    }
+    if (candidates.length >= 80) break;
+  }
+  if (!candidates.length && words.length >= 2) candidates.push(text);
+  return [...new Set(candidates)];
+}
+
+/**
+ * The shortest quote out of `evidence.blockText` that pins to exactly one
+ * place in the document, for callers that must produce a verified pinpoint
+ * without a model-supplied quote (multi-passage DOCX citations).
+ */
+export function automaticPinpointQuote(evidence: LegalSourceEvidence) {
+  // Up to eighty candidates are tried against the same two artifacts; compile
+  // them once, or the whole document is tokenized eighty times over.
+  const block = asDoc(evidence.blockText);
+  const prepared: LegalSourceEvidence = {
+    ...evidence,
+    blockText: block,
+    documentText: verificationDoc(evidence, block),
+  };
+  for (const quote of quoteCandidates(block.text)) {
+    const url = buildLegalSourcePinpointUrl(prepared, [quote]);
+    if (url?.includes(":~:text=")) return quote;
+  }
+  return null;
 }
 
 function normalizedIdentity(value: string | null | undefined) {
@@ -535,18 +546,16 @@ function lookupBlocks(lookup: A2AJLocatorLookup): A2AJLookupBlock[] {
   ];
 }
 
-function blockMatchesQuote(quote: string, block: A2AJLookupBlock) {
-  return blockTextMatchesQuote(quote, block.text);
-}
-
-function blockTextMatchesQuote(quote: string, blockText: string) {
-  return Boolean(chooseSourceSpan(blockText, quote));
+/** A quote is "in" a passage when it selects exactly one span of it. */
+function quoteMatchesBlock(block: SourceDoc, quote: string) {
+  return Boolean(chooseSourceSpan(block, quote));
 }
 
 function blockMatchingQuotes(lookup: A2AJLocatorLookup, quotes: string[]) {
-  const matches = lookupBlocks(lookup).filter((block) =>
-    quotes.every((quote) => blockMatchesQuote(quote, block)),
-  );
+  const matches = lookupBlocks(lookup).filter((block) => {
+    const compiled = createTextSourceDoc(block.text);
+    return quotes.every((quote) => quoteMatchesBlock(compiled, quote));
+  });
   return matches.length === 1 ? matches[0] : null;
 }
 
@@ -609,12 +618,13 @@ export function buildA2AJCitationPinpointUrl(
     return buildA2AJPinpointUrl(lookup, quotes, undefined, block);
   }
 
-  const fetched = documents.filter(
-    (document) =>
-      document.url &&
-      identityMatches(citation, document) &&
-      citation.quotes.every(({ quote }) => containsQuote(document.text, quote)),
-  );
+  const fetched = documents.filter((document) => {
+    if (!document.url || !identityMatches(citation, document)) return false;
+    const compiled = createTextSourceDoc(document.text);
+    return citation.quotes.every(({ quote }) =>
+      sourceDocContainsQuote(compiled, quote),
+    );
+  });
   const uniqueDocuments = new Map(
     fetched.map((document) => [
       [
@@ -641,7 +651,8 @@ type CourtlistenerOpinionEvidence = {
   opinionId: number | null;
   url: string | null;
   text: string;
-  documentText: string;
+  /** The full opinion rendition, compiled once per opinion. */
+  document: SourceDoc;
   source: object;
 };
 
@@ -681,15 +692,13 @@ function courtlistenerOpinions(
         opinionId,
         url: textField(value, "url"),
         text: compactText,
-        documentText: getCourtlistenerOpinionDocumentText(value) || compactText,
+        document: createTextSourceDoc(
+          getCourtlistenerOpinionDocumentText(value) || compactText,
+        ),
         source: value,
       },
     ];
   });
-}
-
-function containsQuote(source: string, quote: string) {
-  return phraseSpans(source, quoteWords(quote)).length > 0;
 }
 
 function courtlistenerNativeAnchor(
@@ -698,11 +707,10 @@ function courtlistenerNativeAnchor(
 ) {
   const structure = getCourtlistenerOpinionStructure(opinion.source);
   if (!structure) return null;
+  const compiled = createTextSourceDoc(structure.text);
   const matches = structure.blocks
     .filter(({ anchor, origin }) => Boolean(anchor) && origin === "native")
-    .filter((block) =>
-      containsQuote(structure.text.slice(block.start, block.end), quote),
-    )
+    .filter((block) => sourceDocContainsQuote(compiled, quote, block))
     .sort((left, right) => left.end - left.start - (right.end - right.start));
   if (!matches.length) return null;
   const smallest = matches[0].end - matches[0].start;
@@ -732,8 +740,8 @@ export function buildCourtlistenerCitationPinpointUrl(
         : opinions.filter(
             ({ opinionId }) => opinionId === citationQuote.opinionId,
           );
-    const matching = candidates.filter(({ documentText }) =>
-      containsQuote(documentText, citationQuote.quote),
+    const matching = candidates.filter(({ document }) =>
+      sourceDocContainsQuote(document, citationQuote.quote),
     );
     if (matching.length !== 1) return sourceUrl(fallbackUrl);
     resolved.push(matching[0]);
@@ -743,11 +751,9 @@ export function buildCourtlistenerCitationPinpointUrl(
   const selected = new Set(resolved);
   const blockText = opinions
     .filter((opinion) => selected.has(opinion))
-    .map(({ documentText }) => documentText)
+    .map(({ document }) => document.text)
     .join("\n");
-  const documentText = opinions
-    .map(({ documentText: text }) => text)
-    .join("\n");
+  const documentText = opinions.map(({ document }) => document.text).join("\n");
   const anchors = citation.quotes.map((citationQuote, index) =>
     courtlistenerNativeAnchor(resolved[index], citationQuote.quote),
   );
@@ -790,10 +796,9 @@ function answerQuoteCandidates(answer: string) {
   const unique = new Map<string, string>();
   for (const candidate of candidates) {
     const cleaned = candidate.replace(/\s*\[\d+\]\s*$/u, "");
-    const key = quoteWords(cleaned).join(" ");
-    if (quoteWords(cleaned).length >= 2 && !unique.has(key)) {
-      unique.set(key, cleaned);
-    }
+    const words = sourceDocQuoteWords(cleaned);
+    const key = words.join(" ");
+    if (words.length >= 2 && !unique.has(key)) unique.set(key, cleaned);
   }
   return [...unique.values()];
 }
@@ -807,16 +812,40 @@ export function appendLegalSourcePinpointLinks(
   sources: AutomaticLegalSourceLink[],
   existingUrls: string[] = [],
 ) {
+  // Blocks of one document share that document's artifact, so its token index
+  // is built once for the whole answer rather than once per source.
+  const shared = new Map<string, SourceDoc>();
+  const compiled = (source: QuoteSource) => {
+    if (typeof source !== "string") return source;
+    const existing = shared.get(source);
+    if (existing) return existing;
+    const doc = createTextSourceDoc(source);
+    shared.set(source, doc);
+    return doc;
+  };
   const uniqueSources = [
     ...new Map(sources.map((source) => [source.key, source])).values(),
-  ];
+  ].map((source) => {
+    const block = compiled(source.evidence.blockText);
+    return {
+      ...source,
+      block,
+      evidence: {
+        ...source.evidence,
+        blockText: block,
+        documentText: source.evidence.documentText
+          ? compiled(source.evidence.documentText)
+          : undefined,
+      },
+    };
+  });
   const assigned = new Map<
     string,
     { source: AutomaticLegalSourceLink; quotes: string[] }
   >();
   for (const quote of answerQuoteCandidates(answer)) {
-    const matches = uniqueSources.filter(({ evidence }) =>
-      blockTextMatchesQuote(quote, evidence.blockText),
+    const matches = uniqueSources.filter(({ block }) =>
+      quoteMatchesBlock(block, quote),
     );
     if (matches.length !== 1) continue;
     const source = matches[0];
@@ -850,13 +879,10 @@ function sourceLabel(
 ) {
   const citation = lookup.citation || lookup.name || "A2AJ source";
   const label = block?.label || lookup.requested.label;
-  const locator =
-    lookup.requested.kind === "paragraph"
-      ? `para. ${label.replace(/^par/iu, "")}`
-      : lookup.requested.kind === "section"
-        ? `s. ${label.replace(/^sec/iu, "")}`
-        : `p. ${label.replace(/^page=?/iu, "")}`;
-  return `${citation}, ${locator}`.replace(/[[\]]/gu, "\\$&");
+  return `${citation}, ${formatLegalLocator(lookup.requested.kind, label)}`.replace(
+    /[[\]]/gu,
+    "\\$&",
+  );
 }
 
 export function appendA2AJPinpointLinks(
@@ -873,11 +899,19 @@ export function appendA2AJPinpointLinks(
   const candidates = answerQuoteCandidates(answer);
   const blockSelections = new Map<
     string,
-    { lookup: A2AJLocatorLookup; block: A2AJLookupBlock }
+    {
+      lookup: A2AJLocatorLookup;
+      block: A2AJLookupBlock;
+      compiled: SourceDoc;
+    }
   >();
   for (const lookup of uniqueLookups) {
     for (const block of lookupBlocks(lookup)) {
-      blockSelections.set(lookupBlockKey(lookup, block), { lookup, block });
+      blockSelections.set(lookupBlockKey(lookup, block), {
+        lookup,
+        block,
+        compiled: createTextSourceDoc(block.text),
+      });
     }
   }
   const assigned = new Map<
@@ -885,8 +919,8 @@ export function appendA2AJPinpointLinks(
     { lookup: A2AJLocatorLookup; block: A2AJLookupBlock; quotes: string[] }
   >();
   for (const quote of candidates) {
-    const matches = [...blockSelections.entries()].filter(([, { block }]) =>
-      blockMatchesQuote(quote, block),
+    const matches = [...blockSelections.entries()].filter(([, { compiled }]) =>
+      quoteMatchesBlock(compiled, quote),
     );
     if (matches.length === 1) {
       const [key, selection] = matches[0];

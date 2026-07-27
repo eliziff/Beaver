@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useState, useRef, useEffect } from "react";
-import { flushSync } from "react-dom";
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react";
 import { ArrowDown } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
@@ -44,7 +49,6 @@ interface Props {
     onRetryRejectedTurn?: () => void;
 }
 
-const ASSISTANT_PANEL_TRANSITION_MS = 500;
 const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 const SCROLL_BUTTON_INPUT_GAP = 16;
@@ -69,8 +73,6 @@ export function ChatView({
 }: Props) {
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [panelMounted, setPanelMounted] = useState(false);
-    const [panelVisible, setPanelVisible] = useState(false);
     const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
     const [workflowModalInitialId, setWorkflowModalInitialId] = useState<
         string | undefined
@@ -88,101 +90,36 @@ export function ChatView({
         () => new Set(),
     );
     const { setSidebarOpen } = useSidebar();
-    const panelCloseTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-chat UI state when switching chats
         setHiddenAskInputKeys(new Set());
     }, [chatId]);
 
-    const showPanel = useCallback(() => {
-        if (panelCloseTimerRef.current !== null) {
-            window.clearTimeout(panelCloseTimerRef.current);
-            panelCloseTimerRef.current = null;
-        }
-        flushSync(() => {
-            setSidebarOpen(false);
-        });
-
-        if (panelMounted) {
-            setPanelVisible(true);
-            return;
-        }
-
-        setPanelVisible(false);
-        setPanelMounted(true);
-        requestAnimationFrame(() =>
-            requestAnimationFrame(() => setPanelVisible(true)),
-        );
-    }, [panelMounted, setSidebarOpen]);
-
     const restoreSidebarAfterPanelClose = useCallback(() => {
         if (!isSmallScreen()) setSidebarOpen(true);
     }, [setSidebarOpen]);
 
-    useEffect(
-        () => () => {
-            if (panelCloseTimerRef.current !== null) {
-                window.clearTimeout(panelCloseTimerRef.current);
-            }
-        },
-        [],
-    );
-
-    const hidePanel = useCallback(
-        (afterHidden: () => void) => {
-            if (panelCloseTimerRef.current !== null) {
-                window.clearTimeout(panelCloseTimerRef.current);
-            }
-            setPanelVisible(false);
-            panelCloseTimerRef.current = window.setTimeout(() => {
-                panelCloseTimerRef.current = null;
-                afterHidden();
-            }, ASSISTANT_PANEL_TRANSITION_MS);
-        },
-        [],
-    );
-
-    const unmountPanel = useCallback(
-        (afterUnmount?: () => void) => {
-            setPanelMounted(false);
-            restoreSidebarAfterPanelClose();
-            afterUnmount?.();
-        },
-        [restoreSidebarAfterPanelClose],
-    );
-
     const closeAllTabs = useCallback(() => {
-        hidePanel(() =>
-            unmountPanel(() => {
-                setTabs([]);
-                setActiveTabId(null);
-            }),
-        );
-    }, [hidePanel, unmountPanel]);
+        setTabs([]);
+        setActiveTabId(null);
+        restoreSidebarAfterPanelClose();
+    }, [restoreSidebarAfterPanelClose]);
 
     const closeTab = useCallback(
         (id: string) => {
-            setTabs((prev) => {
-                const next = prev.filter((t) => t.id !== id);
-                if (next.length === 0) {
-                    hidePanel(() =>
-                        unmountPanel(() => {
-                            setActiveTabId(null);
-                            setTabs([]);
-                        }),
-                    );
-                    return prev;
-                }
-                if (activeTabId === id) {
-                    const idx = prev.findIndex((t) => t.id === id);
-                    const neighbour = next[idx] ?? next[idx - 1] ?? next[0];
-                    setActiveTabId(neighbour?.id ?? null);
-                }
-                return next;
-            });
+            const next = tabs.filter((tab) => tab.id !== id);
+            if (next.length === 0) {
+                closeAllTabs();
+                return;
+            }
+            if (activeTabId === id) {
+                const index = tabs.findIndex((tab) => tab.id === id);
+                setActiveTabId((next[index] ?? next[index - 1] ?? next[0]).id);
+            }
+            setTabs(next);
         },
-        [activeTabId, hidePanel, unmountPanel],
+        [activeTabId, closeAllTabs, tabs],
     );
 
     /**
@@ -226,9 +163,9 @@ export function ChatView({
                 return [...prev, tab];
             });
             setActiveTabId(tab.id);
-            showPanel();
+            setSidebarOpen(false);
         },
-        [showPanel],
+        [setSidebarOpen],
     );
 
     /**
@@ -535,15 +472,6 @@ export function ChatView({
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle | null>(null);
     const measuredInputRef = useRef<HTMLDivElement>(null);
-    // Seed "already in place" when messages exist at mount (a freshly created
-    // chat arrives with its first message in hand). Otherwise the skeleton +
-    // opacity-0 gate would flash the message out and fade it back in on every
-    // remount. Existing chats mount with messages === [] and fetch async, so
-    // they still start hidden and reveal once loaded.
-    const hasScrolledRef = useRef(messages.length > 0);
-    const [messagesVisible, setMessagesVisible] = useState(
-        () => messages.length > 0,
-    );
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
     const [minHeight, setMinHeight] = useState("0px");
@@ -591,63 +519,21 @@ export function ChatView({
     };
 
     const scrollLatestUserToTop = useCallback(() => {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                const container = messagesContainerRef.current;
-                const element = latestUserMessageRef.current;
-                if (!container || !element) return;
-                container.scrollTo({
-                    top: element.offsetTop - 24,
-                    behavior: "smooth",
-                });
-            });
+        const container = messagesContainerRef.current;
+        const element = latestUserMessageRef.current;
+        if (!container || !element) return;
+        container.scrollTo({
+            top: element.offsetTop - 24,
+            behavior: "auto",
         });
     }, []);
 
-    useEffect(() => {
-        const last = messages[messages.length - 1];
-        if (last?.role === "user") scrollLatestUserToTop();
-    }, [messages, scrollLatestUserToTop]);
+    useLayoutEffect(() => {
+        if (messages.length > 0) scrollLatestUserToTop();
+    }, [chatId, isResponseLoading, messages.length, scrollLatestUserToTop]);
 
     useEffect(() => {
-        if (isResponseLoading) scrollLatestUserToTop();
-    }, [isResponseLoading, scrollLatestUserToTop]);
-
-    useEffect(() => {
-        if (messages.length === 0) {
-            hasScrolledRef.current = false;
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- hide messages until scroll position is restored to avoid a visible jump
-            setMessagesVisible(false);
-        } else if (!hasScrolledRef.current) {
-            const userMsgCount = messages.filter(
-                (m) => m.role === "user",
-            ).length;
-            if (
-                userMsgCount >= 2 &&
-                latestUserMessageRef.current &&
-                messagesContainerRef.current
-            ) {
-                setTimeout(() => {
-                    const container = messagesContainerRef.current;
-                    const element = latestUserMessageRef.current;
-                    if (container && element) {
-                        container.scrollTo({
-                            top: element.offsetTop - 24,
-                            behavior: "instant",
-                        });
-                    }
-                    hasScrolledRef.current = true;
-                    setMessagesVisible(true);
-                }, 100);
-            } else {
-                hasScrolledRef.current = true;
-                setMessagesVisible(true);
-            }
-        }
-    }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (panelMounted && window.innerWidth < 768) {
+        if (tabs.length > 0 && window.innerWidth < 768) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "unset";
@@ -655,7 +541,7 @@ export function ChatView({
         return () => {
             document.body.style.overflow = "unset";
         };
-    }, [panelMounted]);
+    }, [tabs.length]);
 
     const rawActiveInput = (() => {
         for (
@@ -691,12 +577,16 @@ export function ChatView({
             : null;
 
     const messagesBottomPadding = DEFAULT_ASSISTANT_BOTTOM_PADDING;
+    const lastUserIndex = messages.findLastIndex(
+        (message) => message.role === "user",
+    );
+    const lastAssistantIndex = messages.findLastIndex(
+        (message) => message.role === "assistant",
+    );
 
     return (
         <div className="h-full w-full flex relative">
-            {/* Chat column */}
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
-                {/* Scrollable messages */}
                 <div
                     ref={messagesContainerRef}
                     className="flex-1 w-full overflow-y-auto"
@@ -706,120 +596,78 @@ export function ChatView({
                         className="w-full max-w-4xl mx-auto px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative"
                         style={{ paddingBottom: messagesBottomPadding }}
                     >
-                        {!messagesVisible && (
-                            <div className="space-y-6 md:space-y-8 w-full">
-                                <div className="flex justify-end">
-                                    <div className="bg-gray-100 rounded-2xl p-4 w-2/5">
-                                        <div className="h-4 rounded bg-gray-200 w-full" />
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    {[1, 2, 3, 4].map((i) => (
-                                        <div
-                                            key={i}
-                                            className={`h-4 rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
+                        <div className="space-y-6 md:space-y-8">
+                            {messages.map((msg, i) => (
+                                <div
+                                    key={i}
+                                    ref={
+                                        i === lastUserIndex
+                                            ? latestUserMessageRef
+                                            : null
+                                    }
+                                >
+                                    {msg.role === "user" ? (
+                                        <UserMessage
+                                            content={msg.content ?? ""}
+                                            files={msg.files}
+                                            workflow={msg.workflow}
                                         />
-                                    ))}
+                                    ) : (
+                                        <AssistantMessage
+                                            events={msg.events}
+                                            isStreaming={
+                                                i === messages.length - 1 &&
+                                                isResponseLoading
+                                            }
+                                            isError={!!msg.error}
+                                            errorMessage={
+                                                typeof msg.error === "string"
+                                                    ? msg.error
+                                                    : undefined
+                                            }
+                                            citations={msg.citations}
+                                            citationStatus={msg.citationStatus}
+                                            onCitationClick={openCitation}
+                                            onOpenCitationSource={(citation) =>
+                                                openCitation(citation, {
+                                                    showQuotes: false,
+                                                })
+                                            }
+                                            onCaseClick={openCase}
+                                            minHeight={
+                                                i === lastAssistantIndex
+                                                    ? minHeight
+                                                    : "0px"
+                                            }
+                                            onWorkflowClick={(id) => {
+                                                setWorkflowModalInitialId(id);
+                                                setWorkflowModalOpen(true);
+                                            }}
+                                            onEditViewClick={openEditor}
+                                            onOpenDocument={openDocument}
+                                            onEditResolveStart={
+                                                handleEditResolveStart
+                                            }
+                                            onEditResolved={handleEditResolved}
+                                            onEditError={handleEditError}
+                                            isDocReloading={(docId) =>
+                                                reloadingDocIds.has(docId)
+                                            }
+                                            isEditReloading={(editId) =>
+                                                reloadingEditIds.has(editId)
+                                            }
+                                            resolvedEditStatuses={
+                                                resolvedEditStatuses
+                                            }
+                                        />
+                                    )}
                                 </div>
-                            </div>
-                        )}
-                        <div
-                            className="space-y-6 md:space-y-8 transition-opacity duration-150"
-                            style={{ opacity: messagesVisible ? 1 : 0 }}
-                        >
-                            {(() => {
-                                const lastUserIndex = messages
-                                    .map((m) => m.role)
-                                    .lastIndexOf("user");
-                                const lastAssistantIndex = messages
-                                    .map((m) => m.role)
-                                    .lastIndexOf("assistant");
-                                return messages.map((msg, i) => (
-                                    <div
-                                        key={i}
-                                        ref={
-                                            i === lastUserIndex
-                                                ? latestUserMessageRef
-                                                : null
-                                        }
-                                    >
-                                        {msg.role === "user" ? (
-                                            <UserMessage
-                                                content={msg.content ?? ""}
-                                                files={msg.files}
-                                                workflow={msg.workflow}
-                                            />
-                                        ) : (
-                                            <AssistantMessage
-                                                events={msg.events}
-                                                isStreaming={
-                                                    i === messages.length - 1 &&
-                                                    isResponseLoading
-                                                }
-                                                isError={!!msg.error}
-                                                errorMessage={
-                                                    typeof msg.error ===
-                                                    "string"
-                                                        ? msg.error
-                                                        : undefined
-                                                }
-                                                citations={msg.citations}
-                                                citationStatus={
-                                                    msg.citationStatus
-                                                }
-                                                onCitationClick={(citation) =>
-                                                    openCitation(citation)
-                                                }
-                                                onOpenCitationSource={(
-                                                    citation,
-                                                ) =>
-                                                    openCitation(citation, {
-                                                        showQuotes: false,
-                                                    })
-                                                }
-                                                onCaseClick={(citation) =>
-                                                    openCase(citation)
-                                                }
-                                                minHeight={
-                                                    i === lastAssistantIndex
-                                                        ? minHeight
-                                                        : "0px"
-                                                }
-                                                onWorkflowClick={(id) => {
-                                                    setWorkflowModalInitialId(
-                                                        id,
-                                                    );
-                                                    setWorkflowModalOpen(true);
-                                                }}
-                                                onEditViewClick={openEditor}
-                                                onOpenDocument={openDocument}
-                                                onEditResolveStart={
-                                                    handleEditResolveStart
-                                                }
-                                                onEditResolved={
-                                                    handleEditResolved
-                                                }
-                                                onEditError={handleEditError}
-                                                isDocReloading={(docId) =>
-                                                    reloadingDocIds.has(docId)
-                                                }
-                                                isEditReloading={(editId) =>
-                                                    reloadingEditIds.has(editId)
-                                                }
-                                                resolvedEditStatuses={
-                                                    resolvedEditStatuses
-                                                }
-                                            />
-                                        )}
-                                    </div>
-                                ));
-                            })()}
+                            ))}
                             <div ref={messagesEndRef} />
                         </div>
                     </div>
                 </div>
 
-                {/* Scroll to bottom button */}
                 {showScrollButton && (
                     <div
                         className="absolute left-1/2 -translate-x-1/2 z-19"
@@ -832,66 +680,55 @@ export function ChatView({
                     >
                         <button
                             onClick={scrollToBottom}
-                            className="cursor-pointer rounded-full border border-gray-200 bg-white p-2 shadow-sm hover:bg-gray-50"
+                            className="cursor-pointer rounded-full border border-gray-300 bg-white p-2 hover:bg-gray-100"
                         >
                             <ArrowDown className="h-6 w-6 text-gray-500" />
                         </button>
                     </div>
                 )}
 
-                {/* Chat input */}
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div className="pointer-events-none absolute -bottom-3 left-0 right-0 z-0">
-                        <div className="mx-auto h-7 w-full max-w-4xl px-4 md:px-6">
-                            <div className="h-full rounded-t-[20px] bg-white" />
-                        </div>
-                    </div>
                     <div
                         ref={measuredInputRef}
-                        className="relative z-20 w-full max-w-4xl mx-auto px-4 md:px-6"
+                        className="mx-auto w-full max-w-4xl px-4 md:px-6"
                     >
-                        <div className="w-full rounded-t-[20px] bg-transparent">
-                            {activeInput ? (
-                                <AskInputPopup
-                                    key={activeInput.key}
-                                    event={activeInput.event}
-                                    onSubmit={(response, content, files) => {
-                                        setHiddenAskInputKeys((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(activeInput.key);
-                                            return next;
-                                        });
-                                        void handleChat(
-                                            { role: "user", content, files },
-                                            {
-                                                askInputsResponse: response,
-                                            },
-                                        );
-                                    }}
-                                    onDismiss={() => {
-                                        setHiddenAskInputKeys((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(activeInput.key);
-                                            return next;
-                                        });
-                                        cancel();
-                                    }}
-                                />
-                            ) : (
-                                <ChatInput
-                                    ref={chatInputRef}
-                                    onSubmit={handleChat}
-                                    onCancel={cancel}
-                                    isLoading={isResponseLoading}
-                                    restoreDraft={
-                                        rejectedTurn?.options
-                                            ?.askInputsResponse
-                                            ? null
-                                            : rejectedTurn?.message
-                                    }
-                                />
-                            )}
-                        </div>
+                        {activeInput ? (
+                            <AskInputPopup
+                                key={activeInput.key}
+                                event={activeInput.event}
+                                onSubmit={(response, content, files) => {
+                                    setHiddenAskInputKeys((prev) => {
+                                        const next = new Set(prev);
+                                        next.add(activeInput.key);
+                                        return next;
+                                    });
+                                    void handleChat(
+                                        { role: "user", content, files },
+                                        { askInputsResponse: response },
+                                    );
+                                }}
+                                onDismiss={() => {
+                                    setHiddenAskInputKeys((prev) => {
+                                        const next = new Set(prev);
+                                        next.add(activeInput.key);
+                                        return next;
+                                    });
+                                    cancel();
+                                }}
+                            />
+                        ) : (
+                            <ChatInput
+                                ref={chatInputRef}
+                                onSubmit={handleChat}
+                                onCancel={cancel}
+                                isLoading={isResponseLoading}
+                                restoreDraft={
+                                    rejectedTurn?.options?.askInputsResponse
+                                        ? null
+                                        : rejectedTurn?.message
+                                }
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -903,10 +740,8 @@ export function ChatView({
                 initialWorkflowId={workflowModalInitialId}
             />
 
-            {panelMounted && (
-                <div
-                    className={`fixed inset-0 z-40 flex justify-center p-3 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0 ${panelVisible ? "translate-x-0" : "translate-x-full"}`}
-                >
+            {tabs.length > 0 && (
+                <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0">
                     <AssistantSidePanel
                         tabs={tabs}
                         activeTabId={activeTabId}

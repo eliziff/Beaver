@@ -11,7 +11,7 @@ type PillButtonProps = ComponentProps<"button"> & {
 
 const toneClasses: Record<PillButtonTone, string> = {
     black: "border-gray-950 bg-gray-950 text-white hover:bg-gray-800 disabled:hover:bg-gray-950",
-    white: "border-gray-200 bg-white text-gray-700 hover:bg-gray-100 disabled:hover:bg-white",
+    white: "border-gray-300 bg-white text-gray-800 hover:bg-gray-100 disabled:hover:bg-white",
     blue: "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600",
     danger: "border-red-600 bg-red-600 text-white hover:bg-red-700 disabled:hover:bg-red-600",
 };
@@ -27,7 +27,7 @@ export function pillButtonClassName(
     className?: string,
 ) {
     return cn(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium disabled:cursor-not-allowed disabled:opacity-40",
         toneClasses[tone],
         sizeClasses[size],
         className,

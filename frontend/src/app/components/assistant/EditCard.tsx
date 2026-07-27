@@ -40,12 +40,6 @@ function findMatch(
 }
 
 /**
- * Ephemeral DOM mutation so the tracked change visually resolves the
- * instant the user clicks Accept/Reject, instead of waiting for the
- * backend round-trip + re-render. The real re-render from the new
- * version supersedes this shortly after.
- */
-/**
  * Apply the optimistic DOM mutation for an accept/reject click. Returns
  * a revert function that undoes every style + class the mutation added,
  * so if the backend call later fails we can restore the original look.
@@ -179,10 +173,6 @@ interface Props {
     }) => void;
 }
 
-/**
- * Renders a single tracked-change proposal as a card in the assistant
- * message with Accept / Reject / View controls.
- */
 export function EditCard({
     annotation,
     changeNumber,
@@ -197,15 +187,10 @@ export function EditCard({
     const [localStatus, setLocalStatus] = useState<
         "pending" | "accepted" | "rejected"
     >(annotation.status);
-    // External override (from a bulk resolve) takes precedence over the
-    // card's own click-driven state.
     const status = resolvedStatus ?? localStatus;
     const setStatus = setLocalStatus;
 
     const resolved = status !== "pending";
-    // True while an accept/reject request for any edit on this card's
-    // document is in flight — triggered here, in DocPanel, or in the
-    // bulk bar. Disables the buttons so the user can't race resolutions.
     const inFlight = busy || !!isReloading;
 
     const handle = async (verb: "accept" | "reject") => {

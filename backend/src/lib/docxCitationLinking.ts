@@ -1,8 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fetchA2AJDocument, lookupA2AJLocator } from "./a2aj";
-import type { A2AJLocatorKind } from "./a2ajStructure";
+import {
+  fetchA2AJDocument,
+  lookupA2AJLocator,
+  type A2AJLocatorKind,
+} from "./a2aj";
 import {
   getCourtlistenerCases,
   getCourtlistenerOpinionDocumentText,

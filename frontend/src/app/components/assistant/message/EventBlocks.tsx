@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { getAuthHeader } from "@/app/lib/beaverApi";
+import { downloadBlob } from "@/app/lib/download";
 import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
@@ -124,7 +125,7 @@ export function ReasoningBlock({
                 {!isStreaming && (
                     <ChevronDown
                         size={10}
-                        className={`relative top-px ml-1 transition-transform duration-200 ${isContentOpen ? "" : "-rotate-90"}`}
+                        className={`relative top-px ml-1 ${isContentOpen ? "" : "-rotate-90"}`}
                     />
                 )}
             </button>
@@ -350,15 +351,7 @@ export function DocDownloadBlock({
                 headers: authHeaders,
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const blob = await resp.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            downloadBlob(await resp.blob(), filename);
         } finally {
             setBusy(false);
         }
@@ -575,7 +568,7 @@ export function CourtListenerBlock({
                     {isStreaming ? <span>...</span> : null}
                     <ChevronDown
                         size={10}
-                        className={`relative top-px ml-1 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`}
+                        className={`relative top-px ml-1 ${isOpen ? "" : "-rotate-90"}`}
                     />
                 </button>
             ) : (

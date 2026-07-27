@@ -123,6 +123,32 @@ describe("verified legal-source links", () => {
     );
   });
 
+  it("links a quote carrying an editorial alteration", () => {
+    // A court quoting mid-sentence writes "[T]he ...". The words match the
+    // source, but the raw quote never equals the rendered text, so when the
+    // passage repeats, disambiguation used to reject every candidate and the
+    // link was dropped. The alteration-resolved form is compared too.
+    const blockText =
+      "Parliament said the following. " +
+      "The duty of care applies to every occupier of the premises. " +
+      "It also said, the duty of care applies to every occupier of the premises.";
+    const evidence = {
+      url: "https://example.test/decision",
+      blockText,
+      documentText: blockText,
+    };
+    const result = buildLegalSourcePinpointUrl(evidence, [
+      "[T]he duty of care applies to every occupier of the premises.",
+    ])!;
+
+    expect(result).toContain(":~:text=");
+    expect(result).toContain("Parliament%20said%20the%20following.-,");
+    // A quote that is genuinely ambiguous still declines to link.
+    expect(
+      buildLegalSourcePinpointUrl(evidence, ["of the premises"]),
+    ).toBe("https://example.test/decision");
+  });
+
   it("keeps identical language at distinct verified pinpoints", () => {
     const first =
       "Alpha context explains why the same rule applies uniquely here. End alpha.";

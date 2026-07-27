@@ -390,7 +390,7 @@ function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
                                     {formatLabel(column.format ?? "text")}
                                 </span>
                                 <ChevronDown
-                                    className={`h-3 w-3 shrink-0 text-gray-300 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`}
+                                    className={`h-3 w-3 shrink-0 text-gray-300 ${isExpanded ? "rotate-180" : ""}`}
                                 />
                             </button>
                             {isExpanded ? (

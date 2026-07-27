@@ -68,7 +68,7 @@ export function PreResponseWrapper({
                 </span>
                 <ChevronDown
                     size={12}
-                    className={`relative top-px shrink-0 ml-2 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`}
+                    className={`relative top-px shrink-0 ml-2 ${isOpen ? "" : "-rotate-90"}`}
                 />
             </button>
             {isOpen && (

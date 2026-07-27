@@ -107,7 +107,7 @@ interface Props {
 }
 
 const MIN_WIDTH = 300;
-const MAX_WIDTH_OFFSET = 56; // sidebar width
+const MAX_WIDTH_OFFSET = 56;
 const MIN_CHAT_WIDTH = 400;
 
 function maxPanelWidth() {
@@ -212,24 +212,14 @@ export function AssistantSidePanel({
                 "--assistant-panel-width": `${panelWidth}px`,
             } as CSSProperties}
         >
-            {/* Drag handle */}
             <div
                 onMouseDown={onMouseDown}
-                className={cn(
-                    "absolute left-0 top-0 z-10 hidden h-full w-1 cursor-col-resize transition-colors md:block",
-                    "hover:bg-blue-400/70",
-                )}
+                className="absolute left-0 top-0 z-10 hidden h-full w-1 cursor-col-resize hover:bg-gray-400 md:block"
                 style={{ marginLeft: -2 }}
             />
 
-            {/* Tab strip (Chrome-style) */}
-            <div
-                className={cn(
-                    "flex items-end gap-1 px-1 pt-2",
-                    "bg-gray-200/80",
-                )}
-            >
-                <div className="flex-1 flex items-end gap-1 overflow-hidden px-2">
+            <div className="flex items-start gap-2 border-b border-gray-300 bg-gray-100 p-2">
+                <div className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto">
                     {tabs.map((tab) => {
                         const isActive = tab.id === active.id;
                         const showVersionBadge =
@@ -244,10 +234,10 @@ export function AssistantSidePanel({
                                 key={tab.id}
                                 onClick={() => onActivateTab(tab.id)}
                                 className={cn(
-                                    "group relative flex items-center gap-1.5 pl-3 pr-1.5 h-8 min-w-0 max-w-[220px] rounded-t-lg cursor-pointer select-none transition-colors",
+                                    "group flex h-8 min-w-24 max-w-[220px] flex-1 cursor-pointer select-none items-center gap-1.5 rounded-md border px-2",
                                     isActive
-                                        ? "z-20 bg-white text-gray-800 before:content-[''] before:absolute before:bottom-0 before:-left-2 before:z-20 before:h-2 before:w-2 before:rounded-br-lg before:shadow-[4px_4px_0_4px_white] before:transition-shadow after:content-[''] after:absolute after:bottom-0 after:-right-2 after:z-20 after:h-2 after:w-2 after:rounded-bl-lg after:shadow-[-4px_4px_0_4px_white] after:transition-shadow"
-                                        : "z-10 bg-gray-100 text-gray-600 hover:bg-gray-100 before:content-[''] before:absolute before:bottom-0 before:-left-2 before:h-2 before:w-2 before:rounded-br-lg before:shadow-[4px_4px_0_4px_#f3f4f6] before:transition-shadow after:content-[''] after:absolute after:bottom-0 after:-right-2 after:h-2 after:w-2 after:rounded-bl-lg after:shadow-[-4px_4px_0_4px_#f3f4f6] after:transition-shadow",
+                                        ? "border-gray-400 bg-white text-gray-900"
+                                        : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white",
                                 )}
                             >
                                 <span
@@ -272,7 +262,8 @@ export function AssistantSidePanel({
                                         e.stopPropagation();
                                         onCloseTab(tab.id);
                                     }}
-                                    className="shrink-0 rounded-full p-0.5 text-gray-400 hover:text-gray-700"
+                                    className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                                    aria-label={`Close ${title}`}
                                 >
                                     <X className="h-3 w-3" />
                                 </button>
@@ -282,8 +273,9 @@ export function AssistantSidePanel({
                 </div>
                 <button
                     onClick={onCloseAll}
-                    className="shrink-0 mb-1 ml-1 rounded-lg p-1.5 text-gray-400 hover:text-gray-700"
+                    className="shrink-0 rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:bg-gray-200 hover:text-gray-900"
                     title="Close panel"
+                    aria-label="Close panel"
                 >
                     <X className="h-4 w-4" />
                 </button>

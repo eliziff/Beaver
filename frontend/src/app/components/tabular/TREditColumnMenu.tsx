@@ -2,20 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Loader2, MoreHorizontal, Plus, X } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
 import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
-import { FORMAT_OPTIONS, formatLabel, formatIcon } from "./columnFormat";
+import { FORMAT_OPTIONS } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
-import {
-    DropdownMenu,
-    DropdownMenuRadioGroup,
-    DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
-import {
-    LiquidDropdownContent,
-    LiquidDropdownRadioItem,
-} from "@/app/components/ui/liquid-dropdown";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TABLE_SCROLL_CLOSE_EVENT } from "../shared/TablePrimitive";
 
@@ -278,51 +269,23 @@ export function TREditColumnMenu({
                         <label className="text-xs font-medium text-gray-800">
                             Format
                         </label>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    className={`mt-1 flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-white/75 focus:outline-none ${FIELD_CLASS}`}
-                                >
-                                    <span className="flex items-center gap-1.5">
-                                        {(() => {
-                                            const Icon = formatIcon(format);
-                                            return (
-                                                <Icon className="h-3 w-3 text-gray-400" />
-                                            );
-                                        })()}
-                                        {formatLabel(format)}
-                                    </span>
-                                    <ChevronDown className="h-3 w-3 text-gray-400" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <LiquidDropdownContent
-                                align="start"
-                                className="z-[50]"
-                                style={{
-                                    width: "var(--radix-dropdown-menu-trigger-width)",
-                                }}
-                            >
-                                <DropdownMenuRadioGroup
-                                    value={format}
-                                    onValueChange={(v) => {
-                                        setFormat(v as ColumnFormat);
-                                        setTags([]);
-                                        setTagInput("");
-                                    }}
-                                >
-                                    {FORMAT_OPTIONS.map((o) => (
-                                        <LiquidDropdownRadioItem
-                                            key={o.value}
-                                            value={o.value}
-                                            className="text-xs"
-                                        >
-                                            <o.icon className="h-3 w-3 text-gray-400" />
-                                            {o.label}
-                                        </LiquidDropdownRadioItem>
-                                    ))}
-                                </DropdownMenuRadioGroup>
-                            </LiquidDropdownContent>
-                        </DropdownMenu>
+                        <select
+                            value={format}
+                            onChange={(event) => {
+                                setFormat(
+                                    event.currentTarget.value as ColumnFormat,
+                                );
+                                setTags([]);
+                                setTagInput("");
+                            }}
+                            className={`mt-1 w-full rounded-lg px-2 py-1 text-xs text-gray-700 ${FIELD_CLASS}`}
+                        >
+                            {FORMAT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Tag input */}

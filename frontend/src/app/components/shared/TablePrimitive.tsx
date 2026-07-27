@@ -1,27 +1,13 @@
 "use client";
 
 import {
-    useEffect,
     useRef,
-    useState,
     type HTMLAttributes,
-    type ComponentType,
-    type MouseEvent as ReactMouseEvent,
     type ReactNode,
     type RefObject,
 } from "react";
-import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import {
-    DropdownMenu,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
-import {
-    LiquidDropdownContent,
-    LiquidDropdownItem,
-} from "@/app/components/ui/liquid-dropdown";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_GROUP_HOVER_CLASS,
@@ -29,34 +15,23 @@ import {
     LIQUID_TABLE_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
 
-export const CLOSE_ROW_ACTIONS_EVENT = "mike:close-row-actions";
 export const TABLE_SCROLL_CLOSE_EVENT = "mike:table-scroll-close";
-
-export function closeRowActionMenus() {
-    document.dispatchEvent(new Event(CLOSE_ROW_ACTIONS_EVENT));
-}
 
 export function closeTablePopups() {
     window.dispatchEvent(new Event(TABLE_SCROLL_CLOSE_EVENT));
-}
-
-function canPortalToDocument() {
-    return typeof document !== "undefined";
 }
 
 export const TABLE_STICKY_CELL_BG = "bg-app-surface";
 export const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_CHECKBOX_CLASS =
-    "mr-4 h-2.5 w-2.5 shrink-0 rounded border-gray-200 cursor-pointer accent-black";
+    "mr-4 h-4 w-4 shrink-0 rounded border-gray-400 cursor-pointer accent-black";
 
 type DivProps = HTMLAttributes<HTMLDivElement>;
 
 export type TableFilterOption<T extends string> = {
     value: T;
     label: string;
-    icon?: ComponentType<{ className?: string }>;
-    className?: string;
 };
 
 export type TableSortDirection = "asc" | "desc";
@@ -67,8 +42,6 @@ export function TableFilters<T extends string>({
     allLabel,
     options,
     onChange,
-    widthClassName = "w-52",
-    align = "left",
 }: {
     label: string;
     value: T | null;
@@ -76,85 +49,50 @@ export function TableFilters<T extends string>({
     options: TableFilterOption<T>[];
     onChange: (value: T | null) => void;
     widthClassName?: string;
-    /**
-     * Which side the menu opens toward. "left" (default) anchors the menu's
-     * right edge to the button and extends leftward; "right" anchors the menu's
-     * left edge to the button and extends rightward.
-     */
     align?: "left" | "right";
 }) {
-    const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
 
     return (
-        <DropdownMenu open={open} onOpenChange={setOpen}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    aria-label={label}
-                    title={selected?.label ?? label}
-                    className={`flex h-[18px] w-[22px] items-center justify-center rounded-sm transition-colors ${
-                        value
-                            ? `text-gray-700 ${APP_SURFACE_HOVER_CLASS} hover:text-gray-900`
-                            : `text-gray-400 ${APP_SURFACE_HOVER_CLASS} hover:text-gray-700`
-                    }`}
-                >
-                    <ChevronDown
-                        className={`h-3 w-3 transition-transform ${
-                            open ? "rotate-180" : ""
-                        }`}
-                    />
-                </button>
-            </DropdownMenuTrigger>
-            <LiquidDropdownContent
-                align={align === "right" ? "start" : "end"}
-                className={`z-[120] overflow-hidden ${widthClassName}`}
+        <label
+            title={selected?.label ?? label}
+            className={`relative flex h-7 w-7 items-center justify-center rounded ${
+                value
+                    ? `text-gray-700 ${APP_SURFACE_HOVER_CLASS} hover:text-gray-900`
+                    : `text-gray-400 ${APP_SURFACE_HOVER_CLASS} hover:text-gray-700`
+            }`}
+        >
+            <select
+                aria-label={label}
+                value={value ?? ""}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) =>
+                    onChange(
+                        event.currentTarget.value
+                            ? (event.currentTarget.value as T)
+                            : null,
+                    )
+                }
+                className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
             >
-                <LiquidDropdownItem
-                    onSelect={() => onChange(null)}
-                    className="flex w-full items-center justify-between px-3 py-2"
-                >
-                    {allLabel}
-                    {!value && <Check className="h-3.5 w-3.5 text-gray-400" />}
-                </LiquidDropdownItem>
-                {options.length > 0 && (
-                    <DropdownMenuSeparator className="-mx-1 my-1 bg-white/60" />
-                )}
+                <option value="">{allLabel}</option>
                 {options.map((option) => {
-                    const Icon = option.icon;
-
                     return (
-                        <LiquidDropdownItem
-                            key={option.value}
-                            onSelect={() => onChange(option.value)}
-                            className="flex w-full items-center justify-between px-3 py-2"
-                        >
-                            <span
-                                className={`min-w-0 whitespace-normal break-normal pr-2 leading-snug ${
-                                    Icon
-                                        ? "inline-flex items-center gap-1.5 font-medium"
-                                        : ""
-                                } ${option.className ?? ""}`}
-                            >
-                                {Icon && (
-                                    <Icon className="h-3.5 w-3.5 shrink-0" />
-                                )}
-                                {option.label}
-                            </span>
-                            {value === option.value && (
-                                <Check className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                            )}
-                        </LiquidDropdownItem>
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
                     );
                 })}
-            </LiquidDropdownContent>
-        </DropdownMenu>
+            </select>
+            <ChevronDown className="h-4 w-4 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gray-500" />
+        </label>
     );
 }
 
 export function SkeletonLine({ className }: { className?: string }) {
     return (
         <div
-            className={cn("h-3 rounded bg-gray-100", className)}
+            className={cn("h-3 rounded bg-gray-200", className)}
         />
     );
 }
@@ -163,7 +101,7 @@ export function SkeletonDot({ className }: { className?: string }) {
     return (
         <div
             className={cn(
-                "h-2.5 w-2.5 shrink-0 rounded bg-gray-100",
+                "h-3 w-3 shrink-0 rounded bg-gray-200",
                 className,
             )}
         />
@@ -183,7 +121,7 @@ export function TableScrollArea({
     const headerViewportRef = useRef<HTMLDivElement>(null);
 
     return (
-        <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 rounded-2xl md:mx-6 md:mb-3", className)}>
+        <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 md:mx-6 md:mb-3", className)}>
             <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
                 {header && (
                     <div
@@ -215,7 +153,7 @@ export function TableHeaderRow({ children, className, ...props }: DivProps) {
     return (
         <div
             className={cn(
-                "z-[70] flex h-10 min-w-max items-center bg-app-surface pr-3 text-xs font-medium text-gray-500 select-none",
+                "z-[70] flex h-11 min-w-max items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
                 className,
             )}
             {...props}
@@ -230,93 +168,24 @@ export function TableRow({
     className,
     interactive = true,
     selected = false,
-    onContextMenu,
-    rightClickDropdown,
     ...props
 }: DivProps & {
     interactive?: boolean;
     selected?: boolean;
-    rightClickDropdown?:
-        | ReactNode
-        | ((close: () => void, menuProps: DivProps) => ReactNode);
 }) {
-    const [menuCoords, setMenuCoords] = useState<{
-        top: number;
-        left: number;
-    } | null>(null);
-
-    useEffect(() => {
-        if (!menuCoords) return;
-        function handleClick() {
-            setMenuCoords(null);
-        }
-        function handleCloseRowActions() {
-            setMenuCoords(null);
-        }
-        document.addEventListener("click", handleClick);
-        document.addEventListener(CLOSE_ROW_ACTIONS_EVENT, handleCloseRowActions);
-        return () => {
-            document.removeEventListener("click", handleClick);
-            document.removeEventListener(
-                CLOSE_ROW_ACTIONS_EVENT,
-                handleCloseRowActions,
-            );
-        };
-    }, [menuCoords]);
-
-    function closeRightClickDropdown() {
-        setMenuCoords(null);
-    }
-
-    function handleContextMenu(e: ReactMouseEvent<HTMLDivElement>) {
-        onContextMenu?.(e);
-        if (!rightClickDropdown || e.defaultPrevented) return;
-        e.preventDefault();
-        e.stopPropagation();
-        closeRowActionMenus();
-        const menuWidth = 192;
-        setMenuCoords({
-            top: e.clientY,
-            left: Math.min(e.clientX, window.innerWidth - menuWidth - 8),
-        });
-    }
-
     return (
-        <>
-            <div
-                className={cn(
-                    "group flex h-10 min-w-max items-center pr-3 transition-colors",
-                    interactive && "cursor-pointer",
-                    interactive &&
-                        !selected &&
-                        APP_SURFACE_HOVER_CLASS,
-                    selected && APP_SURFACE_ACTIVE_CLASS,
-                    className,
-                )}
-                onContextMenu={handleContextMenu}
-                {...props}
-            >
-                {children}
-            </div>
-            {menuCoords &&
-                rightClickDropdown &&
-                canPortalToDocument() &&
-                createPortal(
-                    typeof rightClickDropdown === "function"
-                        ? rightClickDropdown(closeRightClickDropdown, {
-                              style: {
-                                  position: "fixed",
-                                  top: menuCoords.top,
-                                  left: menuCoords.left,
-                              },
-                              className: "z-[120]",
-                              onClick: (e) => e.stopPropagation(),
-                              onContextMenu: (e) => e.preventDefault(),
-                          })
-                        : rightClickDropdown,
-                    document.body,
-                )}
-        </>
+        <div
+            className={cn(
+                "group flex h-11 min-w-max items-center pr-3",
+                interactive && "cursor-pointer",
+                interactive && !selected && APP_SURFACE_HOVER_CLASS,
+                selected && APP_SURFACE_ACTIVE_CLASS,
+                className,
+            )}
+            {...props}
+        >
+            {children}
+        </div>
     );
 }
 
@@ -394,7 +263,7 @@ export function TablePrimaryCell({
                     className="min-w-0 flex-1 text-sm text-gray-800 bg-transparent outline-none"
                 />
             ) : (
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                     {label}
                 </span>
             )
@@ -440,7 +309,7 @@ export function TableHeaderCell({ children, className, ...props }: DivProps) {
 export function TableCell({ children, className, ...props }: DivProps) {
     return (
         <div
-            className={cn("shrink-0 truncate text-sm text-gray-500", className)}
+            className={cn("shrink-0 truncate text-sm text-gray-700", className)}
             {...props}
         >
             {children}

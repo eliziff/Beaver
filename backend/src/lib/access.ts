@@ -1,15 +1,4 @@
-/**
- * Project / document access helpers.
- *
- * Sharing makes the previous "scope by user_id" pattern incorrect — a doc
- * can belong to user A's project that A has shared with B's email, and B
- * must still be able to read/edit it. These helpers centralize the
- * "owner OR shared project member" check so every route uses the same
- * logic instead of re-implementing the join.
- *
- * Returned `isOwner` lets callers gate operations that should stay
- * owner-only (delete, rename, member management).
- */
+/** Central owner-or-shared access checks; `isOwner` gates mutations. */
 
 import type { createServerSupabase } from "./supabase";
 
@@ -58,12 +47,6 @@ export async function checkProjectAccess(
     return { ok: false };
 }
 
-/**
- * Check whether the current user can access a document the caller has
- * already loaded (saves a round-trip vs. having the helper re-fetch).
- * Owner-of-doc passes immediately; otherwise we fall through to a
- * project-membership check via `shared_with`.
- */
 export async function ensureDocAccess(
     doc: { user_id: string; project_id: string | null },
     userId: string,
@@ -82,15 +65,7 @@ export async function ensureDocAccess(
     return { ok: false };
 }
 
-/**
- * Same shape as `ensureDocAccess`, for tabular_reviews. A review can be
- * shared in two ways:
- *   1. Indirectly — if `project_id` is set, everyone with project access
- *      can read/operate on it.
- *   2. Directly — `tabular_reviews.shared_with` is a per-review email list
- *      so standalone reviews (project_id null) can also be shared.
- * The owner (review.user_id) always has access.
- */
+/** Reviews inherit project access and may also grant direct email access. */
 export async function ensureReviewAccess(
     review: {
         user_id: string;
@@ -119,13 +94,7 @@ export async function ensureReviewAccess(
     return { ok: false };
 }
 
-/**
- * Filter user-supplied document IDs down to documents the caller can read.
- *
- * Tabular review routes accept document IDs from request bodies. Without this
- * check, a caller with access to any review could attach arbitrary document
- * UUIDs and later cause /generate or /regenerate-cell to extract those bytes.
- */
+/** Prevent request-supplied IDs from attaching inaccessible documents. */
 export async function filterAccessibleDocumentIds(
     documentIds: string[],
     userId: string,
@@ -161,11 +130,6 @@ export async function filterAccessibleDocumentIds(
     return allowed;
 }
 
-/**
- * Returns the set of project IDs the user can access — own projects plus
- * any project where their email is in `shared_with`. Used to scope chat
- * lists and similar collection queries.
- */
 export async function listAccessibleProjectIds(
     userId: string,
     userEmail: string | null | undefined,

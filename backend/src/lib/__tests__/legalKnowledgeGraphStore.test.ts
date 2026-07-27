@@ -78,6 +78,10 @@ describe("LegalKnowledgeGraphStore", () => {
       cmNumber: "CA-42",
       practice: "Litigation",
     });
+    expect(Number.isNaN(Date.parse(matter.created_at))).toBe(false);
+    expect(knowledge.getMatter("owner-a", matter.id)?.created_at).toBe(
+      matter.created_at,
+    );
 
     expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-a")).toBe(
       true,
