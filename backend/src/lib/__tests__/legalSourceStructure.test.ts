@@ -32,6 +32,10 @@ describe("provider-neutral legal source structure", () => {
     expect(paragraph.block?.text).toContain("distinctive exact words");
     expect(subsection.status).toBe("found");
     expect(subsection.block?.anchor).toBe("section_2__subsection_1");
+    expect(subsection.block).toMatchObject({
+      locator_kind: "section",
+      provider_locator: "section_2__subsection_1",
+    });
   });
 
   it("uses native CourtListener pages but not arbitrary HTML p IDs", () => {

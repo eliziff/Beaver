@@ -13,9 +13,12 @@ import {
   fetchGovUkEtCase,
   fetchTnaCase,
   lookupPublicLegalSource,
+  persistPublicLegalEvidence,
+  rehydratePublicLegalEvidence,
   searchGovInfoCase,
   searchGovUkEtCase,
   searchTnaCase,
+  type PublicLegalEvidenceReceipt,
   type PublicLegalDocument,
   type PublicLegalLookup,
 } from "../publicLegalSources";
@@ -119,7 +122,9 @@ async function documentFor(
 function safeBlock(
   block: PublicLegalLookup["block"] | PublicLegalLookup["before"][number],
 ) {
-  return block ? { ...block, anchor: undefined } : block;
+  return block
+    ? { ...block, anchor: undefined, provider_locator: undefined }
+    : block;
 }
 
 function pdfAttachments(document: PublicLegalDocument) {
@@ -214,6 +219,47 @@ function safeDocument(
   };
 }
 
+function safeLookup(
+  document: PublicLegalDocument,
+  lookup: PublicLegalLookup,
+  kind: LegalLocatorKind,
+  locator: string,
+  pdfFallbacks: ProviderPdfQueueResult[],
+  receipt: PublicLegalEvidenceReceipt | null,
+) {
+  return {
+    ok: lookup.status === "found",
+    source: "Public legal source",
+    provider: document.provider,
+    identifier: document.identity,
+    requested: { kind, locator },
+    hit_id: `${document.provider}:${document.identity}:${kind}:${lookup.block?.label ?? lookup.requestedLabel}`,
+    status: lookup.status,
+    matches: lookup.matches,
+    block: safeBlock(lookup.block),
+    before: lookup.before.map(safeBlock),
+    after: lookup.after.map(safeBlock),
+    structure: {
+      source: document.structure.source,
+      counts: document.structure.counts,
+    },
+    ...(receipt
+      ? {
+          evidence: {
+            handle: receipt.handle,
+            source_sha256: receipt.source.source_sha256,
+            locator_kind: receipt.lookup.locator_kind,
+            text_sha256: receipt.evidence.block_text_sha256,
+          },
+        }
+      : {}),
+    pdf_fallbacks: pdfFallbacks,
+    next_required_action: receipt
+      ? "Quote only returned text. Preserve evidence.handle to rehydrate this exact source version; Mike attaches the verified source URL and pinpoint."
+      : "Quote only returned text. Mike attaches the verified source URL and pinpoint.",
+  };
+}
+
 export async function executePublicLegalSourceTool(
   name: string,
   args: Record<string, unknown>,
@@ -270,7 +316,44 @@ export async function executePublicLegalSourceTool(
       error: "A supported provider and exact identifier are required.",
     };
   }
+  const evidenceHandle =
+    typeof args.evidence_handle === "string"
+      ? args.evidence_handle.trim()
+      : "";
   try {
+    if (name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup && evidenceHandle) {
+      const restored = await rehydratePublicLegalEvidence(evidenceHandle);
+      if (
+        restored.document.provider !== source ||
+        key(source, restored.document.identity) !== key(source, identifier)
+      ) {
+        return {
+          ok: false,
+          source: "Public legal source",
+          provider: source,
+          identifier,
+          error:
+            "Provider evidence does not belong to the requested source identifier.",
+        };
+      }
+      state.documents.set(key(source, identifier), restored.document);
+      state.documents.set(
+        key(source, restored.document.identity),
+        restored.document,
+      );
+      state.lookups.push({
+        document: restored.document,
+        lookup: restored.lookup,
+      });
+      return safeLookup(
+        restored.document,
+        restored.lookup,
+        restored.receipt.lookup.locator_kind,
+        restored.receipt.lookup.locator,
+        [],
+        restored.receipt,
+      );
+    }
     const document = await documentFor(state, source, identifier);
     if (!document) {
       return {
@@ -290,10 +373,10 @@ export async function executePublicLegalSourceTool(
       args.locator_type === "footnote"
         ? "footnote"
         : args.locator_type === "page"
-        ? "page"
-        : args.locator_type === "section"
-          ? "section"
-          : "paragraph";
+          ? "page"
+          : args.locator_type === "section"
+            ? "section"
+            : "paragraph";
     const locator = typeof args.locator === "string" ? args.locator.trim() : "";
     if (!locator) {
       return { ok: false, error: "locator is required." };
@@ -315,29 +398,21 @@ export async function executePublicLegalSourceTool(
     if (lookup.status === "found" && lookup.block) {
       state.lookups.push({ document, lookup });
     }
-    return {
-      ok: lookup.status === "found",
-      source: "Public legal source",
-      provider: source,
-      identifier: document.identity,
-      requested: { kind, locator },
-      hit_id:
-        "hitId" in lookup
-          ? lookup.hitId
-          : `${source}:${document.identity}:${kind}:${lookup.block?.label ?? lookup.requestedLabel}`,
-      status: lookup.status,
-      matches: lookup.matches,
-      block: safeBlock(lookup.block),
-      before: lookup.before.map(safeBlock),
-      after: lookup.after.map(safeBlock),
-      structure: {
-        source: document.structure.source,
-        counts: document.structure.counts,
-      },
-      pdf_fallbacks: pdfFallbacks,
-      next_required_action:
-        "Quote only returned text. Mike attaches the verified source URL and pinpoint.",
-    };
+    if ("hitId" in lookup) {
+      return {
+        ...safeLookup(document, lookup, kind, locator, pdfFallbacks, null),
+        hit_id: lookup.hitId,
+      };
+    }
+    const evidence =
+      lookup.status === "found"
+        ? await persistPublicLegalEvidence(
+            document,
+            lookup,
+            typeof args.context_blocks === "number" ? args.context_blocks : 0,
+          )
+        : null;
+    return safeLookup(document, lookup, kind, locator, pdfFallbacks, evidence);
   } catch (error) {
     return {
       ok: false,
@@ -345,7 +420,9 @@ export async function executePublicLegalSourceTool(
       provider: source,
       identifier,
       error:
-        error instanceof Error
+        evidenceHandle
+          ? "Provider evidence is unavailable or failed integrity verification."
+          : error instanceof Error
           ? error.message
           : "Public legal source request failed.",
     };
@@ -476,7 +553,7 @@ export function appendPublicLegalPinpointLinks(
                   anchor:
                     block.anchor ??
                     (block === lookup.block
-                      ? lookup.anchor ?? undefined
+                      ? (lookup.anchor ?? undefined)
                       : undefined),
                   blockText: block.text,
                   documentText: document.text,
