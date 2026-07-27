@@ -1,3 +1,4 @@
+import { requireApiKey } from "./apiKeys";
 import {
   completeResponsesText,
   streamResponsesApi,
@@ -7,13 +8,7 @@ import type { StreamChatParams, StreamChatResult } from "./types";
 const OPENROUTER_RESPONSES_URL = "https://openrouter.ai/api/v1/responses";
 
 function apiKey(override?: string | null): string {
-  const key = override?.trim() || process.env.OPENROUTER_API_KEY?.trim() || "";
-  if (!key) {
-    throw new Error(
-      "OpenRouter API key is not configured. Set OPENROUTER_API_KEY or add a user OpenRouter key.",
-    );
-  }
-  return key;
+  return requireApiKey(override, ["OPENROUTER_API_KEY"], "OpenRouter");
 }
 
 export async function streamOpenRouter(

@@ -37,25 +37,37 @@ function stringifyJson(value: unknown) {
   });
 }
 
-export function logRawLlmStream(args: {
+export type LlmTrace = {
+  record(entry: Omit<RawStreamEntry, "timestamp">): void;
+  flush(status: "completed" | "error", error?: unknown): Promise<void>;
+};
+
+/**
+ * Unified LLM stream tracing: console echo (LOG_RAW_LLM_STREAM=true) and
+ * file capture (RAW_LLM_STREAM_LOG_DIR) behind one always-present handle,
+ * so adapters call trace.record()/trace.flush() unconditionally.
+ */
+export function createLlmTrace(args: {
   provider: string;
   model: string;
-  iteration: number;
-  label: string;
-  payload: unknown;
-}) {
-  if (process.env.LOG_RAW_LLM_STREAM !== "true") return;
-
-  console.log(
-    `[raw-llm-stream:${args.provider}:${args.model}:iter-${args.iteration}] ${args.label}`,
-  );
-  console.dir(args.payload, { depth: null, maxArrayLength: null });
+}): LlmTrace {
+  const recorder = createFileRecorder(args);
+  return {
+    record(entry) {
+      if (process.env.LOG_RAW_LLM_STREAM === "true") {
+        console.log(
+          `[raw-llm-stream:${args.provider}:${args.model}:iter-${entry.iteration}] ${entry.label}`,
+        );
+        console.dir(entry.payload, { depth: null, maxArrayLength: null });
+      }
+      recorder?.record(entry);
+    },
+    flush: (status, error) =>
+      recorder?.flush(status, error) ?? Promise.resolve(),
+  };
 }
 
-export function createRawLlmStreamRecorder(args: {
-  provider: string;
-  model: string;
-}) {
+function createFileRecorder(args: { provider: string; model: string }) {
   const dir = rawStreamLogDir();
   if (!dir) return null;
   const logDir = dir;

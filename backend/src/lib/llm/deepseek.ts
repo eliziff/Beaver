@@ -1,11 +1,12 @@
 import { abortError, throwIfAborted } from "./abort";
+import { requireApiKey } from "./apiKeys";
 import type {
   NormalizedToolCall,
   OpenAIToolSchema,
   StreamChatParams,
   StreamChatResult,
 } from "./types";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { createLlmTrace } from "./rawStreamLog";
 
 const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/chat/completions";
 const MAX_TOKENS = 16384;
@@ -42,19 +43,12 @@ type DeepSeekStreamChunk = {
 };
 
 function apiKey(override?: string | null): string {
-  const key =
-    override?.trim() ||
-    process.env.DEEPSEEK_API_KEY?.trim() ||
-    process.env.DEEPSEEK_OCR_KEY?.trim() ||
-    "";
-  if (!key) {
-    throw new Error(
-      "DeepSeek API key is not configured. Set DEEPSEEK_API_KEY or add a user DeepSeek key.",
-    );
-  }
-  return key;
+  return requireApiKey(
+    override,
+    ["DEEPSEEK_API_KEY", "DEEPSEEK_OCR_KEY"],
+    "DeepSeek",
+  );
 }
-
 
 function effort(value?: string): "high" | "max" {
   return ["max", "xhigh", "ultra"].includes(value?.toLowerCase() ?? "")
@@ -163,10 +157,7 @@ export async function streamDeepSeek(
   } = params;
   const key = apiKey(params.apiKeys?.deepseek);
   const messages = toDeepSeekMessages(params.messages, systemPrompt);
-  const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: "deepseek",
-    model,
-  });
+  const trace = createLlmTrace({ provider: "deepseek", model });
   let fullText = "";
 
   try {
@@ -202,18 +193,7 @@ export async function streamDeepSeek(
         buffer = parsed.rest;
 
         for (const payload of parsed.payloads) {
-          logRawLlmStream({
-            provider: "deepseek",
-            model,
-            iteration,
-            label: "sse_event",
-            payload,
-          });
-          rawStreamRecorder?.record({
-            iteration,
-            label: "sse_event",
-            payload,
-          });
+          trace.record({ iteration, label: "sse_event", payload });
           let chunk: DeepSeekStreamChunk;
           try {
             chunk = JSON.parse(payload) as DeepSeekStreamChunk;
@@ -281,10 +261,10 @@ export async function streamDeepSeek(
       }
     }
 
-    await rawStreamRecorder?.flush("completed");
+    await trace.flush("completed");
     return { fullText };
   } catch (error) {
-    await rawStreamRecorder?.flush("error", error);
+    await trace.flush("error", error);
     if (params.abortSignal?.aborted) throw abortError();
     throw error;
   }
