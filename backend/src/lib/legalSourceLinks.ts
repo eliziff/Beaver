@@ -71,38 +71,21 @@ type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
 const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
-const LEXUM_PARAGRAPH_DATASETS = new Set([
-  "CART",
-  "CHRT",
-  "CIRB",
-  "CITT",
-  "CMAC",
-  "CT",
-  "FC",
-  "FCA",
-  "FPSLREB",
-  "NSCA",
-  "NSFC",
-  "NSPC",
-  "NSSC",
-  "NSSM",
-  "OHSTC",
-  "ONCA",
-  "PSDPT",
-  "SCC",
-  "SCT",
-  "SST",
-  "TATC",
-  "TCC",
-]);
+// Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
+// decisia.lexum.com tenants). Their default document URL is an iframe shell
+// with no text and no anchors; `?iframe=true` serves the document inline
+// with `name="parN"` paragraph anchors. Live-verified across 14 hosts on
+// 2026-07-27. Detection is by host+path because A2AJ supplies markdown, not
+// the source HTML — per-document anchor presence cannot be known here, and
+// some older documents (e.g. pre-2013 SCC items) carry no anchors at all.
+const DECISIA_HOSTS =
+  /^(decisions?\.[\w-]+\.(?:gc\.)?ca|decisia\.lexum\.com|coadecisions\.ontariocourts\.ca)$/iu;
 
-function isLexumParagraphSource(lookup: A2AJLocatorLookup) {
-  if (!LEXUM_PARAGRAPH_DATASETS.has(lookup.dataset.toUpperCase())) return false;
-  try {
-    return !/(^|\.)canlii\.org$/iu.test(new URL(lookup.url ?? "").hostname);
-  } catch {
-    return false;
-  }
+function isDecisiaDocument(url: URL) {
+  return (
+    DECISIA_HOSTS.test(url.hostname) &&
+    /\/item\/\d+\/index\.do$/iu.test(url.pathname)
+  );
 }
 
 function quoteText(text: string) {
@@ -214,15 +197,10 @@ function locatorAnchor(
   }
   const label = block?.label || lookup.requested.label;
   const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
-  const scc =
-    url.hostname.toLowerCase() === "decisions.scc-csc.ca" &&
-    url.pathname.toLowerCase().endsWith("/index.do");
   if (lookup.requested.kind === "paragraph") {
     const number = label.match(/^par(\d+)/iu)?.[1];
     return number &&
-      ((canlii && url.pathname.includes("/doc/")) ||
-        scc ||
-        isLexumParagraphSource(lookup))
+      ((canlii && url.pathname.includes("/doc/")) || isDecisiaDocument(url))
       ? `par${Number(number)}`
       : undefined;
   }
@@ -240,11 +218,7 @@ function locatorAnchor(
     : undefined;
 }
 
-function sourceUrl(
-  rawUrl: string,
-  anchor?: string,
-  options: { scrollableLexum?: boolean } = {},
-): string | null {
+function sourceUrl(rawUrl: string, anchor?: string): string | null {
   const local =
     rawUrl.startsWith("/") &&
     !rawUrl.startsWith("//") &&
@@ -271,15 +245,14 @@ function sourceUrl(
   if (convertedCanliiPdf) {
     url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   }
-  if (
-    options.scrollableLexum ||
-    (url.hostname.toLowerCase() === "decisions.scc-csc.ca" &&
-      url.pathname.toLowerCase().endsWith("/index.do"))
-  ) {
+  if (isDecisiaDocument(url)) {
+    // The default Decisia URL is an iframe shell with no document text, so
+    // neither anchors nor text fragments can resolve against it. iframe=true
+    // serves the document inline. site_preference=mobile is deliberately NOT
+    // set: it is unnecessary and pins a persistent layout cookie.
     url.searchParams.delete("iframe");
     url.searchParams.delete("site_preference");
     url.searchParams.set("iframe", "true");
-    url.searchParams.set("site_preference", "mobile");
   }
 
   const resolvedAnchor =
@@ -424,10 +397,7 @@ export function buildA2AJPinpointUrl(
   block: A2AJLookupBlock | null = lookup.block,
 ) {
   if (!lookup.url) return null;
-  const baseUrl = sourceUrl(lookup.url, locatorAnchor(lookup, block), {
-    scrollableLexum:
-      lookup.requested.kind === "paragraph" && isLexumParagraphSource(lookup),
-  });
+  const baseUrl = sourceUrl(lookup.url, locatorAnchor(lookup, block));
   if (!baseUrl) return null;
   return buildLegalSourcePinpointUrl(
     {
