@@ -142,6 +142,18 @@ Acceptance:
 - Remove code/dependencies only when tests and bundle/runtime measurements show
   a strict win.
 
+Recorded strict wins on the same Windows/i3-1315U machine:
+
+| Change | Reproducible method | Before | After |
+| --- | --- | ---: | ---: |
+| Defer cloud-storage SDK in local startup | `npm run build --prefix backend`; seven alternating fresh-Node imports of `dist/app.js`, median | 2,193.0 ms; 958 modules; 88.9 MiB RSS delta | 1,768.6 ms; 833 modules; 77.2 MiB (`-19.4%`, `-13.0%`, `-13.2%`) |
+| Stop global logo from prefetching Assistant on Library | `npm run build --prefix frontend`; production Next server; cache-disabled Chromium; 6× CPU; three-run median | 1,667,888 decoded JS bytes; 1,928 ms FCP; 1,608 ms long tasks | 903,634 bytes; 1,400 ms; 1,271 ms |
+| Same prefetch removal on Authorities | Same frontend method | 1,486,012 decoded JS bytes; 1,476 ms FCP; 1,978 ms long tasks | 721,758 bytes; 996 ms; 905 ms |
+
+The Assistant and workflow-modal lazy-load experiments were reverted after
+6×-CPU interaction tests regressed fast send by about 307 ms and modal open by
+about 1.07 seconds. No build-time improvement is claimed yet.
+
 ### P0.3 Account-free local parity
 
 Status: **Partial**
@@ -532,6 +544,10 @@ Implemented:
   Markdown for headings, lists, tables, native footnotes, fields, page breaks,
   bookmarks, and verified `[@source]` links. The former `sections[]` path was
   deleted rather than maintained.
+- Precedent drafting now reads the exact active DOCX version into bounded,
+  structure-preserving HTML with a source hash, then asks the model only for
+  legal/formatting judgments before using that same Markdown renderer. The
+  byte-copy-and-edit tool and its UI/event plumbing were deleted.
 - **Document actions** is a non-modal floating side panel, not a focus-stealing
   dialog. It docks left/right, minimizes to a launcher, and leaves the Library
   interactive. A component test verifies background interaction, docking,

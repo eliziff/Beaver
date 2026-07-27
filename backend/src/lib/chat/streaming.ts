@@ -74,17 +74,6 @@ export type AssistantEvent =
       version_number?: number | null;
     }
   | { type: "doc_download"; filename: string; download_url: string }
-  | {
-      type: "doc_replicated";
-      /** Source document being copied. */
-      filename: string;
-      count: number;
-      copies: {
-        new_filename: string;
-        document_id: string;
-        version_id: string;
-      }[];
-    }
   | { type: "workflow_applied"; workflow_id: string; title: string }
   | {
       type: "doc_edited";
@@ -411,7 +400,6 @@ export async function runLLMStream(params: {
           docsRead,
           docsFound,
           docsCreated,
-          docsReplicated,
           workflowsApplied,
           docsEdited,
           askInputsEvents,
@@ -462,14 +450,6 @@ export async function runLLMStream(params: {
             document_id: dl.document_id,
             version_id: dl.version_id,
             version_number: dl.version_number ?? null,
-          });
-        }
-        for (const r of docsReplicated) {
-          events.push({
-            type: "doc_replicated",
-            filename: r.filename,
-            count: r.count,
-            copies: r.copies,
           });
         }
         for (const wf of workflowsApplied) {

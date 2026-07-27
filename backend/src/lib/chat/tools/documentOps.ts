@@ -24,6 +24,7 @@ import {
 } from "../../documentTypes";
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
+import { extractDocxDraftingSource } from "../../docxDraftingSource";
 import { renderDocxMarkdown } from "./docxMarkdown";
 
 export function citationReminder(docLabel: string, filename: string): string {
@@ -771,12 +772,24 @@ export async function generatePpt(
 export async function loadCurrentVersionBytes(
   documentId: string,
   db: ReturnType<typeof createServerSupabase>,
-): Promise<{ bytes: Buffer; storage_path: string } | null> {
+): Promise<{
+  bytes: Buffer;
+  storage_path: string;
+  version_id: string;
+  version_number: number | null;
+  file_type: string | null;
+} | null> {
   const active = await loadActiveVersion(documentId, db);
   if (!active) return null;
   const raw = await downloadFile(active.storage_path);
   if (!raw) return null;
-  return { bytes: Buffer.from(raw), storage_path: active.storage_path };
+  return {
+    bytes: Buffer.from(raw),
+    storage_path: active.storage_path,
+    version_id: active.id,
+    version_number: active.version_number,
+    file_type: active.file_type,
+  };
 }
 
 /**
@@ -1087,9 +1100,10 @@ export async function readDocumentContent(
   write: (s: string) => void,
   docIndex?: DocIndex,
   db?: ReturnType<typeof createServerSupabase>,
-  opts?: { emitEvents?: boolean },
+  opts?: { emitEvents?: boolean; mode?: "text" | "drafting" },
 ): Promise<string> {
   const emitEvents = opts?.emitEvents ?? true;
+  const mode = opts?.mode ?? "text";
   devLog(`[read_document] called with docLabel="${docLabel}"`);
   const docInfo = docStore.get(docLabel);
   if (!docInfo) {
@@ -1127,14 +1141,22 @@ export async function readDocumentContent(
     // reflects accepted/pending edits rather than the original upload.
     let raw: ArrayBuffer | null = null;
     let sourcePath = docInfo.storage_path;
+    let versionId = docIndex?.[docLabel]?.version_id ?? null;
+    let versionNumber = docIndex?.[docLabel]?.version_number ?? null;
+    let activeFileType = docInfo.file_type;
+    let currentVersionLoaded = false;
     if (documentId && db) {
       const current = await loadCurrentVersionBytes(documentId, db);
       if (current) {
+        currentVersionLoaded = true;
         raw = current.bytes.buffer.slice(
           current.bytes.byteOffset,
           current.bytes.byteOffset + current.bytes.byteLength,
         ) as ArrayBuffer;
         sourcePath = current.storage_path;
+        versionId = current.version_id;
+        versionNumber = current.version_number;
+        activeFileType = current.file_type ?? activeFileType;
         devLog(
           `[read_document] using current version path="${sourcePath}" (bytes=${raw.byteLength})`,
         );
@@ -1143,6 +1165,13 @@ export async function readDocumentContent(
           `[read_document] loadCurrentVersionBytes returned null for documentId="${documentId}", falling back to original storage_path`,
         );
       }
+    }
+    if (mode === "drafting" && documentId && db && !currentVersionLoaded) {
+      emitDocRead();
+      return JSON.stringify({
+        ok: false,
+        error: "The active DOCX version could not be read",
+      });
     }
     if (!raw) {
       raw = await downloadFile(docInfo.storage_path);
@@ -1159,6 +1188,33 @@ export async function readDocumentContent(
       emitDocRead();
       return "Document could not be read.";
     }
+    const fileType = activeFileType?.toLowerCase?.() ?? "";
+    if (mode === "drafting") {
+      if (fileType !== "docx") {
+        emitDocRead();
+        return JSON.stringify({
+          ok: false,
+          error: "Drafting mode requires an active DOCX version",
+        });
+      }
+      if (!documentId || !versionId) {
+        emitDocRead();
+        return JSON.stringify({
+          ok: false,
+          error: "Drafting mode requires a version-bound document",
+        });
+      }
+      const source = await extractDocxDraftingSource(Buffer.from(raw));
+      emitDocRead();
+      return JSON.stringify({
+        ok: true,
+        filename: docInfo.filename,
+        document_id: documentId,
+        version_id: versionId,
+        version_number: versionNumber,
+        ...source,
+      });
+    }
     // Log the first 8 bytes so we can identify real file format regardless
     // of the declared file_type. Valid .docx starts with "PK\x03\x04"
     // (zip). Legacy .doc starts with "\xD0\xCF\x11\xE0" (OLE/CFB).
@@ -1172,7 +1228,6 @@ export async function readDocumentContent(
       );
     }
     let text: string;
-    const fileType = docInfo.file_type?.toLowerCase?.() ?? "";
     if (fileType === "pdf") {
       text = await extractPdfText(raw);
       devLog(
@@ -1254,6 +1309,15 @@ export async function readDocumentContent(
       write(
         `data: ${JSON.stringify({ type: "doc_read", filename: docInfo.filename })}\n\n`,
       );
+    if (mode === "drafting") {
+      const message = err instanceof Error ? err.message : "";
+      return JSON.stringify({
+        ok: false,
+        error: /^(?:Precedent|Drafting mode)/u.test(message)
+          ? message
+          : "Drafting source could not be read",
+      });
+    }
     return "Document could not be read.";
   }
 }
@@ -1477,17 +1541,4 @@ export type DocCreatedResult = {
   document_id?: string;
   version_id?: string;
   version_number?: number | null;
-};
-
-export type DocReplicatedResult = {
-  /** Filename of the source document being copied. */
-  filename: string;
-  /** How many copies were produced in this single tool call. */
-  count: number;
-  /** One entry per new copy. */
-  copies: {
-    new_filename: string;
-    document_id: string;
-    version_id: string;
-  }[];
 };

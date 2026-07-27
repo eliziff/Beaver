@@ -244,14 +244,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             .catch(() => {});
     }, [projectId]);
 
-    // Whenever the assistant mutates project documents — creating a new
-    // doc, creating a new version via edit_document, or replicating a doc —
-    // refresh the project so the explorer picks up the new/changed files
+    // Whenever the assistant creates or edits a project document, refresh
+    // the project so the explorer picks up the new/changed files
     // without a manual reload. Keyed by completed mutation events only, so
     // we refetch once the backend has finished persisting the change.
     const projectMutationSignature = useMemo(() => {
         const created: string[] = [];
-        const replicated: string[] = [];
         const editedPerDoc: Record<string, number> = {};
         for (const msg of messages) {
             for (const ev of msg.events ?? []) {
@@ -260,14 +258,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     created.push(
                         `${ev.document_id}:${ev.version_id ?? ""}:${ev.filename}`,
                     );
-                    continue;
-                }
-                if (ev.type === "doc_replicated") {
-                    for (const c of ev.copies ?? []) {
-                        replicated.push(
-                            `${c.document_id}:${c.version_id}:${c.new_filename}`,
-                        );
-                    }
                     continue;
                 }
                 if (ev.type === "doc_edited") {
@@ -280,7 +270,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         }
         return [
             `created=${created.sort().join(",")}`,
-            `replicated=${replicated.sort().join(",")}`,
             `edited=${Object.entries(editedPerDoc)
                 .map(([k, v]) => `${k}=${v}`)
                 .sort()

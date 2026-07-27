@@ -374,14 +374,21 @@ export function ReasoningEffortToggle({
         }
     }, [onChange, selectedEffort, supported, value]);
 
-    if (!supported) return null;
+    if (!supported) {
+        return model.startsWith("codex:") && !catalog ? (
+            <div
+                aria-hidden="true"
+                className="reasoning-effort-toggle h-8 shrink-0"
+            />
+        ) : null;
+    }
 
     return (
         <DropdownMenu onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
+                    className={`reasoning-effort-toggle flex h-8 shrink-0 cursor-pointer items-center justify-end gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
                     title="Choose reasoning effort"
                     aria-label={`Reasoning effort: ${selectedEffort}`}
                 >

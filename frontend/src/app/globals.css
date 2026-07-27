@@ -211,8 +211,34 @@
     container-type: inline-size;
 }
 
-@container (max-width: 430px) {
+.reasoning-effort-toggle {
+    width: 8rem;
+}
+
+@container (max-width: 560px) {
     .chat-input-control-label {
+        display: none;
+    }
+
+    .reasoning-effort-toggle {
+        width: 5.5rem;
+    }
+}
+
+@media (max-width: 639px) {
+    .document-table .min-w-max {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .document-table .min-w-max > :first-child {
+        position: static;
+        width: auto;
+        min-width: 0;
+        flex: 1 1 0%;
+    }
+
+    .document-table .min-w-max > :nth-child(n + 2):not(:last-child) {
         display: none;
     }
 }

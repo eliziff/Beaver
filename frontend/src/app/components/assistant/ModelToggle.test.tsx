@@ -147,6 +147,36 @@ describe("ModelToggle", () => {
 });
 
 describe("ReasoningEffortToggle", () => {
+    it("reserves the control width while Codex capabilities load", async () => {
+        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        getCatalogMock.mockReturnValue(
+            new Promise((resolve) => {
+                resolveCatalog = resolve;
+            }),
+        );
+
+        const { container } = render(
+            <ReasoningEffortToggle
+                model="codex:gpt-5.6-luna"
+                value="medium"
+                onChange={vi.fn()}
+            />,
+        );
+
+        expect(
+            container.querySelector(".reasoning-effort-toggle"),
+        ).toHaveAttribute("aria-hidden", "true");
+
+        resolveCatalog(catalog([luna()]));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", {
+                    name: "Reasoning effort: medium",
+                }),
+            ).toBeInTheDocument(),
+        );
+    });
+
     it("uses the selected model's live effort levels, including max", async () => {
         const onChange = vi.fn();
         const user = userEvent.setup();

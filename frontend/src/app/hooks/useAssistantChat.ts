@@ -1254,50 +1254,6 @@ export function useAssistantChat({
               continue;
             }
 
-            if (data.type === "doc_replicate_start") {
-              pushEvent({
-                type: "doc_replicated",
-                filename: data.filename as string,
-                count:
-                  typeof data.count === "number" ? (data.count as number) : 1,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_replicated") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "doc_replicated" &&
-                  e.filename === data.filename &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "doc_replicated",
-                  filename: data.filename as string,
-                  count:
-                    typeof data.count === "number"
-                      ? (data.count as number)
-                      : Array.isArray(data.copies)
-                        ? (data.copies as unknown[]).length
-                        : 1,
-                  copies: Array.isArray(data.copies)
-                    ? (data.copies as {
-                        new_filename: string;
-                        document_id: string;
-                        version_id: string;
-                      }[])
-                    : undefined,
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
             if (data.type === "doc_edited_start") {
               pushEvent({
                 type: "doc_edited",

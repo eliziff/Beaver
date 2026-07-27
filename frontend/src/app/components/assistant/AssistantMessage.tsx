@@ -20,7 +20,6 @@ import {
     DocEditedBlock,
     DocFindBlock,
     DocReadBlock,
-    DocReplicatedBlock,
     EventBlock,
     ReasoningBlock,
     WorkflowAppliedBlock,
@@ -461,21 +460,6 @@ export function AssistantMessage({
                     key={globalIdx}
                     filename={event.filename}
                     isStreaming={event.isStreaming}
-                    showConnector={showConnector}
-                />
-            );
-        }
-        if (event.type === "doc_replicated") {
-            // The backend now does N copies in one tool call and reports
-            // count + copies on a single event, so no consecutive-event
-            // aggregation needed.
-            return (
-                <DocReplicatedBlock
-                    key={globalIdx}
-                    filename={event.filename}
-                    count={event.count}
-                    isStreaming={!!event.isStreaming}
-                    hasError={!!event.error}
                     showConnector={showConnector}
                 />
             );

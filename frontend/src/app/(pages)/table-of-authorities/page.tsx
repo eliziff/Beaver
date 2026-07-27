@@ -48,41 +48,39 @@ export default function TableOfAuthoritiesPage() {
     };
   }, []);
 
-  if (error) {
-    return (
-      <div className="m-3 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-red-200 bg-white p-8">
-        <div className="max-w-lg text-center">
-          <h1 className="font-serif text-2xl text-gray-900">
-            Table of Authorities is unavailable
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-gray-600">{error}</p>
-          <button
-            type="button"
-            className="mt-5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-            onClick={() => window.location.reload()}
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!url) {
-    return (
-      <div className="m-3 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-white/70 bg-app-surface">
-        <div className="text-sm text-gray-500">
-          Starting Table of Authorities…
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <iframe
-      src={url}
-      title="Table of Authorities"
-      className="h-full min-h-0 min-w-0 max-w-full flex-1 border-0 bg-white"
-    />
+    <div
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white"
+      aria-busy={!url && !error}
+    >
+      <iframe
+        src={url ?? "about:blank"}
+        title="Table of Authorities"
+        aria-hidden={!url}
+        tabIndex={url ? 0 : -1}
+        className="absolute inset-0 h-full w-full border-0 bg-white"
+      />
+      {!url && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white p-8">
+          {error ? (
+            <div className="max-w-lg text-center">
+              <h1 className="font-serif text-2xl text-gray-900">
+                Authorities unavailable
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-gray-600">{error}</p>
+              <button
+                type="button"
+                className="mt-5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+                onClick={() => window.location.reload()}
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">Starting Authorities…</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
