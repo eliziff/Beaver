@@ -602,7 +602,10 @@ export function LegalLibraryDocumentPage({
                 ]}
                 actions={[
                     {
-                        label: markingOpen ? "Close marks" : "Mark source",
+                        label: markingOpen ? "Close" : "Mark",
+                        title: markingOpen
+                            ? "Close source marks"
+                            : "Mark source",
                         onClick: () => setMarkingOpen((open) => !open),
                     },
                 ]}

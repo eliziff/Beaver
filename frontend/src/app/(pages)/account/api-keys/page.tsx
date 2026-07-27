@@ -49,7 +49,7 @@ const OTHER_API_KEY_FIELDS = [
         label: "CourtListener API Key",
         placeholder: "Token...",
         description:
-            "Add a CourtListener API key if you want the latest CourtListener data. Otherwise, Mike-Canada will use the bulk data hosted by us.",
+            "Add a CourtListener API key if you want the latest CourtListener data. Otherwise, Beaver will use the bulk data hosted by us.",
     },
 ] as const;
 
@@ -64,7 +64,7 @@ export default function ApiKeysPage() {
             <p className="text-sm text-gray-500 mb-4">
                 You must provide your own API keys for the app to work or add
                 your API keys into the .env file if you are running your own
-                instance of Mike-Canada. All API keys are encrypted in storage.
+                instance of Beaver. All API keys are encrypted in storage.
             </p>
             <AccountSection>
                 {MODEL_API_KEY_FIELDS.map((field, index) => (

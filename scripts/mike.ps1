@@ -151,7 +151,7 @@ function Get-CommandVersion([string]$Executable, [string[]]$Arguments) {
 function Get-Node {
     $node = Resolve-Application @('node.exe', 'node')
     if (-not $node) {
-        throw 'Node.js is missing. Mike-Canada requires Node.js 22 or newer.'
+        throw 'Node.js is missing. Beaver requires Node.js 22 or newer.'
     }
     $version = Get-CommandVersion $node @('--version')
     $match = [regex]::Match([string]$version, '(\d+)\.(\d+)\.(\d+)')
@@ -325,7 +325,7 @@ function Stop-Stack([switch]$Quiet) {
     $state = Read-State
     if (-not $state) {
         if (-not $Quiet) {
-            Write-Host "Mike-Canada has no launcher-owned processes."
+            Write-Host "Beaver has no launcher-owned processes."
         }
         return
     }
@@ -450,7 +450,7 @@ function Invoke-Doctor {
 function Start-Stack {
     $existing = Read-State
     if (Get-OwnedRecords $existing) {
-        throw "Mike-Canada is already running from $StateFile. Run status or stop first."
+        throw "Beaver is already running from $StateFile. Run status or stop first."
     }
     if ($existing) {
         Remove-Item -LiteralPath $StateFile -Force

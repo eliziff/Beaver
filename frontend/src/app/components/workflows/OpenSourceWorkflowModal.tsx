@@ -316,7 +316,7 @@ export function OpenSourceWorkflowModal({
                                             className="cursor-pointer"
                                         >
                                             GitHub repository and on the
-                                            Mike-Canada website.
+                                            Beaver website.
                                         </label>
                                     </p>
                                 </div>

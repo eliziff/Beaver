@@ -1,6 +1,6 @@
-# Mike-Canada
+# Beaver
 
-Mike-Canada is a local-first legal workspace for research, document review,
+Beaver is a local-first legal workspace for research, document review,
 drafting, and tables of authorities. Account-free mode stores files and chats
 on disk; Supabase and cloud storage remain optional.
 

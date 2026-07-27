@@ -42,7 +42,7 @@ export default function SupportPage() {
         {
             value: "question",
             label: "Question",
-            description: "Ask a question about using Mike-Canada",
+            description: "Ask a question about using Beaver",
         },
         {
             value: "other",

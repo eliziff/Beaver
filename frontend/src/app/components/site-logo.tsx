@@ -45,7 +45,7 @@ export function SiteLogo({
             >
                 <MikeIcon size={iconSizes[size]} />
             </span>
-            <span>Mike-Canada</span>
+            <span>Beaver</span>
         </h1>
     );
 

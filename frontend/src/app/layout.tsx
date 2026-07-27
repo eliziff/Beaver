@@ -4,7 +4,7 @@ import { Providers } from "@/app/components/providers";
 
 export const metadata: Metadata = {
     metadataBase: new URL("https://app.mikeoss.com"),
-    title: "Mike-Canada - AI Legal Platform",
+    title: "Beaver - AI Legal Platform",
     description:
         "AI-powered legal document analysis and contract review platform.",
     icons: {
@@ -13,14 +13,14 @@ export const metadata: Metadata = {
     openGraph: {
         type: "website",
         url: "https://app.mikeoss.com",
-        siteName: "Mike-Canada",
-        title: "Mike-Canada - AI Legal Platform",
+        siteName: "Beaver",
+        title: "Beaver - AI Legal Platform",
         description:
             "AI-powered legal document analysis and contract review platform.",
     },
     twitter: {
         card: "summary",
-        title: "Mike-Canada - AI Legal Platform",
+        title: "Beaver - AI Legal Platform",
         description:
             "AI-powered legal document analysis and contract review platform.",
     },
