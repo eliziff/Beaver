@@ -10,7 +10,7 @@ type ModalTextInputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 const variantClasses: Record<ModalTextInputVariant, string> = {
-    glass: "h-10 w-full rounded-xl border border-white/70 bg-white px-3 text-sm text-gray-700 shadow-[0_3px_9px_rgba(15,23,42,0.052),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] outline-none placeholder:text-gray-400 backdrop-blur-xl transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+    glass: "h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none transition-colors placeholder:text-gray-400 focus:border-gray-300 disabled:cursor-not-allowed disabled:opacity-60",
     minimal:
         "w-full bg-transparent font-serif text-2xl text-gray-800 outline-none placeholder:text-gray-300 disabled:cursor-not-allowed disabled:text-gray-400",
 };

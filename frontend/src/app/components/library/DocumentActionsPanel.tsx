@@ -22,7 +22,7 @@ import type {
     PdfParseStatus,
 } from "@/app/components/shared/types";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { isAnonymousMode } from "@/app/lib/supabase";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { cn } from "@/app/lib/utils";
 import {
     fixLibraryDocxSupras,
@@ -532,12 +532,12 @@ function PdfParseCard({
                         </p>
                     )}
                     {diagnostics && (
-                        <p className="mt-1 break-words text-[11px] text-gray-600">
+                        <p className="mt-1 overflow-x-auto break-normal text-[11px] text-gray-600">
                             {diagnostics}
                         </p>
                     )}
                     {state?.error && (
-                        <p className="mt-1 break-words text-[11px] text-red-700">
+                        <p className="mt-1 overflow-x-auto break-normal text-[11px] text-red-700">
                             {state.error.slice(0, 280)}
                         </p>
                     )}
@@ -547,7 +547,7 @@ function PdfParseCard({
                         </p>
                     )}
                     {error && (
-                        <p className="mt-1 break-words text-[11px] text-red-700">
+                        <p className="mt-1 overflow-x-auto break-normal text-[11px] text-red-700">
                             {error}
                         </p>
                     )}

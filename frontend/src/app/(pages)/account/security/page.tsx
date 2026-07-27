@@ -661,7 +661,7 @@ export default function SecurityPage() {
                                         {setupKeyCopied ? "Copied" : "Copy"}
                                     </button>
                                 </div>
-                                <p className="break-all text-xs text-gray-700">
+                                <p className="overflow-x-auto whitespace-nowrap font-mono text-xs text-gray-700">
                                     {enrollment.secret}
                                 </p>
                             </div>

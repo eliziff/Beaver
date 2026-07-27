@@ -56,7 +56,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         return (
             <div
                 className={cn(
-                    "flex items-center border border-white/70 bg-white/55 text-gray-700 shadow-[0_3px_9px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl transition-colors focus-within:border-white/90 focus-within:bg-white/70",
+                    "flex min-w-0 items-center border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors focus-within:border-gray-300",
                     classes.wrapper,
                     className,
                     wrapperClassName,

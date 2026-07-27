@@ -179,7 +179,7 @@ describe("ReasoningEffortToggle", () => {
         expect(onChange).toHaveBeenCalledWith("max");
     });
 
-    it("clearly disables effort for unsupported provider models", () => {
+    it("does not show an inapplicable effort control", () => {
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ReasoningEffortToggle
@@ -190,10 +190,10 @@ describe("ReasoningEffortToggle", () => {
         );
 
         expect(
-            screen.getByRole("button", {
-                name: "Reasoning effort not supported for selected model",
+            screen.queryByRole("button", {
+                name: /Reasoning effort/,
             }),
-        ).toBeDisabled();
+        ).not.toBeInTheDocument();
     });
 
     it("offers only high and max for DeepSeek, defaulting to high", async () => {

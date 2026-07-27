@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Loader2 } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Info, Loader2 } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuLabel,
@@ -78,17 +78,15 @@ export default function ModelPreferencesPage() {
         <div>
             <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-2xl font-medium font-serif">
-                    Model Preferences
+                    Model preferences
                 </h2>
             </div>
             <AccountSection>
                 <div className="px-4 py-5">
-                    <label className="text-sm font-medium text-gray-700 block mb-2">
+                    <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700">
                         Title generation model
-                    </label>
-                    <p className="text-xs text-gray-400 mb-2">
-                        Used for naming chats and other lightweight titles.
-                    </p>
+                        <InfoButton text="Names chats and other short titles." />
+                    </div>
                     <ModelPreferenceDropdown
                         value={
                             optimisticValues.titleModel ??
@@ -104,13 +102,10 @@ export default function ModelPreferencesPage() {
                 </div>
                 <div className="mx-4 h-px bg-gray-200" />
                 <div className="px-4 py-5">
-                    <label className="text-sm font-medium text-gray-700 block mb-2">
+                    <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700">
                         Tabular review model
-                    </label>
-                    <p className="text-xs text-gray-400 mb-2">
-                        We recommend using a smaller model for tabular reviews
-                        to reduce token costs.
-                    </p>
+                        <InfoButton text="Smaller models usually cost less for tabular reviews." />
+                    </div>
                     <ModelPreferenceDropdown
                         value={
                             optimisticValues.tabularModel ??
@@ -160,7 +155,8 @@ function ModelPreferenceDropdown({
                 <button
                     type="button"
                     disabled={isSaving}
-                    className={`flex h-9 w-full items-center justify-between gap-2 px-3 text-sm hover:bg-white/78 ${accountGlassInputClassName}`}
+                    title={selected?.label ?? "Select a model"}
+                    className={`flex h-9 w-full max-w-xs items-center justify-between gap-2 px-3 text-sm hover:bg-white/78 ${accountGlassInputClassName}`}
                 >
                     <span className="flex items-center gap-2 min-w-0">
                         {!selectedAvailable && (
@@ -230,5 +226,18 @@ function ModelPreferenceDropdown({
                 })}
             </LiquidDropdownContent>
         </DropdownMenu>
+    );
+}
+
+function InfoButton({ text }: { text: string }) {
+    return (
+        <button
+            type="button"
+            title={text}
+            aria-label={text}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-gray-700 focus-visible:text-gray-700"
+        >
+            <Info className="h-3.5 w-3.5" />
+        </button>
     );
 }

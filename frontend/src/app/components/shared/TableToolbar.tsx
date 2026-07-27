@@ -56,7 +56,7 @@ export function TableToolbar<T extends string>({
     return (
         <div className="mx-4 mb-2 flex h-10 items-center md:mx-6">
             {hasItems && (
-                <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
                     {items.map((item) => (
                         <TabPillButton
                             key={item.id}
@@ -69,7 +69,7 @@ export function TableToolbar<T extends string>({
                 </div>
             )}
             {actions && isDesktop && (
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex shrink-0 items-center gap-2">
                     {actions}
                 </div>
             )}
@@ -80,7 +80,7 @@ export function TableToolbar<T extends string>({
                             type="button"
                             title="Toolbar actions"
                             aria-label="Toolbar actions"
-                            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/70 bg-white/65 text-gray-700 shadow-[0_3px_9px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl transition-colors hover:bg-white hover:text-gray-900 active:scale-[0.98]"
+                            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
                         >
                             <Settings2 className="h-3.5 w-3.5" />
                         </button>

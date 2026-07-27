@@ -3,18 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@layer utilities {
-    .white-liquid-glass {
-        border: 1px solid rgba(255, 255, 255, 0.7);
-        background: rgba(255, 255, 255, 0.65);
-        box-shadow:
-            0 -1px 6px rgba(15, 23, 42, 0.034),
-            0 4px 9px rgba(15, 23, 42, 0.074),
-            inset 0 1px 0 rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(40px);
-    }
-}
-
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -216,6 +204,23 @@
 @media (prefers-reduced-motion: reduce) {
     .maple-leaf-mark--active {
         animation: none;
+    }
+}
+
+.chat-input-container {
+    container-type: inline-size;
+}
+
+@container (max-width: 430px) {
+    .chat-input-control-label {
+        display: none;
+    }
+}
+
+@media (max-height: 640px) {
+    .modal-scroll-body {
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 }
 
@@ -532,7 +537,8 @@
     border-bottom: 1px solid #f3f4f6;
     padding: 0.5rem 0.75rem;
     vertical-align: top;
-    word-break: break-word;
+    overflow-wrap: normal;
+    word-break: normal;
 }
 
 .workflow-editor-content th:last-child,

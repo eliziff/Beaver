@@ -2,7 +2,7 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-    getSession: vi.fn(),
+    getAuthHeader: vi.fn(),
     renderAsync: vi.fn(),
     useFetchDocxBytes: vi.fn(),
     withTrackedChanges: false,
@@ -16,12 +16,8 @@ vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
     useFetchDocxBytes: mocks.useFetchDocxBytes,
 }));
 
-vi.mock("@/app/lib/supabase", () => ({
-    supabase: {
-        auth: {
-            getSession: mocks.getSession,
-        },
-    },
+vi.mock("@/app/lib/mikeApi", () => ({
+    getAuthHeader: mocks.getAuthHeader,
 }));
 
 import { DocxView } from "./DocxView";
@@ -101,14 +97,12 @@ describe("DocxView", () => {
         expect(pages[0]).toHaveAttribute("aria-label", "Page 1");
         expect(pages[1]).toHaveAttribute("data-page-number", "2");
         expect(pages[1]).toHaveAttribute("aria-label", "Page 2");
-        expect(mocks.getSession).not.toHaveBeenCalled();
+        expect(mocks.getAuthHeader).not.toHaveBeenCalled();
     });
 
     it("reuses tracked-change IDs for the same document version", async () => {
         mocks.withTrackedChanges = true;
-        mocks.getSession.mockResolvedValue({
-            data: { session: null },
-        });
+        mocks.getAuthHeader.mockResolvedValue({});
         const fetchMock = vi.fn(async () => ({
             ok: true,
             json: async () => ({
@@ -145,6 +139,6 @@ describe("DocxView", () => {
         await waitFor(() => expect(secondReady).toHaveBeenCalledOnce());
 
         expect(fetchMock).toHaveBeenCalledOnce();
-        expect(mocks.getSession).toHaveBeenCalledOnce();
+        expect(mocks.getAuthHeader).toHaveBeenCalledOnce();
     });
 });

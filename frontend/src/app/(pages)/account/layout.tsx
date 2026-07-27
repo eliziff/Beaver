@@ -17,12 +17,12 @@ const TABS: TabDef[] = [
     { id: "features", label: "Features", href: "/account/features" },
     {
         id: "privacy-data",
-        label: "Privacy & Data",
+        label: "Privacy & data",
         href: "/account/privacy-data",
     },
     { id: "security", label: "Security", href: "/account/security" },
-    { id: "models", label: "Model Preferences", href: "/account/models" },
-    { id: "api-keys", label: "API Keys", href: "/account/api-keys" },
+    { id: "models", label: "Models", href: "/account/models" },
+    { id: "api-keys", label: "API keys", href: "/account/api-keys" },
     { id: "connectors", label: "Connectors", href: "/account/connectors" },
 ];
 
@@ -53,6 +53,13 @@ export default function AccountLayout({
         return null;
     }
 
+    const activeTab =
+        TABS.find(
+            (tab) =>
+                pathname === tab.href ||
+                (tab.href !== "/account" && pathname.startsWith(tab.href)),
+        ) ?? TABS[0];
+
     return (
         <div className="flex h-full flex-col overflow-y-auto">
             <header className="mx-auto flex h-16 w-full max-w-5xl shrink-0 items-end px-6 pb-2 md:h-24 md:pb-4">
@@ -65,40 +72,45 @@ export default function AccountLayout({
                 <div className="grid grid-cols-1 gap-y-6 md:grid-cols-[224px_minmax(0,1fr)] md:gap-x-10">
                     <nav
                         aria-label="Settings"
-                        className="z-10 -ml-3 min-w-0 self-start md:sticky md:top-4"
+                        className="z-10 min-w-0 self-start md:sticky md:top-4 md:-ml-3"
                     >
-                        <div className="-m-1 min-w-0 p-1">
-                            <div className="-m-1 min-w-0 overflow-x-auto overflow-y-hidden p-1">
-                                <ul className="mb-0 flex gap-1 md:flex-col">
-                                    {TABS.map((tab) => {
-                                        const active =
-                                            pathname === tab.href ||
-                                            (tab.href !== "/account" &&
-                                                pathname.startsWith(tab.href));
-                                        return (
-                                            <li key={tab.id}>
-                                                <button
-                                                    type="button"
-                                                    aria-current={
-                                                        active
-                                                            ? "page"
-                                                            : undefined
-                                                    }
-                                                    onClick={() =>
-                                                        router.push(tab.href)
-                                                    }
-                                                    className={accountTabButtonClassName(
-                                                        active,
-                                                    )}
-                                                >
-                                                    {tab.label}
-                                                </button>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        </div>
+                        <select
+                            aria-label="Settings section"
+                            value={activeTab.href}
+                            onChange={(event) =>
+                                router.push(event.target.value)
+                            }
+                            className="h-9 w-auto max-w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-800 shadow-sm outline-none focus:border-gray-300 md:hidden"
+                        >
+                            {TABS.map((tab) => (
+                                <option key={tab.id} value={tab.href}>
+                                    {tab.label}
+                                </option>
+                            ))}
+                        </select>
+                        <ul className="mb-0 hidden gap-1 md:flex md:flex-col">
+                            {TABS.map((tab) => {
+                                const active = tab === activeTab;
+                                return (
+                                    <li key={tab.id}>
+                                        <button
+                                            type="button"
+                                            aria-current={
+                                                active ? "page" : undefined
+                                            }
+                                            onClick={() =>
+                                                router.push(tab.href)
+                                            }
+                                            className={accountTabButtonClassName(
+                                                active,
+                                            )}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
                     </nav>
 
                     <div className="min-w-0 outline-none">{children}</div>

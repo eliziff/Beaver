@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { PdfView } from "../shared/views/PdfView";
 import { DocxView } from "../shared/views/DocxView";
@@ -256,7 +256,7 @@ function DocumentTitleRow({
             <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <h2
-                        className="min-w-0 break-words font-serif text-xl text-gray-900"
+                        className="min-w-0 max-w-full truncate font-serif text-xl text-gray-900"
                         title={filename}
                     >
                         {filename}
@@ -351,10 +351,7 @@ function DownloadButton({
         if (busy || isReloading) return;
         setBusy(true);
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const authHeaders = await getAuthHeader();
             const apiBase =
                 process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
             const qs = versionId
@@ -362,9 +359,7 @@ function DownloadButton({
                 : "";
             const resp = await fetch(
                 `${apiBase}/single-documents/${documentId}/docx${qs}`,
-                {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                },
+                { headers: authHeaders },
             );
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const blob = await resp.blob();

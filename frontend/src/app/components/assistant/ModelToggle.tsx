@@ -266,20 +266,21 @@ export function ModelToggle({
                     title={
                         !selectedAvailable
                             ? "API key missing for selected model"
-                            : "Choose model"
+                            : selectedLabel
                     }
+                    aria-label={`Model: ${selectedLabel}`}
                 >
                     {!selectedAvailable && (
                         <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
                     )}
-                    <span className="max-w-[140px] truncate">{selectedLabel}</span>
+                    <span className="whitespace-nowrap">{selectedLabel}</span>
                     <ChevronDown
                         className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
                     />
                 </button>
             </DropdownMenuTrigger>
             <LiquidDropdownContent
-                className="z-50 max-h-[min(70vh,30rem)] w-60 overflow-y-auto p-1.5 text-gray-700"
+                className="z-50 max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-max min-w-52 max-w-[calc(100vw-1rem)] overflow-y-auto p-1.5 text-gray-700"
                 side="top"
                 align="end"
             >
@@ -373,41 +374,30 @@ export function ReasoningEffortToggle({
         }
     }, [onChange, selectedEffort, supported, value]);
 
+    if (!supported) return null;
+
     return (
         <DropdownMenu onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    disabled={!supported}
                     className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 text-sm text-gray-400 transition-colors hover:text-gray-700 ${isOpen ? "text-gray-700" : ""}`}
-                    title={
-                        supported
-                            ? "Choose reasoning effort"
-                            : "Reasoning effort is not supported by the selected model"
-                    }
-                    aria-label={
-                        supported && selectedEffort
-                            ? `Reasoning effort: ${selectedEffort}`
-                            : "Reasoning effort not supported for selected model"
-                    }
+                    title="Choose reasoning effort"
+                    aria-label={`Reasoning effort: ${selectedEffort}`}
                 >
-                    <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                    <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-400">
                         Effort
                     </span>
                     <span className="capitalize text-gray-600">
-                        {supported && selectedEffort
-                            ? selectedEffort
-                            : "Not supported"}
+                        {selectedEffort}
                     </span>
-                    {supported && (
-                        <ChevronDown
-                            className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                        />
-                    )}
+                    <ChevronDown
+                        className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                    />
                 </button>
             </DropdownMenuTrigger>
             <LiquidDropdownContent
-                className="z-50 w-44 p-1.5 text-gray-700"
+                className="z-50 min-w-36 p-1.5 text-gray-700"
                 side="top"
                 align="end"
             >

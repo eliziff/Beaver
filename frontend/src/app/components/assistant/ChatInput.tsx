@@ -96,8 +96,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const controlsRef = useRef<HTMLDivElement>(null);
-    const [compactControls, setCompactControls] = useState(false);
     const [docSelectorOpen, setDocSelectorOpen] = useState(false);
     const [docSelectorInitialTab, setDocSelectorInitialTab] =
         useState<DirectoryTab>("files");
@@ -131,16 +129,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             setDocSelectorOpen(true);
         },
     }));
-
-    useEffect(() => {
-        const el = controlsRef.current;
-        if (!el) return;
-        const update = () => setCompactControls(el.offsetWidth < 430);
-        update();
-        const observer = new ResizeObserver(update);
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
 
     const handleAddDocsFromSelector = useCallback(
         (selectedDocs: Document[]) => {
@@ -308,13 +296,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
     return (
         <>
-            <div className="w-full">
-                <div className="rounded-[18px] border border-white/65 bg-white/60 shadow-[0_4px_10px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-6px_14px_rgba(255,255,255,0.18)] backdrop-blur-2xl md:rounded-[22px]">
+            <div className="chat-input-container w-full">
+                <div className="rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]">
                     {/* Attached chips */}
                     {(selectedWorkflow || attachedDocs.length > 0) && (
                         <div className="flex flex-wrap gap-1.5 px-2 pt-2">
                             {selectedWorkflow && (
-                                <div className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-xs bg-blue-600 text-white border border-white/20 shadow backdrop-blur-sm">
+                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-blue-600 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">
                                     <Library className="h-2.5 w-2.5 shrink-0" />
                                     <span className="max-w-[140px] truncate">
                                         {selectedWorkflow.title}
@@ -334,7 +322,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 return (
                                     <div
                                         key={doc.id}
-                                        className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white py-0.5 pl-2 pr-1 text-xs text-gray-800 shadow-[0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl"
+                                        className="inline-flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white py-0.5 pl-2 pr-1 text-xs text-gray-800 shadow-sm"
                                     >
                                         <FileTypeIcon
                                             fileType={doc.file_type}
@@ -367,7 +355,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             {uploadingFilenames.map((filename, index) => (
                                 <div
                                     key={`${filename}-${index}`}
-                                    className="inline-flex items-center gap-1 rounded-[10px] bg-white/75 px-2 py-1 text-xs text-gray-600 shadow-[0_2px_6px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+                                    className="inline-flex items-center gap-1 rounded-[10px] bg-gray-50 px-2 py-1 text-xs text-gray-600 shadow-sm"
                                 >
                                     <Loader2 className="h-2.5 w-2.5 animate-spin" />
                                     <span className="max-w-[140px] truncate">
@@ -392,10 +380,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     </div>
 
                     {/* Controls */}
-                    <div
-                        ref={controlsRef}
-                        className="flex items-center justify-between md:p-2.5 p-2"
-                    >
+                    <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
                         <div className="flex items-center gap-1">
                             {!hideAddDocButton && (
                                 <AddDocButton
@@ -406,7 +391,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     selectedDocIds={attachedDocs.map(
                                         (d) => d.id,
                                     )}
-                                    hideLabel={compactControls}
                                 />
                             )}
                             {!hideWorkflowButton && (
@@ -426,20 +410,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     ) : (
                                         <Waypoints className="h-3.5 w-3.5" />
                                     )}
-                                    <span
-                                        className={
-                                            compactControls
-                                                ? "hidden"
-                                                : "hidden sm:inline"
-                                        }
-                                    >
+                                    <span className="chat-input-control-label hidden sm:inline">
                                         Workflows
                                     </span>
                                 </button>
                             )}
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="ml-auto flex items-center gap-1">
                             <ReasoningEffortToggle
                                 model={model}
                                 value={reasoningEffort}
@@ -453,7 +431,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             <button
                                 type="button"
                                 className={cn(
-                                    "relative h-8 w-8 rounded-[10px] bg-brand text-white flex items-center justify-center cursor-pointer hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-all duration-150",
+                                    "relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
                                 )}
                                 onClick={handleActionClick}
                                 disabled={!isLoading && !value.trim()}

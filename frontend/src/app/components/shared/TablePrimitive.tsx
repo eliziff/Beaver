@@ -129,7 +129,7 @@ export function TableFilters<T extends string>({
                             className="flex w-full items-center justify-between px-3 py-2"
                         >
                             <span
-                                className={`truncate pr-2 ${
+                                className={`min-w-0 whitespace-normal break-normal pr-2 leading-snug ${
                                     Icon
                                         ? "inline-flex items-center gap-1.5 font-medium"
                                         : ""
