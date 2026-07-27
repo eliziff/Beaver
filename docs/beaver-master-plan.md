@@ -425,6 +425,69 @@ Acceptance:
   provider-specific URL logic.
 - A wrong inferred locator fails closed or is labeled approximate.
 
+#### P1.1a Execution: the SourceDoc consolidation (adopted 2026-07-27)
+
+P1.1 is executed as one consolidation rather than per-provider patches.
+Three audits (provider structure, link/anchor compatibility, performance —
+2026-07-27, live-probed) traced thirteen structure defects, four hot-path
+pathologies, and six duplication clusters to a single cause: no canonical
+representation of a fetched source. Providers each grew a pipeline; consumers
+re-derive structure from raw strings per call (measured: up to 21
+full-document tokenizations per quote, ~62 s worst-case on a 256-handle DOCX
+evidence resolve).
+
+The design: one immutable, content-hashed artifact per fetched source.
+
+```ts
+type SourceDoc = {
+  provider: "a2aj" | "courtlistener" | "tna" | "govinfo" | "govuk-et" | "journal" | "local-pdf";
+  id: string; url: string | null;
+  revision: string;            // content sha256 — cache key and staleness key
+  text: string;                // ONE canonical rendition; no second exists
+  tokens: WordSpan[];          // tokenized exactly once
+  blocks: Block[];             // { kind, label, start, end, anchor?, origin: native|heuristic }
+  index: Map<string, number>;  // normalized locator -> block
+};
+```
+
+Providers become compilers into SourceDoc (~150–300 lines each: A2AJ
+markdown, Harvard XML + star-pagination, Akoma Ntoso eIds, PDF artifacts,
+journal rows). Everything else becomes queries over it: locator lookup is an
+index hit, quote verification scans prebuilt tokens, pinpoint URLs come from
+a host/anchor table (the Decisia predicate landed 2026-07-27) plus token-built
+text fragments, one label formatter, one content-addressed cache sized in
+blocks. Evidence-handle wire formats (mike-evidence:v1 family) are unchanged;
+they verify against `revision + block + text hash`.
+
+Stages, each gated on parity (byte-identical lookups and URLs against the
+old path over the live-probed fixture corpus) before the old code is deleted:
+
+1. **Gate first**: cross-provider fixture matrix from the audits' live
+   probes (the P1.1 acceptance test that never existed). Includes the real
+   federal A2AJ markdown shape (`**231** (1) …`) that the current
+   `SECTION_MARK_RE` misses — today the entire laws-lois corpus has zero
+   structure index.
+2. SourceDoc core + A2AJ compiler. The compiler subsumes the audit's fix
+   list: federal emphasis markers, truncation signalling on a2aj_fetch,
+   locator ranges instead of bare counts, not_found vs unavailable, honest
+   page-locator advertising.
+3. Cut consumers over one at a time — lookup tools, pinpoint links, DOCX
+   evidence resolution — deleting the old path per provider as its gate
+   passes.
+4. CourtListener (unify the divergent text renditions), TNA/GovInfo/GOV.UK
+   ET/journals, local PDF.
+
+Expected effect: the ~5,600-line provider/pinpoint/evidence stack contracts
+to roughly 3,000 lines while the defect classes (divergent renditions,
+duplicated quote gates, per-call retokenization) become impossible by
+construction. Link-heavy answers drop from ~230 ms to ~35 ms of CPU
+(measured on the tokenization-hoist prototype); worst-case evidence resolves
+from ~62 s to seconds.
+
+Explicitly not in scope: renaming persisted formats, changing evidence
+handle wire shapes, adding dependencies, or building structure for
+providers Beaver does not ship.
+
 ### P1.2 Durable provider cache and bulk paths
 
 Status: **Partial**
