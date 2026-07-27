@@ -537,7 +537,12 @@ function scanPhraseSpans(
     if (!matched) continue;
     const first = ring[(seen - size) % size];
     const last = ring[(seen - 1) % size];
-    if (options.sameLine && doc.text.lastIndexOf("\n", last.end) >= first.start) {
+    // Match the indexed path: only breaks strictly inside [start, end) count,
+    // so a phrase ending at end-of-line still sits on one line.
+    if (
+      options.sameLine &&
+      doc.text.lastIndexOf("\n", last.end - 1) >= first.start
+    ) {
       continue;
     }
     spans.push({
