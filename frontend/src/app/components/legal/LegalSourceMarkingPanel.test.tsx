@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     saveMark: vi.fn(),
 }));
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     listLegalResearchProjects: mocks.listProjects,
     createLegalResearchProject: mocks.createProject,
     getLegalSourceMarking: mocks.getMarking,

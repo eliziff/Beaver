@@ -29,7 +29,7 @@ import {
     streamTabularGeneration,
     updateTabularReview,
     uploadReviewDocument,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type {
     ColumnConfig,
     Document,
@@ -878,7 +878,7 @@ export function TRView({ reviewId, projectId }: Props) {
                             actions={
                                 <div className="flex items-center gap-1.5">
                                     {loading ? (
-                                        <div className="h-3 w-24 rounded bg-gray-100 animate-pulse" />
+                                        <div className="h-3 w-24 rounded bg-gray-100" />
                                     ) : null}
                                     {!loading && selectedDocIds.length > 0 && (
                                         <>

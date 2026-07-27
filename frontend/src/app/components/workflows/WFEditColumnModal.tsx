@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { generateTabularColumnPrompt } from "@/app/lib/mikeApi";
+import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
 import { FORMAT_OPTIONS } from "../tabular/columnFormat";
 import { TAG_COLORS } from "../tabular/pillUtils";
 import { getPresetConfig, PROMPT_PRESETS } from "../tabular/columnPresets";
@@ -177,7 +177,7 @@ export function WFEditColumnModal({ column, onClose, onSave, onDelete }: Props) 
                                         <button
                                             type="button"
                                             onClick={() => { update({ name: "", prompt: "", format: "text", tags: [], tagInput: "" }); setPresetsOpen(false); }}
-                                            className="w-full px-3 py-2 text-left text-sm text-gray-400 transition-all hover:bg-gray-100/70 border-b border-gray-100"
+                                            className="w-full px-3 py-2 text-left text-sm text-gray-400 transition-colors hover:bg-gray-100 border-b border-gray-100"
                                         >
                                             No Preset
                                         </button>
@@ -189,7 +189,7 @@ export function WFEditColumnModal({ column, onClose, onSave, onDelete }: Props) 
                                                     update({ name: preset.name, prompt: preset.prompt, format: preset.format, tags: preset.tags ?? [], tagInput: "" });
                                                     setPresetsOpen(false);
                                                 }}
-                                                className="w-full px-3 py-2 text-left text-sm text-gray-700 transition-all hover:bg-gray-100/70"
+                                                className="w-full px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
                                             >
                                                 {preset.name}
                                             </button>

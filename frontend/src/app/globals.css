@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -185,26 +183,6 @@
 .file-type-symbol[data-file-kind="pdf"],
 .file-type-symbol[data-file-kind="image"] {
     color: var(--brand-red);
-}
-
-.maple-leaf-mark--active {
-    animation: mapleLeafFlutter 1.8s ease-in-out infinite;
-}
-
-@keyframes mapleLeafFlutter {
-    0%,
-    100% {
-        transform: rotate(-2deg) translateY(0);
-    }
-    50% {
-        transform: rotate(3deg) translateY(-1px) scale(1.04);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .maple-leaf-mark--active {
-        animation: none;
-    }
 }
 
 .chat-input-container {
@@ -396,46 +374,6 @@
 @layer utilities {
     .font-eb-garamond {
         font-family: var(--font-eb-garamond);
-    }
-
-    .sidebar-fade-in {
-        animation: sidebarFadeIn 0.3s ease-out forwards;
-        animation-delay: 0.1s;
-        opacity: 0;
-    }
-
-    .sidebar-fade-in-2 {
-        animation: sidebarFadeIn 0.3s ease-out forwards;
-        animation-delay: 0.2s;
-        opacity: 0;
-    }
-
-    .sidebar-fade-in-3 {
-        animation: sidebarFadeIn 0.3s ease-out forwards;
-        animation-delay: 0.25s;
-        opacity: 0;
-    }
-
-    @keyframes sidebarFadeIn {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-
-    @keyframes shimmer {
-        from {
-            background-position: 0 0;
-        }
-        to {
-            background-position: -200% 0;
-        }
-    }
-
-    .animate-shimmer {
-        animation: shimmer 8s linear infinite;
     }
 }
 

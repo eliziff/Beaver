@@ -31,7 +31,7 @@ let previousDatabase: string | undefined;
 let previousSearchDatabase: string | undefined;
 
 function fixtureDatabase() {
-  directory = mkdtempSync(path.join(os.tmpdir(), "mike-journals-"));
+  directory = mkdtempSync(path.join(os.tmpdir(), "beaver-journals-"));
   const filename = path.join(directory, "public_endpoint.db");
   const database = new DatabaseSync(filename);
   database.exec(`

@@ -9,6 +9,7 @@ import React, {
     ReactNode,
     useCallback,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
@@ -20,7 +21,7 @@ import {
     saveApiKey,
     updateUserMfaOnLogin,
     updateUserProfile,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 
 interface UserProfile {
     displayName: string | null;
@@ -52,7 +53,6 @@ interface UserProfileContextType {
         value: string | null,
     ) => Promise<boolean>;
     reloadProfile: () => Promise<void>;
-    incrementMessageCredits: () => Promise<boolean>;
 }
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(
@@ -100,6 +100,12 @@ function toProfile(data: ApiUserProfile): UserProfile {
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
     const { user, isAuthenticated, authLoading } = useAuth();
+    const pathname = usePathname();
+    const needsLocalProfile =
+        pathname === null ||
+        pathname.startsWith("/assistant") ||
+        pathname.startsWith("/projects") ||
+        pathname === "/account/api-keys";
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const userId = user?.id ?? null;
     const [profileUserId, setProfileUserId] = useState<string | null>(null);
@@ -141,15 +147,21 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (authLoading) return;
-        if (isAuthenticated && userId) {
+        if (isAuthenticated && userId && (!isAnonymousMode || needsLocalProfile)) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- starts an async API-backed profile refresh
             void loadProfile(userId);
-        } else {
+        } else if (!isAuthenticated) {
             profileRequest.current += 1;
             setProfile(null);
             setProfileUserId(null);
         }
-    }, [authLoading, isAuthenticated, userId, loadProfile]);
+    }, [
+        authLoading,
+        isAuthenticated,
+        loadProfile,
+        needsLocalProfile,
+        userId,
+    ]);
 
     const updateDisplayName = useCallback(
         async (displayName: string): Promise<boolean> => {
@@ -281,19 +293,6 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         }
     }, [userId, loadProfile]);
 
-    const incrementMessageCredits = useCallback(async (): Promise<boolean> => {
-        if (!user || !profile) {
-            return false;
-        }
-
-        // Check if user has credits remaining
-        if (profile.creditsRemaining <= 0) {
-            return false;
-        }
-
-        return false;
-    }, [user, profile]);
-
     return (
         <UserProfileContext.Provider
             value={{
@@ -306,7 +305,6 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 updateLegalResearchUs,
                 updateApiKey,
                 reloadProfile,
-                incrementMessageCredits,
             }}
         >
             {children}

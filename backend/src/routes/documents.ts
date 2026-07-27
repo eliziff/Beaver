@@ -18,7 +18,6 @@ import {
 import { buildDownloadUrl } from "../lib/downloadTokens";
 import {
   attachActiveVersionPaths,
-  attachLatestVersionNumbers,
   loadActiveVersion,
 } from "../lib/documentVersions";
 import { ensureDocAccess } from "../lib/access";
@@ -41,8 +40,7 @@ async function deleteDocumentAndVersionFiles(
   db: ReturnType<typeof createServerSupabase>,
   documentId: string,
 ) {
-  // Storage lives on document_versions — fan out and delete each version's
-  // bytes (source + PDF rendition) before dropping the document row.
+  // Delete every source and rendition before dropping its owning row.
   const { data: versions } = await db
     .from("document_versions")
     .select("storage_path, pdf_storage_path")
@@ -57,7 +55,6 @@ async function deleteDocumentAndVersionFiles(
   return db.from("documents").delete().eq("id", documentId);
 }
 
-// GET /single-documents
 documentsRouter.get("/", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const db = createServerSupabase();
@@ -73,12 +70,10 @@ documentsRouter.get("/", requireAuth, async (req, res) => {
     id: string;
     current_version_id?: string | null;
   }[];
-  await attachLatestVersionNumbers(db, docs);
   await attachActiveVersionPaths(db, docs);
   res.json(docs);
 });
 
-// POST /single-documents
 documentsRouter.post(
   "/",
   requireAuth,
@@ -92,7 +87,6 @@ documentsRouter.post(
   },
 );
 
-// DELETE /single-documents/:documentId
 documentsRouter.delete("/:documentId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { documentId } = req.params;
@@ -111,9 +105,6 @@ documentsRouter.delete("/:documentId", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-// GET /single-documents/:documentId/display
-// Optional ?version_id= renders a historical version. Defaults to the
-// document's current_version_id.
 documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string;
@@ -145,7 +136,6 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
     active.source === "assistant_edit",
   );
 
-  // For Office files, prefer the per-version PDF rendition if one exists.
   const servePath =
     isConvertibleOffice && active.pdf_storage_path
       ? active.pdf_storage_path
@@ -164,7 +154,6 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
     );
     res.send(Buffer.from(raw));
   } else {
-    // Fallback: serve raw Office bytes when PDF conversion was unavailable.
     res.setHeader("Content-Type", contentTypeForDocumentType(fileType));
     res.setHeader(
       "Content-Disposition",
@@ -174,7 +163,6 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
   }
 });
 
-// POST /single-documents/download-zip
 documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -234,9 +222,6 @@ documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
   res.send(content);
 });
 
-// GET /single-documents/:documentId/url
-// Optional ?version_id= selects a specific tracked-changes version.
-// Otherwise falls back to documents.current_version_id, else the original upload.
 documentsRouter.get("/:documentId/url", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -277,17 +262,11 @@ documentsRouter.get("/:documentId/url", requireAuth, async (req, res) => {
     document_id: documentId,
     filename: downloadFilename,
     version_id: active.id,
-    // Lets the frontend decide between DocView (PDF.js) and DocxView
-    // (docx-preview) without a follow-up round-trip.
     has_pdf_rendition: !!active.pdf_storage_path,
   });
 });
 
-// GET /single-documents/:documentId/docx
-// Streams the raw .docx bytes for the given document, optionally at a
-// specific tracked-changes version. Unlike /url, this bypasses R2 (avoids
-// the browser CORS problem on signed URLs) so the frontend docx-preview
-// viewer can load tracked-change documents directly.
+// Proxy DOCX bytes to avoid browser CORS failures on signed storage URLs.
 documentsRouter.get("/:documentId/docx", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -332,8 +311,6 @@ documentsRouter.get("/:documentId/docx", requireAuth, async (req, res) => {
   res.send(Buffer.from(raw));
 });
 
-// Produce the filename a download should present to the user. Version
-// filenames are expected to include the real extension.
 function downloadFilenameForVersion(
   filename: string | null | undefined,
   versionNumber: number | null,
@@ -347,9 +324,6 @@ function downloadFilenameForVersion(
   return `${stem} [Edited V${versionNumber}]${ext}`;
 }
 
-// GET /single-documents/:documentId/versions
-// Returns every version row for the document in document order, with
-// the human-friendly version number when present.
 documentsRouter.get("/:documentId/versions", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -381,9 +355,7 @@ documentsRouter.get("/:documentId/versions", requireAuth, async (req, res) => {
   });
 });
 
-// POST /single-documents/:documentId/versions/from-document
-// Create a new version of documentId from another existing document's active
-// bytes. This keeps signed storage URLs out of the browser fetch path.
+// Copy server-side so signed storage URLs never enter the browser fetch path.
 documentsRouter.post(
   "/:documentId/versions/from-document",
   requireAuth,
@@ -574,10 +546,6 @@ documentsRouter.post(
   },
 );
 
-// POST /single-documents/:documentId/versions
-// Upload a brand-new version of an existing document. The uploaded file
-// becomes the new current_version_id. filename defaults to the
-// uploaded filename; client may override via the `filename` form field.
 documentsRouter.post(
   "/:documentId/versions",
   requireAuth,
@@ -614,8 +582,6 @@ documentsRouter.post(
     const imageError = imageValidationError(file.originalname, file.buffer);
     if (imageError) return void res.status(400).json({ detail: imageError });
 
-    // Peg the new version into a predictable /versions/:id path under the
-    // existing document folder so ops can spot the history in storage.
     const versionSlug = crypto.randomUUID().replace(/-/g, "");
     const key = versionStorageKey(
       userId,
@@ -640,9 +606,7 @@ documentsRouter.post(
         .json({ detail: "Failed to upload new version." });
     }
 
-    // Render this version's bytes to PDF up front so /display can show
-    // historical versions without on-demand conversion. Same logic as the
-    // initial-upload pipeline; failures don't block the version row.
+    // Preview conversion is best effort; source-version persistence is not.
     let pdfStoragePath: string | null = null;
     if (shouldConvertToPdf(suffix)) {
       try {
@@ -664,7 +628,6 @@ documentsRouter.post(
         );
       }
     } else if (suffix === "pdf") {
-      // For PDF uploads, the uploaded bytes are themselves the PDF rendition.
       pdfStoragePath = key;
     }
 
@@ -674,8 +637,7 @@ documentsRouter.post(
     ) as ArrayBuffer;
     const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
 
-    // Per-document sequential version_number — the upload is V1 and
-    // user_upload + assistant_edit count forward from there.
+    // Version numbers are sequential within a document.
     const { data: maxRow } = await db
       .from("document_versions")
       .select("version_number")
@@ -735,8 +697,6 @@ documentsRouter.post(
   },
 );
 
-// PATCH /single-documents/:documentId/versions/:versionId
-// Rename a version's filename. Pass `{ "filename": "…" }`.
 documentsRouter.patch(
   "/:documentId/versions/:versionId",
   requireAuth,
@@ -778,9 +738,7 @@ documentsRouter.patch(
   },
 );
 
-// PUT /single-documents/:documentId/versions/:versionId/file
-// Replace the file bytes and metadata for an existing version while keeping
-// its version number and id. This is destructive and owner-only.
+// Replaces bytes in place; owner-only.
 documentsRouter.put(
   "/:documentId/versions/:versionId/file",
   requireAuth,
@@ -931,7 +889,6 @@ documentsRouter.put(
   },
 );
 
-// DELETE /single-documents/:documentId/versions/:versionId
 // Delete one version. The last remaining version cannot be deleted; if the
 // deleted version is current, the newest remaining version becomes current.
 documentsRouter.delete(
@@ -1041,7 +998,6 @@ documentsRouter.delete(
   },
 );
 
-// GET /single-documents/:documentId/tracked-change-ids
 // Returns the ordered list of { kind, w_id } for every w:ins / w:del in
 // the current (or specified) version's document.xml. The frontend uses
 // this to tag each rendered <ins>/<del> with data-w-id, since
@@ -1083,8 +1039,6 @@ documentsRouter.get(
   },
 );
 
-// POST /single-documents/:documentId/edits/:editId/accept
-// POST /single-documents/:documentId/edits/:editId/reject
 async function handleEditResolution(
   req: import("express").Request,
   res: import("express").Response,
@@ -1227,11 +1181,8 @@ async function handleEditResolution(
     return void res.status(200).json(payload);
   }
 
-  // Overwrite bytes in place at the current version's storage path —
-  // accept/reject mutates the existing version rather than spawning a
-  // new row. This keeps document_versions lean (one row per assistant
-  // edit, not one per accept/reject click) and avoids the N-versions-
-  // per-doc churn as users resolve pending changes.
+  // Accept/reject mutates the assistant-edit version instead of creating one
+  // version per decision.
   const ab = resolvedBytes.buffer.slice(
     resolvedBytes.byteOffset,
     resolvedBytes.byteOffset + resolvedBytes.byteLength,
@@ -1367,7 +1318,6 @@ export async function handleDocumentUpload(
     ) as ArrayBuffer;
     const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
 
-    // Convert Office files → PDF for display. PDFs are their own rendition.
     let pdfStoragePath: string | null = null;
     if (shouldConvertToPdf(suffix)) {
       try {
@@ -1392,9 +1342,6 @@ export async function handleDocumentUpload(
       pdfStoragePath = key;
     }
 
-    // storage_path / pdf_storage_path live on document_versions now —
-    // create the V1 "upload" row and point documents.current_version_id
-    // at it.
     const { data: versionRow, error: verErr } = await db
       .from("document_versions")
       .insert({
@@ -1430,7 +1377,6 @@ export async function handleDocumentUpload(
       .select("*")
       .eq("id", docId)
       .single();
-    // Surface storage paths to the caller for backward compatibility.
     const responseDoc = updated
       ? {
           ...updated,

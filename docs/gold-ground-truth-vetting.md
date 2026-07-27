@@ -35,7 +35,7 @@ No private source text was copied into this audit.
 1. **P0 — Status laundering is possible.** The ALR split and supra benchmark
    loaders exclude only a small deny-list such as `needs_review` and
    `provisional`. Consequently `auto`, `agent`, unknown, and sometimes missing
-   statuses can enter scoring. Mike's DOCX loader follows the same unsafe
+   statuses can enter scoring. Beaver's DOCX loader follows the same unsafe
    pattern. Admission must instead be an allow-list containing only `GOLD` and
    metric-appropriate `ORACLE`.
 
@@ -113,7 +113,7 @@ No private source text was copied into this audit.
 
 | Metric | Existing evidence | Current class | Required ground truth |
 | --- | --- | --- | --- |
-| DOCX citation partition boundaries | ALR manual rows; Mike provisional queue; 12 invented engine fixtures | `CANDIDATE_GOLD` / `NOT_GOLD` | Exact source spans; two independent legal annotations where a boundary is debatable; adjudicated acceptable alternatives; one pstream per work |
+| DOCX citation partition boundaries | ALR manual rows; Beaver provisional queue; 12 invented engine fixtures | `CANDIDATE_GOLD` / `NOT_GOLD` | Exact source spans; two independent legal annotations where a boundary is debatable; adjudicated acceptable alternatives; one pstream per work |
 | Character conservation | Existing split scorers compare normalized character streams | Oracle-ready, not frozen | Source byte hash; explicit Unicode/whitespace/semicolon policy; independently tested scorer version and code hash; no boundary labels needed |
 | Citation identity | Provisional field labels | `NOT_GOLD` | Canonical authority identifier independent of the product URL, with source evidence and human verification |
 | Link correctness | URL existence and base-target replay | `NOT_GOLD` | Canonical authority target, resolver snapshot/version, expected destination, and separate link-health observation |
@@ -211,7 +211,7 @@ length.
 
 ## Evidence inspected
 
-- Mike: `benchmarks/docx_corpus/benchmark.py`,
+- Beaver: `benchmarks/docx_corpus/benchmark.py`,
   `benchmarks/docx_corpus/benchmark_gold.jsonl`,
   `docs/docx-benchmark-design.md`, DOCX pilot reports, deterministic-cleanup
   tests, and context-compaction Track A/B fixtures and results.

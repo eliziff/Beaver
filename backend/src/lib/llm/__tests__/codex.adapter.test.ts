@@ -317,7 +317,7 @@ describe("streamCodex", () => {
       ],
     });
 
-    expect(imagePath).toContain("mike-codex-images-");
+    expect(imagePath).toContain("beaver-codex-images-");
     expect(existsSync(imagePath)).toBe(false);
   });
 

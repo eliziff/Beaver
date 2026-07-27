@@ -7,7 +7,7 @@ import {
     listProjects,
     updateProject,
     deleteProject,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
 import type { Project } from "@/app/components/shared/types";
@@ -589,7 +589,7 @@ export function ProjectsOverview() {
                                     bgClassName="bg-transparent"
                                 >
                                     <SkeletonDot className="mr-4" />
-                                    <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100 animate-pulse" />
+                                    <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
                                     <SkeletonLine className="h-3.5 w-48" />
                                 </TableStickyCell>
                                 <TableCell className="ml-auto w-32">

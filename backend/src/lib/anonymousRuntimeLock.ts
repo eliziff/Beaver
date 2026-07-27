@@ -15,7 +15,7 @@ export function acquireAnonymousRuntimeLock(
     database.close();
     if ((error as Error).message.toLowerCase().includes("locked")) {
       throw new Error(
-        "Account-free local mode is already running against this Mike data directory.",
+        "Account-free local mode is already running against this Beaver data directory.",
       );
     }
     throw error;

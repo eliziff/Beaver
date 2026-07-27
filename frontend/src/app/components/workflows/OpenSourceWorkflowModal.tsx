@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, EyeOff, User } from "lucide-react";
-import { openSourceWorkflow } from "@/app/lib/mikeApi";
+import { openSourceWorkflow } from "@/app/lib/beaverApi";
 import type { WorkflowOpenSourceSubmission } from "@/app/components/shared/types";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
@@ -153,7 +153,7 @@ export function OpenSourceWorkflowModal({
         >
             {submitted ? (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center pb-10 text-center">
-                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200/70 bg-emerald-50/55 text-emerald-700 shadow-[0_10px_28px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(16,185,129,0.12)] ring-1 ring-white/70 backdrop-blur-xl">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
                         <Check className="h-6 w-6" />
                     </div>
                     <h3 className="text-2xl font-serif text-gray-950">
@@ -188,7 +188,7 @@ export function OpenSourceWorkflowModal({
                         is accepted.
                     </p>
                     {pending && (
-                        <p className="rounded-xl border border-white/70 bg-white/55 px-3 py-2 text-xs leading-5 text-gray-600 shadow-[0_8px_24px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(255,255,255,0.55)] backdrop-blur-xl">
+                        <p className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs leading-5 text-gray-600">
                             You already have a pending submission. This will
                             replace that pending snapshot.
                         </p>

@@ -1,9 +1,9 @@
-# Deterministic Microsoft Word actions for Mike
+# Deterministic Microsoft Word actions for Beaver
 
 Status: research and implementation catalog
 Date: 2026-07-26
 
-This catalog defines which Microsoft Word operations Mike can safely perform
+This catalog defines which Microsoft Word operations Beaver can safely perform
 without asking a language model to rewrite a document. It is deliberately an
 action catalog, not a proposal to expose the entire Word object model.
 
@@ -24,14 +24,14 @@ The short answer is:
 | --- | --- | --- |
 | **A** | Direct UI/profile action | High-value, predictable, and understandable without model reasoning. The assistant may invoke the same backend operation, but it should also be available directly. |
 | **B** | Bounded model-invoked deterministic tool | The model may choose an explicit target or supplied value. The server performs and validates the mutation; the model never authors OOXML. |
-| **C** | Preview/lint, then confirm | Detection or intent can be ambiguous. Mike may find candidates deterministically, but mutation requires confirmed match IDs or an explicit profile. |
+| **C** | Preview/lint, then confirm | Detection or intent can be ambiguous. Beaver may find candidates deterministically, but mutation requires confirmed match IDs or an explicit profile. |
 | **D** | Human/model judgment | The desired semantic result cannot be inferred safely from formatting or text alone. A deterministic tool may apply an approved result, but it must not make the decision. |
 
 Classes describe the safest default interaction, not whether a transformation
 is technically possible. For example, changing selected text to uppercase is
 class B; deciding that an imported line is a legal heading is class D.
 
-## Current Mike baseline
+## Current Beaver baseline
 
 The status labels used below are:
 
@@ -50,7 +50,7 @@ Current support is useful but narrow:
 | Accept/reject revisions | **Existing, narrow.** `resolveTrackedChange` accepts or rejects one known revision ID and creates another document version. |
 | Citation hyperlinking | **Existing.** `library_link_docx_citations` is a bounded workflow that inspects and splits footnote citations, resolves verified provider links, and writes a new Library version. A model is used only for unresolved citation splits. |
 | Updating supra references | **Existing.** `library_fix_docx_supras` adds bookmarks around ordinary footnote references and converts unambiguous `supra note N` text to native `NOTEREF ... \h` fields. It is idempotent and reports restarted, split, or otherwise unsafe cases instead of guessing. |
-| General styles, fields, notes, comments, sections, headers, content controls, and accessibility mutation | **Gap.** The installed `docx` package exposes some generation primitives, but Mike has no preservation-tested, version-bound general mutation surface for these features. |
+| General styles, fields, notes, comments, sections, headers, content controls, and accessibility mutation | **Gap.** The installed `docx` package exposes some generation primitives, but Beaver has no preservation-tested, version-bound general mutation surface for these features. |
 
 The implementation evidence is
 `backend/src/lib/chat/tools/documentOps.ts`,
@@ -64,7 +64,7 @@ evidence for useful Word idioms, not a runtime dependency.
 
 ## One bounded mutation protocol
 
-Mike should not add a separate prompt-visible function for every row in this
+Beaver should not add a separate prompt-visible function for every row in this
 catalog. Four small operations are enough:
 
 ```text
@@ -106,7 +106,7 @@ Every action below inherits these requirements:
 3. **Two-phase mutation.** Preview returns exact before/after material, target
    IDs, count, warnings, and a content hash. Apply consumes that receipt.
 4. **Immutable recovery.** Apply creates a new Library version and a mutation
-   manifest. Mike's dependable undo is restoring the prior version. If an
+   manifest. Beaver's dependable undo is restoring the prior version. If an
    Office-hosted desktop action is later added, Word's custom `UndoRecord` may
    group the local UI action, but it does not replace Library versioning.
 5. **Preservation.** Change only the necessary package parts and relationships.

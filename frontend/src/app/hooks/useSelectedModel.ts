@@ -45,7 +45,6 @@ export function useSelectedModel(): [string, (id: string) => void] {
 }
 
 const EFFORT_STORAGE_KEY = "mike.reasoningEffort";
-const LEGACY_EFFORT_STORAGE_KEY = "mike.codexReasoningEffort";
 const VALID_EFFORT = /^[a-z0-9_-]{1,32}$/i;
 
 export function useSelectedReasoningEffort(): [
@@ -55,9 +54,7 @@ export function useSelectedReasoningEffort(): [
     const [effort, setEffortState] = useState<string | undefined>(undefined);
 
     useEffect(() => {
-        const stored =
-            window.localStorage.getItem(EFFORT_STORAGE_KEY) ??
-            window.localStorage.getItem(LEGACY_EFFORT_STORAGE_KEY);
+        const stored = window.localStorage.getItem(EFFORT_STORAGE_KEY);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe localStorage read; SSR must render the default effort
         if (stored && VALID_EFFORT.test(stored)) setEffortState(stored);
     }, []);

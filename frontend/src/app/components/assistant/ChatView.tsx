@@ -710,14 +710,14 @@ export function ChatView({
                             <div className="space-y-6 md:space-y-8 w-full">
                                 <div className="flex justify-end">
                                     <div className="bg-gray-100 rounded-2xl p-4 w-2/5">
-                                        <div className="h-4 animate-pulse rounded bg-gray-200 w-full" />
+                                        <div className="h-4 rounded bg-gray-200 w-full" />
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     {[1, 2, 3, 4].map((i) => (
                                         <div
                                             key={i}
-                                            className={`h-4 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
+                                            className={`h-4 rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
                                         />
                                     ))}
                                 </div>
@@ -832,7 +832,7 @@ export function ChatView({
                     >
                         <button
                             onClick={scrollToBottom}
-                            className="rounded-full p-2 cursor-pointer transition-all bg-white/30 shadow-[0_5px_16px_rgba(15,23,42,0.13),inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-8px_18px_rgba(255,255,255,0.26)] backdrop-blur-xl hover:bg-white/45 hover:shadow-[0_7px_20px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-8px_18px_rgba(255,255,255,0.32)]"
+                            className="cursor-pointer rounded-full border border-gray-200 bg-white p-2 shadow-sm hover:bg-gray-50"
                         >
                             <ArrowDown className="h-6 w-6 text-gray-500" />
                         </button>
@@ -843,7 +843,7 @@ export function ChatView({
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
                     <div className="pointer-events-none absolute -bottom-3 left-0 right-0 z-0">
                         <div className="mx-auto h-7 w-full max-w-4xl px-4 md:px-6">
-                            <div className="h-full rounded-t-[20px] bg-white/50 backdrop-blur-[1px]" />
+                            <div className="h-full rounded-t-[20px] bg-white" />
                         </div>
                     </div>
                     <div

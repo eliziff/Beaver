@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation } from "../shared/types";
 
@@ -273,7 +273,7 @@ export function EditCard({
     };
 
     return (
-        <div className="rounded-xl bg-white shadow-[0_3px_9px_rgba(15,23,42,0.1),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-4px_9px_rgba(255,255,255,0.05)] backdrop-blur-2xl p-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
             {changeNumber !== undefined && (
                 <p className="text-xs text-gray-400 mb-1.5">{changeNumber}</p>
             )}

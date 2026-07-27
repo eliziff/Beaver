@@ -9,14 +9,14 @@ import type {
 import {
     getLibraryPdfParseState,
     retryLibraryPdfParse,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { DocumentActionsPanel } from "./DocumentActionsPanel";
 
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     fixLibraryDocxSupras: vi.fn(),
     getLibraryPdfParseState: vi.fn(),
     linkLibraryDocxCitations: vi.fn(),

@@ -14,7 +14,7 @@ const originalAuthMode = process.env.AUTH_MODE;
 
 beforeEach(async () => {
   process.env.AUTH_MODE = "anonymous";
-  directory = await mkdtemp(path.join(os.tmpdir(), "mike-knowledge-route-"));
+  directory = await mkdtemp(path.join(os.tmpdir(), "beaver-knowledge-route-"));
   store = new LegalKnowledgeGraphStore(path.join(directory, "knowledge.sqlite"));
   app = express();
   app.use(express.json());

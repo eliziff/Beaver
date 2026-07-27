@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
+import { GfmMarkdown } from "./MarkdownContent";
 
 const THINKING_PHRASES = [
     "Thinking...",
@@ -145,8 +144,7 @@ export function ReasoningBlock({
                             ref={contentRef}
                             className="text-sm font-serif text-gray-400 prose prose-sm max-w-none [&>*]:text-gray-400 [&>*]:text-sm"
                         >
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
+                            <GfmMarkdown
                                 components={{
                                     code: (props) => (
                                         <code
@@ -157,7 +155,7 @@ export function ReasoningBlock({
                                 }}
                             >
                                 {text}
-                            </ReactMarkdown>
+                            </GfmMarkdown>
                         </div>
                         {isCollapsed && (
                             <>
@@ -326,13 +324,9 @@ export function DocDownloadBlock({
         versionNumber > 0;
     const extMatch = filename.match(/\.(\w+)$/);
     const ext = extMatch ? extMatch[1].toUpperCase() : "FILE";
-    const rawBasename = extMatch
+    const basename = extMatch
         ? filename.slice(0, -extMatch[0].length)
         : filename;
-    // Strip any legacy "[Edited V3]" suffix that may still be baked into
-    // older saved download filenames — the version is surfaced as a
-    // separate tag now.
-    const basename = rawBasename.replace(/\s*\[Edited V\d+\]\s*$/, "").trim();
     // Only backend-relative URLs are accepted. The download fetch carries
     // the user's bearer token, so any absolute URL from tool output is
     // refused to keep the token from leaking off-origin.
@@ -380,7 +374,7 @@ export function DocDownloadBlock({
                         {basename}
                     </p>
                     {hasVersion && (
-                        <span className="shrink-0 inline-flex items-center rounded-md border border-white/70 bg-white/55 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl">
+                        <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
                             V{versionNumber}
                         </span>
                     )}

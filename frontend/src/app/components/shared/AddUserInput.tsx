@@ -6,7 +6,7 @@ import { Loader2, UserPlus } from "lucide-react";
 import {
     lookupUserByEmail,
     type UserLookupResult,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { cn } from "@/app/lib/utils";
 
@@ -85,7 +85,7 @@ export function AddUserInput({
         <div>
             <div
                 className={cn(
-                    "flex min-h-10 items-center gap-2 rounded-xl border border-white/70 bg-white/55 px-3 py-1.5 shadow-[0_3px_9px_rgba(15,23,42,0.04),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl transition-colors focus-within:bg-white/70",
+                    "flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 shadow-sm",
                     className,
                 )}
             >

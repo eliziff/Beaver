@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Table2, Upload } from "lucide-react";
-import { createWorkflow, updateWorkflow } from "@/app/lib/mikeApi";
+import { createWorkflow, updateWorkflow } from "@/app/lib/beaverApi";
 import type { Workflow } from "../shared/types";
 import { PRACTICE_OPTIONS } from "./practices";
 import { Modal } from "../modals/Modal";
@@ -508,7 +508,7 @@ export function NewWorkflowModal({
             >
                 <div className="space-y-6">
                     {workflowDetails.length > 0 && (
-                        <dl className="grid grid-cols-2 gap-x-5 gap-y-4 rounded-2xl border border-white/70 bg-white/45 p-4 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl">
+                        <dl className="grid grid-cols-2 gap-x-5 gap-y-4 rounded-2xl border border-gray-200 bg-white p-4 text-sm">
                             {workflowDetails.map((detail) => (
                                 <div key={detail.label} className="min-w-0">
                                     <dt className="text-xs text-gray-400">

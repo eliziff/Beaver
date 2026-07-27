@@ -115,7 +115,6 @@ vi.mock("../../lib/userSettings", () => ({
 // no-op them so route responses are driven purely by the table stubs.
 vi.mock("../../lib/documentVersions", () => ({
     attachActiveVersionPaths: vi.fn(async () => {}),
-    attachLatestVersionNumbers: vi.fn(async () => {}),
     loadActiveVersion: (...args: unknown[]) => loadActiveVersion(...args),
 }));
 

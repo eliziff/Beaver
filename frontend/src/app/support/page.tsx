@@ -137,7 +137,7 @@ export default function SupportPage() {
                                             onClick={() =>
                                                 setFeedbackType(type.value)
                                             }
-                                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                                            className={`p-4 rounded-lg border-2 text-left transition-colors ${
                                                 feedbackType === type.value
                                                     ? "border-blue-600 bg-blue-50"
                                                     : "border-gray-200 hover:border-gray-300"
@@ -177,7 +177,7 @@ export default function SupportPage() {
                                             setLink(e.target.value)
                                         }
                                         placeholder="https://mikeoss.com/..."
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
                                         If the bug is in a chat, mouseover the
@@ -201,7 +201,7 @@ export default function SupportPage() {
                                     id="subject"
                                     value={subject}
                                     onChange={(e) => setSubject(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                                     required
                                 />
                             </div>
@@ -220,7 +220,7 @@ export default function SupportPage() {
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Please describe your question, issue, or suggestion in detail..."
                                     rows={5}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
                                     required
                                 />
                             </div>

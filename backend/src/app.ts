@@ -192,7 +192,6 @@ app.use("/library", libraryRouter);
 app.use("/tabular-review", requirePersistentData, tabularRouter);
 app.use("/workflows", requirePersistentData, workflowsRouter);
 app.use("/user", userRouter);
-app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
 app.use("/codex", codexRouter);

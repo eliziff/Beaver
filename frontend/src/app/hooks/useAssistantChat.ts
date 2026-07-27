@@ -6,7 +6,7 @@ import {
   getChat,
   streamChat,
   streamProjectChat,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";

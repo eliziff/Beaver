@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -50,15 +49,9 @@ export function mikeLocalDataHome(options?: {
   env?: Environment;
   platform?: NodeJS.Platform;
   home?: string;
-  cwd?: string;
 }) {
   const configured = (options?.env ?? process.env).MIKE_LOCAL_DATA_DIR?.trim();
   if (configured) return path.resolve(configured);
 
-  const shared = path.join(legalDataHome(options), "apps", "mike", "library");
-  const legacy = path.resolve(options?.cwd ?? process.cwd(), ".mike-local");
-  return !existsSync(path.join(shared, "library.json")) &&
-    existsSync(path.join(legacy, "library.json"))
-    ? legacy
-    : shared;
+  return path.join(legalDataHome(options), "apps", "mike", "library");
 }

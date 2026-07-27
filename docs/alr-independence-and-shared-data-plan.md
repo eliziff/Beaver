@@ -4,12 +4,12 @@ Status: accepted, 2026-07-26
 
 This accepted decision remains authoritative for the ALR coupling boundary.
 Project-wide implementation status is tracked in the
-[Mike-Canada master plan](mike-canada-master-plan.md).
+[Beaver master plan](beaver-master-plan.md).
 
 ## Decision
 
 ALR Quote Verifier remains an independent product with its own repository,
-maintainers, releases, CLI, and GUI. MikeOSS and its subprojects must not import
+maintainers, releases, CLI, and GUI. Beaver and its subprojects must not import
 ALR modules, modify `sys.path` to find an ALR checkout, invoke ALR as a hidden
 runtime dependency, or require an ALR fork.
 
@@ -20,7 +20,7 @@ Reusable capabilities are divided between two neutral components:
 - `universal-legal-pdf-engine/` owns application-neutral PDF structure and
   footnote parsing.
 
-MikeOSS, Table of Authorities Maker, and future applications consume those
+Beaver, Table of Authorities Maker, and future applications consume those
 neutral contracts. ALR may adopt the same contracts later, but it is not
 required to do so.
 
@@ -28,12 +28,12 @@ required to do so.
 ALR Quote Verifier (independent)
         | optional data adapter or upstream contribution
         v
-OpenLegalData <-------- MikeOSS / ToA / other applications
+OpenLegalData <-------- Beaver / ToA / other applications
 
 ALR algorithms and fixtures
         | selective ports with parity tests
         v
-universal-legal-pdf-engine <--- MikeOSS / ToA / other applications
+universal-legal-pdf-engine <--- Beaver / ToA / other applications
 ```
 
 ## Storage boundary
@@ -90,7 +90,7 @@ versioned independently.
 
 A fork is not a runtime architecture. Use one only to prepare upstream
 contributions, retain a pinned provenance reference, or intentionally maintain
-a separate ALR edition. MikeOSS must not depend on such a fork.
+a separate ALR edition. Beaver must not depend on such a fork.
 
 Record source revisions beside a port when they help track compatibility; no
 separate copyright attribution is required for project-authored ALR behavior.
@@ -109,16 +109,16 @@ an explicit, read-only compatibility importer:
 
 If ALR's maintainers later accept a small OpenLegalData adapter, ALR can look in
 the canonical shared root first and retain its legacy location as a fallback.
-Until then, MikeOSS does not assume that ALR reads shared storage.
+Until then, Beaver does not assume that ALR reads shared storage.
 
 ## Execution
 
-1. Remove the prior plan to migrate ALR's UI or runtime into MikeOSS.
+1. Remove the prior plan to migrate ALR's UI or runtime into Beaver.
 2. Finish and test the standard-library OpenLegalData runtime, A2AJ, and
    CourtListener provider contracts.
 3. Add the smallest safe compatibility importer for reusable ALR downloads
    after auditing their actual formats.
-4. Keep Table of Authorities Maker and MikeOSS on OpenLegalData paths without
+4. Keep Table of Authorities Maker and Beaver on OpenLegalData paths without
    importing ALR.
 5. Keep all ALR-derived PDF behavior in `universal-legal-pdf-engine`, with
    provenance and parity fixtures.
@@ -126,9 +126,9 @@ Until then, MikeOSS does not assume that ALR reads shared storage.
 
 ## Acceptance checks
 
-- Renaming or removing the local ALR checkout does not break MikeOSS, Table of
+- Renaming or removing the local ALR checkout does not break Beaver, Table of
   Authorities Maker, OpenLegalData, or the universal PDF engine.
-- MikeOSS and Table of Authorities Maker resolve the same
+- Beaver and Table of Authorities Maker resolve the same
   `OPEN_LEGAL_DATA_HOME` and provider database paths.
 - Two applications can read the same provider snapshot without either writing
   application state into it.

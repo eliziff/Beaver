@@ -382,7 +382,7 @@ function Start-LoggedProcess(
 
 function Stop-Identity([int]$Id, [string]$StartedAt, [string]$Label) {
     if (-not (Test-ProcessIdentity $Id $StartedAt)) {
-        Write-Host "$Label PID $Id is no longer the process Mike started; skipped."
+        Write-Host "$Label PID $Id is no longer the process Beaver started; skipped."
         return
     }
     Stop-Process -Id $Id -Force

@@ -30,7 +30,7 @@ import {
     moveDocumentToFolder,
     moveSubfolderToFolder,
     removeProjectDocument,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -44,7 +44,7 @@ import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { DocxView } from "@/app/components/shared/views/DocxView";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
@@ -96,7 +96,7 @@ const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 function AssistantGreeting({ username }: { username: string }) {
     return (
         <div className="flex flex-1 items-center justify-center gap-3">
-            <MikeIcon size={28} />
+            <BeaverIcon size={28} />
             <h1 className="whitespace-nowrap font-serif text-3xl font-light text-gray-900">
                 Hi, {username}
             </h1>
@@ -987,16 +987,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                         : ext === "doc" || ext === "docx"
                                           ? "text-blue-500"
                                           : "text-gray-400";
-                                // Pull the doc's latest_version_number out
-                                // of the project state so the tab shows V#
-                                // whenever the doc has been edited.
                                 const versionNumber = (
                                     project?.documents ?? []
                                 ).find((d) => d.id === tab.documentId)
-                                    ?.latest_version_number as
-                                    | number
-                                    | null
-                                    | undefined;
+                                    ?.active_version_number;
                                 const showVersionBadge =
                                     typeof versionNumber === "number" &&
                                     Number.isFinite(versionNumber) &&
@@ -1137,14 +1131,14 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         <div className="flex-1 px-4 py-4 space-y-4">
                             <div className="flex justify-end">
                                 <div className="bg-gray-100 rounded-2xl p-4 w-3/4">
-                                    <div className="h-3 animate-pulse rounded bg-gray-200 w-full" />
+                                    <div className="h-3 rounded bg-gray-200 w-full" />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 {[1, 2, 3].map((i) => (
                                     <div
                                         key={i}
-                                        className={`h-3 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-4/6" : "w-full"}`}
+                                        className={`h-3 rounded bg-gray-200 ${i === 3 ? "w-4/6" : "w-full"}`}
                                     />
                                 ))}
                             </div>
@@ -1225,7 +1219,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
 
                     {/* ChatInput */}
                     <div className="absolute bottom-2 left-0 right-0 z-30 w-full md:bottom-3">
-                        <div className="pointer-events-none absolute -bottom-2 left-4 right-4 z-0 h-7 bg-white/50 backdrop-blur-[1px] md:-bottom-3" />
+                        <div className="pointer-events-none absolute -bottom-2 left-4 right-4 z-0 h-7 bg-white md:-bottom-3" />
                         <div className="relative z-20 w-full px-4">
                             <ChatInput
                                 ref={chatInputRef}

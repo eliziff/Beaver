@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
-import { deleteChat, renameChat } from "@/app/lib/mikeApi";
+import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
     ProjectSectionToolbar,
@@ -39,7 +39,7 @@ function SelectedChatActions({
                 <ChevronDown className="h-3.5 w-3.5" />
             </TabPillButton>
             {open && (
-                <div className="absolute right-0 top-full z-[120] mt-1 w-36 overflow-hidden rounded-lg border border-white/60 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+                <div className="absolute right-0 top-full z-[120] mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                     <button
                         onClick={onDelete}
                         className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50"

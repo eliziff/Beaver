@@ -11,7 +11,7 @@ import { Copy, Loader2 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "@/app/components/ui/button";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { isMfaRequiredError } from "@/app/lib/mikeApi";
+import { isMfaRequiredError } from "@/app/lib/beaverApi";
 import { Modal } from "@/app/components/modals/Modal";
 import {
     MfaVerificationPopup,
@@ -151,16 +151,16 @@ function MfaSettingsSkeleton() {
         <div className="px-4 py-5">
             <div className="space-y-1">
                 <div className="flex items-start justify-between gap-3">
-                    <div className="h-4 w-36 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-14 shrink-0 animate-pulse rounded bg-gray-100" />
+                    <div className="h-4 w-36 rounded bg-gray-100" />
+                    <div className="h-3 w-14 shrink-0 rounded bg-gray-100" />
                 </div>
                 <div className="space-y-1.5 pt-1">
-                    <div className="h-3 w-full max-w-md animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-3/4 max-w-sm animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-full max-w-md rounded bg-gray-100" />
+                    <div className="h-3 w-3/4 max-w-sm rounded bg-gray-100" />
                 </div>
             </div>
             <div className="mt-3 flex justify-end">
-                <div className="h-9 w-20 animate-pulse rounded-lg bg-gray-100" />
+                <div className="h-9 w-20 rounded-lg bg-gray-100" />
             </div>
         </div>
     );

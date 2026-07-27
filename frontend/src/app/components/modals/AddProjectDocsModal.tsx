@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, Upload, X } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { getProject, uploadProjectDocument } from "@/app/lib/mikeApi";
+import { getProject, uploadProjectDocument } from "@/app/lib/beaverApi";
 import type { Document } from "../shared/types";
 import { DocFileIcon } from "../shared/FileDirectory";
 import { VersionChip } from "../shared/VersionChip";
@@ -171,9 +171,9 @@ export function AddProjectDocsModal({
                             className="flex items-center gap-2 px-2 py-2"
                         >
                             <div className="h-3.5 w-3.5 rounded border border-gray-200 shrink-0" />
-                            <div className="h-3.5 w-3.5 rounded bg-gray-100 animate-pulse shrink-0" />
+                            <div className="h-3.5 w-3.5 rounded bg-gray-100 shrink-0" />
                             <div
-                                className="h-3 rounded bg-gray-100 animate-pulse"
+                                className="h-3 rounded bg-gray-100"
                                 style={{ width: `${w}%` }}
                             />
                         </div>
@@ -194,7 +194,7 @@ export function AddProjectDocsModal({
                                 key={doc.id}
                                 disabled={excluded}
                                 onClick={() => toggle(doc.id)}
-                                className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-xs text-left transition-all ${
+                                className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-xs text-left transition-colors ${
                                     excluded
                                         ? "opacity-50 cursor-not-allowed"
                                         : checked
@@ -229,10 +229,7 @@ export function AddProjectDocsModal({
                                     </span>
                                 )}
                                 <VersionChip
-                                    n={
-                                        doc.active_version_number ??
-                                        doc.latest_version_number
-                                    }
+                                    n={doc.active_version_number}
                                 />
                                 {doc.created_at && (
                                     <span className="shrink-0 text-gray-300">

@@ -1,15 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LegalSourceViewerPayload } from "@/app/lib/mikeApi";
+import type { LegalSourceViewerPayload } from "@/app/lib/beaverApi";
 
 const api = vi.hoisted(() => ({
     direct: vi.fn(),
     saved: vi.fn(),
 }));
 
-vi.mock("@/app/lib/mikeApi", async (importOriginal) => {
+vi.mock("@/app/lib/beaverApi", async (importOriginal) => {
     const original =
-        await importOriginal<typeof import("@/app/lib/mikeApi")>();
+        await importOriginal<typeof import("@/app/lib/beaverApi")>();
     return {
         ...original,
         getDirectLegalSourceDocument: api.direct,

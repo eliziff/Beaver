@@ -6,11 +6,11 @@ import {
     addDocumentToProject,
     createProject,
     uploadProjectDocument,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { FileDirectory } from "../shared/FileDirectory";
 import { AddUserInput } from "../shared/AddUserInput";
 import type { Document, Project } from "../shared/types";
-import type { UserLookupResult } from "@/app/lib/mikeApi";
+import type { UserLookupResult } from "@/app/lib/beaverApi";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
@@ -273,7 +273,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                                 key={entry.email}
                                                 className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100/70"
                                             >
-                                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white text-gray-700 shadow-[0_4px_12px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(255,255,255,0.64)]">
+                                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
                                                     {initial ? (
                                                         <span className="font-serif text-[11px] leading-none">
                                                             {initial}

@@ -4,19 +4,19 @@
 **Reviewed:** 2026-07-26
 **Scope:** open-source graph UI and layout libraries, a renderer-independent legal
 ontology artifact, deterministic/model boundaries, Library persistence, and
-performance gates for Mike-Canada
+performance gates for Beaver
 
 ## Decision
 
 Use **`@xyflow/react` plus `@dagrejs/dagre`** for the first implementation.
 
-That is the smallest defensible stack for Mike-Canada because:
+That is the smallest defensible stack for Beaver because:
 
 - React Flow renders custom nodes as normal React components, so a node can use
-  Mike's existing typography, buttons, status indicators, and safe `<a>` links
+  Beaver's existing typography, buttons, status indicators, and safe `<a>` links
   without an overlay system.
 - It already supplies pan, zoom, selection, edges, grouping, and viewport state.
-- Collapse/expand does not require a third package. Mike can retain the complete
+- Collapse/expand does not require a third package. Beaver can retain the complete
   graph in its Library artifact and deterministically project only the visible
   nodes and edges. React Flow's public performance guide explicitly recommends
   this `hidden`-node approach for deep trees.
@@ -64,13 +64,13 @@ documentation, not listicles or vendor comparisons.
 
 | Candidate | Rich nodes and links | Hierarchy and drill-down | Scale and persistence | React/Next and license | Decision |
 |---|---|---|---|---|---|
-| **React Flow + Dagre** | Arbitrary React components, including normal safe HTML links and controls. `nodrag`, `nopan`, and `nowheel` utility classes prevent controls from fighting canvas gestures. | `parentId` supports subflows/groups. Mike can compute the visible projection and set `hidden`; the complete domain graph stays intact. Dagre handles directed layouts, although cross-boundary subflow edges are a documented weakness. | Official guidance covers memoization, avoiding broad node subscriptions, simplified styles, and collapsing deep trees. `toObject()` can save renderer state, but Mike should persist its domain artifact separately. | First-class React. React Flow 12 supports SSR when dimensions and handles are supplied; an interactive graph still hydrates on the client. MIT + MIT. | **Adopt.** |
+| **React Flow + Dagre** | Arbitrary React components, including normal safe HTML links and controls. `nodrag`, `nopan`, and `nowheel` utility classes prevent controls from fighting canvas gestures. | `parentId` supports subflows/groups. Beaver can compute the visible projection and set `hidden`; the complete domain graph stays intact. Dagre handles directed layouts, although cross-boundary subflow edges are a documented weakness. | Official guidance covers memoization, avoiding broad node subscriptions, simplified styles, and collapsing deep trees. `toObject()` can save renderer state, but Beaver should persist its domain artifact separately. | First-class React. React Flow 12 supports SSR when dimensions and handles are supplied; an interactive graph still hydrates on the client. MIT + MIT. | **Adopt.** |
 | **React Flow + ELK/elkjs** | Same rich React renderer. | ELK's layered algorithm supports compound graphs, clusters, ports, routing, and cross-hierarchy edges. | Layout is asynchronous and can use a worker. It is substantially more configurable and complex; elkjs documents React/bundler/worker integration issues and supplies no renderer. | React Flow integration is possible. **EPL-2.0**, not a permissive MIT/Apache/ISC license. | Do not adopt by default. Reconsider only after a failing layout corpus, a license decision, and a worker prototype. |
 | **Cytoscape.js** | Canvas/WebGL nodes are excellent for networks, but they are not arbitrary React DOM cards. Links normally require event handlers or a separate details panel. | Compound nodes and selectors are mature. | JSON import/export and graph algorithms are strong. The official WebGL preview shows material gains on thousands of nodes and tens of thousands of edges, with edge-style limitations and initial texture cost. MIT. | Imperative client integration in React is straightforward but not first-class React composition. MIT. | Best measured fallback for a large, glyph-based overview; not the doctrine-card UI. |
 | **Sigma + Graphology** | WebGL nodes and labels, not native HTML cards. Rich content belongs in an external panel. | Filtering/highlighting can use Sigma reducers and `hidden` attributes. Compound legal hierarchy is not a core documented abstraction. | Sigma targets thousands of nodes/edges; Graphology supplies graph storage, algorithms, events, and import/export. React Sigma exists, but its docs warn against recreating the instance and require client-only dynamic import in Next. MIT. | React binding available; client-only in Next. MIT projects. | Strong citation-network overview option, but too many pieces and the wrong node model for the first UI. |
 | **Mermaid** | SVG flowcharts can have subgraphs and links. Interactive links require relaxing the default strict security level. | Good static grouped diagrams; not a durable incremental graph editor. Changes are made by editing and re-rendering the text definition. | Excellent diffable documentation output. It is not intended to keep a large fractal graph interactively expanded with a details panel. MIT. | Easy to embed, but it would duplicate the chosen renderer. MIT. | Optional deterministic export text only; do not add a runtime dependency. Never render model-authored Mermaid with loose security. |
-| **D3 modules** | Can produce SVG, Canvas, or HTML and therefore can do almost anything. | `d3-hierarchy` handles hierarchies; `d3-force` handles networks. All editor, grouping, persistence, and interaction policy would be Mike code. | Flexible and proven, but force layout is iterative. React Flow notes that `d3-hierarchy` assumes one root and equal node dimensions. ISC. | Works with React only through custom integration. ISC. | Reject: it turns a product feature into a bespoke graph framework. |
-| **LogicFlow** | SVG and HTML/custom nodes are supported; official examples include React nodes. | Core editor plus extension and layout packages; group, dynamic-group, minimap, and snapshot plugins exist. | Its data format and adapter API are suitable for flowchart persistence. The package is aimed at business process editing, with a larger editor/plugin surface than this read-mostly legal explorer needs. Apache-2.0. | Framework-agnostic rather than React-native. Apache-2.0. | Credible process-editor alternative, but not the smallest Mike integration. |
+| **D3 modules** | Can produce SVG, Canvas, or HTML and therefore can do almost anything. | `d3-hierarchy` handles hierarchies; `d3-force` handles networks. All editor, grouping, persistence, and interaction policy would be Beaver code. | Flexible and proven, but force layout is iterative. React Flow notes that `d3-hierarchy` assumes one root and equal node dimensions. ISC. | Works with React only through custom integration. ISC. | Reject: it turns a product feature into a bespoke graph framework. |
+| **LogicFlow** | SVG and HTML/custom nodes are supported; official examples include React nodes. | Core editor plus extension and layout packages; group, dynamic-group, minimap, and snapshot plugins exist. | Its data format and adapter API are suitable for flowchart persistence. The package is aimed at business process editing, with a larger editor/plugin surface than this read-mostly legal explorer needs. Apache-2.0. | Framework-agnostic rather than React-native. Apache-2.0. | Credible process-editor alternative, but not the smallest Beaver integration. |
 | **AntV G6** | Core canvas elements plus an official React-node extension. Official docs warn that HTML nodes cost more than geometric nodes. | Nested combos, combo/node collapse and expand, layouts, plugins, and interactions are built in. | Official guidance recommends geometric G6 nodes for efficient rendering beyond roughly 2,000 nodes. MIT. | React content requires an additional extension and lifecycle integration. MIT. | Strong permissive-license runner-up if compound hierarchy or scale invalidates React Flow; too broad for version one. |
 
 ### React Flow and Dagre evidence
@@ -114,7 +114,7 @@ documentation, not listicles or vendor comparisons.
   [WebGL preview](https://blog.js.cytoscape.org/2025/01/13/webgl-preview/)
   reported about 20 to over 100 FPS for a roughly 1,200-node/16,000-edge
   example and about 3 to 10 FPS for a roughly 3,200-node/68,000-edge example
-  on the test machine. Those are illustrative project measurements, not Mike
+  on the test machine. Those are illustrative project measurements, not Beaver
   performance promises. The same post records provisional APIs, edge-style
   limitations, and initial texture-generation cost.
 - [`jacomyal/sigma.js`](https://github.com/jacomyal/sigma.js) describes Sigma as
@@ -167,7 +167,7 @@ documentation, not listicles or vendor comparisons.
   [collapse/expand operations](https://g6.antv.antgroup.com/en/api/element),
   and an official [React-node extension](https://g6.antv.antgroup.com/en/manual/element/node/react-node).
 
-## Smallest defensible Mike-Canada stack
+## Smallest defensible Beaver stack
 
 ### Runtime dependencies
 
@@ -178,7 +178,7 @@ Add only:
 @dagrejs/dagre
 ```
 
-Use dependencies Mike already has for schema validation and normal UI
+Use dependencies Beaver already has for schema validation and normal UI
 components. Do not add a second graph store. The Library artifact is the source
 of truth; the React Flow arrays are a projection.
 
@@ -190,7 +190,7 @@ The first view should contain:
 - one assertion/source summary component only when expanded;
 - plain deterministic edge styles by relation type;
 - a right-side details panel for exact passages, authority metadata, public
-  links, and Mike's local viewer link;
+  links, and Beaver's local viewer link;
 - controls for search, jurisdiction, date, source kind, review state, and
   relation kind;
 - expand/collapse, fit view, and reset view;
@@ -471,7 +471,7 @@ Important rules:
 
 - The model selects or proposes source IDs, locators, and quote spans. It does
   not construct URLs.
-- Existing deterministic Mike/ALR-style link builders resolve paragraph,
+- Existing deterministic Beaver/ALR-style link builders resolve paragraph,
   section, page, footnote, text-fragment, and multi-text-fragment links.
 - A local link stores an opaque Library/resource identity and viewer locator,
   not an absolute filesystem path.
@@ -616,7 +616,7 @@ not affect the content hash.
 
 ## Deterministic, model, and review responsibilities
 
-| Responsibility | Deterministic Mike code | Model | Human or configured review policy |
+| Responsibility | Deterministic Beaver code | Model | Human or configured review policy |
 |---|---|---|---|
 | Retrieve a paragraph, section, page, footnote, or article passage | Resolve provider/bulk/local source, exact locator, and bounded text | Ask for relevant material using structured tool arguments | Select research scope where needed |
 | Quote validation | Match exact spans, normalize under a versioned rule, hash, reject mismatch | Propose spans from retrieved text | Resolve ambiguous or materially conflicting text |
@@ -644,7 +644,7 @@ The model should never be responsible for:
 
 ### Source of truth
 
-Save the JSON legal graph as a normal versioned Library item. Use Mike's
+Save the JSON legal graph as a normal versioned Library item. Use Beaver's
 existing local Library storage and version machinery rather than introducing a
 graph database solely for this feature.
 
@@ -692,7 +692,7 @@ Editing the memo must not silently mutate the graph. A user may explicitly send
 a memo change back as a proposal.
 
 Mermaid text may be offered as an export for systems that already render it,
-but the graph artifact remains authoritative. Mike does not need to ship
+but the graph artifact remains authoritative. Beaver does not need to ship
 Mermaid to generate a Markdown outline or edge list.
 
 ## Performance design and gates
@@ -813,7 +813,7 @@ constructed from allowlisted providers/internal routes. Do not use Mermaid
 Mitigation: generate React Flow arrays from the domain artifact. Positions,
 handles, collapse state, and viewport are saved views, not doctrine.
 
-### A new graph framework worsens Mike's load time and maintenance burden
+### A new graph framework worsens Beaver's load time and maintenance burden
 
 Mitigation: two initial dependencies, route-level lazy loading, one node
 component, one details panel, no plugin suite, and measured escalation only.
@@ -828,7 +828,7 @@ examples. Treat ELK's EPL-2.0 as outside the permissive-only default.
 No UI runtime work was performed as part of this evaluation. When authorized,
 the smallest sequence is:
 
-1. Define the version-1 JSON schema and validator using Mike's existing schema
+1. Define the version-1 JSON schema and validator using Beaver's existing schema
    tooling.
 2. Create fixtures for a Canadian test, an American test, shared subfactors,
    conflicting interpretations, journal commentary, and exact public/local
@@ -846,6 +846,6 @@ the smallest sequence is:
 8. Run the performance and legal-structure fixtures. Adopt a fallback only
    when a named gate fails.
 
-This sequence preserves the important option: Mike-Canada can change graph
+This sequence preserves the important option: Beaver can change graph
 renderers later without changing the legal research artifact or re-running
 model extraction.

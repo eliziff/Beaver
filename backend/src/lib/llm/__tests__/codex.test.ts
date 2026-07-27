@@ -125,7 +125,7 @@ describe("parseCodexEventLine", () => {
     });
   });
 
-  it("routes an MCP call through Mike's dispatcher", async () => {
+  it("routes an MCP call through Beaver's dispatcher", async () => {
     const calls: string[] = [];
     const callbackCalls: string[] = [];
     const bridge = await startCodexToolBridge({
@@ -283,7 +283,7 @@ describe("parseCodexEventLine", () => {
           params: { name: "missing_tool", arguments: {} },
         }),
       });
-      expect(await unknown.text()).toContain("Unknown Mike tool");
+      expect(await unknown.text()).toContain("Unknown Beaver tool");
     } finally {
       await bridge.close();
     }
@@ -404,7 +404,7 @@ describe("parseCodexEventLine", () => {
       const bodies = await Promise.all([ask, mutation]);
 
       expect(calls).toEqual(["ask_inputs"]);
-      expect(bodies[1]).toContain("Mike tool dispatch was cancelled.");
+      expect(bodies[1]).toContain("Beaver tool dispatch was cancelled.");
     } finally {
       releaseAsk();
       await bridge.close();

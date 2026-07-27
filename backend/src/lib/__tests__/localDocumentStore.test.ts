@@ -24,7 +24,7 @@ afterEach(async () => {
 
 describe("local document store", () => {
   it("persists uploaded Library files and their bytes", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const bytes = Buffer.from("%PDF-1.4 local smoke");
@@ -50,7 +50,7 @@ describe("local document store", () => {
   });
 
   it("durably clears assistant provenance when version bytes are replaced", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const document = await store.createLocalDocument({
@@ -91,7 +91,7 @@ describe("local document store", () => {
   });
 
   it("accepts only one concurrent version for the same expected parent", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const document = await store.createLocalDocument({
@@ -126,7 +126,7 @@ describe("local document store", () => {
   });
 
   it("reads the version-1 index and persists only legal source pointers", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     await writeFile(
       path.join(temporaryDirectory, "library.json"),
@@ -167,7 +167,7 @@ describe("local document store", () => {
   });
 
   it("removes matter pointers whenever a Library document is deleted", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const graphModule = await import("../legalKnowledgeGraphStore");
@@ -192,7 +192,7 @@ describe("local document store", () => {
   });
 
   it("removes every matter pointer when a Library folder tree is deleted", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const graphModule = await import("../legalKnowledgeGraphStore");

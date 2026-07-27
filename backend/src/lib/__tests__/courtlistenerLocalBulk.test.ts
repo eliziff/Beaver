@@ -19,7 +19,7 @@ afterEach(async () => {
 describe("local CourtListener bulk data", () => {
   it("looks up citations, opinions, and case names from one local database", async () => {
     temporaryDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "mike-courtlistener-"),
+      path.join(os.tmpdir(), "beaver-courtlistener-"),
     );
     const databasePath = path.join(temporaryDirectory, "courtlistener.sqlite");
     const citations = path.join(temporaryDirectory, "citations.csv");

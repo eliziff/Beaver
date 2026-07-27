@@ -607,7 +607,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
             this.savedEndpointBinding,
         );
         return {
-            client_name: "Mike",
+            client_name: "Beaver",
             redirect_uris: [this.redirectUri],
             grant_types: ["authorization_code", "refresh_token"],
             response_types: ["code"],

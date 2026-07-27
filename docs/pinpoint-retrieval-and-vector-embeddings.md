@@ -5,7 +5,7 @@ equivalence benchmark.
 
 ## Decision
 
-Mike uses two distinct planes:
+Beaver uses two distinct planes:
 
 1. **Candidate discovery** may use provider search, SQLite FTS5/BM25, or a
    future embedding index. Its output is only a small set of stable provider

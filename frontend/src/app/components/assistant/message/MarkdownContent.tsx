@@ -1,13 +1,14 @@
-import type { RefObject } from "react";
+import type { ComponentProps, RefObject } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
-import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import type { AssistantEvent, Citation } from "../../shared/types";
 import { RESPONSE_GLASS_ANNOTATION, withoutMarkdownNode } from "./messageStyles";
 import { citationTooltip } from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
+
+export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
+    return <ReactMarkdown {...props} remarkPlugins={[remarkGfm]} />;
+}
 
 export function MarkdownContent({
     text,
@@ -43,12 +44,7 @@ export function MarkdownContent({
             ref={divRef}
             className="text-gray-900 mb-4 text-base prose prose-sm max-w-none font-serif"
         >
-            <ReactMarkdown
-                remarkPlugins={[
-                    [remarkMath, { singleDollarTextMath: false }],
-                    remarkGfm,
-                ]}
-                rehypePlugins={[rehypeKatex]}
+            <GfmMarkdown
                 urlTransform={(url) =>
                     /^us-case-\d+$/.test(url) ? url : defaultUrlTransform(url)
                 }
@@ -283,7 +279,7 @@ export function MarkdownContent({
                 }}
             >
                 {text}
-            </ReactMarkdown>
+            </GfmMarkdown>
         </div>
     );
 }

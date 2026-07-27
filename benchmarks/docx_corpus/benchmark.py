@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local DOCX corpus benchmark built on Mike's universal legal engine."""
+"""Local DOCX corpus benchmark built on Beaver's universal legal engine."""
 
 from __future__ import annotations
 

@@ -126,10 +126,10 @@ export function WorkflowPickerContent({
                                         className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5"
                                     >
                                         <div
-                                            className="h-3 animate-pulse rounded bg-gray-100"
+                                            className="h-3 rounded bg-gray-100"
                                             style={{ width: `${width}%` }}
                                         />
-                                        <div className="h-3 w-10 shrink-0 animate-pulse rounded bg-gray-100" />
+                                        <div className="h-3 w-10 shrink-0 rounded bg-gray-100" />
                                     </div>
                                 ),
                             )}
@@ -159,7 +159,7 @@ export function WorkflowPickerContent({
                                                 isSelected ? null : workflow,
                                             )
                                         }
-                                        className={`flex min-w-0 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition-all ${
+                                        className={`flex min-w-0 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition-colors ${
                                             isSelected
                                                 ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
                                                 : APP_SURFACE_HOVER_CLASS
@@ -229,7 +229,7 @@ function WorkflowPreview({
         <div
             className={`${className} min-h-0 min-w-0 flex-1 flex-col overflow-visible`}
         >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-white/70 bg-white/55 p-1 shadow-[0_3px_9px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
                 <div className="flex h-9 shrink-0 items-center justify-between px-3">
                     <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
                         {workflow.metadata.title}
@@ -374,7 +374,7 @@ function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
                                         isExpanded ? null : column.index,
                                     )
                                 }
-                                className={`flex min-w-0 w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs transition-all ${
+                                className={`flex min-w-0 w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs transition-colors ${
                                     isExpanded
                                         ? APP_SURFACE_ACTIVE_CLASS
                                         : APP_SURFACE_HOVER_CLASS

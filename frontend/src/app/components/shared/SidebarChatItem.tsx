@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Pencil, Trash2, Check, X } from "lucide-react";
-import {
-    DropdownMenu,
-    DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
-import {
-    LiquidDropdownContent,
-    LiquidDropdownItem,
-} from "@/app/components/ui/liquid-dropdown";
+import { Pencil, Trash2, Check, X } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
@@ -108,47 +100,45 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
                         {chat.title ?? "Untitled chat"}
                     </button>
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                className={`flex h-6 w-0 shrink-0 items-center justify-center overflow-hidden rounded-md bg-transparent text-gray-500 opacity-0 transition-opacity hover:text-gray-900 ${
-                                    isActive
-                                        ? "w-6 opacity-100"
-                                        : "pointer-events-none group-hover:w-6 group-hover:pointer-events-auto group-hover:opacity-100"
-                                }`}
-                            >
-                                <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <LiquidDropdownContent align="end" className="z-101">
-                            <LiquidDropdownItem
-                                onClick={() => {
-                                    if (!isChatOwner) {
-                                        setOwnerOnlyAction("rename this chat");
-                                        return;
-                                    }
-                                    setEditTitle(chat.title ?? "");
-                                    setIsRenaming(true);
-                                }}
-                            >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Rename
-                            </LiquidDropdownItem>
-                            <LiquidDropdownItem
-                                onClick={() => {
-                                    if (!isChatOwner) {
-                                        setOwnerOnlyAction("delete this chat");
-                                        return;
-                                    }
-                                    void deleteChat(chat.id);
-                                }}
-                                className="text-red-600 focus:text-red-600"
-                            >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </LiquidDropdownItem>
-                        </LiquidDropdownContent>
-                    </DropdownMenu>
+                    <div
+                        className={`flex shrink-0 items-center ${
+                            isActive
+                                ? "opacity-100"
+                                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                        }`}
+                    >
+                        <button
+                            type="button"
+                            aria-label={`Rename ${chat.title ?? "chat"}`}
+                            title="Rename"
+                            onClick={() => {
+                                if (!isChatOwner) {
+                                    setOwnerOnlyAction("rename this chat");
+                                    return;
+                                }
+                                setEditTitle(chat.title ?? "");
+                                setIsRenaming(true);
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                        >
+                            <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                            type="button"
+                            aria-label={`Delete ${chat.title ?? "chat"}`}
+                            title="Delete"
+                            onClick={() => {
+                                if (!isChatOwner) {
+                                    setOwnerOnlyAction("delete this chat");
+                                    return;
+                                }
+                                void deleteChat(chat.id);
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700"
+                        >
+                            <Trash2 className="h-3 w-3" />
+                        </button>
+                    </div>
                 </>
             )}
             <OwnerOnlyPopup

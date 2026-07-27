@@ -1,15 +1,11 @@
 import { describe, it, expect } from "vitest";
-import {
-    loadActiveVersion,
-    attachActiveVersionPaths,
-    attachLatestVersionNumbers,
-} from "../documentVersions";
+import { loadActiveVersion, attachActiveVersionPaths } from "../documentVersions";
 
 type Row = Record<string, unknown>;
 
 /**
  * Read-only Supabase mock covering the query chains documentVersions uses:
- * select/eq/in/is/not filters plus single() and awaiting the builder.
+ * select/eq/in/is filters plus single() and awaiting the builder.
  */
 function makeDb(tables: Record<string, Row[]>) {
     return {
@@ -29,12 +25,6 @@ function makeDb(tables: Record<string, Row[]>) {
                     rows = rows.filter((row) => (row[column] ?? null) === value);
                     return query;
                 },
-                not: (column: string, operator: string, value: unknown) => {
-                    if (operator === "is" && value === null) {
-                        rows = rows.filter((row) => row[column] != null);
-                    }
-                    return query;
-                },
                 single: async () => ({ data: rows[0] ?? null, error: null }),
                 then: (
                     resolve: (value: { data: Row[]; error: null }) => unknown,
@@ -50,7 +40,6 @@ function makeDb(tables: Record<string, Row[]>) {
 type TestDoc = {
     id: string;
     current_version_id?: string | null;
-    latest_version_number?: number | null;
     [k: string]: unknown;
 };
 
@@ -261,55 +250,3 @@ describe("attachActiveVersionPaths", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// attachLatestVersionNumbers
-// ---------------------------------------------------------------------------
-
-describe("attachLatestVersionNumbers", () => {
-    const versionRow = (
-        document_id: string,
-        version_number: number | null,
-        overrides: Row = {},
-    ) => ({
-        document_id,
-        version_number,
-        source: "assistant_edit",
-        deleted_at: null,
-        ...overrides,
-    });
-
-    it("returns the same empty array untouched", async () => {
-        const db = makeDb({ document_versions: [] });
-        const docs: TestDoc[] = [];
-        await expect(attachLatestVersionNumbers(db, docs)).resolves.toBe(docs);
-    });
-
-    it("attaches the max assistant_edit version number per document", async () => {
-        const db = makeDb({
-            document_versions: [
-                versionRow("doc-1", 1),
-                versionRow("doc-1", 4),
-                versionRow("doc-1", 2),
-                versionRow("doc-2", 7),
-            ],
-        });
-        const docs = await attachLatestVersionNumbers<TestDoc>(db, [
-            { id: "doc-1" },
-            { id: "doc-2" },
-            { id: "doc-3" },
-        ]);
-        expect(docs.map((d) => d.latest_version_number)).toEqual([4, 7, null]);
-    });
-
-    it("ignores non-assistant_edit and soft-deleted versions", async () => {
-        const db = makeDb({
-            document_versions: [
-                versionRow("doc-1", 9, { source: "upload" }),
-                versionRow("doc-1", 8, { deleted_at: "2026-01-01T00:00:00Z" }),
-                versionRow("doc-1", 2),
-            ],
-        });
-        const docs = await attachLatestVersionNumbers<TestDoc>(db, [{ id: "doc-1" }]);
-        expect(docs[0].latest_version_number).toBe(2);
-    });
-});

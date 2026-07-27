@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { generateTabularColumnPrompt } from "@/app/lib/mikeApi";
+import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
 import { FORMAT_OPTIONS } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
 import { getPresetConfig, PROMPT_PRESETS } from "./columnPresets";
@@ -423,7 +423,7 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
                                         <ModalFieldLabel htmlFor={tagInputId}>
                                             Tags
                                         </ModalFieldLabel>
-                                        <div className="mt-1 flex flex-wrap gap-1.5 rounded-xl border border-white/70 bg-white/55 px-2 py-1.5 shadow-[0_3px_9px_rgba(15,23,42,0.052),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl">
+                                        <div className="mt-1 flex flex-wrap gap-1.5 rounded-xl border border-gray-200 bg-white px-2 py-1.5 shadow-sm">
                                             {column.tags.map((tag, tagIdx) => (
                                                 <span
                                                     key={tag}

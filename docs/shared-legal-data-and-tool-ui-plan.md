@@ -2,7 +2,7 @@
 
 > Status note (2026-07-26): the architectural decisions here remain in force.
 > Track implementation status and remaining integration work in the
-> [Mike-Canada master plan](mike-canada-master-plan.md).
+> [Beaver master plan](beaver-master-plan.md).
 
 ## Decisions
 
@@ -17,9 +17,9 @@
    projects, and generated legal work product are not mixed into provider
    databases.
 5. Table of Authorities has one browser UI. The standalone Python host serves
-   the same static files that Mike displays. The Tk UI becomes a frozen legacy
+   the same static files that Beaver displays. The Tk UI becomes a frozen legacy
    fallback, not a second maintained renderer.
-6. ALR Quote Verifier remains an independent application. MikeOSS does not
+6. ALR Quote Verifier remains an independent application. Beaver does not
    import it, host its GUI, or require a fork. Only neutral provider data and
    selectively ported algorithms are reused.
 
@@ -60,7 +60,7 @@ disposable and must never be the sole copy of user work.
 ## Runtime dependency policy
 
 - OpenLegalData lookup and service code: Python standard library only.
-- Mike: Node 22 built-ins for direct SQLite fallback; no npm database driver.
+- Beaver: Node 22 built-ins for direct SQLite fallback; no npm database driver.
 - Table of Authorities source launch: versioned managed virtual environment,
   keyed by the runtime requirements hash.
 - Standalone executables: bundle application runtime dependencies.
@@ -77,7 +77,7 @@ disposable and must never be the sole copy of user work.
 3. Keep the deterministic engine and CLI stable.
 4. Serve a single browser UI from a localhost-only Python job host:
    Automatic / Import / Review / Build / Insert PDFs, Manual, and Settings.
-5. Add Table of Authorities as Mike's sibling navigation category by
+5. Add Table of Authorities as Beaver's sibling navigation category by
    lazy-starting that host and embedding its exact UI.
 6. Make the browser UI the default standalone GUI; retain `tk-gui` only while
    parity gaps remain.
@@ -88,7 +88,7 @@ disposable and must never be the sole copy of user work.
 ## ALR Quote Verifier boundary
 
 1. Keep ALR's repository, runtime, GUI, CLI, and release process independent.
-2. Do not import ALR modules or require an ALR checkout from MikeOSS.
+2. Do not import ALR modules or require an ALR checkout from Beaver.
 3. Audit existing ALR downloads and import only reusable provider material
    through an explicit, non-destructive OpenLegalData compatibility path.
 4. Keep ALR settings, prompts, results, and derived caches in ALR's namespace.
@@ -99,7 +99,7 @@ disposable and must never be the sole copy of user work.
 
 ## Equivalence tests
 
-- Run identical project/review JSON through CLI, standalone browser, and Mike.
+- Run identical project/review JSON through CLI, standalone browser, and Beaver.
 - Compare review mutations, CLI argv, manifests, output hashes where
   deterministic, and displayed job errors.
 - Restart hosts mid-job and confirm persisted job state is readable.
@@ -107,5 +107,5 @@ disposable and must never be the sole copy of user work.
   still work.
 - Launch against a corrupt/partial `*.new` file and prove the previous live
   snapshot remains available.
-- Verify both Mike and standalone render the same static asset hashes.
-- Verify all MikeOSS tools start and pass lookup tests with no ALR checkout.
+- Verify both Beaver and standalone render the same static asset hashes.
+- Verify all Beaver tools start and pass lookup tests with no ALR checkout.

@@ -42,14 +42,14 @@ if ! command -v psql >/dev/null 2>&1; then
 fi
 
 # A newly started local stack contains Supabase's system schemas but none of
-# Mike's application tables. Initialize only an empty stack: silently resetting
+# Beaver's application tables. Initialize only an empty stack: silently resetting
 # or modifying an existing application database would be surprising.
 PROJECTS_TABLE="$(
     psql "$SUPABASE_TEST_DB_URL" -XAtq \
         -c "select to_regclass('public.projects');"
 )"
 if [[ "$PROJECTS_TABLE" != "projects" ]]; then
-    echo "Mike schema not found; loading $SCHEMA_FILE"
+    echo "Beaver schema not found; loading $SCHEMA_FILE"
     psql "$SUPABASE_TEST_DB_URL" -X \
         --set ON_ERROR_STOP=1 \
         --file "$SCHEMA_FILE"

@@ -3,7 +3,7 @@
 > Status note (2026-07-26): the standalone engine now implements a substantial
 > portion of this design. This file remains the detailed requirements and
 > benchmark appendix; the authoritative remaining work is in the
-> [Mike-Canada master plan](mike-canada-master-plan.md).
+> [Beaver master plan](beaver-master-plan.md).
 
 ## Purpose
 
@@ -12,10 +12,10 @@ structural records. It should run locally on weak hardware for ordinary
 digital-born PDFs and optionally use Codex only for structural cases that the
 deterministic parser cannot resolve confidently.
 
-The engine must not depend on Mike, ALR-Quote-Verifier, or
+The engine must not depend on Beaver, ALR-Quote-Verifier, or
 TableOfAuthoritiesMaker. Those applications consume its output through thin
 adapters. The first intended integration is described in
-[Mike Document Intelligence Plan](mike-document-intelligence-plan.md).
+[Beaver Document Intelligence Plan](beaver-document-intelligence-plan.md).
 
 ## Existing Work to Reuse
 
@@ -272,7 +272,7 @@ costs.
 
 ## Application Adapters
 
-### Mike
+### Beaver
 
 - Store engine artifacts with each Library document version.
 - Map parse status into the Library UI.
@@ -310,7 +310,7 @@ Use:
   corpus members selected from `data/inputs` and `data/samples` and duplicate
   `_temp` copies excluded.
 - ALR's existing synthetic PDF adapter fixtures.
-- A small application-equivalence set covering Mike lookup, ALR quote
+- A small application-equivalence set covering Beaver lookup, ALR quote
   verification, and TableOfAuthoritiesMaker `TextUnit` generation.
 
 Record the exact source fingerprint and manifest revision. Gold assets remain
@@ -439,7 +439,7 @@ merely produce more plausible-looking structure.
 4. Run the deterministic benchmark and application-equivalence fixtures.
 5. Add diagnostic-driven r=1 Codex repair and its cache.
 6. Run all model arms and select a default from measured results.
-7. Integrate Mike first, then replace ALR's internal adapter, then add the
+7. Integrate Beaver first, then replace ALR's internal adapter, then add the
    TableOfAuthoritiesMaker PDF adapter.
 8. Add an OCR adapter only when there is a concrete scanned-PDF corpus to test.
 
@@ -456,7 +456,7 @@ merely produce more plausible-looking structure.
 - A failed Codex repair cannot mutate source text or destroy a deterministic
   parse.
 - Model and effort values are caller-configurable.
-- Mike, ALR, and TableOfAuthoritiesMaker can consume the same output without
+- Beaver, ALR, and TableOfAuthoritiesMaker can consume the same output without
   importing one another.
 - Benchmark runs are reproducible from frozen manifests and fingerprints.
 

@@ -1,14 +1,10 @@
-"use client";
-
-import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
+import type { ComponentProps } from "react";
 import { cn } from "@/app/lib/utils";
 
 type PillButtonTone = "black" | "white" | "blue" | "danger";
 type PillButtonSize = "sm" | "normal";
 
-type PillButtonProps = React.ComponentProps<"button"> & {
-    asChild?: boolean;
+type PillButtonProps = ComponentProps<"button"> & {
     tone: PillButtonTone;
     size?: PillButtonSize;
 };
@@ -25,25 +21,30 @@ const sizeClasses: Record<PillButtonSize, string> = {
     normal: "px-4 py-1.5 text-sm",
 };
 
+export function pillButtonClassName(
+    tone: PillButtonTone,
+    size: PillButtonSize = "sm",
+    className?: string,
+) {
+    return cn(
+        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+        toneClasses[tone],
+        sizeClasses[size],
+        className,
+    );
+}
+
 export function PillButton({
-    asChild = false,
     tone,
     size = "sm",
     type = "button",
     className,
     ...props
 }: PillButtonProps) {
-    const Comp = asChild ? Slot : "button";
-
     return (
-        <Comp
-            type={asChild ? undefined : type}
-            className={cn(
-                "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                toneClasses[tone],
-                sizeClasses[size],
-                className,
-            )}
+        <button
+            type={type}
+            className={pillButtonClassName(tone, size, className)}
             {...props}
         />
     );

@@ -31,7 +31,7 @@ import {
     renameLibraryFolder,
     uploadLibraryDocument,
     type LibraryKind,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type { Document } from "@/app/components/shared/types";
 import { DocumentActionsPanel } from "./DocumentActionsPanel";
 

@@ -9,7 +9,7 @@ research track.
 
 ## Bottom line
 
-Mike's proposed layered state design is defensible, with one important
+Beaver's proposed layered state design is defensible, with one important
 qualification: an ordinary prose summary cannot be the authoritative memory for
 legal work.
 
@@ -35,7 +35,7 @@ compacted *next request* was smaller, but the separate compaction call added mor
 input tokens and substantial latency. It should be triggered where it can be
 amortized over continued work, not indiscriminately on short sessions.
 
-## The OpenAI contract Mike must respect
+## The OpenAI contract Beaver must respect
 
 OpenAI documents two related but distinct mechanisms:
 
@@ -57,15 +57,15 @@ That produces a clean architecture:
 ```text
 immutable raw transcript and durable artifacts
              |
-             +-- exact Mike state projection (auditable JSON)
+             +-- exact Beaver state projection (auditable JSON)
              |
              +-- provider-native opaque compact window (never rewritten)
              |
              +-- bounded recent tail and current request
 ```
 
-Mike should not deserialize, summarize, "clean up," splice, or selectively copy
-fields from an OpenAI compaction item. The exact Mike capsule is a separate
+Beaver should not deserialize, summarize, "clean up," splice, or selectively copy
+fields from an OpenAI compaction item. The exact Beaver capsule is a separate
 application-owned projection, not a replacement representation of the opaque
 provider state.
 
@@ -124,7 +124,7 @@ It is nevertheless a strong *content source* for a compaction benchmark:
    secondary diagnostic only.
 
 Because no reuse license is present, this report does not vendor or redistribute
-the benchmark data. Public readability is not a permissive license. Before Mike
+the benchmark data. Public readability is not a permissive license. Before Beaver
 ships derived fixtures, the repository should gain an explicit license and the
 provenance/reuse terms for underlying A2AJ decision text should be checked.
 
@@ -160,7 +160,7 @@ The practical combination is:
 - the exit-status/durable-artifact invariant from Compaction as Epistemic
   Failure.
 
-No single existing benchmark covers all six failure classes Mike needs.
+No single existing benchmark covers all six failure classes Beaver needs.
 
 ## Track B executable scaffold
 
@@ -329,11 +329,11 @@ Not established:
 - adversarial prompt injection against a compactor;
 - legal correctness beyond the synthetic closed record;
 - performance at 96k–256k context; or
-- production cost with prefix caching and real Mike tools.
+- production cost with prefix caching and real Beaver tools.
 
 The native compact object is opaque. Passing this test means the downstream
 answer was correct, not that every internal detail can be audited. That is why
-Mike still needs its own exact, inspectable state projection and immutable raw
+Beaver still needs its own exact, inspectable state projection and immutable raw
 log.
 
 ## Falsifiable full-study hypothesis
@@ -387,7 +387,7 @@ reported only as a secondary measure.
 5. **Scale context without changing semantics.** Use the scaffold's controlled
    distractors at 8k/32k/96k. Add 256k only after cost and latency are acceptable.
 6. **Run six arms.** Full history; oracle capsule; automatically generated
-   capsule; prose summary; native standalone compaction; and Mike's actual
+   capsule; prose summary; native standalone compaction; and Beaver's actual
    production session/compaction path.
 7. **Add repeated compaction.** Test one, three, and five generations and
    cross-model resume.
@@ -402,7 +402,7 @@ reported only as a secondary measure.
     complete; and raw transcript/artifact replay must reproduce every expected
     field.
 
-## Recommendation for Mike
+## Recommendation for Beaver
 
 Implement the current layered hypothesis, but call the pieces by their actual
 roles:

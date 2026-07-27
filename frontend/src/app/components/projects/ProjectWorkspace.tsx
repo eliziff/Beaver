@@ -20,7 +20,7 @@ import {
     listProjectChats,
     listTabularReviews,
     updateProject,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type {
     Chat,
     ColumnConfig,

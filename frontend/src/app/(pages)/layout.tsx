@@ -11,7 +11,7 @@ import { PageChromeContext } from "@/app/contexts/PageChromeContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { FullScreenLoader } from "@/app/components/shared/FullScreenLoader";
 
-export default function MikeLayout({
+export default function BeaverLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -22,45 +22,14 @@ export default function MikeLayout({
     const [mobileActionsContainer, setMobileActionsContainer] =
         useState<HTMLDivElement | null>(null);
 
-    const [isSidebarOpenDesktop, setIsSidebarOpenDesktop] = useState(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("sidebarOpen");
-            return saved !== null ? saved === "true" : true;
-        }
-        return true;
-    });
-
-    const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-        if (typeof window !== "undefined" && window.innerWidth < 768) {
-            return false;
-        }
-        return true;
-    });
-
-    useEffect(() => {
-        if (typeof window !== "undefined" && window.innerWidth >= 768) {
-            localStorage.setItem("sidebarOpen", isSidebarOpen.toString());
-        }
-    }, [isSidebarOpenDesktop]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const handleResize = () => {
-            const isSmall = window.innerWidth < 768;
-            if (isSmall && isSidebarOpen) setIsSidebarOpen(false);
-            else if (!isSmall && !isSidebarOpen)
-                setIsSidebarOpen(isSidebarOpenDesktop);
-        };
-        window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
-    }, [isSidebarOpen, isSidebarOpenDesktop]);
+    const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
     const handleSidebarToggle = () => {
-        if (window.innerWidth >= 768) {
-            setIsSidebarOpenDesktop(!isSidebarOpenDesktop);
-            setIsSidebarOpen(!isSidebarOpenDesktop);
+        if (window.matchMedia("(min-width: 768px)").matches) {
+            setDesktopSidebarOpen((open) => !open);
         } else {
-            setIsSidebarOpen(!isSidebarOpen);
+            setMobileSidebarOpen((open) => !open);
         }
     };
 
@@ -89,22 +58,22 @@ export default function MikeLayout({
                 <SidebarContext.Provider
                     value={{
                         setSidebarOpen: (open) => {
-                            const isSmall =
-                                typeof window !== "undefined" &&
-                                window.innerWidth < 768;
-                            if (isSmall) {
-                                if (!open) setIsSidebarOpen(false);
-                                return;
+                            if (
+                                window.matchMedia("(min-width: 768px)")
+                                    .matches
+                            ) {
+                                setDesktopSidebarOpen(open);
+                            } else {
+                                setMobileSidebarOpen(open);
                             }
-                            setIsSidebarOpen(open);
-                            setIsSidebarOpenDesktop(open);
                         },
                     }}
                 >
                     <div className="h-dvh flex flex-col bg-app-background">
                         <div className="flex-1 flex min-w-0 overflow-visible">
                             <AppSidebar
-                                isOpen={isSidebarOpen}
+                                desktopOpen={desktopSidebarOpen}
+                                mobileOpen={mobileSidebarOpen}
                                 onToggle={handleSidebarToggle}
                             />
                             <div className="flex-1 flex flex-col h-dvh md:overflow-hidden relative w-full">
@@ -112,7 +81,7 @@ export default function MikeLayout({
                                 <div className="relative z-20 flex md:hidden items-center gap-3 overflow-visible px-4 pt-3 pb-2 shrink-0">
                                     <button
                                         onClick={handleSidebarToggle}
-                                        className="flex h-9 w-9 items-center justify-center rounded-full bg-app-surface text-gray-700 shadow-[0_8px_24px_rgba(15,23,42,0.12)] ring-1 ring-white/70 backdrop-blur-md transition-all hover:bg-app-floating active:scale-95"
+                                        className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating"
                                         title="Open sidebar"
                                         aria-label="Open sidebar"
                                     >

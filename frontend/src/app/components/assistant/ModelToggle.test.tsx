@@ -5,10 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
     getCodexModelCatalog,
     type CodexModelCatalog,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     getCodexModelCatalog: vi.fn(),
 }));
 

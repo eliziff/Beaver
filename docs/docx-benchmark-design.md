@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Mike now has a corpus-scale, local footnote split/link smoke benchmark over
+Beaver now has a corpus-scale, local footnote split/link smoke benchmark over
 diverse Word packages. It sits above the split/link benchmark already implemented in
 `universal-legal-pdf-engine`; duplicating that engine or the ALR application
 would create drift without adding evidence.
@@ -43,7 +43,7 @@ The reusable patterns are:
 
 ALR also has useful specialist benchmarks for supra-link recovery and
 deterministic reference replay. Those should supply task-specific gold when
-Mike's supra and citation-link actions are evaluated; their link-outcome labels
+Beaver's supra and citation-link actions are evaluated; their link-outcome labels
 (`same exact`, `same source/reanchored`, `wrong`, and `abstain`) are more
 meaningful than raw string similarity.
 
@@ -91,7 +91,7 @@ failures. The standalone synthetic self-test passed.
 Use the emitted frozen-gold subset and its exact case IDs for every arm. At
 minimum compare:
 
-- the historical/current Mike baseline;
+- the historical/current Beaver baseline;
 - deterministic conservative;
 - deterministic recall-first;
 - the bounded strong-model direct route;

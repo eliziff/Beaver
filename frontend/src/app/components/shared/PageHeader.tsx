@@ -434,7 +434,7 @@ function BreadcrumbItem({
     const content = item.loading ? (
         <div
             className={cn(
-                "h-6 rounded bg-gray-100 animate-pulse",
+                "h-6 rounded bg-gray-100",
                 item.skeletonClassName ?? "w-32",
             )}
         />

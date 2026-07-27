@@ -13,7 +13,7 @@ import {
     Download,
     ExternalLink,
 } from "lucide-react";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import type { CaseCitationQuote } from "../shared/types";
 import {
     clearDocxQuoteHighlights,
@@ -26,7 +26,7 @@ import {
 import {
     getCourtlistenerOpinions,
     type CaseLawOpinion,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { cn } from "@/app/lib/utils";
 
 export type CaseTab = {
@@ -367,7 +367,7 @@ export function CaseLawPanel({
         relevantQuotes,
     ]);
 
-    const opinionSurfaceClassName = "bg-white/60 backdrop-blur-xl";
+    const opinionSurfaceClassName = "bg-white";
 
     return (
         <div className="flex h-full flex-col">
@@ -496,7 +496,7 @@ export function CaseLawPanel({
                 {loading && (
                     <div className={cn("h-full min-h-0 rounded-lg border border-gray-200", opinionSurfaceClassName)}>
                         <div className="flex h-full items-center justify-center p-5">
-                            <MikeIcon spin mike size={28} />
+                            <ThinkingSpinner label="Loading case law" size={24} />
                         </div>
                     </div>
                 )}

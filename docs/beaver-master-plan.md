@@ -1,15 +1,15 @@
-# Mike-Canada master plan
+# Beaver master plan
 
 Status: canonical implementation plan
 Last reconciled: 2026-07-26
 
-This is the single source of truth for unfinished Mike-Canada work. Earlier
+This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
 lists are not authoritative where they differ from this file.
 
 The plan consolidates the user's requests without turning every experiment into
 a permanent subsystem. The default is a small deterministic implementation,
-measured against the current Mike baseline, with model calls reserved for
+measured against the current Beaver baseline, with model calls reserved for
 ambiguity that cannot be resolved reliably in code.
 
 ## Status key
@@ -26,7 +26,7 @@ ambiguity that cannot be resolved reliably in code.
 
 These decisions are not open backlog items:
 
-1. Mike-Canada supports an account-free local mode. Cloud/Supabase/R2
+1. Beaver supports an account-free local mode. Cloud/Supabase/R2
    compatibility remains available; local mode is additive, not a fork that
    deletes cloud support.
 2. Provider downloads, bulk databases, and shared source caches live under the
@@ -34,10 +34,10 @@ These decisions are not open backlog items:
    `%LOCALAPPDATA%\OpenLegalProducts\LegalData`.
 3. SQLite is the lookup/runtime format. DuckDB, PyArrow, and Parquet readers
    are optional import-time dependencies.
-4. ALR Quote Verifier remains an independent product. Mike does not import its
+4. ALR Quote Verifier remains an independent product. Beaver does not import its
    private modules or require its checkout. Small algorithms and fixtures may
    be ported into neutral packages with parity tests.
-5. `universal-legal-pdf-engine` is the neutral PDF structure package. Mike,
+5. `universal-legal-pdf-engine` is the neutral PDF structure package. Beaver,
    Table of Authorities Maker, ALR, and future applications consume thin
    adapters.
 6. Exact evidence, document versions, source locators, hashes, and tool
@@ -49,14 +49,14 @@ These decisions are not open backlog items:
    enumerated where a provider exposes a catalog. Values such as `max` are not
    hardcoded away.
 9. The browser UI is the maintained Table of Authorities UI used both
-   standalone and inside Mike. The Tk UI is a compatibility fallback, not a
+   standalone and inside Beaver. The Tk UI is a compatibility fallback, not a
    second product to redesign.
 10. Legal ontology artifacts use renderer-independent JSON. A viewer is a
     replaceable projection, not the data model.
 11. Accessibility is a cross-cutting product constraint. New and changed
     browser workflows target WCAG 2.2 Level AA and use native HTML before
     custom ARIA widgets.
-12. Mike remains a modular monolith with small provider/process boundaries.
+12. Beaver remains a modular monolith with small provider/process boundaries.
     Extensibility comes from stable SQLite/JSON/CLI contracts and thin adapters,
     not speculative services, duplicate UIs, or one-implementation interfaces.
 
@@ -69,7 +69,7 @@ backlog:
 | --- | --- |
 | Local identity | Anonymous account-free startup, Library storage, and atomic durable chat transcripts under shared AppData |
 | Assistant | Local Library tools work without the unavailable `mike_runtime` connector |
-| Codex | Local Codex authentication, dynamic model catalog, separate reasoning-effort control, and bounded Mike tool bridge |
+| Codex | Local Codex authentication, dynamic model catalog, separate reasoning-effort control, and bounded Beaver tool bridge |
 | Providers | OpenAI, Claude, Gemini, Codex, DeepSeek, and an OpenRouter/Muse adapter |
 | Legal lookup | A2AJ, CourtListener, TNA Find Case Law, GOV.UK ET, GovInfo, and journal article lookup surfaces |
 | Pinpoints | Deterministic native anchors/text fragments, including multi-text directives, are appended without asking the model to construct URLs |
@@ -78,8 +78,8 @@ backlog:
 | PDF core | Standalone deterministic digital-born parser, footnote/proposition artifacts, optional r=1 Codex repair, cache, diagnostics, and adapters |
 | DOCX citations | Bounded deterministic citation splitting and hyperlink insertion with a Codex worker only for unresolved splits |
 | Legal Library | Lightweight A2AJ/journal pointers and a structured source viewer |
-| Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Mike sibling route |
-| UI | Mike-Canada name, maple leaf identity, red accents, flat text-presentation symbols, visible model control, and separate effort control |
+| Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Beaver sibling route |
+| UI | Beaver name, maple leaf identity, red accents, flat text-presentation symbols, visible model control, and separate effort control |
 
 The baseline still needs a clean local commit. “Implemented” here describes the
 worktree, not release readiness.
@@ -100,7 +100,7 @@ Build one small Windows launcher/doctor path that:
   processes it started;
 - checks required runtime versions and optional provider credentials without
   exposing secret values; and
-- opens Mike only after the frontend is ready.
+- opens Beaver only after the frontend is ready.
 
 Acceptance:
 
@@ -175,7 +175,7 @@ Acceptance:
 
 - No ordinary local navigation ends in a Supabase 503.
 - A local user can create a matter, import documents, chat, draft/revise a
-  document, restart Mike, and continue with unchanged versions and citations.
+  document, restart Beaver, and continue with unchanged versions and citations.
 - Cloud mode passes its existing authentication/storage tests.
 
 ### P0.4 Freeze and commit the current baseline
@@ -286,13 +286,13 @@ Acceptance:
 - Token reductions can be attributed to a measured component.
 - Tool discovery/selection recall remains within the benchmark tolerance.
 
-## Priority 0 — universal document structure in Mike
+## Priority 0 — universal document structure in Beaver
 
 ### P0.8 Wire the universal PDF engine into Library ingestion
 
 Status: **Partial**
 
-The engine exists but Mike does not consume it.
+The engine exists but Beaver does not consume it.
 
 Work:
 
@@ -312,7 +312,7 @@ Work:
 Acceptance:
 
 - Import returns after safe source storage, not after model repair.
-- Restarting Mike resumes or reports an interrupted parse deterministically.
+- Restarting Beaver resumes or reports an interrupted parse deterministically.
 - An unchanged PDF does not repeat extraction or model calls.
 - A raster-only PDF degrades honestly and can be selectively OCRed.
 
@@ -643,7 +643,7 @@ Status: **Partial**
 
 - **Done:** the local assistant has bounded submit/status tools for owned
   Library DOCX versions. It reuses the standalone localhost job API, exposes no
-  arbitrary path/command parameter, and returns a job-specific Mike route.
+  arbitrary path/command parameter, and returns a job-specific Beaver route.
 - **Done:** detection can explicitly use the neutral universal engine's cached
   splitter for incomplete citation units only; deterministic-only remains the
   standalone default and review JSON records fallback telemetry.
@@ -658,7 +658,7 @@ Status: **Partial**
 
 Acceptance:
 
-- Standalone browser host and Mike tab execute the same job/UI code.
+- Standalone browser host and Beaver tab execute the same job/UI code.
 - A clean supported machine can bootstrap or run the packaged build without
   random missing-module failures.
 
@@ -677,7 +677,7 @@ Create a small, redistributable demo Library:
 
 Acceptance:
 
-- A new local user can exercise Mike's main capabilities without providing
+- A new local user can exercise Beaver's main capabilities without providing
   private documents or external accounts.
 
 ## Priority 1 — provider breadth and multimodality
@@ -707,7 +707,7 @@ Status: **Blocked**
 
 The OpenRouter adapter exists, but the configured credential returns
 `401 User not found`. Replace/fix the credential, then run harmless text,
-reasoning, tool, streaming, and image tests through Mike. Treat OpenRouter's
+reasoning, tool, streaming, and image tests through Beaver. Treat OpenRouter's
 current US-only hosted-preview label as a distribution policy to verify, not an
 inherent geographic property of the model. Evaluate a direct Meta endpoint
 only if an official credential and terms are available.
@@ -731,10 +731,10 @@ Acceptance:
 
 Status: **Deferred**
 
-Do not build this until Mike has enough genuinely distinct litigator and
+Do not build this until Beaver has enough genuinely distinct litigator and
 solicitor capabilities for a preset to change the product meaningfully.
 
-- On first use, offer an optional account-free Mike profile that asks what kind
+- On first use, offer an optional account-free Beaver profile that asks what kind
   of legal work the user does and explains what the answer changes.
 - Provide editable presets rather than permanent roles. A litigator preset can
   foreground Table of Authorities and case-research workflows; later solicitor
@@ -768,7 +768,7 @@ task fit for:
   terms;
 - US citation/retrieval/drafting benchmarks;
 - Harvey's public Legal Agent Benchmark materials; and
-- internal Mike fixtures for exact evidence retention, document mutation, and
+- internal Beaver fixtures for exact evidence retention, document mutation, and
   long-running matters.
 
 Do not claim comparison with Harvey's product unless the exact same hidden
@@ -783,9 +783,9 @@ Minimum controlled arms:
 
 | Arm | Context | Directive |
 | --- | --- | --- |
-| A | Full history | Current Mike prompt |
+| A | Full history | Current Beaver prompt |
 | B | Full history | Legal-safe concise/Caveman-lite |
-| C | Exact ledger + summary + recent tail | Current Mike prompt |
+| C | Exact ledger + summary + recent tail | Current Beaver prompt |
 | D | Exact ledger + summary + recent tail | Legal-safe concise/Caveman-lite |
 
 Add ablations from the independent research synthesis:
@@ -890,7 +890,7 @@ For each release record:
 
 Status: **Planned**
 
-Apply the current W3C WCAG 2.2 Level AA criteria throughout Mike, the embedded
+Apply the current W3C WCAG 2.2 Level AA criteria throughout Beaver, the embedded
 Table of Authorities workflow, Library viewers, document/action panels, and
 durable graph artifacts:
 
@@ -936,7 +936,7 @@ Acceptance:
 
 1. **Preserve the baseline**: ignores, nested repo commits, root local commits,
    launcher/doctor, and one end-to-end local smoke flow.
-2. **Finish the evidence layer**: Mike PDF ingestion, exact structure tools,
+2. **Finish the evidence layer**: Beaver PDF ingestion, exact structure tools,
    provider caches/locators, and compact evidence handles.
 3. **Benchmark before changing memory**: independent synthesis, instrumentation,
    full-history baseline, compaction prototype, legal hard gates, and
@@ -980,13 +980,13 @@ The consolidated backlog deliberately retains these user priorities:
   testing;
 - ALR independence with selective tested ports, not brittle coupling;
 - one shared legal-data contract and reliable runtime dependencies;
-- Table of Authorities as both a Mike category and standalone GUI/CLI with one
+- Table of Authorities as both a Beaver category and standalone GUI/CLI with one
   maintained browser UI;
 - a performant universal galley viewer using pointers to shared artifacts;
 - multimodal image processing;
 - durable legal-test/factor/application/commentary graphs and linked research
   memos;
-- Mike-Canada branding, maple leaf/red visual identity, visible assistant,
+- Beaver branding, maple leaf/red visual identity, visible assistant,
   non-duplicated models, and usable icons;
 - optional role-aware onboarding plus an editable Settings area, deferred until
   litigator and solicitor presets can reflect real implemented capabilities;
@@ -999,7 +999,7 @@ The consolidated backlog deliberately retains these user priorities:
 
 ## Detailed appendices
 
-- [Mike document intelligence](mike-document-intelligence-plan.md)
+- [Beaver document intelligence](beaver-document-intelligence-plan.md)
 - [Universal legal PDF engine](universal-legal-pdf-engine-plan.md)
 - [Shared legal data and tool UI](shared-legal-data-and-tool-ui-plan.md)
 - [ALR independence decision](alr-independence-and-shared-data-plan.md)

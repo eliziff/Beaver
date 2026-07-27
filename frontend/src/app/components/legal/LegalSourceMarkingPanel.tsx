@@ -11,7 +11,7 @@ import {
     type LegalResearchNode,
     type LegalResearchProject,
     type LegalSourceMarking,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import {
     LegalResearchLabelsPanel,
     type CreateLegalResearchLabelInput,

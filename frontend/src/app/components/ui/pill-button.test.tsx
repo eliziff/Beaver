@@ -73,19 +73,4 @@ describe("PillButton", () => {
         expect(onClick).not.toHaveBeenCalled();
     });
 
-    it("renders as its child element via asChild", () => {
-        render(
-            <PillButton tone="blue" asChild>
-                <a href="/docs">Docs</a>
-            </PillButton>,
-        );
-
-        const link = screen.getByRole("link", { name: "Docs" });
-        expect(link).toBeInTheDocument();
-        expect(link).toHaveAttribute("href", "/docs");
-        // asChild drops the intrinsic button type onto the child.
-        expect(link).not.toHaveAttribute("type");
-        // Pill styling still lands on the rendered child.
-        expect(link).toHaveClass("rounded-full");
-    });
 });

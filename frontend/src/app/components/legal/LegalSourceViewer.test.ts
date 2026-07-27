@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LegalSourceViewerPayload } from "@/app/lib/mikeApi";
+import type { LegalSourceViewerPayload } from "@/app/lib/beaverApi";
 import {
     buildLegalSourceViewerSlices,
     legalSourceAnchorId,

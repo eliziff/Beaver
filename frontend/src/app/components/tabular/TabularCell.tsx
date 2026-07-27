@@ -297,7 +297,7 @@ export const TabularCell = memo(function TabularCell({
 
             {/* Inline expanded overlay — absolutely positioned so it overlays without disrupting table layout */}
             {inlineExpanded && (
-                <div className="absolute left-0 top-0 z-50 w-full rounded-xl bg-gray-50/95 shadow-[0_4px_12px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-10px_24px_rgba(255,255,255,0.18)] backdrop-blur-2xl">
+                <div className="absolute left-0 top-0 z-50 w-full rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
                     <div className="relative p-2 pr-4 text-xs text-gray-800 leading-relaxed">
                         {cell.content.flag && (
                             <span

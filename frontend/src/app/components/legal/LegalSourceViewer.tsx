@@ -10,7 +10,7 @@ import {
     useState,
 } from "react";
 import { ExternalLink } from "lucide-react";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
@@ -26,7 +26,7 @@ import {
     type LegalSourceInlineToken,
     type LegalSourcePresentationBlock,
     type LegalSourceViewerPayload,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 
 type ViewerAnchor = LegalSourceViewerPayload["structure"]["blocks"][number];
 type ViewerMetadata = LegalSourceViewerPayload["metadata"];
@@ -616,7 +616,7 @@ export function LegalSourceViewer({
     if (!payload) {
         return (
             <div className="flex h-full items-center justify-center">
-                <MikeIcon spin mike size={30} />
+                <ThinkingSpinner label="Loading legal source" size={24} />
             </div>
         );
     }

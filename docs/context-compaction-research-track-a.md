@@ -1,14 +1,14 @@
 # Context compaction research — Track A
 
 Date: 2026-07-26
-Scope: independent critical review of Mike’s proposed legal-safe session
+Scope: independent critical review of Beaver’s proposed legal-safe session
 architecture, current open-source implementations, and primary research
 Companion experiment:
 [`experiments/context_compaction_track_a/`](../experiments/context_compaction_track_a/)
 
 ## Bottom line
 
-Mike’s proposed dynamic three-layer state is defensible:
+Beaver’s proposed dynamic three-layer state is defensible:
 
 1. an exact evidence/matter ledger;
 2. a lossy task summary; and
@@ -35,7 +35,7 @@ The architecture is likely to win only if all of the following are true:
   and
 - every strategy is evaluated with exact-state gates and real model calls.
 
-The [current Mike
+The [current Beaver
 plan](session-compaction-and-context-efficiency.md#recommended-architecture)
 already gets the most important separation right: a prose summary is disposable
 model context, while source IDs, versions, quotations, locators, and workflow
@@ -50,11 +50,11 @@ the same context-rot problem.
 
 In this report, **evidence** means a behavior directly documented in a primary
 paper, official documentation, or pinned source code. **Inference** means an
-architectural conclusion for Mike that still requires evaluation.
+architectural conclusion for Beaver that still requires evaluation.
 
 ## The hypothesis being tested
 
-The Mike plan describes five request layers: static instructions/tools,
+The Beaver plan describes five request layers: static instructions/tools,
 authoritative state, provider checkpoint or narrative summary, recent tail, and
 current input/excerpts. The “three-layer” formulation in this report refers only
 to the dynamic continuity state:
@@ -114,8 +114,8 @@ frames compaction as context engineering, not merely overflow handling: old
 logs, retries, and obsolete branches can crowd out current state, and meaningful
 milestones are useful compaction points.
 
-**Inference for Mike.** Native compaction is a useful provider checkpoint, but
-its opacity means Mike cannot audit whether a particular quote hash, paragraph
+**Inference for Beaver.** Native compaction is a useful provider checkpoint, but
+its opacity means Beaver cannot audit whether a particular quote hash, paragraph
 locator, or document version survived. The application ledger must therefore
 remain independently durable and should be re-injected when required. Native
 compaction is an optimization, not the legal system of record.
@@ -149,7 +149,7 @@ input usability/headroom
 ([`openai_models.rs` lines
 413–469](https://github.com/openai/codex/blob/95637f7056835fea66bdd0044414af480fc0fd74/codex-rs/protocol/src/openai_models.rs#L413-L469)).
 
-**Inference for Mike.** “Recent verbatim tail” should not be described as a
+**Inference for Beaver.** “Recent verbatim tail” should not be described as a
 universal Codex behavior. The current local and remote implementations retain
 recent input/instruction-side messages, not a complete recent
 assistant/tool/user exchange. That is efficient for many coding turns, but it
@@ -175,10 +175,10 @@ and merge patches to recover a baseline
 [`rollout_reconstruction.rs` lines
 319–434](https://github.com/openai/codex/blob/95637f7056835fea66bdd0044414af480fc0fd74/codex-rs/core/src/session/rollout_reconstruction.rs#L319-L434)).
 
-**Inference for Mike.** This is the closest implementation precedent for the
+**Inference for Beaver.** This is the closest implementation precedent for the
 proposed exact ledger. It supports the claim that exact state and lossy dialogue
 compaction should be separate channels. It does **not** eliminate the need for
-Mike’s legal layer: Codex’s built-in sections cover model instructions,
+Beaver’s legal layer: Codex’s built-in sections cover model instructions,
 permissions, environment, tools, plugins, collaboration state, and extension
 contributions—not legal authority status, source pinpoints, quotation receipts,
 document lineage, or accepted edits.
@@ -207,7 +207,7 @@ Active history is loaded from the newest compaction record forward
 ([`history.ts` lines
 13–53](https://github.com/anomalyco/opencode/blob/7ffc22c0ef6aba89fcf0e9de3a58e78a983c1dac/packages/core/src/session/history.ts#L13-L53)).
 
-**Inference for Mike.** OpenCode supplies strong implementation evidence for a
+**Inference for Beaver.** OpenCode supplies strong implementation evidence for a
 reserve-based trigger and a bounded full recent tail. It does not supply an
 authoritative domain ledger. Its summary prompt can request exact identifiers,
 but model compliance is not equivalent to deterministic legal-state
@@ -242,10 +242,10 @@ metadata, summary memory, messages, and tools separately
 [`context_window_calculator.py` lines
 312–380](https://github.com/letta-ai/letta/blob/b76da9092518cbaa2d09042e52fdcbde69243e18/letta/services/context_window_calculator/context_window_calculator.py#L312-L380)).
 
-**Inference for Mike.** Hierarchical memory and post-compaction recounting are
+**Inference for Beaver.** Hierarchical memory and post-compaction recounting are
 good precedents. Model-authored, unstructured working memory is not a sufficient
 legal ledger. A model may omit, merge, or rewrite a source detail while
-believing it preserved the meaning. Mike should let models propose state
+believing it preserved the meaning. Beaver should let models propose state
 updates, but deterministic code must validate and commit legal-state events.
 
 ## What the research says
@@ -269,7 +269,7 @@ updates, but deterministic code must validate and commit legal-state events.
   everything into individual user facts; fact-level compression lost context
   even though it helped some multi-session reasoning.
 
-**Inference for Mike.** Removing irrelevant history can improve signal density,
+**Inference for Beaver.** Removing irrelevant history can improve signal density,
 but “more structured” is not automatically “more faithful.” The ledger should
 contain exact receipts and relationships, while the original bounded source
 passage remains re-fetchable. For example, a quote entry should preserve:
@@ -300,9 +300,9 @@ the exact ledger entry.
   that automatic retrieval scoring can penalize alternative relevant
   authorities.
 
-**Inference for Mike.** Both are valuable downstream evidence tests, but neither
+**Inference for Beaver.** Both are valuable downstream evidence tests, but neither
 isolates session compaction. LegalBench-RAG primarily tests retrieval; the
-current CanLegalRAGBench paper tests Canadian RAG. A valid Mike experiment must
+current CanLegalRAGBench paper tests Canadian RAG. A valid Beaver experiment must
 place benchmark evidence inside controlled multi-turn sessions containing
 supersession, document revisions, tool noise, and assistant-side information,
 then vary only the context strategy.
@@ -421,7 +421,7 @@ the supersession metadata in full history or the full ledger. Provider token
 counts will also differ from the estimate.
 
 The result nonetheless exposes two failure modes that the current four-variant
-Mike benchmark would not isolate:
+Beaver benchmark would not isolate:
 
 - injecting the entire exact ledger preserves facts but preserves stale values
   too; and
@@ -462,7 +462,7 @@ least five repetitions because hosted models can remain nondeterministic.
 
 Run at minimum:
 
-1. current Mike full-history replay;
+1. current Beaver full-history replay;
 2. summary plus recent tail without exact state;
 3. full ledger plus summary and tail;
 4. active ledger plus summary and full tail;
@@ -663,7 +663,7 @@ shows that full history can reduce usable accuracy, while LongMemEval warns that
 over-compressing interactions into isolated facts can also lose important
 context.
 
-For Mike, the defensible design is therefore:
+For Beaver, the defensible design is therefore:
 
 - immutable raw events for audit/recovery;
 - deterministic active legal-state projection for exactness;

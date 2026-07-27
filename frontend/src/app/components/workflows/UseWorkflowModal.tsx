@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Document, Workflow } from "../shared/types";
-import { createTabularReview } from "@/app/lib/mikeApi";
+import { createTabularReview } from "@/app/lib/beaverApi";
 import { useRouter } from "next/navigation";
 import { useDirectoryData } from "../shared/useDirectoryData";
 import { FileDirectory } from "../shared/FileDirectory";

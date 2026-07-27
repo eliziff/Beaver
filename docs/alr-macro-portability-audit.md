@@ -16,7 +16,7 @@ opened as OOXML/OLE and the VBA source was inspected statically.
 
 Do not port the macro or its Ribbon wholesale. Most of it is publication- and
 house-style-specific, depends on desktop Word's selection/story APIs, or
-duplicates deterministic primitives Mike should expose more generally.
+duplicates deterministic primitives Beaver should expose more generally.
 
 Three ideas are broadly valuable:
 
@@ -29,7 +29,7 @@ Three ideas are broadly valuable:
 
 A fourth, optional idea is profile-based editorial linting that proposes
 tracked fixes. It belongs in an explicitly selected house-style profile, not
-Mike's default prompt.
+Beaver's default prompt.
 
 ## Inventory
 
@@ -40,9 +40,9 @@ procedures.
 
 | Module | Source chars | Lines | Assessment |
 | --- | ---: | ---: | --- |
-| `McGill_maps.bas` | 148,554 | 2,401 | Large static abbreviation/dictionary data; too publication-specific for Mike core. |
+| `McGill_maps.bas` | 148,554 | 2,401 | Large static abbreviation/dictionary data; too publication-specific for Beaver core. |
 | `ALR_Suggester.bas` | 80,597 | 2,149 | Many law-review pattern transforms; mine for optional lint rules, do not port the monolith. |
-| `ALR_Typesetting.bas` | 47,999 | 1,387 | ALR styles, layout, and typesetting; reject from Mike core. |
+| `ALR_Typesetting.bas` | 47,999 | 1,387 | ALR styles, layout, and typesetting; reject from Beaver core. |
 | `ALR_SupraTools.bas` | 37,943 | 988 | Niche citation semantics, but its use of native Word cross-references is portable. |
 | `ALR_Ribbon.bas` | 33,687 | 947 | Word/Ribbon UI glue around small deterministic operations; port only operations with independent value. |
 | `FootnoteExport.bas` | 3,262 | 100 | Useful concept; reimplement in the neutral DOCX parser rather than importing VBA. |
@@ -67,7 +67,7 @@ The main template document contains 45 non-empty paragraphs, about 4,884
 characters, one content control, three fields, five bookmarks, and two
 hyperlinks. The only content control is Word's native table-of-contents
 building-block control; it is not a custom data-bound form. The package's
-custom XML contains an empty bibliography source store, not a Mike-usable data
+custom XML contains an empty bibliography source store, not a Beaver-usable data
 model. The glossary contains five ALR building blocks, and the package carries
 76 styles plus a substantial numbering definition.
 
@@ -114,7 +114,7 @@ creating a macro subsystem.
 idea is that reference rendering should be a document dependency, not prose
 the model must keep synchronized.
 
-Mike should use the equivalent OOXML/`docx` primitives for generated material:
+Beaver should use the equivalent OOXML/`docx` primitives for generated material:
 
 - bookmarks around addressable clauses, sections, tables, figures, and
   footnotes;
@@ -126,11 +126,11 @@ Mike should use the equivalent OOXML/`docx` primitives for generated material:
 The macro first flattens existing fields in some workflows. Do **not** copy that
 strategy. It is destructive, loses dependency information, and can convert a
 maintainable document into static text. Preserve unknown fields and update only
-fields Mike owns.
+fields Beaver owns.
 
 The prompt currently directs the model to scan and update affected references
 ([`prompts.ts:53`](../backend/src/lib/chat/prompts.ts#L53)). Native fields are a
-strictly better default for documents Mike generates. For an imported document
+strictly better default for documents Beaver generates. For an imported document
 with manual references, a deterministic scan can propose tracked fixes, but it
 must not assume every phrase such as “section 7” is a cross-reference.
 
@@ -158,7 +158,7 @@ apply_text_transform(
 )
 ```
 
-Mike already has most of the safe DOCX substitution engine
+Beaver already has most of the safe DOCX substitution engine
 ([`docxTrackedChanges.ts:787`](../backend/src/lib/docxTrackedChanges.ts#L787)).
 It should add explicit scope, occurrence/replace-all, and expected-count
 guards. The model supplies the desired rule once; code finds every occurrence
@@ -166,7 +166,7 @@ and reports counts. For ordinary user edits, this is much cheaper and safer
 than asking the model to enumerate every instance.
 
 Do not reproduce Word's `Selection` object in the browser. A bounded
-`match_id` list from Mike's viewer is the portable selection.
+`match_id` list from Beaver's viewer is the portable selection.
 
 ### 4. Optional quote-span utilities
 
@@ -200,9 +200,9 @@ Never silently enable the ALR profile for general legal drafting.
 | --- | --- | --- |
 | ALR typesetting, headers, footers, styles, and building blocks | Do not port to core | Publication-specific and best retained in the template that needs it. |
 | `McGill_maps.bas` dictionaries | Do not port | Large, static, citation-style-specific data would add maintenance and prompt/tool bloat. |
-| Supra/ibid semantics as general Mike behavior | Do not port wholesale | Citation rules and house practices vary; deterministic cross-reference infrastructure is the reusable part. |
-| Ribbon, forms, hotkeys, and progress UI | Do not port | Desktop Word UI code cannot serve Mike's browser/cloud/local targets. |
-| Perma CSV/UI workflow | Do not port | Mike's provider-aware deterministic link pipeline is the cleaner boundary. |
+| Supra/ibid semantics as general Beaver behavior | Do not port wholesale | Citation rules and house practices vary; deterministic cross-reference infrastructure is the reusable part. |
+| Ribbon, forms, hotkeys, and progress UI | Do not port | Desktop Word UI code cannot serve Beaver's browser/cloud/local targets. |
+| Perma CSV/UI workflow | Do not port | Beaver's provider-aware deterministic link pipeline is the cleaner boundary. |
 | Excel automation/export in the macro | Do not port | Bounded SheetJS workbook operations should own spreadsheet changes. |
 | Existing-field flattening | Explicitly reject | It destroys maintainable references. |
 | Raw VBA import or runtime dependency on the `.dotm` | Explicitly reject | Windows desktop Word coupling, macro trust prompts, and a separate release surface. |
@@ -214,7 +214,7 @@ The macro does not contain a reusable content-control system: it makes no
 content-control or custom-XML API calls, and its sole document control is a
 built-in TOC wrapper. It therefore provides no implementation to port.
 
-If Mike later adds tagged/data-bound controls, that work should be designed
+If Beaver later adds tagged/data-bound controls, that work should be designed
 against its local/cloud document contract and tested across Word,
 LibreOffice, and the browser viewer. See
 [Document mutation, token efficiency, and content controls](document-mutation-token-efficiency-and-content-controls.md#content-controls-and-automatically-linked-objects).
@@ -226,12 +226,12 @@ LibreOffice, and the browser viewer. See
 2. Add neutral DOCX footnote extraction to the universal document artifact and
    expose lookup by footnote label/ID.
 3. For newly generated DOCX files, use bookmarks and native fields for
-   cross-references Mike owns. Preserve all unknown fields in imported files.
+   cross-references Beaver owns. Preserve all unknown fields in imported files.
 4. Only after real demand, add a small editorial-lint profile containing
    independently benchmarked rules.
 5. Leave the `.dotm` as the ALR-specific desktop tool. Share test cases and
    semantic rules where licensing/ownership permits, not runtime code or UI.
 
-That sequence captures the macro's useful determinism without coupling Mike to
+That sequence captures the macro's useful determinism without coupling Beaver to
 Word automation or turning a specialized law-review toolbar into a general
 document platform.

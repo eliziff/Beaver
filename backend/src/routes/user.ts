@@ -148,7 +148,7 @@ function mcpOAuthPopupHtml(payload: {
   <body>
     <main>
       <h1>${payload.success ? "Authorization complete" : "Authorization failed"}</h1>
-      <p>${payload.success ? "You can return to Mike." : "Return to Mike and try connecting again."}</p>
+      <p>${payload.success ? "You can return to Beaver." : "Return to Beaver and try connecting again."}</p>
     </main>
     <script nonce="${nonce}">
       const message = ${message};
@@ -180,116 +180,17 @@ function mcpOAuthPopupCsp(nonce: string) {
 
 const PROFILE_SELECT =
     "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us";
-const PROFILE_SELECT_NO_LEGAL =
-    "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login";
-const LEGACY_PROFILE_SELECT =
-    "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model";
-const LEGACY_PROFILE_MODEL_SELECT =
-    "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model";
 
-function isMissingProfileColumn(error: unknown, column: string): boolean {
-    const record =
-        error && typeof error === "object"
-            ? (error as { code?: unknown; message?: unknown })
-            : {};
-    const message = typeof record.message === "string" ? record.message : "";
-    return record.code === "42703" && message.includes(column);
-}
-
-// Loads a profile while tolerating older databases that lack the
-// legal_research_us column. Tries the full select first, then falls back to
-// the legacy cascade (which also handles missing title_model / mfa_on_login)
-// and defaults the feature flag to enabled.
 async function selectProfile(
-    db: ReturnType<typeof createServerSupabase>,
-    userId: string,
-    mode: "maybe" | "single",
-) {
-    const fullQuery = db
-        .from("user_profiles")
-        .select(PROFILE_SELECT)
-        .eq("user_id", userId);
-    const full =
-        mode === "single"
-            ? await fullQuery.single()
-            : await fullQuery.maybeSingle();
-    if (!full.error) return full;
-
-    const legacy = await selectProfileLegacy(db, userId, mode);
-    if (legacy.data && typeof legacy.data === "object") {
-        const row = legacy.data as Record<string, unknown>;
-        if (!("legal_research_us" in row)) {
-            Object.assign(row, { legal_research_us: true });
-        }
-    }
-    return legacy;
-}
-
-async function selectProfileLegacy(
     db: ReturnType<typeof createServerSupabase>,
     userId: string,
     mode: "maybe" | "single",
 ) {
     const query = db
         .from("user_profiles")
-        .select(PROFILE_SELECT_NO_LEGAL)
+        .select(PROFILE_SELECT)
         .eq("user_id", userId);
-    const result =
-        mode === "single" ? await query.single() : await query.maybeSingle();
-    if (!result.error) {
-        return result;
-    }
-
-    const missingMfaOnLogin = isMissingProfileColumn(
-        result.error,
-        "mfa_on_login",
-    );
-    if (missingMfaOnLogin) {
-        const modelQuery = db
-            .from("user_profiles")
-            .select(LEGACY_PROFILE_MODEL_SELECT)
-            .eq("user_id", userId);
-        const modelLegacy =
-            mode === "single"
-                ? await modelQuery.single()
-                : await modelQuery.maybeSingle();
-        if (
-            !modelLegacy.error ||
-            !isMissingProfileColumn(modelLegacy.error, "title_model")
-        ) {
-            if (modelLegacy.data && typeof modelLegacy.data === "object") {
-                const row = modelLegacy.data as Record<string, unknown>;
-                Object.assign(row, {
-                    mfa_on_login: false,
-                });
-            }
-            return modelLegacy;
-        }
-    }
-
-    if (
-        !missingMfaOnLogin &&
-        !isMissingProfileColumn(result.error, "title_model")
-    ) {
-        return result;
-    }
-
-    const legacyQuery = db
-        .from("user_profiles")
-        .select(LEGACY_PROFILE_SELECT)
-        .eq("user_id", userId);
-    const legacy =
-        mode === "single"
-            ? await legacyQuery.single()
-            : await legacyQuery.maybeSingle();
-    if (legacy.data && typeof legacy.data === "object") {
-        const row = legacy.data as Record<string, unknown>;
-        Object.assign(row, {
-            title_model: null,
-            mfa_on_login: false,
-        });
-    }
-    return legacy;
+    return mode === "single" ? query.single() : query.maybeSingle();
 }
 
 function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
@@ -537,7 +438,6 @@ async function loadProfile(
     return { data: serializeProfile(row, options.apiKeyStatus), error: null };
 }
 
-// POST /user/profile
 userRouter.post("/profile", requireAuth, async (_req, res) => {
     const userId = res.locals.userId as string;
     const db = createServerSupabase();
@@ -546,7 +446,6 @@ userRouter.post("/profile", requireAuth, async (_req, res) => {
     res.json({ ok: true });
 });
 
-// GET /user/lookup?email=person@example.com
 userRouter.get("/lookup", requireAuth, async (req, res) => {
     const email = typeof req.query.email === "string" ? req.query.email : "";
     if (!email.trim()) {
@@ -562,7 +461,6 @@ userRouter.get("/lookup", requireAuth, async (req, res) => {
     });
 });
 
-// GET /user/profile
 userRouter.get("/profile", requireAuth, async (_req, res) => {
     if (isAnonymousLocalMode()) {
         res.json(localAnonymousProfile());
@@ -584,7 +482,6 @@ userRouter.get("/profile", requireAuth, async (_req, res) => {
     }
 });
 
-// PATCH /user/profile
 userRouter.patch("/profile", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const parsed = validateProfilePayload(req.body);
@@ -608,7 +505,6 @@ userRouter.patch("/profile", requireAuth, async (req, res) => {
     res.json({ ...data, apiKeyStatus });
 });
 
-// PATCH /user/security/mfa-login
 userRouter.patch(
     "/security/mfa-login",
     requireAuth,
@@ -655,7 +551,6 @@ userRouter.patch(
     },
 );
 
-// GET /user/api-keys
 userRouter.get("/api-keys", requireAuth, async (_req, res) => {
     if (isAnonymousLocalMode()) {
         res.json(getEnvironmentApiKeyStatus());
@@ -667,7 +562,6 @@ userRouter.get("/api-keys", requireAuth, async (_req, res) => {
     res.json(status);
 });
 
-// PUT /user/api-keys/:provider
 userRouter.put(
     "/api-keys/:provider",
     requireAuth,
@@ -703,7 +597,6 @@ userRouter.put(
     },
 );
 
-// GET /user/mcp-connectors
 userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
     const userId = res.locals.userId as string;
     const db = createServerSupabase();
@@ -721,7 +614,6 @@ userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
     }
 });
 
-// GET /user/mcp-connectors/:connectorId
 userRouter.get(
     "/mcp-connectors/:connectorId",
     requireAuth,
@@ -744,7 +636,6 @@ userRouter.get(
     },
 );
 
-// POST /user/mcp-connectors
 userRouter.post(
     "/mcp-connectors",
     requireAuth,
@@ -783,7 +674,6 @@ userRouter.post(
     },
 );
 
-// PATCH /user/mcp-connectors/:connectorId
 userRouter.patch(
     "/mcp-connectors/:connectorId",
     requireAuth,
@@ -843,7 +733,6 @@ userRouter.patch(
     },
 );
 
-// DELETE /user/mcp-connectors/:connectorId
 userRouter.delete(
     "/mcp-connectors/:connectorId",
     requireAuth,
@@ -866,7 +755,6 @@ userRouter.delete(
     },
 );
 
-// POST /user/mcp-connectors/:connectorId/oauth/start
 userRouter.post(
     "/mcp-connectors/:connectorId/oauth/start",
     requireAuth,
@@ -895,7 +783,6 @@ userRouter.post(
     },
 );
 
-// GET /user/mcp-connectors/oauth/callback
 userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
     const nonce = crypto.randomBytes(16).toString("base64");
     const state = typeof req.query.state === "string" ? req.query.state : "";
@@ -940,7 +827,6 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
     }
 });
 
-// POST /user/mcp-connectors/:connectorId/refresh-tools
 userRouter.post(
     "/mcp-connectors/:connectorId/refresh-tools",
     requireAuth,
@@ -973,7 +859,6 @@ userRouter.post(
     },
 );
 
-// PATCH /user/mcp-connectors/:connectorId/tools/:toolId
 userRouter.patch(
     "/mcp-connectors/:connectorId/tools/:toolId",
     requireAuth,
@@ -1007,7 +892,6 @@ userRouter.patch(
     },
 );
 
-// DELETE /user/account
 userRouter.delete(
     "/account",
     requireAuth,
@@ -1033,7 +917,6 @@ userRouter.delete(
     },
 );
 
-// DELETE /user/chats
 userRouter.delete(
     "/chats",
     requireAuth,
@@ -1055,7 +938,6 @@ userRouter.delete(
     },
 );
 
-// DELETE /user/projects
 userRouter.delete(
     "/projects",
     requireAuth,
@@ -1077,7 +959,6 @@ userRouter.delete(
     },
 );
 
-// DELETE /user/tabular-reviews
 userRouter.delete(
     "/tabular-reviews",
     requireAuth,
@@ -1099,7 +980,6 @@ userRouter.delete(
     },
 );
 
-// GET /user/export
 userRouter.get(
     "/export",
     requireAuth,
@@ -1124,7 +1004,6 @@ userRouter.get(
     },
 );
 
-// GET /user/chats/export
 userRouter.get(
     "/chats/export",
     requireAuth,
@@ -1152,7 +1031,6 @@ userRouter.get(
     },
 );
 
-// GET /user/tabular-reviews/export
 userRouter.get(
     "/tabular-reviews/export",
     requireAuth,

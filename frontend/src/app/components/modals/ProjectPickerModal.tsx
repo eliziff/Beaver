@@ -63,7 +63,7 @@ export function ProjectPickerModal({
                 {loading ? (
                     <div className="space-y-px">
                         <div className="flex items-center rounded-md px-2 py-2">
-                            <div className="h-3 w-14 rounded bg-gray-100 animate-pulse" />
+                            <div className="h-3 w-14 rounded bg-gray-100" />
                         </div>
                         {[65, 45, 80, 55, 70].map((w, i) => (
                             <div
@@ -71,9 +71,9 @@ export function ProjectPickerModal({
                                 className="flex items-center gap-2 rounded-md px-2 py-2"
                             >
                                 <div className="h-3.5 w-3.5 rounded border border-gray-200 shrink-0" />
-                                <div className="h-3.5 w-3.5 rounded bg-gray-100 animate-pulse shrink-0" />
+                                <div className="h-3.5 w-3.5 rounded bg-gray-100 shrink-0" />
                                 <div
-                                    className="h-3 rounded bg-gray-100 animate-pulse"
+                                    className="h-3 rounded bg-gray-100"
                                     style={{ width: `${w}%` }}
                                 />
                             </div>
@@ -105,7 +105,7 @@ export function ProjectPickerModal({
                                                 isSelected ? null : project.id,
                                             )
                                         }
-                                        className={`w-full flex rounded-md items-center gap-2 px-2 py-2 text-xs transition-all text-left ${isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
+                                        className={`w-full flex rounded-md items-center gap-2 px-2 py-2 text-xs transition-colors text-left ${isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
                                     >
                                         <span
                                             className={`shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center ${isSelected ? "bg-gray-900 border-gray-900" : "border-gray-300"}`}

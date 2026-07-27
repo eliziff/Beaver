@@ -273,7 +273,7 @@ export function AskInputPopup({
 
     return (
         <>
-            <div className="w-full overflow-hidden rounded-[18px] border border-white/65 bg-white/60 pb-3 font-serif shadow-[0_4px_10px_rgba(15,23,42,0.084),inset_0_1px_0_rgba(255,255,255,0.595),inset_0_-6px_14px_rgba(255,255,255,0.126)] backdrop-blur-2xl md:rounded-[22px]">
+            <div className="w-full overflow-hidden rounded-[18px] border border-gray-200 bg-white pb-3 font-serif shadow-sm md:rounded-[22px]">
                 <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-2">
                     <div className="flex min-w-0 items-center">
                         <div className="text-sm text-gray-500">
@@ -665,7 +665,7 @@ function DocumentInput({
                                                 onClick={(e) =>
                                                     e.stopPropagation()
                                                 }
-                                                className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white py-0.5 pl-2 pr-1 text-xs text-gray-800 shadow-[0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl"
+                                                className="inline-flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white py-0.5 pl-2 pr-1 text-xs text-gray-800 shadow-sm"
                                             >
                                                 <FileTypeIcon
                                                     fileType={doc.file_type}

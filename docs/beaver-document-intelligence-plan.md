@@ -1,24 +1,24 @@
-# Mike Document Intelligence Plan
+# Beaver Document Intelligence Plan
 
 > Status note (2026-07-26): this is a detailed design appendix. The
 > authoritative implementation status and backlog are in the
-> [Mike-Canada master plan](mike-canada-master-plan.md). Some “current state”
+> [Beaver master plan](beaver-master-plan.md). Some “current state”
 > statements below predate the shared AppData store and standalone parser.
 
 ## Purpose
 
-Turn Mike's local Library into a persistent legal-document intelligence layer. A
+Turn Beaver's local Library into a persistent legal-document intelligence layer. A
 PDF should be parsed once when it is imported, and later assistant requests
 should retrieve exact structural units—such as footnote 62 and its supporting
 proposition—without asking the model to reinterpret the whole PDF.
 
-This remains a local, account-free Mike deployment. Cloud storage is not
+This remains a local, account-free Beaver deployment. Cloud storage is not
 required. The reusable parsing component is specified separately in
 [Universal Legal PDF Engine Plan](universal-legal-pdf-engine-plan.md).
 
 ## Current State
 
-Mike already has:
+Beaver already has:
 
 - Anonymous local Library storage under `.mike-local`.
 - Codex model and reasoning-effort controls.
@@ -44,7 +44,7 @@ The source projects already contain most of the required parsing work:
 ## Intended User Experience
 
 1. A user imports a PDF into the local Library.
-2. Mike immediately stores the original file and creates a durable parse job.
+2. Beaver immediately stores the original file and creates a durable parse job.
 3. The deterministic parser builds page, paragraph, footnote, and proposition
    indexes in the background.
 4. The Library shows parsing state: `queued`, `parsing`, `ready`, `degraded`, or
@@ -64,7 +64,7 @@ Every imported file receives a stable document ID and immutable version ID. A
 new file hash creates a new version; rebuilding with a new parser creates new
 derived artifacts for that same source version.
 
-Store the following beneath Mike's existing local data root:
+Store the following beneath Beaver's existing local data root:
 
 ```text
 .mike-local/
@@ -95,7 +95,7 @@ The structured records preserve:
 - Reference locations and paired propositions.
 - Confidence, warnings, and repair provenance.
 
-Use ordinary JSON and JSONL files for the first implementation. Mike does not
+Use ordinary JSON and JSONL files for the first implementation. Beaver does not
 need a new database merely to retrieve small, version-scoped records.
 
 ## Parsing Pipeline
@@ -117,7 +117,7 @@ need a new database merely to retrieve small, version-scoped records.
    - The passage since the preceding note reference.
 8. Validate artifact consistency and publish the version atomically.
 
-Image-only documents can initially use Mike's existing text fallback or be
+Image-only documents can initially use Beaver's existing text fallback or be
 reported as requiring OCR. OCR is not a prerequisite for shipping the
 digital-born path.
 
@@ -148,7 +148,7 @@ diagnostics. This is an internal validation failure, not a model abstention.
 
 The default repair model is `gpt-5.6-luna` at low effort. Model and effort must
 remain configurable through the same dynamic Codex controls as the rest of
-Mike; no model name or supported effort list is hardcoded into this feature.
+Beaver; no model name or supported effort list is hardcoded into this feature.
 
 ### Cache rules
 
@@ -227,7 +227,7 @@ Build a separate, resumable derived index:
 - Record source-database fingerprint, embedding model version, chunking version,
   and completed shard ranges.
 - Resume interrupted indexing and publish only complete shards.
-- Run indexing as a background administrative job, never as part of Mike
+- Run indexing as a background administrative job, never as part of Beaver
   startup.
 
 Expose:
@@ -236,7 +236,7 @@ Expose:
   source identifiers.
 - `journal_fetch`: exact retrieval of a selected article/page passage.
 
-This index is optional. Mike, Library parsing, exact footnote lookup, and A2AJ
+This index is optional. Beaver, Library parsing, exact footnote lookup, and A2AJ
 must continue working when it has not been built.
 
 ## Benchmark
@@ -351,7 +351,7 @@ fallback. No phase adds accounts or cloud storage.
 - Importing a supported digital-born PDF produces persistent structured
   artifacts that survive server restarts.
 - Re-importing identical bytes performs no duplicate parse or Codex call.
-- Mike can retrieve a uniquely identified footnote and paired proposition
+- Beaver can retrieve a uniquely identified footnote and paired proposition
   without loading the full document.
 - Restarted labels and symbol notes do not collide.
 - Invalid repairs cannot alter source text or replace a valid deterministic
@@ -361,7 +361,7 @@ fallback. No phase adds accounts or cloud storage.
 - A2AJ tools continue to work unchanged.
 - The frozen benchmark is reproducible from its manifest and records every
   model/configuration version.
-- Mike remains usable when the optional journal index or Codex is unavailable.
+- Beaver remains usable when the optional journal index or Codex is unavailable.
 
 ## Risks
 

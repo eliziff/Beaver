@@ -18,7 +18,7 @@ import {
     type ApiKeyState,
     type CodexModelCatalog,
     type CodexModelDescriptor,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 
 export interface ModelOption {
     id: string;
@@ -302,7 +302,7 @@ export function ModelToggle({
                                 return (
                                     <LiquidDropdownItem
                                         key={m.id}
-                                        className={`${itemClassName} ${m.id === value ? "bg-app-surface-hover text-gray-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" : ""}`}
+                                        className={`${itemClassName} ${m.id === value ? "bg-app-surface-hover text-gray-900" : ""}`}
                                         onSelect={() => handleModelSelect(m.id)}
                                     >
                                         <span

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Mike. Please keep contributions small, focused, and easy to review.
+Thanks for helping improve Beaver. Please keep contributions small, focused, and easy to review.
 
 ## Guidelines
 

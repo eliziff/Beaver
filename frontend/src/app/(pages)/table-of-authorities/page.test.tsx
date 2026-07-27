@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { launchTableOfAuthorities } from "@/app/lib/mikeApi";
+import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
 import TableOfAuthoritiesPage from "./page";
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
   launchTableOfAuthorities: vi.fn(),
 }));
 
@@ -20,7 +20,7 @@ describe("TableOfAuthoritiesPage", () => {
     });
   });
 
-  it("uses a stable Mike session for this browser tab", async () => {
+  it("uses a stable Beaver session for this browser tab", async () => {
     const first = render(<TableOfAuthoritiesPage />);
     const firstFrame = screen.getByTitle("Table of Authorities");
     await waitFor(() =>

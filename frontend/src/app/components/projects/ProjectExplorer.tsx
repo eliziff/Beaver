@@ -346,10 +346,7 @@ export function ProjectExplorer({
                                 {doc.filename}
                             </span>
                             <VersionChip
-                                n={
-                                    doc.active_version_number ??
-                                    doc.latest_version_number
-                                }
+                                n={doc.active_version_number}
                             />
                         </li>
                     );

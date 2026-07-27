@@ -4,7 +4,6 @@ import { createServerSupabase } from "../lib/supabase";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
   attachActiveVersionPaths,
-  attachLatestVersionNumbers,
 } from "../lib/documentVersions";
 import {
   deleteFile,
@@ -202,13 +201,6 @@ async function attachChatCreatorLabels(
   }
 }
 
-// GET /projects
-// Pass ?include=documents to also receive each project's documents in the
-// same response. The directory pickers (useDirectoryData) previously fanned
-// out one GET /projects/:id per project to obtain those documents; with N
-// projects that burst — auth check plus several DB queries per request —
-// could overwhelm the Supabase gateway. Batching keeps it at one request
-// and a fixed number of queries regardless of project count.
 projectsRouter.get("/", requireAuth, async (req, res) => {
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
@@ -258,7 +250,6 @@ projectsRouter.get("/", requireAuth, async (req, res) => {
       user_id?: string | null;
       current_version_id?: string | null;
     }[];
-    await attachLatestVersionNumbers(db, docsTyped);
     await attachActiveVersionPaths(db, docsTyped);
     await attachDocumentOwnerLabels(db, docsTyped);
 
@@ -281,7 +272,6 @@ projectsRouter.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST /projects
 projectsRouter.post("/", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -343,7 +333,7 @@ projectsRouter.post("/", requireAuth, async (req, res) => {
   const missingSharedUsers = await findMissingUserEmails(db, cleanedSharedWith);
   if (missingSharedUsers.length > 0) {
     return void res.status(400).json({
-      detail: `${missingSharedUsers[0]} does not belong to a Mike user.`,
+      detail: `${missingSharedUsers[0]} does not belong to a Beaver user.`,
     });
   }
 
@@ -362,7 +352,6 @@ projectsRouter.post("/", requireAuth, async (req, res) => {
   res.status(201).json({ ...data, documents: [] });
 });
 
-// GET /projects/:projectId
 projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string;
@@ -401,7 +390,6 @@ projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
     user_id?: string | null;
     current_version_id?: string | null;
   }[];
-  await attachLatestVersionNumbers(db, docsTyped);
   await attachActiveVersionPaths(db, docsTyped);
   await attachDocumentOwnerLabels(db, docsTyped);
   res.json({
@@ -412,7 +400,6 @@ projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
   });
 });
 
-// GET /projects/:projectId/people
 // Resolve the owner + every shared member to {email, display_name}. Used
 // by the People modal so the UI can show display names where available
 // and tag the current user as "You".
@@ -472,7 +459,6 @@ projectsRouter.get("/:projectId/people", requireAuth, async (req, res) => {
   res.json({ owner, members });
 });
 
-// PATCH /projects/:projectId
 projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -534,7 +520,7 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
     );
     if (missingSharedUsers.length > 0) {
       return void res.status(400).json({
-        detail: `${missingSharedUsers[0]} does not belong to a Mike user.`,
+        detail: `${missingSharedUsers[0]} does not belong to a Beaver user.`,
       });
     }
   }
@@ -563,7 +549,6 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
   res.json({ ...data, documents: docsTyped, folders: folderData ?? [] });
 });
 
-// DELETE /projects/:projectId
 projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { projectId } = req.params;
@@ -593,7 +578,6 @@ projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
   }
 });
 
-// GET /projects/:projectId/documents
 projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -624,7 +608,6 @@ projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
   res.json(docsTyped);
 });
 
-// DELETE /projects/:projectId/documents/:documentId — detach a local Library
 // document from one matter without deleting the canonical file.
 projectsRouter.delete(
   "/:projectId/documents/:documentId",
@@ -646,7 +629,6 @@ projectsRouter.delete(
   },
 );
 
-// POST /projects/:projectId/documents/:documentId — assign or copy existing doc into project
 projectsRouter.post(
   "/:projectId/documents/:documentId",
   requireAuth,
@@ -849,7 +831,6 @@ projectsRouter.post(
   },
 );
 
-// PATCH /projects/:projectId/documents/:documentId — rename a project document
 projectsRouter.patch("/:projectId/documents/:documentId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -938,7 +919,6 @@ projectsRouter.patch("/:projectId/documents/:documentId", requireAuth, async (re
   });
 });
 
-// POST /projects/:projectId/documents
 projectsRouter.post(
   "/:projectId/documents",
   requireAuth,
@@ -995,11 +975,6 @@ projectsRouter.post(
   },
 );
 
-// GET /projects/:projectId/chats — every assistant chat under this project
-// (any author with project access). Used by the project page's chat tab so
-// it doesn't have to filter the global GET /chat list — and so collaborators
-// see each other's chats inside the project even though those don't appear
-// in the global list.
 projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1037,7 +1012,6 @@ projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
 
 // ── Folder routes ─────────────────────────────────────────────────────────────
 
-// POST /projects/:projectId/folders
 projectsRouter.post("/:projectId/folders", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1073,7 +1047,6 @@ projectsRouter.post("/:projectId/folders", requireAuth, async (req, res) => {
   res.status(201).json(data);
 });
 
-// PATCH /projects/:projectId/folders/:folderId
 projectsRouter.patch("/:projectId/folders/:folderId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1117,7 +1090,6 @@ projectsRouter.patch("/:projectId/folders/:folderId", requireAuth, async (req, r
   res.json(data);
 });
 
-// DELETE /projects/:projectId/folders/:folderId
 projectsRouter.delete("/:projectId/folders/:folderId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1182,7 +1154,6 @@ projectsRouter.delete("/:projectId/folders/:folderId", requireAuth, async (req, 
   res.status(204).send();
 });
 
-// PATCH /projects/:projectId/documents/:documentId/folder — move doc to a folder
 projectsRouter.patch("/:projectId/documents/:documentId/folder", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;

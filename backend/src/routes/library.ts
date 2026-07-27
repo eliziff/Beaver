@@ -7,7 +7,6 @@ import { isAnonymousLocalMode } from "../lib/localMode";
 import { deleteFile } from "../lib/storage";
 import {
   attachActiveVersionPaths,
-  attachLatestVersionNumbers,
 } from "../lib/documentVersions";
 import { singleFileUpload } from "../lib/upload";
 import { handleDocumentUpload } from "./documents";
@@ -94,7 +93,6 @@ async function deleteLibraryDocumentsAndVersionFiles(
   return error ?? null;
 }
 
-// GET /library/:kind
 libraryRouter.get("/:kind", requireAuth, async (req, res) => {
   try {
     const userId = res.locals.userId as string;
@@ -133,7 +131,6 @@ libraryRouter.get("/:kind", requireAuth, async (req, res) => {
       id: string;
       current_version_id?: string | null;
     }[];
-    await attachLatestVersionNumbers(db, docsTyped);
     await attachActiveVersionPaths(db, docsTyped);
     res.json({ documents: docsTyped, folders: folders ?? [] });
   } catch (error) {
@@ -143,7 +140,6 @@ libraryRouter.get("/:kind", requireAuth, async (req, res) => {
   }
 });
 
-// POST /library/:kind/documents
 libraryRouter.post(
   "/:kind/documents",
   requireAuth,
@@ -159,7 +155,6 @@ libraryRouter.post(
   },
 );
 
-// POST /library/:kind/folders
 libraryRouter.post("/:kind/folders", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
@@ -193,7 +188,6 @@ libraryRouter.post("/:kind/folders", requireAuth, async (req, res) => {
   res.status(201).json(data);
 });
 
-// PATCH /library/:kind/folders/:folderId
 libraryRouter.patch("/:kind/folders/:folderId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
@@ -245,7 +239,6 @@ libraryRouter.patch("/:kind/folders/:folderId", requireAuth, async (req, res) =>
   res.json(data);
 });
 
-// DELETE /library/:kind/folders/:folderId
 libraryRouter.delete("/:kind/folders/:folderId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
@@ -317,7 +310,6 @@ libraryRouter.delete("/:kind/folders/:folderId", requireAuth, async (req, res) =
   res.status(204).send();
 });
 
-// PATCH /library/:kind/documents/:documentId/folder
 libraryRouter.patch(
   "/:kind/documents/:documentId/folder",
   requireAuth,
@@ -358,7 +350,6 @@ libraryRouter.patch(
   },
 );
 
-// PATCH /library/:kind/documents/:documentId
 libraryRouter.patch(
   "/:kind/documents/:documentId",
   requireAuth,

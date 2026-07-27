@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { acquireAnonymousRuntimeLock } from "./anonymousRuntimeLock";
 
-const originalMikeData = process.env.MIKE_LOCAL_DATA_DIR;
+const originalBeaverData = process.env.MIKE_LOCAL_DATA_DIR;
 const originalLegalData = process.env.OPEN_LEGAL_DATA_HOME;
 const roots: string[] = [];
 const releases: Array<() => void> = [];
@@ -27,14 +27,14 @@ afterEach(async () => {
   for (const root of roots.splice(0).reverse()) {
     await rm(root, { recursive: true, force: true });
   }
-  if (originalMikeData === undefined) delete process.env.MIKE_LOCAL_DATA_DIR;
-  else process.env.MIKE_LOCAL_DATA_DIR = originalMikeData;
+  if (originalBeaverData === undefined) delete process.env.MIKE_LOCAL_DATA_DIR;
+  else process.env.MIKE_LOCAL_DATA_DIR = originalBeaverData;
   if (originalLegalData === undefined) delete process.env.OPEN_LEGAL_DATA_HOME;
   else process.env.OPEN_LEGAL_DATA_HOME = originalLegalData;
 });
 
 describe("anonymous runtime lock", () => {
-  it("locks the configured Mike mutable data root", async () => {
+  it("locks the configured Beaver mutable data root", async () => {
     const mikeRoot = await temporaryRoot();
     const legalRoot = await temporaryRoot();
     process.env.MIKE_LOCAL_DATA_DIR = mikeRoot;

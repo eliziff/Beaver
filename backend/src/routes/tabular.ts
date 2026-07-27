@@ -89,7 +89,6 @@ function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
     };
 }
 
-// GET /tabular-review
 tabularRouter.get("/", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -110,7 +109,6 @@ tabularRouter.get("/", requireAuth, async (req, res) => {
     res.json(data ?? []);
 });
 
-// POST /tabular-review
 tabularRouter.post("/", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -172,7 +170,7 @@ tabularRouter.post("/", requireAuth, async (req, res) => {
     res.status(201).json(review);
 });
 
-// POST /tabular-review/prompt (must come before /:reviewId routes)
+// Register before /:reviewId routes.
 tabularRouter.post("/prompt", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const title =
@@ -243,7 +241,6 @@ tabularRouter.post("/prompt", requireAuth, async (req, res) => {
     }
 });
 
-// GET /tabular-review/:reviewId
 tabularRouter.get("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -294,10 +291,6 @@ tabularRouter.get("/:reviewId", requireAuth, async (req, res) => {
     });
 });
 
-// GET /tabular-review/:reviewId/people
-// Owner email + display_name plus member display_names — the analog of
-// /projects/:id/people. Used by the standalone TR detail page's People
-// modal so the roster can show display_names alongside emails.
 tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -339,7 +332,6 @@ tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
     });
 });
 
-// PATCH /tabular-review/:reviewId
 tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -417,7 +409,7 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
         );
         if (missingSharedUsers.length > 0) {
             return void res.status(400).json({
-                detail: `${missingSharedUsers[0]} does not belong to a Mike user.`,
+                detail: `${missingSharedUsers[0]} does not belong to a Beaver user.`,
             });
         }
         updates.shared_with = sharedWithUpdate;
@@ -510,7 +502,6 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
 
             documentIds = newDocIds;
         } else {
-            // No document change — derive from existing cells
             documentIds = [
                 ...new Set(
                     (existingCells ?? []).map((cell) => cell.document_id),
@@ -567,7 +558,6 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
     });
 });
 
-// DELETE /tabular-review/:reviewId
 tabularRouter.delete("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const { reviewId } = req.params;
@@ -581,9 +571,7 @@ tabularRouter.delete("/:reviewId", requireAuth, async (req, res) => {
     res.status(204).send();
 });
 
-// POST /tabular-review/:reviewId/clear-cells
-// Reset cells to an empty/pending state for the given document_ids. Does not
-// delete the rows — it blanks `content` and sets `status` back to "pending".
+// Reset rows in place so their identity and relationships survive.
 tabularRouter.post("/:reviewId/clear-cells", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -616,7 +604,6 @@ tabularRouter.post("/:reviewId/clear-cells", requireAuth, async (req, res) => {
     res.status(204).send();
 });
 
-// POST /tabular-review/:reviewId/regenerate-cell
 tabularRouter.post(
     "/:reviewId/regenerate-cell",
     requireAuth,
@@ -743,7 +730,6 @@ tabularRouter.post(
     },
 );
 
-// POST /tabular-review/:reviewId/generate
 tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -858,14 +844,12 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                     }
                 }
 
-                // Filter to only columns that need processing
                 const columnsToProcess = columns.filter((col) => {
                     const cell = cellMap.get(`${docId}:${col.index}`);
                     return !(cell?.status === "done" && cell?.content);
                 });
                 if (columnsToProcess.length === 0) return;
 
-                // Mark all as generating upfront
                 for (const col of columnsToProcess) {
                     write(
                         `data: ${JSON.stringify({ type: "cell_update", document_id: docId, column_index: col.index, content: null, status: "generating" })}\n\n`,
@@ -886,7 +870,6 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                     }
                 }
 
-                // Single LLM call for all columns, streaming one JSON line per column
                 const receivedColumns = new Set<number>();
                 try {
                     await queryTabularAllColumns(
@@ -918,7 +901,6 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                     );
                 }
 
-                // Mark any columns the LLM didn't return as error
                 for (const col of columnsToProcess) {
                     if (!receivedColumns.has(col.index)) {
                         await db
@@ -943,21 +925,18 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                 `data: ${JSON.stringify({ type: "error", message: safeErrorMessage(err, "Stream error") })}\n\ndata: [DONE]\n\n`,
             );
         } catch {
-            /* ignore */
         }
     } finally {
         res.end();
     }
 });
 
-// GET /tabular-review/:reviewId/chats — list chats (metadata only, no messages)
 tabularRouter.get("/:reviewId/chats", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
     const db = createServerSupabase();
 
-    // Verify access (owner or shared-project member).
     const { data: review, error } = await db
         .from("tabular_reviews")
         .select("id, user_id, project_id")
@@ -980,7 +959,6 @@ tabularRouter.get("/:reviewId/chats", requireAuth, async (req, res) => {
     res.json(chats ?? []);
 });
 
-// DELETE /tabular-review/:reviewId/chats/:chatId — delete a single chat
 tabularRouter.delete(
     "/:reviewId/chats/:chatId",
     requireAuth,
@@ -1000,7 +978,6 @@ tabularRouter.delete(
     },
 );
 
-// PATCH /tabular-review/:reviewId/chats/:chatId — rename a chat
 tabularRouter.patch(
     "/:reviewId/chats/:chatId",
     requireAuth,
@@ -1023,7 +1000,6 @@ tabularRouter.patch(
     },
 );
 
-// GET /tabular-review/:reviewId/chats/:chatId/messages — messages for a single chat
 tabularRouter.get(
     "/:reviewId/chats/:chatId/messages",
     requireAuth,
@@ -1062,9 +1038,6 @@ tabularRouter.get(
     },
 );
 
-// ---------------------------------------------------------------------------
-// Tabular citation parsing
-// ---------------------------------------------------------------------------
 
 type TabularParsedCitation = {
     ref: number;
@@ -1103,9 +1076,6 @@ function extractTabularAnnotations(
     }));
 }
 
-// ---------------------------------------------------------------------------
-// Build messages for tabular chat
-// ---------------------------------------------------------------------------
 
 function buildTabularMessages(
     messages: ChatMessage[],
@@ -1119,7 +1089,7 @@ function buildTabularMessages(
         .map((c, i) => `- COL:${i} "${c.name}"`)
         .join("\n");
 
-    const systemContent = `You are Mike, an AI legal assistant. You are helping with the tabular review titled "${reviewTitle}".
+    const systemContent = `You are Beaver, an AI legal assistant. You are helping with the tabular review titled "${reviewTitle}".
 
 The review extracts specific fields from multiple legal documents into a structured table.
 You do NOT have the cell content yet — call read_table_cells to fetch the cells you need before answering.
@@ -1157,11 +1127,7 @@ Rules:
     return formatted;
 }
 
-// ---------------------------------------------------------------------------
-// POST /tabular-review/:reviewId/chat — agentic streaming
-// ---------------------------------------------------------------------------
 
-// POST /tabular-review/:reviewId/chat
 tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -1204,7 +1170,6 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     if (!reviewAccess.ok)
         return void res.status(404).json({ detail: "Review not found" });
 
-    // Fetch all cells and documents for this review
     const { data: cells } = await db
         .from("tabular_cells")
         .select("*")
@@ -1262,7 +1227,6 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
         });
     }
 
-    // Create or verify chat record
     let chatId = existingChatId ?? null;
     let chatTitle: string | null = null;
     const isFirstExchange =
@@ -1295,7 +1259,6 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
         chatTitle = newChat?.title ?? null;
     }
 
-    // Persist user message
     if (chatId) {
         await db.from("tabular_review_chat_messages").insert({
             chat_id: chatId,
@@ -1360,7 +1323,6 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
                 .eq("id", chatId);
         }
 
-        // Generate title on first exchange
         if (chatId && isFirstExchange && !chatTitle && lastUser.content) {
             const { title_model } = await getUserModelSettings(userId, db);
             const title = await generateChatTitle(
@@ -1449,7 +1411,6 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
             );
             write("data: [DONE]\n\n");
         } catch {
-            /* ignore */
         }
     } finally {
         streamFinished = true;
@@ -1714,7 +1675,6 @@ Rules:
                 reasoning: String(parsed.reasoning ?? ""),
             });
         } catch {
-            // malformed line — skip
         }
     };
 
@@ -1756,7 +1716,6 @@ async function extractDocumentMarkdown(
     if (normalizedType === "pdf") return extractPdfMarkdown(buf);
     if (normalizedType === "docx") return extractDocxMarkdown(buf);
     if (isSpreadsheetDocumentType(normalizedType)) {
-        // SheetJS handles .xlsx/.xlsm/.xls directly, no PDF detour.
         return spreadsheetToLLMText(Buffer.from(buf));
     }
     if (normalizedType === "pptx") {

@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     getChat: vi.fn(),
     streamChat: mocks.streamChat,
     streamProjectChat: vi.fn(),

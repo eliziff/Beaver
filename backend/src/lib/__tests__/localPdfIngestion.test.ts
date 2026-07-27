@@ -225,7 +225,7 @@ afterEach(async () => {
 
 describe("local PDF ingestion", () => {
   it("stores the immutable source, returns queued, and publishes versioned artifacts", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const store = await import("../localDocumentStore");
@@ -298,7 +298,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("rebuilds incomplete or corrupt ready publications before reuse", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     let parseCalls = 0;
     const rebuildStartedWithManifest: boolean[] = [];
@@ -361,7 +361,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("survives overlapping state reads and extended Windows rename contention", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
@@ -394,7 +394,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("reports raster-only parser output honestly as degraded", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     let identity = "tesseract-cli-v1:tesseract 5.3.0";
     runLegalPdf.mockImplementation((args: string[]) =>
@@ -495,7 +495,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("runs bounded Codex repair only when explicitly queued and records its identity", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     let parseCalls = 0;
     runLegalPdf.mockImplementation(async (args: string[]) => {
@@ -564,7 +564,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("refreshes the engine repair contract without changing local cache identity", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const engineCodes = ["TEXT_QUALITY_LOW"];
     const engineIdentity = {
@@ -653,7 +653,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("does not block deterministic import when repair identity is unavailable", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) =>
       args[0] === "repair-identity"
@@ -688,7 +688,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("requeues a parse left in parsing state and records the interruption", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
@@ -724,7 +724,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("recovers an unowned parsing state through the normal queue path", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
@@ -765,7 +765,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("fails an orphaned Codex parse safely when its identity probe fails", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
@@ -815,7 +815,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("fails unowned queued and parsing OCR jobs safely on identity failure", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
@@ -879,7 +879,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("keeps an actively owned parsing state idempotent", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     let started!: () => void;
     let release!: () => void;
@@ -929,7 +929,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("does not overwrite a job that gains an owner during identity probes", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const initial = await import("../localPdfIngestion");
@@ -1015,7 +1015,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("sanitizes parser failures before persisting them", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) =>
       args[0] === "repair-identity"
@@ -1048,7 +1048,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("aborts an in-flight OCR parse before deleting its artifacts", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     let started!: () => void;
     let partialPath = "";
@@ -1107,7 +1107,7 @@ describe("local PDF ingestion", () => {
   });
 
   it("recovers a stored PDF if shutdown occurred before its job sidecar was written", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");

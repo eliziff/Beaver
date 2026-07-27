@@ -1,5 +1,5 @@
 /**
- * Mike API client — all requests to the Node.js backend.
+ * Beaver API client — all requests to the Node.js backend.
  * Attaches the Supabase auth token for user authentication.
  */
 
@@ -46,13 +46,13 @@ const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
 };
 
-export class MikeApiError extends Error {
+export class BeaverApiError extends Error {
   status: number;
   code: string | null;
 
   constructor(args: { message: string; status: number; code?: string | null }) {
     super(args.message);
-    this.name = "MikeApiError";
+    this.name = "BeaverApiError";
     this.status = args.status;
     this.code = args.code ?? null;
   }
@@ -60,7 +60,7 @@ export class MikeApiError extends Error {
 
 export function isMfaRequiredError(error: unknown) {
   return (
-    error instanceof MikeApiError &&
+    error instanceof BeaverApiError &&
     error.status === 403 &&
     error.code === "mfa_verification_required"
   );
@@ -135,13 +135,13 @@ async function toApiError(response: Response, path: string) {
       detail?: unknown;
       code?: unknown;
     };
-    devLog("[mike-api] non-ok response", {
+    devLog("[beaver-api] non-ok response", {
       path,
       status: response.status,
       code: parsed.code,
       detail: parsed.detail,
     });
-    return new MikeApiError({
+    return new BeaverApiError({
       status: response.status,
       code: typeof parsed.code === "string" ? parsed.code : null,
       message:
@@ -150,12 +150,12 @@ async function toApiError(response: Response, path: string) {
           : `API error: ${response.status}`,
     });
   } catch {
-    devLog("[mike-api] non-ok non-json response", {
+    devLog("[beaver-api] non-ok non-json response", {
       path,
       status: response.status,
       bodyPreview: text.slice(0, 200),
     });
-    return new MikeApiError({
+    return new BeaverApiError({
       status: response.status,
       message: text || `API error: ${response.status}`,
     });
@@ -1004,7 +1004,7 @@ export async function getLibraryPdfParseState(
       { signal },
     );
   } catch (error) {
-    if (error instanceof MikeApiError && error.status === 404) return null;
+    if (error instanceof BeaverApiError && error.status === 404) return null;
     throw error;
   }
 }
