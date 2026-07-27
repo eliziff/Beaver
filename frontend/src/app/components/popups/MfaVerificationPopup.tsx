@@ -17,11 +17,6 @@ type MfaFactor = {
     factor_type: string;
 };
 
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
-
 export async function needsMfaVerification() {
     const { data, error } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -59,7 +54,6 @@ export function MfaVerificationPopup({
     useEffect(() => {
         if (!open) return;
         let cancelled = false;
-        devLog("[mfa-popup] opened");
 
         async function loadFactors() {
             setLoading(true);
@@ -69,18 +63,11 @@ export function MfaVerificationPopup({
                 await supabase.auth.mfa.listFactors();
             if (cancelled) return;
             if (listError) {
-                devLog("[mfa-popup] list factors failed", {
-                    error: listError.message,
-                });
                 setError(listError.message);
                 setFactors([]);
                 setSelectedFactorId("");
             } else {
                 const verified = (data.totp ?? []) as MfaFactor[];
-                devLog("[mfa-popup] factors loaded", {
-                    totpCount: verified.length,
-                    selectedFactorId: verified[0]?.id ?? null,
-                });
                 setFactors(verified);
                 setSelectedFactorId(verified[0]?.id ?? "");
             }
@@ -98,7 +85,6 @@ export function MfaVerificationPopup({
 
         setVerifying(true);
         setError(null);
-        devLog("[mfa-popup] verifying code", { factorId: selectedFactorId });
         const { error: verifyError } =
             await supabase.auth.mfa.challengeAndVerify({
                 factorId: selectedFactorId,
@@ -107,14 +93,10 @@ export function MfaVerificationPopup({
         setVerifying(false);
 
         if (verifyError) {
-            devLog("[mfa-popup] verification failed", {
-                error: verifyError.message,
-            });
             setError(verifyError.message);
             return;
         }
 
-        devLog("[mfa-popup] verification succeeded");
         setCode("");
         onVerified();
     }

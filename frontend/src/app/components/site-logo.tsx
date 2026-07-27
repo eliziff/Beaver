@@ -49,7 +49,7 @@ export function SiteLogo({
         return (
             <Link
                 href={landingHref}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
+                className="cursor-pointer hover:opacity-80"
             >
                 {logo}
             </Link>

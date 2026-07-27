@@ -189,6 +189,7 @@ describe("projects.routes", () => {
                     name: "Gamma",
                     user_id: "u1",
                     shared_with: ["a@x.com", "b@x.com"],
+                    created_at: "2026-07-27T18:42:00.000Z",
                 },
                 error: null,
             };
@@ -202,7 +203,11 @@ describe("projects.routes", () => {
                 });
 
             expect(res.status).toBe(201);
-            expect(res.body).toMatchObject({ id: "p9", documents: [] });
+            expect(res.body).toMatchObject({
+                id: "p9",
+                documents: [],
+                created_at: "2026-07-27T18:42:00.000Z",
+            });
 
             // The insert payload should be lowercased, deduped, trimmed and
             // the name trimmed.

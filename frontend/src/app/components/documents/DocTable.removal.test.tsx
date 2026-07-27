@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
@@ -28,17 +35,32 @@ const document: Document = {
   active_version_number: 3,
 };
 
+function chooseAction(label: string) {
+  const select = screen.getByRole("combobox", { name: "More actions" });
+  const option = within(select).getByRole("option", {
+    name: label,
+  }) as HTMLOptionElement;
+  fireEvent.change(select, { target: { value: option.value } });
+}
+
 function Harness({
   removeDocument,
   onActions,
   documentRemovalMode = "detach",
+  initialDocuments = [document],
+  initialFolders = [],
+  search = "",
 }: {
   removeDocument: (documentId: string) => Promise<void>;
   onActions?: (actions: DocTableSelectionActions | null) => void;
   documentRemovalMode?: "delete" | "detach";
+  initialDocuments?: Document[];
+  initialFolders?: DocTableFolder[];
+  search?: string;
 }) {
-  const [documents, setDocuments] = useState<Document[]>([document]);
-  const [folders, setFolders] = useState<DocTableFolder[]>([]);
+  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
+  const [folders, setFolders] =
+    useState<DocTableFolder[]>(initialFolders);
   return (
     <DocTable
       scopeKey="matter-1"
@@ -47,7 +69,7 @@ function Harness({
       folders={folders}
       setFolders={setFolders}
       loading={false}
-      search=""
+      search={search}
       operations={{
         removeDocument,
         uploadDocument: vi.fn(),
@@ -99,10 +121,7 @@ describe("DocTable document removal", () => {
     });
     render(<Harness removeDocument={removeDocument} />);
 
-    fireEvent.contextMenu(screen.getByText("Brief.pdf"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Remove from project" }),
-    );
+    chooseAction("Remove from project");
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     expect(
@@ -120,8 +139,7 @@ describe("DocTable document removal", () => {
       />,
     );
 
-    fireEvent.contextMenu(screen.getByText("Brief.pdf"));
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    chooseAction("Delete");
 
     expect(
       screen.getByText(/This will delete the document and all of its versions/u),
@@ -156,5 +174,64 @@ describe("DocTable document removal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/could not be deleted/u)).not.toBeInTheDocument();
+  });
+
+  it("renders nested search results through the normal document row", () => {
+    const folder: DocTableFolder = {
+      id: "folder-1",
+      project_id: "matter-1",
+      user_id: "local-user",
+      name: "Research",
+      parent_folder_id: null,
+      created_at: "2026-07-27T00:00:00.000Z",
+      updated_at: "2026-07-27T00:00:00.000Z",
+    };
+    const nestedDocument: Document = {
+      ...document,
+      id: "document-2",
+      filename: "Memo.pdf",
+      folder_id: folder.id,
+    };
+
+    render(
+      <Harness
+        removeDocument={vi.fn(async () => {})}
+        initialDocuments={[document, nestedDocument]}
+        initialFolders={[folder]}
+        search="memo"
+      />,
+    );
+
+    expect(screen.getByText("Memo.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Brief.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByText("Research")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("combobox", { name: "More actions" }),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the folder row action for creating a focused subfolder", () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const folder: DocTableFolder = {
+      id: "folder-1",
+      project_id: "matter-1",
+      user_id: "local-user",
+      name: "Research",
+      parent_folder_id: null,
+      created_at: "2026-07-27T00:00:00.000Z",
+      updated_at: "2026-07-27T00:00:00.000Z",
+    };
+
+    render(
+      <Harness
+        removeDocument={vi.fn(async () => {})}
+        initialDocuments={[]}
+        initialFolders={[folder]}
+      />,
+    );
+
+    chooseAction("New subfolder inside");
+
+    expect(screen.getByPlaceholderText("Folder name")).toHaveFocus();
   });
 });

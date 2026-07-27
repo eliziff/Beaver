@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import {
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
     MoreHorizontal,
-    Pencil,
     Plus,
     Search,
     Square,
     ArrowRight,
     ChevronDown,
-    Trash2,
     X,
 } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
@@ -26,7 +30,7 @@ import {
     type TRChat,
     type TRCitationAnnotation,
 } from "@/app/lib/beaverApi";
-import type { AssistantEvent, ColumnConfig, Document } from "../shared/types";
+import type { AssistantEvent } from "../shared/types";
 import { ModelToggle } from "../assistant/ModelToggle";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { PreResponseWrapper } from "../assistant/PreResponseWrapper";
@@ -47,10 +51,7 @@ import {
     APP_SURFACE_HOVER_CLASS,
     LIQUID_PANEL_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
-import {
-    LiquidDropdownButton,
-    LiquidDropdownSurface,
-} from "@/app/components/ui/liquid-dropdown";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { cn } from "@/app/lib/utils";
 import {
     parseCourtlistenerCaseSearches,
@@ -73,8 +74,6 @@ interface Props {
     reviewId: string;
     reviewTitle?: string | null;
     projectName?: string | null;
-    columns: ColumnConfig[];
-    documents: Document[];
     onCitationClick: (colIdx: number, rowIdx: number) => void;
     onClose: () => void;
     initialChatId?: string | null;
@@ -103,18 +102,6 @@ function preprocessTRCitations(
         });
         return tokens.length > 0 ? tokens.join("") : full;
     });
-}
-
-// ---------------------------------------------------------------------------
-// ResponseStatus
-// ---------------------------------------------------------------------------
-
-function TRResponseStatus({ isActive }: { isActive: boolean }) {
-    return (
-        <div className="w-full h-9 flex items-center mb-2">
-            {isActive && <ThinkingSpinner size={18} />}
-        </div>
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -169,14 +156,6 @@ function TRAssistantMessage({
         });
         if (current) groups.push(current);
     }
-
-    const hasContentAfter = (groupIdx: number): boolean => {
-        for (let i = groupIdx + 1; i < groups.length; i++) {
-            const g = groups[i];
-            if (g.kind === "content") return true;
-        }
-        return false;
-    };
 
     const renderPreEvent = (
         event: AssistantEvent,
@@ -290,7 +269,9 @@ function TRAssistantMessage({
 
     return (
         <div className="text-gray-900 font-serif">
-            <TRResponseStatus isActive={!!msg.isStreaming} />
+            <div className="w-full h-9 flex items-center mb-2">
+                {msg.isStreaming && <ThinkingSpinner size={18} />}
+            </div>
             {groups.length > 0 && (
                 <div className="flex flex-col gap-2.5">
                     {groups.map((g, gIdx) => {
@@ -300,7 +281,10 @@ function TRAssistantMessage({
                                 g.index,
                             );
                         }
-                        const subsequentContent = hasContentAfter(gIdx);
+                        const subsequentContent = groups.some(
+                            (group, index) =>
+                                index > gIdx && group.kind === "content",
+                        );
                         // "Working" while at least one event in *this*
                         // wrapper is actively streaming. Gaps between real
                         // events are bridged by `pushThinkingPlaceholder`
@@ -333,29 +317,6 @@ function TRAssistantMessage({
             )}
         </div>
     );
-}
-
-// ---------------------------------------------------------------------------
-// MessageBubble
-// ---------------------------------------------------------------------------
-
-function MessageBubble({
-    msg,
-    onCitationClick,
-}: {
-    msg: TRMessage;
-    onCitationClick: (colIdx: number, rowIdx: number) => void;
-}) {
-    if (msg.role === "user") {
-        return (
-            <div className="flex justify-end">
-                <div className="max-w-[90%] rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">
-                    {msg.content}
-                </div>
-            </div>
-        );
-    }
-    return <TRAssistantMessage msg={msg} onCitationClick={onCitationClick} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -394,10 +355,8 @@ function TRChatInput({
 
         const observer = new ResizeObserver(notify);
         observer.observe(root);
-        window.addEventListener("resize", notify);
         return () => {
             observer.disconnect();
-            window.removeEventListener("resize", notify);
         };
     }, [onHeightChange]);
 
@@ -428,17 +387,9 @@ function TRChatInput({
     return (
         <div
             ref={rootRef}
-            className={cn(
-                "absolute bottom-0 left-0 right-0 z-10 px-3 pb-3",
-                "bg-transparent",
-            )}
+            className="absolute bottom-0 left-0 right-0 z-10 bg-transparent px-3 pb-3"
         >
-            <div
-                className={cn(
-                    "pt-2 pb-1.5 flex flex-col gap-1",
-                    "rounded-xl border border-gray-200 bg-white shadow-sm",
-                )}
-            >
+            <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white pt-2 pb-1.5 shadow-sm">
                 <textarea
                     ref={textareaRef}
                     rows={1}
@@ -466,10 +417,7 @@ function TRChatInput({
                         type="button"
                         onClick={handleAction}
                         disabled={!isLoading && !value.trim()}
-                        className={cn(
-                            "relative h-7 w-7 shrink-0 rounded-[10px] bg-brand text-white flex items-center justify-center hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-colors",
-                            "shadow-sm",
-                        )}
+                        className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white shadow-sm transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95"
                     >
                         {isLoading ? (
                             <Square
@@ -494,22 +442,19 @@ function TRChatInput({
 function HistoryDropdown({
     chats,
     currentChatId,
+    popoverId,
     onLoad,
     onRename,
     onDelete,
 }: {
     chats: TRChat[];
     currentChatId: string | null;
+    popoverId: string;
     onLoad: (chatId: string) => void;
     onRename: (chatId: string, title: string) => void;
     onDelete: (chatId: string) => void;
 }) {
     const [query, setQuery] = useState("");
-    const [menu, setMenu] = useState<{
-        chatId: string;
-        top: number;
-        left: number;
-    } | null>(null);
     const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
     const filtered = chats
@@ -530,7 +475,6 @@ function HistoryDropdown({
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/40">
                 <Search className="h-3 w-3 text-gray-400 shrink-0" />
                 <input
-                    autoFocus
                     type="text"
                     placeholder="Search chats…"
                     value={query}
@@ -538,10 +482,7 @@ function HistoryDropdown({
                     className="flex-1 text-xs bg-transparent outline-none placeholder:text-gray-400 text-gray-700"
                 />
             </div>
-            <div
-                className="max-h-48 overflow-y-auto p-1"
-                onScroll={() => setMenu(null)}
-            >
+            <div className="max-h-48 overflow-y-auto p-1">
                 {filtered.length === 0 ? (
                     <p className="px-2 py-1.5 text-xs text-gray-400">
                         {chats.filter((c) => c.id !== currentChatId).length ===
@@ -578,75 +519,36 @@ function HistoryDropdown({
                                 key={chat.id}
                                 className="group relative flex items-center"
                             >
-                                <LiquidDropdownButton
+                                <button
                                     onClick={() => onLoad(chat.id)}
+                                    popoverTarget={popoverId}
+                                    popoverTargetAction="hide"
                                     className="w-full min-w-0 rounded-lg px-2 py-1.5 pr-7 text-left truncate"
                                 >
                                     {label}
-                                </LiquidDropdownButton>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const rect =
-                                            e.currentTarget.getBoundingClientRect();
-                                        setMenu((v) =>
-                                            v?.chatId === chat.id
-                                                ? null
-                                                : {
-                                                      chatId: chat.id,
-                                                      top: rect.bottom + 4,
-                                                      left: rect.right - 112,
-                                                  },
-                                        );
-                                    }}
-                                    title="Chat options"
-                                    className={cn(
-                                        `absolute right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
-                                        menu?.chatId === chat.id
-                                            ? "opacity-100"
-                                            : "opacity-0 group-hover:opacity-100",
-                                    )}
-                                >
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
                                 </button>
-                                {menu?.chatId === chat.id &&
-                                    createPortal(
-                                    <LiquidDropdownSurface
-                                        onMouseDown={(e) =>
-                                            e.stopPropagation()
-                                        }
-                                        className="fixed z-[130] w-28 p-1"
-                                        style={{
-                                            top: menu.top,
-                                            left: menu.left,
-                                        }}
-                                    >
-                                        <LiquidDropdownButton
-                                            onClick={() => {
-                                                setMenu(null);
+                                <NativeActionSelect
+                                    label={`Actions for ${label}`}
+                                    items={[
+                                        {
+                                            label: "Rename",
+                                            onSelect: () => {
                                                 setRenameValue(
                                                     chat.title ?? "",
                                                 );
                                                 setRenamingChatId(chat.id);
-                                            }}
-                                            className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left"
-                                        >
-                                            <Pencil className="h-3 w-3" />
-                                            Rename
-                                        </LiquidDropdownButton>
-                                        <LiquidDropdownButton
-                                            onClick={() => {
-                                                setMenu(null);
-                                                onDelete(chat.id);
-                                            }}
-                                            className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-red-600 hover:text-red-600 focus:text-red-600"
-                                        >
-                                            <Trash2 className="h-3 w-3" />
-                                            Delete
-                                        </LiquidDropdownButton>
-                                    </LiquidDropdownSurface>,
-                                    document.body,
-                                )}
+                                            },
+                                        },
+                                        {
+                                            label: "Delete",
+                                            onSelect: () => onDelete(chat.id),
+                                        },
+                                    ]}
+                                    className="absolute right-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+                                    triggerClassName={`h-5 w-5 items-center justify-center rounded-md text-gray-500 hover:text-gray-800 ${APP_SURFACE_HOVER_CLASS}`}
+                                >
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                </NativeActionSelect>
                             </div>
                         );
                     })
@@ -654,17 +556,6 @@ function HistoryDropdown({
             </div>
         </>
     );
-}
-
-// ---------------------------------------------------------------------------
-// Drip helpers
-// ---------------------------------------------------------------------------
-
-function findLastContentIndex(events: AssistantEvent[]): number {
-    for (let i = events.length - 1; i >= 0; i--) {
-        if (events[i].type === "content") return i;
-    }
-    return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -683,8 +574,6 @@ export function TRChatPanel({
     reviewId,
     reviewTitle,
     projectName,
-    columns: _columns,
-    documents: _documents,
     onCitationClick,
     onClose,
     initialChatId,
@@ -699,15 +588,13 @@ export function TRChatPanel({
     const [currentChatId, setCurrentChatId] = useState<string | null>(
         initialChatId ?? null,
     );
-    const [currentChatTitle, setCurrentChatTitle] = useState<string | null>(
-        null,
-    );
+    const currentChatTitle = chats.find(
+        (chat) => chat.id === currentChatId,
+    )?.title;
     const [messages, setMessages] = useState<TRMessage[]>([]);
-    const [historyOpen, setHistoryOpen] = useState(false);
+    const historyPopoverId = useId();
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [minHeight, setMinHeight] = useState("0px");
-    const [messagesVisible, setMessagesVisible] = useState(false);
     const [panelWidth, setPanelWidth] = useState(380);
     const [isResizing, setIsResizing] = useState(false);
     const [inputHeight, setInputHeight] = useState(96);
@@ -745,15 +632,7 @@ export function TRChatPanel({
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
-    const historyRef = useRef<HTMLDivElement>(null);
-    const hasScrolledRef = useRef(false);
-
-    // Drip animation refs
-    const dripIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const dripTargetRef = useRef<string>("");
-    const dripDisplayLenRef = useRef<number>(0);
     const eventsRef = useRef<AssistantEvent[]>([]);
-    const DRIP_CHARS = 8;
 
     // Load existing chats from DB on mount
     useEffect(() => {
@@ -765,20 +644,10 @@ export function TRChatPanel({
     // Load messages for an initial chat id (e.g. from URL)
     useEffect(() => {
         if (!initialChatId) return;
-        setIsLoadingMessages(true);
         getTabularChatMessages(reviewId, initialChatId)
             .then((raw) => setMessages(mapTRMessages(raw) as TRMessage[]))
-            .catch(() => {})
-            .finally(() => setIsLoadingMessages(false));
+            .catch(() => {});
     }, [reviewId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Fill in title once chats list arrives
-    useEffect(() => {
-        if (currentChatId && !currentChatTitle) {
-            const chat = chats.find((c) => c.id === currentChatId);
-            if (chat) setCurrentChatTitle(chat.title ?? null);
-        }
-    }, [chats, currentChatId, currentChatTitle]);
 
     // Emit currentChatId changes to parent
     const onChatIdChangeRef = useRef(onChatIdChange);
@@ -789,37 +658,13 @@ export function TRChatPanel({
         onChatIdChangeRef.current?.(currentChatId);
     }, [currentChatId]);
 
-    useEffect(() => {
-        if (messages.length === 0) {
-            hasScrolledRef.current = false;
-            setMessagesVisible(false);
-        } else if (!hasScrolledRef.current) {
-            const userMsgCount = messages.filter(
-                (m) => m.role === "user",
-            ).length;
-            if (
-                userMsgCount >= 2 &&
-                latestUserMessageRef.current &&
-                messagesContainerRef.current
-            ) {
-                setTimeout(() => {
-                    const container = messagesContainerRef.current;
-                    const element = latestUserMessageRef.current;
-                    if (container && element) {
-                        container.scrollTo({
-                            top: element.offsetTop - 44,
-                            behavior: "instant",
-                        });
-                    }
-                    hasScrolledRef.current = true;
-                    setMessagesVisible(true);
-                }, 100);
-            } else {
-                hasScrolledRef.current = true;
-                setMessagesVisible(true);
-            }
+    useLayoutEffect(() => {
+        const container = messagesContainerRef.current;
+        const element = latestUserMessageRef.current;
+        if (container && element) {
+            container.scrollTop = Math.max(0, element.offsetTop - 44);
         }
-    }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [messages.length]);
 
     useEffect(() => {
         const userEl = latestUserMessageRef.current;
@@ -834,85 +679,6 @@ export function TRChatPanel({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages.length, latestUserMessageRef.current]);
 
-    useEffect(() => {
-        if (!historyOpen) return;
-        function handleClick(e: MouseEvent) {
-            if (
-                historyRef.current &&
-                !historyRef.current.contains(e.target as Node)
-            ) {
-                setHistoryOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [historyOpen]);
-
-    // ---- drip ----
-
-    function stopDrip() {
-        if (dripIntervalRef.current !== null) {
-            clearInterval(dripIntervalRef.current);
-            dripIntervalRef.current = null;
-        }
-    }
-
-    function updateLastContentEvent(
-        prev: TRMessage[],
-        text: string,
-        isStreaming?: boolean,
-    ): TRMessage[] {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role !== "assistant") return prev;
-        const evts = last.events ?? [];
-        const idx = findLastContentIndex(evts);
-        if (idx < 0) return prev;
-        const newEvents = [...evts];
-        newEvents[idx] = isStreaming
-            ? { type: "content", text, isStreaming: true }
-            : { type: "content", text };
-        updated[updated.length - 1] = { ...last, events: newEvents };
-        return updated;
-    }
-
-    // Mirror the dripped content text onto eventsRef.current so that any
-    // subsequent setMessages built from a refsnapshot (pushEvent,
-    // updateMatchingEvent, reasoning_*, etc.) doesn't wipe out the content
-    // by replacing it with the stale empty placeholder.
-    function syncDripIntoEventsRef(text: string, isStreaming: boolean) {
-        const evts = eventsRef.current;
-        const idx = findLastContentIndex(evts);
-        if (idx < 0) return;
-        const newEvents = [...evts];
-        newEvents[idx] = isStreaming
-            ? { type: "content", text, isStreaming: true }
-            : { type: "content", text };
-        eventsRef.current = newEvents;
-    }
-
-    function flushDrip() {
-        stopDrip();
-        const target = dripTargetRef.current;
-        dripDisplayLenRef.current = target.length;
-        syncDripIntoEventsRef(target, false);
-        setMessages((prev) => updateLastContentEvent(prev, target));
-    }
-
-    function startDrip() {
-        if (dripIntervalRef.current !== null) return;
-        dripIntervalRef.current = setInterval(() => {
-            const target = dripTargetRef.current;
-            const displayLen = dripDisplayLenRef.current;
-            if (displayLen >= target.length) return;
-            const newLen = Math.min(displayLen + DRIP_CHARS, target.length);
-            dripDisplayLenRef.current = newLen;
-            const slice = target.slice(0, newLen);
-            syncDripIntoEventsRef(slice, true);
-            setMessages((prev) => updateLastContentEvent(prev, slice, true));
-        }, 16);
-    }
-
     // ---- event helpers ----
 
     // Transient placeholder events that bridge the gap between real SSE
@@ -923,10 +689,21 @@ export function TRChatPanel({
         return e.type === "thinking" && !!e.isStreaming;
     }
 
-    function clearStreamingPlaceholders() {
+    function finishStreamingEvents() {
         const before = eventsRef.current;
-        const after = before.filter((e) => !isStreamingPlaceholder(e));
-        if (after.length === before.length) return;
+        let changed = false;
+        const after = before.flatMap((event) => {
+            if (isStreamingPlaceholder(event)) {
+                changed = true;
+                return [];
+            }
+            if (event.type === "content" && event.isStreaming) {
+                changed = true;
+                return [{ type: "content" as const, text: event.text }];
+            }
+            return [event];
+        });
+        if (!changed) return;
         eventsRef.current = after;
         const snapshot = [...after];
         setMessages((prev) => {
@@ -982,11 +759,8 @@ export function TRChatPanel({
         updater: (e: AssistantEvent) => AssistantEvent,
     ) {
         const events = eventsRef.current;
-        const idx = [...events]
-            .map((_, i) => i)
-            .reverse()
-            .find((i) => predicate(events[i]));
-        if (idx === undefined) return false;
+        const idx = events.findLastIndex(predicate);
+        if (idx < 0) return false;
         const newEvents = [...events];
         newEvents[idx] = updater(events[idx]);
         eventsRef.current = newEvents;
@@ -1006,16 +780,13 @@ export function TRChatPanel({
 
     function handleNewChat() {
         setCurrentChatId(null);
-        setCurrentChatTitle(null);
         setMessages([]);
-        setHistoryOpen(false);
     }
 
     async function handleDeleteChat(chatId: string) {
         setChats((prev) => prev.filter((c) => c.id !== chatId));
         if (chatId === currentChatId) {
             setCurrentChatId(null);
-            setCurrentChatTitle(null);
             setMessages([]);
         }
         try {
@@ -1029,7 +800,6 @@ export function TRChatPanel({
         setChats((prev) =>
             prev.map((c) => (c.id === chatId ? { ...c, title } : c)),
         );
-        if (chatId === currentChatId) setCurrentChatTitle(title);
         try {
             await renameTabularChat(reviewId, chatId, title);
         } catch {
@@ -1038,19 +808,13 @@ export function TRChatPanel({
     }
 
     async function handleLoadChat(chatId: string) {
-        const chat = chats.find((c) => c.id === chatId);
         setCurrentChatId(chatId);
-        setCurrentChatTitle(chat?.title ?? null);
         setMessages([]);
-        setHistoryOpen(false);
-        setIsLoadingMessages(true);
         try {
             const raw = await getTabularChatMessages(reviewId, chatId);
             setMessages(mapTRMessages(raw) as TRMessage[]);
         } catch {
             /* ignore */
-        } finally {
-            setIsLoadingMessages(false);
         }
     }
 
@@ -1085,20 +849,6 @@ export function TRChatPanel({
         setMessages((prev) => [...prev, userMsg, assistantMsg]);
         setIsLoading(true);
 
-        setTimeout(() => {
-            const container = messagesContainerRef.current;
-            const element = latestUserMessageRef.current;
-            if (container && element) {
-                container.scrollTo({
-                    top: element.offsetTop - 44,
-                    behavior: "smooth",
-                });
-            }
-        }, 50);
-
-        stopDrip();
-        dripTargetRef.current = "";
-        dripDisplayLenRef.current = 0;
         eventsRef.current = [];
 
         const controller = new AbortController();
@@ -1164,7 +914,6 @@ export function TRChatPanel({
                                     c.id === chatId ? { ...c, title } : c,
                                 ),
                             );
-                            setCurrentChatTitle(title);
                             continue;
                         }
 
@@ -1248,49 +997,45 @@ export function TRChatPanel({
 
                         if (data.type === "content_delta") {
                             const text = data.text as string;
-                            dripTargetRef.current += text;
                             const events = eventsRef.current;
                             const lastEvent = events[events.length - 1];
                             if (
-                                lastEvent?.type !== "content" ||
-                                !lastEvent.isStreaming
+                                lastEvent?.type === "content" &&
+                                lastEvent.isStreaming
                             ) {
-                                // Finalize any still-streaming reasoning
-                                // event AND drop bridging placeholders so
-                                // the wrapper transitions cleanly into
-                                // content.
-                                const finalized = events
-                                    .filter((e) => !isStreamingPlaceholder(e))
-                                    .map((e) =>
-                                        e.type === "reasoning" && e.isStreaming
+                                updateMatchingEvent(
+                                    (event) =>
+                                        event.type === "content" &&
+                                        !!event.isStreaming,
+                                    (event) =>
+                                        event.type === "content"
+                                            ? {
+                                                  ...event,
+                                                  text: event.text + text,
+                                              }
+                                            : event,
+                                );
+                            } else {
+                                eventsRef.current = events
+                                    .filter(
+                                        (event) =>
+                                            !isStreamingPlaceholder(event),
+                                    )
+                                    .map((event) =>
+                                        event.type === "reasoning" &&
+                                        event.isStreaming
                                             ? {
                                                   type: "reasoning" as const,
-                                                  text: e.text,
+                                                  text: event.text,
                                               }
-                                            : e,
+                                            : event,
                                     );
-                                eventsRef.current = [
-                                    ...finalized,
-                                    {
-                                        type: "content" as const,
-                                        text: "",
-                                        isStreaming: true,
-                                    },
-                                ];
-                                const snapshot = [...eventsRef.current];
-                                setMessages((prev) => {
-                                    const updated = [...prev];
-                                    const last = updated[updated.length - 1];
-                                    if (last?.role === "assistant") {
-                                        updated[updated.length - 1] = {
-                                            ...last,
-                                            events: snapshot,
-                                        };
-                                    }
-                                    return updated;
+                                pushEvent({
+                                    type: "content",
+                                    text,
+                                    isStreaming: true,
                                 });
                             }
-                            startDrip();
                             continue;
                         }
 
@@ -1604,7 +1349,7 @@ export function TRChatPanel({
                             // End-of-stream signal — scrub any lingering
                             // placeholders so they don't persist into the
                             // finalised message.
-                            clearStreamingPlaceholders();
+                            finishStreamingEvents();
                             const incoming = (data.citations ??
                                 []) as TRCitationAnnotation[];
                             setMessages((prev) => {
@@ -1626,8 +1371,7 @@ export function TRChatPanel({
                 }
             }
 
-            flushDrip();
-            clearStreamingPlaceholders();
+            finishStreamingEvents();
             setMessages((prev) => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
@@ -1641,8 +1385,7 @@ export function TRChatPanel({
             });
         } catch (err: unknown) {
             const isAbort = err instanceof Error && err.name === "AbortError";
-            stopDrip();
-            clearStreamingPlaceholders();
+            finishStreamingEvents();
             setMessages((prev) => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
@@ -1683,10 +1426,10 @@ export function TRChatPanel({
 
     // ---- render ----
 
-    const lastUserIdx = messages.map((m) => m.role).lastIndexOf("user");
-    const lastAssistantIdx = messages
-        .map((m) => m.role)
-        .lastIndexOf("assistant");
+    const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
+    const lastAssistantIdx = messages.findLastIndex(
+        (m) => m.role === "assistant",
+    );
 
     return (
         <div
@@ -1721,35 +1464,33 @@ export function TRChatPanel({
             {/* Header — fixed, overlaid on top of the messages */}
             <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between gap-2 px-2 py-2">
                 {/* Title pill — opens chat history */}
-                <div ref={historyRef} className="relative shrink min-w-0">
+                <div className="relative shrink min-w-0">
                     <div className={cn(HEADER_PILL_CLASS, "min-w-0")}>
                         <button
-                            onClick={() => setHistoryOpen((v) => !v)}
+                            popoverTarget={historyPopoverId}
                             title="Chat history"
                             className={`flex h-5 min-w-0 items-center gap-1 rounded-full px-1.5 text-gray-700 transition-colors ${APP_SURFACE_HOVER_CLASS}`}
                         >
                             <span className="min-w-0 truncate text-xs font-medium">
                                 {currentChatTitle ?? "New chat"}
                             </span>
-                            <ChevronDown
-                                className={cn(
-                                    "h-3 w-3 shrink-0 text-gray-400 transition-transform duration-200",
-                                    historyOpen && "rotate-180",
-                                )}
-                            />
+                            <ChevronDown className="h-3 w-3 shrink-0 text-gray-500" />
                         </button>
                     </div>
-                    {historyOpen && (
-                        <LiquidDropdownSurface className="absolute top-full left-0 z-50 mt-2 w-64 overflow-hidden">
-                            <HistoryDropdown
-                                chats={chats}
-                                currentChatId={currentChatId}
-                                onLoad={handleLoadChat}
-                                onRename={handleRenameChat}
-                                onDelete={handleDeleteChat}
-                            />
-                        </LiquidDropdownSurface>
-                    )}
+                    <div
+                        id={historyPopoverId}
+                        popover="auto"
+                        className="fixed inset-0 m-auto h-fit max-h-[80vh] w-64 max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-gray-300 bg-white"
+                    >
+                        <HistoryDropdown
+                            chats={chats}
+                            currentChatId={currentChatId}
+                            popoverId={historyPopoverId}
+                            onLoad={handleLoadChat}
+                            onRename={handleRenameChat}
+                            onDelete={handleDeleteChat}
+                        />
+                    </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     {/* New chat circle — only once a chat has started */}
@@ -1783,28 +1524,8 @@ export function TRChatPanel({
                 className="flex-1 overflow-y-auto px-4 pt-12 flex flex-col"
                 style={{ paddingBottom: Math.ceil(inputHeight + 16) }}
             >
-                {isLoadingMessages && (
-                    <div className="flex flex-col gap-4">
-                        <div className="flex justify-end">
-                            <div className="bg-gray-100 rounded-2xl p-3 w-3/5">
-                                <div className="h-3 rounded bg-gray-200 w-full" />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            {[1, 2, 3, 4].map((i) => (
-                                <div
-                                    key={i}
-                                    className={`h-3 rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
                 {messages.length > 0 && (
-                    <div
-                        className="flex flex-col gap-4 transition-opacity duration-150"
-                        style={{ opacity: messagesVisible ? 1 : 0 }}
-                    >
+                    <div className="flex flex-col gap-4">
                         {messages.map((msg, i) => (
                             <div
                                 key={i}
@@ -1819,10 +1540,18 @@ export function TRChatPanel({
                                         : undefined
                                 }
                             >
-                                <MessageBubble
-                                    msg={msg}
-                                    onCitationClick={onCitationClick}
-                                />
+                                {msg.role === "user" ? (
+                                    <div className="flex justify-end">
+                                        <div className="max-w-[90%] rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-800 whitespace-pre-wrap">
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <TRAssistantMessage
+                                        msg={msg}
+                                        onCitationClick={onCitationClick}
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>

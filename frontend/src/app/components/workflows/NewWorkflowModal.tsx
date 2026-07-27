@@ -202,9 +202,6 @@ export function NewWorkflowModal({
     const [jurisdiction, setJurisdiction] = useState(DEFAULT_JURISDICTION);
     const [jurisdictionRegion, setJurisdictionRegion] = useState("");
     const [customJurisdiction, setCustomJurisdiction] = useState("");
-    const [openDropdown, setOpenDropdown] = useState<
-        "language" | "practice" | "jurisdiction" | "jurisdictionRegion" | null
-    >(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [importedSkillMd, setImportedSkillMd] = useState("");
@@ -295,7 +292,6 @@ export function NewWorkflowModal({
         setJurisdiction(DEFAULT_JURISDICTION);
         setJurisdictionRegion("");
         setCustomJurisdiction("");
-        setOpenDropdown(null);
         setError("");
         setImportedSkillMd("");
         setImportedSkillName(null);
@@ -569,22 +565,11 @@ export function NewWorkflowModal({
                                 value={language}
                                 options={languageOptions}
                                 disabled={viewOnly}
-                                open={openDropdown === "language"}
-                                onOpenChange={(nextOpen) =>
-                                    setOpenDropdown((current) =>
-                                        nextOpen
-                                            ? "language"
-                                            : current === "language"
-                                              ? null
-                                              : current,
-                                    )
-                                }
                                 onChange={(value) => {
                                     setLanguage(value);
                                     if (value !== "Other") {
                                         setCustomLanguage("");
                                     }
-                                    setOpenDropdown(null);
                                 }}
                             />
                             {isOtherLanguage && (
@@ -611,22 +596,11 @@ export function NewWorkflowModal({
                                 value={practice}
                                 options={PRACTICE_OPTIONS}
                                 disabled={viewOnly}
-                                open={openDropdown === "practice"}
-                                onOpenChange={(nextOpen) =>
-                                    setOpenDropdown((current) =>
-                                        nextOpen
-                                            ? "practice"
-                                            : current === "practice"
-                                              ? null
-                                              : current,
-                                    )
-                                }
                                 onChange={(value) => {
                                     setPractice(value);
                                     if (value !== "Other") {
                                         setCustomPractice("");
                                     }
-                                    setOpenDropdown(null);
                                 }}
                             />
                             {isOtherPractice && (
@@ -654,23 +628,12 @@ export function NewWorkflowModal({
                             value={jurisdiction}
                             options={jurisdictionOptions}
                             disabled={viewOnly}
-                            open={openDropdown === "jurisdiction"}
-                            onOpenChange={(nextOpen) =>
-                                setOpenDropdown((current) =>
-                                    nextOpen
-                                        ? "jurisdiction"
-                                        : current === "jurisdiction"
-                                          ? null
-                                          : current,
-                                )
-                            }
                             onChange={(value) => {
                                 setJurisdiction(value);
                                 setJurisdictionRegion("");
                                 if (value !== "Other") {
                                     setCustomJurisdiction("");
                                 }
-                                setOpenDropdown(null);
                             }}
                         />
                         {jurisdictionRegionOptions.length > 0 && (
@@ -685,20 +648,7 @@ export function NewWorkflowModal({
                                         ? "Select state..."
                                         : "Select province..."
                                 }
-                                open={openDropdown === "jurisdictionRegion"}
-                                onOpenChange={(nextOpen) =>
-                                    setOpenDropdown((current) =>
-                                        nextOpen
-                                            ? "jurisdictionRegion"
-                                            : current === "jurisdictionRegion"
-                                              ? null
-                                              : current,
-                                    )
-                                }
-                                onChange={(value) => {
-                                    setJurisdictionRegion(value);
-                                    setOpenDropdown(null);
-                                }}
+                                onChange={setJurisdictionRegion}
                             />
                         )}
                         {isOtherJurisdiction && (

@@ -23,13 +23,13 @@ const sizeClasses: Record<
     { wrapper: string; input: string; icon: string; clear: string }
 > = {
     sm: {
-        wrapper: "h-8 gap-1.5 rounded-lg px-2.5",
+        wrapper: "h-8 gap-1.5 rounded-md px-2.5",
         input: "text-xs",
         icon: "h-3 w-3",
         clear: "h-5 w-5",
     },
     normal: {
-        wrapper: "h-9 gap-2 rounded-xl px-3",
+        wrapper: "h-9 gap-2 rounded-md px-3",
         input: "text-sm",
         icon: "h-3.5 w-3.5",
         clear: "h-6 w-6",
@@ -56,7 +56,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         return (
             <div
                 className={cn(
-                    "flex min-w-0 items-center border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors focus-within:border-gray-300",
+                    "flex min-w-0 items-center border border-gray-300 bg-white text-gray-700 focus-within:border-gray-500",
                     classes.wrapper,
                     className,
                     wrapperClassName,
@@ -86,7 +86,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                         type="button"
                         onClick={() => onValueChange("")}
                         className={cn(
-                            "flex shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-white/70 hover:text-gray-600",
+                            "flex shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800",
                             classes.clear,
                         )}
                         aria-label={clearLabel}

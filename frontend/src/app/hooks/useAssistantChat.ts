@@ -19,6 +19,10 @@ import {
   parseCourtlistenerCaseSearches,
   parseCourtlistenerEventCases,
 } from "@/app/lib/assistantEvents";
+import {
+  readSelectedModel,
+  readSelectedReasoningEffort,
+} from "./useSelectedModel";
 
 interface UseAssistantChatOptions {
   initialMessages?: Message[];
@@ -249,7 +253,6 @@ export function useAssistantChat({
   const pushThinkingPlaceholder = () => {
     const events = eventsRef.current;
     const last = events[events.length - 1];
-    // Don't stack placeholders back-to-back; one "Thinking…" line is plenty.
     if (last && isStreamingPlaceholder(last)) return;
     flushPendingEventsSnapshot();
     eventsRef.current = [
@@ -264,8 +267,6 @@ export function useAssistantChat({
     flushPendingEventsSnapshot();
     finalizeStreamingContent();
     finalizeStreamingReasoning();
-    // A real event, or a more specific placeholder such as
-    // tool_call_start, should replace any generic "Thinking..." line.
     const next = eventsRef.current.filter((e) => !isStreamingPlaceholder(e));
     eventsRef.current = [...next, event];
     const snapshot = [...eventsRef.current];
@@ -407,15 +408,12 @@ export function useAssistantChat({
         workflow: currentMessage.workflow,
       }));
 
-      const model = message.model;
+      const model = message.model ?? readSelectedModel();
+      const reasoningEffort =
+        message.reasoningEffort ?? readSelectedReasoningEffort();
 
       const displayedDoc = turnOptions?.displayedDoc ?? null;
 
-      // Pull the user's attachments from the just-submitted message.
-      // These are the files dragged into / picked from the chat input
-      // for this turn (separate from the running history of past
-      // attachments). Sent as a request-level field so the backend
-      // can call them out specifically in the system prompt.
       const attachedDocs = (
         message.files?.filter((f) => !!f.document_id) ?? []
       ).map((f) => ({
@@ -448,7 +446,7 @@ export function useAssistantChat({
               : { messages: apiMessages }),
             chat_id: chatId,
             model,
-            reasoning_effort: message.reasoningEffort,
+            reasoning_effort: reasoningEffort,
             displayed_doc: displayedDoc
               ? {
                   filename: displayedDoc.filename,
@@ -471,7 +469,7 @@ export function useAssistantChat({
               : { messages: apiMessages }),
             chat_id: chatId,
             model,
-            reasoning_effort: message.reasoningEffort,
+            reasoning_effort: reasoningEffort,
             ask_inputs_response: isAnonymousMode
               ? undefined
               : turnOptions?.askInputsResponse,
@@ -733,12 +731,6 @@ export function useAssistantChat({
             }
 
             if (data.type === "tool_call_start") {
-              // Transient placeholder so the client immediately
-              // shows activity after Claude ends a turn with
-              // tool_use. Replaced by the real tool event
-              // (doc_edited_start, doc_read_start, …) if one
-              // arrives; otherwise it lingers as a "Working…"
-              // indicator until the next iteration streams.
               pushEvent({
                 type: "tool_call_start",
                 name: (data.name as string) ?? "",

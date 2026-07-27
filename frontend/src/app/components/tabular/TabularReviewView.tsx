@@ -9,13 +9,8 @@ import {
     ChevronDown,
     MessageSquare,
     MessageSquareX,
-    Download,
     Users,
     Upload,
-    X,
-    Pencil,
-    Trash2,
-    WandSparkles,
 } from "lucide-react";
 
 import {
@@ -723,8 +718,7 @@ export function TRView({ reviewId, projectId }: Props) {
                                   label: review?.title || "Untitled Review",
                               },
                     ]}
-                    actionGroups={[
-                        [
+                    actions={[
                             {
                                 type: "search",
                                 value: search,
@@ -747,17 +741,14 @@ export function TRView({ reviewId, projectId }: Props) {
                                         items={[
                                             {
                                                 label: "Edit details",
-                                                icon: Pencil,
                                                 onSelect: requestReviewDetails,
                                             },
                                             {
                                                 label: "Apply workflow",
-                                                icon: WandSparkles,
                                                 onSelect: requestWorkflow,
                                             },
                                             {
                                                 label: "Export",
-                                                icon: Download,
                                                 onSelect: () => {
                                                     void import("./exportToExcel").then(
                                                         ({
@@ -779,25 +770,19 @@ export function TRView({ reviewId, projectId }: Props) {
                                             },
                                             {
                                                 label: "Clear results",
-                                                icon: X,
                                                 onSelect: handleClearAllResults,
                                                 disabled:
                                                     documents.length === 0,
                                             },
                                             {
                                                 label: "Delete",
-                                                icon: Trash2,
                                                 onSelect: requestReviewDelete,
-                                                variant: "danger",
                                             },
                                         ]}
                                     />
                                 ),
                             },
-                        ],
                         {
-                            actions: [
-                                {
                                     onClick: () => setAddDocsOpen(true),
                                     disabled: loading || savingColumnsConfig,
                                     title: "Add documents",
@@ -807,12 +792,8 @@ export function TRView({ reviewId, projectId }: Props) {
                                             Documents
                                         </span>
                                     ),
-                                },
-                            ],
                         },
                         {
-                            actions: [
-                                {
                                     onClick: handleGenerate,
                                     disabled:
                                         generating ||
@@ -829,12 +810,8 @@ export function TRView({ reviewId, projectId }: Props) {
                                             {generating ? "Running…" : "Run"}
                                         </span>
                                     ),
-                                },
-                            ],
                         },
                         {
-                            actions: [
-                                {
                                     onClick: () => {
                                         if (!chatOpen) setSidebarOpen(false);
                                         if (chatOpen) setSelectedChatId(null);
@@ -857,8 +834,6 @@ export function TRView({ reviewId, projectId }: Props) {
                                             Chat
                                         </span>
                                     ),
-                                },
-                            ],
                         },
                     ]}
                 />
@@ -1021,8 +996,6 @@ export function TRView({ reviewId, projectId }: Props) {
                             reviewId={reviewId}
                             reviewTitle={review?.title ?? null}
                             projectName={project?.name ?? null}
-                            columns={columns}
-                            documents={documents}
                             onCitationClick={handleTabularCitationClick}
                             onClose={() => {
                                 setSelectedChatId(null);

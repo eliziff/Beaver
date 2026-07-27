@@ -45,7 +45,7 @@ vi.mock("../../lib/chat/localPdfEvidenceState", () => ({
 }));
 
 let dataHome: string;
-let closeKnowledgeStore: (() => void) | null = null;
+let closeLocalStores: (() => void) | null = null;
 
 function streamedContent(body: string) {
   return body
@@ -59,11 +59,15 @@ function streamedContent(body: string) {
 
 async function loadApp() {
   vi.resetModules();
-  const [{ app }, graph] = await Promise.all([
+  const [{ app }, graph, tabular] = await Promise.all([
     import("../../app"),
     import("../../lib/legalKnowledgeGraphStore"),
+    import("../../lib/localTabularStore"),
   ]);
-  closeKnowledgeStore = () => graph.legalKnowledgeGraphStore().close();
+  closeLocalStores = () => {
+    graph.legalKnowledgeGraphStore().close();
+    tabular.closeLocalTabularStore();
+  };
   return app;
 }
 
@@ -98,14 +102,27 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  closeKnowledgeStore?.();
-  closeKnowledgeStore = null;
+  closeLocalStores?.();
+  closeLocalStores = null;
   vi.unstubAllEnvs();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
 });
 
 describe("account-free matter routes", () => {
+  it("passes the client-work-product presumption to the provider", async () => {
+    const app = await loadApp();
+    const streamed = await request(app).post("/chat").send({
+      expected_version: 0,
+      current_turn: { kind: "message", content: "Draft an agreement." },
+    });
+
+    expect(streamed.status).toBe(200);
+    expect(mocks.modelInputs[0].systemPrompt).toContain(
+      "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.",
+    );
+  });
+
   it("streams links added by local PDF evidence finalization", async () => {
     const app = await loadApp();
     mocks.appendLocalPdfPinpointLinks.mockImplementationOnce(
@@ -344,8 +361,8 @@ describe("account-free matter routes", () => {
     expect(malformed.status).toBe(400);
     expect(malformed.body.detail).toBe("current_turn.content is required");
 
-    closeKnowledgeStore?.();
-    closeKnowledgeStore = null;
+    closeLocalStores?.();
+    closeLocalStores = null;
     app = await loadApp();
 
     const reloadedMatter = await request(app).get(

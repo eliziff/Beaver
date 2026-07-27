@@ -256,7 +256,7 @@ export function EditCardsSection({
                     className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
                 >
                     <ChevronDown
-                        className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`}
+                        className={`h-4 w-4 ${isOpen ? "" : "-rotate-90"}`}
                     />
                 </button>
             </div>

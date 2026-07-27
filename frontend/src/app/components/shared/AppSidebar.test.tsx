@@ -1,17 +1,35 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar } from "./AppSidebar";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/assistant/chat/assistant-chat",
-  push: vi.fn(),
+  anonymousMode: true,
+  profile: null as { displayName: string; tier: string } | null,
   setCurrentChatId: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
-  useRouter: () => ({ push: mocks.push }),
+}));
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    prefetch: _prefetch,
+    onClick,
+    ...props
+  }: React.ComponentProps<"a"> & { prefetch?: boolean }) => (
+    <a
+      {...props}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.(event);
+      }}
+    >
+      {children}
+    </a>
+  ),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -19,7 +37,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   }),
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
-  useUserProfile: () => ({ profile: null }),
+  useUserProfile: () => ({ profile: mocks.profile }),
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
@@ -46,82 +64,141 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     deleteChat: vi.fn(),
   }),
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
-  listProjects: vi.fn().mockResolvedValue([]),
+vi.mock("@/app/lib/authMode", () => ({
+  get isAnonymousMode() {
+    return mocks.anonymousMode;
+  },
 }));
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/components/shared/SidebarChatItem", () => ({
   SidebarChatItem: ({
     chat,
     isActive,
-    onSelect,
+    href,
+    onNavigate,
   }: {
     chat: { title: string | null };
     isActive: boolean;
-    onSelect: () => void;
+    href: string;
+    onNavigate?: () => void;
   }) => (
-    <button
-      type="button"
-      onClick={onSelect}
+    <a
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onNavigate?.();
+      }}
       aria-current={isActive ? "page" : undefined}
     >
       {chat.title}
-    </button>
+    </a>
   ),
 }));
 
-describe("AppSidebar history ownership", () => {
+describe("AppSidebar", () => {
   beforeEach(() => {
     mocks.pathname = "/assistant/chat/assistant-chat";
+    mocks.anonymousMode = true;
+    mocks.profile = null;
     vi.clearAllMocks();
   });
 
-  it("keeps non-project chat history inside the active Assistant section", () => {
-    render(
-      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
-    );
+  it("gives Assistant history the remaining height after primary navigation", () => {
+    const onToggle = vi.fn();
+    render(<AppSidebar mobileOpen onToggle={onToggle} />);
 
-    const assistant = screen.getByRole("group", { name: "Assistant" });
+    const history = screen.getByRole("region", {
+      name: "Assistant history",
+    });
+    expect(history).toHaveClass("flex-1", "min-h-0");
+    expect(document.querySelector("#assistant-history")).toHaveClass(
+      "flex-1",
+      "overflow-y-auto",
+    );
     expect(
-      within(assistant).getByRole("button", { name: "Assistant history" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(
-      within(assistant).getByRole("button", { name: "Assistant matter" }),
+      within(history).getByRole("link", { name: "Assistant matter" }),
     ).toHaveAttribute("aria-current", "page");
-    expect(document.querySelector("#assistant-history")).toHaveClass("h-20");
-    expect(within(assistant).queryByText("Project matter")).not.toBeInTheDocument();
+    expect(within(history).queryByText("Project matter")).not.toBeInTheDocument();
     expect(
-      within(assistant).getByRole("button", { name: "Assistant" }),
+      within(screen.getByRole("navigation", { name: "Primary" })).getByRole(
+        "link",
+        { name: "Assistant" },
+      ),
     ).toHaveAttribute("aria-current", "page");
+    expect(mocks.setCurrentChatId).toHaveBeenCalledWith("assistant-chat");
+
+    mocks.setCurrentChatId.mockClear();
+    fireEvent.click(
+      within(history).getByRole("link", { name: "Assistant matter" }),
+    );
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(mocks.setCurrentChatId).not.toHaveBeenCalled();
   });
 
-  it("marks nested tool routes active without exposing a global history area", () => {
+  it("keeps primary navigation fixed when navigating to Authorities", () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <AppSidebar mobileOpen={false} onToggle={onToggle} />,
+    );
+    const labelsBefore = within(
+      screen.getByRole("navigation", { name: "Primary" }),
+    )
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+
+    const authorities = screen.getByRole("link", { name: "Authorities" });
+    expect(authorities).toHaveAttribute("href", "/table-of-authorities");
+    fireEvent.click(authorities);
+    expect(onToggle).not.toHaveBeenCalled();
+
     mocks.pathname = "/table-of-authorities";
-    render(
-      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
-    );
+    rerender(<AppSidebar mobileOpen={false} onToggle={onToggle} />);
 
-    const authorities = screen.getByRole("group", { name: "Authorities" });
+    const labelsAfter = within(
+      screen.getByRole("navigation", { name: "Primary" }),
+    )
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(labelsAfter).toEqual(labelsBefore);
     expect(
-      within(authorities).getByRole("button", { name: "Authorities" }),
+      screen.getByRole("link", { name: "Authorities" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      screen.getByRole("group", { name: "Assistant" }),
-    ).not.toHaveTextContent("History");
-    expect(screen.queryByText("Assistant History")).not.toBeInTheDocument();
+      screen.queryByRole("region", { name: "Assistant history" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary")).toHaveClass("md:w-64");
+    expect(screen.getByRole("complementary")).not.toHaveClass("md:w-14");
   });
 
-  it("hides account-only tools and exposes local API-key status", () => {
-    render(
-      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
-    );
+  it("exposes local tools while hiding the cloud-only workflow builder", () => {
+    render(<AppSidebar mobileOpen={false} onToggle={vi.fn()} />);
 
     expect(
-      screen.queryByRole("group", { name: "Tabular Review" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "Tabular Review" }),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByRole("group", { name: "Workflows" }),
+      screen.queryByRole("link", { name: "Workflows" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "API keys" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "API keys" })).toHaveAttribute(
+      "href",
+      "/account/api-keys",
+    );
+  });
+
+  it("uses native account disclosure and closes it on mobile navigation", () => {
+    mocks.anonymousMode = false;
+    mocks.profile = { displayName: "Example User", tier: "Pro" };
+    const onToggle = vi.fn();
+    render(<AppSidebar mobileOpen onToggle={onToggle} />);
+
+    const details = document.querySelector("details");
+    expect(details?.querySelector("summary")).toHaveTextContent("Example User");
+    details!.open = true;
+
+    const account = screen.getByRole("link", { name: "Account Settings" });
+    expect(account).toHaveAttribute("href", "/account");
+    fireEvent.click(account);
+
+    expect(details).not.toHaveAttribute("open");
+    expect(onToggle).toHaveBeenCalledOnce();
   });
 });

@@ -189,7 +189,7 @@ app.use("/library/legal", legalLibraryRouter);
 app.use("/legal-knowledge", legalKnowledgeRouter);
 app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
-app.use("/tabular-review", requirePersistentData, tabularRouter);
+app.use("/tabular-review", tabularRouter);
 app.use("/workflows", requirePersistentData, workflowsRouter);
 app.use("/user", userRouter);
 app.use("/download", downloadsRouter);

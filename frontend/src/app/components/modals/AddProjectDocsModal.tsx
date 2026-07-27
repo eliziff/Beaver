@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Loader2, Upload, X } from "lucide-react";
+import { Check, Loader2, Upload } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { getProject, uploadProjectDocument } from "@/app/lib/beaverApi";
 import type { Document } from "../shared/types";

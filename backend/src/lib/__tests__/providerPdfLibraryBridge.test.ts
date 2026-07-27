@@ -1081,36 +1081,25 @@ describe("provider PDF Library bridge", () => {
   });
 
   it("backs off a cold failure across polling and retries after the deadline", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime("2026-07-27T00:00:00.000Z");
     process.env.MIKE_PROVIDER_PDF_FAILURE_RETRY_MS = "5000";
     const { fetchMock } = await setup();
     mocks.dnsLookup.mockRejectedValueOnce(new Error("temporary DNS failure"));
     const bridge = await import("../providerPdfLibraryBridge");
 
-    const queued =
-      (await bridge.queueProviderPdfAttachment(govInfoAttachment))!;
-    // The failure pointer is written by a detached background task; under
-    // full-suite CPU contention it can land well after waitFor's 1s default.
-    await vi.waitFor(
-      async () =>
-        expect(
-          JSON.parse(await readFile(pointerPath(queued.reference_id), "utf8"))
-            .status,
-        ).toBe("failed"),
-      { timeout: 30_000, interval: 25 },
-    );
+    const reference = bridge.providerPdfRequestReference(govInfoAttachment);
+    await expect(
+      bridge.ingestProviderPdfAttachment(govInfoAttachment),
+    ).rejects.toThrow();
     const inspected = await bridge.readProviderPdfAttachmentState(
       govInfoAttachment,
       { resume: false },
     );
     expect(inspected?.download_status).toBe("failed");
     expect(
-      JSON.parse(await readFile(pointerPath(queued.reference_id), "utf8"))
-        .status,
+      JSON.parse(await readFile(pointerPath(reference), "utf8")).status,
     ).toBe("failed");
     const failedPointer = JSON.parse(
-      await readFile(pointerPath(queued.reference_id), "utf8"),
+      await readFile(pointerPath(reference), "utf8"),
     );
     expect(failedPointer).toMatchObject({
       failure_count: 1,
@@ -1118,25 +1107,29 @@ describe("provider PDF Library bridge", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
 
+    // Freeze Date only after the detached lease-owning job has finished.
+    // Freezing it earlier can make a transient 2-minute lease immortal.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse(failedPointer.retry_after) - 1);
     vi.resetModules();
     const restarted = await import("../providerPdfLibraryBridge");
     for (let poll = 0; poll < 3; poll += 1) {
       await expect(
-        restarted.readProviderPdfReferenceState(queued.reference_id),
+        restarted.readProviderPdfReferenceState(reference),
       ).resolves.toMatchObject({ download_status: "failed" });
     }
     expect(fetchMock).not.toHaveBeenCalled();
 
     vi.setSystemTime(new Date(Date.parse(failedPointer.retry_after) + 1));
     const resumed = await restarted.readProviderPdfReferenceState(
-      queued.reference_id,
+      reference,
     );
     expect(resumed.download_status).toBe("queued");
     await vi.waitFor(() =>
       expect(mocks.queueLocalPdfParse).toHaveBeenCalledOnce(),
     );
     expect(fetchMock).toHaveBeenCalledOnce();
-  }, 45_000);
+  });
 
   it("resolves ready exact lookups and bounded evidence rehydration by SHA hardlink", async () => {
     await setup();

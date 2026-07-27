@@ -10,7 +10,7 @@
     },
     "TableOfAuthoritiesMaker": {
       "branch": "master",
-      "commit": "4cfaf14bc90bd8624a5bc41281537ae632b8fcec",
+      "commit": "4cf8276eb36216b08aba750642643f9feee625aa",
       "bundle": "subrepos/TableOfAuthoritiesMaker.bundle",
       "remote": null
     },

@@ -45,14 +45,12 @@ export default function SignupPage() {
         setLoading(true);
         setError(null);
 
-        // Validate passwords match
         if (password !== confirmPassword) {
             setError("Passwords do not match");
             setLoading(false);
             return;
         }
 
-        // Validate password length
         if (password.length < 6) {
             setError("Password must be at least 6 characters");
             setLoading(false);
@@ -99,7 +97,6 @@ export default function SignupPage() {
         }
     };
 
-    // Success View
     if (success) {
         return (
             <div className="min-h-dvh bg-gray-50/80 flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
@@ -125,7 +122,6 @@ export default function SignupPage() {
         );
     }
 
-    // Default Signup Form View
     return (
         <div className="min-h-dvh bg-gray-50/80 flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
@@ -264,7 +260,6 @@ export default function SignupPage() {
                         </Button>
                     </form>
 
-                    {/* Terms and Privacy */}
                     <div className="mt-4 text-center text-xs text-gray-500">
                         By signing up, you agree to our{" "}
                         <Link

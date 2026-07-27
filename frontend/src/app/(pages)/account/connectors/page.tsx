@@ -1129,7 +1129,7 @@ function ConnectorForm({
                 >
                     Advanced
                     <ChevronDown
-                        className={`h-3.5 w-3.5 transition-transform ${
+                        className={`h-3.5 w-3.5 ${
                             showAdvanced ? "" : "-rotate-90"
                         }`}
                     />
@@ -1253,7 +1253,7 @@ function ScrollableToolList({
                                     } ${toolLabel}`}
                                 >
                                     <ChevronDown
-                                        className={`h-3.5 w-3.5 transition-transform ${
+                                        className={`h-3.5 w-3.5 ${
                                             isExpanded ? "" : "-rotate-90"
                                         }`}
                                     />

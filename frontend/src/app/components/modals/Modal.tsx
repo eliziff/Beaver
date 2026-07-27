@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
@@ -61,6 +61,7 @@ export function Modal({
     // Portals can't render during SSR, so a keep-mounted modal only renders
     // (hidden) after the first client mount.
     const [hasMounted, setHasMounted] = useState(false);
+    const layerRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR portal gate: must flip after first client mount
     useEffect(() => setHasMounted(true), []);
@@ -72,10 +73,31 @@ export function Modal({
         cancelAction;
     const resolvedCancelAction = cancelAction;
 
+    useEffect(() => {
+        if (!open) return;
+        const restoreFocus =
+            document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+        layerRef.current
+            ?.querySelector<HTMLElement>(
+                '[aria-label="Close"], button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
+            )
+            ?.focus();
+        return () => {
+            if (restoreFocus?.isConnected) restoreFocus.focus();
+        };
+    }, [open]);
+
     if (!open && (!keepMounted || !hasMounted)) return null;
 
     return createPortal(
         <div
+            ref={layerRef}
+            data-shortcut-layer
+            data-shortcut-open={open ? "true" : "false"}
+            data-shortcut-close
+            hidden={!open}
             className={cn(
                 "fixed inset-0 z-[200] flex items-center justify-center px-4",
                 "bg-gray-950/20",
@@ -89,9 +111,9 @@ export function Modal({
                 aria-labelledby={hasHeader ? titleId : undefined}
                 aria-label={hasHeader ? undefined : "Dialog"}
                 className={cn(
-                    "flex h-[min(600px,calc(100dvh-2rem))] w-full flex-col rounded-3xl",
+                    "flex h-[min(600px,calc(100dvh-2rem))] w-full flex-col rounded-lg",
                     sizeClassName[size],
-                    "border border-gray-200 bg-gray-50 shadow-xl",
+                    "border border-gray-300 bg-white",
                     className,
                 )}
                 onClick={(e) => e.stopPropagation()}
@@ -130,7 +152,7 @@ export function Modal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                             aria-label="Close"
                         >
                             <X className="h-3.5 w-3.5" />

@@ -17,14 +17,8 @@ import { deleteAccount, isMfaRequiredError } from "@/app/lib/beaverApi";
 import {
     accountGlassDangerOutlineButtonClassName,
     accountGlassInputClassName,
-    accountGlassPrimaryButtonClassName,
 } from "./accountStyles";
 import { AccountSection } from "./AccountSection";
-
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
 
 export default function AccountPage() {
     const router = useRouter();
@@ -67,7 +61,6 @@ export default function AccountPage() {
     };
 
     const handleDeleteAccount = async () => {
-        devLog("[account/mfa] delete account requested");
         setIsDeleting(true);
         try {
             if (await needsMfaVerification()) {
@@ -81,10 +74,6 @@ export default function AccountPage() {
             router.push("/");
         } catch (error) {
             setIsDeleting(false);
-            devLog("[account/mfa] delete account failed", {
-                isMfaRequired: isMfaRequiredError(error),
-                error,
-            });
             if (isMfaRequiredError(error)) {
                 setDeleteConfirm(false);
                 setAccountDeleteMfaOpen(true);
@@ -99,7 +88,6 @@ export default function AccountPage() {
         const nextEmail = email.trim();
         if (!nextEmail || nextEmail === user?.email) return;
 
-        devLog("[account/mfa] save email requested");
         setIsSavingEmail(true);
         setEmailStatus(null);
         setEmailWarning(null);
@@ -120,7 +108,6 @@ export default function AccountPage() {
             );
             setTimeout(() => setEmailSaved(false), 2000);
         } catch (error: unknown) {
-            devLog("[account/mfa] save email failed", { error });
             const message =
                 error instanceof Error
                     ? error.message
@@ -389,7 +376,6 @@ export default function AccountPage() {
                 open={accountDeleteMfaOpen}
                 onCancel={() => setAccountDeleteMfaOpen(false)}
                 onVerified={() => {
-                    devLog("[account/mfa] account delete verification callback");
                     setAccountDeleteMfaOpen(false);
                     void handleDeleteAccount();
                 }}
@@ -400,7 +386,6 @@ export default function AccountPage() {
                 open={emailMfaOpen}
                 onCancel={() => setEmailMfaOpen(false)}
                 onVerified={() => {
-                    devLog("[account/mfa] email verification callback");
                     setEmailMfaOpen(false);
                     void handleSaveEmail();
                 }}

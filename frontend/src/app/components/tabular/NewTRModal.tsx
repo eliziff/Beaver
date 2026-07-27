@@ -15,11 +15,6 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
 
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -51,7 +46,6 @@ export function NewTRModal({
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
 
-    // Project-scoped docs (when underProject is true and no fixedProjectDocs)
     const [projectDocs, setProjectDocs] = useState<Document[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
 
@@ -62,7 +56,6 @@ export function NewTRModal({
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Workflow templates
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [loadingWorkflows, setLoadingWorkflows] = useState(false);
     const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
@@ -76,26 +69,9 @@ export function NewTRModal({
         setLoadingWorkflows(true);
         listWorkflows("tabular")
             .then((workflows) => {
-                devLog("[workflows/ui:tabular-review-modal] loaded", {
-                    workflowCount: workflows.length,
-                    systemCount: workflows.filter((workflow) => workflow.is_system)
-                        .length,
-                    sample: workflows.slice(0, 5).map((workflow) => ({
-                        id: workflow.id,
-                        title: workflow.metadata.title,
-                        type: workflow.metadata.type,
-                        user_id: workflow.user_id,
-                        is_system: workflow.is_system,
-                        is_owner: workflow.is_owner,
-                    })),
-                });
                 setWorkflows(workflows);
             })
-            .catch((error) => {
-                devLog(
-                    "[workflows/ui:tabular-review-modal] failed",
-                    error,
-                );
+            .catch(() => {
                 setWorkflows([]);
             })
             .finally(() => setLoadingWorkflows(false));
@@ -327,7 +303,6 @@ export function NewTRModal({
                             />
                         </div>
 
-                        {/* Workflow template */}
                         <div>
                             <ModalFieldLabel as="p">
                                 Workflow template
@@ -343,7 +318,6 @@ export function NewTRModal({
                             />
                         </div>
 
-                        {/* Create under a project toggle */}
                         {!isProjectMode && (
                             <div className="space-y-3">
                                 <ModalFieldLabel as="p">
@@ -363,10 +337,10 @@ export function NewTRModal({
                                     className="flex w-fit items-center gap-2.5"
                                 >
                                     <span
-                                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${underProject ? "bg-gray-900" : "bg-gray-100"}`}
+                                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full ${underProject ? "bg-gray-900" : "bg-gray-200"}`}
                                     >
                                         <span
-                                            className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${underProject ? "translate-x-4" : "translate-x-0"}`}
+                                            className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white ${underProject ? "translate-x-4" : "translate-x-0"}`}
                                         />
                                     </span>
                                     <span className="text-sm text-gray-600">

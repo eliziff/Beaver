@@ -139,8 +139,20 @@ export function DocumentSidePanel({
     const dragStartPanelWidth = useRef(
         DEFAULT_DOC_COLUMN_WIDTH + RESIZER_WIDTH + DEFAULT_DATA_COLUMN_WIDTH,
     );
+    const focusDocumentId = doc?.id;
 
     useEffect(() => setMounted(true), []);
+
+    useEffect(() => {
+        if (!focusDocumentId) return;
+        const restoreFocus =
+            document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+        return () => {
+            if (restoreFocus?.isConnected) restoreFocus.focus();
+        };
+    }, [focusDocumentId]);
 
     useEffect(() => {
         if (!mounted) return;
@@ -471,6 +483,8 @@ export function DocumentSidePanel({
     return createPortal(
         <div
             ref={panelRef}
+            data-shortcut-layer
+            data-shortcut-open="true"
             className={cn(
                 "fixed z-[190] flex flex-col",
                 LIQUID_PANEL_SURFACE_CLASS,
@@ -522,8 +536,9 @@ export function DocumentSidePanel({
                     </div>
                     <button
                         type="button"
+                        data-shortcut-close
                         onClick={onClose}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-700"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                         aria-label="Close"
                     >
                         <X className="h-3.5 w-3.5" />
@@ -812,7 +827,7 @@ export function DocumentSidePanel({
                                                     </div>
                                                     <div
                                                         className={cn(
-                                                            "flex h-5 shrink-0 items-center gap-0.5 transition-opacity",
+                                                            "flex h-5 shrink-0 items-center gap-0.5",
                                                             deleted || selected
                                                                 ? "opacity-100"
                                                                 : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",

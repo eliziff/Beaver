@@ -453,8 +453,8 @@ export function CaseLawPanel({
                 />
             )}
             {!loading && !error && opinions.length > 1 && (
-                <div className="relative mt-2 px-1 shadow-[inset_0_-1px_0_rgb(229_231_235)]">
-                    <div className="relative z-10 flex items-end gap-1 overflow-hidden px-2 pt-1">
+                <div className="mt-2 border-b border-gray-300 px-3 pb-2">
+                    <div className="flex flex-wrap gap-1">
                         {orderedOpinions.map(({ opinion, index }) => {
                             const opinionId = opinion.opinionId;
                             const isActive =
@@ -470,17 +470,10 @@ export function CaseLawPanel({
                                         setActiveOpinionId(opinionId);
                                         setActiveQuoteKey(null);
                                     }}
-                                    style={
+                                    className={`flex h-8 max-w-[180px] items-center rounded-md border px-3 font-serif text-[13px] ${
                                         isActive
-                                            ? {
-                                                  filter: "drop-shadow(0 -1px 0 #e5e7eb) drop-shadow(-1px 0 0 #e5e7eb) drop-shadow(1px 0 0 #e5e7eb)",
-                                              }
-                                            : undefined
-                                    }
-                                    className={`group relative flex h-8 max-w-[180px] shrink-0 items-center rounded-t-lg px-3 font-serif text-[13px] transition-colors ${
-                                        isActive
-                                            ? "z-20 bg-white text-gray-800 before:content-[''] before:absolute before:bottom-0 before:-left-2 before:z-20 before:h-2 before:w-2 before:rounded-br-lg before:shadow-[4px_4px_0_4px_white] before:transition-shadow after:content-[''] after:absolute after:bottom-0 after:-right-2 after:z-20 after:h-2 after:w-2 after:rounded-bl-lg after:shadow-[-4px_4px_0_4px_white] after:transition-shadow"
-                                            : "z-10 bg-gray-100 text-gray-600 hover:bg-gray-100 before:content-[''] before:absolute before:bottom-0 before:-left-2 before:h-2 before:w-2 before:rounded-br-lg before:shadow-[4px_4px_0_4px_#f3f4f6] before:transition-shadow after:content-[''] after:absolute after:bottom-0 after:-right-2 after:h-2 after:w-2 after:rounded-bl-lg after:shadow-[-4px_4px_0_4px_#f3f4f6] after:transition-shadow"
+                                            ? "border-gray-400 bg-white text-gray-900"
+                                            : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white"
                                     } disabled:cursor-not-allowed disabled:opacity-50`}
                                 >
                                     <span className="truncate">

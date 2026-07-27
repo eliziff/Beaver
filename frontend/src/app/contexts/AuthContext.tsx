@@ -1,11 +1,11 @@
 "use client";
 
-import React, {
+import {
     createContext,
     useContext,
     useEffect,
     useState,
-    ReactNode,
+    type ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { isAnonymousMode } from "@/app/lib/authMode";

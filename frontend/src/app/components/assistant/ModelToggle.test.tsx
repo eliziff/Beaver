@@ -54,12 +54,11 @@ describe("ModelToggle", () => {
         );
 
         expect(
-            screen.getByRole("button", { name: /GPT 5.6 Terra/ }),
+            screen.getByRole("combobox", { name: /GPT 5.6 Terra/ }),
         ).toBeInTheDocument();
     });
 
     it("shows each canonical model once and never exposes generic Codex local", async () => {
-        const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(
             catalog([
                 luna({
@@ -74,13 +73,19 @@ describe("ModelToggle", () => {
         render(
             <ModelToggle value="codex:gpt-5.6-luna" onChange={vi.fn()} />,
         );
-        await screen.findByRole("button", { name: /GPT-5.6-Luna/ });
-        await user.click(
-            screen.getByRole("button", { name: /GPT-5.6-Luna/ }),
-        );
-        const menu = screen.getByRole("menu");
+        const menu = await screen.findByRole("combobox", {
+            name: /GPT-5.6-Luna/,
+        });
 
-        expect(within(menu).getAllByText("GPT-5.6-Luna")).toHaveLength(1);
+        expect(
+            within(menu).getAllByRole("option", { name: "GPT-5.6-Luna" }),
+        ).toHaveLength(1);
+        expect(within(menu).queryByText("Claude Fable 5")).not.toBeInTheDocument();
+        expect(
+            screen.getByRole("combobox", {
+                name: "Model provider: Codex",
+            }),
+        ).toBeInTheDocument();
         expect(within(menu).queryByText("Codex (local)")).not.toBeInTheDocument();
         expect(within(menu).queryByText("GPT-5.5")).not.toBeInTheDocument();
     });
@@ -102,25 +107,25 @@ describe("ModelToggle", () => {
         );
 
         expect(
-            await screen.findByRole("button", { name: /Cached Luna Label/ }),
+            await screen.findByRole("combobox", {
+                name: /Cached Luna Label/,
+            }),
         ).toBeInTheDocument();
         await waitFor(() => expect(getCatalogMock).toHaveBeenCalled());
         expect(
-            screen.getByRole("button", { name: /Cached Luna Label/ }),
+            screen.getByRole("combobox", { name: /Cached Luna Label/ }),
         ).toBeInTheDocument();
     });
 
     it("exposes both current DeepSeek V4 models in normal chat", async () => {
-        const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ModelToggle value="deepseek-v4-flash" onChange={vi.fn()} />,
         );
 
-        await user.click(
-            screen.getByRole("button", { name: /DeepSeek V4 Flash/ }),
-        );
-        const menu = screen.getByRole("menu");
+        const menu = screen.getByRole("combobox", {
+            name: /DeepSeek V4 Flash/,
+        });
         expect(within(menu).getByText("DeepSeek V4 Flash")).toBeInTheDocument();
         expect(within(menu).getByText("DeepSeek V4 Pro")).toBeInTheDocument();
         expect(within(menu).queryByText("deepseek-chat")).not.toBeInTheDocument();
@@ -128,7 +133,6 @@ describe("ModelToggle", () => {
     });
 
     it("exposes Muse Spark through the configured OpenRouter provider", async () => {
-        const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ModelToggle
@@ -137,11 +141,10 @@ describe("ModelToggle", () => {
             />,
         );
 
-        await user.click(
-            screen.getByRole("button", { name: /Muse Spark 1.1/ }),
-        );
         expect(
-            within(screen.getByRole("menu")).getByText("Muse Spark 1.1"),
+            within(
+                screen.getByRole("combobox", { name: /Muse Spark 1.1/ }),
+            ).getByRole("option", { name: "Muse Spark 1.1" }),
         ).toBeInTheDocument();
     });
 });
@@ -170,7 +173,7 @@ describe("ReasoningEffortToggle", () => {
         resolveCatalog(catalog([luna()]));
         await waitFor(() =>
             expect(
-                screen.getByRole("button", {
+                screen.getByRole("combobox", {
                     name: "Reasoning effort: medium",
                 }),
             ).toBeInTheDocument(),
@@ -198,13 +201,10 @@ describe("ReasoningEffortToggle", () => {
             />,
         );
 
-        const trigger = await screen.findByRole("button", {
+        const trigger = await screen.findByRole("combobox", {
             name: "Reasoning effort: low",
         });
-        await user.click(trigger);
-        await user.click(
-            await screen.findByRole("menuitem", { name: "max" }),
-        );
+        await user.selectOptions(trigger, "max");
 
         expect(onChange).toHaveBeenCalledWith("max");
     });
@@ -220,7 +220,7 @@ describe("ReasoningEffortToggle", () => {
         );
 
         expect(
-            screen.queryByRole("button", {
+            screen.queryByRole("combobox", {
                 name: /Reasoning effort/,
             }),
         ).not.toBeInTheDocument();
@@ -228,7 +228,6 @@ describe("ReasoningEffortToggle", () => {
 
     it("offers only high and max for DeepSeek, defaulting to high", async () => {
         const onChange = vi.fn();
-        const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ReasoningEffortToggle
@@ -237,11 +236,10 @@ describe("ReasoningEffortToggle", () => {
             />,
         );
 
-        const trigger = screen.getByRole("button", {
+        const trigger = screen.getByRole("combobox", {
             name: "Reasoning effort: high",
         });
-        await user.click(trigger);
-        const items = screen.getAllByRole("menuitem").map((item) =>
+        const items = within(trigger).getAllByRole("option").map((item) =>
             item.textContent?.trim(),
         );
         expect(items).toEqual(["high", "max"]);
@@ -250,7 +248,6 @@ describe("ReasoningEffortToggle", () => {
 
     it("offers Muse Spark's supported efforts, defaulting to medium", async () => {
         const onChange = vi.fn();
-        const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ReasoningEffortToggle
@@ -259,13 +256,11 @@ describe("ReasoningEffortToggle", () => {
             />,
         );
 
-        await user.click(
-            screen.getByRole("button", {
-                name: "Reasoning effort: medium",
-            }),
-        );
+        const select = screen.getByRole("combobox", {
+            name: "Reasoning effort: medium",
+        });
         expect(
-            screen.getAllByRole("menuitem").map((item) =>
+            within(select).getAllByRole("option").map((item) =>
                 item.textContent?.trim(),
             ),
         ).toEqual(["xhigh", "high", "medium", "low", "minimal"]);

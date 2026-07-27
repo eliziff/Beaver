@@ -46,6 +46,7 @@ function streamResponse(events: unknown[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   mocks.loadChats.mockResolvedValue(undefined);
   mocks.generateTitle.mockResolvedValue(undefined);
 });
@@ -234,6 +235,8 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("keeps structured ask-input selections for an exact retry", async () => {
+    localStorage.setItem("mike.selectedModel", "codex:gpt-5.6-terra");
+    localStorage.setItem("mike.reasoningEffort", "high");
     mocks.streamChat
       .mockResolvedValueOnce(
         new Response(
@@ -290,6 +293,8 @@ describe("useAssistantChat local transcript boundary", () => {
     });
     expect(mocks.streamChat).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        model: "codex:gpt-5.6-terra",
+        reasoning_effort: "high",
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",

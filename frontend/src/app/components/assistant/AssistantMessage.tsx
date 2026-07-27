@@ -8,7 +8,6 @@ import { PreResponseWrapper } from "./PreResponseWrapper";
 import { ResponseStatus, type StatusState } from "./message/ResponseStatus";
 import { eventErrorMessage, toolCallLabel } from "./message/eventUtils";
 import { preprocessCitations, internalCaseHref } from "./message/citationUtils";
-import { useSmoothedReveal } from "./message/useSmoothedReveal";
 import { MarkdownContent } from "./message/MarkdownContent";
 import { CitationsBlock, buildCitationAppendix } from "./message/CitationSources";
 import { EditCardsSection } from "./message/EditCardsSection";
@@ -30,7 +29,6 @@ interface Props {
     events?: AssistantEvent[];
     isStreaming?: boolean;
     isError?: boolean;
-    /** Human-readable error text rendered alongside the red Beaver icon. */
     errorMessage?: string;
     citations?: Citation[];
     citationStatus?: "started" | "partial" | "final";
@@ -168,40 +166,12 @@ export function AssistantMessage({
         event.type !== "case_citation" &&
         event.type !== "case_opinions";
 
-    // Find the last content event so its raw text can be smoothed before
-    // citation preprocessing — slicing already-preprocessed text would risk
-    // chopping a `§N§` citation token in half.
     const lastContentIdx = events
         ? events.reduce(
               (last, e, idx) => (e.type === "content" ? idx : last),
               -1,
           )
         : -1;
-    const lastContentEvent =
-        events && lastContentIdx >= 0
-            ? (events[lastContentIdx] as Extract<
-                  AssistantEvent,
-                  { type: "content" }
-              >)
-            : null;
-    // Only smooth while the content event is still the visible tail. The
-    // moment the model emits a follow-up (tool call, reasoning, another
-    // content block), that content's text is frozen on the server — keeping
-    // it half-revealed below would make a tool-call wrapper appear under
-    // prose that still looks like it's typing.
-    const lastRenderableIdx = events
-        ? events.reduce(
-              (last, e, idx) => (isRenderableEvent(e) ? idx : last),
-              -1,
-          )
-        : -1;
-    const contentIsTail =
-        lastContentEvent !== null && lastContentIdx === lastRenderableIdx;
-    const smoothedLastText = useSmoothedReveal(
-        lastContentEvent?.text ?? "",
-        isStreaming && contentIsTail,
-    );
-
     // Pre-process citations for all content events. Each [N] marker resolves
     // to exactly one citation (models are instructed to use shared refs
     // only for cross-page continuations via the [[PAGE_BREAK]] sentinel).
@@ -227,7 +197,7 @@ export function AssistantMessage({
             processedTexts.push(
                 event.type === "content"
                     ? preprocessCitations(
-                          i === lastContentIdx ? smoothedLastText : event.text,
+                          event.text,
                           citations,
                           inlineCitationTargets,
                       )
@@ -784,9 +754,6 @@ export function AssistantMessage({
                                 </PreResponseWrapper>
                             );
                         })}
-                        {/* Bulk accept/reject + per-edit cards — below the
-                            response content, only after streaming stops,
-                            rendered above the download card. */}
                         {!isStreaming &&
                             (() => {
                                 const editedEvents = events.filter(
@@ -805,7 +772,6 @@ export function AssistantMessage({
                                     string,
                                     string
                                 >();
-                                // Effective status = external override if any, else the annotation's DB status.
                                 const statusOf = (ann: EditAnnotation) =>
                                     resolvedEditStatuses?.[ann.edit_id] ??
                                     ann.status;
@@ -866,10 +832,6 @@ export function AssistantMessage({
                                         ).length,
                                     0,
                                 );
-                                // If there's only one edit total, skip the
-                                // minimisable wrapper / bulk-actions UI and
-                                // render the bare EditCard — no value in
-                                // bulk controls for a single item.
                                 if (cards.length <= 1) {
                                     return cards;
                                 }
@@ -895,8 +857,6 @@ export function AssistantMessage({
                     </p>
                 )}
 
-                {/* Download card for each edited doc — only after streaming
-                    stops, and deduped per document (keep the latest edit). */}
                 {events &&
                     !isStreaming &&
                     (() => {
@@ -958,9 +918,6 @@ export function AssistantMessage({
                         ));
                     })()}
 
-                {/* Download cards for created docs — generated docs now
-                    persist as first-class documents, so clicking opens
-                    them in the DocPanel (like edited docs). */}
                 {events &&
                     !isStreaming &&
                     events.some(
@@ -1020,7 +977,6 @@ export function AssistantMessage({
                     />
                 )}
 
-                {/* Copy button */}
                 <div className="flex items-center gap-2 py-2 font-sans justify-start">
                     {!isStreaming && (
                         <button

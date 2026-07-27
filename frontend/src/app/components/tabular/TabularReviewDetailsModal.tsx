@@ -165,12 +165,12 @@ export function TabularReviewDetailsModal({
                             className="flex w-fit items-center gap-2.5"
                         >
                             <span
-                                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${
+                                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full ${
                                     underProject ? "bg-gray-900" : "bg-gray-100"
                                 }`}
                             >
                                 <span
-                                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white ${
                                         underProject
                                             ? "translate-x-4"
                                             : "translate-x-0"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { Pencil, Trash2, Check, X } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -16,11 +17,18 @@ import {
 interface Props {
     chat: Chat;
     isActive: boolean;
-    onSelect: () => void;
+    href: string;
+    onNavigate?: () => void;
     projectName?: string;
 }
 
-export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props) {
+export function SidebarChatItem({
+    chat,
+    isActive,
+    href,
+    onNavigate,
+    projectName,
+}: Props) {
     const { renameChat, deleteChat } = useChatHistoryContext();
     const { user } = useAuth();
     const [isRenaming, setIsRenaming] = useState(false);
@@ -49,7 +57,7 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
     return (
         <div
             className={cn(
-                "group relative flex h-8 w-full items-center rounded-md transition-colors",
+                "group relative flex h-8 w-full items-center rounded-md",
                 isActive
                     ? `${APP_SURFACE_ACTIVE_CLASS} pr-1`
                     : `pr-3 ${APP_SURFACE_HOVER_CLASS} hover:pr-1`,
@@ -60,21 +68,26 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
                     <input
                         ref={editInputRef}
                         type="text"
+                        aria-label="Chat title"
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") void handleRenameSave();
                             if (e.key === "Escape") handleRenameCancel();
                         }}
-                        className="flex-1 bg-white shadow-inner rounded px-1 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <button
+                        type="button"
+                        aria-label="Save rename"
                         onClick={() => void handleRenameSave()}
                         className="ml-1.5 py-2 hover:bg-gray-200 rounded text-green-600"
                     >
                         <Check className="h-3 w-3" />
                     </button>
                     <button
+                        type="button"
+                        aria-label="Cancel rename"
                         onClick={handleRenameCancel}
                         className="ml-1 py-2 hover:bg-gray-200 rounded text-red-600"
                     >
@@ -84,8 +97,11 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
             ) : (
                 <>
                     <ChatSkeuoIcon className="ml-2.5 h-3.5 w-3.5 shrink-0" />
-                    <button
-                        onClick={onSelect}
+                    <Link
+                        href={href}
+                        prefetch={false}
+                        onClick={onNavigate}
+                        aria-current={isActive ? "page" : undefined}
                         className={cn(
                             "min-w-0 flex-1 truncate py-1 pl-2 text-left text-xs",
                             isActive
@@ -98,7 +114,7 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
                             <span className="text-gray-400 font-normal">{projectName}: </span>
                         )}
                         {chat.title ?? "Untitled chat"}
-                    </button>
+                    </Link>
 
                     <div
                         className={`flex shrink-0 items-center ${

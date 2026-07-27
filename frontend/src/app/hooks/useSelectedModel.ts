@@ -8,7 +8,7 @@ import {
 
 const STORAGE_KEY = "mike.selectedModel";
 
-function readStored(): string {
+export function readSelectedModel(): string {
     if (typeof window === "undefined") return DEFAULT_MODEL_ID;
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (
@@ -26,7 +26,7 @@ export function useSelectedModel(): [string, (id: string) => void] {
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe localStorage read; SSR must render the default model
-        setModelState(readStored());
+        setModelState(readSelectedModel());
     }, []);
 
     const setModel = useCallback((id: string) => {
@@ -47,6 +47,12 @@ export function useSelectedModel(): [string, (id: string) => void] {
 const EFFORT_STORAGE_KEY = "mike.reasoningEffort";
 const VALID_EFFORT = /^[a-z0-9_-]{1,32}$/i;
 
+export function readSelectedReasoningEffort(): string | undefined {
+    if (typeof window === "undefined") return undefined;
+    const stored = window.localStorage.getItem(EFFORT_STORAGE_KEY);
+    return stored && VALID_EFFORT.test(stored) ? stored : undefined;
+}
+
 export function useSelectedReasoningEffort(): [
     string | undefined,
     (value: string) => void,
@@ -54,9 +60,8 @@ export function useSelectedReasoningEffort(): [
     const [effort, setEffortState] = useState<string | undefined>(undefined);
 
     useEffect(() => {
-        const stored = window.localStorage.getItem(EFFORT_STORAGE_KEY);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe localStorage read; SSR must render the default effort
-        if (stored && VALID_EFFORT.test(stored)) setEffortState(stored);
+        setEffortState(readSelectedReasoningEffort());
     }, []);
 
     const setEffort = useCallback((value: string) => {

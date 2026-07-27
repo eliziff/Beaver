@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Minus, RectangleHorizontal, Rows3 } from "lucide-react";
-import { CiteButton } from "@/app/components/ui/cite-button";
+import { Check, Minus, Quote, RectangleHorizontal, Rows3 } from "lucide-react";
 
 export type CitationQuoteHeaderItem = {
     id: string;
@@ -42,6 +41,7 @@ export function CitationQuotesHeader({
 }: Props) {
     const [isExpanded, setIsExpanded] = useState(true);
     const [viewMode, setViewMode] = useState<"single" | "list">("single");
+    const [isCopied, setIsCopied] = useState(false);
     const hasMultipleQuotes = quotes.length > 1;
     const currentQuote = quotes[currentIndex];
 
@@ -51,6 +51,19 @@ export function CitationQuotesHeader({
             setViewMode("single");
         }
     }, [hasMultipleQuotes, viewMode]);
+
+    async function copyCitation() {
+        if (!currentQuote) return;
+        try {
+            const text =
+                `"${currentQuote.quote.replace(/"/g, "'")}" ${currentQuote.citationText ?? citationText ?? ""}`.trim();
+            await navigator.clipboard.writeText(text);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (error) {
+            console.error("Failed to copy citation:", error);
+        }
+    }
 
     return (
         <div className="px-3">
@@ -89,16 +102,27 @@ export function CitationQuotesHeader({
                             </div>
                         )}
                         {currentQuote && (
-                            <CiteButton
-                                quoteText={currentQuote.quote}
-                                citationText={
-                                    currentQuote.citationText ??
-                                    citationText ??
-                                    ""
-                                }
-                                className="rounded-full bg-white px-2 h-6 text-gray-600 shadow-[0_1px_3px_rgba(0,0,0,0.22)] hover:bg-gray-50"
-                                showText
-                            />
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    event.preventDefault();
+                                    void copyCitation();
+                                }}
+                                className="flex h-6 items-center gap-1 rounded-full bg-white px-2 text-gray-600 shadow-[0_1px_3px_rgba(0,0,0,0.22)] transition-colors hover:bg-gray-50"
+                                title="Copy Quote and Citation"
+                            >
+                                {isCopied ? (
+                                    <Check className="h-3 w-3 text-green-600" />
+                                ) : (
+                                    <Quote className="h-3 w-3" />
+                                )}
+                                <span
+                                    className={`text-[10px] font-medium ${isCopied ? "text-green-600" : ""}`}
+                                >
+                                    {isCopied ? "Copied" : "Cite"}
+                                </span>
+                            </button>
                         )}
                         <div
                             className={`relative flex h-6 items-center justify-start gap-1 rounded-full bg-gray-200 p-1 ${

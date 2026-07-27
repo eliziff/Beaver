@@ -15,9 +15,6 @@ export const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
 };
 
-// ---------------------------------------------------------------------------
-// Core types
-// ---------------------------------------------------------------------------
 
 export type DocStore = Map<
   string,
@@ -60,18 +57,11 @@ export type ChatMessage = {
   images?: LlmImage[];
 };
 
-// ---------------------------------------------------------------------------
-// Doc resolution helpers (used by citations + documentOps)
-// ---------------------------------------------------------------------------
 
 export function resolveDoc(rawId: string, docIndex: DocIndex) {
   return docIndex[rawId];
 }
 
-/**
- * Resolve whatever identifier the model passed (`doc-N` slug, filename, or
- * document UUID) back to a chat-local doc label.
- */
 export function resolveDocLabel(
   rawId: string,
   docStore: DocStore,
@@ -89,9 +79,6 @@ export function resolveDocLabel(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Event / annotation types (shared between toolDispatcher and streaming)
-// ---------------------------------------------------------------------------
 
 export type AskInputOption = {
   value: string;

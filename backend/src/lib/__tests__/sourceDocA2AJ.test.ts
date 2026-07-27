@@ -1,7 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { buildA2AJStructure, lookupA2AJStructure } from "../a2ajStructure";
+import { lookupSourceDoc, type SourceDoc } from "../sourceDoc";
+import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
 
-describe("ALR-compatible A2AJ structure", () => {
+/**
+ * Spine behaviour of the A2AJ compiler on synthetic shapes. The equivalent
+ * assertions over real captured payloads live in sourceDocFixtures.test.ts.
+ */
+
+function compile(args: {
+  text: string;
+  docType: "cases" | "laws";
+  citation?: string;
+  dataset?: string;
+  name?: string;
+  sectionMap?: Record<string, string>;
+}): SourceDoc {
+  return compileA2AJSourceDoc({
+    citation: args.citation ?? "synthetic",
+    docType: args.docType,
+    text: args.text,
+    dataset: args.dataset,
+    name: args.name,
+    sectionMap: args.sectionMap,
+  });
+}
+
+function labels(doc: SourceDoc) {
+  return doc.blocks.map((block) => block.label);
+}
+
+describe("A2AJ compiler spine", () => {
   it("selects the primary monotone decision paragraph sequence", () => {
     const text = [
       "[1] First substantive judgment paragraph contains enough ordinary words for reliable structural validation.",
@@ -12,7 +40,7 @@ describe("ALR-compatible A2AJ structure", () => {
       "[4] The primary judgment resumes with enough ordinary substantive words for structural validation.",
       "[5] The primary judgment continues with enough ordinary substantive words for structural validation.",
     ].join("\n");
-    const structure = buildA2AJStructure({
+    const doc = compile({
       text,
       docType: "cases",
       citation: "2099 SCC 1",
@@ -20,12 +48,12 @@ describe("ALR-compatible A2AJ structure", () => {
     });
 
     expect(
-      structure.blocks
+      doc.blocks
         .filter((block) => block.kind === "paragraph")
         .map((block) => block.label),
     ).toEqual(["par1", "par2", "par3", "par4", "par5"]);
     expect(
-      lookupA2AJStructure(structure, "paragraph", "paragraph 4").block?.text,
+      lookupSourceDoc(doc, "paragraph", "paragraph 4").block?.text,
     ).toContain("primary judgment resumes");
   });
 
@@ -37,11 +65,11 @@ describe("ALR-compatible A2AJ structure", () => {
         `${index + 1}. List condition ${index + 1} contains enough explanatory words to resemble prose.`,
     ).join("\n");
     const tail = "Unnumbered reasons continue at length. ".repeat(1000);
-    const structure = buildA2AJStructure({
+    const doc = compile({
       text: prefix + list + tail,
       docType: "cases",
     });
-    expect(structure.counts.paragraph).toBe(0);
+    expect(doc.ranges.paragraph.count).toBe(0);
   });
 
   it("recognizes ALR's observed reporter-page variants", () => {
@@ -53,13 +81,13 @@ describe("ALR-compatible A2AJ structure", () => {
       "Page 516]",
       "Closing reporter-page text.",
     ].join("\n");
-    const structure = buildA2AJStructure({
+    const doc = compile({
       text,
       docType: "cases",
       citation: "[2099] 1 SCR 513",
       dataset: "SCC",
     });
-    const result = lookupA2AJStructure(structure, "page", "page 515");
+    const result = lookupSourceDoc(doc, "page", "page 515");
 
     expect(result.status).toBe("found");
     expect(result.block?.text).toContain("distinctive reporter quotation");
@@ -76,8 +104,8 @@ describe("ALR-compatible A2AJ structure", () => {
       "(i) The distinctive annual report must be published every year.",
       "4 Regulations may prescribe further procedural requirements under this enactment.",
     ].join("\n");
-    const structure = buildA2AJStructure({ text, docType: "laws" });
-    const result = lookupA2AJStructure(structure, "section", "3(2)(a)(i)");
+    const doc = compile({ text, docType: "laws" });
+    const result = lookupSourceDoc(doc, "section", "3(2)(a)(i)");
 
     expect(result.status).toBe("found");
     expect(result.block?.label).toBe("sec3(2)(a)(i)");
@@ -95,13 +123,13 @@ describe("ALR-compatible A2AJ structure", () => {
       "(f.1) Added paragraph.",
       "(g) Seventh paragraph.",
     ].join("\n");
-    const structure = buildA2AJStructure({
+    const doc = compile({
       text: "unstructured fallback",
       docType: "laws",
       sectionMap: { "34": text },
     });
 
-    expect(structure.blocks.map((block) => block.label)).toEqual([
+    expect(labels(doc)).toEqual([
       "sec34",
       "sec34(2)",
       "sec34(2)(a)",
@@ -124,13 +152,13 @@ describe("ALR-compatible A2AJ structure", () => {
       "(iv) Item.",
       "(v) Item.",
     ].join("\n");
-    const structure = buildA2AJStructure({
+    const doc = compile({
       text: "unstructured fallback",
       docType: "laws",
       sectionMap: { "34": text },
     });
 
-    expect(structure.blocks.map((block) => block.label)).toEqual([
+    expect(labels(doc)).toEqual([
       "sec34",
       "sec34(2)",
       "sec34(2)(a)",
@@ -145,12 +173,12 @@ describe("ALR-compatible A2AJ structure", () => {
   it.each(["ii", "iv", "IV"])(
     "handles direct multi-character Roman child %s",
     (token) => {
-      const structure = buildA2AJStructure({
+      const doc = compile({
         text: "unstructured fallback",
         docType: "laws",
         sectionMap: { "1": `1 Parent\n(${token}) Direct item.` },
       });
-      expect(structure.blocks.map((block) => block.label)).toContain(
+      expect(labels(doc)).toContain(
         `sec1(${token})`,
       );
     },
@@ -170,13 +198,13 @@ describe("ALR-compatible A2AJ structure", () => {
       "673 Another provision.",
       "674 Concluding provision.",
     ].join("\n");
-    const structure = buildA2AJStructure({ text, docType: "laws" });
-    const result = lookupA2AJStructure(structure, "section", "672.54");
+    const doc = compile({ text, docType: "laws" });
+    const result = lookupSourceDoc(doc, "section", "672.54");
 
     expect(result.block?.text).toContain(quote);
     expect(result.block?.text).not.toContain("later provision");
     expect(
-      lookupA2AJStructure(structure, "section", "672").block?.text,
+      lookupSourceDoc(doc, "section", "672").block?.text,
     ).not.toContain(quote);
   });
 
@@ -187,18 +215,18 @@ describe("ALR-compatible A2AJ structure", () => {
       "1-3 Distinctive third rule text.",
       "2-1 Fourth rule text.",
     ].join("\n");
-    const rules = buildA2AJStructure({
+    const rules = compile({
       text,
       docType: "laws",
       name: "Supreme Court Civil Rules",
     });
-    const ordinary = buildA2AJStructure({
+    const ordinary = compile({
       text,
       docType: "laws",
       name: "Drinking Water Systems",
     });
 
-    expect(rules.blocks.map((block) => block.label)).toEqual([
+    expect(labels(rules)).toEqual([
       "sec1-1",
       "sec1-2",
       "sec1-3",
@@ -214,12 +242,12 @@ describe("ALR-compatible A2AJ structure", () => {
       "(2) Distinctive second subrule text.",
       "11.11 Next rule text.",
     ].join("\n");
-    const structure = buildA2AJStructure({ text, docType: "laws" });
+    const doc = compile({ text, docType: "laws" });
 
-    expect(structure.blocks.map((block) => block.label)).toContain(
+    expect(labels(doc)).toContain(
       "sec11.10(1)",
     );
-    expect(structure.blocks.map((block) => block.label)).toContain(
+    expect(labels(doc)).toContain(
       "sec11.10(2)",
     );
   });

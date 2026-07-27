@@ -1,4 +1,5 @@
 import type { ColumnConfig, Workflow } from "@/app/components/shared/types";
+import { downloadBlob } from "@/app/lib/download";
 
 type ZipFile = {
     path: string;
@@ -265,13 +266,5 @@ export function downloadWorkflowZip(
     columns: ColumnConfig[],
 ) {
     const { files, slug } = workflowFiles(workflow, skillMd, columns);
-    const blob = createZip(files);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${slug}.zip`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadBlob(createZip(files), `${slug}.zip`);
 }
