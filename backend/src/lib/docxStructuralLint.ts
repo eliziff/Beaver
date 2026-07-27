@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
 import { getLocalVersionFile } from "./localDocumentStore";
 import { decodeXmlText, escapeRegExp } from "./text";
@@ -534,7 +535,7 @@ function checkDefinedTerms(texts: string[]): DefinedTermsResult {
 export async function lintDocxStructure(
   bytes: Buffer,
 ): Promise<DocxStructuralLintReport> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadZip(bytes);
   const documentEntry =
     zip.file("word/document.xml") ?? zip.file(/^word\/document\.xml$/iu)[0];
   if (!documentEntry) {

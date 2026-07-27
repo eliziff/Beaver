@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import { loadZip } from "./zip";
 import { decodeXmlText as decodeXml } from "./text";
 
 function extractTagText(xml: string, tagName: string) {
@@ -22,7 +23,7 @@ async function readZipText(zip: JSZip, path: string) {
 }
 
 export async function extractPresentationText(buffer: Buffer) {
-  const zip = await JSZip.loadAsync(buffer);
+  const zip = await loadZip(buffer);
   const slidePaths = Object.keys(zip.files)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
     .sort(naturalSort);

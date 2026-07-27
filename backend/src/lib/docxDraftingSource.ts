@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import { loadZip } from "./zip";
 
 export const DOCX_DRAFTING_SOURCE_FORMAT = "beaver-precedent-html-v1";
 export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
@@ -105,7 +106,7 @@ export async function extractDocxDraftingSource(
     throw new Error("Precedent DOCX exceeds the drafting read limit");
   }
 
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadZip(bytes);
   assertBoundedPackage(zip);
   if (!zip.file("word/document.xml")) {
     throw new Error("Drafting mode requires a valid DOCX");
