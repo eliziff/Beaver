@@ -1,0 +1,32 @@
+[
+  {
+    "name": "scc-2020-par59-beaver-flags",
+    "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18169/index.do?iframe=true&site_preference=mobile#par59",
+    "expect": { "anchor": "par59", "text": "Nevsun" }
+  },
+  {
+    "name": "scc-bench-judgment-no-anchors-degrades-gracefully",
+    "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/20252/index.do?iframe=true&site_preference=mobile#par10",
+    "expect": { "text": "R. v. Vu" }
+  },
+  {
+    "name": "scc-2020-DEFAULT-SHELL-negative-control",
+    "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18169/index.do#par59",
+    "expect": { "anchor": "par59", "shouldFail": true }
+  },
+  {
+    "name": "onca-coa-par12-beaver-flags",
+    "url": "https://coadecisions.ontariocourts.ca/coa/coa/en/item/21432/index.do?iframe=true&site_preference=mobile#par12",
+    "expect": { "anchor": "par12" }
+  },
+  {
+    "name": "nsca-decisia-par8-beaver-flags",
+    "url": "https://decisia.lexum.com/nsc/nsca/en/item/521159/index.do?iframe=true&site_preference=mobile#par8",
+    "expect": { "anchor": "par8" }
+  },
+  {
+    "name": "scc-2020-par59-text-fragment",
+    "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18169/index.do?iframe=true&site_preference=mobile#par59:~:text=Nevsun",
+    "expect": { "anchor": "par59", "text": "Nevsun" }
+  }
+]
