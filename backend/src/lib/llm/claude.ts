@@ -7,6 +7,7 @@ import type {
   NormalizedToolResult,
 } from "./types";
 import { toClaudeTools } from "./tools";
+import { abortError, throwIfAborted } from "./abort";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 
 type ContentBlock =
@@ -113,16 +114,6 @@ function claudeStreamFailureMessage(event: unknown): string | null {
   return type
     ? `Claude error (${type}): ${message}`
     : `Claude error: ${message}`;
-}
-
-function abortError(): Error {
-  const err = new Error("Stream aborted.");
-  err.name = "AbortError";
-  return err;
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
 }
 
 export async function streamClaude(

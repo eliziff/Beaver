@@ -5,6 +5,7 @@ import type {
   NormalizedToolCall,
 } from "./types";
 import { toGeminiTools } from "./tools";
+import { abortError, throwIfAborted } from "./abort";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 
 type GeminiPart = {
@@ -153,16 +154,6 @@ function geminiStreamFailureMessage(chunk: unknown): string | null {
   }
 
   return null;
-}
-
-function abortError(): Error {
-  const err = new Error("Stream aborted.");
-  err.name = "AbortError";
-  return err;
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
 }
 
 export async function streamGemini(
