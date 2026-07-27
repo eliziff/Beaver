@@ -19,6 +19,7 @@
 
 ## Research and efficiency audits
 
+- [Citators and a defensible Canadian good-law service](citator-good-law-research.md)
 - [Session compaction and context efficiency](session-compaction-and-context-efficiency.md)
 - [Context compaction research — Track A](context-compaction-research-track-a.md)
 - [Context compaction research — Track B](context-compaction-research-track-b.md)
