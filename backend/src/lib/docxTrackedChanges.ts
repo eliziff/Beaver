@@ -62,7 +62,7 @@ export interface EditInput {
     reason?: string;
 }
 
-export interface AppliedChange {
+interface AppliedChange {
     id: string;
     delId?: string;
     insId?: string;
@@ -73,7 +73,7 @@ export interface AppliedChange {
     reason?: string;
 }
 
-export interface EditError {
+interface EditError {
     index: number;
     reason: string;
 }
