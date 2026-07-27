@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  canonicalA2AJSourceUrl,
   clearA2AJCache,
   fetchA2AJDocument,
+  getA2AJCoverage,
   lookupA2AJLocator,
   resolveA2AJViewerDocument,
   searchA2AJ,
@@ -23,6 +25,64 @@ afterEach(async () => {
 });
 
 describe("A2AJ client", () => {
+  it("prefers the canonical source URL and rejects unsafe schemes", () => {
+    expect(
+      canonicalA2AJSourceUrl({
+        source_url_en: "https://official.example/case",
+        url_en: "https://www.canlii.org/en/example",
+      }),
+    ).toBe("https://official.example/case");
+    expect(
+      canonicalA2AJSourceUrl({
+        source_url_en: "javascript:alert(1)",
+        url_en: "https://www.canlii.org/en/example",
+      }),
+    ).toBe("https://www.canlii.org/en/example");
+    expect(
+      canonicalA2AJSourceUrl(
+        { source_url_fr: "https://official.example/fr" },
+        "en",
+      ),
+    ).toBe("https://official.example/fr");
+  });
+
+  it("maps live coverage dimensions without a reduced jurisdiction list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [
+            {
+              dataset: "ONCA",
+              description_en: "Ontario Court of Appeal",
+              number_of_documents: 42,
+            },
+            {
+              dataset: "CHRT",
+              description_en: "Canadian Human Rights Tribunal",
+              number_of_documents: 8,
+            },
+          ],
+        }),
+      }),
+    );
+
+    await expect(getA2AJCoverage("cases")).resolves.toMatchObject([
+      {
+        dataset: "CHRT",
+        jurisdictionCode: "FED",
+        sourceKind: "tribunal",
+      },
+      {
+        dataset: "ONCA",
+        jurisdictionCode: "ON",
+        sourceKind: "court",
+      },
+    ]);
+  });
+
   it("maps a fetched document and bounds returned text", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -96,7 +156,7 @@ describe("A2AJ client", () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
-        `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language to establish a reliable sequence.`,
+        `[${index + 1}] Decision paragraph ${index + 1} contains enough *substantive* judicial language to establish a reliable sequence.`,
     ).join("\n");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -184,7 +244,7 @@ describe("A2AJ client", () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
-        `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language to establish a reliable sequence.`,
+        `[${index + 1}] Decision paragraph ${index + 1} contains enough *substantive* judicial language to establish a reliable sequence.`,
     ).join("\n");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -195,6 +255,8 @@ describe("A2AJ client", () => {
             dataset: "SCC",
             citation_en: "2099 SCC 2",
             name_en: "Cache v. Repeat Open",
+            source_url_en:
+              "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2099/index.do",
             unofficial_text_en: text,
           },
         ],
@@ -229,7 +291,23 @@ describe("A2AJ client", () => {
       structure: {
         counts: { paragraph: 6 },
       },
+      metadata: {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2099/index.do",
+        pdfUrl:
+          "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2099/1/document.do",
+      },
     });
+    expect(
+      first?.payload.presentation.segments
+        .flatMap((segment) => segment.blocks)
+        .flatMap((block) => block.inline)
+        .some((token) => token.kind === "em" && token.text === "substantive"),
+    ).toBe(true);
+    expect(
+      first?.payload.presentation.segments
+        .flatMap((segment) => segment.blocks)
+        .some((block) => block.text.includes("*")),
+    ).toBe(false);
     expect(first?.payload.structure).not.toHaveProperty("text");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await expect(

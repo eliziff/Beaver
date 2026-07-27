@@ -135,6 +135,26 @@ function boundedSize(
   return Math.max(1, Math.min(maximum, Math.trunc(value ?? fallback)));
 }
 
+function addDatasetFilter(
+  filters: string[],
+  values: Array<string | number>,
+  value?: string,
+) {
+  const datasets = [
+    ...new Set(
+      (value ?? "")
+        .split(",")
+        .map((dataset) => dataset.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 50);
+  if (!datasets.length) return;
+  filters.push(
+    `LOWER(document.dataset) IN (${datasets.map(() => "LOWER(?)").join(", ")})`,
+  );
+  values.push(...datasets);
+}
+
 export function fetchLocalA2AJDocument(args: {
   citation: string;
   docType?: DocType;
@@ -149,10 +169,7 @@ export function fetchLocalA2AJDocument(args: {
   return withDatabase((database) => {
     const filters = ["lookup.citation_key = ?", "document.doc_type = ?"];
     const values: Array<string | number> = [key, args.docType ?? "cases"];
-    if (args.dataset?.trim()) {
-      filters.push("LOWER(document.dataset) = LOWER(?)");
-      values.push(args.dataset.trim());
-    }
+    addDatasetFilter(filters, values, args.dataset);
     const row = database
       .prepare(
         `SELECT document.*
@@ -252,10 +269,7 @@ export function searchLocalA2AJ(args: {
     const fts = hasFts(database);
     const filters = ["document.doc_type = ?"];
     const values: Array<string | number> = [args.docType ?? "cases"];
-    if (args.dataset?.trim()) {
-      filters.push("LOWER(document.dataset) = LOWER(?)");
-      values.push(args.dataset.trim());
-    }
+    addDatasetFilter(filters, values, args.dataset);
     const date = dateExpression(language);
     if (args.startDate?.trim()) {
       filters.push(`${date} >= ?`);

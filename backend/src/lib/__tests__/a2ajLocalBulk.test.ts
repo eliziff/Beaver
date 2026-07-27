@@ -114,7 +114,7 @@ describe("local A2AJ bulk data", () => {
     expect(
       bulk.searchLocalA2AJ({
         query: "constitutional remedy",
-        dataset: "scc",
+        dataset: "scc,onca",
       }),
     ).toMatchObject([
       {

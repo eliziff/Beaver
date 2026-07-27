@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import {
+  getA2AJCoverage,
   resolveA2AJViewerDocument,
   searchA2AJ,
 } from "../lib/a2aj";
@@ -116,6 +117,22 @@ legalLibraryRouter.get("/", async (_req, res, next) => {
   }
 });
 
+legalLibraryRouter.get("/coverage", async (_req, res) => {
+  try {
+    const [cases, laws] = await Promise.all([
+      getA2AJCoverage("cases"),
+      getA2AJCoverage("laws"),
+    ]);
+    res.set("Cache-Control", "private, max-age=3600");
+    res.json({ coverage: [...cases, ...laws] });
+  } catch (error) {
+    res.status(502).json({
+      detail:
+        error instanceof Error ? error.message : "Could not load coverage",
+    });
+  }
+});
+
 legalLibraryRouter.get("/search", async (req, res) => {
   try {
     const wanted = Number.parseInt(String(req.query.size ?? "12"), 10);
@@ -148,6 +165,13 @@ legalLibraryRouter.get("/search", async (req, res) => {
       language: language(req.query.language),
       size: Number.isFinite(wanted) ? Math.min(Math.max(wanted, 1), 25) : 12,
       dataset: optionalText(req.query.dataset),
+      startDate: optionalText(req.query.start_date, 10),
+      endDate: optionalText(req.query.end_date, 10),
+      sortResults:
+        req.query.sort_results === "newest_first" ||
+        req.query.sort_results === "oldest_first"
+          ? req.query.sort_results
+          : "default",
     });
     res.json({
       results: results.map((result) => ({

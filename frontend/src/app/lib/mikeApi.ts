@@ -3,7 +3,7 @@
  * Attaches the Supabase auth token for user authentication.
  */
 
-import { isAnonymousMode, supabase } from "@/app/lib/supabase";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import type {
   AssistantEvent,
   Chat,
@@ -66,8 +66,9 @@ export function isMfaRequiredError(error: unknown) {
   );
 }
 
-async function getAuthHeader(): Promise<Record<string, string>> {
+export async function getAuthHeader(): Promise<Record<string, string>> {
   if (isAnonymousMode) return {};
+  const { supabase } = await import("@/app/lib/supabase");
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -615,6 +616,55 @@ export interface LegalSourceSearchResult {
   snippet: string | null;
 }
 
+export interface LegalSourceCoverage {
+  dataset: string;
+  description: string;
+  descriptionFr: string | null;
+  docType: "cases" | "laws";
+  jurisdictionCode: string;
+  jurisdiction: string;
+  sourceKind: "court" | "tribunal" | "legislation" | "regulation";
+  earliestDate: string | null;
+  latestDate: string | null;
+  documentCount: number;
+}
+
+export type LegalSourceInlineToken =
+  | {
+      kind: "text" | "em" | "strong" | "code" | "sup" | "sub";
+      text: string;
+    }
+  | { kind: "link"; text: string; href: string };
+
+export type LegalSourcePresentationBlock =
+  | {
+      kind: "heading";
+      text: string;
+      inline: LegalSourceInlineToken[];
+      level: 2 | 3 | 4 | 5;
+    }
+  | {
+      kind: "provision";
+      text: string;
+      inline: LegalSourceInlineToken[];
+      label: string;
+      depth: number;
+    }
+  | {
+      kind: "list-item";
+      text: string;
+      inline: LegalSourceInlineToken[];
+      marker: string;
+      ordered: boolean;
+      depth: number;
+    }
+  | {
+      kind: "blockquote" | "paragraph";
+      text: string;
+      inline: LegalSourceInlineToken[];
+      depth: number;
+    };
+
 export interface LegalSourceViewerPayload {
   schemaVersion: "mike.legal-source.v1";
   provider: "a2aj" | "journal";
@@ -634,6 +684,7 @@ export interface LegalSourceViewerPayload {
     url: string | null;
     language: "en" | "fr";
     upstreamLicense: string | null;
+    pdfUrl?: string | null;
     authors?: string | null;
     journalName?: string | null;
   };
@@ -648,6 +699,14 @@ export interface LegalSourceViewerPayload {
       end: number;
     }[];
     counts: Record<"paragraph" | "page" | "section" | "footnote", number>;
+  };
+  presentation?: {
+    source: "a2aj_markdown";
+    segments: {
+      start: number;
+      end: number;
+      blocks: LegalSourcePresentationBlock[];
+    }[];
   };
   truncated: boolean;
 }
@@ -664,16 +723,36 @@ export async function listLegalLibrary(): Promise<LegalSourceReference[]> {
   ).references;
 }
 
+export async function getLegalSourceCoverage(): Promise<
+  LegalSourceCoverage[]
+> {
+  return (
+    await apiRequest<{ coverage: LegalSourceCoverage[] }>(
+      "/library/legal/coverage",
+    )
+  ).coverage;
+}
+
 export async function searchLegalSources(args: {
   query: string;
   docType: LegalDocumentType;
   language?: "en" | "fr";
+  datasets?: string[];
+  startDate?: string;
+  endDate?: string;
+  sortResults?: "default" | "newest_first" | "oldest_first";
 }): Promise<LegalSourceSearchResult[]> {
   const query = new URLSearchParams({
     query: args.query,
     doc_type: args.docType,
     language: args.language ?? "en",
   });
+  if (args.datasets?.length) query.set("dataset", args.datasets.join(","));
+  if (args.startDate) query.set("start_date", args.startDate);
+  if (args.endDate) query.set("end_date", args.endDate);
+  if (args.sortResults && args.sortResults !== "default") {
+    query.set("sort_results", args.sortResults);
+  }
   return (
     await apiRequest<{ results: LegalSourceSearchResult[] }>(
       `/library/legal/search?${query}`,
