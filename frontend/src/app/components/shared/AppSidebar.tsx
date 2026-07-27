@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { PanelLeft, User, ChevronsUpDown, ChevronDown } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { isAnonymousMode } from "@/app/lib/supabase";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useRouter, usePathname } from "next/navigation";
@@ -33,7 +33,7 @@ const NAV_ITEMS = [
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
   {
     href: "/table-of-authorities",
-    label: "Table of Authorities",
+    label: "Authorities",
     icon: TableOfAuthoritiesSkeuoIcon,
   },
   {
@@ -70,16 +70,20 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
   const [recentProjects, setRecentProjects] = useState<Project[] | null>(null);
+  const assistantChats = useMemo(
+    () => chats?.filter((chat) => !chat.project_id) ?? chats,
+    [chats],
+  );
 
   useEffect(() => {
-    if (!user) return;
+    if (
+      !user ||
+      (pathname !== "/projects" && !pathname.startsWith("/projects/"))
+    )
+      return;
     listProjects()
       .then((projects) => {
-        const map: Record<string, string> = {};
-        for (const p of projects) map[p.id] = p.name;
-        setProjectNames(map);
         setRecentProjects(
           [...projects]
             .sort(
@@ -91,10 +95,9 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
         );
       })
       .catch(() => {
-        setProjectNames({});
         setRecentProjects([]);
       });
-  }, [user]);
+  }, [pathname, user]);
 
   const handleToggle = () => {
     if (isOpen) setShouldAnimate(true);
@@ -188,219 +191,227 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
           </button>
         </div>
 
-        {/* Nav items */}
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            href === "/assistant"
-              ? pathname === href
-              : href === "/projects"
-                ? pathname === href
-                : pathname === href || pathname.startsWith(href + "/");
-          return (
-            <div key={href} className="py-0.5 px-2.5">
-              <button
-                onClick={() => router.push(href)}
-                title={!isOpen ? label : ""}
-                className={cn(
-                  "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left",
-                  isActive
-                    ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
-                    : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
-                  !isOpen ? "hidden md:flex" : "flex",
-                )}
-              >
-                <Icon
-                  className={`h-4 w-4 flex-shrink-0 ${
-                    isActive ? "text-gray-900" : "text-black"
-                  }`}
-                />
-                {isOpen && (
-                  <span
-                    className={`text-sm font-medium ${
-                      shouldAnimate ? "sidebar-fade-in-2" : ""
-                    }`}
+        <nav
+          aria-label="Primary"
+          className={cn("min-h-0 flex-1", isOpen && "overflow-y-auto pb-2")}
+        >
+          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+            const isActive =
+              pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <div key={href} role="group" aria-label={label}>
+                <div className="py-0.5 px-2.5">
+                  <button
+                    onClick={() => router.push(href)}
+                    title={!isOpen ? label : undefined}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left",
+                      isActive
+                        ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
+                        : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
+                      !isOpen ? "hidden md:flex" : "flex",
+                    )}
                   >
-                    {label}
-                  </span>
-                )}
-              </button>
-            </div>
-          );
-        })}
-
-        {isOpen && (
-          <div className="mt-4 flex-1 min-h-0 flex flex-col gap-4">
-            {/* Recent Projects */}
-            <div>
-              <button
-                onClick={() => setProjectsCollapsed((v) => !v)}
-                className={`mb-2 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
-                  shouldAnimate ? "sidebar-fade-in" : ""
-                }`}
-              >
-                <span>Recent Projects</span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${
-                    projectsCollapsed ? "-rotate-90" : ""
-                  }`}
-                />
-              </button>
-              {!projectsCollapsed && (
-                <>
-                  {!recentProjects ? (
-                    <div className="space-y-1 px-2.5">
-                      {[50, 65, 45].map((w, i) => (
-                        <div
-                          key={i}
-                          className="flex h-8 items-center rounded-md px-3"
-                        >
-                          <div
-                            className="h-3 bg-gray-200 rounded animate-pulse"
-                            style={{
-                              width: `${w}%`,
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : recentProjects.length === 0 ? (
-                    <div
-                      className={`px-5 py-2 text-xs text-gray-500 ${
-                        shouldAnimate ? "sidebar-fade-in-2" : ""
+                    <Icon
+                      className={`h-4 w-4 flex-shrink-0 ${
+                        isActive ? "text-gray-900" : "text-black"
                       }`}
-                    >
-                      No projects yet
-                    </div>
-                  ) : (
-                    <div
-                      className={`space-y-1 px-2.5 ${
-                        shouldAnimate ? "sidebar-fade-in-2" : ""
-                      }`}
-                    >
-                      {recentProjects.map((project) => {
-                        const isActive =
-                          pathname === `/projects/${project.id}` ||
-                          pathname.startsWith(`/projects/${project.id}/`);
-                        return (
-                          <button
-                            key={project.id}
-                            onClick={() =>
-                              router.push(`/projects/${project.id}`)
-                            }
-                            title={project.name}
-                            className={cn(
-                              "flex h-8 w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-xs transition-colors",
-                              isActive
-                                ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
-                                : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
-                            )}
-                          >
-                            <ProjectSvgIcon
-                              open={isActive}
-                              className="h-3.5 w-3.5 shrink-0"
-                            />
-                            <span className="min-w-0 flex-1 truncate">
-                              {project.name}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Assistant History */}
-            <div className="flex min-h-0 flex-1 flex-col">
-              <button
-                onClick={() => setHistoryCollapsed((v) => !v)}
-                className={`mb-2 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
-                  shouldAnimate ? "sidebar-fade-in" : ""
-                }`}
-              >
-                <span>Assistant History</span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${
-                    historyCollapsed ? "-rotate-90" : ""
-                  }`}
-                />
-              </button>
-              <div
-                className={`overflow-y-auto flex-1 ${
-                  historyCollapsed ? "hidden" : ""
-                }`}
-              >
-                {!chats ? (
-                  <div className="space-y-1.5 px-2.5">
-                    {[40, 60, 50, 70, 45].map((w, i) => (
-                      <div
-                        key={i}
-                        className="flex h-8 items-center rounded-md px-2.5"
+                    />
+                    {isOpen && (
+                      <span
+                        className={`text-sm font-medium ${
+                          shouldAnimate ? "sidebar-fade-in-2" : ""
+                        }`}
                       >
-                        <div className="mr-2 h-3.5 w-3.5 shrink-0 rounded bg-gray-200 animate-pulse" />
-                        <div
-                          className="h-3 bg-gray-200 rounded animate-pulse"
-                          style={{ width: `${w}%` }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : chats.length === 0 ? (
-                  <div
-                    className={`text-xs text-gray-500 py-2 px-5 ${
-                      shouldAnimate ? "sidebar-fade-in-2" : ""
-                    }`}
-                  >
-                    No chats yet
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      className={`space-y-1.5 px-2.5 ${
-                        shouldAnimate ? "sidebar-fade-in-2" : ""
+                        {label}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {isOpen && isActive && href === "/assistant" && (
+                  <div className="mb-2 flex min-h-0 flex-col">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryCollapsed((value) => !value)}
+                      aria-label="Assistant history"
+                      aria-expanded={!historyCollapsed}
+                      aria-controls="assistant-history"
+                      className={`mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
+                        shouldAnimate ? "sidebar-fade-in" : ""
                       }`}
                     >
-                      {chats.map((chat) => (
-                        <SidebarChatItem
-                          key={chat.id}
-                          chat={chat}
-                          isActive={routeChatId === chat.id}
-                          projectName={
-                            chat.project_id
-                              ? projectNames[chat.project_id]
-                              : undefined
-                          }
-                          onSelect={() => {
-                            setCurrentChatId(chat.id);
-                            router.push(
-                              chat.project_id
-                                ? `/projects/${chat.project_id}/assistant/chat/${chat.id}`
-                                : `/assistant/chat/${chat.id}`,
-                            );
-                          }}
-                        />
-                      ))}
-                    </div>
-                    {hasMoreChats && (
-                      <div className="px-2.5 pt-1">
-                        <button
-                          onClick={loadMoreChats}
-                          className={cn(
-                            "flex h-8 w-full items-center justify-start rounded-md px-3 text-left text-xs font-medium text-gray-500 transition-colors hover:text-gray-700",
-                            APP_SURFACE_HOVER_CLASS,
-                          )}
+                      <span>History</span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`h-3.5 w-3.5 transition-transform ${
+                          historyCollapsed ? "-rotate-90" : ""
+                        }`}
+                      />
+                    </button>
+                    <div
+                      id="assistant-history"
+                      className={cn(
+                        "max-h-64 overflow-y-auto",
+                        historyCollapsed && "hidden",
+                      )}
+                    >
+                      {!assistantChats ? (
+                        <div className="space-y-1.5 px-2.5">
+                          {[40, 60, 50, 70, 45].map((width, index) => (
+                            <div
+                              key={index}
+                              className="flex h-8 items-center rounded-md px-2.5"
+                            >
+                              <div className="mr-2 h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-gray-200" />
+                              <div
+                                className="h-3 animate-pulse rounded bg-gray-200"
+                                style={{ width: `${width}%` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : assistantChats.length === 0 ? (
+                        <div
+                          className={`px-5 py-2 text-xs text-gray-500 ${
+                            shouldAnimate ? "sidebar-fade-in-2" : ""
+                          }`}
                         >
-                          Load more
-                        </button>
+                          No chats yet
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            className={`space-y-1.5 px-2.5 ${
+                              shouldAnimate ? "sidebar-fade-in-2" : ""
+                            }`}
+                          >
+                            {assistantChats.map((chat) => (
+                              <SidebarChatItem
+                                key={chat.id}
+                                chat={chat}
+                                isActive={routeChatId === chat.id}
+                                onSelect={() => {
+                                  setCurrentChatId(chat.id);
+                                  router.push(`/assistant/chat/${chat.id}`);
+                                }}
+                              />
+                            ))}
+                          </div>
+                          {hasMoreChats && (
+                            <div className="px-2.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={loadMoreChats}
+                                className={cn(
+                                  "flex h-8 w-full items-center justify-start rounded-md px-3 text-left text-xs font-medium text-gray-500 transition-colors hover:text-gray-700",
+                                  APP_SURFACE_HOVER_CLASS,
+                                )}
+                              >
+                                Load more
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {isOpen && isActive && href === "/projects" && (
+                  <div className="mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setProjectsCollapsed((value) => !value)}
+                      aria-expanded={!projectsCollapsed}
+                      aria-controls="recent-projects"
+                      className={`mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
+                        shouldAnimate ? "sidebar-fade-in" : ""
+                      }`}
+                    >
+                      <span>Recent projects</span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`h-3.5 w-3.5 transition-transform ${
+                          projectsCollapsed ? "-rotate-90" : ""
+                        }`}
+                      />
+                    </button>
+                    {!projectsCollapsed && (
+                      <div id="recent-projects">
+                        {!recentProjects ? (
+                          <div className="space-y-1 px-2.5">
+                            {[50, 65, 45].map((width, index) => (
+                              <div
+                                key={index}
+                                className="flex h-8 items-center rounded-md px-3"
+                              >
+                                <div
+                                  className="h-3 animate-pulse rounded bg-gray-200"
+                                  style={{ width: `${width}%` }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : recentProjects.length === 0 ? (
+                          <div
+                            className={`px-5 py-2 text-xs text-gray-500 ${
+                              shouldAnimate ? "sidebar-fade-in-2" : ""
+                            }`}
+                          >
+                            No projects yet
+                          </div>
+                        ) : (
+                          <div
+                            className={`space-y-1 px-2.5 ${
+                              shouldAnimate ? "sidebar-fade-in-2" : ""
+                            }`}
+                          >
+                            {recentProjects.map((project) => {
+                              const projectIsActive =
+                                pathname === `/projects/${project.id}` ||
+                                pathname.startsWith(
+                                  `/projects/${project.id}/`,
+                                );
+                              return (
+                                <button
+                                  key={project.id}
+                                  type="button"
+                                  onClick={() =>
+                                    router.push(`/projects/${project.id}`)
+                                  }
+                                  title={project.name}
+                                  aria-current={
+                                    projectIsActive ? "page" : undefined
+                                  }
+                                  className={cn(
+                                    "flex h-8 w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-xs transition-colors",
+                                    projectIsActive
+                                      ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
+                                      : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
+                                  )}
+                                >
+                                  <ProjectSvgIcon
+                                    open={projectIsActive}
+                                    className="h-3.5 w-3.5 shrink-0"
+                                  />
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {project.name}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
-            </div>
-          </div>
-        )}
+            );
+          })}
+        </nav>
 
         {/* User Profile */}
         <div className="mt-auto p-1">
