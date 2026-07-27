@@ -1,3 +1,4 @@
+import { abortError, throwIfAborted } from "./abort";
 import type {
   NormalizedToolCall,
   OpenAIToolSchema,
@@ -54,15 +55,6 @@ function apiKey(override?: string | null): string {
   return key;
 }
 
-function abortError(): Error {
-  const error = new Error("Stream aborted.");
-  error.name = "AbortError";
-  return error;
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
-}
 
 function effort(value?: string): "high" | "max" {
   return ["max", "xhigh", "ultra"].includes(value?.toLowerCase() ?? "")

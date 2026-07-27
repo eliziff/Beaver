@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { abortError, throwIfAborted } from "./abort";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 import type {
@@ -199,15 +200,6 @@ export function buildCodexPrompt(params: {
     .join("\n\n");
 }
 
-export function codexAbortError(): Error {
-  const error = new Error("Stream aborted.");
-  error.name = "AbortError";
-  return error;
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw codexAbortError();
-}
 
 /**
  * Codex streams reasoning summaries and answer text as separate blocks; both

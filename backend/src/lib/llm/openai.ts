@@ -1,3 +1,4 @@
+import { abortError, throwIfAborted } from "./abort";
 import type {
   LlmMessage,
   NormalizedToolCall,
@@ -170,15 +171,6 @@ function openAIStreamFailureMessage(event: ResponseStreamEvent): string | null {
   return code ? `OpenAI error (${code}): ${message}` : message;
 }
 
-function abortError(): Error {
-  const err = new Error("Stream aborted.");
-  err.name = "AbortError";
-  return err;
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
-}
 
 function responseInstructions(systemPrompt: string, includeReminder: boolean) {
   return includeReminder
