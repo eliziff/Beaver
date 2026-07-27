@@ -86,6 +86,7 @@ describe("AppSidebar history ownership", () => {
     expect(
       within(assistant).getByRole("button", { name: "Assistant matter" }),
     ).toHaveAttribute("aria-current", "page");
+    expect(document.querySelector("#assistant-history")).toHaveClass("h-20");
     expect(within(assistant).queryByText("Project matter")).not.toBeInTheDocument();
     expect(
       within(assistant).getByRole("button", { name: "Assistant" }),

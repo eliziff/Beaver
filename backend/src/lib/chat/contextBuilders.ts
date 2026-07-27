@@ -11,7 +11,7 @@ import {
   type AskInputResponseItem,
   devLog,
 } from "./types";
-import { buildSystemPrompt } from "./prompts";
+import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
 import { parseCitations, createCitation } from "./citations";
 import type { AssistantEvent } from "./streaming";
 
@@ -55,26 +55,6 @@ export async function enrichWithPriorEvents(
       lines.push(`- edit_document → ${refFor(ev.document_id, ev.filename)}`);
     } else if (ev?.type === "doc_read") {
       lines.push(`- read_document → ${refFor(ev.document_id, ev.filename)}`);
-    } else if (ev?.type === "doc_replicated") {
-      // The model needs to know what each copy resolved to so it
-      // can call edit_document / read_document on them. Emit one
-      // line per copy, all attributed back to the same source.
-      const srcLabel =
-        typeof ev.filename === "string" ? `"${ev.filename}"` : "";
-      const copies = Array.isArray(ev.copies)
-        ? (ev.copies as {
-            new_filename?: unknown;
-            document_id?: unknown;
-          }[])
-        : [];
-      for (const c of copies) {
-        const ref = refFor(c.document_id, c.new_filename);
-        lines.push(
-          srcLabel
-            ? `- replicate_document → ${ref} (copy of ${srcLabel})`
-            : `- replicate_document → ${ref}`,
-        );
-      }
     } else if (ev?.type === "workflow_applied") {
       lines.push(`- applied workflow: "${ev.title}"`);
     } else if (ev?.type === "ask_inputs") {
@@ -138,6 +118,22 @@ export function buildMessages(
 
   if (systemPromptExtra) {
     systemContent += `\n\n${systemPromptExtra.trim()}`;
+  }
+
+  // Spreadsheet citation syntax is only spliced in when a spreadsheet is
+  // actually in context, after the static prompt so the cacheable prefix
+  // stays stable across turns.
+  const spreadsheetName = /\.(xlsx|xlsm|xls|csv|ods)$/iu;
+  const hasSpreadsheet =
+    docAvailability.some((doc) => spreadsheetName.test(doc.filename)) ||
+    Object.values(docIndex ?? {}).some((info) =>
+      spreadsheetName.test(info.filename),
+    ) ||
+    messages.some((msg) =>
+      msg.files?.some((file) => spreadsheetName.test(file.filename)),
+    );
+  if (hasSpreadsheet) {
+    systemContent += `\n\n${SPREADSHEET_CITATION_PROMPT}`;
   }
 
   if (docAvailability.length) {

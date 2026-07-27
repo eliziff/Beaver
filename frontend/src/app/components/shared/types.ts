@@ -258,21 +258,6 @@ export type AssistantEvent =
       isStreaming?: boolean;
     }
   | { type: "doc_download"; filename: string; download_url: string }
-  | {
-      type: "doc_replicated";
-      /** Source document filename. */
-      filename: string;
-      /** How many copies were produced in this single tool call. */
-      count: number;
-      /** One entry per new copy. Empty while streaming. */
-      copies?: {
-        new_filename: string;
-        document_id: string;
-        version_id: string;
-      }[];
-      error?: string;
-      isStreaming?: boolean;
-    }
   | { type: "workflow_applied"; workflow_id: string; title: string }
   | {
       type: "doc_edited";

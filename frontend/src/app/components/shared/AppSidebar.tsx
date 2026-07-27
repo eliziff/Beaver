@@ -264,13 +264,13 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                     <div
                       id="assistant-history"
                       className={cn(
-                        "max-h-64 overflow-y-auto",
+                        "h-20 overflow-y-auto",
                         historyCollapsed && "hidden",
                       )}
                     >
                       {!assistantChats ? (
                         <div className="space-y-1.5 px-2.5">
-                          {[40, 60, 50, 70, 45].map((width, index) => (
+                          {[45, 65].map((width, index) => (
                             <div
                               key={index}
                               className="flex h-8 items-center rounded-md px-2.5"

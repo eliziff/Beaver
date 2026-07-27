@@ -17,7 +17,6 @@ export function toolCallLabel(name: string): string {
   if (name === "read_document") return "Reading document...";
   if (name === "fetch_documents") return "Reading documents...";
   if (name === "find_in_document") return "Searching document...";
-  if (name === "replicate_document") return "Copying document...";
   if (name === "read_workflow") return "Loading workflow...";
   if (name === "list_workflows") return "Loading workflows...";
   if (name === "list_documents") return "Loading documents...";

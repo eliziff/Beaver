@@ -38,11 +38,6 @@ import {
   devLog,
   resolveDocLabel,
 } from "../types";
-import { downloadFile, storageKey, uploadFile } from "../../storage";
-import { convertedPdfKey } from "../../convert";
-import { contentTypeForDocumentType } from "../../documentTypes";
-import { buildDownloadUrl } from "../../downloadTokens";
-import { loadActiveVersion } from "../../documentVersions";
 import { type EditInput } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
 import {
@@ -62,7 +57,6 @@ import {
   type TurnEditState,
   type TurnReadState,
   type DocCreatedResult,
-  type DocReplicatedResult,
   type TextMatch,
 } from "./documentOps";
 
@@ -477,7 +471,6 @@ export async function runToolCalls(
   docsRead: { filename: string; document_id?: string }[];
   docsFound: { filename: string; query: string; total_matches: number }[];
   docsCreated: DocCreatedResult[];
-  docsReplicated: DocReplicatedResult[];
   workflowsApplied: { workflow_id: string; title: string }[];
   docsEdited: DocEditedResult[];
   askInputsEvents: AskInputsEvent[];
@@ -495,7 +488,6 @@ export async function runToolCalls(
     total_matches: number;
   }[] = [];
   const docsCreated: DocCreatedResult[] = [];
-  const docsReplicated: DocReplicatedResult[] = [];
   const workflowsApplied: { workflow_id: string; title: string }[] = [];
   const docsEdited: DocEditedResult[] = [];
   const askInputsEvents: AskInputsEvent[] = [];
@@ -655,13 +647,15 @@ export async function runToolCalls(
     if (tc.function.name === "read_document") {
       const rawDocId = args.doc_id as string;
       const docId = resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
+      const readMode = args.mode === "drafting" ? "drafting" : "text";
       const readIdentity = await getTurnReadIdentity({
         docLabel: docId,
         docStore,
         docIndex,
         db,
       });
-      if (readIdentity && turnReadState?.has(readIdentity.key)) {
+      const readKey = readIdentity ? `${readIdentity.key}:${readMode}` : null;
+      if (readIdentity && readKey && turnReadState?.has(readKey)) {
         toolResults.push({
           role: "tool",
           tool_call_id: tc.id,
@@ -675,19 +669,31 @@ export async function runToolCalls(
         write,
         docIndex,
         db,
+        { mode: readMode },
       );
       const filename = docStore.get(docId)?.filename;
       const documentId = docIndex?.[docId]?.document_id;
-      if (readIdentity && turnReadState) {
-        turnReadState.set(readIdentity.key, readIdentity);
+      let readSucceeded = true;
+      if (readMode === "drafting") {
+        try {
+          readSucceeded = JSON.parse(content)?.ok === true;
+        } catch {
+          readSucceeded = false;
+        }
       }
-      if (filename) docsRead.push({ filename, document_id: documentId });
+      if (readSucceeded && readIdentity && readKey && turnReadState) {
+        turnReadState.set(readKey, readIdentity);
+      }
+      if (readSucceeded && filename) {
+        docsRead.push({ filename, document_id: documentId });
+      }
       toolResults.push({
         role: "tool",
         tool_call_id: tc.id,
-        content: filename
-          ? `${citationReminder(docId, filename)}\n\n${content}`
-          : content,
+        content:
+          filename && readMode === "text"
+            ? `${citationReminder(docId, filename)}\n\n${content}`
+            : content,
       });
     } else if (tc.function.name === "find_in_document") {
       const rawDocId = args.doc_id as string;
@@ -749,7 +755,8 @@ export async function runToolCalls(
           docIndex,
           db,
         });
-        if (readIdentity && turnReadState?.has(readIdentity.key)) {
+        const readKey = readIdentity ? `${readIdentity.key}:text` : null;
+        if (readIdentity && readKey && turnReadState?.has(readKey)) {
           const filename = docStore.get(docId)?.filename ?? docId;
           parts.push(
             `--- ${filename} (${docId}) ---\n${duplicateReadDocumentResult(
@@ -766,8 +773,8 @@ export async function runToolCalls(
           db,
         );
         const filename = docStore.get(docId)?.filename ?? docId;
-        if (readIdentity && turnReadState) {
-          turnReadState.set(readIdentity.key, readIdentity);
+        if (readIdentity && readKey && turnReadState) {
+          turnReadState.set(readKey, readIdentity);
         }
         parts.push(
           `--- ${filename} (${docId}) ---\n${citationReminder(docId, filename)}\n\n${content}`,
@@ -1834,263 +1841,6 @@ export async function runToolCalls(
           });
         }
       }
-    } else if (tc.function.name === "replicate_document" && docIndex) {
-      const rawDocId = args.doc_id as string;
-      const requestedFilename =
-        typeof args.new_filename === "string" && args.new_filename.trim()
-          ? args.new_filename.trim()
-          : null;
-      const requestedCount =
-        typeof args.count === "number" && Number.isFinite(args.count)
-          ? Math.max(1, Math.min(20, Math.floor(args.count)))
-          : 1;
-      const sourceLabel =
-        resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
-      const sourceInfo = docStore.get(sourceLabel);
-      const sourceIndexed = docIndex[sourceLabel];
-      const sourceFilename = sourceInfo?.filename ?? rawDocId;
-
-      write(
-        `data: ${JSON.stringify({
-          type: "doc_replicate_start",
-          filename: sourceFilename,
-          count: requestedCount,
-        })}\n\n`,
-      );
-
-      const fail = (error: string) => {
-        write(
-          `data: ${JSON.stringify({
-            type: "doc_replicated",
-            filename: sourceFilename,
-            count: requestedCount,
-            copies: [],
-            error,
-          })}\n\n`,
-        );
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ ok: false, error }),
-        });
-      };
-
-      if (!sourceInfo || !sourceIndexed) {
-        fail(`Document '${rawDocId}' not found in this project.`);
-      } else if (!projectId) {
-        fail("replicate_document is only available in project chats.");
-      } else {
-        try {
-          // Pull the active version once — every copy gets the
-          // same starting bytes (with any accepted tracked
-          // changes rolled in), no point re-fetching per copy.
-          const active = await loadActiveVersion(sourceIndexed.document_id, db);
-          const sourcePath = active?.storage_path ?? sourceInfo.storage_path;
-          const sourcePdfPath = active?.pdf_storage_path ?? null;
-          const raw = await downloadFile(sourcePath);
-          const pdfBytes = sourcePdfPath
-            ? await downloadFile(sourcePdfPath)
-            : null;
-          if (!raw) {
-            fail("Could not read the source document's bytes from storage.");
-          } else {
-            // Build N filenames. With count=1 keep the
-            // pre-existing "(copy)" suffix; with count>1 use
-            // numbered "(1)", "(2)" suffixes.
-            const srcExt = sourceInfo.filename.match(/\.[^./\\]+$/)?.[0] ?? "";
-            const baseStem = (() => {
-              if (requestedFilename) {
-                return requestedFilename.replace(/\.[^./\\]+$/, "");
-              }
-              return sourceInfo.filename.replace(/\.[^./\\]+$/, "");
-            })();
-            const filenames: string[] = [];
-            for (let n = 1; n <= requestedCount; n++) {
-              const suffix =
-                requestedCount === 1
-                  ? requestedFilename
-                    ? ""
-                    : " (copy)"
-                  : ` (${n})`;
-              filenames.push(`${baseStem}${suffix}${srcExt}`);
-            }
-
-            // Bulk insert N documents in one round-trip.
-            const docRows = filenames.map((fn) => ({
-              project_id: projectId,
-              user_id: userId,
-              status: "ready",
-            }));
-            const { data: insertedDocs, error: docErr } = await db
-              .from("documents")
-              .insert(docRows)
-              .select("id");
-            if (docErr || !insertedDocs || insertedDocs.length === 0) {
-              fail(
-                `Failed to record replicated documents: ${docErr?.message ?? "unknown"}`,
-              );
-            } else {
-              // Preserve the request order so each row pairs
-              // with the right filename. Supabase returns
-              // inserted rows in the same order as the
-              // payload.
-              const newDocs = (insertedDocs as { id: string }[]).map(
-                (doc, idx) => ({
-                  ...doc,
-                  filename: filenames[idx] ?? "Untitled document.docx",
-                }),
-              );
-              const contentType = contentTypeForDocumentType(
-                sourceInfo.file_type,
-              );
-
-              // Parallel uploads: the doc bytes (and PDF
-              // rendition if any) for every new copy.
-              const uploadJobs: Promise<unknown>[] = [];
-              const newKeys: string[] = [];
-              const newPdfKeys: (string | null)[] = [];
-              for (const d of newDocs) {
-                const key = storageKey(userId, d.id, d.filename);
-                newKeys.push(key);
-                uploadJobs.push(uploadFile(key, raw, contentType));
-                if (pdfBytes) {
-                  const pdfKey = convertedPdfKey(userId, d.id);
-                  newPdfKeys.push(pdfKey);
-                  uploadJobs.push(
-                    uploadFile(pdfKey, pdfBytes, "application/pdf"),
-                  );
-                } else {
-                  newPdfKeys.push(null);
-                }
-              }
-              await Promise.all(uploadJobs);
-
-              // Bulk insert N versions in one round-trip.
-              const versionRows = newDocs.map((d, idx) => ({
-                document_id: d.id,
-                storage_path: newKeys[idx],
-                pdf_storage_path: newPdfKeys[idx],
-                source: "upload",
-                version_number: 1,
-                filename: d.filename,
-                file_type: active?.file_type ?? sourceInfo.file_type,
-                size_bytes: active?.size_bytes ?? raw.byteLength,
-                page_count: active?.page_count ?? null,
-              }));
-              const { data: insertedVersions, error: verErr } = await db
-                .from("document_versions")
-                .insert(versionRows)
-                .select("id, document_id");
-              if (
-                verErr ||
-                !insertedVersions ||
-                insertedVersions.length !== newDocs.length
-              ) {
-                fail(
-                  `Failed to record replicated document versions: ${verErr?.message ?? "unknown"}`,
-                );
-              } else {
-                const versionByDocId = new Map<string, string>();
-                for (const v of insertedVersions as {
-                  id: string;
-                  document_id: string;
-                }[]) {
-                  versionByDocId.set(v.document_id, v.id);
-                }
-
-                // current_version_id has to be a per-row
-                // value, so a single UPDATE statement
-                // can't cover all N. Fan out in parallel
-                // instead of sequential awaits.
-                await Promise.all(
-                  newDocs.map((d) =>
-                    db
-                      .from("documents")
-                      .update({
-                        current_version_id: versionByDocId.get(d.id),
-                      })
-                      .eq("id", d.id),
-                  ),
-                );
-
-                // Register every copy under a fresh doc-N
-                // slug so the model can edit/read any of
-                // them in the same turn.
-                const existingLabels = new Set(Object.keys(docIndex));
-                let nextLabelIdx = 0;
-                const copies: {
-                  new_filename: string;
-                  document_id: string;
-                  version_id: string;
-                }[] = [];
-                const toolPayloadCopies: {
-                  doc_id: string;
-                  document_id: string;
-                  version_id: string;
-                  filename: string;
-                  download_url: string;
-                }[] = [];
-                for (let idx = 0; idx < newDocs.length; idx++) {
-                  const d = newDocs[idx];
-                  const newKey = newKeys[idx];
-                  const versionId = versionByDocId.get(d.id);
-                  if (!versionId) continue;
-                  while (existingLabels.has(`doc-${nextLabelIdx}`))
-                    nextLabelIdx++;
-                  const slug = `doc-${nextLabelIdx}`;
-                  existingLabels.add(slug);
-                  docIndex[slug] = {
-                    document_id: d.id,
-                    filename: d.filename,
-                  };
-                  docStore.set(slug, {
-                    storage_path: newKey,
-                    file_type: sourceInfo.file_type,
-                    filename: d.filename,
-                  });
-                  copies.push({
-                    new_filename: d.filename,
-                    document_id: d.id,
-                    version_id: versionId,
-                  });
-                  toolPayloadCopies.push({
-                    doc_id: slug,
-                    document_id: d.id,
-                    version_id: versionId,
-                    filename: d.filename,
-                    download_url: buildDownloadUrl(newKey, d.filename),
-                  });
-                }
-
-                write(
-                  `data: ${JSON.stringify({
-                    type: "doc_replicated",
-                    filename: sourceFilename,
-                    count: copies.length,
-                    copies,
-                  })}\n\n`,
-                );
-                docsReplicated.push({
-                  filename: sourceFilename,
-                  count: copies.length,
-                  copies,
-                });
-                toolResults.push({
-                  role: "tool",
-                  tool_call_id: tc.id,
-                  content: JSON.stringify({
-                    ok: true,
-                    count: copies.length,
-                    copies: toolPayloadCopies,
-                  }),
-                });
-              }
-            }
-          }
-        } catch (e) {
-          fail(`replicate_document failed: ${String(e)}`);
-        }
-      }
     } else if (tc.function.name === "generate_docx") {
       const title = args.title as string;
       const landscape = !!args.landscape;
@@ -2197,7 +1947,6 @@ export async function runToolCalls(
     docsRead,
     docsFound,
     docsCreated,
-    docsReplicated,
     workflowsApplied,
     docsEdited,
     askInputsEvents,

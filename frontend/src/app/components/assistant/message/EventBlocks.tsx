@@ -307,45 +307,6 @@ export function DocCreatedBlock({
     );
 }
 
-export function DocReplicatedBlock({
-    filename,
-    count,
-    showConnector,
-    isStreaming,
-    hasError,
-}: {
-    filename: string;
-    /**
-     * How many consecutive replicates of this same source got collapsed
-     * into this block. ≥ 1; only rendered when > 1.
-     */
-    count: number;
-    showConnector?: boolean;
-    isStreaming?: boolean;
-    hasError?: boolean;
-}) {
-    const label = isStreaming ? "Replicating" : "Replicated";
-    const suffix =
-        !isStreaming && count > 1
-            ? ` ${count} times`
-            : isStreaming
-              ? "..."
-              : "";
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor={hasError ? "red" : "green"}
-        >
-            <span className="font-medium">{label}</span>{" "}
-            <span>
-                {filename}
-                {suffix}
-            </span>
-        </EventBlock>
-    );
-}
-
 export function DocDownloadBlock({
     filename,
     download_url,

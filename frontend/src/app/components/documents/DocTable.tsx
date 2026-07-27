@@ -2498,6 +2498,7 @@ export function DocTable({
             />
             {/* Table content */}
             <TableScrollArea
+                className="document-table"
                 header={
                     loading ? (
                         <ProjectTableLoadingHeader
