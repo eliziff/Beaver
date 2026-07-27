@@ -34,7 +34,33 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 let temporaryDirectory: string | null = null;
 
-async function fakeArtifacts(args: string[], status = "ready") {
+const repairableDiagnosticCodes = [
+  "COLUMN_ORDER_UNCERTAIN",
+  "FOOTNOTE_REGION_UNCERTAIN",
+  "FOOTNOTE_UNMATCHED_LABEL",
+  "FOOTNOTE_UNMATCHED_REFERENCE",
+  "TEXT_QUALITY_LOW",
+];
+const repairIdentity = {
+  schema_version: "legalpdf.codex.repair-identity.v1",
+  prompt_version: "legalpdf.codex.structure.r1.v2",
+  response_schema_sha256: "b".repeat(64),
+  repairable_diagnostics_sha256: crypto
+    .createHash("sha256")
+    .update(JSON.stringify(repairableDiagnosticCodes))
+    .digest("hex"),
+  context_radius: 1,
+  max_attempts: 3,
+  max_live_calls: 6,
+  max_scope_pages: 2,
+  repairable_diagnostics: repairableDiagnosticCodes,
+};
+
+async function fakeArtifacts(
+  args: string[],
+  status = "ready",
+  diagnosticCode = "OCR_REQUIRED",
+) {
   const source = args[1];
   const output = args[args.indexOf("--output") + 1];
   const sourceSha256 = crypto
@@ -77,7 +103,7 @@ async function fakeArtifacts(args: string[], status = "ready") {
       status === "ready"
         ? ""
         : `${JSON.stringify({
-            code: "OCR_REQUIRED",
+            code: diagnosticCode,
             severity: "warning",
             message: "Page needs OCR.",
             page_index: 0,
@@ -100,7 +126,26 @@ async function fakeArtifacts(args: string[], status = "ready") {
       page_count: 1,
       status,
       metadata: {},
-      provenance: { cache_hit: false },
+      provenance: {
+        cache_hit: false,
+        ...(args[args.indexOf("--mode") + 1] === "codex"
+          ? {
+              codex: {
+                model: args[args.indexOf("--model") + 1],
+                effort: args[args.indexOf("--effort") + 1],
+                prompt_version: repairIdentity.prompt_version,
+                response_schema_sha256: repairIdentity.response_schema_sha256,
+                repairable_diagnostics_sha256:
+                  repairIdentity.repairable_diagnostics_sha256,
+                repairable_diagnostics: repairIdentity.repairable_diagnostics,
+                context_radius: repairIdentity.context_radius,
+                max_attempts: repairIdentity.max_attempts,
+                max_live_calls: repairIdentity.max_live_calls,
+                max_scope_pages: repairIdentity.max_scope_pages,
+              },
+            }
+          : {}),
+      },
       counts: {
         pages: 1,
         lines: 0,
@@ -127,6 +172,7 @@ async function fakeLegalPdf(
   args: string[],
   status = "ready",
   identity = "tesseract-cli-v1:tesseract 5.3.0",
+  diagnosticCode = "OCR_REQUIRED",
 ) {
   if (args[0] === "ocr-identity") {
     return {
@@ -134,7 +180,13 @@ async function fakeLegalPdf(
       stderr: "",
     };
   }
-  await fakeArtifacts(args, status);
+  if (args[0] === "repair-identity") {
+    return {
+      stdout: JSON.stringify(repairIdentity),
+      stderr: "",
+    };
+  }
+  await fakeArtifacts(args, status, diagnosticCode);
   return { stdout: "", stderr: "" };
 }
 
@@ -175,7 +227,7 @@ describe("local PDF ingestion", () => {
   it("stores the immutable source, returns queued, and publishes versioned artifacts", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockImplementation((args: string[]) => fakeArtifacts(args));
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const store = await import("../localDocumentStore");
     const ingestion = await import("../localPdfIngestion");
     const bytes = Buffer.from("%PDF-1.4 durable source");
@@ -203,6 +255,18 @@ describe("local PDF ingestion", () => {
       source_sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
       parser_version: "0.1.0",
       parser_config_version: "mike-local-v1",
+      parser_config: {
+        mode: "local",
+        model: null,
+        prompt_version: null,
+      },
+      repair_contract: {
+        repairable_diagnostics: repairableDiagnosticCodes,
+        repairable_diagnostics_sha256:
+          repairIdentity.repairable_diagnostics_sha256,
+        max_live_calls: 6,
+        max_scope_pages: 2,
+      },
       page_count: 1,
       diagnostic_count: 0,
     });
@@ -228,8 +292,9 @@ describe("local PDF ingestion", () => {
       versionId: file!.version.id,
       sourcePath: file!.path,
     });
-    expect(runLegalPdf).toHaveBeenCalledTimes(1);
-    expect(runLegalPdf.mock.calls[0][0][0]).toBe("parse");
+    expect(
+      runLegalPdf.mock.calls.filter(([args]) => args[0] === "parse"),
+    ).toHaveLength(1);
   });
 
   it("rebuilds incomplete or corrupt ready publications before reuse", async () => {
@@ -238,6 +303,7 @@ describe("local PDF ingestion", () => {
     let parseCalls = 0;
     const rebuildStartedWithManifest: boolean[] = [];
     runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
       parseCalls += 1;
       if (parseCalls > 1) {
         const output = args[args.indexOf("--output") + 1];
@@ -297,7 +363,7 @@ describe("local PDF ingestion", () => {
   it("survives overlapping state reads and extended Windows rename contention", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockImplementation((args: string[]) => fakeArtifacts(args));
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
     const source = path.join(
       temporaryDirectory,
@@ -428,6 +494,199 @@ describe("local PDF ingestion", () => {
     await waitForState(ingestion, file!.path, "ready");
   });
 
+  it("runs bounded Codex repair only when explicitly queued and records its identity", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    let parseCalls = 0;
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
+      parseCalls += 1;
+      return fakeLegalPdf(
+        args,
+        parseCalls === 1 ? "degraded" : "ready",
+        "tesseract-cli-v1:tesseract 5.3.0",
+        "COLUMN_ORDER_UNCERTAIN",
+      );
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 uncertain columns", "utf8");
+
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const local = await waitForState(ingestion, source, "degraded");
+    expect(local).toMatchObject({
+      structural_repair_available: true,
+      parser_config: { mode: "local", model: null },
+    });
+
+    const queued = await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+      force: true,
+      repair: { model: "gpt-5.6-luna", effort: "max" },
+    });
+    expect(queued.cache_key).not.toBe(local!.cache_key);
+    expect(queued.parser_config).toMatchObject({
+      mode: "codex",
+      model: "gpt-5.6-luna",
+      effort: "max",
+      prompt_version: repairIdentity.prompt_version,
+      response_schema_sha256: repairIdentity.response_schema_sha256,
+      repairable_diagnostics_sha256:
+        repairIdentity.repairable_diagnostics_sha256,
+      repairable_diagnostics: repairIdentity.repairable_diagnostics,
+      context_radius: 1,
+      max_attempts: 3,
+      max_live_calls: 6,
+      max_scope_pages: 2,
+    });
+
+    const repaired = await waitForState(ingestion, source, "ready");
+    expect(repaired!.structural_repair_available).toBe(false);
+    const repairParse = runLegalPdf.mock.calls.find(
+      ([args]) =>
+        args[0] === "parse" && args[args.indexOf("--mode") + 1] === "codex",
+    )?.[0];
+    expect(repairParse).toEqual(
+      expect.arrayContaining(["--model", "gpt-5.6-luna", "--effort", "max"]),
+    );
+  });
+
+  it("refreshes the engine repair contract without changing local cache identity", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const engineCodes = ["TEXT_QUALITY_LOW"];
+    const engineIdentity = {
+      ...repairIdentity,
+      repairable_diagnostics: engineCodes,
+      repairable_diagnostics_sha256: crypto
+        .createHash("sha256")
+        .update(JSON.stringify(engineCodes))
+        .digest("hex"),
+    };
+    let parseCalls = 0;
+    runLegalPdf.mockImplementation((args: string[]) => {
+      if (args[0] === "repair-identity") {
+        return Promise.resolve({
+          stdout: JSON.stringify(engineIdentity),
+          stderr: "",
+        });
+      }
+      parseCalls += 1;
+      return fakeLegalPdf(
+        args,
+        "degraded",
+        "tesseract-cli-v1:tesseract 5.3.0",
+        "COLUMN_ORDER_UNCERTAIN",
+      );
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 catalog", "utf8");
+
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const state = await waitForState(ingestion, source, "degraded");
+
+    expect(state!.repair_contract!.repairable_diagnostics).toEqual(engineCodes);
+    expect(state!.parser_config.prompt_version).toBeNull();
+    expect(state!.structural_repair_available).toBe(false);
+
+    const changedCodes = ["COLUMN_ORDER_UNCERTAIN"];
+    const changedIdentity = {
+      ...repairIdentity,
+      prompt_version: "legalpdf.codex.structure.r1.v3",
+      repairable_diagnostics: changedCodes,
+      repairable_diagnostics_sha256: crypto
+        .createHash("sha256")
+        .update(JSON.stringify(changedCodes))
+        .digest("hex"),
+    };
+    vi.resetModules();
+    runLegalPdf.mockImplementation((args: string[]) => {
+      if (args[0] === "repair-identity") {
+        return Promise.resolve({
+          stdout: JSON.stringify(changedIdentity),
+          stderr: "",
+        });
+      }
+      parseCalls += 1;
+      return fakeLegalPdf(args, "degraded");
+    });
+    const restarted = await import("../localPdfIngestion");
+    const refreshed = await restarted.readLocalPdfParseState(source);
+
+    expect(refreshed!.cache_key).toBe(state!.cache_key);
+    expect(refreshed!.parser_config).toMatchObject({
+      mode: "local",
+      model: null,
+      prompt_version: null,
+    });
+    expect(refreshed!.repair_contract!.prompt_version).toBe(
+      changedIdentity.prompt_version,
+    );
+    expect(parseCalls).toBe(1);
+    expect(refreshed!.repair_contract!.repairable_diagnostics).toEqual(
+      changedCodes,
+    );
+    expect(refreshed!.structural_repair_available).toBe(true);
+  });
+
+  it("does not block deterministic import when repair identity is unavailable", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) =>
+      args[0] === "repair-identity"
+        ? Promise.reject(new Error("repair identity unavailable"))
+        : fakeLegalPdf(args),
+    );
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 identity outage", "utf8");
+
+    const queued = await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    expect(queued.status).toBe("queued");
+    expect(queued.repair_contract).toBeUndefined();
+
+    const completed = await waitForState(ingestion, source, "ready");
+    expect(completed).toMatchObject({
+      status: "ready",
+      parser_config: { mode: "local", model: null },
+      structural_repair_available: false,
+    });
+    expect(completed!.repair_contract).toBeUndefined();
+  });
+
   it("requeues a parse left in parsing state and records the interruption", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -464,13 +723,308 @@ describe("local PDF ingestion", () => {
     );
   });
 
+  it("recovers an unowned parsing state through the normal queue path", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 restart queue", "utf8");
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    await waitForState(ingestion, source, "ready");
+    const stateFile = `${source}.legalpdf-state.json`;
+    const interrupted = JSON.parse(await readFile(stateFile, "utf8"));
+    interrupted.status = "parsing";
+    delete interrupted.completed_at;
+    await writeFile(stateFile, JSON.stringify(interrupted), "utf8");
+
+    vi.resetModules();
+    const restarted = await import("../localPdfIngestion");
+    const queued = await restarted.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+
+    expect(queued).toMatchObject({
+      status: "queued",
+      interrupted_at: expect.any(String),
+    });
+    const completed = await waitForState(restarted, source, "ready");
+    expect(completed!.attempts).toBe(2);
+  });
+
+  it("fails an orphaned Codex parse safely when its identity probe fails", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 preserved repair", "utf8");
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+      repair: { model: "gpt-5.6-luna", effort: "max" },
+    });
+    await waitForState(ingestion, source, "ready");
+    const stateFile = `${source}.legalpdf-state.json`;
+    const orphaned = JSON.parse(await readFile(stateFile, "utf8"));
+    orphaned.status = "parsing";
+    delete orphaned.completed_at;
+    await writeFile(stateFile, JSON.stringify(orphaned), "utf8");
+
+    vi.resetModules();
+    runLegalPdf.mockImplementation((args: string[]) =>
+      args[0] === "repair-identity"
+        ? Promise.reject(new Error("repair identity unavailable"))
+        : fakeLegalPdf(args),
+    );
+    const restarted = await import("../localPdfIngestion");
+
+    await expect(
+      restarted.queueLocalPdfParse({
+        documentId: "document",
+        versionId: "version",
+        sourcePath: source,
+      }),
+    ).rejects.toThrow("Codex structural repair could not start");
+    const persisted = JSON.parse(await readFile(stateFile, "utf8"));
+    expect(persisted).toMatchObject({
+      status: "failed",
+      error: "Codex structural repair could not start",
+      completed_at: expect.any(String),
+      interrupted_at: expect.any(String),
+    });
+  });
+
+  it("fails unowned queued and parsing OCR jobs safely on identity failure", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
+    const ingestion = await import("../localPdfIngestion");
+    const jobs = await Promise.all(
+      (["queued", "parsing"] as const).map(async (status) => {
+        const source = path.join(
+          temporaryDirectory!,
+          "files",
+          status,
+          "version-hash.pdf",
+        );
+        await mkdir(path.dirname(source), { recursive: true });
+        await writeFile(source, `%PDF-1.4 preserved OCR ${status}`, "utf8");
+        await ingestion.queueLocalPdfParse({
+          documentId: status,
+          versionId: "version",
+          sourcePath: source,
+          ocrProvider: "tesseract",
+        });
+        await waitForState(ingestion, source, "ready");
+        const stateFile = `${source}.legalpdf-state.json`;
+        const orphaned = JSON.parse(await readFile(stateFile, "utf8"));
+        orphaned.status = status;
+        delete orphaned.completed_at;
+        delete orphaned.interrupted_at;
+        await writeFile(stateFile, JSON.stringify(orphaned), "utf8");
+        return { source, stateFile, status };
+      }),
+    );
+
+    vi.resetModules();
+    runLegalPdf.mockImplementation((args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
+      if (args[0] === "ocr-identity") {
+        return Promise.reject(new Error("OCR identity unavailable"));
+      }
+      return fakeLegalPdf(args);
+    });
+    const restarted = await import("../localPdfIngestion");
+
+    for (const job of jobs) {
+      await expect(
+        restarted.queueLocalPdfParse({
+          documentId: job.status,
+          versionId: "version",
+          sourcePath: job.source,
+        }),
+      ).rejects.toThrow("PDF structural parser failed");
+      const persisted = JSON.parse(await readFile(job.stateFile, "utf8"));
+      expect(persisted).toMatchObject({
+        status: "failed",
+        error: "PDF structural parser failed",
+        completed_at: expect.any(String),
+      });
+      if (job.status === "parsing") {
+        expect(persisted.interrupted_at).toEqual(expect.any(String));
+      } else {
+        expect(persisted.interrupted_at).toBeUndefined();
+      }
+    }
+  });
+
+  it("keeps an actively owned parsing state idempotent", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    let started!: () => void;
+    let release!: () => void;
+    const parseStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
+      started();
+      await gate;
+      return fakeLegalPdf(args);
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 active owner", "utf8");
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    await parseStarted;
+    const active = await ingestion.readLocalPdfParseState(source, {
+      validatePublication: false,
+    });
+    const same = await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+
+    expect(same).toMatchObject({
+      job_id: active!.job_id,
+      status: "parsing",
+    });
+    expect(same.interrupted_at).toBeUndefined();
+    release();
+    await waitForState(ingestion, source, "ready");
+  });
+
+  it("does not overwrite a job that gains an owner during identity probes", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
+    const initial = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 probe race", "utf8");
+    await initial.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const ready = await waitForState(initial, source, "ready");
+    const stateFile = `${source}.legalpdf-state.json`;
+    const queued = JSON.parse(await readFile(stateFile, "utf8"));
+    queued.status = "queued";
+    delete queued.completed_at;
+    await writeFile(stateFile, JSON.stringify(queued), "utf8");
+
+    vi.resetModules();
+    let markOcrStarted!: () => void;
+    let releaseOcr!: () => void;
+    let markParseStarted!: () => void;
+    let releaseParse!: () => void;
+    const ocrStarted = new Promise<void>((resolve) => {
+      markOcrStarted = resolve;
+    });
+    const ocrGate = new Promise<void>((resolve) => {
+      releaseOcr = resolve;
+    });
+    const parseStarted = new Promise<void>((resolve) => {
+      markParseStarted = resolve;
+    });
+    const parseGate = new Promise<void>((resolve) => {
+      releaseParse = resolve;
+    });
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      if (args[0] === "repair-identity") return fakeLegalPdf(args);
+      if (args[0] === "ocr-identity") {
+        markOcrStarted();
+        await ocrGate;
+        return fakeLegalPdf(args);
+      }
+      markParseStarted();
+      await parseGate;
+      return fakeLegalPdf(args);
+    });
+    const restarted = await import("../localPdfIngestion");
+    const probing = restarted.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+      ocrProvider: "tesseract",
+    });
+
+    try {
+      await ocrStarted;
+      await restarted.queueLocalPdfParse({
+        documentId: "document",
+        versionId: "version",
+        sourcePath: source,
+        ocrProvider: null,
+      });
+      await parseStarted;
+      releaseOcr();
+      const preserved = await probing;
+      const active = await restarted.readLocalPdfParseState(source, {
+        validatePublication: false,
+      });
+
+      expect(preserved.cache_key).toBe(ready!.cache_key);
+      expect(active!.cache_key).toBe(ready!.cache_key);
+      expect(active!.parser_config.ocr_provider).toBeNull();
+    } finally {
+      releaseOcr();
+      releaseParse();
+    }
+    await waitForState(restarted, source, "ready");
+  });
+
   it("sanitizes parser failures before persisting them", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockRejectedValue(
-      new Error(
-        `Command failed while reading ${path.join(temporaryDirectory, "private", "source.pdf")}`,
-      ),
+    runLegalPdf.mockImplementation((args: string[]) =>
+      args[0] === "repair-identity"
+        ? fakeLegalPdf(args)
+        : Promise.reject(
+            new Error(
+              `Command failed while reading ${path.join(temporaryDirectory, "private", "source.pdf")}`,
+            ),
+          ),
     );
     const ingestion = await import("../localPdfIngestion");
     const source = path.join(
@@ -506,7 +1060,7 @@ describe("local PDF ingestion", () => {
         args: string[],
         options?: { signal?: AbortSignal },
       ): Promise<{ stdout: string; stderr: string }> => {
-        if (args[0] === "ocr-identity") {
+        if (args[0] === "ocr-identity" || args[0] === "repair-identity") {
           return fakeLegalPdf(args);
         }
         const output = args[args.indexOf("--output") + 1];
@@ -555,7 +1109,7 @@ describe("local PDF ingestion", () => {
   it("recovers a stored PDF if shutdown occurred before its job sidecar was written", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockImplementation((args: string[]) => fakeArtifacts(args));
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
     const relativeSource = path.join("files", "document", "version-hash.pdf");
     const source = path.join(temporaryDirectory, relativeSource);

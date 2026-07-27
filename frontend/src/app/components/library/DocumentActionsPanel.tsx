@@ -21,6 +21,10 @@ import type {
     PdfParseState,
     PdfParseStatus,
 } from "@/app/components/shared/types";
+import {
+    useSelectedModel,
+    useSelectedReasoningEffort,
+} from "@/app/hooks/useSelectedModel";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { cn } from "@/app/lib/utils";
@@ -83,6 +87,8 @@ export function DocumentActionsPanel({
     onDocumentChanged: () => Promise<void>;
 }) {
     const router = useRouter();
+    const [selectedModel] = useSelectedModel();
+    const [selectedReasoningEffort] = useSelectedReasoningEffort();
     const [running, setRunning] = useState<ActionName | null>(null);
     const [result, setResult] =
         useState<DeterministicDocxActionResult | null>(null);
@@ -104,7 +110,7 @@ export function DocumentActionsPanel({
     const [pdfParsePollPaused, setPdfParsePollPaused] = useState(false);
     const [pdfParseRefreshKey, setPdfParseRefreshKey] = useState(0);
     const [pdfParseAction, setPdfParseAction] = useState<
-        "retry" | "ocr" | null
+        "retry" | "ocr" | "repair" | null
     >(null);
 
     useEffect(() => {
@@ -175,18 +181,35 @@ export function DocumentActionsPanel({
         pdfVersionId,
     ]);
 
-    async function retryPdfParse(ocrProvider?: "tesseract") {
+    async function retryPdfParse(action: "retry" | "ocr" | "repair") {
         if (!document) return;
-        setPdfParseAction(ocrProvider ? "ocr" : "retry");
+        if (
+            action === "repair" &&
+            (!selectedModel.startsWith("codex:") ||
+                !selectedReasoningEffort)
+        ) {
+            setPdfParseError(
+                "Choose a Codex model and reasoning effort in Assistant first.",
+            );
+            return;
+        }
+        setPdfParseAction(action);
         setPdfParseError("");
         try {
-            const next = ocrProvider
-                ? await retryLibraryPdfParse(
-                      document.id,
-                      pdfVersionId,
-                      ocrProvider,
-                  )
-                : await retryLibraryPdfParse(document.id, pdfVersionId);
+            const next = await retryLibraryPdfParse(
+                document.id,
+                pdfVersionId,
+                action === "ocr"
+                    ? { ocrProvider: "tesseract" }
+                    : action === "repair"
+                      ? {
+                            repair: {
+                                model: selectedModel,
+                                effort: selectedReasoningEffort!,
+                            },
+                        }
+                      : undefined,
+            );
             setPdfParse(next);
             setPdfParseRefreshKey((value) => value + 1);
         } catch (retryError) {
@@ -370,8 +393,9 @@ export function DocumentActionsPanel({
                             onRefresh={() =>
                                 setPdfParseRefreshKey((value) => value + 1)
                             }
-                            onRetry={() => void retryPdfParse()}
-                            onOcr={() => void retryPdfParse("tesseract")}
+                            onRetry={() => void retryPdfParse("retry")}
+                            onOcr={() => void retryPdfParse("ocr")}
+                            onRepair={() => void retryPdfParse("repair")}
                         />
                     )}
                     <ActionCard
@@ -458,19 +482,22 @@ function PdfParseCard({
     onRefresh,
     onRetry,
     onOcr,
+    onRepair,
 }: {
     state: PdfParseState | null;
     loading: boolean;
-    action: "retry" | "ocr" | null;
+    action: "retry" | "ocr" | "repair" | null;
     pollPaused: boolean;
     error: string;
     onRefresh: () => void;
     onRetry: () => void;
     onOcr: () => void;
+    onRepair: () => void;
 }) {
     const active = isActivePdfParse(state);
     const ocrRequired =
         (state?.diagnostic_summary?.by_code.OCR_REQUIRED ?? 0) > 0;
+    const repairAvailable = state?.structural_repair_available === true;
     const statusLabel = state
         ? PDF_PARSE_LABELS[state.status]
         : loading
@@ -542,6 +569,9 @@ function PdfParseCard({
                             {state.parser_config.ocr_provider === "tesseract"
                                 ? " · Tesseract OCR"
                                 : ""}
+                            {state.parser_config.mode === "codex"
+                                ? " · Codex repair"
+                                : ""}
                         </p>
                     )}
                     {diagnostics && (
@@ -567,8 +597,8 @@ function PdfParseCard({
                 </div>
             </div>
             <p className="mt-3 text-[11px] leading-4 text-gray-500">
-                Retry preserves the current parser settings. OCR is opt-in and
-                processes only pages marked OCR required.
+                Retry preserves parser settings. OCR and bounded structural
+                repair are opt-in.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
                 <PillButton
@@ -612,6 +642,22 @@ function PdfParseCard({
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         )}
                         OCR affected pages
+                    </PillButton>
+                )}
+                {!active && repairAvailable && (
+                    <PillButton
+                        type="button"
+                        tone="white"
+                        size="normal"
+                        disabled={loading || !!action}
+                        onClick={onRepair}
+                        title="Uses the Codex model and reasoning effort selected in Assistant. Only diagnosed pages receive bounded r=1 context."
+                        className="col-span-2 min-w-0"
+                    >
+                        {action === "repair" && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
+                        Repair uncertain structure
                     </PillButton>
                 )}
             </div>

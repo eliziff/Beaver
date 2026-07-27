@@ -16,7 +16,7 @@
     },
     "universal-legal-pdf-engine": {
       "branch": "main",
-      "commit": "0f0efac9687d4c152539ab5496263597cb5ea1a7",
+      "commit": "2e05500063898488631a2950a1861f0f40f70153",
       "bundle": "subrepos/universal-legal-pdf-engine.bundle",
       "remote": null
     }

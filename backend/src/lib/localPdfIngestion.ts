@@ -42,6 +42,23 @@ export type LocalPdfParseStatus =
 
 export type LocalPdfOcrProvider = "tesseract";
 
+export type LocalPdfRepairConfig = {
+  model: string;
+  effort: string;
+};
+
+type LocalPdfRepairIdentity = {
+  schema_version: "legalpdf.codex.repair-identity.v1";
+  prompt_version: string;
+  response_schema_sha256: string;
+  repairable_diagnostics_sha256: string;
+  context_radius: number;
+  max_attempts: number;
+  max_live_calls: number;
+  max_scope_pages: number;
+  repairable_diagnostics: string[];
+};
+
 export type LocalPdfParseState = {
   schema_version: typeof STATE_SCHEMA;
   job_id: string;
@@ -53,17 +70,26 @@ export type LocalPdfParseState = {
   parser_version: string;
   parser_config_version: string;
   parser_config: {
-    mode: "local";
+    mode: "local" | "codex";
     ocr_provider: LocalPdfOcrProvider | null;
     ocr_identity?: string;
     ocr_language?: string;
     ocr_dpi?: number;
     ocr_psm?: number;
-    model: null;
-    prompt_version: null;
+    model: string | null;
+    effort?: string | null;
+    prompt_version: string | null;
+    response_schema_sha256?: string | null;
+    repairable_diagnostics_sha256?: string | null;
+    repairable_diagnostics?: string[];
+    context_radius?: number | null;
+    max_attempts?: number | null;
+    max_live_calls?: number | null;
+    max_scope_pages?: number | null;
     text_fidelity_root: string | null;
     text_fidelity_native: false;
   };
+  repair_contract?: LocalPdfRepairIdentity;
   cache_key: string;
   artifact_manifest: string;
   attempts: number;
@@ -81,6 +107,7 @@ export type LocalPdfParseState = {
     by_severity: Record<string, number>;
     by_code: Record<string, number>;
   };
+  structural_repair_available?: boolean;
   error?: string;
   flat_text_fallback_available: true;
 };
@@ -94,6 +121,7 @@ const activeControllers = new Map<string, AbortController>();
 const jobs = new Map<string, Promise<void>>();
 const atomicWriteTails = new Map<string, Promise<void>>();
 const validatedPublications = new Map<string, string>();
+let repairIdentityPromise: Promise<LocalPdfRepairIdentity> | null = null;
 // ponytail: one parser at a time protects weak local machines; use a bounded
 // worker pool only if measured queue latency justifies the extra machinery.
 let workTail: Promise<unknown> = Promise.resolve();
@@ -105,15 +133,31 @@ function configVersion() {
 function parserConfig(
   ocrProvider: LocalPdfOcrProvider | null,
   ocrIdentity?: string,
+  repairIdentity?: LocalPdfRepairIdentity | null,
+  repair?: LocalPdfRepairConfig | null,
 ): LocalPdfParseState["parser_config"] {
   const config: LocalPdfParseState["parser_config"] = {
-    mode: "local",
+    mode: repair ? "codex" : "local",
     ocr_provider: ocrProvider,
-    model: null,
-    prompt_version: null,
+    model: repair?.model ?? null,
+    prompt_version:
+      repair && repairIdentity ? repairIdentity.prompt_version : null,
     text_fidelity_root: process.env.LEGALPDF_TEXT_FIDELITY_ROOT?.trim() || null,
     text_fidelity_native: false,
   };
+  if (repair && repairIdentity) {
+    Object.assign(config, {
+      response_schema_sha256: repairIdentity.response_schema_sha256,
+      repairable_diagnostics_sha256:
+        repairIdentity.repairable_diagnostics_sha256,
+      repairable_diagnostics: repairIdentity.repairable_diagnostics,
+      context_radius: repairIdentity.context_radius,
+      max_attempts: repairIdentity.max_attempts,
+      max_live_calls: repairIdentity.max_live_calls,
+      max_scope_pages: repairIdentity.max_scope_pages,
+    });
+  }
+  if (repair) config.effort = repair.effort;
   if (!ocrProvider) return config;
   const language = process.env.MIKE_PDF_OCR_LANGUAGE?.trim() || "eng";
   const dpi = Number(process.env.MIKE_PDF_OCR_DPI);
@@ -125,6 +169,31 @@ function parserConfig(
     ocr_dpi: Number.isInteger(dpi) && dpi >= 72 && dpi <= 600 ? dpi : 180,
     ocr_psm: Number.isInteger(psm) && psm >= 0 && psm <= 13 ? psm : 3,
   };
+}
+
+function validRepairRequest(value: LocalPdfRepairConfig) {
+  return (
+    typeof value.model === "string" &&
+    value.model === value.model.trim() &&
+    value.model.length > 0 &&
+    value.model.length <= 160 &&
+    !/[\u0000-\u001f\u007f]/u.test(value.model) &&
+    typeof value.effort === "string" &&
+    /^[A-Za-z0-9_-]{1,32}$/u.test(value.effort)
+  );
+}
+
+function preservedRepair(
+  state: LocalPdfParseState | null,
+): LocalPdfRepairConfig | null {
+  const config = state?.parser_config;
+  if (config?.mode !== "codex") return null;
+  const repair = { model: config.model, effort: config.effort };
+  return typeof repair.model === "string" &&
+    typeof repair.effort === "string" &&
+    validRepairRequest(repair as LocalPdfRepairConfig)
+    ? (repair as LocalPdfRepairConfig)
+    : null;
 }
 
 function safeParserError(error: unknown) {
@@ -139,6 +208,9 @@ function safeParserError(error: unknown) {
     return "Tesseract changed before OCR began; retry the parse";
   }
   if (/Tesseract OCR failed/iu.test(message)) return "Tesseract OCR failed";
+  if (/Codex structural repair could not start/iu.test(message)) {
+    return "Codex structural repair could not start";
+  }
   if (/source changed after its parse job was queued/iu.test(message)) {
     return "PDF source changed after its parse job was queued";
   }
@@ -181,6 +253,81 @@ async function detectedTesseractIdentity(
   } catch (error) {
     throw new Error(safeParserError(error));
   }
+}
+
+async function detectedRepairIdentity(
+  signal?: AbortSignal,
+): Promise<LocalPdfRepairIdentity> {
+  try {
+    const result = await runLegalPdf(["repair-identity"], {
+      timeoutMs: 3_000,
+      signal,
+    });
+    const payload = JSON.parse(String(result.stdout)) as {
+      schema_version?: unknown;
+      prompt_version?: unknown;
+      response_schema_sha256?: unknown;
+      repairable_diagnostics_sha256?: unknown;
+      context_radius?: unknown;
+      max_attempts?: unknown;
+      max_live_calls?: unknown;
+      max_scope_pages?: unknown;
+      repairable_diagnostics?: unknown;
+    };
+    const codes = payload.repairable_diagnostics;
+    if (
+      payload.schema_version !== "legalpdf.codex.repair-identity.v1" ||
+      typeof payload.prompt_version !== "string" ||
+      !payload.prompt_version ||
+      payload.prompt_version.length > 160 ||
+      /[\r\n\u0000]/u.test(payload.prompt_version) ||
+      typeof payload.response_schema_sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(payload.response_schema_sha256) ||
+      typeof payload.repairable_diagnostics_sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(payload.repairable_diagnostics_sha256) ||
+      payload.context_radius !== 1 ||
+      !Number.isInteger(payload.max_attempts) ||
+      Number(payload.max_attempts) < 1 ||
+      Number(payload.max_attempts) > 3 ||
+      !Number.isInteger(payload.max_live_calls) ||
+      Number(payload.max_live_calls) < 1 ||
+      Number(payload.max_live_calls) > 6 ||
+      payload.max_scope_pages !== 2 ||
+      !Array.isArray(codes) ||
+      codes.length === 0 ||
+      codes.some(
+        (code) =>
+          typeof code !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/u.test(code),
+      ) ||
+      payload.repairable_diagnostics_sha256 !==
+        sha256(JSON.stringify([...codes].sort()))
+    ) {
+      throw new Error("Invalid Codex repair identity");
+    }
+    return {
+      schema_version: payload.schema_version,
+      prompt_version: payload.prompt_version,
+      response_schema_sha256: payload.response_schema_sha256,
+      repairable_diagnostics_sha256: payload.repairable_diagnostics_sha256,
+      context_radius: payload.context_radius,
+      max_attempts: Number(payload.max_attempts),
+      max_live_calls: Number(payload.max_live_calls),
+      max_scope_pages: payload.max_scope_pages,
+      repairable_diagnostics: [...codes].sort(),
+    };
+  } catch (error) {
+    throw new Error("Codex structural repair could not start", {
+      cause: error,
+    });
+  }
+}
+
+function cachedRepairIdentity() {
+  repairIdentityPromise ??= detectedRepairIdentity().catch((error) => {
+    repairIdentityPromise = null;
+    throw error;
+  });
+  return repairIdentityPromise;
 }
 
 function sha256(value: string | Buffer) {
@@ -342,10 +489,17 @@ function newQueuedState(params: {
   sourceSha256: string;
   ocrProvider: LocalPdfOcrProvider | null;
   ocrIdentity?: string;
+  repairIdentity: LocalPdfRepairIdentity | null;
+  repair?: LocalPdfRepairConfig | null;
   previous?: LocalPdfParseState | null;
 }) {
   const now = new Date().toISOString();
-  const config = parserConfig(params.ocrProvider, params.ocrIdentity);
+  const config = parserConfig(
+    params.ocrProvider,
+    params.ocrIdentity,
+    params.repairIdentity,
+    params.repair,
+  );
   const version = configVersion();
   const key = cacheKey(params.sourceSha256, version, config);
   return {
@@ -359,6 +513,9 @@ function newQueuedState(params: {
     parser_version: LOCAL_PDF_PARSER_VERSION,
     parser_config_version: version,
     parser_config: config,
+    ...(params.repairIdentity
+      ? { repair_contract: params.repairIdentity }
+      : {}),
     cache_key: key,
     artifact_manifest: relativeDataPath(
       path.join(artifactDirectory(params.sourcePath, key), "document.json"),
@@ -404,6 +561,7 @@ function rekeyOcrState(
     counts: undefined,
     diagnostic_count: undefined,
     diagnostic_summary: undefined,
+    structural_repair_available: undefined,
     error: undefined,
   } satisfies LocalPdfParseState;
 }
@@ -427,6 +585,7 @@ async function requeueInvalidPublication(
     counts: undefined,
     diagnostic_count: undefined,
     diagnostic_summary: undefined,
+    structural_repair_available: undefined,
     error: undefined,
   } satisfies LocalPdfParseState;
   validatedPublications.delete(publicationKey(sourcePath, state.cache_key));
@@ -612,6 +771,32 @@ async function publishBridgeArtifacts(
       "PDF parser returned artifacts for a different source or version",
     );
   }
+  if (state.parser_config.mode === "codex") {
+    const provenance = objectValue(
+      manifest.provenance,
+      "PDF parser provenance",
+    );
+    const codex = objectValue(provenance.codex, "PDF Codex repair provenance");
+    if (
+      codex.model !== state.parser_config.model ||
+      codex.effort !== state.parser_config.effort ||
+      codex.prompt_version !== state.parser_config.prompt_version ||
+      codex.response_schema_sha256 !==
+        state.parser_config.response_schema_sha256 ||
+      codex.repairable_diagnostics_sha256 !==
+        state.parser_config.repairable_diagnostics_sha256 ||
+      !isDeepStrictEqual(
+        codex.repairable_diagnostics,
+        state.parser_config.repairable_diagnostics,
+      ) ||
+      codex.context_radius !== state.parser_config.context_radius ||
+      codex.max_attempts !== state.parser_config.max_attempts ||
+      codex.max_live_calls !== state.parser_config.max_live_calls ||
+      codex.max_scope_pages !== state.parser_config.max_scope_pages
+    ) {
+      throw new Error("PDF Codex repair provenance does not match its job");
+    }
+  }
   const artifacts =
     manifest.artifacts && typeof manifest.artifacts === "object"
       ? (manifest.artifacts as JsonObject)
@@ -660,7 +845,10 @@ async function publishBridgeArtifacts(
   return manifest;
 }
 
-async function diagnosticSummary(output: string) {
+async function diagnosticSummary(
+  output: string,
+  repairableDiagnostics?: string[],
+) {
   const diagnostics = jsonLines(
     await readFile(path.join(output, "diagnostics.jsonl"), "utf8"),
   );
@@ -675,7 +863,36 @@ async function diagnosticSummary(output: string) {
   return {
     count: diagnostics.length,
     summary: { by_severity: bySeverity, by_code: byCode },
+    structuralRepairAvailable: structuralRepairAvailable(
+      diagnostics,
+      repairableDiagnostics,
+    ),
   };
+}
+
+function structuralRepairAvailable(
+  diagnostics: JsonObject[],
+  repairableDiagnostics?: string[],
+) {
+  if (
+    !Array.isArray(repairableDiagnostics) ||
+    !repairableDiagnostics.every((code) => typeof code === "string")
+  ) {
+    return false;
+  }
+  return diagnostics.some((diagnostic) => {
+    const details =
+      diagnostic.details &&
+      typeof diagnostic.details === "object" &&
+      !Array.isArray(diagnostic.details)
+        ? (diagnostic.details as JsonObject)
+        : {};
+    return (
+      repairableDiagnostics.includes(String(diagnostic.code || "")) &&
+      String(diagnostic.severity || "") !== "info" &&
+      details.codex_repair_applied !== true
+    );
+  });
 }
 
 async function processJob(sourcePath: string) {
@@ -724,7 +941,7 @@ async function processJob(sourcePath: string) {
       "--output",
       output,
       "--mode",
-      "local",
+      parsing.parser_config.mode,
       "--cache-dir",
       path.join(
         dataRoot,
@@ -734,6 +951,14 @@ async function processJob(sourcePath: string) {
         parsing.parser_config_version,
       ),
     ];
+    if (parsing.parser_config.mode === "codex") {
+      arguments_.push(
+        "--model",
+        String(parsing.parser_config.model),
+        "--effort",
+        String(parsing.parser_config.effort),
+      );
+    }
     if (parsing.parser_config.ocr_provider === "tesseract") {
       arguments_.push(
         "--ocr-provider",
@@ -765,7 +990,10 @@ async function processJob(sourcePath: string) {
     }
     const manifest = await publishBridgeArtifacts(sourcePath, parsing);
     if (cancelled.has(key)) return;
-    const diagnostics = await diagnosticSummary(output);
+    const diagnostics = await diagnosticSummary(
+      output,
+      parsing.repair_contract?.repairable_diagnostics,
+    );
     const completed = new Date().toISOString();
     const engineStatus = String(manifest.status || "degraded");
     const provenance =
@@ -794,6 +1022,7 @@ async function processJob(sourcePath: string) {
       counts,
       diagnostic_count: diagnostics.count,
       diagnostic_summary: diagnostics.summary,
+      structural_repair_available: diagnostics.structuralRepairAvailable,
       completed_at: completed,
       updated_at: completed,
     } satisfies LocalPdfParseState;
@@ -879,23 +1108,100 @@ export async function queueLocalPdfParse(params: {
   sourceSha256?: string;
   force?: boolean;
   ocrProvider?: LocalPdfOcrProvider | null;
+  repair?: LocalPdfRepairConfig | null;
 }) {
   const sourceSha256 =
     params.sourceSha256 || (await hashFile(params.sourcePath));
-  const current = await readState(params.sourcePath);
+  let current = await readState(params.sourcePath);
+  const key = jobKey(params.sourcePath);
+  const activeStatus =
+    current?.status === "queued" || current?.status === "parsing";
+  const hasOwner =
+    scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
+  if (current && activeStatus && hasOwner) return current;
+  const unownedActive = Boolean(current && activeStatus);
+  let repair = params.repair === undefined ? preservedRepair(current) : null;
+  if (params.repair) {
+    if (!validRepairRequest(params.repair)) {
+      throw new Error("Invalid Codex structural repair settings");
+    }
+    repair = params.repair;
+  }
   const ocrProvider =
     params.ocrProvider === undefined
       ? (current?.parser_config.ocr_provider ?? null)
       : params.ocrProvider;
-  const ocrIdentity =
-    ocrProvider === "tesseract"
-      ? await detectedTesseractIdentity(parserConfig(ocrProvider))
-      : undefined;
+  let repairIdentity: LocalPdfRepairIdentity | null;
+  let ocrIdentity: string | undefined;
+  try {
+    repairIdentity = repair
+      ? await cachedRepairIdentity()
+      : await cachedRepairIdentity().catch(() => null);
+    ocrIdentity =
+      ocrProvider === "tesseract"
+        ? await detectedTesseractIdentity(parserConfig(ocrProvider))
+        : undefined;
+  } catch (error) {
+    if (
+      current &&
+      unownedActive &&
+      (scheduled.has(key) || jobs.has(key) || activeControllers.has(key))
+    ) {
+      return current;
+    }
+    if (current && unownedActive) {
+      const failed = new Date().toISOString();
+      current = {
+        ...current,
+        status: "failed",
+        error: safeParserError(error),
+        completed_at: failed,
+        updated_at: failed,
+        ...(current.status === "parsing" ? { interrupted_at: failed } : {}),
+      };
+      await writeState(params.sourcePath, current);
+    }
+    throw error;
+  }
+  const ownerAfterProbes =
+    scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
+  if (current && activeStatus && ownerAfterProbes) return current;
+  const hasNoOwner = !ownerAfterProbes;
+  const recoverOrphan = Boolean(
+    current?.status === "parsing" && unownedActive && hasNoOwner,
+  );
+  const refreshRepairContract = Boolean(
+    repairIdentity &&
+    current &&
+    hasNoOwner &&
+    !isDeepStrictEqual(current.repair_contract, repairIdentity),
+  );
+  if (current && (recoverOrphan || refreshRepairContract)) {
+    const updated = new Date().toISOString();
+    current = {
+      ...current,
+      ...(recoverOrphan
+        ? {
+            status: "queued" as const,
+            queued_at: updated,
+            interrupted_at: updated,
+            error: undefined,
+          }
+        : {}),
+      ...(refreshRepairContract && repairIdentity
+        ? { repair_contract: repairIdentity }
+        : {}),
+      updated_at: updated,
+    };
+    await writeState(params.sourcePath, current);
+  }
   const candidate = newQueuedState({
     ...params,
     sourceSha256,
     ocrProvider,
     ocrIdentity,
+    repairIdentity,
+    repair,
     previous: current,
   });
   if (
@@ -928,14 +1234,37 @@ export async function readLocalPdfParseState(
 ) {
   let state = await readState(sourcePath);
   if (!state) return null;
+  const storedRepairContract = state.repair_contract;
+  let repairContract = state.repair_contract;
   let diagnostics: JsonObject[] = [];
+  let diagnosticsLoaded = false;
+  if (state.status === "ready" || state.status === "degraded") {
+    try {
+      const latest = await cachedRepairIdentity();
+      repairContract = latest;
+      if (!isDeepStrictEqual(state.repair_contract, latest)) {
+        state = {
+          ...state,
+          repair_contract: latest,
+          updated_at: new Date().toISOString(),
+        };
+        await writeState(sourcePath, state);
+      }
+    } catch {
+      repairContract = undefined;
+    }
+  }
   if (
     options?.validatePublication !== false &&
     (state.status === "ready" || state.status === "degraded")
   ) {
     if (!(await validatePublishedArtifacts(sourcePath, state))) {
       state = await requeueInvalidPublication(sourcePath, state);
-      return { ...state, diagnostics };
+      return {
+        ...state,
+        structural_repair_available: false,
+        diagnostics,
+      };
     }
     try {
       diagnostics = jsonLines(
@@ -947,11 +1276,24 @@ export async function readLocalPdfParseState(
           "utf8",
         ),
       );
+      diagnosticsLoaded = true;
     } catch {
       diagnostics = [];
     }
   }
-  return { ...state, diagnostics };
+  return {
+    ...state,
+    structural_repair_available: diagnosticsLoaded
+      ? structuralRepairAvailable(
+          diagnostics,
+          repairContract?.repairable_diagnostics,
+        )
+      : repairContract &&
+          isDeepStrictEqual(storedRepairContract, repairContract)
+        ? state.structural_repair_available
+        : false,
+    diagnostics,
+  };
 }
 
 export async function removeLocalPdfParseArtifacts(sourcePath: string) {
@@ -1066,18 +1408,12 @@ export async function resumeLocalPdfParses() {
         continue;
       }
       if (!["queued", "parsing"].includes(state.status)) continue;
-      if (state.status === "parsing") {
-        const now = new Date().toISOString();
-        await writeState(sourcePath, {
-          ...state,
-          status: "queued",
-          queued_at: now,
-          updated_at: now,
-          interrupted_at: now,
-          error: undefined,
-        });
-      }
-      schedule(sourcePath);
+      await queueLocalPdfParse({
+        documentId: state.document_id,
+        versionId: state.version_id,
+        sourcePath,
+        sourceSha256: state.source_sha256,
+      });
     } catch (error) {
       console.error("[local-library] Could not resume PDF parse state", {
         filePath,
