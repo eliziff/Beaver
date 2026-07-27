@@ -35,6 +35,13 @@ async function fakeArtifacts(args: string[], status = "ready") {
       text: "Introduction",
       line_ids: [],
     })}\n`,
+    "sections.jsonl": `${JSON.stringify({
+      id: "paragraph-1",
+      page_index: 0,
+      text: "Introduction",
+      line_ids: [],
+      provenance: "heading-region",
+    })}\n`,
     "footnotes.jsonl": `${JSON.stringify({
       pair_id: "fn-1",
       label: "1",
@@ -81,6 +88,7 @@ async function fakeArtifacts(args: string[], status = "ready") {
       artifacts: {
         pages: "pages.jsonl",
         paragraphs: "paragraphs.jsonl",
+        sections: "sections.jsonl",
         footnotes: "footnotes.jsonl",
         diagnostics: "diagnostics.jsonl",
         repairs: "repairs.jsonl",

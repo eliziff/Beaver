@@ -266,21 +266,12 @@ async function publishBridgeArtifacts(
     manifest.artifacts && typeof manifest.artifacts === "object"
       ? (manifest.artifacts as JsonObject)
       : {};
-  const paragraphs = jsonLines(
-    await readFile(path.join(output, String(artifacts.paragraphs)), "utf8"),
-  );
   const footnotes = jsonLines(
     await readFile(path.join(output, String(artifacts.footnotes)), "utf8"),
   );
-  const sections = paragraphs
-    .filter((paragraph) => paragraph.region_type === "heading")
-    .map((paragraph) => ({
-      id: paragraph.id,
-      page_index: paragraph.page_index,
-      text: paragraph.text,
-      line_ids: paragraph.line_ids,
-      provenance: "heading-region",
-    }));
+  if (typeof artifacts.sections !== "string") {
+    throw new Error("PDF parser did not publish section artifacts");
+  }
   const propositions = footnotes.map((footnote) => ({
     pair_id: footnote.pair_id,
     label: footnote.label,
@@ -289,11 +280,6 @@ async function publishBridgeArtifacts(
     passage_since_prior_note: footnote.passage_since_prior_note,
   }));
   await Promise.all([
-    atomicWrite(
-      path.join(output, "sections.jsonl"),
-      sections.map((row) => JSON.stringify(row)).join("\n") +
-        (sections.length ? "\n" : ""),
-    ),
     atomicWrite(
       path.join(output, "propositions.jsonl"),
       propositions.map((row) => JSON.stringify(row)).join("\n") +
@@ -316,7 +302,6 @@ async function publishBridgeArtifacts(
   ]);
   manifest.artifacts = {
     ...artifacts,
-    sections: "sections.jsonl",
     propositions: "propositions.jsonl",
     parser_config: "parser-config.json",
   };
