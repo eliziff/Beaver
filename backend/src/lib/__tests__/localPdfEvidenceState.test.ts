@@ -23,6 +23,8 @@ vi.mock("../localPdfLookup", () => ({
 import {
   appendLocalPdfPinpointLinks,
   localPdfArtifactSessionForTurn,
+  providerPdfReferencesForTurn,
+  registerProviderPdfEvidenceForTurn,
 } from "../chat/localPdfEvidenceState";
 
 const handle = `mike-evidence:v1:${"a".repeat(64)}`;
@@ -118,6 +120,64 @@ describe("local PDF chat link finalization", () => {
     );
     expect(linked.match(/text=/gu)).toHaveLength(2);
     expect(linked).toContain("&text=");
+  });
+
+  it("retains mirror references and fails closed when provenance is ambiguous", async () => {
+    const handles = new Set([handle]);
+    const firstReference =
+      `mike-provider-pdf:v1:govinfo:${"1".repeat(64)}:${"2".repeat(64)}`;
+    const secondReference =
+      `mike-provider-pdf:v1:courtlistener:${"3".repeat(64)}:${"2".repeat(64)}`;
+    const linkEvidence = {
+      handle,
+      documentId: "provider-pdf-mirror",
+      versionId: "2".repeat(32),
+      href: "/unused",
+      label: "[page 7]",
+      blockText: evidence.blockText,
+      documentText: evidence.documentText,
+      pageScoped: true,
+      pageNumbers: [7],
+      sources: [
+        {
+          key: "paragraph:paragraph-7",
+          label: "[page 7]",
+          href: "/unused",
+          blockText: evidence.blockText,
+          documentText: evidence.documentText,
+          pageScoped: true,
+          pageNumbers: [7],
+        },
+      ],
+      pages: [],
+    };
+    registerProviderPdfEvidenceForTurn(
+      handles,
+      handle,
+      firstReference,
+      "https://www.govinfo.gov/content/pkg/example/pdf/example.pdf",
+      "GovInfo mirror",
+      linkEvidence,
+    );
+    registerProviderPdfEvidenceForTurn(
+      handles,
+      handle,
+      secondReference,
+      "https://storage.courtlistener.com/example.pdf",
+      "CourtListener mirror",
+      linkEvidence,
+    );
+    const answer =
+      'The court said "The governing rule applies in these circumstances."';
+
+    expect(providerPdfReferencesForTurn(handles, handle)).toEqual([
+      firstReference,
+      secondReference,
+    ]);
+    await expect(
+      appendLocalPdfPinpointLinks(answer, "local-user", handles),
+    ).resolves.toBe(answer);
+    expect(mocks.readLocalPdfEvidenceReceipt).not.toHaveBeenCalled();
   });
 
   it("leaves the answer alone when text mismatches or evidence drifts", async () => {

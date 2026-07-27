@@ -32,6 +32,7 @@ describe("local assistant tools", () => {
       )?.function.description,
     ).toContain("do not read, split, classify, or construct citation URLs");
     expect(names).toContain("library_fix_docx_supras");
+    expect(names).toContain("provider_pdf_lookup");
     expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
     expect(

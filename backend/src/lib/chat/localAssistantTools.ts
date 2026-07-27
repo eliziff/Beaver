@@ -27,14 +27,26 @@ import {
   listLocalLibrary,
 } from "../localDocumentStore";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
+import { deriveOriginalPdfCandidates } from "../legalSourcePresentation";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
   lookupLocalPdfStructure,
   readLocalPdfEvidenceReceipt,
   rehydrateLocalPdfEvidence,
+  type LocalPdfLinkEvidence,
   type LocalPdfLocatorKind,
 } from "../localPdfLookup";
-import { localPdfArtifactSessionForTurn } from "./localPdfEvidenceState";
+import {
+  lookupProviderPdfReference,
+  queueProviderPdfAttachment,
+  rehydrateProviderPdfReference,
+  type ProviderPdfAttachment,
+  type ProviderPdfAttachmentState,
+} from "../providerPdfLibraryBridge";
+import {
+  localPdfArtifactSessionForTurn,
+  registerProviderPdfEvidenceForTurn,
+} from "./localPdfEvidenceState";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
@@ -197,6 +209,43 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           },
         },
         required: ["handle"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "provider_pdf_lookup",
+      description:
+        "Resolve an opaque provider PDF reference returned by a legal-source tool and return one exact parsed structural unit. If parsing is still queued, this reports that state without reading the whole PDF. To rehydrate prior exact evidence, pass its handle with the same reference_id instead of a locator.",
+      parameters: {
+        type: "object",
+        properties: {
+          reference_id: {
+            type: "string",
+            description:
+              "Opaque mike-provider-pdf:v1 reference returned by a source tool.",
+          },
+          handle: {
+            type: "string",
+            description:
+              "Optional mike-evidence:v1 handle previously returned for this exact provider PDF reference.",
+          },
+          locator_kind: {
+            type: "string",
+            enum: [...LOCAL_PDF_LOCATOR_KINDS],
+          },
+          locator: { type: "string" },
+          end_locator: { type: "string" },
+          context_blocks: {
+            type: "integer",
+            minimum: 0,
+            maximum: 2,
+          },
+          page: { type: "integer", minimum: 1 },
+          occurrence: { type: "integer", minimum: 1 },
+        },
+        required: ["reference_id"],
       },
     },
   },
@@ -466,6 +515,79 @@ function compactPdfLookup(
   };
 }
 
+type ReadyProviderPdfLookup = {
+  availability: "ready";
+  state: ProviderPdfAttachmentState;
+  params: ProviderPdfAttachment;
+  lookup: LocalPdfLookupResult;
+  linkEvidence: LocalPdfLinkEvidence | null;
+};
+
+function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
+  const filename =
+    resolved.params.title ||
+    resolved.params.filename ||
+    resolved.params.identity;
+  const compact = compactPdfLookup(filename, resolved.lookup);
+  const freshness = {
+    freshness_status: resolved.state.freshness_status,
+    fetched_at: resolved.state.fetched_at,
+    checked_at: resolved.state.checked_at,
+    ...(resolved.state.freshness_status === "stale"
+      ? {
+          freshness_warning:
+            "The exact cached PDF is verified, but its latest refresh failed or is due.",
+        }
+      : {}),
+  };
+  if (resolved.lookup.status !== "found") {
+    return {
+      ...compact,
+      ...freshness,
+      reference_id: resolved.state.reference_id,
+      request_reference: resolved.state.request_reference,
+      source_reference: resolved.state.source_reference,
+    };
+  }
+  const pageNumbers =
+    resolved.linkEvidence?.pageNumbers ?? resolved.lookup.link.page_numbers;
+  const sourceUrl = new URL(resolved.params.url);
+  if (pageNumbers[0]) sourceUrl.hash = `page=${pageNumbers[0]}`;
+  return {
+    ...compact,
+    ...freshness,
+    reference_id: resolved.state.reference_id,
+    request_reference: resolved.state.request_reference,
+    source_reference: resolved.state.source_reference,
+    link: { href: sourceUrl.toString(), page_numbers: pageNumbers },
+  };
+}
+
+async function queueA2ajPdfFallback(
+  source: Pick<
+    A2AJDocument,
+    "url" | "dataset" | "citation" | "name" | "structure"
+  >,
+) {
+  if (!source.url || source.structure.source !== "flat_text") return null;
+  const candidate = deriveOriginalPdfCandidates({
+    canonicalUrl: source.url,
+  })[0];
+  if (!candidate) return null;
+  try {
+    return await queueProviderPdfAttachment({
+      provider: "a2aj",
+      identity: `${source.dataset}:${source.citation}`,
+      structureSource: "flat_text",
+      url: candidate.url,
+      canonicalUrl: source.url,
+      title: source.name || source.citation,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -485,12 +607,14 @@ export async function runLocalAssistantTools(
         call.name,
         args,
         publicState,
+        userId,
       );
       if (publicLegalResult) return result(call, publicLegalResult);
       if (courtlistenerState) {
         const courtlistenerResult = await runLocalCourtlistenerTool(
           call,
           courtlistenerState,
+          userId,
         );
         if (courtlistenerResult) return courtlistenerResult;
       }
@@ -505,6 +629,85 @@ export async function runLocalAssistantTools(
           ok: false,
           error: "Document is not attached to this matter",
         });
+      }
+      if (call.name === "provider_pdf_lookup") {
+        const reference =
+          typeof args.reference_id === "string" ? args.reference_id.trim() : "";
+        const handle =
+          typeof args.handle === "string" ? args.handle.trim() : "";
+        if (!reference) {
+          return result(call, {
+            ok: false,
+            status: "error",
+            error: "reference_id is required",
+          });
+        }
+        try {
+          const resolved = handle
+            ? await rehydrateProviderPdfReference(reference, handle)
+            : await lookupProviderPdfReference(reference, {
+                locatorKind: args.locator_kind as LocalPdfLocatorKind,
+                locator: typeof args.locator === "string" ? args.locator : "",
+                endLocator:
+                  typeof args.end_locator === "string"
+                    ? args.end_locator
+                    : undefined,
+                contextBlocks:
+                  typeof args.context_blocks === "number"
+                    ? args.context_blocks
+                    : undefined,
+                page: typeof args.page === "number" ? args.page : undefined,
+                occurrence:
+                  typeof args.occurrence === "number"
+                    ? args.occurrence
+                    : undefined,
+              });
+          if (resolved.availability !== "ready") {
+            return result(call, {
+              ok: false,
+              status: resolved.availability,
+              ...("state" in resolved ? resolved.state : {}),
+              ...("error" in resolved && resolved.error
+                ? { error: resolved.error }
+                : {}),
+              next_required_action:
+                resolved.availability === "queued"
+                  ? "The exact provider PDF parse is queued. Retry this reference later."
+                  : "Use the authoritative provider text already returned.",
+            });
+          }
+          if (
+            resolved.lookup.status === "found" &&
+            resolved.linkEvidence &&
+            resolved.state.source_reference &&
+            localPdfEvidenceHandles
+          ) {
+            localPdfEvidenceHandles.add(resolved.lookup.evidence.handle);
+            registerProviderPdfEvidenceForTurn(
+              localPdfEvidenceHandles,
+              resolved.lookup.evidence.handle,
+              resolved.state.source_reference,
+              resolved.params.url,
+              resolved.params.title ||
+                resolved.params.filename ||
+                resolved.params.identity,
+              resolved.linkEvidence,
+            );
+          }
+          return result(call, compactProviderPdfLookup(resolved));
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            status: "error",
+            error:
+              error instanceof Error &&
+              /^(?:Provider PDF|Invalid PDF evidence|PDF evidence)/u.test(
+                error.message,
+              )
+                ? error.message
+                : "Provider PDF lookup is unavailable",
+          });
+        }
       }
       if (call.name === "library_create_docx") {
         const title = typeof args.title === "string" ? args.title.trim() : "";
@@ -1029,10 +1232,18 @@ export async function runLocalAssistantTools(
           section: typeof args.section === "string" ? args.section : undefined,
         });
         if (document?.url) a2ajDocuments?.push(document);
+        const pdfFallback = document
+          ? await queueA2ajPdfFallback(document)
+          : null;
         return result(
           call,
           document
-            ? { ok: true, source: "A2AJ", ...document }
+            ? {
+                ok: true,
+                source: "A2AJ",
+                ...document,
+                ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
+              }
             : { ok: false, source: "A2AJ", error: "Document not found" },
         );
       }
@@ -1057,6 +1268,9 @@ export async function runLocalAssistantTools(
         if (lookup?.status === "found" && lookup.block) {
           a2ajLookups?.push(lookup);
         }
+        const pdfFallback = lookup
+          ? await queueA2ajPdfFallback(lookup)
+          : null;
         return result(
           call,
           lookup
@@ -1065,6 +1279,7 @@ export async function runLocalAssistantTools(
                 source: "A2AJ",
                 ...lookup,
                 url: undefined,
+                ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
               }
             : { ok: false, source: "A2AJ", error: "Document not found" },
         );

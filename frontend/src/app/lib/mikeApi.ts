@@ -593,6 +593,27 @@ export interface LibraryCollection {
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 
+export interface LegalSourcePdfFallback {
+  provider: "a2aj";
+  identity: string;
+  reference_id: string;
+  status_url: string;
+}
+
+export interface LegalSourcePdfStatus {
+  provider: "a2aj" | "courtlistener" | "govinfo" | "govuk-et" | "tna";
+  identity: string;
+  request_reference: string;
+  reference_id: string;
+  source_reference: string | null;
+  download_status: "not_queued" | "queued" | "downloaded" | "failed";
+  source_sha256: string | null;
+  parse_status: "queued" | "parsing" | "ready" | "degraded" | "failed" | null;
+  freshness_status: "immutable" | "versioned" | "current" | "stale";
+  fetched_at: string | null;
+  checked_at: string | null;
+}
+
 export interface LegalSourceReference {
   id: string;
   provider: "a2aj" | "journal";
@@ -601,6 +622,7 @@ export interface LegalSourceReference {
   language: "en" | "fr";
   dataset: string | null;
   source_id: string | null;
+  pdf_fallback?: LegalSourcePdfFallback;
 }
 
 export interface LegalSourceSearchResult {
@@ -786,6 +808,12 @@ export async function deleteLegalSource(referenceId: string): Promise<void> {
   });
   legalSourceDocumentRequests.delete(
     `/library/legal/${encodeURIComponent(referenceId)}/document`,
+  );
+}
+
+export function getLegalSourcePdfStatus(referenceId: string) {
+  return apiRequest<LegalSourcePdfStatus>(
+    `/library/legal/${encodeURIComponent(referenceId)}/pdf-status`,
   );
 }
 

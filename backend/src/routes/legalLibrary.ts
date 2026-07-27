@@ -4,6 +4,7 @@ import {
   getA2AJCoverage,
   resolveA2AJViewerDocument,
   searchA2AJ,
+  type A2AJViewerPayload,
 } from "../lib/a2aj";
 import {
   fetchJournalArticle,
@@ -15,7 +16,14 @@ import {
   getLocalLegalSource,
   listLocalLegalSources,
   saveLocalLegalSource,
+  type LocalLegalSourcePdfFallback,
 } from "../lib/localDocumentStore";
+import {
+  providerPdfRequestReference,
+  queueProviderPdfAttachment,
+  readProviderPdfAttachmentState,
+  type ProviderPdfAttachment,
+} from "../lib/providerPdfLibraryBridge";
 
 export const legalLibraryRouter = Router();
 
@@ -70,6 +78,26 @@ function notModified(req: Request, etag: string) {
     .some((value) => value === "*" || value === etag);
 }
 
+function a2ajPdfFallbackRequest(
+  payload: A2AJViewerPayload,
+): ProviderPdfAttachment | null {
+  if (
+    payload.structure.source !== "flat_text" ||
+    !payload.metadata.pdfUrl ||
+    !payload.metadata.url
+  ) {
+    return null;
+  }
+  return {
+    provider: "a2aj",
+    identity: `${payload.reference.dataset || ""}:${payload.reference.citation}`,
+    structureSource: "flat_text",
+    url: payload.metadata.pdfUrl,
+    canonicalUrl: payload.metadata.url,
+    title: payload.metadata.title,
+  };
+}
+
 async function sendViewer(
   req: Request,
   res: Response,
@@ -80,6 +108,7 @@ async function sendViewer(
     language: "en" | "fr";
     dataset?: string | null;
     sourceId?: string | null;
+    pdfFallback?: LocalLegalSourcePdfFallback;
   },
 ) {
   const started = performance.now();
@@ -102,6 +131,17 @@ async function sendViewer(
     ETag: resolved.etag,
     Vary: "Authorization",
   });
+  const pdfFallbackRequest = pointer.pdfFallback
+    ? {
+        ...pointer.pdfFallback,
+        structureSource: resolved.payload.structure.source,
+      }
+    : resolved.payload.provider === "a2aj"
+      ? a2ajPdfFallbackRequest(resolved.payload)
+      : null;
+  if (pdfFallbackRequest) {
+    void queueProviderPdfAttachment(pdfFallbackRequest).catch(() => undefined);
+  }
   if (notModified(req, resolved.etag)) {
     res.status(304).end();
     return;
@@ -222,16 +262,39 @@ legalLibraryRouter.post("/", async (req, res) => {
       return;
     }
     const reference = resolved.payload.reference;
-    res.status(201).json(
-      await saveLocalLegalSource({
-        userId: userId(res),
+    const pdfFallbackRequest = a2ajPdfFallbackRequest(resolved.payload);
+    let pdfFallbackPointer: LocalLegalSourcePdfFallback | undefined;
+    if (pdfFallbackRequest) {
+      try {
+        pdfFallbackPointer = {
+          provider: "a2aj",
+          identity: pdfFallbackRequest.identity,
+          url: pdfFallbackRequest.url,
+          canonicalUrl: pdfFallbackRequest.canonicalUrl!,
+          title: pdfFallbackRequest.title,
+          version: pdfFallbackRequest.version,
+          requestReference: providerPdfRequestReference(pdfFallbackRequest),
+        };
+      } catch {
+        // A bad optional attachment must not prevent saving valid provider text.
+      }
+    }
+    const saved = await saveLocalLegalSource({
+      userId: userId(res),
       provider: "a2aj",
-        docType: reference.docType,
-        citation: reference.citation,
-        language: reference.language,
-        dataset: reference.dataset,
-      }),
-    );
+      docType: reference.docType,
+      citation: reference.citation,
+      language: reference.language,
+      dataset: reference.dataset,
+      pdfFallback: pdfFallbackPointer,
+    });
+    if (pdfFallbackPointer) {
+      void queueProviderPdfAttachment({
+        ...pdfFallbackPointer,
+        structureSource: "flat_text",
+      }).catch(() => undefined);
+    }
+    res.status(201).json(saved);
   } catch (error) {
     res.status(400).json({
       detail: error instanceof Error ? error.message : "Could not save source",
@@ -252,6 +315,32 @@ legalLibraryRouter.get("/document", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       detail: error instanceof Error ? error.message : "Could not load source",
+    });
+  }
+});
+
+legalLibraryRouter.get("/:referenceId/pdf-status", async (req, res) => {
+  try {
+    const pointer = await getLocalLegalSource(
+      userId(res),
+      req.params.referenceId,
+    );
+    if (!pointer?.pdfFallback) {
+      res.status(404).json({ detail: "Provider PDF fallback not found" });
+      return;
+    }
+    res.json(
+      await readProviderPdfAttachmentState({
+        ...pointer.pdfFallback,
+        structureSource: "flat_text",
+      }),
+    );
+  } catch (error) {
+    res.status(502).json({
+      detail:
+        error instanceof Error
+          ? error.message
+          : "Could not read provider PDF status",
     });
   }
 });

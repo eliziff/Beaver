@@ -19,6 +19,10 @@ import {
   type PublicLegalDocument,
   type PublicLegalLookup,
 } from "../publicLegalSources";
+import {
+  queueProviderPdfAttachment,
+  type ProviderPdfQueueResult,
+} from "../providerPdfLibraryBridge";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
 
 export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo" | "journal";
@@ -58,6 +62,12 @@ function normalized(value: string) {
 
 function key(source: PublicLegalProvider, identifier: string) {
   return `${source}:${normalized(identifier)}`;
+}
+
+function pdfProvider(
+  value: PublicLegalProvider,
+): value is Exclude<PublicLegalProvider, "journal"> {
+  return value !== "journal";
 }
 
 async function fetchExact(
@@ -112,7 +122,70 @@ function safeBlock(
   return block ? { ...block, anchor: undefined } : block;
 }
 
-function safeDocument(document: PublicLegalDocument) {
+function pdfAttachments(document: PublicLegalDocument) {
+  const unique = new Map<string, PublicLegalDocument["attachments"][number]>();
+  for (const attachment of document.attachments) {
+    try {
+      const url = new URL(attachment.url);
+      url.hash = "";
+      const pathname = url.pathname.toLowerCase();
+      const isPdf =
+        attachment.contentType?.toLowerCase().split(";", 1)[0] ===
+          "application/pdf" ||
+        attachment.filename?.toLowerCase().endsWith(".pdf") ||
+        pathname.endsWith(".pdf") ||
+        pathname.endsWith("/pdf");
+      if (isPdf && !unique.has(url.toString())) {
+        unique.set(url.toString(), attachment);
+      }
+    } catch {
+      // Invalid optional attachments are ignored.
+    }
+  }
+  return [...unique.values()];
+}
+
+async function pdfFallbacksFor(document: PublicLegalDocument, userId?: string) {
+  const provider = document.provider;
+  if (
+    !userId ||
+    !pdfProvider(provider) ||
+    document.structure.source !== "flat_text"
+  ) {
+    return [];
+  }
+  return (
+    await Promise.all(
+      pdfAttachments(document).map(async (attachment) => {
+        try {
+          const queued = await queueProviderPdfAttachment({
+            provider,
+            identity: document.identity,
+            structureSource: document.structure.source,
+            url: attachment.url,
+            canonicalUrl: document.url,
+            filename: attachment.filename,
+            title: attachment.title || document.title,
+          });
+          return queued
+            ? {
+                ...queued,
+                attachment_title: attachment.title || document.title,
+                attachment_filename: attachment.filename,
+              }
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    )
+  ).filter((item): item is NonNullable<typeof item> => item !== null);
+}
+
+function safeDocument(
+  document: PublicLegalDocument,
+  pdfFallbacks: ProviderPdfQueueResult[],
+) {
   const maxChars = 300_000;
   return {
     ok: true,
@@ -133,8 +206,11 @@ function safeDocument(document: PublicLegalDocument) {
       filename: attachment.filename,
       page_count: attachment.pageCount,
     })),
+    pdf_fallbacks: pdfFallbacks,
     next_required_action:
-      "Quote only returned text. Mike attaches the verified source URL.",
+      pdfFallbacks.length > 0
+        ? "The provider PDF is queued for shared-cache parsing. Quote only returned text until its parse is ready."
+        : "Quote only returned text. Mike attaches the verified source URL.",
   };
 }
 
@@ -142,6 +218,7 @@ export async function executePublicLegalSourceTool(
   name: string,
   args: Record<string, unknown>,
   state: PublicLegalSourceState,
+  userId?: string,
 ): Promise<Record<string, unknown> | null> {
   if (
     name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search &&
@@ -204,8 +281,9 @@ export async function executePublicLegalSourceTool(
         error: "No unique exact provider match was found.",
       };
     }
+    const pdfFallbacks = await pdfFallbacksFor(document, userId);
     if (name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch) {
-      return safeDocument(document);
+      return safeDocument(document, pdfFallbacks);
     }
 
     const kind: LegalLocatorKind =
@@ -256,6 +334,7 @@ export async function executePublicLegalSourceTool(
         source: document.structure.source,
         counts: document.structure.counts,
       },
+      pdf_fallbacks: pdfFallbacks,
       next_required_action:
         "Quote only returned text. Mike attaches the verified source URL and pinpoint.",
     };

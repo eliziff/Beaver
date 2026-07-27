@@ -1,11 +1,16 @@
 import {
   getCourtlistenerCases,
   getCourtlistenerOpinionDocumentText,
+  getCourtlistenerOpinionStructure,
   lookupCourtlistenerOpinionLocator,
   searchCourtlistenerCaseLaw,
   verifyCourtlistenerCitations,
 } from "../courtlistener";
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
+import {
+  queueProviderPdfAttachment,
+  type ProviderPdfQueueResult,
+} from "../providerPdfLibraryBridge";
 import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 
@@ -134,9 +139,36 @@ function cacheFetchedCases(
   });
 }
 
+async function queueCourtlistenerPdfFallback(
+  caseRecord: LocalCourtlistenerCase,
+  userId?: string,
+) {
+  const needsFallback = caseRecord.opinions.some((opinion) => {
+    const source = getCourtlistenerOpinionStructure(opinion)?.source;
+    return source !== "native" && source !== "hybrid";
+  });
+  if (!userId || !caseRecord.pdfUrl || !needsFallback) return null;
+  try {
+    return await queueProviderPdfAttachment({
+      provider: "courtlistener",
+      identity: String(caseRecord.clusterId),
+      structureSource: "flat_text",
+      url: caseRecord.pdfUrl,
+      canonicalUrl: caseRecord.url,
+      title:
+        caseRecord.caseName ||
+        caseRecord.citations[0] ||
+        `CourtListener ${caseRecord.clusterId}`,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function execute(
   call: NormalizedToolCall,
   state: LocalCourtlistenerState,
+  userId?: string,
 ) {
   const args = call.input;
   if (call.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
@@ -171,6 +203,12 @@ async function execute(
         ? (payload as { cases: unknown[] }).cases
         : [];
     const cases = cacheFetchedCases(state, ids, fetched);
+    const pdfFallbacks = new Map<number, ProviderPdfQueueResult>();
+    if (userId && ids.length === 1 && cases.length === 1) {
+      const caseRecord = cases[0];
+      const fallback = await queueCourtlistenerPdfFallback(caseRecord, userId);
+      if (fallback) pdfFallbacks.set(caseRecord.clusterId, fallback);
+    }
     return {
       ok:
         cases.length > 0 && cases.every(({ opinions }) => opinions.length > 0),
@@ -186,6 +224,7 @@ async function execute(
         dateFiled: caseRecord.dateFiled,
         opinion_count: caseRecord.opinions.length,
         opinions: caseRecord.opinions.map(compactOpinionMetadata),
+        pdf_fallback: pdfFallbacks.get(caseRecord.clusterId) ?? null,
       })),
       next_required_action:
         "Use courtlistener_find_in_case or courtlistener_lookup_case_locator before relying on the case.",
@@ -201,6 +240,7 @@ async function execute(
         "Case has not been fetched in this turn. Call courtlistener_get_cases first.",
     };
   }
+  const pdfFallback = await queueCourtlistenerPdfFallback(caseRecord, userId);
 
   if (call.name === COURTLISTENER_TOOL_NAMES.findInCase) {
     const query = typeof args.query === "string" ? args.query : "";
@@ -247,6 +287,7 @@ async function execute(
       returned: hits.length,
       truncated: totalMatches > hits.length,
       hits,
+      pdf_fallback: pdfFallback,
     };
   }
 
@@ -283,6 +324,7 @@ async function execute(
         error: matches.length
           ? "The locator occurs in multiple opinions; pass opinionId."
           : "The requested locator was not found in the cached opinions.",
+        pdf_fallback: pdfFallback,
       };
     }
     const match = matches[0];
@@ -295,6 +337,7 @@ async function execute(
       requested: { kind, locator },
       ...match.lookup,
       block: { ...match.lookup.block, anchor: undefined },
+      pdf_fallback: pdfFallback,
     };
   }
 
@@ -325,6 +368,7 @@ async function execute(
     citations: caseRecord.citations,
     opinion_count: caseRecord.opinions.length,
     returned_opinion_count: selected.length,
+    pdf_fallback: pdfFallback,
     opinions: selected.map((opinion) => {
       const value = opinion as JsonRecord;
       return {
@@ -341,10 +385,11 @@ async function execute(
 export async function runLocalCourtlistenerTool(
   call: NormalizedToolCall,
   state: LocalCourtlistenerState,
+  userId?: string,
 ): Promise<NormalizedToolResult | null> {
   if (!TOOL_NAMES.has(call.name)) return null;
   try {
-    return result(call, await execute(call, state));
+    return result(call, await execute(call, state, userId));
   } catch (error) {
     return result(call, {
       ok: false,

@@ -35,7 +35,10 @@ import {
   LOCAL_ASSISTANT_TOOLS,
   runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
-import { appendLocalPdfPinpointLinks } from "../lib/chat/localPdfEvidenceState";
+import {
+  appendLocalPdfPinpointLinks,
+  providerPdfReferencesForTurn,
+} from "../lib/chat/localPdfEvidenceState";
 import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
@@ -107,6 +110,8 @@ const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
 const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
 const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
+const PROVIDER_PDF_SOURCE_REFERENCE =
+  /^mike-provider-pdf:v1:(?:a2aj|courtlistener|govinfo|govuk-et|tna):[0-9a-f]{64}:[0-9a-f]{64}$/u;
 const LOCAL_MUTATION_TOOL_NAMES = new Set([
   "library_create_docx",
   "library_revise_docx",
@@ -114,16 +119,45 @@ const LOCAL_MUTATION_TOOL_NAMES = new Set([
   "library_fix_docx_supras",
   "toa_submit_library_document",
 ]);
-type LocalPdfEvidenceRegistryItem = {
+type LibraryPdfEvidenceRegistryItem = {
   handle: string;
   document_id: string;
   version_id: string;
 };
+type ProviderPdfEvidenceRegistryItem = {
+  handle: string;
+  source_reference: string;
+};
+type LocalPdfEvidenceRegistryItem =
+  | LibraryPdfEvidenceRegistryItem
+  | ProviderPdfEvidenceRegistryItem;
+
+function providerRegistryItem(
+  item: LocalPdfEvidenceRegistryItem,
+): item is ProviderPdfEvidenceRegistryItem {
+  return "source_reference" in item;
+}
+
+function registryItemKey(item: LocalPdfEvidenceRegistryItem) {
+  return providerRegistryItem(item)
+    ? `${item.handle}\u0000${item.source_reference}`
+    : item.handle;
+}
 
 function registryItem(value: unknown): LocalPdfEvidenceRegistryItem | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const handle = typeof row.handle === "string" ? row.handle.trim() : "";
+  const sourceReference =
+    typeof row.source_reference === "string"
+      ? row.source_reference.trim()
+      : "";
+  if (
+    LOCAL_PDF_EVIDENCE_HANDLE.test(handle) &&
+    PROVIDER_PDF_SOURCE_REFERENCE.test(sourceReference)
+  ) {
+    return { handle, source_reference: sourceReference };
+  }
   const documentId =
     typeof row.document_id === "string" ? row.document_id.trim() : "";
   const versionId =
@@ -170,14 +204,17 @@ function priorLocalPdfEvidenceRegistry(
       return (Array.isArray(event.handles) ? event.handles : [])
         .map(registryItem)
         .filter((item): item is LocalPdfEvidenceRegistryItem => {
+          const itemKey = item ? registryItemKey(item) : "";
           if (
             !item ||
-            seen.has(item.handle) ||
-            (allowedDocumentIds && !allowedDocumentIds.has(item.document_id))
+            seen.has(itemKey) ||
+            (allowedDocumentIds &&
+              !providerRegistryItem(item) &&
+              !allowedDocumentIds.has(item.document_id))
           ) {
             return false;
           }
-          seen.add(item.handle);
+          seen.add(itemKey);
           return true;
         })
         .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
@@ -196,27 +233,34 @@ async function activeLocalPdfEvidenceRegistry(
     .slice(-MAX_LOCAL_PDF_EVIDENCE_HANDLES);
   const items = await Promise.all(
     recentHandles.map(async (handle) => {
+      const providerReferences = providerPdfReferencesForTurn(handles, handle);
+      if (providerReferences.length) {
+        return providerReferences.map((sourceReference) => ({
+          handle,
+          source_reference: sourceReference,
+        }));
+      }
       try {
         const receipt = await readLocalPdfEvidenceReceipt(handle);
         if (
           allowedDocumentIds &&
           !allowedDocumentIds.has(receipt.source.document_id)
         ) {
-          return null;
+          return [];
         }
-        return {
-          handle,
-          document_id: receipt.source.document_id,
-          version_id: receipt.source.version_id,
-        };
+        return [
+          {
+            handle,
+            document_id: receipt.source.document_id,
+            version_id: receipt.source.version_id,
+          },
+        ];
       } catch {
-        return null;
+        return [];
       }
     }),
   );
-  return items.filter(
-    (item): item is LocalPdfEvidenceRegistryItem => item !== null,
-  );
+  return items.flat().slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
 }
 
 function mergeLocalPdfEvidenceRegistries(
@@ -226,8 +270,9 @@ function mergeLocalPdfEvidenceRegistries(
   const seen = new Set<string>();
   return [...active, ...prior]
     .filter((item) => {
-      if (seen.has(item.handle)) return false;
-      seen.add(item.handle);
+      const key = registryItemKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     })
     .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
@@ -238,17 +283,18 @@ function localPdfEvidenceRegistryPrompt(
 ) {
   if (registry.length === 0) return "";
   const handles = registry
-    .map(
-      (item) =>
-        `- handle=${JSON.stringify(item.handle)} document_id=${JSON.stringify(
-          item.document_id,
-        )} version_id=${JSON.stringify(item.version_id)}`,
+    .map((item) =>
+      providerRegistryItem(item)
+        ? `- provider handle=${JSON.stringify(item.handle)} reference_id=${JSON.stringify(item.source_reference)}`
+        : `- library handle=${JSON.stringify(item.handle)} document_id=${JSON.stringify(
+            item.document_id,
+          )} version_id=${JSON.stringify(item.version_id)}`,
     )
     .join("\n");
   return (
     "DURABLE LOCAL PDF EVIDENCE FROM PRIOR TURNS:\n" +
     `${handles}\n` +
-    "Call library_evidence with one of these handles only when the current request needs that exact prior material. Do not expose opaque handles to the user.\n\n"
+    "For a library entry, call library_evidence with its handle. For a provider entry, call provider_pdf_lookup with both its reference_id and handle. Rehydrate only when the current request needs that exact prior material, and do not expose opaque handles or references to the user.\n\n"
   );
 }
 
@@ -858,7 +904,7 @@ export async function streamAnonymousChat(params: {
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
         : "The user's local Beaver Library is connected"
-    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
     "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
     focusPrompt +
     priorEvidencePrompt +
