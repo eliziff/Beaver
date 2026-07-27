@@ -1264,4 +1264,155 @@ describe("anonymous chat PDF evidence durability", () => {
         ?.transcript_version,
     ).toBe(0);
   });
+
+  it("resumes one Codex thread across reload with only the current turn", async () => {
+    const threadId = "50000000-0000-4000-8000-000000000001";
+    const calls: {
+      providerSession?: { continuationId?: string };
+      systemPrompt: string;
+      messages: { role: string; content: string }[];
+    }[] = [];
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      calls.push({
+        providerSession: params.providerSession,
+        systemPrompt: params.systemPrompt,
+        messages: params.messages.map(({ role, content }) => ({
+          role,
+          content,
+        })),
+      });
+      const text = calls.length === 1 ? "First answer." : "Second answer.";
+      params.callbacks?.onContentDelta?.(text);
+      return { fullText: text, continuationId: threadId };
+    });
+    let loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const first = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "high",
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        turn_id: "60000000-0000-4000-8000-000000000001",
+        content: "First turn.",
+      },
+    });
+    expect(first.status).toBe(200);
+
+    loaded = await loadApp();
+    const second = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "high",
+      expected_version: 2,
+      current_turn: {
+        kind: "message",
+        turn_id: "60000000-0000-4000-8000-000000000002",
+        content: "Second turn.",
+      },
+    });
+
+    expect(second.status).toBe(200);
+    expect(calls[0].providerSession).toEqual({ persist: true });
+    expect(calls[0].systemPrompt).toContain("library_lookup");
+    expect(calls[1]).toMatchObject({
+      providerSession: { persist: true, continuationId: threadId },
+      systemPrompt: "",
+      messages: [{ role: "user", content: "Second turn." }],
+    });
+    const sessions = await import("../lib/anonymousProviderSessionStore");
+    expect(
+      sessions.readAnonymousCodexSession(USER_ID, created.body.id),
+    ).toMatchObject({
+      continuation_id: threadId,
+      transcript_version: 4,
+    });
+
+    const changedEffort = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "max",
+      expected_version: 4,
+      current_turn: {
+        kind: "message",
+        turn_id: "60000000-0000-4000-8000-000000000003",
+        content: "Third turn.",
+      },
+    });
+    expect(changedEffort.status).toBe(200);
+    expect(calls[2].providerSession).toEqual({ persist: true });
+    expect(calls[2].systemPrompt).toContain("library_lookup");
+    expect(calls[2].messages).toHaveLength(5);
+  });
+
+  it("rebuilds from the transcript when a claimed Codex resume fails before activity", async () => {
+    const firstThread = "50000000-0000-4000-8000-000000000001";
+    const replacementThread = "50000000-0000-4000-8000-000000000002";
+    const calls: {
+      providerSession?: { continuationId?: string };
+      messages: { role: string; content: string }[];
+    }[] = [];
+    let invocation = 0;
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      calls.push({
+        providerSession: params.providerSession,
+        messages: params.messages.map(({ role, content }) => ({
+          role,
+          content,
+        })),
+      });
+      invocation += 1;
+      if (invocation === 2) throw new Error("Codex session is unavailable");
+      const text = invocation === 1 ? "First answer." : "Recovered answer.";
+      params.callbacks?.onContentDelta?.(text);
+      return {
+        fullText: text,
+        continuationId:
+          invocation === 1 ? firstThread : replacementThread,
+      };
+    });
+    let loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "max",
+      expected_version: 0,
+      current_turn: { kind: "message", content: "First turn." },
+    });
+
+    loaded = await loadApp();
+    const second = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      model: "codex:gpt-5.6-luna",
+      reasoning_effort: "max",
+      expected_version: 2,
+      current_turn: { kind: "message", content: "Second turn." },
+    });
+
+    expect(second.status).toBe(200);
+    expect(
+      JSON.stringify(
+        loaded.store.getAnonymousChat(USER_ID, created.body.id)?.messages,
+      ),
+    ).toContain("Recovered answer.");
+    expect(calls[1]).toMatchObject({
+      providerSession: { persist: true, continuationId: firstThread },
+      messages: [{ role: "user", content: "Second turn." }],
+    });
+    expect(calls[2].providerSession).toEqual({ persist: true });
+    expect(calls[2].messages).toEqual([
+      { role: "user", content: "First turn." },
+      { role: "assistant", content: "First answer." },
+      { role: "user", content: "Second turn." },
+    ]);
+    const sessions = await import("../lib/anonymousProviderSessionStore");
+    expect(
+      sessions.readAnonymousCodexSession(USER_ID, created.body.id),
+    ).toMatchObject({
+      continuation_id: replacementThread,
+      transcript_version: 4,
+    });
+  });
 });

@@ -11,6 +11,7 @@ import path from "node:path";
 import { z } from "zod";
 import { legalDataHome } from "./legalDataPath";
 import { abortAnonymousTurnForDeletion } from "./anonymousChatTurns";
+import { deleteAnonymousProviderSessions } from "./anonymousProviderSessionStore";
 
 export type AnonymousChatMessage = {
   id: string;
@@ -351,6 +352,7 @@ export function deleteAnonymousChat(userId: string, chatId: string): boolean {
   if (!chat) return false;
   abortAnonymousTurnForDeletion(chat.id);
   rmSync(chatPath(chat.id), { force: true });
+  deleteAnonymousProviderSessions(chat.id);
   chats.delete(chat.id);
   return true;
 }
@@ -362,6 +364,7 @@ export function deleteAnonymousProjectChats(
   for (const chat of listAnonymousProjectChats(userId, projectId)) {
     abortAnonymousTurnForDeletion(chat.id);
     rmSync(chatPath(chat.id), { force: true });
+    deleteAnonymousProviderSessions(chat.id);
     chats.delete(chat.id);
   }
 }
