@@ -253,7 +253,7 @@ export default function SecurityPage() {
 
             let { data, error } = await supabase.auth.mfa.enroll({
                 factorType: "totp",
-                friendlyName: "Mike-Canada",
+                friendlyName: "Beaver",
             });
             if (error && isDuplicateFriendlyNameError(error)) {
                 traceMfa("[security/mfa] retrying enrollment with unique name", {
@@ -261,7 +261,7 @@ export default function SecurityPage() {
                 });
                 const retry = await supabase.auth.mfa.enroll({
                     factorType: "totp",
-                    friendlyName: `Mike-Canada ${Date.now()}`,
+                    friendlyName: `Beaver ${Date.now()}`,
                 });
                 data = retry.data;
                 error = retry.error;

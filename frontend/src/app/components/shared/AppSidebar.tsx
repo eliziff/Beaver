@@ -173,7 +173,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                     shouldAnimate ? "sidebar-fade-in" : ""
                   }`}
                 >
-                  Mike-Canada
+                  Beaver
                 </span>
               </Link>
             </div>
