@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -21,6 +22,11 @@ import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
  * payload captured once from the keyless api.a2aj.ca on 2026-07-27; each file
  * records the endpoint, parameters, full-document size and the character range
  * it was cut from. Nothing here touches the network.
+ *
+ * `legacy-spine.json` is the frozen output of the engine SourceDoc replaced
+ * (a2ajStructure.ts, deleted in P1.1a stage 3), machine-captured from it
+ * before it was removed. Parity is asserted against that recording, so the
+ * gate outlives the code it was taken from. Do not regenerate it.
  */
 
 type Fixture = {
@@ -62,6 +68,42 @@ function compile(source: Fixture): SourceDoc {
 function labels(doc: SourceDoc) {
   return doc.blocks.map((block) => block.label);
 }
+
+type LegacySpine = {
+  status: "usable" | "unavailable";
+  source: string;
+  counts: { paragraph: number; page: number; section: number };
+  sameText: boolean;
+  textSha256: string;
+  blocks: Array<[string, string, number, number]>;
+  lookups: Array<{
+    locator: string;
+    status: string;
+    requestedLabel: string;
+    matches: string[];
+    block: string | null;
+    before: string[];
+    after: string[];
+  }>;
+};
+
+const LEGACY = JSON.parse(
+  readFileSync(path.join(FIXTURE_DIR, "legacy-spine.json"), "utf8"),
+) as Record<string, LegacySpine>;
+
+/**
+ * Shapes whose spine the compiler must reproduce exactly. Statute shapes the
+ * flat-text spine never matched are excluded on purpose - there is no old
+ * behaviour there to be faithful to.
+ */
+const PARITY_FIXTURES = [
+  "a2aj-case-scc-2026scc16-toc",
+  "a2aj-case-scc-2001scc1-bare",
+  "a2aj-case-scc-1990scr30-unnumbered",
+  "a2aj-case-scc-1986scr103-dot",
+  "a2aj-laws-on-occupiers-liability",
+  "a2aj-regs-on-oreg267-03",
+] as const;
 
 const MATRIX: Array<{
   file: string;
@@ -152,7 +194,7 @@ const MATRIX: Array<{
 describe("SourceDoc cross-provider fixture matrix", () => {
   it("covers every committed fixture and every fixture is a real capture", () => {
     const files = readdirSync(FIXTURE_DIR)
-      .filter((name) => name.endsWith(".json"))
+      .filter((name) => name.endsWith(".json") && name !== "legacy-spine.json")
       .map((name) => name.replace(/\.json$/u, ""))
       .sort();
     expect(files).toEqual(MATRIX.map((entry) => entry.file).sort());
@@ -305,6 +347,60 @@ describe("federal statute corpus", () => {
     expect(doc.ranges.section.first).toBe("secA.01.001");
     expect(doc.ranges.section.last).toBe("secA.01.010");
     expect(doc.ranges.section.missing).toEqual([]);
+  });
+});
+
+describe("parity with the engine SourceDoc replaced", () => {
+  it.each(PARITY_FIXTURES)("%s keeps the old spine byte-identical", (file) => {
+    const source = fixture(file);
+    const old = LEGACY[file];
+    const doc = compile(source);
+    expect(createHash("sha256").update(doc.text).digest("hex")).toBe(
+      old.textSha256,
+    );
+    expect(
+      doc.blocks.map((block) => [
+        block.kind,
+        block.label,
+        block.start,
+        block.end,
+      ]),
+    ).toEqual(old.blocks);
+    const kind = source.docType === "laws" ? "section" : "paragraph";
+    for (const before of old.lookups) {
+      const after = lookupSourceDoc(doc, kind, before.locator, 2);
+      expect(after.status).toBe(before.status);
+      expect(after.requestedLabel).toBe(before.requestedLabel);
+      expect(after.matches).toEqual(before.matches);
+      expect(after.block?.label ?? null).toBe(before.block);
+      expect(after.before.map((item) => item.label)).toEqual(before.before);
+      expect(after.after.map((item) => item.label)).toEqual(before.after);
+    }
+  });
+
+  it("indexes the federal statute corpus the old engine could not read", () => {
+    for (const file of [
+      "a2aj-laws-fed-criminalcode-s231",
+      "a2aj-laws-fed-criminalcode-s22-1",
+      "a2aj-laws-fed-criminalcode-s83-01",
+      "a2aj-regs-fed-crc870-a01",
+    ]) {
+      expect(LEGACY[file].status).toBe("unavailable");
+      expect(LEGACY[file].blocks).toEqual([]);
+      expect(compile(fixture(file)).status).toBe("usable");
+    }
+  });
+
+  it("fixes the labels the old section-map engine mislabelled", () => {
+    const oldLabels = LEGACY[
+      "a2aj-laws-fed-criminalcode-sectionmap"
+    ].blocks.map(([, label]) => label);
+    // Once (6.1) was dropped because Number("01") === Number("1"), so its
+    // paragraphs were re-parented onto (6.01) ...
+    expect(oldLabels).toContain("sec231(6.01)(a)");
+    expect(oldLabels).not.toContain("sec231(6.1)");
+    // ... and (C)/(D)/(E) were read as Roman numerals, losing (ii).
+    expect(oldLabels).toContain("sec83.01(1)(b)(D)(E)");
   });
 });
 

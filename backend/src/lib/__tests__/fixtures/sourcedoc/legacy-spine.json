@@ -1,0 +1,5698 @@
+{
+ "a2aj-case-scc-1986scr103-dot": {
+  "status": "usable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 18,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "62e5785e366ee6c82e1ac628463045299c3dd1180f5063bb1f4b475ae54b2a45",
+  "blocks": [
+   [
+    "paragraph",
+    "par1",
+    3614,
+    3843
+   ],
+   [
+    "paragraph",
+    "par3",
+    3843,
+    4726
+   ],
+   [
+    "paragraph",
+    "par4",
+    4726,
+    5167
+   ],
+   [
+    "paragraph",
+    "par5",
+    5167,
+    5728
+   ],
+   [
+    "paragraph",
+    "par6",
+    5728,
+    6195
+   ],
+   [
+    "paragraph",
+    "par7",
+    6195,
+    6353
+   ],
+   [
+    "paragraph",
+    "par8",
+    6353,
+    6819
+   ],
+   [
+    "paragraph",
+    "par9",
+    6819,
+    7992
+   ],
+   [
+    "paragraph",
+    "par10",
+    7992,
+    8493
+   ],
+   [
+    "paragraph",
+    "par11",
+    8493,
+    9200
+   ],
+   [
+    "paragraph",
+    "par13",
+    9691,
+    10175
+   ],
+   [
+    "paragraph",
+    "par15",
+    10934,
+    13335
+   ],
+   [
+    "paragraph",
+    "par17",
+    13920,
+    14420
+   ],
+   [
+    "paragraph",
+    "par19",
+    14717,
+    15246
+   ],
+   [
+    "paragraph",
+    "par21",
+    15509,
+    16458
+   ],
+   [
+    "paragraph",
+    "par23",
+    16956,
+    17859
+   ],
+   [
+    "paragraph",
+    "par25",
+    18497,
+    20124
+   ],
+   [
+    "paragraph",
+    "par27",
+    20621,
+    20805
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "1",
+    "status": "found",
+    "requestedLabel": "par1",
+    "matches": [
+     "par1"
+    ],
+    "block": "par1",
+    "before": [],
+    "after": [
+     "par3",
+     "par4"
+    ]
+   },
+   {
+    "locator": "3",
+    "status": "found",
+    "requestedLabel": "par3",
+    "matches": [
+     "par3"
+    ],
+    "block": "par3",
+    "before": [
+     "par1"
+    ],
+    "after": [
+     "par4",
+     "par5"
+    ]
+   },
+   {
+    "locator": "4",
+    "status": "found",
+    "requestedLabel": "par4",
+    "matches": [
+     "par4"
+    ],
+    "block": "par4",
+    "before": [
+     "par1",
+     "par3"
+    ],
+    "after": [
+     "par5",
+     "par6"
+    ]
+   },
+   {
+    "locator": "5",
+    "status": "found",
+    "requestedLabel": "par5",
+    "matches": [
+     "par5"
+    ],
+    "block": "par5",
+    "before": [
+     "par3",
+     "par4"
+    ],
+    "after": [
+     "par6",
+     "par7"
+    ]
+   },
+   {
+    "locator": "6",
+    "status": "found",
+    "requestedLabel": "par6",
+    "matches": [
+     "par6"
+    ],
+    "block": "par6",
+    "before": [
+     "par4",
+     "par5"
+    ],
+    "after": [
+     "par7",
+     "par8"
+    ]
+   },
+   {
+    "locator": "7",
+    "status": "found",
+    "requestedLabel": "par7",
+    "matches": [
+     "par7"
+    ],
+    "block": "par7",
+    "before": [
+     "par5",
+     "par6"
+    ],
+    "after": [
+     "par8",
+     "par9"
+    ]
+   },
+   {
+    "locator": "8",
+    "status": "found",
+    "requestedLabel": "par8",
+    "matches": [
+     "par8"
+    ],
+    "block": "par8",
+    "before": [
+     "par6",
+     "par7"
+    ],
+    "after": [
+     "par9",
+     "par10"
+    ]
+   },
+   {
+    "locator": "9",
+    "status": "found",
+    "requestedLabel": "par9",
+    "matches": [
+     "par9"
+    ],
+    "block": "par9",
+    "before": [
+     "par7",
+     "par8"
+    ],
+    "after": [
+     "par10",
+     "par11"
+    ]
+   },
+   {
+    "locator": "10",
+    "status": "found",
+    "requestedLabel": "par10",
+    "matches": [
+     "par10"
+    ],
+    "block": "par10",
+    "before": [
+     "par8",
+     "par9"
+    ],
+    "after": [
+     "par11",
+     "par13"
+    ]
+   },
+   {
+    "locator": "11",
+    "status": "found",
+    "requestedLabel": "par11",
+    "matches": [
+     "par11"
+    ],
+    "block": "par11",
+    "before": [
+     "par9",
+     "par10"
+    ],
+    "after": [
+     "par13",
+     "par15"
+    ]
+   },
+   {
+    "locator": "13",
+    "status": "found",
+    "requestedLabel": "par13",
+    "matches": [
+     "par13"
+    ],
+    "block": "par13",
+    "before": [
+     "par10",
+     "par11"
+    ],
+    "after": [
+     "par15",
+     "par17"
+    ]
+   },
+   {
+    "locator": "15",
+    "status": "found",
+    "requestedLabel": "par15",
+    "matches": [
+     "par15"
+    ],
+    "block": "par15",
+    "before": [
+     "par11",
+     "par13"
+    ],
+    "after": [
+     "par17",
+     "par19"
+    ]
+   },
+   {
+    "locator": "17",
+    "status": "found",
+    "requestedLabel": "par17",
+    "matches": [
+     "par17"
+    ],
+    "block": "par17",
+    "before": [
+     "par13",
+     "par15"
+    ],
+    "after": [
+     "par19",
+     "par21"
+    ]
+   },
+   {
+    "locator": "19",
+    "status": "found",
+    "requestedLabel": "par19",
+    "matches": [
+     "par19"
+    ],
+    "block": "par19",
+    "before": [
+     "par15",
+     "par17"
+    ],
+    "after": [
+     "par21",
+     "par23"
+    ]
+   },
+   {
+    "locator": "21",
+    "status": "found",
+    "requestedLabel": "par21",
+    "matches": [
+     "par21"
+    ],
+    "block": "par21",
+    "before": [
+     "par17",
+     "par19"
+    ],
+    "after": [
+     "par23",
+     "par25"
+    ]
+   },
+   {
+    "locator": "23",
+    "status": "found",
+    "requestedLabel": "par23",
+    "matches": [
+     "par23"
+    ],
+    "block": "par23",
+    "before": [
+     "par19",
+     "par21"
+    ],
+    "after": [
+     "par25",
+     "par27"
+    ]
+   },
+   {
+    "locator": "25",
+    "status": "found",
+    "requestedLabel": "par25",
+    "matches": [
+     "par25"
+    ],
+    "block": "par25",
+    "before": [
+     "par21",
+     "par23"
+    ],
+    "after": [
+     "par27"
+    ]
+   },
+   {
+    "locator": "27",
+    "status": "found",
+    "requestedLabel": "par27",
+    "matches": [
+     "par27"
+    ],
+    "block": "par27",
+    "before": [
+     "par23",
+     "par25"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "a2aj-case-scc-1990scr30-unnumbered": {
+  "status": "unavailable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "7aa6b996f4052c49ec37cc971415d0e83586281d094c9d122f771411bb60633c",
+  "blocks": [],
+  "lookups": []
+ },
+ "a2aj-case-scc-2001scc1-bare": {
+  "status": "usable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 25,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "64da169bbb99e7d37454e5966c3e05dae76cb3b8acb45aaf8a8273e1cee53a1f",
+  "blocks": [
+   [
+    "paragraph",
+    "par1",
+    43,
+    830
+   ],
+   [
+    "paragraph",
+    "par2",
+    830,
+    1983
+   ],
+   [
+    "paragraph",
+    "par3",
+    1983,
+    2569
+   ],
+   [
+    "paragraph",
+    "par4",
+    2569,
+    2796
+   ],
+   [
+    "paragraph",
+    "par5",
+    2796,
+    3215
+   ],
+   [
+    "paragraph",
+    "par6",
+    3215,
+    4144
+   ],
+   [
+    "paragraph",
+    "par7",
+    4144,
+    4534
+   ],
+   [
+    "paragraph",
+    "par8",
+    4534,
+    4759
+   ],
+   [
+    "paragraph",
+    "par9",
+    4759,
+    5052
+   ],
+   [
+    "paragraph",
+    "par10",
+    5052,
+    5245
+   ],
+   [
+    "paragraph",
+    "par11",
+    5245,
+    5617
+   ],
+   [
+    "paragraph",
+    "par12",
+    5617,
+    6015
+   ],
+   [
+    "paragraph",
+    "par13",
+    6015,
+    6420
+   ],
+   [
+    "paragraph",
+    "par14",
+    6420,
+    6824
+   ],
+   [
+    "paragraph",
+    "par15",
+    6824,
+    7227
+   ],
+   [
+    "paragraph",
+    "par16",
+    7227,
+    7649
+   ],
+   [
+    "paragraph",
+    "par17",
+    7649,
+    8379
+   ],
+   [
+    "paragraph",
+    "par18",
+    8379,
+    9085
+   ],
+   [
+    "paragraph",
+    "par19",
+    9085,
+    10065
+   ],
+   [
+    "paragraph",
+    "par20",
+    10065,
+    10940
+   ],
+   [
+    "paragraph",
+    "par21",
+    10940,
+    11190
+   ],
+   [
+    "paragraph",
+    "par22",
+    11190,
+    12571
+   ],
+   [
+    "paragraph",
+    "par23",
+    12571,
+    13395
+   ],
+   [
+    "paragraph",
+    "par24",
+    13395,
+    14099
+   ],
+   [
+    "paragraph",
+    "par25",
+    14099,
+    14276
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "1",
+    "status": "found",
+    "requestedLabel": "par1",
+    "matches": [
+     "par1"
+    ],
+    "block": "par1",
+    "before": [],
+    "after": [
+     "par2",
+     "par3"
+    ]
+   },
+   {
+    "locator": "2",
+    "status": "found",
+    "requestedLabel": "par2",
+    "matches": [
+     "par2"
+    ],
+    "block": "par2",
+    "before": [
+     "par1"
+    ],
+    "after": [
+     "par3",
+     "par4"
+    ]
+   },
+   {
+    "locator": "3",
+    "status": "found",
+    "requestedLabel": "par3",
+    "matches": [
+     "par3"
+    ],
+    "block": "par3",
+    "before": [
+     "par1",
+     "par2"
+    ],
+    "after": [
+     "par4",
+     "par5"
+    ]
+   },
+   {
+    "locator": "4",
+    "status": "found",
+    "requestedLabel": "par4",
+    "matches": [
+     "par4"
+    ],
+    "block": "par4",
+    "before": [
+     "par2",
+     "par3"
+    ],
+    "after": [
+     "par5",
+     "par6"
+    ]
+   },
+   {
+    "locator": "5",
+    "status": "found",
+    "requestedLabel": "par5",
+    "matches": [
+     "par5"
+    ],
+    "block": "par5",
+    "before": [
+     "par3",
+     "par4"
+    ],
+    "after": [
+     "par6",
+     "par7"
+    ]
+   },
+   {
+    "locator": "6",
+    "status": "found",
+    "requestedLabel": "par6",
+    "matches": [
+     "par6"
+    ],
+    "block": "par6",
+    "before": [
+     "par4",
+     "par5"
+    ],
+    "after": [
+     "par7",
+     "par8"
+    ]
+   },
+   {
+    "locator": "7",
+    "status": "found",
+    "requestedLabel": "par7",
+    "matches": [
+     "par7"
+    ],
+    "block": "par7",
+    "before": [
+     "par5",
+     "par6"
+    ],
+    "after": [
+     "par8",
+     "par9"
+    ]
+   },
+   {
+    "locator": "8",
+    "status": "found",
+    "requestedLabel": "par8",
+    "matches": [
+     "par8"
+    ],
+    "block": "par8",
+    "before": [
+     "par6",
+     "par7"
+    ],
+    "after": [
+     "par9",
+     "par10"
+    ]
+   },
+   {
+    "locator": "9",
+    "status": "found",
+    "requestedLabel": "par9",
+    "matches": [
+     "par9"
+    ],
+    "block": "par9",
+    "before": [
+     "par7",
+     "par8"
+    ],
+    "after": [
+     "par10",
+     "par11"
+    ]
+   },
+   {
+    "locator": "10",
+    "status": "found",
+    "requestedLabel": "par10",
+    "matches": [
+     "par10"
+    ],
+    "block": "par10",
+    "before": [
+     "par8",
+     "par9"
+    ],
+    "after": [
+     "par11",
+     "par12"
+    ]
+   },
+   {
+    "locator": "11",
+    "status": "found",
+    "requestedLabel": "par11",
+    "matches": [
+     "par11"
+    ],
+    "block": "par11",
+    "before": [
+     "par9",
+     "par10"
+    ],
+    "after": [
+     "par12",
+     "par13"
+    ]
+   },
+   {
+    "locator": "12",
+    "status": "found",
+    "requestedLabel": "par12",
+    "matches": [
+     "par12"
+    ],
+    "block": "par12",
+    "before": [
+     "par10",
+     "par11"
+    ],
+    "after": [
+     "par13",
+     "par14"
+    ]
+   },
+   {
+    "locator": "13",
+    "status": "found",
+    "requestedLabel": "par13",
+    "matches": [
+     "par13"
+    ],
+    "block": "par13",
+    "before": [
+     "par11",
+     "par12"
+    ],
+    "after": [
+     "par14",
+     "par15"
+    ]
+   },
+   {
+    "locator": "14",
+    "status": "found",
+    "requestedLabel": "par14",
+    "matches": [
+     "par14"
+    ],
+    "block": "par14",
+    "before": [
+     "par12",
+     "par13"
+    ],
+    "after": [
+     "par15",
+     "par16"
+    ]
+   },
+   {
+    "locator": "15",
+    "status": "found",
+    "requestedLabel": "par15",
+    "matches": [
+     "par15"
+    ],
+    "block": "par15",
+    "before": [
+     "par13",
+     "par14"
+    ],
+    "after": [
+     "par16",
+     "par17"
+    ]
+   },
+   {
+    "locator": "16",
+    "status": "found",
+    "requestedLabel": "par16",
+    "matches": [
+     "par16"
+    ],
+    "block": "par16",
+    "before": [
+     "par14",
+     "par15"
+    ],
+    "after": [
+     "par17",
+     "par18"
+    ]
+   },
+   {
+    "locator": "17",
+    "status": "found",
+    "requestedLabel": "par17",
+    "matches": [
+     "par17"
+    ],
+    "block": "par17",
+    "before": [
+     "par15",
+     "par16"
+    ],
+    "after": [
+     "par18",
+     "par19"
+    ]
+   },
+   {
+    "locator": "18",
+    "status": "found",
+    "requestedLabel": "par18",
+    "matches": [
+     "par18"
+    ],
+    "block": "par18",
+    "before": [
+     "par16",
+     "par17"
+    ],
+    "after": [
+     "par19",
+     "par20"
+    ]
+   },
+   {
+    "locator": "19",
+    "status": "found",
+    "requestedLabel": "par19",
+    "matches": [
+     "par19"
+    ],
+    "block": "par19",
+    "before": [
+     "par17",
+     "par18"
+    ],
+    "after": [
+     "par20",
+     "par21"
+    ]
+   },
+   {
+    "locator": "20",
+    "status": "found",
+    "requestedLabel": "par20",
+    "matches": [
+     "par20"
+    ],
+    "block": "par20",
+    "before": [
+     "par18",
+     "par19"
+    ],
+    "after": [
+     "par21",
+     "par22"
+    ]
+   },
+   {
+    "locator": "21",
+    "status": "found",
+    "requestedLabel": "par21",
+    "matches": [
+     "par21"
+    ],
+    "block": "par21",
+    "before": [
+     "par19",
+     "par20"
+    ],
+    "after": [
+     "par22",
+     "par23"
+    ]
+   },
+   {
+    "locator": "22",
+    "status": "found",
+    "requestedLabel": "par22",
+    "matches": [
+     "par22"
+    ],
+    "block": "par22",
+    "before": [
+     "par20",
+     "par21"
+    ],
+    "after": [
+     "par23",
+     "par24"
+    ]
+   },
+   {
+    "locator": "23",
+    "status": "found",
+    "requestedLabel": "par23",
+    "matches": [
+     "par23"
+    ],
+    "block": "par23",
+    "before": [
+     "par21",
+     "par22"
+    ],
+    "after": [
+     "par24",
+     "par25"
+    ]
+   },
+   {
+    "locator": "24",
+    "status": "found",
+    "requestedLabel": "par24",
+    "matches": [
+     "par24"
+    ],
+    "block": "par24",
+    "before": [
+     "par22",
+     "par23"
+    ],
+    "after": [
+     "par25"
+    ]
+   },
+   {
+    "locator": "25",
+    "status": "found",
+    "requestedLabel": "par25",
+    "matches": [
+     "par25"
+    ],
+    "block": "par25",
+    "before": [
+     "par23",
+     "par24"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "a2aj-case-scc-2026scc16-toc": {
+  "status": "usable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 18,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "1c2f9323c914959f92887dff020a6855d6dac89cbfe664a87b4db7e8687c433d",
+  "blocks": [
+   [
+    "paragraph",
+    "par1",
+    145,
+    164
+   ],
+   [
+    "paragraph",
+    "par2",
+    3891,
+    4732
+   ],
+   [
+    "paragraph",
+    "par4",
+    5485,
+    5881
+   ],
+   [
+    "paragraph",
+    "par6",
+    6849,
+    8408
+   ],
+   [
+    "paragraph",
+    "par8",
+    9340,
+    11200
+   ],
+   [
+    "paragraph",
+    "par10",
+    12058,
+    13582
+   ],
+   [
+    "paragraph",
+    "par12",
+    14451,
+    15806
+   ],
+   [
+    "paragraph",
+    "par14",
+    17310,
+    18185
+   ],
+   [
+    "paragraph",
+    "par16",
+    19948,
+    21688
+   ],
+   [
+    "paragraph",
+    "par18",
+    23593,
+    25529
+   ],
+   [
+    "paragraph",
+    "par20",
+    27233,
+    29516
+   ],
+   [
+    "paragraph",
+    "par22",
+    30637,
+    31851
+   ],
+   [
+    "paragraph",
+    "par24",
+    32714,
+    33266
+   ],
+   [
+    "paragraph",
+    "par26",
+    34019,
+    34704
+   ],
+   [
+    "paragraph",
+    "par28",
+    35444,
+    36085
+   ],
+   [
+    "paragraph",
+    "par30",
+    37137,
+    37501
+   ],
+   [
+    "paragraph",
+    "par32",
+    38401,
+    38967
+   ],
+   [
+    "paragraph",
+    "par34",
+    39998,
+    40355
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "1",
+    "status": "found",
+    "requestedLabel": "par1",
+    "matches": [
+     "par1"
+    ],
+    "block": "par1",
+    "before": [],
+    "after": [
+     "par2",
+     "par4"
+    ]
+   },
+   {
+    "locator": "2",
+    "status": "found",
+    "requestedLabel": "par2",
+    "matches": [
+     "par2"
+    ],
+    "block": "par2",
+    "before": [
+     "par1"
+    ],
+    "after": [
+     "par4",
+     "par6"
+    ]
+   },
+   {
+    "locator": "4",
+    "status": "found",
+    "requestedLabel": "par4",
+    "matches": [
+     "par4"
+    ],
+    "block": "par4",
+    "before": [
+     "par1",
+     "par2"
+    ],
+    "after": [
+     "par6",
+     "par8"
+    ]
+   },
+   {
+    "locator": "6",
+    "status": "found",
+    "requestedLabel": "par6",
+    "matches": [
+     "par6"
+    ],
+    "block": "par6",
+    "before": [
+     "par2",
+     "par4"
+    ],
+    "after": [
+     "par8",
+     "par10"
+    ]
+   },
+   {
+    "locator": "8",
+    "status": "found",
+    "requestedLabel": "par8",
+    "matches": [
+     "par8"
+    ],
+    "block": "par8",
+    "before": [
+     "par4",
+     "par6"
+    ],
+    "after": [
+     "par10",
+     "par12"
+    ]
+   },
+   {
+    "locator": "10",
+    "status": "found",
+    "requestedLabel": "par10",
+    "matches": [
+     "par10"
+    ],
+    "block": "par10",
+    "before": [
+     "par6",
+     "par8"
+    ],
+    "after": [
+     "par12",
+     "par14"
+    ]
+   },
+   {
+    "locator": "12",
+    "status": "found",
+    "requestedLabel": "par12",
+    "matches": [
+     "par12"
+    ],
+    "block": "par12",
+    "before": [
+     "par8",
+     "par10"
+    ],
+    "after": [
+     "par14",
+     "par16"
+    ]
+   },
+   {
+    "locator": "14",
+    "status": "found",
+    "requestedLabel": "par14",
+    "matches": [
+     "par14"
+    ],
+    "block": "par14",
+    "before": [
+     "par10",
+     "par12"
+    ],
+    "after": [
+     "par16",
+     "par18"
+    ]
+   },
+   {
+    "locator": "16",
+    "status": "found",
+    "requestedLabel": "par16",
+    "matches": [
+     "par16"
+    ],
+    "block": "par16",
+    "before": [
+     "par12",
+     "par14"
+    ],
+    "after": [
+     "par18",
+     "par20"
+    ]
+   },
+   {
+    "locator": "18",
+    "status": "found",
+    "requestedLabel": "par18",
+    "matches": [
+     "par18"
+    ],
+    "block": "par18",
+    "before": [
+     "par14",
+     "par16"
+    ],
+    "after": [
+     "par20",
+     "par22"
+    ]
+   },
+   {
+    "locator": "20",
+    "status": "found",
+    "requestedLabel": "par20",
+    "matches": [
+     "par20"
+    ],
+    "block": "par20",
+    "before": [
+     "par16",
+     "par18"
+    ],
+    "after": [
+     "par22",
+     "par24"
+    ]
+   },
+   {
+    "locator": "22",
+    "status": "found",
+    "requestedLabel": "par22",
+    "matches": [
+     "par22"
+    ],
+    "block": "par22",
+    "before": [
+     "par18",
+     "par20"
+    ],
+    "after": [
+     "par24",
+     "par26"
+    ]
+   },
+   {
+    "locator": "24",
+    "status": "found",
+    "requestedLabel": "par24",
+    "matches": [
+     "par24"
+    ],
+    "block": "par24",
+    "before": [
+     "par20",
+     "par22"
+    ],
+    "after": [
+     "par26",
+     "par28"
+    ]
+   },
+   {
+    "locator": "26",
+    "status": "found",
+    "requestedLabel": "par26",
+    "matches": [
+     "par26"
+    ],
+    "block": "par26",
+    "before": [
+     "par22",
+     "par24"
+    ],
+    "after": [
+     "par28",
+     "par30"
+    ]
+   },
+   {
+    "locator": "28",
+    "status": "found",
+    "requestedLabel": "par28",
+    "matches": [
+     "par28"
+    ],
+    "block": "par28",
+    "before": [
+     "par24",
+     "par26"
+    ],
+    "after": [
+     "par30",
+     "par32"
+    ]
+   },
+   {
+    "locator": "30",
+    "status": "found",
+    "requestedLabel": "par30",
+    "matches": [
+     "par30"
+    ],
+    "block": "par30",
+    "before": [
+     "par26",
+     "par28"
+    ],
+    "after": [
+     "par32",
+     "par34"
+    ]
+   },
+   {
+    "locator": "32",
+    "status": "found",
+    "requestedLabel": "par32",
+    "matches": [
+     "par32"
+    ],
+    "block": "par32",
+    "before": [
+     "par28",
+     "par30"
+    ],
+    "after": [
+     "par34"
+    ]
+   },
+   {
+    "locator": "34",
+    "status": "found",
+    "requestedLabel": "par34",
+    "matches": [
+     "par34"
+    ],
+    "block": "par34",
+    "before": [
+     "par30",
+     "par32"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "a2aj-laws-fed-criminalcode-s22-1": {
+  "status": "unavailable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "129d183a5ce523f94a6e4bf33f094f6792948d894b316a522fb6b5d5db085d24",
+  "blocks": [],
+  "lookups": []
+ },
+ "a2aj-laws-fed-criminalcode-s231": {
+  "status": "unavailable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "1791cbf624af24ec2eec653a5d931725490aeb03c2e7195c0f9d319d7db38522",
+  "blocks": [],
+  "lookups": []
+ },
+ "a2aj-laws-fed-criminalcode-s83-01": {
+  "status": "unavailable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "c9921b86bff9046d4a5d60515186550aa583c6ef28f548ac5fc3c28121428d51",
+  "blocks": [],
+  "lookups": []
+ },
+ "a2aj-laws-fed-criminalcode-sectionmap": {
+  "status": "usable",
+  "source": "section_map",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 52
+  },
+  "sameText": false,
+  "textSha256": "e1eeb1a5f28d6d3bafaee9d2d92b63282d5c32f1b9e9ebdf61ff6694bb8e1a33",
+  "blocks": [
+   [
+    "section",
+    "sec231",
+    0,
+    3362
+   ],
+   [
+    "section",
+    "sec231(1)",
+    0,
+    60
+   ],
+   [
+    "section",
+    "sec231(2)",
+    60,
+    130
+   ],
+   [
+    "section",
+    "sec231(3)",
+    130,
+    579
+   ],
+   [
+    "section",
+    "sec231(4)",
+    579,
+    719
+   ],
+   [
+    "section",
+    "sec231(4)(a)",
+    719,
+    933
+   ],
+   [
+    "section",
+    "sec231(4)(b)",
+    933,
+    1090
+   ],
+   [
+    "section",
+    "sec231(4)(c)",
+    1090,
+    1216
+   ],
+   [
+    "section",
+    "sec231(5)",
+    1216,
+    1489
+   ],
+   [
+    "section",
+    "sec231(5)(a)",
+    1489,
+    1530
+   ],
+   [
+    "section",
+    "sec231(5)(b)",
+    1530,
+    1565
+   ],
+   [
+    "section",
+    "sec231(5)(c)",
+    1565,
+    1663
+   ],
+   [
+    "section",
+    "sec231(5)(d)",
+    1663,
+    1709
+   ],
+   [
+    "section",
+    "sec231(5)(e)",
+    1709,
+    1768
+   ],
+   [
+    "section",
+    "sec231(5)(f)",
+    1768,
+    1805
+   ],
+   [
+    "section",
+    "sec231(6)",
+    1805,
+    2213
+   ],
+   [
+    "section",
+    "sec231(6.01)",
+    2213,
+    2567
+   ],
+   [
+    "section",
+    "sec231(6.01)(a)",
+    2693,
+    2824
+   ],
+   [
+    "section",
+    "sec231(6.01)(b)",
+    2824,
+    3057
+   ],
+   [
+    "section",
+    "sec231(6.2)",
+    3057,
+    3291
+   ],
+   [
+    "section",
+    "sec231(7)",
+    3291,
+    3362
+   ],
+   [
+    "section",
+    "sec22.1",
+    3363,
+    4166
+   ],
+   [
+    "section",
+    "sec22.1(a)",
+    3485,
+    3533
+   ],
+   [
+    "section",
+    "sec22.1(a)(i)",
+    3533,
+    3595
+   ],
+   [
+    "section",
+    "sec22.1(a)(ii)",
+    3595,
+    3813
+   ],
+   [
+    "section",
+    "sec22.1(b)",
+    3813,
+    4166
+   ],
+   [
+    "section",
+    "sec83.01",
+    4167,
+    10116
+   ],
+   [
+    "section",
+    "sec83.01(1)",
+    4167,
+    4747
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)",
+    4747,
+    4878
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(i)",
+    4878,
+    5052
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(ii)",
+    5052,
+    5249
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(iii)",
+    5249,
+    5521
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(iv)",
+    5521,
+    5725
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(v)",
+    5725,
+    6149
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(vi)",
+    6149,
+    6474
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(vii)",
+    6474,
+    6669
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(viii)",
+    6669,
+    6901
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(ix)",
+    6901,
+    7121
+   ],
+   [
+    "section",
+    "sec83.01(1)(a)(x)",
+    7121,
+    7346
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)",
+    7346,
+    7393
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(i)",
+    7393,
+    7416
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(i)(A)",
+    7416,
+    7516
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(i)(B)",
+    7516,
+    7896
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(ii)",
+    7896,
+    7921
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(ii)(A)",
+    7921,
+    7998
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(ii)(B)",
+    7998,
+    8030
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(C)",
+    8030,
+    8125
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(D)",
+    8125,
+    8316
+   ],
+   [
+    "section",
+    "sec83.01(1)(b)(D)(E)",
+    8316,
+    9309
+   ],
+   [
+    "section",
+    "sec83.01(1.1)",
+    9519,
+    9810
+   ],
+   [
+    "section",
+    "sec83.01(1.2)",
+    9810,
+    10010
+   ],
+   [
+    "section",
+    "sec83.01(2)",
+    10010,
+    10116
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "231",
+    "status": "found",
+    "requestedLabel": "sec231",
+    "matches": [
+     "sec231"
+    ],
+    "block": "sec231",
+    "before": [],
+    "after": [
+     "sec231(1)",
+     "sec231(2)"
+    ]
+   },
+   {
+    "locator": "231(1)",
+    "status": "found",
+    "requestedLabel": "sec231(1)",
+    "matches": [
+     "sec231(1)"
+    ],
+    "block": "sec231(1)",
+    "before": [
+     "sec231"
+    ],
+    "after": [
+     "sec231(2)",
+     "sec231(3)"
+    ]
+   },
+   {
+    "locator": "231(2)",
+    "status": "found",
+    "requestedLabel": "sec231(2)",
+    "matches": [
+     "sec231(2)"
+    ],
+    "block": "sec231(2)",
+    "before": [
+     "sec231",
+     "sec231(1)"
+    ],
+    "after": [
+     "sec231(3)",
+     "sec231(4)"
+    ]
+   },
+   {
+    "locator": "231(3)",
+    "status": "found",
+    "requestedLabel": "sec231(3)",
+    "matches": [
+     "sec231(3)"
+    ],
+    "block": "sec231(3)",
+    "before": [
+     "sec231(1)",
+     "sec231(2)"
+    ],
+    "after": [
+     "sec231(4)",
+     "sec231(4)(a)"
+    ]
+   },
+   {
+    "locator": "231(4)",
+    "status": "found",
+    "requestedLabel": "sec231(4)",
+    "matches": [
+     "sec231(4)"
+    ],
+    "block": "sec231(4)",
+    "before": [
+     "sec231(2)",
+     "sec231(3)"
+    ],
+    "after": [
+     "sec231(4)(a)",
+     "sec231(4)(b)"
+    ]
+   },
+   {
+    "locator": "231(4)(a)",
+    "status": "found",
+    "requestedLabel": "sec231(4)(a)",
+    "matches": [
+     "sec231(4)(a)"
+    ],
+    "block": "sec231(4)(a)",
+    "before": [
+     "sec231(3)",
+     "sec231(4)"
+    ],
+    "after": [
+     "sec231(4)(b)",
+     "sec231(4)(c)"
+    ]
+   },
+   {
+    "locator": "231(4)(b)",
+    "status": "found",
+    "requestedLabel": "sec231(4)(b)",
+    "matches": [
+     "sec231(4)(b)"
+    ],
+    "block": "sec231(4)(b)",
+    "before": [
+     "sec231(4)",
+     "sec231(4)(a)"
+    ],
+    "after": [
+     "sec231(4)(c)",
+     "sec231(5)"
+    ]
+   },
+   {
+    "locator": "231(4)(c)",
+    "status": "found",
+    "requestedLabel": "sec231(4)(c)",
+    "matches": [
+     "sec231(4)(c)"
+    ],
+    "block": "sec231(4)(c)",
+    "before": [
+     "sec231(4)(a)",
+     "sec231(4)(b)"
+    ],
+    "after": [
+     "sec231(5)",
+     "sec231(5)(a)"
+    ]
+   },
+   {
+    "locator": "231(5)",
+    "status": "found",
+    "requestedLabel": "sec231(5)",
+    "matches": [
+     "sec231(5)"
+    ],
+    "block": "sec231(5)",
+    "before": [
+     "sec231(4)(b)",
+     "sec231(4)(c)"
+    ],
+    "after": [
+     "sec231(5)(a)",
+     "sec231(5)(b)"
+    ]
+   },
+   {
+    "locator": "231(5)(a)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(a)",
+    "matches": [
+     "sec231(5)(a)"
+    ],
+    "block": "sec231(5)(a)",
+    "before": [
+     "sec231(4)(c)",
+     "sec231(5)"
+    ],
+    "after": [
+     "sec231(5)(b)",
+     "sec231(5)(c)"
+    ]
+   },
+   {
+    "locator": "231(5)(b)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(b)",
+    "matches": [
+     "sec231(5)(b)"
+    ],
+    "block": "sec231(5)(b)",
+    "before": [
+     "sec231(5)",
+     "sec231(5)(a)"
+    ],
+    "after": [
+     "sec231(5)(c)",
+     "sec231(5)(d)"
+    ]
+   },
+   {
+    "locator": "231(5)(c)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(c)",
+    "matches": [
+     "sec231(5)(c)"
+    ],
+    "block": "sec231(5)(c)",
+    "before": [
+     "sec231(5)(a)",
+     "sec231(5)(b)"
+    ],
+    "after": [
+     "sec231(5)(d)",
+     "sec231(5)(e)"
+    ]
+   },
+   {
+    "locator": "231(5)(d)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(d)",
+    "matches": [
+     "sec231(5)(d)"
+    ],
+    "block": "sec231(5)(d)",
+    "before": [
+     "sec231(5)(b)",
+     "sec231(5)(c)"
+    ],
+    "after": [
+     "sec231(5)(e)",
+     "sec231(5)(f)"
+    ]
+   },
+   {
+    "locator": "231(5)(e)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(e)",
+    "matches": [
+     "sec231(5)(e)"
+    ],
+    "block": "sec231(5)(e)",
+    "before": [
+     "sec231(5)(c)",
+     "sec231(5)(d)"
+    ],
+    "after": [
+     "sec231(5)(f)",
+     "sec231(6)"
+    ]
+   },
+   {
+    "locator": "231(5)(f)",
+    "status": "found",
+    "requestedLabel": "sec231(5)(f)",
+    "matches": [
+     "sec231(5)(f)"
+    ],
+    "block": "sec231(5)(f)",
+    "before": [
+     "sec231(5)(d)",
+     "sec231(5)(e)"
+    ],
+    "after": [
+     "sec231(6)",
+     "sec231(6.01)"
+    ]
+   },
+   {
+    "locator": "231(6)",
+    "status": "found",
+    "requestedLabel": "sec231(6)",
+    "matches": [
+     "sec231(6)"
+    ],
+    "block": "sec231(6)",
+    "before": [
+     "sec231(5)(e)",
+     "sec231(5)(f)"
+    ],
+    "after": [
+     "sec231(6.01)",
+     "sec231(6.01)(a)"
+    ]
+   },
+   {
+    "locator": "231(6.01)",
+    "status": "found",
+    "requestedLabel": "sec231(6.01)",
+    "matches": [
+     "sec231(6.01)"
+    ],
+    "block": "sec231(6.01)",
+    "before": [
+     "sec231(5)(f)",
+     "sec231(6)"
+    ],
+    "after": [
+     "sec231(6.01)(a)",
+     "sec231(6.01)(b)"
+    ]
+   },
+   {
+    "locator": "231(6.01)(a)",
+    "status": "found",
+    "requestedLabel": "sec231(6.01)(a)",
+    "matches": [
+     "sec231(6.01)(a)"
+    ],
+    "block": "sec231(6.01)(a)",
+    "before": [
+     "sec231(6)",
+     "sec231(6.01)"
+    ],
+    "after": [
+     "sec231(6.01)(b)",
+     "sec231(6.2)"
+    ]
+   },
+   {
+    "locator": "231(6.01)(b)",
+    "status": "found",
+    "requestedLabel": "sec231(6.01)(b)",
+    "matches": [
+     "sec231(6.01)(b)"
+    ],
+    "block": "sec231(6.01)(b)",
+    "before": [
+     "sec231(6.01)",
+     "sec231(6.01)(a)"
+    ],
+    "after": [
+     "sec231(6.2)",
+     "sec231(7)"
+    ]
+   },
+   {
+    "locator": "231(6.2)",
+    "status": "found",
+    "requestedLabel": "sec231(6.2)",
+    "matches": [
+     "sec231(6.2)"
+    ],
+    "block": "sec231(6.2)",
+    "before": [
+     "sec231(6.01)(a)",
+     "sec231(6.01)(b)"
+    ],
+    "after": [
+     "sec231(7)",
+     "sec22.1"
+    ]
+   },
+   {
+    "locator": "231(7)",
+    "status": "found",
+    "requestedLabel": "sec231(7)",
+    "matches": [
+     "sec231(7)"
+    ],
+    "block": "sec231(7)",
+    "before": [
+     "sec231(6.01)(b)",
+     "sec231(6.2)"
+    ],
+    "after": [
+     "sec22.1",
+     "sec22.1(a)"
+    ]
+   },
+   {
+    "locator": "22.1",
+    "status": "found",
+    "requestedLabel": "sec22.1",
+    "matches": [
+     "sec22.1"
+    ],
+    "block": "sec22.1",
+    "before": [
+     "sec231(6.2)",
+     "sec231(7)"
+    ],
+    "after": [
+     "sec22.1(a)",
+     "sec22.1(a)(i)"
+    ]
+   },
+   {
+    "locator": "22.1(a)",
+    "status": "found",
+    "requestedLabel": "sec22.1(a)",
+    "matches": [
+     "sec22.1(a)"
+    ],
+    "block": "sec22.1(a)",
+    "before": [
+     "sec231(7)",
+     "sec22.1"
+    ],
+    "after": [
+     "sec22.1(a)(i)",
+     "sec22.1(a)(ii)"
+    ]
+   },
+   {
+    "locator": "22.1(a)(i)",
+    "status": "found",
+    "requestedLabel": "sec22.1(a)(i)",
+    "matches": [
+     "sec22.1(a)(i)"
+    ],
+    "block": "sec22.1(a)(i)",
+    "before": [
+     "sec22.1",
+     "sec22.1(a)"
+    ],
+    "after": [
+     "sec22.1(a)(ii)",
+     "sec22.1(b)"
+    ]
+   },
+   {
+    "locator": "22.1(a)(ii)",
+    "status": "found",
+    "requestedLabel": "sec22.1(a)(ii)",
+    "matches": [
+     "sec22.1(a)(ii)"
+    ],
+    "block": "sec22.1(a)(ii)",
+    "before": [
+     "sec22.1(a)",
+     "sec22.1(a)(i)"
+    ],
+    "after": [
+     "sec22.1(b)",
+     "sec83.01"
+    ]
+   },
+   {
+    "locator": "22.1(b)",
+    "status": "found",
+    "requestedLabel": "sec22.1(b)",
+    "matches": [
+     "sec22.1(b)"
+    ],
+    "block": "sec22.1(b)",
+    "before": [
+     "sec22.1(a)(i)",
+     "sec22.1(a)(ii)"
+    ],
+    "after": [
+     "sec83.01",
+     "sec83.01(1)"
+    ]
+   },
+   {
+    "locator": "83.01",
+    "status": "found",
+    "requestedLabel": "sec83.01",
+    "matches": [
+     "sec83.01"
+    ],
+    "block": "sec83.01",
+    "before": [
+     "sec22.1(a)(ii)",
+     "sec22.1(b)"
+    ],
+    "after": [
+     "sec83.01(1)",
+     "sec83.01(1)(a)"
+    ]
+   },
+   {
+    "locator": "83.01(1)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)",
+    "matches": [
+     "sec83.01(1)"
+    ],
+    "block": "sec83.01(1)",
+    "before": [
+     "sec22.1(b)",
+     "sec83.01"
+    ],
+    "after": [
+     "sec83.01(1)(a)",
+     "sec83.01(1)(a)(i)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)",
+    "matches": [
+     "sec83.01(1)(a)"
+    ],
+    "block": "sec83.01(1)(a)",
+    "before": [
+     "sec83.01",
+     "sec83.01(1)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(i)",
+     "sec83.01(1)(a)(ii)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(i)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(i)",
+    "matches": [
+     "sec83.01(1)(a)(i)"
+    ],
+    "block": "sec83.01(1)(a)(i)",
+    "before": [
+     "sec83.01(1)",
+     "sec83.01(1)(a)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(ii)",
+     "sec83.01(1)(a)(iii)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(ii)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(ii)",
+    "matches": [
+     "sec83.01(1)(a)(ii)"
+    ],
+    "block": "sec83.01(1)(a)(ii)",
+    "before": [
+     "sec83.01(1)(a)",
+     "sec83.01(1)(a)(i)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(iii)",
+     "sec83.01(1)(a)(iv)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(iii)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(iii)",
+    "matches": [
+     "sec83.01(1)(a)(iii)"
+    ],
+    "block": "sec83.01(1)(a)(iii)",
+    "before": [
+     "sec83.01(1)(a)(i)",
+     "sec83.01(1)(a)(ii)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(iv)",
+     "sec83.01(1)(a)(v)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(iv)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(iv)",
+    "matches": [
+     "sec83.01(1)(a)(iv)"
+    ],
+    "block": "sec83.01(1)(a)(iv)",
+    "before": [
+     "sec83.01(1)(a)(ii)",
+     "sec83.01(1)(a)(iii)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(v)",
+     "sec83.01(1)(a)(vi)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(v)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(v)",
+    "matches": [
+     "sec83.01(1)(a)(v)"
+    ],
+    "block": "sec83.01(1)(a)(v)",
+    "before": [
+     "sec83.01(1)(a)(iii)",
+     "sec83.01(1)(a)(iv)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(vi)",
+     "sec83.01(1)(a)(vii)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(vi)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(vi)",
+    "matches": [
+     "sec83.01(1)(a)(vi)"
+    ],
+    "block": "sec83.01(1)(a)(vi)",
+    "before": [
+     "sec83.01(1)(a)(iv)",
+     "sec83.01(1)(a)(v)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(vii)",
+     "sec83.01(1)(a)(viii)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(vii)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(vii)",
+    "matches": [
+     "sec83.01(1)(a)(vii)"
+    ],
+    "block": "sec83.01(1)(a)(vii)",
+    "before": [
+     "sec83.01(1)(a)(v)",
+     "sec83.01(1)(a)(vi)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(viii)",
+     "sec83.01(1)(a)(ix)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(viii)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(viii)",
+    "matches": [
+     "sec83.01(1)(a)(viii)"
+    ],
+    "block": "sec83.01(1)(a)(viii)",
+    "before": [
+     "sec83.01(1)(a)(vi)",
+     "sec83.01(1)(a)(vii)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(ix)",
+     "sec83.01(1)(a)(x)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(ix)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(ix)",
+    "matches": [
+     "sec83.01(1)(a)(ix)"
+    ],
+    "block": "sec83.01(1)(a)(ix)",
+    "before": [
+     "sec83.01(1)(a)(vii)",
+     "sec83.01(1)(a)(viii)"
+    ],
+    "after": [
+     "sec83.01(1)(a)(x)",
+     "sec83.01(1)(b)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(a)(x)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(a)(x)",
+    "matches": [
+     "sec83.01(1)(a)(x)"
+    ],
+    "block": "sec83.01(1)(a)(x)",
+    "before": [
+     "sec83.01(1)(a)(viii)",
+     "sec83.01(1)(a)(ix)"
+    ],
+    "after": [
+     "sec83.01(1)(b)",
+     "sec83.01(1)(b)(i)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)",
+    "matches": [
+     "sec83.01(1)(b)"
+    ],
+    "block": "sec83.01(1)(b)",
+    "before": [
+     "sec83.01(1)(a)(ix)",
+     "sec83.01(1)(a)(x)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(i)",
+     "sec83.01(1)(b)(i)(A)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(i)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(i)",
+    "matches": [
+     "sec83.01(1)(b)(i)"
+    ],
+    "block": "sec83.01(1)(b)(i)",
+    "before": [
+     "sec83.01(1)(a)(x)",
+     "sec83.01(1)(b)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(i)(A)",
+     "sec83.01(1)(b)(i)(B)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(i)(A)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(i)(A)",
+    "matches": [
+     "sec83.01(1)(b)(i)(A)"
+    ],
+    "block": "sec83.01(1)(b)(i)(A)",
+    "before": [
+     "sec83.01(1)(b)",
+     "sec83.01(1)(b)(i)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(i)(B)",
+     "sec83.01(1)(b)(ii)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(i)(B)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(i)(B)",
+    "matches": [
+     "sec83.01(1)(b)(i)(B)"
+    ],
+    "block": "sec83.01(1)(b)(i)(B)",
+    "before": [
+     "sec83.01(1)(b)(i)",
+     "sec83.01(1)(b)(i)(A)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(ii)",
+     "sec83.01(1)(b)(ii)(A)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(ii)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(ii)",
+    "matches": [
+     "sec83.01(1)(b)(ii)"
+    ],
+    "block": "sec83.01(1)(b)(ii)",
+    "before": [
+     "sec83.01(1)(b)(i)(A)",
+     "sec83.01(1)(b)(i)(B)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(ii)(A)",
+     "sec83.01(1)(b)(ii)(B)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(ii)(A)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(ii)(A)",
+    "matches": [
+     "sec83.01(1)(b)(ii)(A)"
+    ],
+    "block": "sec83.01(1)(b)(ii)(A)",
+    "before": [
+     "sec83.01(1)(b)(i)(B)",
+     "sec83.01(1)(b)(ii)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(ii)(B)",
+     "sec83.01(1)(b)(C)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(ii)(B)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(ii)(B)",
+    "matches": [
+     "sec83.01(1)(b)(ii)(B)"
+    ],
+    "block": "sec83.01(1)(b)(ii)(B)",
+    "before": [
+     "sec83.01(1)(b)(ii)",
+     "sec83.01(1)(b)(ii)(A)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(C)",
+     "sec83.01(1)(b)(D)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(C)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(C)",
+    "matches": [
+     "sec83.01(1)(b)(C)"
+    ],
+    "block": "sec83.01(1)(b)(C)",
+    "before": [
+     "sec83.01(1)(b)(ii)(A)",
+     "sec83.01(1)(b)(ii)(B)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(D)",
+     "sec83.01(1)(b)(D)(E)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(D)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(D)",
+    "matches": [
+     "sec83.01(1)(b)(D)"
+    ],
+    "block": "sec83.01(1)(b)(D)",
+    "before": [
+     "sec83.01(1)(b)(ii)(B)",
+     "sec83.01(1)(b)(C)"
+    ],
+    "after": [
+     "sec83.01(1)(b)(D)(E)",
+     "sec83.01(1.1)"
+    ]
+   },
+   {
+    "locator": "83.01(1)(b)(D)(E)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1)(b)(D)(E)",
+    "matches": [
+     "sec83.01(1)(b)(D)(E)"
+    ],
+    "block": "sec83.01(1)(b)(D)(E)",
+    "before": [
+     "sec83.01(1)(b)(C)",
+     "sec83.01(1)(b)(D)"
+    ],
+    "after": [
+     "sec83.01(1.1)",
+     "sec83.01(1.2)"
+    ]
+   },
+   {
+    "locator": "83.01(1.1)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1.1)",
+    "matches": [
+     "sec83.01(1.1)"
+    ],
+    "block": "sec83.01(1.1)",
+    "before": [
+     "sec83.01(1)(b)(D)",
+     "sec83.01(1)(b)(D)(E)"
+    ],
+    "after": [
+     "sec83.01(1.2)",
+     "sec83.01(2)"
+    ]
+   },
+   {
+    "locator": "83.01(1.2)",
+    "status": "found",
+    "requestedLabel": "sec83.01(1.2)",
+    "matches": [
+     "sec83.01(1.2)"
+    ],
+    "block": "sec83.01(1.2)",
+    "before": [
+     "sec83.01(1)(b)(D)(E)",
+     "sec83.01(1.1)"
+    ],
+    "after": [
+     "sec83.01(2)"
+    ]
+   },
+   {
+    "locator": "83.01(2)",
+    "status": "found",
+    "requestedLabel": "sec83.01(2)",
+    "matches": [
+     "sec83.01(2)"
+    ],
+    "block": "sec83.01(2)",
+    "before": [
+     "sec83.01(1.1)",
+     "sec83.01(1.2)"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "a2aj-laws-on-occupiers-liability": {
+  "status": "usable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 66
+  },
+  "sameText": true,
+  "textSha256": "782e2cf33cbe0bcab41bd0704b862a28a23627f06dd3c7aa96fd9b3fbdc7c8b8",
+  "blocks": [
+   [
+    "section",
+    "sec1",
+    66,
+    751
+   ],
+   [
+    "section",
+    "sec1(a)",
+    102,
+    161
+   ],
+   [
+    "section",
+    "sec1(b)",
+    161,
+    496
+   ],
+   [
+    "section",
+    "sec1(c)",
+    530,
+    620
+   ],
+   [
+    "section",
+    "sec1(d)",
+    620,
+    751
+   ],
+   [
+    "section",
+    "sec2",
+    751,
+    1125
+   ],
+   [
+    "section",
+    "sec3",
+    1125,
+    1784
+   ],
+   [
+    "section",
+    "sec3(1)",
+    1125,
+    1397
+   ],
+   [
+    "section",
+    "sec3(2)",
+    1397,
+    1576
+   ],
+   [
+    "section",
+    "sec3(3)",
+    1576,
+    1784
+   ],
+   [
+    "section",
+    "sec4",
+    1784,
+    4255
+   ],
+   [
+    "section",
+    "sec4(1)",
+    1784,
+    2223
+   ],
+   [
+    "section",
+    "sec4(2)",
+    2223,
+    2498
+   ],
+   [
+    "section",
+    "sec4(3)",
+    2498,
+    2673
+   ],
+   [
+    "section",
+    "sec4(3)(a)",
+    2673,
+    2743
+   ],
+   [
+    "section",
+    "sec4(3)(b)",
+    2743,
+    2859
+   ],
+   [
+    "section",
+    "sec4(3)(c)",
+    2859,
+    2930
+   ],
+   [
+    "section",
+    "sec4(3)(c)(i)",
+    2930,
+    3122
+   ],
+   [
+    "section",
+    "sec4(3)(c)(ii)",
+    3122,
+    3218
+   ],
+   [
+    "section",
+    "sec4(3.1)",
+    3218,
+    3645
+   ],
+   [
+    "section",
+    "sec4(4)",
+    3645,
+    3697
+   ],
+   [
+    "section",
+    "sec4(4)(a)",
+    3697,
+    3727
+   ],
+   [
+    "section",
+    "sec4(4)(a)(i)",
+    3727,
+    3842
+   ],
+   [
+    "section",
+    "sec4(4)(a)(ii)",
+    3842,
+    3879
+   ],
+   [
+    "section",
+    "sec4(4)(a)(iii)",
+    3879,
+    3918
+   ],
+   [
+    "section",
+    "sec4(4)(b)",
+    3918,
+    3962
+   ],
+   [
+    "section",
+    "sec4(4)(c)",
+    3962,
+    4041
+   ],
+   [
+    "section",
+    "sec4(4)(d)",
+    4041,
+    4071
+   ],
+   [
+    "section",
+    "sec4(4)(e)",
+    4071,
+    4126
+   ],
+   [
+    "section",
+    "sec4(4)(f)",
+    4126,
+    4191
+   ],
+   [
+    "section",
+    "sec4(4)(g)",
+    4191,
+    4255
+   ],
+   [
+    "section",
+    "sec5",
+    4255,
+    5419
+   ],
+   [
+    "section",
+    "sec5(1)",
+    4255,
+    4608
+   ],
+   [
+    "section",
+    "sec5(2)",
+    4608,
+    5082
+   ],
+   [
+    "section",
+    "sec5(3)",
+    5082,
+    5419
+   ],
+   [
+    "section",
+    "sec6",
+    5419,
+    6511
+   ],
+   [
+    "section",
+    "sec6(1)",
+    5419,
+    6016
+   ],
+   [
+    "section",
+    "sec6(2)",
+    6016,
+    6234
+   ],
+   [
+    "section",
+    "sec6(3)",
+    6234,
+    6511
+   ],
+   [
+    "section",
+    "sec6.1",
+    6511,
+    8734
+   ],
+   [
+    "section",
+    "sec6.1(1)",
+    6511,
+    6931
+   ],
+   [
+    "section",
+    "sec6.1(2)",
+    6931,
+    7182
+   ],
+   [
+    "section",
+    "sec6.1(3)",
+    7182,
+    7330
+   ],
+   [
+    "section",
+    "sec6.1(3)(a)",
+    7330,
+    7425
+   ],
+   [
+    "section",
+    "sec6.1(3)(b)",
+    7425,
+    7587
+   ],
+   [
+    "section",
+    "sec6.1(4)",
+    7587,
+    7884
+   ],
+   [
+    "section",
+    "sec6.1(5)",
+    7884,
+    8057
+   ],
+   [
+    "section",
+    "sec6.1(6)",
+    8057,
+    8373
+   ],
+   [
+    "section",
+    "sec6.1(7)",
+    8373,
+    8734
+   ],
+   [
+    "section",
+    "sec7",
+    8734,
+    9222
+   ],
+   [
+    "section",
+    "sec8",
+    9222,
+    10468
+   ],
+   [
+    "section",
+    "sec8(1)",
+    9222,
+    9710
+   ],
+   [
+    "section",
+    "sec8(2)",
+    9710,
+    9985
+   ],
+   [
+    "section",
+    "sec8(3)",
+    9985,
+    10319
+   ],
+   [
+    "section",
+    "sec8(4)",
+    10319,
+    10468
+   ],
+   [
+    "section",
+    "sec9",
+    10468,
+    11314
+   ],
+   [
+    "section",
+    "sec9(1)",
+    10468,
+    10880
+   ],
+   [
+    "section",
+    "sec9(1)(a)",
+    10880,
+    10927
+   ],
+   [
+    "section",
+    "sec9(1)(b)",
+    10927,
+    10948
+   ],
+   [
+    "section",
+    "sec9(1)(c)",
+    10948,
+    11003
+   ],
+   [
+    "section",
+    "sec9(2)",
+    11003,
+    11197
+   ],
+   [
+    "section",
+    "sec9(3)",
+    11197,
+    11314
+   ],
+   [
+    "section",
+    "sec10",
+    11314,
+    11627
+   ],
+   [
+    "section",
+    "sec10(1)",
+    11314,
+    11426
+   ],
+   [
+    "section",
+    "sec10(2)",
+    11426,
+    11627
+   ],
+   [
+    "section",
+    "sec11",
+    11627,
+    11770
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "1",
+    "status": "found",
+    "requestedLabel": "sec1",
+    "matches": [
+     "sec1"
+    ],
+    "block": "sec1",
+    "before": [],
+    "after": [
+     "sec1(a)",
+     "sec1(b)"
+    ]
+   },
+   {
+    "locator": "1(a)",
+    "status": "found",
+    "requestedLabel": "sec1(a)",
+    "matches": [
+     "sec1(a)"
+    ],
+    "block": "sec1(a)",
+    "before": [
+     "sec1"
+    ],
+    "after": [
+     "sec1(b)",
+     "sec1(c)"
+    ]
+   },
+   {
+    "locator": "1(b)",
+    "status": "found",
+    "requestedLabel": "sec1(b)",
+    "matches": [
+     "sec1(b)"
+    ],
+    "block": "sec1(b)",
+    "before": [
+     "sec1",
+     "sec1(a)"
+    ],
+    "after": [
+     "sec1(c)",
+     "sec1(d)"
+    ]
+   },
+   {
+    "locator": "1(c)",
+    "status": "found",
+    "requestedLabel": "sec1(c)",
+    "matches": [
+     "sec1(c)"
+    ],
+    "block": "sec1(c)",
+    "before": [
+     "sec1(a)",
+     "sec1(b)"
+    ],
+    "after": [
+     "sec1(d)",
+     "sec2"
+    ]
+   },
+   {
+    "locator": "1(d)",
+    "status": "found",
+    "requestedLabel": "sec1(d)",
+    "matches": [
+     "sec1(d)"
+    ],
+    "block": "sec1(d)",
+    "before": [
+     "sec1(b)",
+     "sec1(c)"
+    ],
+    "after": [
+     "sec2",
+     "sec3"
+    ]
+   },
+   {
+    "locator": "2",
+    "status": "found",
+    "requestedLabel": "sec2",
+    "matches": [
+     "sec2"
+    ],
+    "block": "sec2",
+    "before": [
+     "sec1(c)",
+     "sec1(d)"
+    ],
+    "after": [
+     "sec3",
+     "sec3(1)"
+    ]
+   },
+   {
+    "locator": "3",
+    "status": "found",
+    "requestedLabel": "sec3",
+    "matches": [
+     "sec3"
+    ],
+    "block": "sec3",
+    "before": [
+     "sec1(d)",
+     "sec2"
+    ],
+    "after": [
+     "sec3(1)",
+     "sec3(2)"
+    ]
+   },
+   {
+    "locator": "3(1)",
+    "status": "found",
+    "requestedLabel": "sec3(1)",
+    "matches": [
+     "sec3(1)"
+    ],
+    "block": "sec3(1)",
+    "before": [
+     "sec2",
+     "sec3"
+    ],
+    "after": [
+     "sec3(2)",
+     "sec3(3)"
+    ]
+   },
+   {
+    "locator": "3(2)",
+    "status": "found",
+    "requestedLabel": "sec3(2)",
+    "matches": [
+     "sec3(2)"
+    ],
+    "block": "sec3(2)",
+    "before": [
+     "sec3",
+     "sec3(1)"
+    ],
+    "after": [
+     "sec3(3)",
+     "sec4"
+    ]
+   },
+   {
+    "locator": "3(3)",
+    "status": "found",
+    "requestedLabel": "sec3(3)",
+    "matches": [
+     "sec3(3)"
+    ],
+    "block": "sec3(3)",
+    "before": [
+     "sec3(1)",
+     "sec3(2)"
+    ],
+    "after": [
+     "sec4",
+     "sec4(1)"
+    ]
+   },
+   {
+    "locator": "4",
+    "status": "found",
+    "requestedLabel": "sec4",
+    "matches": [
+     "sec4"
+    ],
+    "block": "sec4",
+    "before": [
+     "sec3(2)",
+     "sec3(3)"
+    ],
+    "after": [
+     "sec4(1)",
+     "sec4(2)"
+    ]
+   },
+   {
+    "locator": "4(1)",
+    "status": "found",
+    "requestedLabel": "sec4(1)",
+    "matches": [
+     "sec4(1)"
+    ],
+    "block": "sec4(1)",
+    "before": [
+     "sec3(3)",
+     "sec4"
+    ],
+    "after": [
+     "sec4(2)",
+     "sec4(3)"
+    ]
+   },
+   {
+    "locator": "4(2)",
+    "status": "found",
+    "requestedLabel": "sec4(2)",
+    "matches": [
+     "sec4(2)"
+    ],
+    "block": "sec4(2)",
+    "before": [
+     "sec4",
+     "sec4(1)"
+    ],
+    "after": [
+     "sec4(3)",
+     "sec4(3)(a)"
+    ]
+   },
+   {
+    "locator": "4(3)",
+    "status": "found",
+    "requestedLabel": "sec4(3)",
+    "matches": [
+     "sec4(3)"
+    ],
+    "block": "sec4(3)",
+    "before": [
+     "sec4(1)",
+     "sec4(2)"
+    ],
+    "after": [
+     "sec4(3)(a)",
+     "sec4(3)(b)"
+    ]
+   },
+   {
+    "locator": "4(3)(a)",
+    "status": "found",
+    "requestedLabel": "sec4(3)(a)",
+    "matches": [
+     "sec4(3)(a)"
+    ],
+    "block": "sec4(3)(a)",
+    "before": [
+     "sec4(2)",
+     "sec4(3)"
+    ],
+    "after": [
+     "sec4(3)(b)",
+     "sec4(3)(c)"
+    ]
+   },
+   {
+    "locator": "4(3)(b)",
+    "status": "found",
+    "requestedLabel": "sec4(3)(b)",
+    "matches": [
+     "sec4(3)(b)"
+    ],
+    "block": "sec4(3)(b)",
+    "before": [
+     "sec4(3)",
+     "sec4(3)(a)"
+    ],
+    "after": [
+     "sec4(3)(c)",
+     "sec4(3)(c)(i)"
+    ]
+   },
+   {
+    "locator": "4(3)(c)",
+    "status": "found",
+    "requestedLabel": "sec4(3)(c)",
+    "matches": [
+     "sec4(3)(c)"
+    ],
+    "block": "sec4(3)(c)",
+    "before": [
+     "sec4(3)(a)",
+     "sec4(3)(b)"
+    ],
+    "after": [
+     "sec4(3)(c)(i)",
+     "sec4(3)(c)(ii)"
+    ]
+   },
+   {
+    "locator": "4(3)(c)(i)",
+    "status": "found",
+    "requestedLabel": "sec4(3)(c)(i)",
+    "matches": [
+     "sec4(3)(c)(i)"
+    ],
+    "block": "sec4(3)(c)(i)",
+    "before": [
+     "sec4(3)(b)",
+     "sec4(3)(c)"
+    ],
+    "after": [
+     "sec4(3)(c)(ii)",
+     "sec4(3.1)"
+    ]
+   },
+   {
+    "locator": "4(3)(c)(ii)",
+    "status": "found",
+    "requestedLabel": "sec4(3)(c)(ii)",
+    "matches": [
+     "sec4(3)(c)(ii)"
+    ],
+    "block": "sec4(3)(c)(ii)",
+    "before": [
+     "sec4(3)(c)",
+     "sec4(3)(c)(i)"
+    ],
+    "after": [
+     "sec4(3.1)",
+     "sec4(4)"
+    ]
+   },
+   {
+    "locator": "4(3.1)",
+    "status": "found",
+    "requestedLabel": "sec4(3.1)",
+    "matches": [
+     "sec4(3.1)"
+    ],
+    "block": "sec4(3.1)",
+    "before": [
+     "sec4(3)(c)(i)",
+     "sec4(3)(c)(ii)"
+    ],
+    "after": [
+     "sec4(4)",
+     "sec4(4)(a)"
+    ]
+   },
+   {
+    "locator": "4(4)",
+    "status": "found",
+    "requestedLabel": "sec4(4)",
+    "matches": [
+     "sec4(4)"
+    ],
+    "block": "sec4(4)",
+    "before": [
+     "sec4(3)(c)(ii)",
+     "sec4(3.1)"
+    ],
+    "after": [
+     "sec4(4)(a)",
+     "sec4(4)(a)(i)"
+    ]
+   },
+   {
+    "locator": "4(4)(a)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(a)",
+    "matches": [
+     "sec4(4)(a)"
+    ],
+    "block": "sec4(4)(a)",
+    "before": [
+     "sec4(3.1)",
+     "sec4(4)"
+    ],
+    "after": [
+     "sec4(4)(a)(i)",
+     "sec4(4)(a)(ii)"
+    ]
+   },
+   {
+    "locator": "4(4)(a)(i)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(a)(i)",
+    "matches": [
+     "sec4(4)(a)(i)"
+    ],
+    "block": "sec4(4)(a)(i)",
+    "before": [
+     "sec4(4)",
+     "sec4(4)(a)"
+    ],
+    "after": [
+     "sec4(4)(a)(ii)",
+     "sec4(4)(a)(iii)"
+    ]
+   },
+   {
+    "locator": "4(4)(a)(ii)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(a)(ii)",
+    "matches": [
+     "sec4(4)(a)(ii)"
+    ],
+    "block": "sec4(4)(a)(ii)",
+    "before": [
+     "sec4(4)(a)",
+     "sec4(4)(a)(i)"
+    ],
+    "after": [
+     "sec4(4)(a)(iii)",
+     "sec4(4)(b)"
+    ]
+   },
+   {
+    "locator": "4(4)(a)(iii)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(a)(iii)",
+    "matches": [
+     "sec4(4)(a)(iii)"
+    ],
+    "block": "sec4(4)(a)(iii)",
+    "before": [
+     "sec4(4)(a)(i)",
+     "sec4(4)(a)(ii)"
+    ],
+    "after": [
+     "sec4(4)(b)",
+     "sec4(4)(c)"
+    ]
+   },
+   {
+    "locator": "4(4)(b)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(b)",
+    "matches": [
+     "sec4(4)(b)"
+    ],
+    "block": "sec4(4)(b)",
+    "before": [
+     "sec4(4)(a)(ii)",
+     "sec4(4)(a)(iii)"
+    ],
+    "after": [
+     "sec4(4)(c)",
+     "sec4(4)(d)"
+    ]
+   },
+   {
+    "locator": "4(4)(c)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(c)",
+    "matches": [
+     "sec4(4)(c)"
+    ],
+    "block": "sec4(4)(c)",
+    "before": [
+     "sec4(4)(a)(iii)",
+     "sec4(4)(b)"
+    ],
+    "after": [
+     "sec4(4)(d)",
+     "sec4(4)(e)"
+    ]
+   },
+   {
+    "locator": "4(4)(d)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(d)",
+    "matches": [
+     "sec4(4)(d)"
+    ],
+    "block": "sec4(4)(d)",
+    "before": [
+     "sec4(4)(b)",
+     "sec4(4)(c)"
+    ],
+    "after": [
+     "sec4(4)(e)",
+     "sec4(4)(f)"
+    ]
+   },
+   {
+    "locator": "4(4)(e)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(e)",
+    "matches": [
+     "sec4(4)(e)"
+    ],
+    "block": "sec4(4)(e)",
+    "before": [
+     "sec4(4)(c)",
+     "sec4(4)(d)"
+    ],
+    "after": [
+     "sec4(4)(f)",
+     "sec4(4)(g)"
+    ]
+   },
+   {
+    "locator": "4(4)(f)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(f)",
+    "matches": [
+     "sec4(4)(f)"
+    ],
+    "block": "sec4(4)(f)",
+    "before": [
+     "sec4(4)(d)",
+     "sec4(4)(e)"
+    ],
+    "after": [
+     "sec4(4)(g)",
+     "sec5"
+    ]
+   },
+   {
+    "locator": "4(4)(g)",
+    "status": "found",
+    "requestedLabel": "sec4(4)(g)",
+    "matches": [
+     "sec4(4)(g)"
+    ],
+    "block": "sec4(4)(g)",
+    "before": [
+     "sec4(4)(e)",
+     "sec4(4)(f)"
+    ],
+    "after": [
+     "sec5",
+     "sec5(1)"
+    ]
+   },
+   {
+    "locator": "5",
+    "status": "found",
+    "requestedLabel": "sec5",
+    "matches": [
+     "sec5"
+    ],
+    "block": "sec5",
+    "before": [
+     "sec4(4)(f)",
+     "sec4(4)(g)"
+    ],
+    "after": [
+     "sec5(1)",
+     "sec5(2)"
+    ]
+   },
+   {
+    "locator": "5(1)",
+    "status": "found",
+    "requestedLabel": "sec5(1)",
+    "matches": [
+     "sec5(1)"
+    ],
+    "block": "sec5(1)",
+    "before": [
+     "sec4(4)(g)",
+     "sec5"
+    ],
+    "after": [
+     "sec5(2)",
+     "sec5(3)"
+    ]
+   },
+   {
+    "locator": "5(2)",
+    "status": "found",
+    "requestedLabel": "sec5(2)",
+    "matches": [
+     "sec5(2)"
+    ],
+    "block": "sec5(2)",
+    "before": [
+     "sec5",
+     "sec5(1)"
+    ],
+    "after": [
+     "sec5(3)",
+     "sec6"
+    ]
+   },
+   {
+    "locator": "5(3)",
+    "status": "found",
+    "requestedLabel": "sec5(3)",
+    "matches": [
+     "sec5(3)"
+    ],
+    "block": "sec5(3)",
+    "before": [
+     "sec5(1)",
+     "sec5(2)"
+    ],
+    "after": [
+     "sec6",
+     "sec6(1)"
+    ]
+   },
+   {
+    "locator": "6",
+    "status": "found",
+    "requestedLabel": "sec6",
+    "matches": [
+     "sec6"
+    ],
+    "block": "sec6",
+    "before": [
+     "sec5(2)",
+     "sec5(3)"
+    ],
+    "after": [
+     "sec6(1)",
+     "sec6(2)"
+    ]
+   },
+   {
+    "locator": "6(1)",
+    "status": "found",
+    "requestedLabel": "sec6(1)",
+    "matches": [
+     "sec6(1)"
+    ],
+    "block": "sec6(1)",
+    "before": [
+     "sec5(3)",
+     "sec6"
+    ],
+    "after": [
+     "sec6(2)",
+     "sec6(3)"
+    ]
+   },
+   {
+    "locator": "6(2)",
+    "status": "found",
+    "requestedLabel": "sec6(2)",
+    "matches": [
+     "sec6(2)"
+    ],
+    "block": "sec6(2)",
+    "before": [
+     "sec6",
+     "sec6(1)"
+    ],
+    "after": [
+     "sec6(3)",
+     "sec6.1"
+    ]
+   },
+   {
+    "locator": "6(3)",
+    "status": "found",
+    "requestedLabel": "sec6(3)",
+    "matches": [
+     "sec6(3)"
+    ],
+    "block": "sec6(3)",
+    "before": [
+     "sec6(1)",
+     "sec6(2)"
+    ],
+    "after": [
+     "sec6.1",
+     "sec6.1(1)"
+    ]
+   },
+   {
+    "locator": "6.1",
+    "status": "found",
+    "requestedLabel": "sec6.1",
+    "matches": [
+     "sec6.1"
+    ],
+    "block": "sec6.1",
+    "before": [
+     "sec6(2)",
+     "sec6(3)"
+    ],
+    "after": [
+     "sec6.1(1)",
+     "sec6.1(2)"
+    ]
+   },
+   {
+    "locator": "6.1(1)",
+    "status": "found",
+    "requestedLabel": "sec6.1(1)",
+    "matches": [
+     "sec6.1(1)"
+    ],
+    "block": "sec6.1(1)",
+    "before": [
+     "sec6(3)",
+     "sec6.1"
+    ],
+    "after": [
+     "sec6.1(2)",
+     "sec6.1(3)"
+    ]
+   },
+   {
+    "locator": "6.1(2)",
+    "status": "found",
+    "requestedLabel": "sec6.1(2)",
+    "matches": [
+     "sec6.1(2)"
+    ],
+    "block": "sec6.1(2)",
+    "before": [
+     "sec6.1",
+     "sec6.1(1)"
+    ],
+    "after": [
+     "sec6.1(3)",
+     "sec6.1(3)(a)"
+    ]
+   },
+   {
+    "locator": "6.1(3)",
+    "status": "found",
+    "requestedLabel": "sec6.1(3)",
+    "matches": [
+     "sec6.1(3)"
+    ],
+    "block": "sec6.1(3)",
+    "before": [
+     "sec6.1(1)",
+     "sec6.1(2)"
+    ],
+    "after": [
+     "sec6.1(3)(a)",
+     "sec6.1(3)(b)"
+    ]
+   },
+   {
+    "locator": "6.1(3)(a)",
+    "status": "found",
+    "requestedLabel": "sec6.1(3)(a)",
+    "matches": [
+     "sec6.1(3)(a)"
+    ],
+    "block": "sec6.1(3)(a)",
+    "before": [
+     "sec6.1(2)",
+     "sec6.1(3)"
+    ],
+    "after": [
+     "sec6.1(3)(b)",
+     "sec6.1(4)"
+    ]
+   },
+   {
+    "locator": "6.1(3)(b)",
+    "status": "found",
+    "requestedLabel": "sec6.1(3)(b)",
+    "matches": [
+     "sec6.1(3)(b)"
+    ],
+    "block": "sec6.1(3)(b)",
+    "before": [
+     "sec6.1(3)",
+     "sec6.1(3)(a)"
+    ],
+    "after": [
+     "sec6.1(4)",
+     "sec6.1(5)"
+    ]
+   },
+   {
+    "locator": "6.1(4)",
+    "status": "found",
+    "requestedLabel": "sec6.1(4)",
+    "matches": [
+     "sec6.1(4)"
+    ],
+    "block": "sec6.1(4)",
+    "before": [
+     "sec6.1(3)(a)",
+     "sec6.1(3)(b)"
+    ],
+    "after": [
+     "sec6.1(5)",
+     "sec6.1(6)"
+    ]
+   },
+   {
+    "locator": "6.1(5)",
+    "status": "found",
+    "requestedLabel": "sec6.1(5)",
+    "matches": [
+     "sec6.1(5)"
+    ],
+    "block": "sec6.1(5)",
+    "before": [
+     "sec6.1(3)(b)",
+     "sec6.1(4)"
+    ],
+    "after": [
+     "sec6.1(6)",
+     "sec6.1(7)"
+    ]
+   },
+   {
+    "locator": "6.1(6)",
+    "status": "found",
+    "requestedLabel": "sec6.1(6)",
+    "matches": [
+     "sec6.1(6)"
+    ],
+    "block": "sec6.1(6)",
+    "before": [
+     "sec6.1(4)",
+     "sec6.1(5)"
+    ],
+    "after": [
+     "sec6.1(7)",
+     "sec7"
+    ]
+   },
+   {
+    "locator": "6.1(7)",
+    "status": "found",
+    "requestedLabel": "sec6.1(7)",
+    "matches": [
+     "sec6.1(7)"
+    ],
+    "block": "sec6.1(7)",
+    "before": [
+     "sec6.1(5)",
+     "sec6.1(6)"
+    ],
+    "after": [
+     "sec7",
+     "sec8"
+    ]
+   },
+   {
+    "locator": "7",
+    "status": "found",
+    "requestedLabel": "sec7",
+    "matches": [
+     "sec7"
+    ],
+    "block": "sec7",
+    "before": [
+     "sec6.1(6)",
+     "sec6.1(7)"
+    ],
+    "after": [
+     "sec8",
+     "sec8(1)"
+    ]
+   },
+   {
+    "locator": "8",
+    "status": "found",
+    "requestedLabel": "sec8",
+    "matches": [
+     "sec8"
+    ],
+    "block": "sec8",
+    "before": [
+     "sec6.1(7)",
+     "sec7"
+    ],
+    "after": [
+     "sec8(1)",
+     "sec8(2)"
+    ]
+   },
+   {
+    "locator": "8(1)",
+    "status": "found",
+    "requestedLabel": "sec8(1)",
+    "matches": [
+     "sec8(1)"
+    ],
+    "block": "sec8(1)",
+    "before": [
+     "sec7",
+     "sec8"
+    ],
+    "after": [
+     "sec8(2)",
+     "sec8(3)"
+    ]
+   },
+   {
+    "locator": "8(2)",
+    "status": "found",
+    "requestedLabel": "sec8(2)",
+    "matches": [
+     "sec8(2)"
+    ],
+    "block": "sec8(2)",
+    "before": [
+     "sec8",
+     "sec8(1)"
+    ],
+    "after": [
+     "sec8(3)",
+     "sec8(4)"
+    ]
+   },
+   {
+    "locator": "8(3)",
+    "status": "found",
+    "requestedLabel": "sec8(3)",
+    "matches": [
+     "sec8(3)"
+    ],
+    "block": "sec8(3)",
+    "before": [
+     "sec8(1)",
+     "sec8(2)"
+    ],
+    "after": [
+     "sec8(4)",
+     "sec9"
+    ]
+   },
+   {
+    "locator": "8(4)",
+    "status": "found",
+    "requestedLabel": "sec8(4)",
+    "matches": [
+     "sec8(4)"
+    ],
+    "block": "sec8(4)",
+    "before": [
+     "sec8(2)",
+     "sec8(3)"
+    ],
+    "after": [
+     "sec9",
+     "sec9(1)"
+    ]
+   },
+   {
+    "locator": "9",
+    "status": "found",
+    "requestedLabel": "sec9",
+    "matches": [
+     "sec9"
+    ],
+    "block": "sec9",
+    "before": [
+     "sec8(3)",
+     "sec8(4)"
+    ],
+    "after": [
+     "sec9(1)",
+     "sec9(1)(a)"
+    ]
+   },
+   {
+    "locator": "9(1)",
+    "status": "found",
+    "requestedLabel": "sec9(1)",
+    "matches": [
+     "sec9(1)"
+    ],
+    "block": "sec9(1)",
+    "before": [
+     "sec8(4)",
+     "sec9"
+    ],
+    "after": [
+     "sec9(1)(a)",
+     "sec9(1)(b)"
+    ]
+   },
+   {
+    "locator": "9(1)(a)",
+    "status": "found",
+    "requestedLabel": "sec9(1)(a)",
+    "matches": [
+     "sec9(1)(a)"
+    ],
+    "block": "sec9(1)(a)",
+    "before": [
+     "sec9",
+     "sec9(1)"
+    ],
+    "after": [
+     "sec9(1)(b)",
+     "sec9(1)(c)"
+    ]
+   },
+   {
+    "locator": "9(1)(b)",
+    "status": "found",
+    "requestedLabel": "sec9(1)(b)",
+    "matches": [
+     "sec9(1)(b)"
+    ],
+    "block": "sec9(1)(b)",
+    "before": [
+     "sec9(1)",
+     "sec9(1)(a)"
+    ],
+    "after": [
+     "sec9(1)(c)",
+     "sec9(2)"
+    ]
+   },
+   {
+    "locator": "9(1)(c)",
+    "status": "found",
+    "requestedLabel": "sec9(1)(c)",
+    "matches": [
+     "sec9(1)(c)"
+    ],
+    "block": "sec9(1)(c)",
+    "before": [
+     "sec9(1)(a)",
+     "sec9(1)(b)"
+    ],
+    "after": [
+     "sec9(2)",
+     "sec9(3)"
+    ]
+   },
+   {
+    "locator": "9(2)",
+    "status": "found",
+    "requestedLabel": "sec9(2)",
+    "matches": [
+     "sec9(2)"
+    ],
+    "block": "sec9(2)",
+    "before": [
+     "sec9(1)(b)",
+     "sec9(1)(c)"
+    ],
+    "after": [
+     "sec9(3)",
+     "sec10"
+    ]
+   },
+   {
+    "locator": "9(3)",
+    "status": "found",
+    "requestedLabel": "sec9(3)",
+    "matches": [
+     "sec9(3)"
+    ],
+    "block": "sec9(3)",
+    "before": [
+     "sec9(1)(c)",
+     "sec9(2)"
+    ],
+    "after": [
+     "sec10",
+     "sec10(1)"
+    ]
+   },
+   {
+    "locator": "10",
+    "status": "found",
+    "requestedLabel": "sec10",
+    "matches": [
+     "sec10"
+    ],
+    "block": "sec10",
+    "before": [
+     "sec9(2)",
+     "sec9(3)"
+    ],
+    "after": [
+     "sec10(1)",
+     "sec10(2)"
+    ]
+   },
+   {
+    "locator": "10(1)",
+    "status": "found",
+    "requestedLabel": "sec10(1)",
+    "matches": [
+     "sec10(1)"
+    ],
+    "block": "sec10(1)",
+    "before": [
+     "sec9(3)",
+     "sec10"
+    ],
+    "after": [
+     "sec10(2)",
+     "sec11"
+    ]
+   },
+   {
+    "locator": "10(2)",
+    "status": "found",
+    "requestedLabel": "sec10(2)",
+    "matches": [
+     "sec10(2)"
+    ],
+    "block": "sec10(2)",
+    "before": [
+     "sec10",
+     "sec10(1)"
+    ],
+    "after": [
+     "sec11"
+    ]
+   },
+   {
+    "locator": "11",
+    "status": "found",
+    "requestedLabel": "sec11",
+    "matches": [
+     "sec11"
+    ],
+    "block": "sec11",
+    "before": [
+     "sec10(1)",
+     "sec10(2)"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "a2aj-regs-fed-crc870-a01": {
+  "status": "unavailable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 0
+  },
+  "sameText": true,
+  "textSha256": "bc01dd3b8b6089311f0efe306e4e0a00dcf4fd4f33b9575e9f0ca4a48f3bb41a",
+  "blocks": [],
+  "lookups": []
+ },
+ "a2aj-regs-on-oreg267-03": {
+  "status": "usable",
+  "source": "flat_text",
+  "counts": {
+   "paragraph": 0,
+   "page": 0,
+   "section": 64
+  },
+  "sameText": true,
+  "textSha256": "242d69a8ff917bcb5b859af5485e872ccd0b7dbef22ee7466ca14f3a13c63b85",
+  "blocks": [
+   [
+    "section",
+    "sec2",
+    0,
+    1429
+   ],
+   [
+    "section",
+    "sec2(1)",
+    0,
+    76
+   ],
+   [
+    "section",
+    "sec2(1)(a)",
+    76,
+    411
+   ],
+   [
+    "section",
+    "sec2(1)(b)",
+    411,
+    455
+   ],
+   [
+    "section",
+    "sec2(1)(c)",
+    455,
+    629
+   ],
+   [
+    "section",
+    "sec2(1)(c)(i)",
+    629,
+    744
+   ],
+   [
+    "section",
+    "sec2(1)(c)(ii)",
+    744,
+    832
+   ],
+   [
+    "section",
+    "sec2(2)",
+    832,
+    1429
+   ],
+   [
+    "section",
+    "sec3",
+    1429,
+    1618
+   ],
+   [
+    "section",
+    "sec4",
+    1618,
+    1771
+   ],
+   [
+    "section",
+    "sec5",
+    1771,
+    3875
+   ],
+   [
+    "section",
+    "sec5(1)",
+    1771,
+    3290
+   ],
+   [
+    "section",
+    "sec5(2)",
+    3290,
+    3724
+   ],
+   [
+    "section",
+    "sec5(3)",
+    3724,
+    3875
+   ],
+   [
+    "section",
+    "sec5.1",
+    3875,
+    4403
+   ],
+   [
+    "section",
+    "sec5.2",
+    4403,
+    4774
+   ],
+   [
+    "section",
+    "sec5.3",
+    4774,
+    5710
+   ],
+   [
+    "section",
+    "sec6",
+    5710,
+    8050
+   ],
+   [
+    "section",
+    "sec6(1)",
+    5710,
+    5976
+   ],
+   [
+    "section",
+    "sec6(2)",
+    5976,
+    6075
+   ],
+   [
+    "section",
+    "sec6(3)",
+    6075,
+    6296
+   ],
+   [
+    "section",
+    "sec6(4)",
+    6296,
+    6651
+   ],
+   [
+    "section",
+    "sec6(5)",
+    6651,
+    7222
+   ],
+   [
+    "section",
+    "sec6(6)",
+    7222,
+    8050
+   ],
+   [
+    "section",
+    "sec7",
+    8050,
+    8421
+   ],
+   [
+    "section",
+    "sec8",
+    8421,
+    8719
+   ],
+   [
+    "section",
+    "sec8.1",
+    8719,
+    9165
+   ],
+   [
+    "section",
+    "sec8.1(1)",
+    8719,
+    8882
+   ],
+   [
+    "section",
+    "sec8.1(2)",
+    8882,
+    9165
+   ],
+   [
+    "section",
+    "sec8.2",
+    9165,
+    9806
+   ],
+   [
+    "section",
+    "sec8.3",
+    9806,
+    10908
+   ],
+   [
+    "section",
+    "sec8.3(1)",
+    9806,
+    10395
+   ],
+   [
+    "section",
+    "sec8.3(2)",
+    10395,
+    10519
+   ],
+   [
+    "section",
+    "sec8.3(2)(a)",
+    10519,
+    10581
+   ],
+   [
+    "section",
+    "sec8.3(2)(b)",
+    10581,
+    10908
+   ],
+   [
+    "section",
+    "sec9",
+    10908,
+    11215
+   ],
+   [
+    "section",
+    "sec9(1)",
+    10908,
+    11010
+   ],
+   [
+    "section",
+    "sec9(2)",
+    11010,
+    11215
+   ],
+   [
+    "section",
+    "sec10",
+    11215,
+    12237
+   ],
+   [
+    "section",
+    "sec10(1)",
+    11215,
+    11632
+   ],
+   [
+    "section",
+    "sec10(2)",
+    11632,
+    12001
+   ],
+   [
+    "section",
+    "sec10(3)",
+    12001,
+    12237
+   ],
+   [
+    "section",
+    "sec11",
+    12237,
+    14748
+   ],
+   [
+    "section",
+    "sec11(1)",
+    12237,
+    12875
+   ],
+   [
+    "section",
+    "sec11(2)",
+    12875,
+    12914
+   ],
+   [
+    "section",
+    "sec11(3)",
+    12914,
+    13196
+   ],
+   [
+    "section",
+    "sec11(4)",
+    13196,
+    13418
+   ],
+   [
+    "section",
+    "sec11(4)(a)",
+    13418,
+    13645
+   ],
+   [
+    "section",
+    "sec11(4)(b)",
+    13645,
+    14042
+   ],
+   [
+    "section",
+    "sec11(4)(c)",
+    14042,
+    14150
+   ],
+   [
+    "section",
+    "sec11(4.1)",
+    14150,
+    14383
+   ],
+   [
+    "section",
+    "sec11(5)",
+    14383,
+    14748
+   ],
+   [
+    "section",
+    "sec11.1",
+    14748,
+    15698
+   ],
+   [
+    "section",
+    "sec11.1(1)",
+    14748,
+    15106
+   ],
+   [
+    "section",
+    "sec11.1(1)(a)",
+    15106,
+    15264
+   ],
+   [
+    "section",
+    "sec11.1(1)(b)",
+    15264,
+    15355
+   ],
+   [
+    "section",
+    "sec11.1(2)",
+    15355,
+    15698
+   ],
+   [
+    "section",
+    "sec12",
+    15698,
+    15795
+   ],
+   [
+    "section",
+    "sec13",
+    15795,
+    16087
+   ],
+   [
+    "section",
+    "sec13(1)",
+    15795,
+    15894
+   ],
+   [
+    "section",
+    "sec13(2)",
+    15894,
+    16087
+   ],
+   [
+    "section",
+    "sec14",
+    16087,
+    16713
+   ],
+   [
+    "section",
+    "sec14(1)",
+    16087,
+    16411
+   ],
+   [
+    "section",
+    "sec14(2)",
+    16411,
+    16713
+   ]
+  ],
+  "lookups": [
+   {
+    "locator": "2",
+    "status": "found",
+    "requestedLabel": "sec2",
+    "matches": [
+     "sec2"
+    ],
+    "block": "sec2",
+    "before": [],
+    "after": [
+     "sec2(1)",
+     "sec2(1)(a)"
+    ]
+   },
+   {
+    "locator": "2(1)",
+    "status": "found",
+    "requestedLabel": "sec2(1)",
+    "matches": [
+     "sec2(1)"
+    ],
+    "block": "sec2(1)",
+    "before": [
+     "sec2"
+    ],
+    "after": [
+     "sec2(1)(a)",
+     "sec2(1)(b)"
+    ]
+   },
+   {
+    "locator": "2(1)(a)",
+    "status": "found",
+    "requestedLabel": "sec2(1)(a)",
+    "matches": [
+     "sec2(1)(a)"
+    ],
+    "block": "sec2(1)(a)",
+    "before": [
+     "sec2",
+     "sec2(1)"
+    ],
+    "after": [
+     "sec2(1)(b)",
+     "sec2(1)(c)"
+    ]
+   },
+   {
+    "locator": "2(1)(b)",
+    "status": "found",
+    "requestedLabel": "sec2(1)(b)",
+    "matches": [
+     "sec2(1)(b)"
+    ],
+    "block": "sec2(1)(b)",
+    "before": [
+     "sec2(1)",
+     "sec2(1)(a)"
+    ],
+    "after": [
+     "sec2(1)(c)",
+     "sec2(1)(c)(i)"
+    ]
+   },
+   {
+    "locator": "2(1)(c)",
+    "status": "found",
+    "requestedLabel": "sec2(1)(c)",
+    "matches": [
+     "sec2(1)(c)"
+    ],
+    "block": "sec2(1)(c)",
+    "before": [
+     "sec2(1)(a)",
+     "sec2(1)(b)"
+    ],
+    "after": [
+     "sec2(1)(c)(i)",
+     "sec2(1)(c)(ii)"
+    ]
+   },
+   {
+    "locator": "2(1)(c)(i)",
+    "status": "found",
+    "requestedLabel": "sec2(1)(c)(i)",
+    "matches": [
+     "sec2(1)(c)(i)"
+    ],
+    "block": "sec2(1)(c)(i)",
+    "before": [
+     "sec2(1)(b)",
+     "sec2(1)(c)"
+    ],
+    "after": [
+     "sec2(1)(c)(ii)",
+     "sec2(2)"
+    ]
+   },
+   {
+    "locator": "2(1)(c)(ii)",
+    "status": "found",
+    "requestedLabel": "sec2(1)(c)(ii)",
+    "matches": [
+     "sec2(1)(c)(ii)"
+    ],
+    "block": "sec2(1)(c)(ii)",
+    "before": [
+     "sec2(1)(c)",
+     "sec2(1)(c)(i)"
+    ],
+    "after": [
+     "sec2(2)",
+     "sec3"
+    ]
+   },
+   {
+    "locator": "2(2)",
+    "status": "found",
+    "requestedLabel": "sec2(2)",
+    "matches": [
+     "sec2(2)"
+    ],
+    "block": "sec2(2)",
+    "before": [
+     "sec2(1)(c)(i)",
+     "sec2(1)(c)(ii)"
+    ],
+    "after": [
+     "sec3",
+     "sec4"
+    ]
+   },
+   {
+    "locator": "3",
+    "status": "found",
+    "requestedLabel": "sec3",
+    "matches": [
+     "sec3"
+    ],
+    "block": "sec3",
+    "before": [
+     "sec2(1)(c)(ii)",
+     "sec2(2)"
+    ],
+    "after": [
+     "sec4",
+     "sec5"
+    ]
+   },
+   {
+    "locator": "4",
+    "status": "found",
+    "requestedLabel": "sec4",
+    "matches": [
+     "sec4"
+    ],
+    "block": "sec4",
+    "before": [
+     "sec2(2)",
+     "sec3"
+    ],
+    "after": [
+     "sec5",
+     "sec5(1)"
+    ]
+   },
+   {
+    "locator": "5",
+    "status": "found",
+    "requestedLabel": "sec5",
+    "matches": [
+     "sec5"
+    ],
+    "block": "sec5",
+    "before": [
+     "sec3",
+     "sec4"
+    ],
+    "after": [
+     "sec5(1)",
+     "sec5(2)"
+    ]
+   },
+   {
+    "locator": "5(1)",
+    "status": "found",
+    "requestedLabel": "sec5(1)",
+    "matches": [
+     "sec5(1)"
+    ],
+    "block": "sec5(1)",
+    "before": [
+     "sec4",
+     "sec5"
+    ],
+    "after": [
+     "sec5(2)",
+     "sec5(3)"
+    ]
+   },
+   {
+    "locator": "5(2)",
+    "status": "found",
+    "requestedLabel": "sec5(2)",
+    "matches": [
+     "sec5(2)"
+    ],
+    "block": "sec5(2)",
+    "before": [
+     "sec5",
+     "sec5(1)"
+    ],
+    "after": [
+     "sec5(3)",
+     "sec5.1"
+    ]
+   },
+   {
+    "locator": "5(3)",
+    "status": "found",
+    "requestedLabel": "sec5(3)",
+    "matches": [
+     "sec5(3)"
+    ],
+    "block": "sec5(3)",
+    "before": [
+     "sec5(1)",
+     "sec5(2)"
+    ],
+    "after": [
+     "sec5.1",
+     "sec5.2"
+    ]
+   },
+   {
+    "locator": "5.1",
+    "status": "found",
+    "requestedLabel": "sec5.1",
+    "matches": [
+     "sec5.1"
+    ],
+    "block": "sec5.1",
+    "before": [
+     "sec5(2)",
+     "sec5(3)"
+    ],
+    "after": [
+     "sec5.2",
+     "sec5.3"
+    ]
+   },
+   {
+    "locator": "5.2",
+    "status": "found",
+    "requestedLabel": "sec5.2",
+    "matches": [
+     "sec5.2"
+    ],
+    "block": "sec5.2",
+    "before": [
+     "sec5(3)",
+     "sec5.1"
+    ],
+    "after": [
+     "sec5.3",
+     "sec6"
+    ]
+   },
+   {
+    "locator": "5.3",
+    "status": "found",
+    "requestedLabel": "sec5.3",
+    "matches": [
+     "sec5.3"
+    ],
+    "block": "sec5.3",
+    "before": [
+     "sec5.1",
+     "sec5.2"
+    ],
+    "after": [
+     "sec6",
+     "sec6(1)"
+    ]
+   },
+   {
+    "locator": "6",
+    "status": "found",
+    "requestedLabel": "sec6",
+    "matches": [
+     "sec6"
+    ],
+    "block": "sec6",
+    "before": [
+     "sec5.2",
+     "sec5.3"
+    ],
+    "after": [
+     "sec6(1)",
+     "sec6(2)"
+    ]
+   },
+   {
+    "locator": "6(1)",
+    "status": "found",
+    "requestedLabel": "sec6(1)",
+    "matches": [
+     "sec6(1)"
+    ],
+    "block": "sec6(1)",
+    "before": [
+     "sec5.3",
+     "sec6"
+    ],
+    "after": [
+     "sec6(2)",
+     "sec6(3)"
+    ]
+   },
+   {
+    "locator": "6(2)",
+    "status": "found",
+    "requestedLabel": "sec6(2)",
+    "matches": [
+     "sec6(2)"
+    ],
+    "block": "sec6(2)",
+    "before": [
+     "sec6",
+     "sec6(1)"
+    ],
+    "after": [
+     "sec6(3)",
+     "sec6(4)"
+    ]
+   },
+   {
+    "locator": "6(3)",
+    "status": "found",
+    "requestedLabel": "sec6(3)",
+    "matches": [
+     "sec6(3)"
+    ],
+    "block": "sec6(3)",
+    "before": [
+     "sec6(1)",
+     "sec6(2)"
+    ],
+    "after": [
+     "sec6(4)",
+     "sec6(5)"
+    ]
+   },
+   {
+    "locator": "6(4)",
+    "status": "found",
+    "requestedLabel": "sec6(4)",
+    "matches": [
+     "sec6(4)"
+    ],
+    "block": "sec6(4)",
+    "before": [
+     "sec6(2)",
+     "sec6(3)"
+    ],
+    "after": [
+     "sec6(5)",
+     "sec6(6)"
+    ]
+   },
+   {
+    "locator": "6(5)",
+    "status": "found",
+    "requestedLabel": "sec6(5)",
+    "matches": [
+     "sec6(5)"
+    ],
+    "block": "sec6(5)",
+    "before": [
+     "sec6(3)",
+     "sec6(4)"
+    ],
+    "after": [
+     "sec6(6)",
+     "sec7"
+    ]
+   },
+   {
+    "locator": "6(6)",
+    "status": "found",
+    "requestedLabel": "sec6(6)",
+    "matches": [
+     "sec6(6)"
+    ],
+    "block": "sec6(6)",
+    "before": [
+     "sec6(4)",
+     "sec6(5)"
+    ],
+    "after": [
+     "sec7",
+     "sec8"
+    ]
+   },
+   {
+    "locator": "7",
+    "status": "found",
+    "requestedLabel": "sec7",
+    "matches": [
+     "sec7"
+    ],
+    "block": "sec7",
+    "before": [
+     "sec6(5)",
+     "sec6(6)"
+    ],
+    "after": [
+     "sec8",
+     "sec8.1"
+    ]
+   },
+   {
+    "locator": "8",
+    "status": "found",
+    "requestedLabel": "sec8",
+    "matches": [
+     "sec8"
+    ],
+    "block": "sec8",
+    "before": [
+     "sec6(6)",
+     "sec7"
+    ],
+    "after": [
+     "sec8.1",
+     "sec8.1(1)"
+    ]
+   },
+   {
+    "locator": "8.1",
+    "status": "found",
+    "requestedLabel": "sec8.1",
+    "matches": [
+     "sec8.1"
+    ],
+    "block": "sec8.1",
+    "before": [
+     "sec7",
+     "sec8"
+    ],
+    "after": [
+     "sec8.1(1)",
+     "sec8.1(2)"
+    ]
+   },
+   {
+    "locator": "8.1(1)",
+    "status": "found",
+    "requestedLabel": "sec8.1(1)",
+    "matches": [
+     "sec8.1(1)"
+    ],
+    "block": "sec8.1(1)",
+    "before": [
+     "sec8",
+     "sec8.1"
+    ],
+    "after": [
+     "sec8.1(2)",
+     "sec8.2"
+    ]
+   },
+   {
+    "locator": "8.1(2)",
+    "status": "found",
+    "requestedLabel": "sec8.1(2)",
+    "matches": [
+     "sec8.1(2)"
+    ],
+    "block": "sec8.1(2)",
+    "before": [
+     "sec8.1",
+     "sec8.1(1)"
+    ],
+    "after": [
+     "sec8.2",
+     "sec8.3"
+    ]
+   },
+   {
+    "locator": "8.2",
+    "status": "found",
+    "requestedLabel": "sec8.2",
+    "matches": [
+     "sec8.2"
+    ],
+    "block": "sec8.2",
+    "before": [
+     "sec8.1(1)",
+     "sec8.1(2)"
+    ],
+    "after": [
+     "sec8.3",
+     "sec8.3(1)"
+    ]
+   },
+   {
+    "locator": "8.3",
+    "status": "found",
+    "requestedLabel": "sec8.3",
+    "matches": [
+     "sec8.3"
+    ],
+    "block": "sec8.3",
+    "before": [
+     "sec8.1(2)",
+     "sec8.2"
+    ],
+    "after": [
+     "sec8.3(1)",
+     "sec8.3(2)"
+    ]
+   },
+   {
+    "locator": "8.3(1)",
+    "status": "found",
+    "requestedLabel": "sec8.3(1)",
+    "matches": [
+     "sec8.3(1)"
+    ],
+    "block": "sec8.3(1)",
+    "before": [
+     "sec8.2",
+     "sec8.3"
+    ],
+    "after": [
+     "sec8.3(2)",
+     "sec8.3(2)(a)"
+    ]
+   },
+   {
+    "locator": "8.3(2)",
+    "status": "found",
+    "requestedLabel": "sec8.3(2)",
+    "matches": [
+     "sec8.3(2)"
+    ],
+    "block": "sec8.3(2)",
+    "before": [
+     "sec8.3",
+     "sec8.3(1)"
+    ],
+    "after": [
+     "sec8.3(2)(a)",
+     "sec8.3(2)(b)"
+    ]
+   },
+   {
+    "locator": "8.3(2)(a)",
+    "status": "found",
+    "requestedLabel": "sec8.3(2)(a)",
+    "matches": [
+     "sec8.3(2)(a)"
+    ],
+    "block": "sec8.3(2)(a)",
+    "before": [
+     "sec8.3(1)",
+     "sec8.3(2)"
+    ],
+    "after": [
+     "sec8.3(2)(b)",
+     "sec9"
+    ]
+   },
+   {
+    "locator": "8.3(2)(b)",
+    "status": "found",
+    "requestedLabel": "sec8.3(2)(b)",
+    "matches": [
+     "sec8.3(2)(b)"
+    ],
+    "block": "sec8.3(2)(b)",
+    "before": [
+     "sec8.3(2)",
+     "sec8.3(2)(a)"
+    ],
+    "after": [
+     "sec9",
+     "sec9(1)"
+    ]
+   },
+   {
+    "locator": "9",
+    "status": "found",
+    "requestedLabel": "sec9",
+    "matches": [
+     "sec9"
+    ],
+    "block": "sec9",
+    "before": [
+     "sec8.3(2)(a)",
+     "sec8.3(2)(b)"
+    ],
+    "after": [
+     "sec9(1)",
+     "sec9(2)"
+    ]
+   },
+   {
+    "locator": "9(1)",
+    "status": "found",
+    "requestedLabel": "sec9(1)",
+    "matches": [
+     "sec9(1)"
+    ],
+    "block": "sec9(1)",
+    "before": [
+     "sec8.3(2)(b)",
+     "sec9"
+    ],
+    "after": [
+     "sec9(2)",
+     "sec10"
+    ]
+   },
+   {
+    "locator": "9(2)",
+    "status": "found",
+    "requestedLabel": "sec9(2)",
+    "matches": [
+     "sec9(2)"
+    ],
+    "block": "sec9(2)",
+    "before": [
+     "sec9",
+     "sec9(1)"
+    ],
+    "after": [
+     "sec10",
+     "sec10(1)"
+    ]
+   },
+   {
+    "locator": "10",
+    "status": "found",
+    "requestedLabel": "sec10",
+    "matches": [
+     "sec10"
+    ],
+    "block": "sec10",
+    "before": [
+     "sec9(1)",
+     "sec9(2)"
+    ],
+    "after": [
+     "sec10(1)",
+     "sec10(2)"
+    ]
+   },
+   {
+    "locator": "10(1)",
+    "status": "found",
+    "requestedLabel": "sec10(1)",
+    "matches": [
+     "sec10(1)"
+    ],
+    "block": "sec10(1)",
+    "before": [
+     "sec9(2)",
+     "sec10"
+    ],
+    "after": [
+     "sec10(2)",
+     "sec10(3)"
+    ]
+   },
+   {
+    "locator": "10(2)",
+    "status": "found",
+    "requestedLabel": "sec10(2)",
+    "matches": [
+     "sec10(2)"
+    ],
+    "block": "sec10(2)",
+    "before": [
+     "sec10",
+     "sec10(1)"
+    ],
+    "after": [
+     "sec10(3)",
+     "sec11"
+    ]
+   },
+   {
+    "locator": "10(3)",
+    "status": "found",
+    "requestedLabel": "sec10(3)",
+    "matches": [
+     "sec10(3)"
+    ],
+    "block": "sec10(3)",
+    "before": [
+     "sec10(1)",
+     "sec10(2)"
+    ],
+    "after": [
+     "sec11",
+     "sec11(1)"
+    ]
+   },
+   {
+    "locator": "11",
+    "status": "found",
+    "requestedLabel": "sec11",
+    "matches": [
+     "sec11"
+    ],
+    "block": "sec11",
+    "before": [
+     "sec10(2)",
+     "sec10(3)"
+    ],
+    "after": [
+     "sec11(1)",
+     "sec11(2)"
+    ]
+   },
+   {
+    "locator": "11(1)",
+    "status": "found",
+    "requestedLabel": "sec11(1)",
+    "matches": [
+     "sec11(1)"
+    ],
+    "block": "sec11(1)",
+    "before": [
+     "sec10(3)",
+     "sec11"
+    ],
+    "after": [
+     "sec11(2)",
+     "sec11(3)"
+    ]
+   },
+   {
+    "locator": "11(2)",
+    "status": "found",
+    "requestedLabel": "sec11(2)",
+    "matches": [
+     "sec11(2)"
+    ],
+    "block": "sec11(2)",
+    "before": [
+     "sec11",
+     "sec11(1)"
+    ],
+    "after": [
+     "sec11(3)",
+     "sec11(4)"
+    ]
+   },
+   {
+    "locator": "11(3)",
+    "status": "found",
+    "requestedLabel": "sec11(3)",
+    "matches": [
+     "sec11(3)"
+    ],
+    "block": "sec11(3)",
+    "before": [
+     "sec11(1)",
+     "sec11(2)"
+    ],
+    "after": [
+     "sec11(4)",
+     "sec11(4)(a)"
+    ]
+   },
+   {
+    "locator": "11(4)",
+    "status": "found",
+    "requestedLabel": "sec11(4)",
+    "matches": [
+     "sec11(4)"
+    ],
+    "block": "sec11(4)",
+    "before": [
+     "sec11(2)",
+     "sec11(3)"
+    ],
+    "after": [
+     "sec11(4)(a)",
+     "sec11(4)(b)"
+    ]
+   },
+   {
+    "locator": "11(4)(a)",
+    "status": "found",
+    "requestedLabel": "sec11(4)(a)",
+    "matches": [
+     "sec11(4)(a)"
+    ],
+    "block": "sec11(4)(a)",
+    "before": [
+     "sec11(3)",
+     "sec11(4)"
+    ],
+    "after": [
+     "sec11(4)(b)",
+     "sec11(4)(c)"
+    ]
+   },
+   {
+    "locator": "11(4)(b)",
+    "status": "found",
+    "requestedLabel": "sec11(4)(b)",
+    "matches": [
+     "sec11(4)(b)"
+    ],
+    "block": "sec11(4)(b)",
+    "before": [
+     "sec11(4)",
+     "sec11(4)(a)"
+    ],
+    "after": [
+     "sec11(4)(c)",
+     "sec11(4.1)"
+    ]
+   },
+   {
+    "locator": "11(4)(c)",
+    "status": "found",
+    "requestedLabel": "sec11(4)(c)",
+    "matches": [
+     "sec11(4)(c)"
+    ],
+    "block": "sec11(4)(c)",
+    "before": [
+     "sec11(4)(a)",
+     "sec11(4)(b)"
+    ],
+    "after": [
+     "sec11(4.1)",
+     "sec11(5)"
+    ]
+   },
+   {
+    "locator": "11(4.1)",
+    "status": "found",
+    "requestedLabel": "sec11(4.1)",
+    "matches": [
+     "sec11(4.1)"
+    ],
+    "block": "sec11(4.1)",
+    "before": [
+     "sec11(4)(b)",
+     "sec11(4)(c)"
+    ],
+    "after": [
+     "sec11(5)",
+     "sec11.1"
+    ]
+   },
+   {
+    "locator": "11(5)",
+    "status": "found",
+    "requestedLabel": "sec11(5)",
+    "matches": [
+     "sec11(5)"
+    ],
+    "block": "sec11(5)",
+    "before": [
+     "sec11(4)(c)",
+     "sec11(4.1)"
+    ],
+    "after": [
+     "sec11.1",
+     "sec11.1(1)"
+    ]
+   },
+   {
+    "locator": "11.1",
+    "status": "found",
+    "requestedLabel": "sec11.1",
+    "matches": [
+     "sec11.1"
+    ],
+    "block": "sec11.1",
+    "before": [
+     "sec11(4.1)",
+     "sec11(5)"
+    ],
+    "after": [
+     "sec11.1(1)",
+     "sec11.1(1)(a)"
+    ]
+   },
+   {
+    "locator": "11.1(1)",
+    "status": "found",
+    "requestedLabel": "sec11.1(1)",
+    "matches": [
+     "sec11.1(1)"
+    ],
+    "block": "sec11.1(1)",
+    "before": [
+     "sec11(5)",
+     "sec11.1"
+    ],
+    "after": [
+     "sec11.1(1)(a)",
+     "sec11.1(1)(b)"
+    ]
+   },
+   {
+    "locator": "11.1(1)(a)",
+    "status": "found",
+    "requestedLabel": "sec11.1(1)(a)",
+    "matches": [
+     "sec11.1(1)(a)"
+    ],
+    "block": "sec11.1(1)(a)",
+    "before": [
+     "sec11.1",
+     "sec11.1(1)"
+    ],
+    "after": [
+     "sec11.1(1)(b)",
+     "sec11.1(2)"
+    ]
+   },
+   {
+    "locator": "11.1(1)(b)",
+    "status": "found",
+    "requestedLabel": "sec11.1(1)(b)",
+    "matches": [
+     "sec11.1(1)(b)"
+    ],
+    "block": "sec11.1(1)(b)",
+    "before": [
+     "sec11.1(1)",
+     "sec11.1(1)(a)"
+    ],
+    "after": [
+     "sec11.1(2)",
+     "sec12"
+    ]
+   },
+   {
+    "locator": "11.1(2)",
+    "status": "found",
+    "requestedLabel": "sec11.1(2)",
+    "matches": [
+     "sec11.1(2)"
+    ],
+    "block": "sec11.1(2)",
+    "before": [
+     "sec11.1(1)(a)",
+     "sec11.1(1)(b)"
+    ],
+    "after": [
+     "sec12",
+     "sec13"
+    ]
+   },
+   {
+    "locator": "12",
+    "status": "found",
+    "requestedLabel": "sec12",
+    "matches": [
+     "sec12"
+    ],
+    "block": "sec12",
+    "before": [
+     "sec11.1(1)(b)",
+     "sec11.1(2)"
+    ],
+    "after": [
+     "sec13",
+     "sec13(1)"
+    ]
+   },
+   {
+    "locator": "13",
+    "status": "found",
+    "requestedLabel": "sec13",
+    "matches": [
+     "sec13"
+    ],
+    "block": "sec13",
+    "before": [
+     "sec11.1(2)",
+     "sec12"
+    ],
+    "after": [
+     "sec13(1)",
+     "sec13(2)"
+    ]
+   },
+   {
+    "locator": "13(1)",
+    "status": "found",
+    "requestedLabel": "sec13(1)",
+    "matches": [
+     "sec13(1)"
+    ],
+    "block": "sec13(1)",
+    "before": [
+     "sec12",
+     "sec13"
+    ],
+    "after": [
+     "sec13(2)",
+     "sec14"
+    ]
+   },
+   {
+    "locator": "13(2)",
+    "status": "found",
+    "requestedLabel": "sec13(2)",
+    "matches": [
+     "sec13(2)"
+    ],
+    "block": "sec13(2)",
+    "before": [
+     "sec13",
+     "sec13(1)"
+    ],
+    "after": [
+     "sec14",
+     "sec14(1)"
+    ]
+   },
+   {
+    "locator": "14",
+    "status": "found",
+    "requestedLabel": "sec14",
+    "matches": [
+     "sec14"
+    ],
+    "block": "sec14",
+    "before": [
+     "sec13(1)",
+     "sec13(2)"
+    ],
+    "after": [
+     "sec14(1)",
+     "sec14(2)"
+    ]
+   },
+   {
+    "locator": "14(1)",
+    "status": "found",
+    "requestedLabel": "sec14(1)",
+    "matches": [
+     "sec14(1)"
+    ],
+    "block": "sec14(1)",
+    "before": [
+     "sec13(2)",
+     "sec14"
+    ],
+    "after": [
+     "sec14(2)"
+    ]
+   },
+   {
+    "locator": "14(2)",
+    "status": "found",
+    "requestedLabel": "sec14(2)",
+    "matches": [
+     "sec14(2)"
+    ],
+    "block": "sec14(2)",
+    "before": [
+     "sec14",
+     "sec14(1)"
+    ],
+    "after": []
+   }
+  ]
+ }
+}
