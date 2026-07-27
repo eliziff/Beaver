@@ -215,12 +215,14 @@ describe("verified legal-source links", () => {
     });
     const result = buildA2AJPinpointUrl(lookup, ["motiveless act"], text)!;
 
-    expect(result).toContain("foo=bar&iframe=true");
+    // site_preference=mobile is load-bearing: without it the desktop
+    // rendering locks the viewport on the text-fragment match and the page
+    // cannot be scrolled.
+    expect(result).toContain("foo=bar&iframe=true&site_preference=mobile");
     expect(result).toContain("#par191:~:text=");
     expect(result).toContain("motiveless%20act");
     expect(result).not.toContain("iframe=false");
-    // site_preference pins a persistent layout cookie; it must not be set.
-    expect(result).not.toContain("site_preference");
+    expect(result).not.toContain("site_preference=desktop");
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
@@ -257,8 +259,8 @@ describe("verified legal-source links", () => {
         text,
       )!;
       expect(result).toContain("iframe=true");
+      expect(result).toContain("site_preference=mobile");
       expect(result).toContain("#par42:~:text=");
-      expect(result).not.toContain("site_preference");
     }
   });
 
