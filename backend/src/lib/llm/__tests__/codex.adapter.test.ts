@@ -49,6 +49,10 @@ describe("streamCodex", () => {
   it("normalizes safe reasoning and final content events", async () => {
     spawnMock.mockReturnValue(
       fakeChild([
+        JSON.stringify({
+          type: "thread.started",
+          thread_id: "thread-123",
+        }),
         JSON.stringify({ type: "turn.started" }),
         JSON.stringify({
           type: "item.updated",
@@ -78,7 +82,16 @@ describe("streamCodex", () => {
           type: "item.completed",
           item: { type: "agent_message", text: "Final answer." },
         }),
-        JSON.stringify({ type: "turn.completed" }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 100,
+            cached_input_tokens: 80,
+            cache_write_input_tokens: 0,
+            output_tokens: 20,
+            reasoning_output_tokens: 4,
+          },
+        }),
       ]),
     );
 
@@ -97,6 +110,14 @@ describe("streamCodex", () => {
     });
 
     expect(result.fullText).toBe("Final answer.");
+    expect(result.providerInvocationId).toBe("thread-123");
+    expect(result.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 20,
+      reasoningTokens: 4,
+      cacheReadInputTokens: 80,
+      cacheWriteInputTokens: 0,
+    });
     expect(trace).toEqual([
       "reasoning:Checking",
       "reasoning: sources.",
@@ -208,15 +229,19 @@ describe("streamCodex", () => {
     await streamCodex({
       model: "codex-exec",
       systemPrompt: "",
-      messages: [{
-        role: "user",
-        content: "What is shown?",
-        images: [{
-          filename: "scan.png",
-          mimeType: "image/png",
-          data: "iVBORw0KGgo=",
-        }],
-      }],
+      messages: [
+        {
+          role: "user",
+          content: "What is shown?",
+          images: [
+            {
+              filename: "scan.png",
+              mimeType: "image/png",
+              data: "iVBORw0KGgo=",
+            },
+          ],
+        },
+      ],
     });
 
     expect(imagePath).toContain("mike-codex-images-");

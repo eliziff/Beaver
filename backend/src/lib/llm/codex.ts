@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 import type {
+  NormalizedLlmUsage,
   NormalizedToolCall,
   StreamChatParams,
   StreamChatResult,
@@ -29,9 +30,17 @@ type CodexItem = {
 
 type CodexEvent = {
   type?: string;
+  thread_id?: string;
   item?: CodexItem;
   error?: { message?: string };
   message?: string;
+  usage?: {
+    input_tokens?: unknown;
+    cached_input_tokens?: unknown;
+    cache_write_input_tokens?: unknown;
+    output_tokens?: unknown;
+    reasoning_output_tokens?: unknown;
+  };
 };
 
 export type ParsedCodexEvent = {
@@ -41,6 +50,8 @@ export type ParsedCodexEvent = {
   reasoningBlockEnd?: boolean;
   turnStarted?: boolean;
   turnCompleted?: boolean;
+  usage?: NormalizedLlmUsage;
+  providerInvocationId?: string;
   error?: string;
 };
 
@@ -49,8 +60,17 @@ const CODEX_TIMEOUT_MS = 180_000;
 export function parseCodexEventLine(line: string): ParsedCodexEvent {
   try {
     const event = JSON.parse(line) as CodexEvent;
+    if (
+      event.type === "thread.started" &&
+      typeof event.thread_id === "string"
+    ) {
+      return { providerInvocationId: event.thread_id };
+    }
     if (event.type === "turn.started") return { turnStarted: true };
-    if (event.type === "turn.completed") return { turnCompleted: true };
+    if (event.type === "turn.completed") {
+      const usage = normalizeCodexUsage(event.usage);
+      return { turnCompleted: true, ...(usage ? { usage } : {}) };
+    }
 
     if (
       event.type === "item.completed" &&
@@ -88,6 +108,26 @@ export function parseCodexEventLine(line: string): ParsedCodexEvent {
   }
 
   return {};
+}
+
+function normalizeCodexUsage(
+  usage: CodexEvent["usage"],
+): NormalizedLlmUsage | undefined {
+  if (!usage) return undefined;
+  const number = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value
+      : null;
+  const normalized = {
+    inputTokens: number(usage.input_tokens),
+    outputTokens: number(usage.output_tokens),
+    reasoningTokens: number(usage.reasoning_output_tokens),
+    cacheReadInputTokens: number(usage.cached_input_tokens),
+    cacheWriteInputTokens: number(usage.cache_write_input_tokens),
+  };
+  return Object.values(normalized).some((value) => value !== null)
+    ? normalized
+    : undefined;
 }
 
 function reasoningSummary(item: CodexItem): string | undefined {
@@ -162,13 +202,15 @@ async function runCodex(params: {
   reasoningEffort?: string;
   maxIterations?: number;
   imagePaths?: string[];
-}): Promise<string> {
+}): Promise<StreamChatResult> {
   throwIfAborted(params.abortSignal);
   const maxIterations = Math.max(1, params.maxIterations ?? 10);
   let bridge: CodexToolBridge | null = null;
   let stderr = "";
   let fullText = "";
   let eventError: string | null = null;
+  let usage: NormalizedLlmUsage | undefined;
+  let providerInvocationId: string | undefined;
   let timedOut = false;
   let reasoningOpen = false;
   let streamError: unknown;
@@ -311,6 +353,10 @@ async function runCodex(params: {
       });
       const parsed = parseCodexEventLine(rawLine);
       if (parsed.error) eventError = parsed.error;
+      if (parsed.usage) usage = parsed.usage;
+      if (parsed.providerInvocationId) {
+        providerInvocationId = parsed.providerInvocationId;
+      }
       if (parsed.turnStarted) callbacks.onReasoningBlockEnd();
       if (parsed.reasoning && params.enableThinking) {
         const previous = parsed.reasoningItemId
@@ -351,7 +397,11 @@ async function runCodex(params: {
     }
     endReasoning();
     streamStatus = "completed";
-    return fullText;
+    return {
+      fullText,
+      ...(usage ? { usage } : {}),
+      ...(providerInvocationId ? { providerInvocationId } : {}),
+    };
   } catch (error) {
     streamError = error;
     throw error;
@@ -380,9 +430,10 @@ export async function streamCodex(
   try {
     const imagePaths = await Promise.all(
       images.map(async (image, index) => {
-        const extension = image.mimeType === "image/jpeg"
-          ? "jpg"
-          : image.mimeType.slice("image/".length);
+        const extension =
+          image.mimeType === "image/jpeg"
+            ? "jpg"
+            : image.mimeType.slice("image/".length);
         const imagePath = path.join(imageDirectory!, `${index}.${extension}`);
         await writeFile(imagePath, Buffer.from(image.data, "base64"), {
           mode: 0o600,
@@ -390,7 +441,7 @@ export async function streamCodex(
         return imagePath;
       }),
     );
-    const fullText = await runCodex({
+    return await runCodex({
       model: params.model,
       prompt: buildPrompt(params),
       callbacks: params.callbacks,
@@ -403,7 +454,6 @@ export async function streamCodex(
       maxIterations: params.maxIterations,
       imagePaths,
     });
-    return { fullText };
   } finally {
     params.abortSignal?.removeEventListener("abort", abort);
     if (imageDirectory) {
@@ -419,13 +469,15 @@ export async function completeCodexText(params: {
   maxTokens?: number;
   apiKeys?: StreamChatParams["apiKeys"];
 }): Promise<string> {
-  return runCodex({
-    model: params.model,
-    prompt: buildPrompt({
-      systemPrompt: params.systemPrompt,
-      messages: [{ role: "user", content: params.user }],
-    }),
-    apiKeys: params.apiKeys,
-    enableThinking: false,
-  });
+  return (
+    await runCodex({
+      model: params.model,
+      prompt: buildPrompt({
+        systemPrompt: params.systemPrompt,
+        messages: [{ role: "user", content: params.user }],
+      }),
+      apiKeys: params.apiKeys,
+      enableThinking: false,
+    })
+  ).fullText;
 }

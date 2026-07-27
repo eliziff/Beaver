@@ -38,6 +38,7 @@ export type LlmContextManifest = {
   outputBytes: number;
   status: "completed" | "error" | "aborted";
   usage: NormalizedLlmUsage;
+  providerInvocationId: string | null;
   compaction: { strategy: "none"; reason: null; checkpointId: null };
   continuation:
     | { strategy: "none"; id: null }
@@ -152,6 +153,7 @@ export function buildContextManifest(
     outputBytes: args.outputBytes,
     status: args.status,
     usage: args.result?.usage ?? { ...EMPTY_USAGE },
+    providerInvocationId: args.result?.providerInvocationId ?? null,
     compaction: { strategy: "none", reason: null, checkpointId: null },
     continuation: args.result?.continuationId
       ? { strategy: "provider", id: args.result.continuationId }
