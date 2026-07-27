@@ -11,6 +11,7 @@ import {
   appendAssistantEventsToLastAssistantMessage,
   AssistantStreamError,
   buildCancelledAssistantMessage,
+  CLIENT_WORK_PRODUCT_PRESUMPTION,
   extractCitations,
   isAbortError,
   runLLMStream,
@@ -41,11 +42,8 @@ import {
 } from "../lib/chat/localPdfEvidenceState";
 import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
-import {
-  createCitation,
-  CITATIONS_OPEN_TAG,
-  parseCitations,
-} from "../lib/chat/citations";
+import { createCitation, parseCitations } from "../lib/chat/citations";
+import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import type { LocalCourtlistenerState } from "../lib/chat/localCourtlistenerTools";
@@ -900,7 +898,7 @@ export async function streamAnonymousChat(params: {
     priorEvidenceRegistry,
   );
   const systemPrompt =
-    `${
+    `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
         : "The user's local Beaver Library is connected"
@@ -1153,8 +1151,12 @@ export async function streamAnonymousChat(params: {
 
   let rawText = "";
   let visibleText = "";
-  let visibleTail = "";
-  let citationsOpen = false;
+  const splitter = createVisibleStreamSplitter({
+    onVisible: (visible) => {
+      visibleText += visible;
+      sseWrite(res, { type: "content_delta", text: visible });
+    },
+  });
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
   const courtlistenerState: LocalCourtlistenerState = {
@@ -1165,47 +1167,26 @@ export async function streamAnonymousChat(params: {
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
-  const streamVisible = (delta: string) => {
-    if (!delta || citationsOpen) return;
-    const combined = visibleTail + delta;
-    const markerIndex = combined.indexOf(CITATIONS_OPEN_TAG);
-    if (markerIndex >= 0) {
-      const visible = combined.slice(0, markerIndex);
-      if (visible) {
-        visibleText += visible;
-        sseWrite(res, { type: "content_delta", text: visible });
-      }
-      visibleTail = "";
-      citationsOpen = true;
-      return;
-    }
-    const retained = Math.min(CITATIONS_OPEN_TAG.length - 1, combined.length);
-    const visible = combined.slice(0, combined.length - retained);
-    visibleTail = combined.slice(combined.length - retained);
-    if (visible) {
-      visibleText += visible;
-      sseWrite(res, { type: "content_delta", text: visible });
-    }
-  };
   const acceptPendingAskInputs = (event: AskInputsEvent) => {
     if (pendingAskInputs || event.items.length === 0) return;
     pendingAskInputs = event;
     rawText = "";
     visibleText = "";
-    visibleTail = "";
-    citationsOpen = false;
+    splitter.reset();
     if (!res.destroyed) sseWrite(res, { type: "content_reset" });
   };
   const finalizePendingAskInputs = async () => {
     const event = pendingAskInputs;
     if (!event || askInputsFinalized) return Boolean(event);
     if (isCodex) discardProviderSession();
-    if (!citationsOpen && visibleTail) {
-      visibleText += visibleTail;
-      if (!res.destroyed) {
-        sseWrite(res, { type: "content_delta", text: visibleTail });
+    {
+      const tail = splitter.takeTail();
+      if (tail) {
+        visibleText += tail;
+        if (!res.destroyed) {
+          sseWrite(res, { type: "content_delta", text: tail });
+        }
       }
-      visibleTail = "";
     }
     const assistantEvents: unknown[] = visibleText
       ? [{ type: "content", text: visibleText }]
@@ -1399,7 +1380,7 @@ export async function streamAnonymousChat(params: {
           if (pendingAskInputs) return;
           if (text) providerActivity = true;
           rawText += text;
-          streamVisible(text);
+          splitter.push(text);
         },
         onReasoningDelta: (text: string) => {
           if (text) providerActivity = true;
@@ -1438,10 +1419,12 @@ export async function streamAnonymousChat(params: {
       }
     }
 
-    if (!citationsOpen && visibleTail) {
-      visibleText += visibleTail;
-      sseWrite(res, { type: "content_delta", text: visibleTail });
-      visibleTail = "";
+    {
+      const tail = splitter.takeTail();
+      if (tail) {
+        visibleText += tail;
+        sseWrite(res, { type: "content_delta", text: tail });
+      }
     }
     if (await finalizePendingAskInputs()) return;
     const citations = parseCitations(rawText).map((citation) =>
@@ -1572,15 +1555,14 @@ export async function streamAnonymousChat(params: {
     if (isCodex) discardProviderSession();
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
-    const visiblePartial =
-      visibleText + (!citationsOpen ? visibleTail : "");
+    const pendingTail = splitter.takeTail();
+    const visiblePartial = visibleText + pendingTail;
     if (
       !anonymousTurnWasDeleted(chat.id) &&
       !streamAbort.signal.aborted &&
-      !citationsOpen &&
-      visibleTail
+      pendingTail
     ) {
-      sseWrite(res, { type: "content_delta", text: visibleTail });
+      sseWrite(res, { type: "content_delta", text: pendingTail });
     }
     if (!anonymousTurnWasDeleted(chat.id)) {
       try {

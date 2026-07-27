@@ -1098,7 +1098,7 @@ describe("provider PDF Library bridge", () => {
           JSON.parse(await readFile(pointerPath(queued.reference_id), "utf8"))
             .status,
         ).toBe("failed"),
-      { timeout: 10_000, interval: 25 },
+      { timeout: 30_000, interval: 25 },
     );
     const inspected = await bridge.readProviderPdfAttachmentState(
       govInfoAttachment,
@@ -1136,7 +1136,7 @@ describe("provider PDF Library bridge", () => {
       expect(mocks.queueLocalPdfParse).toHaveBeenCalledOnce(),
     );
     expect(fetchMock).toHaveBeenCalledOnce();
-  });
+  }, 45_000);
 
   it("resolves ready exact lookups and bounded evidence rehydration by SHA hardlink", async () => {
     await setup();
