@@ -23,8 +23,9 @@ const cases = rawCases.map((c) => ({
   name: c.name ?? `${c.host_class}-${c.locator_kind}`,
   url: c.url,
   expect: c.expect ?? {
-    anchor: c.expected_anchor,
-    text: c.expected_text,
+    anchor: c.expected_anchor ?? undefined,
+    text: c.expected_text ?? undefined,
+    shouldFail: /^EXPECTED FAIL/u.test(c.note ?? "") || undefined,
   },
 }));
 
@@ -55,6 +56,13 @@ for (const testCase of cases) {
     await page.waitForTimeout(3_000); // fragment scroll + late layout
 
     const expectations = testCase.expect ?? {};
+    const hasFragment = testCase.url.includes(":~:text=");
+    // A text-fragment URL only "works" if the browser actually jumped: a
+    // page whose raw text merely contains the string (XML viewer, JSON API
+    // output) is not a pinpoint. scrollY===0 after settle means no jump.
+    if (hasFragment) {
+      r.checks.landed = { scrollY: await page.evaluate(() => window.scrollY) };
+    }
     if (expectations.anchor) {
       r.checks.anchor = await page.evaluate((a) => {
         const el =
@@ -70,10 +78,9 @@ for (const testCase of cases) {
       }, expectations.anchor);
       // A URL carrying both an anchor and a text fragment lands on the
       // FRAGMENT (browsers give it precedence) — for those cases the anchor
-      // only needs to exist; the landing check is "we scrolled somewhere".
-      if (testCase.url.includes(":~:text=") && r.checks.anchor.found) {
+      // only needs to exist; the landing check is the fragment jump above.
+      if (hasFragment && r.checks.anchor.found) {
         r.checks.anchor.nearViewport = true;
-        r.checks.landed = { scrollY: await page.evaluate(() => window.scrollY) };
       }
     }
     if (expectations.scrollable !== false) {
@@ -92,14 +99,23 @@ for (const testCase of cases) {
       r.checks.text = { found: body.includes(expectations.text) };
     }
 
+    const fragmentDidNotJump =
+      hasFragment &&
+      r.checks.landed.scrollY === 0 &&
+      !(r.checks.anchor?.found && r.checks.anchor?.nearViewport);
     const failed =
       (r.checks.anchor && !(r.checks.anchor.found && r.checks.anchor.nearViewport)) ||
       (r.checks.scroll && !r.checks.scroll.moved) ||
-      (r.checks.text && !r.checks.text.found);
+      (r.checks.text && !r.checks.text.found) ||
+      fragmentDidNotJump;
+    const nothingCheckable =
+      !expectations.anchor && !expectations.text && !hasFragment;
     r.status = expectations.shouldFail
-      ? failed
-        ? "PASS(negative)"
-        : "FAIL(negative-control-passed)"
+      ? nothingCheckable
+        ? "SKIP(no-checkable-expectation)"
+        : failed
+          ? "PASS(negative)"
+          : "FAIL(negative-control-passed)"
       : failed
         ? "FAIL"
         : "PASS";

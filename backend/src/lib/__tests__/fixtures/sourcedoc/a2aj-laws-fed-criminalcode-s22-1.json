@@ -1,0 +1,29 @@
+{
+  "provider": "a2aj",
+  "docType": "laws",
+  "dataset": "LEGISLATION-FED",
+  "citation": "RSC 1985, c C-46",
+  "alternateCitation": "C-46",
+  "name": "Criminal Code",
+  "date": "1988-12-12T00:00:00",
+  "url": "https://laws-lois.justice.gc.ca/eng/XML/C-46.xml",
+  "language": "en",
+  "shape": "laws-federal-emphasis-decimal-sections",
+  "capture": {
+    "endpoint": "/fetch",
+    "params": {
+      "citation": "RSC 1985, c C-46",
+      "doc_type": "laws",
+      "output_language": "en"
+    },
+    "capturedAt": "2026-07-27",
+    "fullTextChars": 2262608,
+    "excerptChars": 2368,
+    "excerptCharRange": [
+      78261,
+      80629
+    ],
+    "note": "Criminal Code ss. 22, 22.1, 22.2 - decimal section numbers plus lettered paragraphs with Roman subparagraphs ((a)(i), (a)(ii))."
+  },
+  "text": "**Person counselling offence**\n\n**22** (1) Where a person counsels another person to be a party to an offence and that other person is afterwards a party to that offence, the person who counselled is a party to that offence, notwithstanding that the offence was committed in a way different from that which was counselled.\n\n**Idem**\n\n(2) Every one who counsels another person to be a party to an offence is a party to every offence that the other commits in consequence of the counselling that the person who counselled knew or ought to have known was likely to be committed in consequence of the counselling.\n\n**Definition of counsel**\n\n(3) For the purposes of this Act, **counsel** includes procure, solicit or incite.\n\n**Offences of negligence — organizations**\n\n**22.1** In respect of an offence that requires the prosecution to prove negligence, an organization is a party to the offence if\n\n(a) acting within the scope of their authority\n\n(i) one of its representatives is a party to the offence, or\n\n(ii) two or more of its representatives engage in conduct, whether by act or omission, such that, if it had been the conduct of only one representative, that representative would have been a party to the offence; and\n\n(b) the senior officer who is responsible for the aspect of the organization’s activities that is relevant to the offence departs — or the senior officers, collectively, depart — markedly from the standard of care that, in the circumstances, could reasonably be expected to prevent a representative of the organization from being a party to the offence.\n\n**Other offences — organizations**\n\n**22.2** In respect of an offence that requires the prosecution to prove fault — other than negligence — an organization is a party to the offence if, with the intent at least in part to benefit the organization, one of its senior officers\n\n(a) acting within the scope of their authority, is a party to the offence;\n\n(b) having the mental state required to be a party to the offence and acting within the scope of their authority, directs the work of other representatives of the organization so that they do the act or make the omission specified in the offence; or\n\n(c) knowing that a representative of the organization is or is about to be a party to the offence, does not take all reasonable measures to stop them from being a party to the offence."
+}
