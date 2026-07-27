@@ -4,9 +4,7 @@ import { type CSSProperties, useRef, useState } from "react";
 import {
     CornerDownRight,
     Loader2,
-    Pencil,
     Plus,
-    Trash2,
     Upload,
     Users,
 } from "lucide-react";
@@ -413,8 +411,6 @@ export function ProjectPageHeader({
                     ),
                     label: <span className="hidden sm:inline">Review</span>,
                     title: "Create review",
-                    tooltip:
-                        docsCount === 0 ? "Upload a document first" : null,
                 };
 
     return (
@@ -436,8 +432,7 @@ export function ProjectPageHeader({
                           }),
                 },
             ]}
-            actionGroups={[
-                [
+            actions={[
                     {
                         type: "search",
                         value: search,
@@ -459,21 +454,17 @@ export function ProjectPageHeader({
                                         label: isOwner
                                             ? "Edit details"
                                             : "View details",
-                                        icon: Pencil,
                                         onSelect: onOpenDetails,
                                     },
                                     {
                                         label: "Delete",
-                                        icon: Trash2,
                                         onSelect: onDeleteProject,
-                                        variant: "danger",
                                     },
                                 ]}
                             />
                         ),
                     },
-                ],
-                [sectionAction],
+                sectionAction,
             ]}
         />
     );

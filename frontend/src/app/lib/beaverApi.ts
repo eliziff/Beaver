@@ -23,7 +23,6 @@ import type {
   TabularReviewDetailOut,
 } from "@/app/components/shared/types";
 
-// Server-side shape before mapping
 interface ServerMessage {
   id: string;
   chat_id: string;
@@ -41,10 +40,6 @@ interface ServerChatDetailOut {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-  if (isDev) console.log(...args);
-};
 
 export class BeaverApiError extends Error {
   status: number;
@@ -90,7 +85,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw await toApiError(response, path);
+    throw await toApiError(response);
   }
 
   if (
@@ -117,7 +112,7 @@ async function apiBlobRequest(path: string): Promise<{
   });
 
   if (!response.ok) {
-    throw await toApiError(response, path);
+    throw await toApiError(response);
   }
 
   const disposition = response.headers.get("content-disposition") ?? "";
@@ -128,19 +123,13 @@ async function apiBlobRequest(path: string): Promise<{
   };
 }
 
-async function toApiError(response: Response, path: string) {
+async function toApiError(response: Response) {
   const text = await response.text();
   try {
     const parsed = JSON.parse(text) as {
       detail?: unknown;
       code?: unknown;
     };
-    devLog("[beaver-api] non-ok response", {
-      path,
-      status: response.status,
-      code: parsed.code,
-      detail: parsed.detail,
-    });
     return new BeaverApiError({
       status: response.status,
       code: typeof parsed.code === "string" ? parsed.code : null,
@@ -150,11 +139,6 @@ async function toApiError(response: Response, path: string) {
           : `API error: ${response.status}`,
     });
   } catch {
-    devLog("[beaver-api] non-ok non-json response", {
-      path,
-      status: response.status,
-      bodyPreview: text.slice(0, 200),
-    });
     return new BeaverApiError({
       status: response.status,
       message: text || `API error: ${response.status}`,
@@ -833,7 +817,7 @@ async function cachedLegalSourceDocument(path: string) {
         ...(await getAuthHeader()),
       },
     });
-    if (!response.ok) throw await toApiError(response, path);
+    if (!response.ok) throw await toApiError(response);
     return (await response.json()) as LegalSourceViewerPayload;
   })();
   legalSourceDocumentRequests.set(path, request);

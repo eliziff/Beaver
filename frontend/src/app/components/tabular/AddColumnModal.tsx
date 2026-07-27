@@ -213,10 +213,7 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
         <Modal
             open={open}
             onClose={handleClose}
-            breadcrumbs={[
-                "Tabular Review",
-                isEditing ? "Edit column" : "New column",
-            ]}
+            breadcrumbs={[isEditing ? "Edit column" : "New columns"]}
             primaryAction={{
                 label: isEditing ? "Save changes" : "Add columns",
                 type: "submit",
@@ -269,7 +266,7 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
                                                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gray-300"
                                                 >
                                                     <ChevronDown
-                                                        className={`h-4 w-4 shrink-0 text-gray-600 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                                                        className={`h-4 w-4 shrink-0 text-gray-600 ${isCollapsed ? "-rotate-90" : ""}`}
                                                     />
                                                     <h3 className="font-serif text-2xl text-gray-950">
                                                         Column {index + 1}
@@ -344,7 +341,7 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
                                             className="mt-1.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
                                         >
                                             <ChevronDown
-                                                className={`h-4 w-4 transition-transform ${presetsOpenIndex === index ? "rotate-180" : ""}`}
+                                                className={`h-4 w-4 ${presetsOpenIndex === index ? "rotate-180" : ""}`}
                                             />
                                         </button>
                                         {presetsOpenIndex === index && (
@@ -393,7 +390,6 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
                                     </div>
                                 </div>
 
-                                {/* Format */}
                                 <div className="mt-4">
                                     <ModalFieldLabel htmlFor={formatInputId}>
                                         Format
@@ -404,8 +400,6 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
                                         options={FORMAT_OPTIONS.map((option) => ({
                                             value: option.value,
                                             label: option.label,
-                                            icon: option.icon,
-                                            iconClassName: option.iconClassName,
                                         }))}
                                         onChange={(value) =>
                                             updateColumn(index, {

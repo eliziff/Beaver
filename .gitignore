@@ -31,9 +31,12 @@ benchmarks/docx_corpus/private_results/
 benchmarks/docx_corpus/private_manifest.json
 benchmarks/docx_corpus/private_manifest.jsonl
 benchmarks/prompt_live/
+benchmarks/deeplink_gate/
+benchmarks/sourcedoc/bench-pinpoint-*.json
 backend/src/lib/chat/*.old.harness.ts
 
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)
+.tmp-ui/
 test-results/
 playwright-report/
 e2e/.auth/

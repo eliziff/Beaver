@@ -2,10 +2,7 @@
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
-import {
-    RowActionMenuItems,
-    RowActions,
-} from "@/app/components/shared/RowActions";
+import { RowActions } from "@/app/components/shared/RowActions";
 import {
     TABLE_CHECKBOX_CLASS,
     SkeletonDot,
@@ -255,25 +252,6 @@ export function ProjectReviewsTable({
                         <TableRow
                             key={review.id}
                             selected={selectedReviewIds.includes(review.id)}
-                            rightClickDropdown={(close, menuProps) => (
-                                <RowActionMenuItems
-                                    onClose={close}
-                                    surfaceProps={menuProps}
-                                    onEditDetails={() => {
-                                        if (
-                                            currentUserId &&
-                                            review.user_id !== currentUserId
-                                        ) {
-                                            onOwnerOnlyAction(
-                                                "edit tabular review details",
-                                            );
-                                            return;
-                                        }
-                                        onOpenDetails(review);
-                                    }}
-                                    onDelete={() => onDeleteReview(review)}
-                                />
-                            )}
                             onClick={() => onOpenReview(review.id)}
                             className="pr-8 md:pr-8"
                         >

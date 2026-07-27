@@ -37,19 +37,6 @@ type Enrollment = {
     secret: string;
 };
 
-const isDev = process.env.NODE_ENV !== "production";
-const traceMfa = (...args: Parameters<typeof console.info>) => {
-    if (isDev) console.info(...args);
-};
-
-function summarizeFactors(factors: MfaFactor[]) {
-    return factors.map((factor) => ({
-        type: factor.factor_type,
-        status: factor.status ?? "unknown",
-        friendlyName: factor.friendly_name ?? null,
-    }));
-}
-
 function isDuplicateFriendlyNameError(error: unknown) {
     const message =
         error instanceof Error
@@ -171,7 +158,6 @@ export default function SecurityPage() {
     const [loading, setLoading] = useState(true);
     const [factors, setFactors] = useState<MfaFactor[]>([]);
     const [currentLevel, setCurrentLevel] = useState<string | null>(null);
-    const [nextLevel, setNextLevel] = useState<string | null>(null);
     const [setupModalOpen, setSetupModalOpen] = useState(false);
     const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
     const [verificationCode, setVerificationCode] = useState("");
@@ -189,76 +175,41 @@ export default function SecurityPage() {
     async function refreshMfaState() {
         setLoading(true);
         setStatus(null);
-        traceMfa("[security/mfa] refreshing state");
         const [factorResult, aalResult] = await Promise.all([
             supabase.auth.mfa.listFactors(),
             supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
         ]);
 
         if (factorResult.error) {
-            traceMfa("[security/mfa] list factors failed", {
-                error: factorResult.error.message,
-            });
             setStatus(factorResult.error.message);
             setFactors([]);
         } else {
             const verifiedTotp = (factorResult.data.totp ?? []) as MfaFactor[];
-            const allFactors = (factorResult.data.all ?? []) as MfaFactor[];
-            traceMfa("[security/mfa] factors loaded", {
-                allCount: allFactors.length,
-                verifiedTotpCount: verifiedTotp.length,
-                all: summarizeFactors(allFactors),
-            });
             setFactors(verifiedTotp);
         }
 
         if (aalResult.error) {
-            traceMfa("[security/mfa] assurance lookup failed", {
-                error: aalResult.error.message,
-            });
             setStatus(aalResult.error.message);
             setCurrentLevel(null);
-            setNextLevel(null);
         } else {
-            traceMfa("[security/mfa] assurance level", {
-                currentLevel: aalResult.data.currentLevel,
-                nextLevel: aalResult.data.nextLevel,
-            });
             setCurrentLevel(aalResult.data.currentLevel);
-            setNextLevel(aalResult.data.nextLevel);
         }
         setLoading(false);
     }
 
     useEffect(() => {
-        traceMfa("[security/mfa] page mounted");
         void refreshMfaState();
     }, []);
-
-    useEffect(() => {
-        traceMfa("[security/mfa] rendered state", {
-            loading,
-            verifiedFactorCount: factors.length,
-            currentLevel,
-            nextLevel,
-            hasEnrollment: !!enrollment,
-        });
-    }, [currentLevel, enrollment, factors.length, loading, nextLevel]);
 
     async function startEnrollment() {
         setBusy(true);
         setStatus(null);
         try {
-            traceMfa("[security/mfa] enrollment requested");
-
             let { data, error } = await supabase.auth.mfa.enroll({
                 factorType: "totp",
                 friendlyName: "Beaver",
             });
             if (error && isDuplicateFriendlyNameError(error)) {
-                traceMfa("[security/mfa] retrying enrollment with unique name", {
-                    error: error.message,
-                });
                 const retry = await supabase.auth.mfa.enroll({
                     factorType: "totp",
                     friendlyName: `Beaver ${Date.now()}`,
@@ -268,18 +219,11 @@ export default function SecurityPage() {
             }
             if (error) throw error;
             if (!data) throw new Error("Failed to start MFA setup.");
-            traceMfa("[security/mfa] enrollment created", {
-                factorId: data.id,
-            });
 
             const challenge = await supabase.auth.mfa.challenge({
                 factorId: data.id,
             });
             if (challenge.error) throw challenge.error;
-            traceMfa("[security/mfa] enrollment challenge created", {
-                factorId: data.id,
-                challengeId: challenge.data.id,
-            });
 
             setEnrollment({
                 factorId: data.id,
@@ -322,19 +266,12 @@ export default function SecurityPage() {
         setBusy(true);
         setStatus(null);
         try {
-            traceMfa("[security/mfa] verifying enrollment", {
-                factorId: enrollment.factorId,
-                challengeId: enrollment.challengeId,
-            });
             const { error } = await supabase.auth.mfa.verify({
                 factorId: enrollment.factorId,
                 challengeId: enrollment.challengeId,
                 code: verificationCode.trim(),
             });
             if (error) throw error;
-            traceMfa("[security/mfa] enrollment verified", {
-                factorId: enrollment.factorId,
-            });
 
             setEnrollment(null);
             setSetupModalOpen(false);

@@ -2,10 +2,7 @@
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
-import {
-    RowActionMenuItems,
-    RowActions,
-} from "@/app/components/shared/RowActions";
+import { RowActions } from "@/app/components/shared/RowActions";
 import {
     TABLE_CHECKBOX_CLASS,
     SkeletonDot,
@@ -249,26 +246,6 @@ export function ProjectAssistantTable({
                         <TableRow
                             key={chat.id}
                             selected={selectedChatIds.includes(chat.id)}
-                            rightClickDropdown={(close, menuProps) => (
-                                <RowActionMenuItems
-                                    onClose={close}
-                                    surfaceProps={menuProps}
-                                    onRename={() => {
-                                        if (
-                                            currentUserId &&
-                                            chat.user_id !== currentUserId
-                                        ) {
-                                            onOwnerOnlyAction("rename this chat");
-                                            return;
-                                        }
-                                        setRenameChatValue(
-                                            chat.title ?? "Untitled Chat",
-                                        );
-                                        setRenamingChatId(chat.id);
-                                    }}
-                                    onDelete={() => onDeleteChat(chat)}
-                                />
-                            )}
                             onClick={() => {
                                 if (renamingChatId === chat.id) return;
                                 onOpenChat(chat.id);

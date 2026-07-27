@@ -10,6 +10,7 @@ import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { PageChromeContext } from "@/app/contexts/PageChromeContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { FullScreenLoader } from "@/app/components/shared/FullScreenLoader";
+import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
 
 export default function BeaverLayout({
     children,
@@ -22,16 +23,10 @@ export default function BeaverLayout({
     const [mobileActionsContainer, setMobileActionsContainer] =
         useState<HTMLDivElement | null>(null);
 
-    const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-    const handleSidebarToggle = () => {
-        if (window.matchMedia("(min-width: 768px)").matches) {
-            setDesktopSidebarOpen((open) => !open);
-        } else {
-            setMobileSidebarOpen((open) => !open);
-        }
-    };
+    const handleSidebarToggle = () =>
+        setMobileSidebarOpen((open) => !open);
 
     const handleMobileActionsContainerRef = useCallback(
         (node: HTMLDivElement | null) => {
@@ -54,16 +49,12 @@ export default function BeaverLayout({
 
     return (
         <ChatHistoryProvider>
+            <KeyboardShortcuts />
             <PageChromeContext.Provider value={{ mobileActionsContainer }}>
                 <SidebarContext.Provider
                     value={{
                         setSidebarOpen: (open) => {
-                            if (
-                                window.matchMedia("(min-width: 768px)")
-                                    .matches
-                            ) {
-                                setDesktopSidebarOpen(open);
-                            } else {
+                            if (!window.matchMedia("(min-width: 768px)").matches) {
                                 setMobileSidebarOpen(open);
                             }
                         },
@@ -72,12 +63,10 @@ export default function BeaverLayout({
                     <div className="h-dvh flex flex-col bg-app-background">
                         <div className="flex-1 flex min-w-0 overflow-visible">
                             <AppSidebar
-                                desktopOpen={desktopSidebarOpen}
                                 mobileOpen={mobileSidebarOpen}
                                 onToggle={handleSidebarToggle}
                             />
                             <div className="flex-1 flex flex-col h-dvh md:overflow-hidden relative w-full">
-                                {/* Mobile header */}
                                 <div className="relative z-20 flex md:hidden items-center gap-3 overflow-visible px-4 pt-3 pb-2 shrink-0">
                                     <button
                                         onClick={handleSidebarToggle}

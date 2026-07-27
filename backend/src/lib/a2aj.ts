@@ -10,12 +10,18 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import {
-  buildA2AJStructure,
-  lookupA2AJStructure,
-  normalizeA2AJLocator,
-  type A2AJLocatorKind,
-  type A2AJStructure,
-} from "./a2ajStructure";
+  createTextSourceDoc,
+  lookupSourceDoc,
+  normalizeSourceDocLocator,
+  type SourceDoc,
+  type SourceDocBlock,
+  type SourceDocLocatorKind,
+} from "./sourceDoc";
+import {
+  compileA2AJSourceDoc,
+  summarizeA2AJSourceDoc,
+  type A2AJStructureSummary,
+} from "./sourceDocA2AJ";
 import {
   fetchLocalA2AJDocument,
   getLocalA2AJStructure,
@@ -43,10 +49,18 @@ type PersistentResponse = {
   body?: unknown;
 };
 
-export type A2AJStructureSummary = {
-  status: "usable" | "unavailable";
-  source: "flat_text" | "section_map";
-  counts: Record<A2AJLocatorKind, number>;
+export type A2AJLocatorKind = Exclude<SourceDocLocatorKind, "footnote">;
+
+export type { A2AJStructureSummary };
+
+/** The compiled index as the viewer route serves it: blocks without text. */
+export type A2AJStructureView = A2AJStructureSummary & {
+  blocks: Array<{
+    kind: SourceDocLocatorKind;
+    label: string;
+    start: number;
+    end: number;
+  }>;
 };
 
 export type A2AJDocument = {
@@ -121,9 +135,9 @@ export type A2AJLocatorLookup = {
   language: "en" | "fr";
   requested: { kind: A2AJLocatorKind; locator: string; label: string };
   matches: string[];
-  block: ReturnType<typeof lookupA2AJStructure>["block"];
-  before: ReturnType<typeof lookupA2AJStructure>["before"];
-  after: ReturnType<typeof lookupA2AJStructure>["after"];
+  block: (SourceDocBlock & { text: string }) | null;
+  before: Array<SourceDocBlock & { text: string }>;
+  after: Array<SourceDocBlock & { text: string }>;
   structure: A2AJStructureSummary;
   sourceMethod: "structure_index" | "api_section";
 };
@@ -149,7 +163,7 @@ export type A2AJViewerPayload = {
     upstreamLicense: string | null;
   };
   text: string;
-  structure: Omit<A2AJStructure, "text">;
+  structure: A2AJStructureView;
   presentation: {
     source: "a2aj_markdown";
     segments: Array<{
@@ -162,8 +176,8 @@ export type A2AJViewerPayload = {
 };
 
 const rawRecords = new WeakMap<A2AJDocument, JsonRecord>();
-const structureIndexes = new WeakMap<A2AJDocument, A2AJStructure>();
-const lookupDocumentTexts = new WeakMap<A2AJLocatorLookup, string>();
+const structureIndexes = new WeakMap<A2AJDocument, SourceDoc>();
+const lookupDocuments = new WeakMap<A2AJLocatorLookup, SourceDoc>();
 const documentCache = new Map<
   string,
   { expiresAt: number; promise: Promise<A2AJDocument | null> }
@@ -303,6 +317,16 @@ function apiError(status: number, body: unknown): Error {
   return new Error(message || `A2AJ API error (${status})`);
 }
 
+/**
+ * `json.dumps(value, sort_keys=True, ensure_ascii=False)`, byte for byte.
+ *
+ * NOT cosmetic and NOT replaceable with JSON.stringify: this string is hashed
+ * into the shared HTTP cache filename under OPEN_LEGAL_DATA_HOME, and the
+ * Table of Authorities app computes the same name in Python (toa_maker.py,
+ * `_cache_key`). JSON.stringify omits the `", "` and `": "` separators, so
+ * every key would change and the two apps would silently stop sharing the
+ * cache they were built to share.
+ */
 function pythonStyleJson(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map(pythonStyleJson).join(", ")}]`;
@@ -474,30 +498,27 @@ function sectionMap(
 function structureFor(
   document: A2AJDocument,
   docType: "cases" | "laws",
-): A2AJStructure {
+): SourceDoc {
   const cached = structureIndexes.get(document);
   if (cached) return cached;
-  const structure = buildA2AJStructure({
-    text: document.text,
-    docType,
+  const doc = compileA2AJSourceDoc({
     citation: document.citation,
+    docType,
+    text: document.text,
+    url: document.url,
     alternateCitation: document.alternateCitation,
     dataset: document.dataset,
     name: document.name,
     sectionMap: sectionMap(rawRecords.get(document), document.language),
   });
-  structureIndexes.set(document, structure);
-  document.structure = {
-    status: structure.status,
-    source: structure.source,
-    counts: structure.counts,
-  };
-  return structure;
+  structureIndexes.set(document, doc);
+  document.structure = summarizeA2AJSourceDoc(doc);
+  return doc;
 }
 
 function readerSegments(
   text: string,
-  structure: Omit<A2AJStructure, "text">,
+  structure: A2AJStructureView,
   docType: "cases" | "laws",
 ) {
   const kind = docType === "laws" ? "section" : "paragraph";
@@ -656,18 +677,18 @@ export async function resolveA2AJViewerDocument(args: {
         dataset: args.dataset,
       });
       if (!document) continue;
-      const fullStructure = structureFor(document, docType);
-      const truncated = fullStructure.text.length > maxChars;
-      const text = fullStructure.text.slice(0, maxChars);
-      const structure: Omit<A2AJStructure, "text"> = {
-        status: fullStructure.status,
-        source: fullStructure.source,
-        counts: fullStructure.counts,
-        blocks: fullStructure.blocks
+      const compiled = structureFor(document, docType);
+      const truncated = compiled.text.length > maxChars;
+      const text = compiled.text.slice(0, maxChars);
+      const structure: A2AJStructureView = {
+        ...summarizeA2AJSourceDoc(compiled),
+        blocks: compiled.blocks
           .filter((block) => block.start < text.length)
-          .map((block) => ({
-            ...block,
-            end: Math.min(block.end, text.length),
+          .map(({ kind, label, start, end }) => ({
+            kind,
+            label,
+            start,
+            end: Math.min(end, text.length),
           })),
       };
       const pdfUrl = document.url
@@ -724,8 +745,13 @@ export async function resolveA2AJViewerDocument(args: {
   return promise;
 }
 
-export function getA2AJLookupDocumentText(lookup: A2AJLocatorLookup) {
-  return lookupDocumentTexts.get(lookup) ?? "";
+/**
+ * The compiled document a lookup was resolved against - the corpus a pinpoint
+ * text fragment must be unique in. One artifact per document, so every quote
+ * on that document reuses one token index.
+ */
+export function getA2AJLookupDocument(lookup: A2AJLocatorLookup) {
+  return lookupDocuments.get(lookup) ?? null;
 }
 
 export async function fetchA2AJDocument(args: {
@@ -779,9 +805,9 @@ export async function lookupA2AJLocator(args: {
     dataset: args.dataset,
   });
   if (!document) return null;
-  const structure = structureFor(document, docType);
-  const result = lookupA2AJStructure(
-    structure,
+  const compiled = structureFor(document, docType);
+  const result = lookupSourceDoc(
+    compiled,
     args.kind,
     locator,
     args.contextBlocks,
@@ -791,7 +817,7 @@ export async function lookupA2AJLocator(args: {
     docType === "laws" &&
     result.status !== "found"
   ) {
-    const label = normalizeA2AJLocator("section", locator);
+    const label = normalizeSourceDocLocator("section", locator);
     const section = label.replace(/^sec/iu, "");
     if (section) {
       const native = await fullA2AJDocument({
@@ -817,6 +843,7 @@ export async function lookupA2AJLocator(args: {
             label,
             start: 0,
             end: native.text.length,
+            origin: "native",
             text: native.text.trim(),
           },
           before: [],
@@ -824,11 +851,11 @@ export async function lookupA2AJLocator(args: {
           structure: document.structure,
           sourceMethod: "api_section",
         };
-        lookupDocumentTexts.set(
+        lookupDocuments.set(
           lookup,
-          structure.text.includes(native.text.trim())
-            ? structure.text
-            : native.text,
+          compiled.text.includes(native.text.trim())
+            ? compiled
+            : createTextSourceDoc(native.text),
         );
         return lookup;
       }
@@ -854,7 +881,7 @@ export async function lookupA2AJLocator(args: {
     structure: document.structure,
     sourceMethod: "structure_index",
   };
-  lookupDocumentTexts.set(lookup, structure.text);
+  lookupDocuments.set(lookup, compiled);
   return lookup;
 }
 

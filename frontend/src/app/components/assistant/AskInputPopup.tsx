@@ -257,15 +257,6 @@ export function AskInputPopup({
         onDismiss?.();
     }, [dismissed, onDismiss, submitted]);
 
-    useEffect(() => {
-        if (submitted || dismissed) return;
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === "Escape") dismiss();
-        };
-        window.addEventListener("keydown", handler);
-        return () => window.removeEventListener("keydown", handler);
-    }, [submitted, dismissed, dismiss]);
-
     if (dismissed) return null;
 
     const activeItem =
@@ -273,8 +264,12 @@ export function AskInputPopup({
 
     return (
         <>
-            <div className="w-full overflow-hidden rounded-[18px] border border-gray-200 bg-white pb-3 font-serif shadow-sm md:rounded-[22px]">
-                <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-2">
+            <div
+                data-shortcut-layer
+                data-shortcut-open={!submitted ? "true" : "false"}
+                className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-gray-300 bg-white pb-4 font-serif"
+            >
+                <div className="flex min-h-12 min-w-0 items-center justify-between gap-2 px-4 py-2">
                     <div className="flex min-w-0 items-center">
                         <div className="text-sm text-gray-500">
                             {submitted ? (
@@ -297,7 +292,7 @@ export function AskInputPopup({
                                                 onClick={() =>
                                                     setActiveInputId(item.id)
                                                 }
-                                                className="h-6 px-2 font-sans text-[10px]"
+                                                className="h-8 px-3 font-sans text-xs"
                                             >
                                                 {isResolved ? (
                                                     <Check className="h-3 w-3" />
@@ -314,24 +309,28 @@ export function AskInputPopup({
                     </div>
                     {!submitted && (
                         <TabPillButton
+                            data-shortcut-close
                             type="button"
                             onClick={dismiss}
                             aria-label="Dismiss"
-                            className="h-6 w-6 shrink-0 px-0"
+                            className="h-8 w-8 shrink-0 px-0"
                         >
                             <X className="h-3 w-3" />
                         </TabPillButton>
                     )}
                 </div>
 
-                <div className="px-3">
+                <div className="px-4">
                     {activeItem && (
-                        <div className="mt-3 flex min-h-54 flex-col">
-                            <div>
+                        <div
+                            data-ask-input-body
+                            className="mt-2 flex h-72 min-h-0 flex-col"
+                        >
+                            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
                                         {activeItem.kind === "choice" ? (
-                                            <p className="text-sm text-gray-800">
+                                            <p className="text-base text-gray-900">
                                                 {activeItem.question}
                                             </p>
                                         ) : (
@@ -429,7 +428,7 @@ export function AskInputPopup({
                                                 !skipped.has(activeItem.id),
                                             )
                                         }
-                                        className="px-1 font-sans text-[10px] text-gray-500 transition-colors hover:text-gray-800"
+                                        className="min-h-9 px-2 font-sans text-sm text-gray-600 transition-colors hover:text-gray-900"
                                     >
                                         {skipped.has(activeItem.id)
                                             ? "Unskip"
@@ -446,7 +445,7 @@ export function AskInputPopup({
                                         onClick={() =>
                                             confirmItem(activeItem.id)
                                         }
-                                        className="h-6 px-3 font-sans text-[10px]"
+                                        className="h-9 px-4 font-sans text-sm"
                                     >
                                         {confirmed.has(activeItem.id) ? (
                                             <>
@@ -525,7 +524,7 @@ function OptionInput({
                         type="button"
                         disabled={disabled}
                         onClick={() => onAnswer(answer)}
-                        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
                             isSelected
                                 ? "bg-gray-200/80 text-gray-900"
                                 : "bg-gray-100/70 text-gray-700 hover:bg-gray-200/70 disabled:hover:bg-gray-100/70"
@@ -536,7 +535,7 @@ function OptionInput({
                                 {idx + 1}.
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-sm">{answer}</span>
+                                <span className="block text-[15px]">{answer}</span>
                             </span>
                             {isSelected && (
                                 <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-700" />
@@ -547,7 +546,7 @@ function OptionInput({
             })}
             {item.allow_other && (
                 <div
-                    className={`w-full rounded-lg px-3 py-2 transition-colors ${
+                    className={`min-h-11 w-full rounded-lg px-3 py-2.5 transition-colors ${
                         otherOpen
                             ? "bg-gray-200/80"
                             : "cursor-pointer bg-gray-100/70 hover:bg-gray-200/70"
@@ -582,7 +581,7 @@ function OptionInput({
                                 />
                             </span>
                         ) : (
-                            <span className="min-w-0 flex-1 text-sm text-gray-700">
+                            <span className="min-w-0 flex-1 text-[15px] text-gray-700">
                                 {item.other_label || "Other"}
                             </span>
                         )}
@@ -639,7 +638,7 @@ function DocumentInput({
                                 onOpenSelector(idx);
                             }
                         }}
-                        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
                             docs.length > 0
                                 ? "bg-gray-200/80 text-gray-900"
                                 : "bg-gray-100/70 text-gray-700"
@@ -654,7 +653,7 @@ function DocumentInput({
                                 {idx + 1}.
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block break-normal text-sm">
+                                <span className="block break-normal text-[15px]">
                                     {documentType}
                                 </span>
                                 {docs.length > 0 && (

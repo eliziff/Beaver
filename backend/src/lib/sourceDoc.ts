@@ -1,12 +1,11 @@
 import crypto from "node:crypto";
-import { normalizeA2AJLocator } from "./a2ajStructure";
 import { normalizeWhitespace } from "./text";
 
 /**
  * One immutable, content-hashed artifact per fetched source (master plan
  * P1.1a). Providers compile into this; every consumer question - locator
- * lookup, quote verification, block slicing - is a query over it rather than
- * a fresh parse of a raw string.
+ * lookup, quote verification, block slicing, pinpoint text fragments - is a
+ * query over it rather than a fresh parse of a raw string.
  */
 
 export type SourceDocProvider =
@@ -55,10 +54,11 @@ export type SourceDocLocatorRange = {
 };
 
 export type SourceDoc = {
-  provider: SourceDocProvider;
+  /** null for a rendition whose provider compiler has not landed yet. */
+  provider: SourceDocProvider | null;
   id: string;
   url: string | null;
-  /** content sha256 of `text` - cache key and staleness key */
+  /** content sha256 of `text` - cache key and staleness key, computed on use */
   revision: string;
   docType: "cases" | "laws" | null;
   status: "usable" | "unavailable";
@@ -104,8 +104,12 @@ export function tokenizeSourceText(text: string): WordSpan[] {
   return tokens;
 }
 
-/** Quote cleanup copied from legalSourceLinks.quoteText, deliberately. */
-function quoteText(text: string) {
+/**
+ * A quote as the document would have written it: outer quotation marks gone,
+ * editorial alterations resolved ("[T]he" -> "The", "[emphasis added]" ->
+ * "emphasis added") and elisions turned into a gap.
+ */
+export function sourceDocQuoteText(text: string) {
   return normalizeWhitespace(
     text
       .trim()
@@ -116,8 +120,8 @@ function quoteText(text: string) {
   );
 }
 
-function quoteWords(quote: string) {
-  return tokenizeSourceText(quoteText(quote)).map(({ word }) => word);
+export function sourceDocQuoteWords(quote: string) {
+  return tokenizeSourceText(sourceDocQuoteText(quote)).map(({ word }) => word);
 }
 
 export function sourceDocRevision(text: string) {
@@ -210,7 +214,7 @@ function locatorRange(
 }
 
 export function createSourceDoc(args: {
-  provider: SourceDocProvider;
+  provider: SourceDocProvider | null;
   id: string;
   url?: string | null;
   docType?: "cases" | "laws" | null;
@@ -242,7 +246,7 @@ export function createSourceDoc(args: {
     provider: args.provider,
     id: args.id,
     url: args.url ?? null,
-    revision: sourceDocRevision(args.text),
+    revision: "",
     docType: args.docType ?? null,
     status: blocks.length ? "usable" : "unavailable",
     text: args.text,
@@ -251,10 +255,10 @@ export function createSourceDoc(args: {
     index,
     ranges,
   };
-  // Tokenizing a 2.3 MB statute costs far more than compiling it, and most
-  // documents are never quote-checked. Tokenize once, on first use, and never
-  // again; the property is non-enumerable so a stray JSON.stringify of a
-  // SourceDoc cannot force (or serialize) it.
+  // Tokenizing (or hashing) a 2.3 MB statute costs far more than compiling it,
+  // and most documents are never quote-checked. Do each once, on first use,
+  // and never again; the properties are non-enumerable so a stray
+  // JSON.stringify of a SourceDoc cannot force (or serialize) them.
   let tokens: WordSpan[] | null = null;
   Object.defineProperty(doc, "tokens", {
     enumerable: false,
@@ -263,30 +267,57 @@ export function createSourceDoc(args: {
       return (tokens ??= tokenizeSourceText(doc.text));
     },
   });
+  let revision: string | null = null;
+  Object.defineProperty(doc, "revision", {
+    enumerable: true,
+    configurable: false,
+    get() {
+      return (revision ??= sourceDocRevision(doc.text));
+    },
+  });
   return doc;
 }
 
+/**
+ * A SourceDoc for a rendition no provider compiler produces yet (CourtListener
+ * opinion joins, local PDF page text - master plan P1.1a stage 4). It carries
+ * the text and its token index, which is everything the quote and pinpoint
+ * path queries, and no blocks.
+ */
+export function createTextSourceDoc(text: string): SourceDoc {
+  return createSourceDoc({ provider: null, id: "", text, blocks: [] });
+}
+
+/**
+ * "[para. 12]", "para 12", "12" -> "par12". One grammar for every provider;
+ * unrecognized input returns "" rather than a guess.
+ */
 export function normalizeSourceDocLocator(
   kind: SourceDocLocatorKind,
   locator: string,
 ) {
+  const value = locator.trim();
   if (kind === "footnote") {
-    const match = locator
-      .trim()
-      .match(/^(?:fn|footnotes?|notes?)?[\s#.]*(\d{1,5})$/iu);
+    const match = value.match(/^(?:fn|footnotes?|notes?)?[\s#.]*(\d{1,5})$/iu);
     return match ? `fn${Number(match[1])}` : "";
   }
-  const standard = normalizeA2AJLocator(kind, locator);
-  if (standard || kind !== "section") return standard;
-  // Federal regulations number sections alphanumerically ("A.01.001"), which
-  // the A2AJ locator grammar never admitted.
-  const compact = locator
-    .trim()
+  if (kind === "paragraph") {
+    const match = value.match(
+      /^(?:\[\s*)?(?:paras?\.?|paragraphs?)?\s*(\d{1,4})(?:\s*\])?$/iu,
+    );
+    return match ? `par${Number(match[1])}` : "";
+  }
+  if (kind === "page") {
+    const match = value.match(/^(?:pages?|pp?\.)?\s*(\d{1,4})$/iu);
+    return match ? `page${Number(match[1])}` : "";
+  }
+  const compact = value
     .replace(/^(?:ss?\.?|sections?)\s*/iu, "")
     .replace(/\s+/gu, "");
-  return /^[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}(?:\([^)]+\))*$/u.test(
-    compact,
-  )
+  // Federal regulations number sections alphanumerically ("A.01.001"); every
+  // other corpus numbers them decimally ("83.01(1)(b)(ii)").
+  return /^\d{1,8}(?:[.-]\d{1,8}){0,3}(?:\([^)]+\))*$/u.test(compact) ||
+    /^[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}(?:\([^)]+\))*$/u.test(compact)
     ? `sec${compact}`
     : "";
 }
@@ -405,38 +436,171 @@ export type SourceDocQuoteSpan = {
 };
 
 /**
- * Quote spans over the prebuilt token array. Matching semantics are the same
- * as legalSourceLinks.phraseSpans - lowercased word equality over WORD_RE
- * tokens - so a quote that verifies here verifies there.
+ * Search state for one artifact: word postings and line-break offsets.
+ *
+ * Postings turn "where does this phrase occur" from a scan of the document
+ * into a walk of one word's occurrence list - the difference between 2.6 s
+ * and 20 ms per quote on the Criminal Code. Building them costs about as much
+ * as one scan, so they are built on the artifact's *second* query: a document
+ * asked one question stays linear, a document asked twenty (every pinpoint
+ * link is at least twenty) pays once. Keyed by the SourceDoc so it dies with
+ * it - the artifact's own lazy state, not a cache of artifacts.
  */
-export function sourceDocQuoteSpans(
+type SourceDocSearchState = {
+  queries: number;
+  postings: Map<string, number[]> | null;
+  lineBreaks: number[] | null;
+};
+
+const searchStates = new WeakMap<SourceDoc, SourceDocSearchState>();
+
+function searchState(doc: SourceDoc): SourceDocSearchState {
+  const existing = searchStates.get(doc);
+  if (existing) return existing;
+  const created = { queries: 0, postings: null, lineBreaks: null };
+  searchStates.set(doc, created);
+  return created;
+}
+
+function postingsFor(doc: SourceDoc, state: SourceDocSearchState) {
+  if (state.postings) return state.postings;
+  const postings = new Map<string, number[]>();
+  doc.tokens.forEach((token, position) => {
+    const bucket = postings.get(token.word);
+    if (bucket) bucket.push(position);
+    else postings.set(token.word, [position]);
+  });
+  state.postings = postings;
+  return postings;
+}
+
+function lineBreaksFor(doc: SourceDoc, state: SourceDocSearchState) {
+  if (state.lineBreaks) return state.lineBreaks;
+  const lineBreaks: number[] = [];
+  for (
+    let at = doc.text.indexOf("\n");
+    at >= 0;
+    at = doc.text.indexOf("\n", at + 1)
+  ) {
+    lineBreaks.push(at);
+  }
+  state.lineBreaks = lineBreaks;
+  return lineBreaks;
+}
+
+function crossesLineBreak(lineBreaks: number[], start: number, end: number) {
+  let low = 0;
+  let high = lineBreaks.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (lineBreaks[middle] < start) low = middle + 1;
+    else high = middle;
+  }
+  return low < lineBreaks.length && lineBreaks[low] < end;
+}
+
+/** Every position of `word` in [from, until), for the unindexed first query. */
+function* wordPositions(
+  tokens: WordSpan[],
+  word: string,
+  from: number,
+  until: number,
+) {
+  for (let index = Math.max(from, 0); index < until; index += 1) {
+    if (tokens[index].word === word) yield index;
+  }
+}
+
+export type SourceDocPhraseOptions = {
+  /** Only match inside this block. */
+  block?: SourceDocBlock;
+  /** Reject matches split across a line break (a text fragment cannot span one). */
+  sameLine?: boolean;
+  /** Stop once this many matches are found. */
+  limit?: number;
+};
+
+/**
+ * Every occurrence of an exact word sequence, in document order. Matching is
+ * lowercased word equality over WORD_RE tokens, so a quote that verifies here
+ * verifies everywhere.
+ */
+export function sourceDocPhraseSpans(
   doc: SourceDoc,
-  quote: string,
-  block?: SourceDocBlock,
+  words: string[],
+  options: SourceDocPhraseOptions = {},
 ): SourceDocQuoteSpan[] {
-  const words = quoteWords(quote);
-  if (!words.length) return [];
-  const tokens = doc.tokens;
-  const from = block ? tokenIndexAtOrAfter(tokens, block.start) : 0;
-  const limit = block ? tokenIndexAtOrAfter(tokens, block.end) : tokens.length;
   const spans: SourceDocQuoteSpan[] = [];
-  for (let index = from; index <= limit - words.length; index += 1) {
+  if (!words.length) return spans;
+  const tokens = doc.tokens;
+  const state = searchState(doc);
+  state.queries += 1;
+  const postings =
+    state.postings ?? (state.queries > 1 ? postingsFor(doc, state) : null);
+  const lineBreaks = options.sameLine ? lineBreaksFor(doc, state) : [];
+  const from = options.block
+    ? tokenIndexAtOrAfter(tokens, options.block.start)
+    : 0;
+  const until = options.block
+    ? tokenIndexAtOrAfter(tokens, options.block.end)
+    : tokens.length;
+  const limit = options.limit ?? Number.POSITIVE_INFINITY;
+
+  // Anchor on the rarest word: "the court held" costs the occurrences of
+  // "held", not the occurrences of "the".
+  let anchor = 0;
+  if (postings) {
+    let rarest = Number.POSITIVE_INFINITY;
+    for (const [offset, word] of words.entries()) {
+      const size = postings.get(word)?.length ?? 0;
+      if (!size) return spans;
+      if (size < rarest) {
+        rarest = size;
+        anchor = offset;
+      }
+    }
+  }
+  const starts = postings
+    ? postings.get(words[anchor])!
+    : wordPositions(tokens, words[0], from, until - words.length + 1);
+
+  for (const position of starts) {
+    const start = position - anchor;
+    if (start < from) continue;
+    if (start + words.length > until) break;
     let matched = true;
     for (let offset = 0; offset < words.length; offset += 1) {
-      if (tokens[index + offset].word !== words[offset]) {
+      if (tokens[start + offset].word !== words[offset]) {
         matched = false;
         break;
       }
     }
     if (!matched) continue;
+    const first = tokens[start];
+    const last = tokens[start + words.length - 1];
+    if (
+      options.sameLine &&
+      crossesLineBreak(lineBreaks, first.start, last.end)
+    ) {
+      continue;
+    }
     spans.push({
-      start: tokens[index].start,
-      end: tokens[index + words.length - 1].end,
-      firstWord: index,
-      lastWord: index + words.length - 1,
+      start: first.start,
+      end: last.end,
+      firstWord: start,
+      lastWord: start + words.length - 1,
     });
+    if (spans.length >= limit) break;
   }
   return spans;
+}
+
+export function sourceDocQuoteSpans(
+  doc: SourceDoc,
+  quote: string,
+  block?: SourceDocBlock,
+): SourceDocQuoteSpan[] {
+  return sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote), { block });
 }
 
 export function sourceDocContainsQuote(

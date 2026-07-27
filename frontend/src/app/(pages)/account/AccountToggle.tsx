@@ -57,7 +57,7 @@ export function AccountToggle({
         >
             <span
                 className={cn(
-                    "flex items-center justify-center rounded-full bg-white shadow-sm transition-transform",
+                    "flex items-center justify-center rounded-full bg-white",
                     sizes.thumb,
                     checked ? sizes.translate : "translate-x-0",
                 )}

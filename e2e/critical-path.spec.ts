@@ -30,17 +30,16 @@ const PDF_FIXTURE = path.join(__dirname, "fixtures/test.pdf");
 const CLAUDE_MODEL_LABEL = "Claude Sonnet 4.6";
 
 async function selectClaudeModel(page: Page) {
-    const trigger = page
-        .locator(
-            'button[title="Choose model"], button[title="API key missing for selected model"]',
-        )
-        .first();
-    await expect(trigger).toBeVisible({ timeout: 10_000 });
-    await trigger.click();
-    await page.getByRole("menuitem", { name: CLAUDE_MODEL_LABEL }).click();
-    // After selection the trigger label reflects the chosen model.
+    await page
+        .getByRole("combobox", { name: /^Model provider:/ })
+        .selectOption("Anthropic");
+    await page
+        .getByRole("combobox", { name: /^Model:/ })
+        .selectOption({ label: CLAUDE_MODEL_LABEL });
     await expect(
-        page.getByRole("button", { name: CLAUDE_MODEL_LABEL }),
+        page.getByRole("combobox", {
+            name: `Model: ${CLAUDE_MODEL_LABEL}`,
+        }),
     ).toBeVisible({ timeout: 5_000 });
 }
 

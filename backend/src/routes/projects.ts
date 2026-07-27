@@ -41,6 +41,7 @@ import {
   findMissingUserEmails,
   loadProfileUsersByEmail,
 } from "../lib/userLookup";
+import { localTabularStore } from "../lib/localTabularStore";
 
 export const projectsRouter = Router();
 
@@ -89,7 +90,7 @@ async function localMatterResponse(
     updated_at: matter.updated_at,
     document_count: documents.length,
     chat_count: listAnonymousProjectChats(userId, matter.id).length,
-    review_count: 0,
+    review_count: localTabularStore().list(userId, matter.id).length,
     ...(includeDocuments ? { documents, folders: [] } : {}),
   };
 }
@@ -557,6 +558,7 @@ projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
       if (!legalKnowledgeGraphStore().deleteProject(userId, projectId)) {
         return void res.status(404).json({ detail: "Project not found" });
       }
+      localTabularStore().deleteProjectReviews(userId, projectId);
       deleteAnonymousProjectChats(userId, projectId);
       res.status(204).send();
     } catch (error) {

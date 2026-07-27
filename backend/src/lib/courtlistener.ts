@@ -3,9 +3,9 @@ import { createServerSupabase } from "./supabase";
 import {
   buildLegalSourceStructure,
   lookupLegalSourceStructure,
+  type LegalLocatorKind,
   type LegalSourceStructure,
 } from "./legalSourceStructure";
-import type { A2AJLocatorKind } from "./a2ajStructure";
 import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
@@ -230,7 +230,7 @@ export function getCourtlistenerOpinionStructure(opinion: object) {
 
 export function lookupCourtlistenerOpinionLocator(
   opinion: object,
-  kind: A2AJLocatorKind,
+  kind: LegalLocatorKind,
   locator: string,
   contextBlocks = 0,
 ) {

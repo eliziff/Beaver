@@ -19,6 +19,7 @@ import {
   removeLocalPdfParseArtifacts,
 } from "./localPdfIngestion";
 import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
+import { removeDocumentFromLocalTabularReviews } from "./localTabularStore";
 
 export type LocalLibraryKind = "file" | "template";
 
@@ -688,6 +689,7 @@ export async function deleteLocalDocument(userId: string, documentId: string) {
   });
   if (deleted) {
     legalKnowledgeGraphStore().removeDocumentsFromMatters(userId, [documentId]);
+    removeDocumentFromLocalTabularReviews(userId, documentId);
   }
   return deleted;
 }

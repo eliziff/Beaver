@@ -1,10 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  buildA2AJStructure,
-  lookupA2AJStructure,
-} from "../a2ajStructure";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import {
   createSourceDoc,
@@ -50,18 +46,6 @@ function fixture(file: string): Fixture {
   ) as Fixture;
 }
 
-function legacy(source: Fixture) {
-  return buildA2AJStructure({
-    text: source.text,
-    docType: source.docType,
-    citation: source.citation,
-    alternateCitation: source.alternateCitation,
-    dataset: source.dataset,
-    name: source.name,
-    sectionMap: source.sectionMap ?? null,
-  });
-}
-
 function compile(source: Fixture): SourceDoc {
   return compileA2AJSourceDoc({
     citation: source.citation,
@@ -79,26 +63,10 @@ function labels(doc: SourceDoc) {
   return doc.blocks.map((block) => block.label);
 }
 
-/**
- * Shapes whose spine the compiler must reproduce exactly. Statute shapes that
- * the flat-text spine never matched are excluded on purpose - there is no old
- * behaviour there to be faithful to.
- */
-const PARITY_FIXTURES = [
-  "a2aj-case-scc-2026scc16-toc",
-  "a2aj-case-scc-2001scc1-bare",
-  "a2aj-case-scc-1990scr30-unnumbered",
-  "a2aj-case-scc-1986scr103-dot",
-  "a2aj-laws-on-occupiers-liability",
-  "a2aj-regs-on-oreg267-03",
-] as const;
-
 const MATRIX: Array<{
   file: string;
   docType: "cases" | "laws";
   shape: string;
-  legacySections: number;
-  legacyParagraphs: number;
   compiledSections: number;
   compiledParagraphs: number;
 }> = [
@@ -106,8 +74,6 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-2026scc16-toc",
     docType: "cases",
     shape: "case-bracket-paragraphs-with-table-of-contents",
-    legacySections: 0,
-    legacyParagraphs: 18,
     compiledSections: 0,
     compiledParagraphs: 18,
   },
@@ -115,8 +81,6 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-2001scc1-bare",
     docType: "cases",
     shape: "case-bare-numbered-paragraphs",
-    legacySections: 0,
-    legacyParagraphs: 25,
     compiledSections: 0,
     compiledParagraphs: 25,
   },
@@ -124,8 +88,6 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-1990scr30-unnumbered",
     docType: "cases",
     shape: "case-pre1995-unnumbered",
-    legacySections: 0,
-    legacyParagraphs: 0,
     compiledSections: 0,
     compiledParagraphs: 0,
   },
@@ -133,8 +95,6 @@ const MATRIX: Array<{
     file: "a2aj-case-scc-1986scr103-dot",
     docType: "cases",
     shape: "case-pre1995-dot-numbered",
-    legacySections: 0,
-    legacyParagraphs: 18,
     compiledSections: 0,
     compiledParagraphs: 18,
   },
@@ -142,8 +102,6 @@ const MATRIX: Array<{
     file: "a2aj-laws-fed-criminalcode-s231",
     docType: "laws",
     shape: "laws-federal-emphasis-sections",
-    legacySections: 0,
-    legacyParagraphs: 0,
     compiledSections: 22,
     compiledParagraphs: 0,
   },
@@ -151,8 +109,6 @@ const MATRIX: Array<{
     file: "a2aj-laws-fed-criminalcode-s22-1",
     docType: "laws",
     shape: "laws-federal-emphasis-decimal-sections",
-    legacySections: 0,
-    legacyParagraphs: 0,
     compiledSections: 13,
     compiledParagraphs: 0,
   },
@@ -160,8 +116,6 @@ const MATRIX: Array<{
     file: "a2aj-laws-fed-criminalcode-s83-01",
     docType: "laws",
     shape: "laws-federal-emphasis-definitions",
-    legacySections: 0,
-    legacyParagraphs: 0,
     compiledSections: 26,
     compiledParagraphs: 0,
   },
@@ -169,8 +123,6 @@ const MATRIX: Array<{
     file: "a2aj-laws-fed-criminalcode-sectionmap",
     docType: "laws",
     shape: "laws-federal-section-map",
-    legacySections: 52,
-    legacyParagraphs: 0,
     compiledSections: 53,
     compiledParagraphs: 0,
   },
@@ -178,8 +130,6 @@ const MATRIX: Array<{
     file: "a2aj-laws-on-occupiers-liability",
     docType: "laws",
     shape: "laws-ontario-bare-sections",
-    legacySections: 66,
-    legacyParagraphs: 0,
     compiledSections: 66,
     compiledParagraphs: 0,
   },
@@ -187,8 +137,6 @@ const MATRIX: Array<{
     file: "a2aj-regs-fed-crc870-a01",
     docType: "laws",
     shape: "regs-federal-alphanumeric-emphasis-sections",
-    legacySections: 0,
-    legacyParagraphs: 0,
     compiledSections: 4,
     compiledParagraphs: 0,
   },
@@ -196,8 +144,6 @@ const MATRIX: Array<{
     file: "a2aj-regs-on-oreg267-03",
     docType: "laws",
     shape: "regs-ontario-bare-sections-with-list-trap",
-    legacySections: 64,
-    legacyParagraphs: 0,
     compiledSections: 64,
     compiledParagraphs: 0,
   },
@@ -223,10 +169,7 @@ describe("SourceDoc cross-provider fixture matrix", () => {
     "$file indexes $compiledSections sections and $compiledParagraphs paragraphs",
     (entry) => {
       const source = fixture(entry.file);
-      const old = legacy(source);
       const doc = compile(source);
-      expect(old.counts.section).toBe(entry.legacySections);
-      expect(old.counts.paragraph).toBe(entry.legacyParagraphs);
       expect(doc.ranges.section.count).toBe(entry.compiledSections);
       expect(doc.ranges.paragraph.count).toBe(entry.compiledParagraphs);
       expect(doc.status).toBe(
@@ -236,47 +179,6 @@ describe("SourceDoc cross-provider fixture matrix", () => {
       );
       expect(doc.revision).toMatch(/^[0-9a-f]{64}$/u);
       expect(doc.provider).toBe("a2aj");
-    },
-  );
-
-  it.each(PARITY_FIXTURES)(
-    "%s keeps the existing spine byte-identical",
-    (file) => {
-      const source = fixture(file);
-      const old = legacy(source);
-      const doc = compile(source);
-      expect(doc.text).toBe(old.text);
-      expect(doc.blocks.map((block) => ({
-        kind: block.kind,
-        label: block.label,
-        start: block.start,
-        end: block.end,
-        text: sourceDocBlockText(doc, block),
-      }))).toEqual(
-        old.blocks.map((block) => ({
-          kind: block.kind,
-          label: block.label,
-          start: block.start,
-          end: block.end,
-          text: old.text.slice(block.start, block.end).trim(),
-        })),
-      );
-      const kind = source.docType === "laws" ? "section" : "paragraph";
-      for (const block of old.blocks) {
-        const locator = block.label.replace(/^(?:sec|par|page=?)/iu, "");
-        const before = lookupA2AJStructure(old, kind, locator, 2);
-        const after = lookupSourceDoc(doc, kind, locator, 2);
-        expect(after.status).toBe(before.status);
-        expect(after.requestedLabel).toBe(before.requestedLabel);
-        expect(after.matches).toEqual(before.matches);
-        expect(after.block?.text ?? null).toBe(before.block?.text ?? null);
-        expect(after.before.map((item) => item.label)).toEqual(
-          before.before.map((item) => item.label),
-        );
-        expect(after.after.map((item) => item.label)).toEqual(
-          before.after.map((item) => item.label),
-        );
-      }
     },
   );
 
@@ -300,19 +202,8 @@ describe("SourceDoc cross-provider fixture matrix", () => {
   });
 });
 
-describe("federal statute corpus: zero sections before, indexed after", () => {
+describe("federal statute corpus", () => {
   const source = fixture("a2aj-laws-fed-criminalcode-s231");
-
-  it("the current engine finds nothing in the emphasis shape", () => {
-    const old = legacy(source);
-    expect(old.status).toBe("unavailable");
-    expect(old.blocks).toEqual([]);
-    for (const locator of ["231", "231(2)", "231(4)(a)", "231(6.1)"]) {
-      expect(lookupA2AJStructure(old, "section", locator).status).toBe(
-        "unavailable",
-      );
-    }
-  });
 
   it("the compiler resolves the section, its subsections and its paragraphs", () => {
     const doc = compile(source);
@@ -436,17 +327,8 @@ describe("provider section map and Markdown emphasis agree", () => {
     }
   });
 
-  it("fixes the labels the section-map engine mislabels today", () => {
-    const source = fixture("a2aj-laws-fed-criminalcode-sectionmap");
-    const old = legacy(source);
-    const doc = compile(source);
-    const oldLabels = old.blocks.map((block) => block.label);
-    // Today (6.1) is dropped because Number("01") === Number("1"), so its
-    // paragraphs are re-parented onto (6.01) ...
-    expect(oldLabels).toContain("sec231(6.01)(a)");
-    expect(oldLabels).not.toContain("sec231(6.1)");
-    // ... and (C)/(D)/(E) are read as Roman numerals, losing (ii).
-    expect(oldLabels).toContain("sec83.01(1)(b)(D)(E)");
+  it("keeps decimal and Roman children on their correct parents", () => {
+    const doc = compile(fixture("a2aj-laws-fed-criminalcode-sectionmap"));
     expect(labels(doc)).toContain("sec231(6.1)(a)");
     expect(labels(doc)).not.toContain("sec231(6.01)(a)");
     expect(labels(doc)).toContain("sec83.01(1)(b)(ii)(E)");

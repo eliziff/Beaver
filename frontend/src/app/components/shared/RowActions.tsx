@@ -1,39 +1,11 @@
 "use client";
 
+import { MoreHorizontal } from "lucide-react";
 import {
-    forwardRef,
-    useEffect,
-    useRef,
-    useState,
-    type ComponentPropsWithoutRef,
-} from "react";
-import { createPortal } from "react-dom";
-import {
-    Download,
-    Eye,
-    EyeOff,
-    FolderMinus,
-    Hash,
-    History,
-    Pencil,
-    Trash2,
-    Upload,
-} from "lucide-react";
-import { SubfolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import {
-    CLOSE_ROW_ACTIONS_EVENT,
-    closeRowActionMenus,
-} from "@/app/components/shared/TablePrimitive";
-import {
-    LiquidDropdownButton,
-    LiquidDropdownSurface,
-} from "@/app/components/ui/liquid-dropdown";
-import { cn } from "@/app/lib/utils";
+    NativeActionSelect,
+    type NativeAction,
+} from "@/app/components/ui/native-action-select";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
-
-export { CLOSE_ROW_ACTIONS_EVENT, closeRowActionMenus };
-
-export type RowActionMenuSurfaceProps = ComponentPropsWithoutRef<"div">;
 
 interface Props {
     onDelete?: () => void;
@@ -54,19 +26,7 @@ interface Props {
     deleteLabel?: string;
 }
 
-type RowActionMenuItemsProps = Props & {
-    onClose: () => void;
-    surfaceProps?: RowActionMenuSurfaceProps;
-};
-
-const ROW_ACTION_ITEM_CLASS =
-    "flex items-center gap-2 w-full px-3 py-2 text-gray-600";
-const ROW_ACTION_LEFT_ITEM_CLASS = `text-left ${ROW_ACTION_ITEM_CLASS}`;
-
-export const RowActionMenuItems = forwardRef<
-    HTMLDivElement,
-    RowActionMenuItemsProps
->(function RowActionMenuItems({
+export function RowActions({
     onDelete,
     onHide,
     onUnhide,
@@ -76,207 +36,42 @@ export const RowActionMenuItems = forwardRef<
     onUploadNewVersion,
     onNewSubfolder,
     deleting,
-    deleteDisabled = false,
+    deleteDisabled,
     onEditDetails,
     onRename,
     onUpdateCmNumber,
     newSubfolderLabel = "New subfolder",
     renameLabel = "Rename",
     deleteLabel = "Delete",
-    onClose,
-    surfaceProps,
-}, ref) {
-    const { className: surfaceClassName, ...restSurfaceProps } =
-        surfaceProps ?? {};
+}: Props) {
+    const items: NativeAction[] = [];
+    const add = (
+        label: string,
+        onSelect?: () => void,
+        disabled?: boolean,
+    ) => {
+        if (onSelect) items.push({ label, onSelect, disabled });
+    };
+
+    add(newSubfolderLabel, onNewSubfolder);
+    add(renameLabel, onRename);
+    add("Edit details", onEditDetails);
+    add("Edit CM No.", onUpdateCmNumber);
+    add("Download", onDownload);
+    add("Show all versions", onShowAllVersions);
+    add("Upload new version", onUploadNewVersion);
+    add("Remove from subfolder", onRemoveFromFolder);
+    add("Activate", onUnhide);
+    add("Deactivate", onHide);
+    add(deleteLabel, onDelete, deleting || deleteDisabled);
 
     return (
-        <LiquidDropdownSurface
-            ref={ref}
-            className={cn("w-48 overflow-hidden", surfaceClassName)}
-            {...restSurfaceProps}
+        <NativeActionSelect
+            label="More actions"
+            items={items}
+            triggerClassName={`h-6 w-6 items-center justify-center rounded text-gray-700 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`}
         >
-            {onNewSubfolder && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onNewSubfolder(); }}
-                    className={ROW_ACTION_LEFT_ITEM_CLASS}
-                >
-                    <SubfolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                    {newSubfolderLabel}
-                </LiquidDropdownButton>
-            )}
-            {onRename && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onRename(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <Pencil className="h-3.5 w-3.5" />
-                    {renameLabel}
-                </LiquidDropdownButton>
-            )}
-            {onEditDetails && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onEditDetails(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit details
-                </LiquidDropdownButton>
-            )}
-            {onUpdateCmNumber && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onUpdateCmNumber(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <Hash className="h-3.5 w-3.5" />
-                    Edit CM No.
-                </LiquidDropdownButton>
-            )}
-            {onDownload && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onDownload(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                </LiquidDropdownButton>
-            )}
-            {onShowAllVersions && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onShowAllVersions(); }}
-                    className={ROW_ACTION_LEFT_ITEM_CLASS}
-                >
-                    <History className="h-3.5 w-3.5 shrink-0" />
-                    Show all versions
-                </LiquidDropdownButton>
-            )}
-            {onUploadNewVersion && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onUploadNewVersion(); }}
-                    className={ROW_ACTION_LEFT_ITEM_CLASS}
-                >
-                    <Upload className="h-3.5 w-3.5 shrink-0" />
-                    Upload new version
-                </LiquidDropdownButton>
-            )}
-            {onRemoveFromFolder && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onRemoveFromFolder(); }}
-                    className={ROW_ACTION_LEFT_ITEM_CLASS}
-                >
-                    <FolderMinus className="h-3.5 w-3.5 shrink-0" />
-                    Remove from subfolder
-                </LiquidDropdownButton>
-            )}
-            {onUnhide && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onUnhide(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <Eye className="h-3.5 w-3.5" />
-                    Activate
-                </LiquidDropdownButton>
-            )}
-            {onHide && (
-                <LiquidDropdownButton
-                    onClick={() => { onClose(); onHide(); }}
-                    className={ROW_ACTION_ITEM_CLASS}
-                >
-                    <EyeOff className="h-3.5 w-3.5" />
-                    Deactivate
-                </LiquidDropdownButton>
-            )}
-            {onDelete && (
-                <button
-                    onClick={() => {
-                        if (deleteDisabled || deleting) return;
-                        onClose();
-                        onDelete();
-                    }}
-                    disabled={deleting || deleteDisabled}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs text-red-500 transition-colors disabled:opacity-40 ${
-                        deleteDisabled
-                            ? "cursor-not-allowed opacity-40 hover:bg-transparent"
-                            : "hover:bg-red-500/10"
-                    }`}
-                >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {deleteLabel}
-                </button>
-            )}
-        </LiquidDropdownSurface>
-    );
-});
-
-export function RowActions(props: Props) {
-    const [open, setOpen] = useState(false);
-    const [coords, setCoords] = useState({ top: 0, right: 0 });
-    const btnRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        if (!open) return;
-        function handleClick() {
-            setOpen(false);
-        }
-        document.addEventListener("click", handleClick);
-        return () => document.removeEventListener("click", handleClick);
-    }, [open]);
-
-    useEffect(() => {
-        function handleCloseRowActions() {
-            setOpen(false);
-        }
-        document.addEventListener(CLOSE_ROW_ACTIONS_EVENT, handleCloseRowActions);
-        return () =>
-            document.removeEventListener(
-                CLOSE_ROW_ACTIONS_EVENT,
-                handleCloseRowActions,
-            );
-    }, []);
-
-    function handleToggle(e: React.MouseEvent) {
-        e.stopPropagation();
-        if (open) {
-            setOpen(false);
-            return;
-        }
-        closeRowActionMenus();
-        if (btnRef.current) {
-            const rect = btnRef.current.getBoundingClientRect();
-            setCoords({
-                top: rect.bottom + 4,
-                right: window.innerWidth - rect.right,
-            });
-        }
-        setOpen(true);
-    }
-
-    return (
-        <>
-            <button
-                ref={btnRef}
-                onClick={handleToggle}
-                className={`flex items-center justify-center w-6 h-6 rounded text-gray-700 hover:text-gray-900 transition-colors leading-none ${APP_SURFACE_HOVER_CLASS}`}
-            >
-                <span className="tracking-widest text-xs">···</span>
-            </button>
-
-            {open &&
-                createPortal(
-                    <RowActionMenuItems
-                        {...props}
-                        onClose={() => setOpen(false)}
-                        surfaceProps={{
-                            style: {
-                                position: "fixed",
-                                top: coords.top,
-                                right: coords.right,
-                            },
-                            className: "z-[120]",
-                            onClick: (e) => e.stopPropagation(),
-                        }}
-                    />,
-                    document.body,
-                )}
-        </>
+            <MoreHorizontal className="h-4 w-4" />
+        </NativeActionSelect>
     );
 }

@@ -6,11 +6,6 @@ import { Modal } from "../modals/Modal";
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
-
 interface WorkflowPickerModalProps {
     open: boolean;
     onClose: () => void;
@@ -57,20 +52,6 @@ export function WorkflowPickerModal({
         listWorkflows(workflowType)
             .then((workflows) => {
                 if (cancelled) return;
-                devLog("[workflows/ui:picker] loaded", {
-                    workflowType,
-                    workflowCount: workflows.length,
-                    systemCount: workflows.filter((workflow) => workflow.is_system)
-                        .length,
-                    sample: workflows.slice(0, 5).map((workflow) => ({
-                        id: workflow.id,
-                        title: workflow.metadata.title,
-                        type: workflow.metadata.type,
-                        user_id: workflow.user_id,
-                        is_system: workflow.is_system,
-                        is_owner: workflow.is_owner,
-                    })),
-                });
                 setWorkflows(workflows);
                 if (initialWorkflowId) {
                     setSelected(
@@ -80,12 +61,8 @@ export function WorkflowPickerModal({
                     );
                 }
             })
-            .catch((error) => {
+            .catch(() => {
                 if (cancelled) return;
-                devLog("[workflows/ui:picker] failed", {
-                    workflowType,
-                    error,
-                });
                 setWorkflows([]);
                 setSelected(null);
             })

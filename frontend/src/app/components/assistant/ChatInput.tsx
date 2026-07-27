@@ -322,10 +322,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             files: files.length > 0 ? files : undefined,
             workflow: wf ?? undefined,
             model,
-            reasoningEffort:
-                model.startsWith("codex:") || model.startsWith("deepseek-")
-                    ? reasoningEffort
-                    : undefined,
+            reasoningEffort,
         });
     };
 
@@ -467,21 +464,25 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             )}
                         </div>
 
-                        <div className="ml-auto flex items-center gap-1">
-                            <ReasoningEffortToggle
-                                model={model}
-                                value={reasoningEffort}
-                                onChange={setReasoningEffort}
-                            />
-                            <ModelToggle
-                                value={model}
-                                onChange={setModel}
-                                apiKeys={apiKeys}
-                            />
+                        <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
+                            <div className="order-2 sm:order-1">
+                                <ReasoningEffortToggle
+                                    model={model}
+                                    value={reasoningEffort}
+                                    onChange={setReasoningEffort}
+                                />
+                            </div>
+                            <div className="order-1 flex w-full min-w-0 justify-end sm:order-2 sm:w-auto">
+                                <ModelToggle
+                                    value={model}
+                                    onChange={setModel}
+                                    apiKeys={apiKeys}
+                                />
+                            </div>
                             <button
                                 type="button"
                                 className={cn(
-                                    "relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
+                                    "order-3 relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
                                 )}
                                 onClick={handleActionClick}
                                 disabled={!isLoading && !value.trim()}

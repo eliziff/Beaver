@@ -2,16 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import {
     Check,
     ChevronDown,
-    Download,
-    Globe,
-    Pencil,
     Play,
     Plus,
-    Trash2,
     Users,
     X,
 } from "lucide-react";
@@ -26,7 +21,6 @@ import {
     type ProjectPeople,
 } from "@/app/lib/beaverApi";
 import { UseWorkflowModal } from "@/app/components/workflows/UseWorkflowModal";
-import { WFEditColumnModal } from "@/app/components/workflows/WFEditColumnModal";
 import { WFColumnViewModal } from "@/app/components/workflows/WFColumnViewModal";
 import { AddColumnModal } from "@/app/components/tabular/AddColumnModal";
 import type {
@@ -68,15 +62,8 @@ import {
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { WorkflowPromptEditor } from "@/app/components/workflows/WorkflowPromptEditor";
 import { downloadWorkflowZip } from "./workflowZipExport";
-// dynamic import keeps Tiptap (browser-only) out of the SSR bundle
-const WorkflowPromptEditor = dynamic(
-    () =>
-        import("@/app/components/workflows/WorkflowPromptEditor").then(
-            (m) => ({ default: m.WorkflowPromptEditor }),
-        ),
-    { ssr: false },
-);
 
 interface Props {
     id: string;
@@ -91,9 +78,6 @@ const NAME_COL_W = "w-[332px] shrink-0";
 const WORKFLOW_CONTRIBUTIONS_ENABLED =
     process.env.NEXT_PUBLIC_WORKFLOW_CONTRIBUTIONS_ENABLED === "true";
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 export function WorkflowDetailPage({ id, workflowType }: Props) {
     const router = useRouter();
     const { user } = useAuth();
@@ -153,9 +137,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         return () => document.removeEventListener("mousedown", handleClick);
     }, [colActionsOpen]);
 
-    // ---------------------------------------------------------------------------
     // Load workflow
-    // ---------------------------------------------------------------------------
     useEffect(() => {
         getWorkflow(id)
             .then((wf) => {
@@ -251,9 +233,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         await fetchWorkflowShares();
     }
 
-    // ---------------------------------------------------------------------------
     // Debounced auto-save for prompt
-    // ---------------------------------------------------------------------------
     const save = useCallback(
         (newPromptMd: string) => {
             if (readOnly) return;
@@ -290,9 +270,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         save(next);
     }
 
-    // ---------------------------------------------------------------------------
     // Column save
-    // ---------------------------------------------------------------------------
     async function saveColumns(next: ColumnConfig[]) {
         if (readOnly) return;
         setSaveStatus("saving");
@@ -341,9 +319,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         setEditingColumn(null);
     }
 
-    // ---------------------------------------------------------------------------
-    // Render
-    // ---------------------------------------------------------------------------
     if (loading) {
         return (
             <div className="flex h-full flex-col">
@@ -384,12 +359,10 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     const workflowActionItems: HeaderActionsMenuItem[] = [
         {
             label: "Download workflow",
-            icon: Download,
             onSelect: () => downloadWorkflowZip(workflow, promptMd, columns),
         },
         {
             label: "View and Edit details",
-            icon: Pencil,
             onSelect: () => setDetailsOpen(true),
         },
     ];
@@ -398,15 +371,12 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         if (canOpenSource) {
             workflowActionItems.push({
                 label: "Open source this",
-                icon: Globe,
                 onSelect: () => setOpenSourceOpen(true),
             });
         }
 
         workflowActionItems.push({
             label: "Delete",
-            icon: Trash2,
-            variant: "danger",
             disabled: workflow.is_owner === false,
             onSelect: () => {
                 setDeleteStatus("idle");
@@ -434,10 +404,9 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                         ),
                     },
                 ]}
-                actionGroups={[
+                actions={[
                     saveStatus !== "idle"
-                        ? [
-                              {
+                        ? {
                                   type: "custom",
                                   render: (
                                       <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500">
@@ -449,10 +418,8 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                               : "Saved"}
                                       </span>
                                   ),
-                              },
-                          ]
-                        : [],
-                    [
+                          }
+                        : null,
                         canShare
                             ? {
                                   onClick: () => setShareOpen(true),
@@ -470,14 +437,11 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                 />
                             ),
                         },
-                    ],
-                    [
-                        {
+                    {
                             label: "Use",
                             icon: <Play className="h-3.5 w-3.5" />,
                             onClick: () => setUseOpen(true),
-                        },
-                    ],
+                    },
                 ]}
             />
             <UseWorkflowModal
@@ -810,12 +774,10 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 )}
             </div>
 
-            {/* Read-only column view modal */}
             {viewingColumn && (
                 <WFColumnViewModal col={viewingColumn} onClose={() => setViewingColumn(null)} />
             )}
 
-            {/* Add column modal */}
             <AddColumnModal
                 open={addColumnOpen}
                 existingCount={columns.length}
@@ -823,10 +785,12 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 onAdd={handleColumnsAdded}
             />
 
-            {/* Edit column modal */}
             {editingColumn && (
-                <WFEditColumnModal
-                    column={editingColumn}
+                <AddColumnModal
+                    open
+                    existingCount={columns.length}
+                    onAdd={handleColumnsAdded}
+                    editingColumn={editingColumn}
                     onClose={() => setEditingColumn(null)}
                     onSave={handleColumnSaved}
                     onDelete={() => {

@@ -6,8 +6,13 @@ import {
 import {
   appendLegalSourcePinpointLinks,
   buildLegalSourcePinpointUrl,
+  formatLegalLocator,
 } from "../legalSourceLinks";
 import type { LegalLocatorKind } from "../legalSourceStructure";
+import {
+  createTextSourceDoc,
+  sourceDocContainsQuote,
+} from "../sourceDoc";
 import {
   fetchGovInfoCase,
   fetchGovUkEtCase,
@@ -429,21 +434,6 @@ export async function executePublicLegalSourceTool(
   }
 }
 
-function words(value: string) {
-  return (
-    value.toLowerCase().match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? []
-  );
-}
-
-function containsQuote(source: string, quote: string) {
-  const haystack = words(source);
-  const needle = words(quote);
-  if (!needle.length) return false;
-  return haystack.some((_, start) =>
-    needle.every((word, offset) => haystack[start + offset] === word),
-  );
-}
-
 function citedDocument(
   state: PublicLegalSourceState,
   citation: PublicLegalCitationIdentity,
@@ -457,21 +447,22 @@ export function buildPublicLegalCitationUrl(
 ) {
   if (!state) return null;
   const document = citedDocument(state, citation);
+  if (!document || !citation.quotes.length) return null;
+  const compiled = createTextSourceDoc(document.text);
   if (
-    !document ||
-    !citation.quotes.length ||
-    !citation.quotes.every(({ quote }) => containsQuote(document.text, quote))
+    !citation.quotes.every(({ quote }) =>
+      sourceDocContainsQuote(compiled, quote),
+    )
   ) {
     return null;
   }
-  const candidates = state.lookups.filter(
-    ({ document: candidate, lookup }) =>
-      candidate === document &&
-      lookup.block &&
-      citation.quotes.every(({ quote }) =>
-        containsQuote(lookup.block!.text, quote),
-      ),
-  );
+  const candidates = state.lookups.filter(({ document: candidate, lookup }) => {
+    if (candidate !== document || !lookup.block) return false;
+    const block = createTextSourceDoc(lookup.block.text);
+    return citation.quotes.every(({ quote }) =>
+      sourceDocContainsQuote(block, quote),
+    );
+  });
   const unique = new Map(
     candidates.map((evidence) => [
       [
@@ -489,14 +480,10 @@ export function buildPublicLegalCitationUrl(
           url: document.url,
           anchor: evidence.lookup.anchor ?? undefined,
           blockText: evidence.lookup.block!.text,
-          documentText: document.text,
+          documentText: compiled,
           pageScoped: evidence.lookup.block!.kind === "page",
         }
-      : {
-          url: document.url,
-          blockText: document.text,
-          documentText: document.text,
-        },
+      : { url: document.url, blockText: compiled, documentText: compiled },
     citation.quotes.map(({ quote }) => quote),
   );
 }
@@ -506,26 +493,6 @@ export function getPublicLegalCitationDocument(
   state?: PublicLegalSourceState,
 ) {
   return state ? (citedDocument(state, citation) ?? null) : null;
-}
-
-function locatorLabel(kind: LegalLocatorKind, label: string) {
-  const value = label.replace(
-    kind === "paragraph"
-      ? /^(?:par(?:agraph)?)[=_ -]*/iu
-      : kind === "section"
-        ? /^(?:sec(?:tion)?)[=_ -]*/iu
-        : kind === "page"
-          ? /^page[=_ -]*/iu
-          : /^(?:fn|footnote|note)[=_ -]*/iu,
-    "",
-  );
-  return kind === "paragraph"
-    ? `para. ${value}`
-    : kind === "section"
-      ? `s. ${value}`
-      : kind === "page"
-        ? `p. ${value}`
-        : `fn. ${value}`;
 }
 
 export function appendPublicLegalPinpointLinks(
@@ -547,7 +514,7 @@ export function appendPublicLegalPinpointLinks(
                   block.label,
                   block.anchor ?? "",
                 ].join("|"),
-                label: `${document.title || document.identity}, ${locatorLabel(block.kind, block.label)}`,
+                label: `${document.title || document.identity}, ${formatLegalLocator(block.kind, block.label)}`,
                 evidence: {
                   url: document.url,
                   anchor:

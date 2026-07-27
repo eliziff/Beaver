@@ -295,32 +295,23 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
                 breadcrumbs={[{ label: "Library" }, { label: title }]}
-                actionGroups={[
+                actions={[
                     {
-                        actions: [
-                            {
-                                type: "search",
-                                value: search,
-                                onChange: (value) =>
-                                    setSearchForKind(kind, value),
-                                placeholder: `Search ${title.toLowerCase()}...`,
-                            },
-                        ],
+                        type: "search",
+                        value: search,
+                        onChange: (value) => setSearchForKind(kind, value),
+                        placeholder: `Search ${title.toLowerCase()}...`,
                     },
                     {
-                        actions: [
-                            {
-                                icon: <Upload className="h-3.5 w-3.5" />,
-                                label: (
-                                    <span className="hidden sm:inline">
-                                        {addCollectionLabel}
-                                    </span>
-                                ),
-                                title: `Add ${addCollectionLabel}`,
-                                onClick: addDocumentsAction ?? undefined,
-                                disabled: !addDocumentsAction || loading,
-                            },
-                        ],
+                        icon: <Upload className="h-3.5 w-3.5" />,
+                        label: (
+                            <span className="hidden sm:inline">
+                                {addCollectionLabel}
+                            </span>
+                        ),
+                        title: `Add ${addCollectionLabel}`,
+                        onClick: addDocumentsAction ?? undefined,
+                        disabled: !addDocumentsAction || loading,
                     },
                 ]}
             />

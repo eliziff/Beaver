@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Plus } from "lucide-react";
-import {
-    RowActionMenuItems,
-    RowActions,
-} from "@/app/components/shared/RowActions";
+import { RowActions } from "@/app/components/shared/RowActions";
 import {
     deleteTabularReview,
     listTabularReviews,
@@ -39,9 +36,8 @@ import {
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
-import { LiquidDropdownSurface } from "@/app/components/ui/liquid-dropdown";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 
 type ReviewScope = "all" | "in-project" | "standalone";
 type ReviewSortKey = "name" | "columns" | "documents" | "created";
@@ -81,9 +77,7 @@ export default function TabularReviewsPage() {
     } | null>(null);
     const [search, setSearch] = useState("");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [actionsOpen, setActionsOpen] = useState(false);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    const actionsRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
@@ -109,19 +103,6 @@ export default function TabularReviewsPage() {
     useEffect(() => {
         setSelectedIds([]);
     }, [activeScope, projectFilter]);
-
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (
-                actionsRef.current &&
-                !actionsRef.current.contains(e.target as Node)
-            ) {
-                setActionsOpen(false);
-            }
-        }
-        if (actionsOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [actionsOpen]);
 
     const projectNameById = useMemo(
         () => new Map(projects.map((project) => [project.id, project.name])),
@@ -193,7 +174,6 @@ export default function TabularReviewsPage() {
 
     function clearSelection() {
         setSelectedIds([]);
-        setActionsOpen(false);
     }
 
     function handleProjectFilterChange(value: string | null) {
@@ -268,7 +248,6 @@ export default function TabularReviewsPage() {
 
     async function handleDeleteSelected() {
         const ids = [...selectedIds];
-        setActionsOpen(false);
         const owned = ids.filter((id) => {
             const r = reviews.find((rr) => rr.id === id);
             return !r || !user?.id || r.user_id === user.id;
@@ -349,24 +328,21 @@ export default function TabularReviewsPage() {
 
     const toolbarActions =
         selectedIds.length > 0 ? (
-            <div ref={actionsRef} className="relative">
-                <TabPillButton
-                    onClick={() => setActionsOpen((v) => !v)}
-                >
+            <NativeActionSelect
+                label="Actions"
+                items={[
+                    {
+                        label: "Delete",
+                        onSelect: handleDeleteSelected,
+                    },
+                ]}
+                triggerClassName="h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
+            >
+                <>
                     Actions
                     <ChevronDown className="h-3.5 w-3.5" />
-                </TabPillButton>
-                {actionsOpen && (
-                    <LiquidDropdownSurface className="absolute top-full right-0 mt-1 z-[100] w-36 overflow-hidden">
-                        <button
-                            onClick={handleDeleteSelected}
-                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-500/10"
-                        >
-                            Delete
-                        </button>
-                    </LiquidDropdownSurface>
-                )}
-            </div>
+                </>
+            </NativeActionSelect>
         ) : undefined;
 
     return (
@@ -522,35 +498,6 @@ export default function TabularReviewsPage() {
                                 <TableRow
                                     key={review.id}
                                     selected={selectedIds.includes(review.id)}
-                                    rightClickDropdown={(close, menuProps) => (
-                                        <RowActionMenuItems
-                                            onClose={close}
-                                            surfaceProps={menuProps}
-                                            onEditDetails={() => {
-                                                requestReviewDetails(review);
-                                            }}
-                                            onDelete={async () => {
-                                                if (
-                                                    user?.id &&
-                                                    review.user_id !== user.id
-                                                ) {
-                                                    setOwnerOnlyAction(
-                                                        "delete this tabular review",
-                                                    );
-                                                    return;
-                                                }
-                                                await deleteTabularReview(
-                                                    review.id,
-                                                );
-                                                setReviews((prev) =>
-                                                    prev.filter(
-                                                        (r) =>
-                                                            r.id !== review.id,
-                                                    ),
-                                                );
-                                            }}
-                                        />
-                                    )}
                                     onClick={() => {
                                         router.push(
                                             review.project_id

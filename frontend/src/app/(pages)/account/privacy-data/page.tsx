@@ -23,15 +23,11 @@ import {
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
+import { downloadBlob } from "@/app/lib/download";
 
 type DeleteDataAction = "chats" | "tabular-reviews" | "projects";
 type ExportDataAction = "export-chats" | "export-tabular-reviews" | "export-account";
 type MfaRetryAction = DeleteDataAction | ExportDataAction;
-
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
 
 const DELETE_DATA_COPY: Record<
     DeleteDataAction,
@@ -70,19 +66,7 @@ export default function PrivacyDataPage() {
     const [isExportingTabularReviews, setIsExportingTabularReviews] =
         useState(false);
 
-    const downloadBlob = (blob: Blob, filename: string) => {
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-
     const handleExportAccountData = async () => {
-        devLog("[privacy-data/mfa] export account requested");
         setIsExportingAccount(true);
         try {
             if (await needsMfaVerification()) {
@@ -92,10 +76,6 @@ export default function PrivacyDataPage() {
             const { blob, filename } = await exportAccountData();
             downloadBlob(blob, filename ?? "beaver-account-export.json");
         } catch (error) {
-            devLog("[privacy-data/mfa] export account failed", {
-                isMfaRequired: isMfaRequiredError(error),
-                error,
-            });
             if (isMfaRequiredError(error)) {
                 setPendingMfaAction("export-account");
                 return;
@@ -107,7 +87,6 @@ export default function PrivacyDataPage() {
     };
 
     const handleExportChatData = async () => {
-        devLog("[privacy-data/mfa] export chats requested");
         setIsExportingChats(true);
         try {
             if (await needsMfaVerification()) {
@@ -117,10 +96,6 @@ export default function PrivacyDataPage() {
             const { blob, filename } = await exportChatData();
             downloadBlob(blob, filename ?? "beaver-chat-export.json");
         } catch (error) {
-            devLog("[privacy-data/mfa] export chats failed", {
-                isMfaRequired: isMfaRequiredError(error),
-                error,
-            });
             if (isMfaRequiredError(error)) {
                 setPendingMfaAction("export-chats");
                 return;
@@ -132,7 +107,6 @@ export default function PrivacyDataPage() {
     };
 
     const handleExportTabularReviewsData = async () => {
-        devLog("[privacy-data/mfa] export tabular reviews requested");
         setIsExportingTabularReviews(true);
         try {
             if (await needsMfaVerification()) {
@@ -142,10 +116,6 @@ export default function PrivacyDataPage() {
             const { blob, filename } = await exportTabularReviewsData();
             downloadBlob(blob, filename ?? "beaver-tabular-reviews-export.json");
         } catch (error) {
-            devLog("[privacy-data/mfa] export tabular reviews failed", {
-                isMfaRequired: isMfaRequiredError(error),
-                error,
-            });
             if (isMfaRequiredError(error)) {
                 setPendingMfaAction("export-tabular-reviews");
                 return;
@@ -157,7 +127,6 @@ export default function PrivacyDataPage() {
     };
 
     const handleDeleteData = async (action: DeleteDataAction) => {
-        devLog("[privacy-data/mfa] delete requested", { action });
         setDeletingAction(action);
         try {
             if (await needsMfaVerification()) {
@@ -178,11 +147,6 @@ export default function PrivacyDataPage() {
             }
             setPendingDeleteAction(null);
         } catch (error) {
-            devLog("[privacy-data/mfa] delete failed", {
-                action,
-                isMfaRequired: isMfaRequiredError(error),
-                error,
-            });
             if (isMfaRequiredError(error)) {
                 setPendingDeleteAction(null);
                 setPendingMfaAction(action);
@@ -196,7 +160,6 @@ export default function PrivacyDataPage() {
 
     const handleMfaVerified = async () => {
         const action = pendingMfaAction;
-        devLog("[privacy-data/mfa] verification callback", { action });
         setPendingMfaAction(null);
         if (!action) return;
 

@@ -29,7 +29,7 @@ export function ModalSegmentedToggle<T extends string>({
     return (
         <div
             className={cn(
-                "inline-grid gap-1 rounded-full border border-gray-200 bg-white shadow-sm",
+                "inline-grid gap-1 rounded-md border border-gray-300 bg-white",
                 size === "sm" ? "min-h-8 p-1" : "min-h-9 p-1",
                 className,
             )}
@@ -48,7 +48,7 @@ export function ModalSegmentedToggle<T extends string>({
                         disabled={disabled}
                         aria-pressed={active}
                         className={cn(
-                            "flex items-center justify-center whitespace-normal break-normal rounded-full py-1 text-xs leading-tight transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                            "flex items-center justify-center whitespace-normal break-normal rounded-sm py-1 text-xs leading-tight disabled:cursor-not-allowed disabled:opacity-60",
                             size === "sm" ? "gap-1 px-3" : "gap-1.5 px-3",
                             active
                                 ? "bg-gray-100 text-gray-900"

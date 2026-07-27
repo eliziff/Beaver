@@ -87,6 +87,17 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
     return status;
 }
 
+export function getEnvironmentApiKeys(): UserApiKeys {
+    return {
+        claude: envApiKey("claude"),
+        gemini: envApiKey("gemini"),
+        openai: envApiKey("openai"),
+        deepseek: envApiKey("deepseek"),
+        openrouter: envApiKey("openrouter"),
+        courtlistener: envApiKey("courtlistener"),
+    };
+}
+
 function encryptionKey(): Buffer {
     const secret = process.env.USER_API_KEYS_ENCRYPTION_SECRET;
     if (!secret) {
@@ -166,14 +177,7 @@ export async function getUserApiKeys(
     userId: string,
     db: Db = createServerSupabase(),
 ): Promise<UserApiKeys> {
-    const apiKeys: UserApiKeys = {
-        claude: envApiKey("claude"),
-        gemini: envApiKey("gemini"),
-        openai: envApiKey("openai"),
-        deepseek: envApiKey("deepseek"),
-        openrouter: envApiKey("openrouter"),
-        courtlistener: envApiKey("courtlistener"),
-    };
+    const apiKeys = getEnvironmentApiKeys();
 
     const { data, error } = await db
         .from("user_api_keys")

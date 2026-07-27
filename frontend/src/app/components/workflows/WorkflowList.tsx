@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     Plus,
@@ -18,15 +18,11 @@ import type { Workflow } from "../shared/types";
 import { UseWorkflowModal } from "./UseWorkflowModal";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 import { TableToolbar } from "../shared/TableToolbar";
-import { RowActionMenuItems, RowActions } from "../shared/RowActions";
+import { RowActions } from "../shared/RowActions";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
-import {
-    LiquidDropdownButton,
-    LiquidDropdownSurface,
-} from "@/app/components/ui/liquid-dropdown";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import {
     ChatSkeuoIcon,
     TabularReviewSkeuoIcon,
@@ -66,11 +62,6 @@ const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "desc", label: "Descending" },
 ];
 
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-    if (isDev) console.log(...args);
-};
-
 export function WorkflowList() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -83,7 +74,6 @@ export function WorkflowList() {
     );
     const [hiddenSystemIds, setHiddenSystemIds] = useState<string[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [actionsOpen, setActionsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<WorkflowListTab>("all");
     const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
     const [jurisdictionFilter, setJurisdictionFilter] = useState<string | null>(
@@ -97,7 +87,6 @@ export function WorkflowList() {
         direction: TableSortDirection;
     } | null>(null);
     const [search, setSearch] = useState("");
-    const actionsRef = useRef<HTMLDivElement>(null);
     const previewEmptyStates = searchParams.get("emptyStates") === "1";
     const effectiveLoading = loading && !previewEmptyStates;
     const visibleWorkflows = previewEmptyStates ? [] : workflows;
@@ -109,49 +98,14 @@ export function WorkflowList() {
             listHiddenWorkflows(),
         ])
             .then(([assistant, tabular, hidden]) => {
-                devLog("[workflows/ui:list] loaded", {
-                    assistantCount: assistant.length,
-                    tabularCount: tabular.length,
-                    hiddenCount: hidden.length,
-                    assistantSample: assistant.slice(0, 5).map((workflow) => ({
-                        id: workflow.id,
-                        title: workflow.metadata.title,
-                        type: workflow.metadata.type,
-                        user_id: workflow.user_id,
-                        is_system: workflow.is_system,
-                        is_owner: workflow.is_owner,
-                    })),
-                    tabularSample: tabular.slice(0, 5).map((workflow) => ({
-                        id: workflow.id,
-                        title: workflow.metadata.title,
-                        type: workflow.metadata.type,
-                        user_id: workflow.user_id,
-                        is_system: workflow.is_system,
-                        is_owner: workflow.is_owner,
-                    })),
-                });
                 setWorkflows([...assistant, ...tabular]);
                 setHiddenSystemIds(hidden);
             })
-            .catch((error) => {
-                devLog("[workflows/ui:list] failed; showing no workflows", error);
+            .catch(() => {
                 setWorkflows([]);
             })
             .finally(() => setLoading(false));
     }, []);
-
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (
-                actionsRef.current &&
-                !actionsRef.current.contains(e.target as Node)
-            ) {
-                setActionsOpen(false);
-            }
-        }
-        if (actionsOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [actionsOpen]);
 
     const systemWorkflows = visibleWorkflows.filter((wf) => wf.is_system);
     const userWorkflows = visibleWorkflows.filter(
@@ -231,7 +185,6 @@ export function WorkflowList() {
 
     function clearSelection() {
         setSelectedIds([]);
-        setActionsOpen(false);
     }
 
     function handleTabChange(tab: WorkflowListTab) {
@@ -283,7 +236,6 @@ export function WorkflowList() {
 
     async function handleBulkRemove() {
         const ids = [...selectedIds];
-        setActionsOpen(false);
         setSelectedIds([]);
         const systemIds = ids.filter(
             (id) => workflows.find((workflow) => workflow.id === id)?.is_system,
@@ -310,7 +262,6 @@ export function WorkflowList() {
 
     async function handleBulkUnhide() {
         const ids = [...selectedIds];
-        setActionsOpen(false);
         setSelectedIds([]);
         setHiddenSystemIds((prev) => prev.filter((id) => !ids.includes(id)));
         await Promise.all(ids.map((id) => unhideWorkflow(id).catch(() => {})));
@@ -420,33 +371,28 @@ export function WorkflowList() {
 
     const toolbarActions =
         selectedIds.length > 0 ? (
-            <div ref={actionsRef} className="relative">
-                <TabPillButton
-                    onClick={() => setActionsOpen((v) => !v)}
-                >
+            <NativeActionSelect
+                label="Actions"
+                items={[
+                    selectedOnlyHiddenSystem
+                        ? {
+                              label: "Activate",
+                              onSelect: handleBulkUnhide,
+                          }
+                        : {
+                              label: selectedOnlySystem
+                                  ? "Deactivate"
+                                  : "Delete",
+                              onSelect: handleBulkRemove,
+                          },
+                ]}
+                triggerClassName="h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
+            >
+                <>
                     Actions
                     <ChevronDown className="h-3.5 w-3.5" />
-                </TabPillButton>
-                {actionsOpen && (
-                    <LiquidDropdownSurface className="absolute top-full right-0 mt-1 z-[100] w-36 overflow-hidden">
-                        {selectedOnlyHiddenSystem ? (
-                            <LiquidDropdownButton
-                                onClick={handleBulkUnhide}
-                                className="w-full px-3 py-1.5 text-left text-gray-700"
-                            >
-                                Activate
-                            </LiquidDropdownButton>
-                        ) : (
-                            <button
-                                onClick={handleBulkRemove}
-                                className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-500/10"
-                            >
-                                {selectedOnlySystem ? "Deactivate" : "Delete"}
-                            </button>
-                        )}
-                    </LiquidDropdownSurface>
-                )}
-            </div>
+                </>
+            </NativeActionSelect>
         ) : undefined;
 
     return (
@@ -630,55 +576,6 @@ export function WorkflowList() {
                                 key={wf.id}
                                 selected={selectedIds.includes(wf.id)}
                                 className={isHiddenSystem ? "opacity-45" : undefined}
-                                rightClickDropdown={
-                                    wf.is_system
-                                        ? isHiddenSystem
-                                            ? (close, menuProps) => (
-                                                  <RowActionMenuItems
-                                                      onClose={close}
-                                                      surfaceProps={menuProps}
-                                                      onUnhide={() =>
-                                                          handleUnhideWorkflow(
-                                                              wf.id,
-                                                          )
-                                                      }
-                                                  />
-                                              )
-                                            : (close, menuProps) => (
-                                                  <RowActionMenuItems
-                                                      onClose={close}
-                                                      surfaceProps={menuProps}
-                                                      onHide={() =>
-                                                          handleHideWorkflow(
-                                                              wf.id,
-                                                          )
-                                                      }
-                                                  />
-                                              )
-                                        : wf.is_owner === false
-                                          ? undefined
-                                          : (close, menuProps) => (
-                                                <RowActionMenuItems
-                                                    onClose={close}
-                                                    surfaceProps={menuProps}
-                                                    onEditDetails={() =>
-                                                        setEditingWorkflow(wf)
-                                                    }
-                                                    onDelete={async () => {
-                                                        await deleteWorkflow(
-                                                            wf.id,
-                                                        );
-                                                        setWorkflows((prev) =>
-                                                            prev.filter(
-                                                                (w) =>
-                                                                    w.id !==
-                                                                    wf.id,
-                                                            ),
-                                                        );
-                                                    }}
-                                                />
-                                            )
-                                }
                                 onClick={() => setSelected(wf)}
                             >
                                 <TablePrimaryCell

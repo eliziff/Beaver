@@ -223,6 +223,15 @@ function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
     const reset = new Date();
     reset.setDate(reset.getDate() + 30);
     const apiKeyStatus = getEnvironmentApiKeyStatus();
+    const tabularModel = apiKeyStatus.gemini
+        ? DEFAULT_TABULAR_MODEL
+        : apiKeyStatus.openai
+          ? OPENAI_LOW_MODELS[0]
+          : apiKeyStatus.deepseek
+            ? DEEPSEEK_MAIN_MODELS[0]
+            : apiKeyStatus.claude
+              ? "claude-sonnet-4-5"
+              : DEFAULT_TABULAR_MODEL;
     return serializeProfile(
         {
             display_name: null,
@@ -231,7 +240,7 @@ function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
             credits_reset_date: reset.toISOString(),
             tier: "Free",
             title_model: null,
-            tabular_model: DEFAULT_TABULAR_MODEL,
+            tabular_model: tabularModel,
             mfa_on_login: false,
             legal_research_us: true,
         },

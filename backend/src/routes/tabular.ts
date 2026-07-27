@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { readFile } from "node:fs/promises";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
 import { downloadFile } from "../lib/storage";
@@ -42,6 +43,16 @@ import {
     findMissingUserEmails,
     loadProfileUsersByEmail,
 } from "../lib/userLookup";
+import { isAnonymousLocalMode } from "../lib/localMode";
+import {
+    getLocalVersionFiles,
+    listLocalDocumentsById,
+} from "../lib/localDocumentStore";
+import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
+import {
+    localTabularStore,
+    type LocalTabularColumn,
+} from "../lib/localTabularStore";
 
 function formatPromptSuffix(format?: string, tags?: string[]): string {
     switch (format) {
@@ -89,8 +100,62 @@ function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
     };
 }
 
+function localColumns(value: unknown): LocalTabularColumn[] {
+    return Array.isArray(value) ? (value as LocalTabularColumn[]) : [];
+}
+
+async function accessibleLocalDocumentIds(
+    userId: string,
+    requested: unknown,
+    projectId: string | null,
+) {
+    const ids = Array.isArray(requested)
+        ? requested.filter((id): id is string => typeof id === "string")
+        : [];
+    const owned = new Set(
+        (await listLocalDocumentsById(userId, ids)).map(
+            (document) => document.id as string,
+        ),
+    );
+    if (!projectId) return ids.filter((id) => owned.has(id));
+    const matterDocuments =
+        legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId);
+    if (!matterDocuments) return null;
+    const attached = new Set(matterDocuments);
+    return ids.filter((id) => owned.has(id) && attached.has(id));
+}
+
+async function localDocumentMarkdown(userId: string, documentId: string) {
+    const files = await getLocalVersionFiles(userId, [documentId]);
+    const file = files.get(documentId);
+    if (!file) return null;
+    const bytes = await readFile(file.path);
+    const buffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+    let markdown = "";
+    try {
+        markdown = await extractDocumentMarkdown(buffer, file.fileType);
+    } catch (error) {
+        console.error(
+            `[tabular/local] extraction error doc=${documentId}`,
+            safeErrorLog(error),
+        );
+    }
+    return { filename: file.filename, markdown };
+}
+
 tabularRouter.get("/", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
+    if (isAnonymousLocalMode()) {
+        const projectId =
+            typeof req.query.project_id === "string" && req.query.project_id
+                ? req.query.project_id
+                : undefined;
+        res.json(localTabularStore().list(userId, projectId));
+        return;
+    }
     const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
 
@@ -120,6 +185,37 @@ tabularRouter.post("/", requireAuth, async (req, res) => {
             workflow_id?: string;
             project_id?: string;
         };
+
+    if (isAnonymousLocalMode()) {
+        const projectId =
+            typeof project_id === "string" && project_id.trim()
+                ? project_id.trim()
+                : null;
+        const allowedDocumentIds = await accessibleLocalDocumentIds(
+            userId,
+            document_ids,
+            projectId,
+        );
+        if (!allowedDocumentIds) {
+            return void res.status(404).json({ detail: "Project not found" });
+        }
+        try {
+            const review = localTabularStore().create({
+                userId,
+                title,
+                projectId,
+                columns: localColumns(columns_config),
+                documentIds: allowedDocumentIds,
+                workflowId: workflow_id,
+            });
+            res.status(201).json(review);
+        } catch (error) {
+            res.status(400).json({
+                detail: safeErrorMessage(error, "Invalid tabular review"),
+            });
+        }
+        return;
+    }
 
     const db = createServerSupabase();
     if (project_id) {
@@ -245,6 +341,27 @@ tabularRouter.get("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        const store = localTabularStore();
+        const detail = store.detail(userId, reviewId);
+        if (!detail)
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        const documents = await listLocalDocumentsById(
+            userId,
+            detail.review.document_ids,
+        );
+        res.json({
+            ...detail,
+            documents: documents.map((document) => ({
+                ...document,
+                project_id: detail.review.project_id,
+                folder_id: null,
+            })),
+        });
+        return;
+    }
     const db = createServerSupabase();
 
     const { data: review, error } = await db
@@ -295,6 +412,22 @@ tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        if (!localTabularStore().get(userId, reviewId)) {
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        }
+        res.json({
+            owner: {
+                user_id: userId,
+                email: null,
+                display_name: null,
+            },
+            members: [],
+        });
+        return;
+    }
     const db = createServerSupabase();
 
     const { data: review } = await db
@@ -336,6 +469,62 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        const body = req.body ?? {};
+        const projectChanged = Object.hasOwn(body, "project_id");
+        const current = localTabularStore().get(userId, reviewId);
+        if (!current)
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        const targetProjectId = projectChanged
+            ? typeof body.project_id === "string" && body.project_id.trim()
+                ? body.project_id.trim()
+                : null
+            : current.project_id;
+        if (
+            targetProjectId &&
+            !legalKnowledgeGraphStore().getMatter(userId, targetProjectId)
+        ) {
+            return void res
+                .status(404)
+                .json({ detail: "Target project not found" });
+        }
+        const nextDocumentIds = Object.hasOwn(body, "document_ids")
+            ? await accessibleLocalDocumentIds(
+                  userId,
+                  body.document_ids,
+                  targetProjectId,
+              )
+            : undefined;
+        if (nextDocumentIds === null) {
+            return void res
+                .status(404)
+                .json({ detail: "Target project not found" });
+        }
+        try {
+            const updated = localTabularStore().update(userId, reviewId, {
+                ...(Object.hasOwn(body, "title")
+                    ? { title: body.title }
+                    : {}),
+                ...(projectChanged
+                    ? { projectId: targetProjectId }
+                    : {}),
+                ...(Object.hasOwn(body, "columns_config")
+                    ? { columns: localColumns(body.columns_config) }
+                    : {}),
+                ...(nextDocumentIds !== undefined
+                    ? { documentIds: nextDocumentIds }
+                    : {}),
+            });
+            res.json(updated);
+        } catch (error) {
+            res.status(400).json({
+                detail: safeErrorMessage(error, "Invalid tabular review"),
+            });
+        }
+        return;
+    }
     const updates: Record<string, unknown> = {};
     if (req.body.title != null) updates.title = req.body.title;
     const projectIdUpdateProvided = req.body.project_id !== undefined;
@@ -561,6 +750,15 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
 tabularRouter.delete("/:reviewId", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        if (!localTabularStore().delete(userId, reviewId)) {
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        }
+        res.status(204).send();
+        return;
+    }
     const db = createServerSupabase();
     const { error } = await db
         .from("tabular_reviews")
@@ -582,6 +780,22 @@ tabularRouter.post("/:reviewId/clear-cells", requireAuth, async (req, res) => {
         return void res
             .status(400)
             .json({ detail: "document_ids is required" });
+
+    if (isAnonymousLocalMode()) {
+        if (
+            !localTabularStore().clearCells(
+                userId,
+                reviewId,
+                document_ids,
+            )
+        ) {
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        }
+        res.status(204).send();
+        return;
+    }
 
     const db = createServerSupabase();
     const { data: review, error: reviewError } = await db
@@ -620,6 +834,78 @@ tabularRouter.post(
             return void res
                 .status(400)
                 .json({ detail: "document_id and column_index are required" });
+
+        if (isAnonymousLocalMode()) {
+            const review = localTabularStore().get(userId, reviewId);
+            if (!review)
+                return void res
+                    .status(404)
+                    .json({ detail: "Review not found" });
+            const column = review.columns_config.find(
+                (candidate) => candidate.index === column_index,
+            );
+            if (!column)
+                return void res
+                    .status(400)
+                    .json({ detail: "Column not found" });
+            if (!review.document_ids.includes(document_id)) {
+                return void res
+                    .status(404)
+                    .json({ detail: "Document not found" });
+            }
+            const document = await localDocumentMarkdown(
+                userId,
+                document_id,
+            );
+            if (!document)
+                return void res
+                    .status(404)
+                    .json({ detail: "Document not found" });
+            const { tabular_model, api_keys } =
+                await getUserModelSettings(userId);
+            const missingKey = missingModelApiKey(
+                tabular_model,
+                api_keys,
+            );
+            if (missingKey) {
+                return void res.status(422).json({
+                    code: "missing_api_key",
+                    ...missingKey,
+                });
+            }
+            localTabularStore().setCell({
+                userId,
+                reviewId,
+                documentId: document_id,
+                columnIndex: column_index,
+                content: null,
+                status: "generating",
+            });
+            const result = await queryTabularCell(
+                tabular_model,
+                document.filename,
+                document.markdown,
+                column.prompt,
+                column.format,
+                column.tags,
+                api_keys,
+            );
+            localTabularStore().setCell({
+                userId,
+                reviewId,
+                documentId: document_id,
+                columnIndex: column_index,
+                content: result,
+                status: result ? "done" : "error",
+            });
+            if (!result) {
+                return void res
+                    .status(500)
+                    .json({ detail: "Generation failed" });
+            }
+            res.json(result);
+            return;
+        }
 
         const db = createServerSupabase();
         const { data: review, error: reviewError } = await db
@@ -734,6 +1020,120 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        const store = localTabularStore();
+        const detail = store.detail(userId, reviewId);
+        if (!detail)
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        const columns = detail.review.columns_config;
+        if (columns.length === 0) {
+            return void res
+                .status(400)
+                .json({ detail: "No columns configured" });
+        }
+        const { tabular_model, api_keys } =
+            await getUserModelSettings(userId);
+        const missingKey = missingModelApiKey(tabular_model, api_keys);
+        if (missingKey) {
+            return void res.status(422).json({
+                code: "missing_api_key",
+                ...missingKey,
+            });
+        }
+
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
+        const write = (value: unknown) =>
+            res.write(`data: ${JSON.stringify(value)}\n\n`);
+        const writeCell = (
+            documentId: string,
+            columnIndex: number,
+            content: CellResult | null,
+            status: "generating" | "done" | "error",
+        ) => {
+            store.setCell({
+                userId,
+                reviewId,
+                documentId,
+                columnIndex,
+                content,
+                status,
+            });
+            write({
+                type: "cell_update",
+                document_id: documentId,
+                column_index: columnIndex,
+                content,
+                status,
+            });
+        };
+        const cellByKey = new Map(
+            detail.cells.map((cell) => [
+                `${cell.document_id}:${cell.column_index}`,
+                cell,
+            ]),
+        );
+
+        try {
+            for (const documentId of detail.review.document_ids) {
+                const document = await localDocumentMarkdown(
+                    userId,
+                    documentId,
+                );
+                if (!document) continue;
+                const pendingColumns = columns.filter((column) => {
+                    const cell = cellByKey.get(
+                        `${documentId}:${column.index}`,
+                    );
+                    return cell?.status !== "done" || !cell.content;
+                });
+                if (pendingColumns.length === 0) continue;
+                for (const column of pendingColumns) {
+                    writeCell(
+                        documentId,
+                        column.index,
+                        null,
+                        "generating",
+                    );
+                }
+                const received = new Set<number>();
+                await queryTabularAllColumns(
+                    tabular_model,
+                    document.filename,
+                    document.markdown,
+                    pendingColumns,
+                    async (columnIndex, result) => {
+                        received.add(columnIndex);
+                        writeCell(documentId, columnIndex, result, "done");
+                    },
+                    api_keys,
+                );
+                for (const column of pendingColumns) {
+                    if (received.has(column.index)) continue;
+                    writeCell(documentId, column.index, null, "error");
+                }
+            }
+            res.write("data: [DONE]\n\n");
+        } catch (error) {
+            console.error(
+                "[tabular/local/generate]",
+                safeErrorLog(error),
+            );
+            write({
+                type: "error",
+                message: safeErrorMessage(error, "Stream error"),
+            });
+            res.write("data: [DONE]\n\n");
+        } finally {
+            res.end();
+        }
+        return;
+    }
     const db = createServerSupabase();
 
     const { data: review, error: reviewError } = await db
