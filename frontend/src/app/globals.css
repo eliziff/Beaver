@@ -399,15 +399,6 @@
         }
     }
 
-    @keyframes scroll-left {
-        0% {
-            transform: translateX(0);
-        }
-        100% {
-            transform: translateX(calc(-100% + 100px));
-        }
-    }
-
     @keyframes shimmer {
         from {
             background-position: 0 0;
