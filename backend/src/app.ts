@@ -198,4 +198,11 @@ app.use("/case-law", caseLawRouter);
 app.use("/codex", codexRouter);
 app.use("/table-of-authorities", tableOfAuthoritiesRouter);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) =>
+  res.json({
+    ok: true,
+    runtime: {
+      mode: isAnonymousLocalMode() ? "anonymous-local" : "cloud",
+    },
+  }),
+);

@@ -41,10 +41,48 @@ vi.mock("@supabase/supabase-js", () => ({
 import { app } from "../../app";
 
 describe("GET /health", () => {
-    it("returns 200 with { ok: true }", async () => {
+    it("reports the effective runtime without exposing configuration", async () => {
         const res = await request(app).get("/health");
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ ok: true });
+        expect(res.body).toEqual({
+            ok: true,
+            runtime: { mode: "cloud" },
+        });
+    });
+
+    it("reports anonymous-local only when cloud persistence is unavailable", async () => {
+        const previous = {
+            nodeEnv: process.env.NODE_ENV,
+            authMode: process.env.AUTH_MODE,
+            supabaseUrl: process.env.SUPABASE_URL,
+            supabaseKey: process.env.SUPABASE_SECRET_KEY,
+        };
+        try {
+            process.env.NODE_ENV = "development";
+            process.env.AUTH_MODE = "anonymous";
+            process.env.SUPABASE_URL = "http://supabase.test.local";
+            process.env.SUPABASE_SECRET_KEY = "test-service-key";
+            expect((await request(app).get("/health")).body.runtime.mode).toBe(
+                "cloud",
+            );
+
+            process.env.SUPABASE_URL = "";
+            process.env.SUPABASE_SECRET_KEY = "";
+            expect((await request(app).get("/health")).body.runtime.mode).toBe(
+                "anonymous-local",
+            );
+        } finally {
+            if (previous.nodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = previous.nodeEnv;
+            if (previous.authMode === undefined) delete process.env.AUTH_MODE;
+            else process.env.AUTH_MODE = previous.authMode;
+            if (previous.supabaseUrl === undefined)
+                delete process.env.SUPABASE_URL;
+            else process.env.SUPABASE_URL = previous.supabaseUrl;
+            if (previous.supabaseKey === undefined)
+                delete process.env.SUPABASE_SECRET_KEY;
+            else process.env.SUPABASE_SECRET_KEY = previous.supabaseKey;
+        }
     });
 });
 

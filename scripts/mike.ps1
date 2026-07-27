@@ -4,6 +4,7 @@ param(
     [ValidateSet('start', 'stop', 'status', 'doctor', 'smoke', 'self-test')]
     [string]$Action = 'status',
     [switch]$WithTableOfAuthorities,
+    [switch]$Full,
     [switch]$NoBrowser,
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 90
@@ -104,6 +105,22 @@ function Get-OwnedRecords($State) {
         (Test-ProcessIdentity ([int]$_.rootPid) ([string]$_.rootStartedAt)) -or
         (Test-ProcessIdentity ([int]$_.listenerPid) ([string]$_.listenerStartedAt))
     })
+}
+
+function Test-LauncherOwnedListener($State, [string]$Name, [int]$Port) {
+    if (-not $State) {
+        return $false
+    }
+    $records = @($State.processes | Where-Object {
+        $_.name -eq $Name -and
+        [int]$_.port -eq $Port -and
+        (Test-ProcessIdentity ([int]$_.listenerPid) ([string]$_.listenerStartedAt))
+    })
+    if ($records.Count -ne 1) {
+        return $false
+    }
+    $owners = @(Get-PortOwners $Port)
+    return $owners.Count -eq 1 -and [int]$owners[0].Id -eq [int]$records[0].listenerPid
 }
 
 function Resolve-Application([string[]]$Names) {
@@ -526,6 +543,21 @@ function Start-Stack {
 }
 
 function Invoke-Smoke {
+    if ($Full -and -not $WithTableOfAuthorities) {
+        throw 'Full smoke requires -WithTableOfAuthorities.'
+    }
+    $state = Read-State
+    $services = @($Services)
+    if ($WithTableOfAuthorities) {
+        $services += [pscustomobject]@{ Name = 'table-of-authorities'; Port = 8765 }
+    }
+    foreach ($service in $services) {
+        if (-not (Test-LauncherOwnedListener $state $service.Name $service.Port)) {
+            $start = '.\scripts\mike.ps1 start' +
+                $(if ($WithTableOfAuthorities) { ' -WithTableOfAuthorities' } else { '' })
+            throw "Smoke requires launcher-owned $($service.Name); $(Format-PortOwners $service.Port). Run: $start"
+        }
+    }
     $checks = @(
         [pscustomobject]@{ Name = 'backend'; Url = 'http://127.0.0.1:3001/health' },
         [pscustomobject]@{ Name = 'frontend'; Url = 'http://127.0.0.1:3000/' },
@@ -565,6 +597,22 @@ function Invoke-Smoke {
             throw "FAIL $($check.Name): $($check.Url) - $($_.Exception.Message)"
         }
     }
+    if ($Full) {
+        $playwright = Join-Path $Repo 'node_modules\.bin\playwright.cmd'
+        if (-not (Test-Path -LiteralPath $playwright -PathType Leaf)) {
+            throw 'Full smoke requires root test dependencies. Run npm ci in the repository root.'
+        }
+        Push-Location $Repo
+        try {
+            & $playwright test '--config=playwright.local-smoke.config.ts'
+            if ($LASTEXITCODE -ne 0) {
+                throw "Full anonymous production smoke failed with exit code $LASTEXITCODE."
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
 }
 
 function Invoke-SelfTest {
@@ -586,6 +634,21 @@ function Invoke-SelfTest {
         } while ([DateTime]::UtcNow -lt $deadline)
         if (-not ($owners | Where-Object { $_.Id -eq $PID })) {
             throw "Port ownership check did not report this process on port $port."
+        }
+        $ownedState = [pscustomobject]@{
+            processes = @([pscustomobject]@{
+                name = 'self-test'
+                port = $port
+                listenerPid = $PID
+                listenerStartedAt = Get-ProcessStamp $PID
+            })
+        }
+        if (-not (Test-LauncherOwnedListener $ownedState 'self-test' $port)) {
+            throw 'Launcher-owned listener check rejected a matching process.'
+        }
+        $ownedState.processes[0].listenerStartedAt = [DateTime]::UtcNow.AddDays(-1).ToString('o')
+        if (Test-LauncherOwnedListener $ownedState 'self-test' $port) {
+            throw 'Launcher-owned listener check accepted a stale process.'
         }
     }
     finally {
