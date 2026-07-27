@@ -274,6 +274,12 @@ async function runCodex(params: {
   child.once("error", (error) => {
     childError = error instanceof Error ? error : new Error(String(error));
   });
+  const exitPromise = new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+  }>((resolve) => {
+    child.once("close", (code, signal) => resolve({ code, signal }));
+  });
   const timeout = setTimeout(() => {
     timedOut = true;
     child.kill();
@@ -330,12 +336,7 @@ async function runCodex(params: {
       }
     }
 
-    const exit = await new Promise<{
-      code: number | null;
-      signal: NodeJS.Signals | null;
-    }>((resolve) => {
-      child.once("close", (code, signal) => resolve({ code, signal }));
-    });
+    const exit = await exitPromise;
     throwIfAborted(params.abortSignal);
 
     if (timedOut) throw new Error("Codex exec timed out.");

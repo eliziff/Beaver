@@ -33,7 +33,7 @@ function fakeChild(lines: string[]): FakeChild {
     setImmediate(() => {
       for (const line of lines) child.stdout.write(`${line}\n`);
       child.stdout.end();
-      setImmediate(() => child.emit("close", 0, null));
+      child.emit("close", 0, null);
     });
     return child.stdin;
   }) as typeof child.stdin.end;
