@@ -46,7 +46,7 @@ const CLUSTER_COLUMNS = `
   filepath_pdf_harvard
 `;
 
-export function courtlistenerLocalBulkPath() {
+function courtlistenerLocalBulkPath() {
   const configured = process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
   return legalProviderDatabase("courtlistener", "courtlistener.sqlite");

@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import { getLocalVersionFile } from "./localDocumentStore";
+import { decodeXmlText, escapeRegExp } from "./text";
 
 // Deterministic structural lint for contract-style DOCX documents.
 //
@@ -61,19 +62,6 @@ export type DocxStructuralLintReport = {
   notes: string[];
 };
 
-function decodeXmlText(value: string) {
-  return value
-    .replace(/&lt;/gu, "<")
-    .replace(/&gt;/gu, ">")
-    .replace(/&quot;/gu, '"')
-    .replace(/&apos;/gu, "'")
-    .replace(/&#(\d+);/gu, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/gu, (_, code) =>
-      String.fromCodePoint(Number.parseInt(code, 16)),
-    )
-    .replace(/&amp;/gu, "&");
-}
-
 function normalizeText(value: string) {
   return value
     .replace(/[“”]/gu, '"')
@@ -104,10 +92,6 @@ function excerptAround(text: string, subject: string) {
   return `${start > 0 ? "…" : ""}${slice}${
     start + EXCERPT_LENGTH < text.length ? "…" : ""
   }`;
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 const ROMAN_PATTERN = /^[IVXLCDM]+$/u;

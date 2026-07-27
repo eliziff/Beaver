@@ -1,17 +1,5 @@
 import JSZip from "jszip";
-
-function decodeXml(text: string) {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCharCode(Number.parseInt(code, 16)),
-    );
-}
+import { decodeXmlText as decodeXml } from "./text";
 
 function extractTagText(xml: string, tagName: string) {
   const parts: string[] = [];

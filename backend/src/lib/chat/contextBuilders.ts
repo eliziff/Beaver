@@ -319,7 +319,7 @@ export async function appendAssistantEventsToLastAssistantMessage(
   }
 }
 
-export function appendCancelledAssistantEvent(events: AssistantEvent[]) {
+function appendCancelledAssistantEvent(events: AssistantEvent[]) {
   return [...events, { type: "content" as const, text: "Cancelled by user." }];
 }
 

@@ -104,7 +104,7 @@ export class AssistantStreamError extends Error {
   }
 }
 
-export class AssistantStreamAbortError extends AssistantStreamError {
+class AssistantStreamAbortError extends AssistantStreamError {
   constructor(fullText: string, events: AssistantEvent[]) {
     super("Stream aborted.", fullText, events);
     this.name = "AbortError";

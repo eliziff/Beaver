@@ -16,7 +16,6 @@
 
 import JSZip from "jszip";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
-import fastDiff from "fast-diff";
 
 // ---------------------------------------------------------------------------
 // JSZip path helpers
@@ -663,11 +662,6 @@ function mapNormRangeToOriginal(
 // Main: applyTrackedEdits
 // ---------------------------------------------------------------------------
 
-const W_NS_ATTRS: Record<string, string> = {
-    "xmlns:w":
-        "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
-};
-
 function createParser() {
     return new XMLParser({
         ignoreAttributes: false,
@@ -1217,17 +1211,3 @@ function truncate(s: string, n: number): string {
     return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
-// Lightweight guards used elsewhere; exported for tests.
-export const _internal = {
-    flattenParagraph,
-    collapseDiff,
-    indexAll,
-};
-
-// Silence unused import if fastDiff is ever reintroduced for ranged matching.
-// kept available in the file because the plan references it for future work.
-export const _fastDiff = fastDiff;
-
-// Suppress unused warning for W_NS_ATTRS (kept for potential future use when
-// emitting standalone w:ins/w:del into parts without a namespace inheritance).
-export const _nsAttrs = W_NS_ATTRS;

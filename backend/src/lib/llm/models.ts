@@ -1,9 +1,5 @@
 import type { Provider } from "./types";
 
-// ---------------------------------------------------------------------------
-// Canonical model IDs
-// ---------------------------------------------------------------------------
-// Main-chat tier (top-end) — user picks one of these per message.
 export const CLAUDE_MAIN_MODELS = [
     "claude-fable-5",
     "claude-opus-4-8",
@@ -22,18 +18,15 @@ export const DEEPSEEK_MAIN_MODELS = [
 ] as const;
 export const META_MAIN_MODELS = ["meta/muse-spark-1.1"] as const;
 
-// Mid-tier (used for tabular review) — user picks one in account settings.
 export const CLAUDE_MID_MODELS = ["claude-sonnet-4-6"] as const;
 export const GEMINI_MID_MODELS = ["gemini-3.5-flash", "gemini-3-flash-preview"] as const;
 export const OPENAI_MID_MODELS = ["gpt-5.4"] as const;
 
-// Low-tier (used for title generation, lightweight extractions) — user picks
-// one in account settings.
 export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
-export const CODEX_MAIN_MODELS = ["codex-exec"] as const;
-export const CODEX_MODEL_PREFIX = "codex:";
+const CODEX_MAIN_MODELS = ["codex-exec"] as const;
+const CODEX_MODEL_PREFIX = "codex:";
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -54,9 +47,6 @@ const ALL_MODELS = new Set<string>([
     ...CODEX_MAIN_MODELS,
 ]);
 
-// ---------------------------------------------------------------------------
-// Provider inference
-// ---------------------------------------------------------------------------
 
 export function providerForModel(model: string): Provider {
     if (model === "codex-exec" || model.startsWith(CODEX_MODEL_PREFIX)) {

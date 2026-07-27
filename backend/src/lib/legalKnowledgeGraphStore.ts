@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { mikeLocalDataHome } from "./legalDataPath";
 
-export const GENERAL_RESEARCH_PROJECT_ID = "general";
+const GENERAL_RESEARCH_PROJECT_ID = "general";
 export const LEGAL_KNOWLEDGE_SCHEMA_VERSION = 2;
 const MAX_LABEL_DEPTH = 3;
 const KIND = /^[a-z][a-z0-9_-]{0,39}$/u;

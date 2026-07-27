@@ -7,6 +7,7 @@ import {
   getCourtlistenerOpinionDocumentText,
   getCourtlistenerOpinionStructure,
 } from "./courtlistener";
+import { normalizeWhitespace } from "./text";
 
 type WordSpan = { word: string; start: number; end: number };
 type SourceSpan = {
@@ -102,10 +103,6 @@ function isLexumParagraphSource(lookup: A2AJLocatorLookup) {
   } catch {
     return false;
   }
-}
-
-function normalizeWhitespace(text: string) {
-  return text.trim().replace(/[ \t\r\n\f\v]+/gu, " ");
 }
 
 function quoteText(text: string) {

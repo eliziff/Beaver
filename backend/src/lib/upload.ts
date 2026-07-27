@@ -1,8 +1,8 @@
 import type { RequestHandler } from "express";
 import multer from "multer";
 
-export const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
-export const MAX_UPLOAD_SIZE_MB = Math.round(
+const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_MB = Math.round(
   MAX_UPLOAD_SIZE_BYTES / (1024 * 1024),
 );
 

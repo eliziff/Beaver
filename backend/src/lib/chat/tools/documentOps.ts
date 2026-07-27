@@ -97,7 +97,7 @@ async function generatedDocxResult(title: string, bytes: Buffer) {
   };
 }
 
-export function docxFieldValues(raw: unknown) {
+function docxFieldValues(raw: unknown) {
   if (raw === undefined) return {};
   if (!Array.isArray(raw) || raw.length > 100) {
     throw new Error("DOCX fields must be an array of at most 100 values.");
@@ -769,7 +769,7 @@ export async function generatePpt(
  * Resolve the current .docx bytes for a document, preferring the active
  * tracked-changes version if one exists, else the original upload.
  */
-export async function loadCurrentVersionBytes(
+async function loadCurrentVersionBytes(
   documentId: string,
   db: ReturnType<typeof createServerSupabase>,
 ): Promise<{
