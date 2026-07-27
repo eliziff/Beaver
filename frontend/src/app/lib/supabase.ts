@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const isAnonymousMode =
-    process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous";
+export { isAnonymousMode } from "./authMode";
 
 const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || "https://anonymous.invalid";

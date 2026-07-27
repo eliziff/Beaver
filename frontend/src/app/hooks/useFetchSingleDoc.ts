@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 
 /**
  * /display returns PDF bytes (when the active version has a PDF rendition),
@@ -46,10 +46,7 @@ export function useFetchSingleDoc(
 
         (async () => {
             try {
-                const {
-                    data: { session },
-                } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const authHeaders = await getAuthHeader();
                 if (cancelled) return;
 
                 const apiBase =
@@ -60,11 +57,7 @@ export function useFetchSingleDoc(
                     : "";
                 const response = await fetch(
                     `${apiBase}/single-documents/${documentId}/display${qs}`,
-                    {
-                        headers: token
-                            ? { Authorization: `Bearer ${token}` }
-                            : {},
-                    },
+                    { headers: authHeaders },
                 );
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 if (cancelled) return;
