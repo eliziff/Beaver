@@ -1,6 +1,5 @@
 import dns from "dns/promises";
 import net from "net";
-import { Agent, fetch as undiciFetch } from "undici";
 
 const BLOCKED_METADATA_HOSTS = new Set([
   "metadata.google.internal",
@@ -196,6 +195,9 @@ export async function guardedRemoteFetch(
         ? input.toString()
         : input.url;
   const approved = await resolveRemoteHttpsUrl(rawUrl, label);
+  // undici costs ~100ms to require; guarded fetches are per-request work,
+  // so the dependency loads on first use instead of at server boot.
+  const { Agent, fetch: undiciFetch } = await import("undici");
   const dispatcher = new Agent({
     connect: {
       lookup: pinnedLookup(approved.addresses),
