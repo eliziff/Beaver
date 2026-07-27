@@ -9,6 +9,7 @@ import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
 } from "./highlightDocxQuote";
+import { linkDocxNotes, tagDocxNotes, type DocxNoteModel } from "./docxNotes";
 import type { CitationQuote } from "../types";
 
 interface Props {
@@ -76,27 +77,43 @@ interface Props {
     rounded?: boolean;
 }
 
+/**
+ * Only the options that differ from `docx-preview`'s defaults.
+ * `ignoreLastRenderedPageBreak: false` makes the renderer honour the page
+ * boundaries Word actually recorded; the rest are already on by default.
+ */
 export const DOCX_RENDER_OPTIONS = {
-    inWrapper: true,
-    ignoreWidth: false,
-    ignoreHeight: false,
-    breakPages: true,
     ignoreLastRenderedPageBreak: false,
-    renderFootnotes: true,
-    renderEndnotes: true,
     renderChanges: true,
     experimental: true,
 } satisfies Partial<DocxPreviewOptions>;
 
-export function decorateDocxPages(container: HTMLElement): void {
-    const pages = container.querySelectorAll<HTMLElement>(
-        ".docx-wrapper > section.docx",
-    );
-    pages.forEach((page, index) => {
-        const pageNumber = String(index + 1);
-        page.dataset.pageNumber = pageNumber;
-        page.setAttribute("aria-label", `Page ${pageNumber}`);
-    });
+/**
+ * Parse once per distinct byte buffer. `useFetchDocxBytes` hands back the
+ * same ArrayBuffer across mounts, so remounting a side panel re-renders
+ * from the cached model instead of inflating and re-parsing the zip.
+ * Weakly keyed, so the model dies with the bytes.
+ */
+const parsedDocxCache = new WeakMap<ArrayBuffer, Promise<DocxNoteModel>>();
+
+function parseDocx(
+    bytes: ArrayBuffer,
+    parseAsync: (data: ArrayBuffer, options: Partial<DocxPreviewOptions>) => Promise<unknown>,
+): Promise<DocxNoteModel> {
+    let pending = parsedDocxCache.get(bytes);
+    if (!pending) {
+        pending = parseAsync(bytes, DOCX_RENDER_OPTIONS)
+            .then(async (doc) => {
+                await tagDocxNotes(doc as DocxNoteModel);
+                return doc as DocxNoteModel;
+            })
+            .catch((error: unknown) => {
+                parsedDocxCache.delete(bytes);
+                throw error;
+            });
+        parsedDocxCache.set(bytes, pending);
+    }
+    return pending;
 }
 
 type TrackedChangeId = { kind: "ins" | "del"; w_id: string };
@@ -408,17 +425,18 @@ export function DocxView({
 
         (async () => {
             try {
-                const { renderAsync } = await import("docx-preview");
+                const { parseAsync, renderDocument } =
+                    await import("docx-preview");
+                const doc = await parseDocx(bytes, parseAsync);
                 if (cancelled) return;
-                containerEl.innerHTML = "";
-                await renderAsync(
-                    bytes,
+                await renderDocument(
+                    doc,
                     containerEl,
                     undefined,
                     DOCX_RENDER_OPTIONS,
                 );
                 if (cancelled) return;
-                decorateDocxPages(containerEl);
+                linkDocxNotes(containerEl);
                 // Make the first painted frame correctly sized. Documents
                 // without tracked changes now avoid the metadata request
                 // below entirely.

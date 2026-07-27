@@ -586,26 +586,35 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.docx-view-container .docx-wrapper > section.docx[data-page-number]::after {
-    content: "Page " attr(data-page-number);
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    z-index: 2;
-    padding: 2px 5px;
-    border: 1px solid rgba(181, 32, 22, 0.2);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.9);
-    color: #b72016;
-    font: 500 10px/1.2 system-ui, sans-serif;
-    pointer-events: none;
-    user-select: none;
+/* Footnote/endnote area (see docxNotes.ts). The list markers docx-preview
+   would otherwise draw restart at 1 on every rendered page; our own labels
+   run continuously, so the browser's are suppressed. The short rule above
+   the notes is Word's footnote separator. */
+.docx-view-container .docx-notes {
+    list-style: none;
+    margin: 1.5em 0 0;
+    padding: 0;
 }
 
-@media print {
-    .docx-view-container .docx-wrapper > section.docx[data-page-number]::after {
-        display: none;
-    }
+.docx-view-container .docx-notes::before {
+    content: "";
+    display: block;
+    width: 2in;
+    max-width: 40%;
+    margin-bottom: 0.6em;
+    border-top: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.docx-view-container a.docx-note-ref,
+.docx-view-container a.docx-note-label {
+    color: inherit;
+    text-decoration: none;
+}
+
+.docx-view-container a.docx-note-label {
+    vertical-align: super;
+    font-size: 0.75em;
+    margin-right: 0.25em;
 }
 
 .docx-view-container .docx-edit-flash {
