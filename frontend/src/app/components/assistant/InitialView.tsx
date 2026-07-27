@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -25,8 +25,6 @@ interface InitialViewProps {
     onSubmit: (message: Message) => void;
 }
 
-const ICON_SIZE = 30;
-const GAP = 12; // gap-4 = 1rem = 16px
 const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     Record<
         QuickActionId,
@@ -65,15 +63,11 @@ export function InitialView({ onSubmit }: InitialViewProps) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const router = useRouter();
-    const [loaded, setLoaded] = useState(false);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
     const [newProjectOpen, setNewProjectOpen] = useState(false);
     const [newTROpen, setNewTROpen] = useState(false);
     const [quickActionsModalOpen, setQuickActionsModalOpen] = useState(false);
     const { visibleActions, setVisibleActions } = useQuickActionsPreference();
-    const [iconOffset, setIconOffset] = useState(0);
-    const [textOffset, setTextOffset] = useState(0);
-    const textRef = useRef<HTMLHeadingElement>(null);
     const chatInputRef = useRef<ChatInputHandle>(null);
     const { projects } = useDirectoryData(newTROpen, "projects");
 
@@ -82,19 +76,6 @@ export function InitialView({ onSubmit }: InitialViewProps) {
     const visibleQuickActions = QUICK_ACTIONS.filter(
         (action) => visibleActions[action.id],
     );
-
-    useLayoutEffect(() => {
-        if (!textRef.current) return;
-        const h1Width = textRef.current.offsetWidth;
-        setIconOffset((h1Width + GAP) / 2);
-        setTextOffset((ICON_SIZE + GAP) / 2);
-    }, [username]);
-
-    useEffect(() => {
-        if (!iconOffset) return;
-        const t = setTimeout(() => setLoaded(true), 100);
-        return () => clearTimeout(t);
-    }, [iconOffset]);
 
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
@@ -145,35 +126,9 @@ export function InitialView({ onSubmit }: InitialViewProps) {
     return (
         <div className="grid h-full w-full grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] px-6">
             <div className="flex min-h-0 items-end justify-center pb-6">
-                <div className="relative h-10 w-full max-w-4xl px-0 xl:px-8">
-                    <div
-                        className="absolute h-[30px] w-[30px]"
-                        style={{
-                            left: "50%",
-                            top: "50%",
-                            transform: loaded
-                                ? `translate(calc(-50% - ${iconOffset}px), -50%)`
-                                : "translate(-50%, -50%)",
-                            transition:
-                                "transform 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                        }}
-                    >
-                        <MikeIcon size={ICON_SIZE} />
-                    </div>
-                    <h1
-                        ref={textRef}
-                        className="absolute text-4xl font-serif font-light text-gray-900 whitespace-nowrap"
-                        style={{
-                            left: "50%",
-                            top: "50%",
-                            transform: loaded
-                                ? `translate(calc(-50% + ${textOffset}px), -50%)`
-                                : "translate(-50%, -50%)",
-                            opacity: loaded ? 1 : 0,
-                            transition:
-                                "transform 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 800ms ease-in-out 300ms",
-                        }}
-                    >
+                <div className="flex h-10 w-full max-w-4xl items-center justify-center gap-3 px-0 xl:px-8">
+                    <MikeIcon size={30} />
+                    <h1 className="whitespace-nowrap font-serif text-4xl font-light text-gray-900">
                         Hi, {username}
                     </h1>
                 </div>

@@ -9,22 +9,20 @@
  *   R2_BUCKET_NAME      — bucket name (default: "mike")
  */
 
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-} from "@aws-sdk/client-s3";
-import * as S3Commands from "@aws-sdk/client-s3";
-import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
+let storageSdk:
+  | Promise<{
+      client: import("@aws-sdk/client-s3").S3Client;
+      commands: typeof import("@aws-sdk/client-s3");
+      getSignedUrl: typeof import("@aws-sdk/s3-request-presigner").getSignedUrl;
+    }>
+  | undefined;
 
-const GetObjectCommand = (S3Commands as any).GetObjectCommand;
-
-let cachedClient: S3Client | undefined;
-
-function getClient(): S3Client {
-  if (!cachedClient) {
-    cachedClient = new S3Client({
+function getStorageSdk() {
+  return (storageSdk ??= Promise.all([
+    import("@aws-sdk/client-s3"),
+    import("@aws-sdk/s3-request-presigner"),
+  ]).then(([commands, presigner]) => ({
+    client: new commands.S3Client({
       region: "auto",
       endpoint: process.env.R2_ENDPOINT_URL!,
       forcePathStyle: true,
@@ -32,9 +30,10 @@ function getClient(): S3Client {
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       },
-    });
-  }
-  return cachedClient;
+    }),
+    commands,
+    getSignedUrl: presigner.getSignedUrl,
+  })));
 }
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
@@ -63,9 +62,9 @@ export async function uploadFile(
   contentType: string,
 ): Promise<void> {
   requireStorageConfig();
-  const client = getClient();
+  const { client, commands } = await getStorageSdk();
   await client.send(
-    new PutObjectCommand({
+    new commands.PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
       Body: Buffer.from(content),
@@ -81,9 +80,9 @@ export async function uploadFile(
 export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
   if (!storageEnabled) return null;
   try {
-    const client = getClient();
+    const { client, commands } = await getStorageSdk();
     const response = (await client.send(
-      new GetObjectCommand({ Bucket: BUCKET, Key: key }),
+      new commands.GetObjectCommand({ Bucket: BUCKET, Key: key }),
     )) as any;
     if (!response.Body) return null;
     const bytes = await response.Body.transformToByteArray();
@@ -95,12 +94,12 @@ export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
 
 export async function listFiles(prefix: string): Promise<string[]> {
   if (!storageEnabled) return [];
-  const client = getClient();
+  const { client, commands } = await getStorageSdk();
   const keys: string[] = [];
   let ContinuationToken: string | undefined;
   do {
     const response = await client.send(
-      new ListObjectsV2Command({
+      new commands.ListObjectsV2Command({
         Bucket: BUCKET,
         Prefix: prefix,
         ContinuationToken,
@@ -120,8 +119,10 @@ export async function listFiles(prefix: string): Promise<string[]> {
 
 export async function deleteFile(key: string): Promise<void> {
   if (!storageEnabled) return;
-  const client = getClient();
-  await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+  const { client, commands } = await getStorageSdk();
+  await client.send(
+    new commands.DeleteObjectCommand({ Bucket: BUCKET, Key: key }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +136,7 @@ export async function getSignedUrl(
 ): Promise<string | null> {
   if (!storageEnabled) return null;
   try {
-    const client = getClient();
+    const { client, commands, getSignedUrl: sign } = await getStorageSdk();
     // Override the response Content-Disposition so the browser uses this
     // filename on download, instead of the last path segment of the R2 key
     // (which includes the document UUID). The `download` attribute on <a>
@@ -143,12 +144,12 @@ export async function getSignedUrl(
     const responseContentDisposition = downloadFilename
       ? buildContentDisposition("attachment", downloadFilename)
       : undefined;
-    const command = new GetObjectCommand({
+    const command = new commands.GetObjectCommand({
       Bucket: BUCKET,
       Key: key,
       ResponseContentDisposition: responseContentDisposition,
     }) as any;
-    return await awsGetSignedUrl(client, command, { expiresIn });
+    return await sign(client, command, { expiresIn });
   } catch {
     return null;
   }

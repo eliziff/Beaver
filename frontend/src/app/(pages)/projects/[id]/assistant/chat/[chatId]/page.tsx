@@ -4,7 +4,6 @@ import {
     use,
     useCallback,
     useEffect,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -88,8 +87,6 @@ type EditScrollTarget = {
     del_w_id?: string | null;
 };
 
-const ICON_SIZE = 28;
-const GAP = 14;
 const EXPLORER_MIN = 160;
 const EXPLORER_DEFAULT = 280;
 const CHAT_MIN = 320;
@@ -97,56 +94,12 @@ const CHAT_DEFAULT = 420;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 
 function AssistantGreeting({ username }: { username: string }) {
-    const [loaded, setLoaded] = useState(false);
-    const [iconOffset, setIconOffset] = useState(0);
-    const [textOffset, setTextOffset] = useState(0);
-    const textRef = useRef<HTMLHeadingElement>(null);
-
-    useLayoutEffect(() => {
-        if (!textRef.current) return;
-        const h1Width = textRef.current.offsetWidth;
-        setIconOffset((h1Width + GAP) / 2);
-        setTextOffset((ICON_SIZE + GAP) / 2);
-    }, [username]);
-
-    useEffect(() => {
-        if (!iconOffset) return;
-        const t = setTimeout(() => setLoaded(true), 100);
-        return () => clearTimeout(t);
-    }, [iconOffset]);
-
     return (
-        <div className="flex-1 flex items-center justify-center">
-            <div className="relative flex items-center justify-center h-[28px]">
-                <div
-                    className="absolute h-[30px]"
-                    style={{
-                        left: "50%",
-                        transform: loaded
-                            ? `translateX(calc(-50% - ${iconOffset}px))`
-                            : "translateX(-50%)",
-                        transition:
-                            "transform 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                    }}
-                >
-                    <MikeIcon size={ICON_SIZE} />
-                </div>
-                <h1
-                    ref={textRef}
-                    className="absolute text-3xl font-serif font-light text-gray-900 whitespace-nowrap"
-                    style={{
-                        left: "50%",
-                        transform: loaded
-                            ? `translateX(calc(-50% + ${textOffset}px))`
-                            : "translateX(-50%)",
-                        opacity: loaded ? 1 : 0,
-                        transition:
-                            "transform 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 800ms ease-in-out 300ms",
-                    }}
-                >
-                    Hi, {username}
-                </h1>
-            </div>
+        <div className="flex flex-1 items-center justify-center gap-3">
+            <MikeIcon size={28} />
+            <h1 className="whitespace-nowrap font-serif text-3xl font-light text-gray-900">
+                Hi, {username}
+            </h1>
         </div>
     );
 }
