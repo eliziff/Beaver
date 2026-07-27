@@ -345,19 +345,24 @@ export function parseCitations(text: string): ParsedCitation[] {
   return parseCitationsWithDiagnostics(text).citations;
 }
 
-export function parsePartialCitationObjects(text: string): ParsedCitation[] {
-  const beforeClose = text.split(CITATIONS_CLOSE_TAG)[0] ?? text;
-  const arrayStart = beforeClose.indexOf("[");
+/**
+ * Extract every complete top-level JSON object from an array that may be
+ * truncated (missing "]" or trailing content). Scanning starts after the
+ * first "[" and stops at the array's closing "]" if one exists; incomplete
+ * or malformed objects are dropped, never guessed at.
+ */
+export function extractJsonObjects(text: string): unknown[] {
+  const arrayStart = text.indexOf("[");
   if (arrayStart < 0) return [];
 
-  const parsed: ParsedCitation[] = [];
+  const objects: unknown[] = [];
   let inString = false;
   let escaped = false;
   let depth = 0;
   let objectStart = -1;
 
-  for (let i = arrayStart + 1; i < beforeClose.length; i += 1) {
-    const char = beforeClose[i];
+  for (let i = arrayStart + 1; i < text.length; i += 1) {
+    const char = text[i];
     if (escaped) {
       escaped = false;
       continue;
@@ -379,11 +384,9 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
       depth -= 1;
       if (depth === 0 && objectStart >= 0) {
         try {
-          const raw = JSON.parse(beforeClose.slice(objectStart, i + 1));
-          const citation = normalizeCitation(raw);
-          if (citation) parsed.push(citation);
+          objects.push(JSON.parse(text.slice(objectStart, i + 1)));
         } catch {
-          /* ignore incomplete/malformed partial object */
+          /* ignore incomplete/malformed object */
         }
         objectStart = -1;
       }
@@ -391,7 +394,14 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
       break;
     }
   }
-  return parsed;
+  return objects;
+}
+
+export function parsePartialCitationObjects(text: string): ParsedCitation[] {
+  const beforeClose = text.split(CITATIONS_CLOSE_TAG)[0] ?? text;
+  return extractJsonObjects(beforeClose)
+    .map(normalizeCitation)
+    .filter((citation): citation is ParsedCitation => citation !== null);
 }
 
 type CasesByClusterId = Map<
