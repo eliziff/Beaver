@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "strategy": "local_gitlinks_with_bundled_repositories",
+  "repositories": {
+    "OpenLegalData": {
+      "branch": "main",
+      "commit": "b53de5b1e90082651ebafc628de6fcc576c93264",
+      "bundle": "subrepos/OpenLegalData.bundle",
+      "remote": null
+    },
+    "TableOfAuthoritiesMaker": {
+      "branch": "master",
+      "commit": "1e93b0f11dd7aabd892016aa53bc96bce47544b9",
+      "bundle": "subrepos/TableOfAuthoritiesMaker.bundle",
+      "remote": null
+    },
+    "universal-legal-pdf-engine": {
+      "branch": "main",
+      "commit": "23f4d8ebb7648719ee8b860d0ce1137510b3bacf",
+      "bundle": "subrepos/universal-legal-pdf-engine.bundle",
+      "remote": null
+    }
+  }
+}

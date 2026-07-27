@@ -1,4 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { createInterface } from "node:readline";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
@@ -158,6 +161,7 @@ async function runCodex(params: {
   enableThinking?: boolean;
   reasoningEffort?: string;
   maxIterations?: number;
+  imagePaths?: string[];
 }): Promise<string> {
   throwIfAborted(params.abortSignal);
   const maxIterations = Math.max(1, params.maxIterations ?? 10);
@@ -239,6 +243,9 @@ async function runCodex(params: {
       "-c",
       "mcp_servers.mike_runtime.tool_timeout_sec=180",
     );
+  }
+  for (const imagePath of params.imagePaths ?? []) {
+    args.push("-i", imagePath);
   }
   args.push("-");
 
@@ -363,7 +370,25 @@ export async function streamCodex(
   const abort = () => controller.abort();
   if (params.abortSignal?.aborted) controller.abort();
   params.abortSignal?.addEventListener("abort", abort, { once: true });
+  const images = [
+    ...new Set(params.messages.flatMap((message) => message.images ?? [])),
+  ];
+  const imageDirectory = images.length
+    ? await mkdtemp(path.join(os.tmpdir(), "mike-codex-images-"))
+    : null;
   try {
+    const imagePaths = await Promise.all(
+      images.map(async (image, index) => {
+        const extension = image.mimeType === "image/jpeg"
+          ? "jpg"
+          : image.mimeType.slice("image/".length);
+        const imagePath = path.join(imageDirectory!, `${index}.${extension}`);
+        await writeFile(imagePath, Buffer.from(image.data, "base64"), {
+          mode: 0o600,
+        });
+        return imagePath;
+      }),
+    );
     const fullText = await runCodex({
       model: params.model,
       prompt: buildPrompt(params),
@@ -375,10 +400,14 @@ export async function streamCodex(
       enableThinking: params.enableThinking,
       reasoningEffort: params.reasoningEffort,
       maxIterations: params.maxIterations,
+      imagePaths,
     });
     return { fullText };
   } finally {
     params.abortSignal?.removeEventListener("abort", abort);
+    if (imageDirectory) {
+      await rm(imageDirectory, { recursive: true, force: true });
+    }
   }
 }
 

@@ -14,6 +14,10 @@ describe("normalizeApiKeyProvider", () => {
         expect(normalizeApiKeyProvider("gemini")).toBe("gemini");
     });
 
+    it('returns "deepseek" for "deepseek"', () => {
+        expect(normalizeApiKeyProvider("deepseek")).toBe("deepseek");
+    });
+
     it("returns null for unknown provider strings", () => {
         expect(normalizeApiKeyProvider("unknown")).toBeNull();
         expect(normalizeApiKeyProvider("")).toBeNull();
@@ -28,6 +32,8 @@ describe("hasEnvApiKey", () => {
         "CLAUDE_API_KEY",
         "OPENAI_API_KEY",
         "GEMINI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_OCR_KEY",
     ];
 
     // Clear before AND after each test so keys exported in the developer's
@@ -60,10 +66,19 @@ describe("hasEnvApiKey", () => {
         expect(hasEnvApiKey("gemini")).toBe(true);
     });
 
+    it("uses the canonical DeepSeek key and the local compatibility fallback", () => {
+        process.env.DEEPSEEK_API_KEY = "sk-deepseek-test";
+        expect(hasEnvApiKey("deepseek")).toBe(true);
+        delete process.env.DEEPSEEK_API_KEY;
+        process.env.DEEPSEEK_OCR_KEY = "sk-deepseek-local-test";
+        expect(hasEnvApiKey("deepseek")).toBe(true);
+    });
+
     it("returns false when no env key is set for the provider", () => {
         expect(hasEnvApiKey("claude")).toBe(false);
         expect(hasEnvApiKey("openai")).toBe(false);
         expect(hasEnvApiKey("gemini")).toBe(false);
+        expect(hasEnvApiKey("deepseek")).toBe(false);
     });
 
     it("ignores whitespace-only env values", () => {

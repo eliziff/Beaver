@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import { supabase } from "@/app/lib/supabase";
 import {
@@ -46,8 +47,8 @@ interface Props {
     refetchKey?: number;
     /**
      * Citation quotes to highlight in the rendered output. The first match
-     * is scrolled into view. Page numbers are ignored — DOCX has no explicit
-     * pagination the renderer can match against.
+     * is scrolled into view. Matching remains text-based; stored Word page
+     * breaks are used for display but are not stable quote identifiers.
      */
     quotes?: CitationQuote[];
     /** Changes when the parent wants the current quote re-focused. */
@@ -73,6 +74,73 @@ interface Props {
      */
     onScrollChange?: (scrollTop: number) => void;
     rounded?: boolean;
+}
+
+export const DOCX_RENDER_OPTIONS = {
+    inWrapper: true,
+    ignoreWidth: false,
+    ignoreHeight: false,
+    breakPages: true,
+    ignoreLastRenderedPageBreak: false,
+    renderFootnotes: true,
+    renderEndnotes: true,
+    renderChanges: true,
+    experimental: true,
+} satisfies Partial<DocxPreviewOptions>;
+
+export function decorateDocxPages(container: HTMLElement): void {
+    const pages = container.querySelectorAll<HTMLElement>(
+        ".docx-wrapper > section.docx",
+    );
+    pages.forEach((page, index) => {
+        const pageNumber = String(index + 1);
+        page.dataset.pageNumber = pageNumber;
+        page.setAttribute("aria-label", `Page ${pageNumber}`);
+    });
+}
+
+type TrackedChangeId = { kind: "ins" | "del"; w_id: string };
+const trackedChangeIdsCache = new Map<
+    string,
+    Promise<TrackedChangeId[]>
+>();
+
+async function loadTrackedChangeIds(
+    documentId: string,
+    versionId: string | null | undefined,
+    refetchKey?: number,
+): Promise<TrackedChangeId[]> {
+    const key = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
+    const cached = trackedChangeIdsCache.get(key);
+    if (cached) return cached;
+
+    const pending = (async () => {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const apiBase =
+            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+        const qs = versionId
+            ? `?version_id=${encodeURIComponent(versionId)}`
+            : "";
+        const response = await fetch(
+            `${apiBase}/single-documents/${documentId}/tracked-change-ids${qs}`,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
+        if (!response.ok) {
+            throw new Error(`tracked-change-ids HTTP ${response.status}`);
+        }
+        const data = (await response.json()) as { ids?: TrackedChangeId[] };
+        return data.ids ?? [];
+    })();
+    trackedChangeIdsCache.set(key, pending);
+    try {
+        return await pending;
+    } catch (error) {
+        trackedChangeIdsCache.delete(key);
+        throw error;
+    }
 }
 
 function findEditElement(
@@ -143,46 +211,24 @@ async function tagWIdsOnRenderedDom(
     container: HTMLElement,
     documentId: string,
     versionId: string | null | undefined,
+    refetchKey?: number,
 ): Promise<void> {
     try {
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const apiBase =
-            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-        const qs = versionId
-            ? `?version_id=${encodeURIComponent(versionId)}`
-            : "";
-        const resp = await fetch(
-            `${apiBase}/single-documents/${documentId}/tracked-change-ids${qs}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-        );
-        if (!resp.ok) {
-            console.warn(
-                "[DocxView] tracked-change-ids fetch failed",
-                resp.status,
-            );
-            return;
-        }
-        const data = (await resp.json()) as {
-            ids: { kind: "ins" | "del"; w_id: string }[];
-        };
         const domEls = Array.from(
             container.querySelectorAll("ins, del"),
         ) as HTMLElement[];
-        const ids = data.ids ?? [];
-        let tagged = 0;
-        let mismatched = 0;
+        if (domEls.length === 0) return;
+
+        const ids = await loadTrackedChangeIds(
+            documentId,
+            versionId,
+            refetchKey,
+        );
         for (let i = 0; i < Math.min(domEls.length, ids.length); i++) {
             const el = domEls[i];
             const info = ids[i];
-            if (el.tagName.toLowerCase() !== info.kind) {
-                mismatched++;
-                continue;
-            }
+            if (el.tagName.toLowerCase() !== info.kind) continue;
             el.setAttribute("data-w-id", info.w_id);
-            tagged++;
         }
     } catch (e) {
         console.warn("[DocxView] tagWIdsOnRenderedDom failed", e);
@@ -295,11 +341,22 @@ export function DocxView({
             wrapper.querySelectorAll<HTMLElement>("section.docx"),
         );
         if (sections.length === 0) return;
-        // Reset zoom on every page before measuring so offsetWidth reports
-        // each page's natural width (pages can have different widths — e.g.
-        // mixed portrait/landscape sections).
-        sections.forEach((s) => {
-            s.style.zoom = "1";
+        // Page widths do not change after a render. Cache each natural width
+        // on its section so panel resizes do not repeatedly force layout for
+        // every page in a long document.
+        const naturalWidths = sections.map((section) => {
+            const cached = Number(section.dataset.docxNaturalWidth);
+            if (Number.isFinite(cached) && cached > 0) return cached;
+            section.style.zoom = "1";
+            return 0;
+        });
+        naturalWidths.forEach((width, index) => {
+            if (width > 0) return;
+            const measured = sections[index].offsetWidth;
+            naturalWidths[index] = measured;
+            if (measured > 0) {
+                sections[index].dataset.docxNaturalWidth = String(measured);
+            }
         });
         // Use the scroll container's content box (clientWidth - padding)
         // as the available width.
@@ -312,21 +369,22 @@ export function DocxView({
         // Scale each page independently against its own natural width so
         // landscape/custom-size pages still fit without distorting the
         // page dividers.
-        sections.forEach((s) => {
-            const w = s.offsetWidth;
+        sections.forEach((s, index) => {
+            const w = naturalWidths[index];
             if (!w) return;
             const scale = Math.min(1, available / w);
-            s.style.zoom = String(scale);
+            const nextZoom = String(scale);
+            if (s.style.zoom !== nextZoom) s.style.zoom = nextZoom;
         });
     };
 
     // Observe the scroll container (which tracks the side panel's width)
-    // and re-scale whenever it resizes. Also observe the docx container so
-    // we re-scale once docx-preview finishes inserting pages.
+    // and re-scale whenever its viewport changes. Rendering itself calls
+    // applyDocxScale directly; observing document height would create
+    // redundant work as pages and images settle.
     useEffect(() => {
         const scrollEl = scrollRef.current;
-        const containerEl = containerRef.current;
-        if (!scrollEl || !containerEl) return;
+        if (!scrollEl) return;
         let raf = 0;
         const schedule = () => {
             if (raf) cancelAnimationFrame(raf);
@@ -334,7 +392,6 @@ export function DocxView({
         };
         const ro = new ResizeObserver(schedule);
         ro.observe(scrollEl);
-        ro.observe(containerEl);
         return () => {
             if (raf) cancelAnimationFrame(raf);
             ro.disconnect();
@@ -357,23 +414,25 @@ export function DocxView({
                 const { renderAsync } = await import("docx-preview");
                 if (cancelled) return;
                 containerEl.innerHTML = "";
-                await renderAsync(bytes, containerEl, undefined, {
-                    inWrapper: true,
-                    ignoreWidth: false,
-                    ignoreHeight: false,
-                    renderChanges: true,
-                    experimental: true,
-                });
+                await renderAsync(
+                    bytes,
+                    containerEl,
+                    undefined,
+                    DOCX_RENDER_OPTIONS,
+                );
                 if (cancelled) return;
+                decorateDocxPages(containerEl);
+                // Make the first painted frame correctly sized. Documents
+                // without tracked changes now avoid the metadata request
+                // below entirely.
+                applyDocxScale();
                 await tagWIdsOnRenderedDom(
                     containerEl,
                     documentId,
                     versionId ?? null,
+                    refetchKey,
                 );
                 if (cancelled) return;
-                // Scale to fit before scrolling so offsets are computed
-                // against the post-zoom layout.
-                applyDocxScale();
                 requestAnimationFrame(() => {
                     if (
                         !scrollRef.current ||
@@ -418,7 +477,10 @@ export function DocxView({
         return () => {
             cancelled = true;
         };
-    }, [bytes]);
+        // documentId/versionId intentionally follow `bytes`: adding them
+        // would briefly render the previous document under a new identity
+        // while the replacement bytes are loading.
+    }, [bytes]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Re-scroll/highlight if the target edit changes without a re-render
     // (e.g. same doc, different edit clicked).
@@ -441,7 +503,7 @@ export function DocxView({
             scrollRef.current,
             quotesRef.current,
         );
-    }, [quoteKey, quoteFocusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [quoteKey, quoteFocusKey]);
 
     // Fire onScrollChange (rAF-throttled) so parents can persist scroll
     // per-tab. We still maintain lastScrollTopRef locally for same-mount

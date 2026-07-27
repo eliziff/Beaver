@@ -1,5 +1,13 @@
-import type { A2AJLocatorKind } from "../a2ajStructure";
-import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
+import {
+  fetchJournalArticle,
+  lookupJournalArticle,
+  searchJournalArticles,
+} from "../journalArticles";
+import {
+  appendLegalSourcePinpointLinks,
+  buildLegalSourcePinpointUrl,
+} from "../legalSourceLinks";
+import type { LegalLocatorKind } from "../legalSourceStructure";
 import {
   fetchGovInfoCase,
   fetchGovUkEtCase,
@@ -13,7 +21,7 @@ import {
 } from "../publicLegalSources";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./tools/publicLegalSourceTools";
 
-export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo";
+export type PublicLegalProvider = "tna" | "govuk-et" | "govinfo" | "journal";
 
 export type PublicLegalEvidence = {
   document: PublicLegalDocument;
@@ -36,7 +44,10 @@ export function createPublicLegalSourceState(): PublicLegalSourceState {
 }
 
 function provider(value: unknown): PublicLegalProvider | null {
-  return value === "tna" || value === "govuk-et" || value === "govinfo"
+  return value === "tna" ||
+    value === "govuk-et" ||
+    value === "govinfo" ||
+    value === "journal"
     ? value
     : null;
 }
@@ -53,6 +64,20 @@ async function fetchExact(
   source: PublicLegalProvider,
   identifier: string,
 ): Promise<PublicLegalDocument | null> {
+  if (source === "journal") {
+    const article = fetchJournalArticle(identifier);
+    return article
+      ? {
+          provider: "journal",
+          identity: article.identity,
+          title: article.title,
+          url: article.url,
+          text: article.text,
+          structure: article.structure,
+          attachments: [],
+        }
+      : null;
+  }
   if (source === "tna") {
     const match = await searchTnaCase(identifier);
     return match ? fetchTnaCase(match) : null;
@@ -119,12 +144,47 @@ export async function executePublicLegalSourceTool(
   state: PublicLegalSourceState,
 ): Promise<Record<string, unknown> | null> {
   if (
+    name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search &&
     name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch &&
     name !== PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup
   ) {
     return null;
   }
   const source = provider(args.provider);
+  if (name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search) {
+    if (source !== "journal") {
+      return {
+        ok: false,
+        error: "Candidate search currently supports provider journal.",
+      };
+    }
+    const query = typeof args.query === "string" ? args.query.trim() : "";
+    if (!query) return { ok: false, error: "query is required." };
+    try {
+      return {
+        ok: true,
+        source: "Public legal source",
+        provider: source,
+        results: searchJournalArticles(
+          query,
+          typeof args.size === "number" ? args.size : 10,
+        ).map(({ url: _url, articleId, hitId, ...match }) => ({
+          ...match,
+          article_id: articleId,
+          hit_id: hitId,
+        })),
+        next_required_action:
+          "Use public_legal_source_fetch or public_legal_source_lookup with the returned article_id before relying on text.",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        source: "Public legal source",
+        provider: source,
+        error: error instanceof Error ? error.message : "Search failed.",
+      };
+    }
+  }
   const identifier =
     typeof args.identifier === "string" ? args.identifier.trim() : "";
   if (!source || !identifier) {
@@ -148,8 +208,10 @@ export async function executePublicLegalSourceTool(
       return safeDocument(document);
     }
 
-    const kind: A2AJLocatorKind =
-      args.locator_type === "page"
+    const kind: LegalLocatorKind =
+      args.locator_type === "footnote"
+        ? "footnote"
+        : args.locator_type === "page"
         ? "page"
         : args.locator_type === "section"
           ? "section"
@@ -158,12 +220,20 @@ export async function executePublicLegalSourceTool(
     if (!locator) {
       return { ok: false, error: "locator is required." };
     }
-    const lookup = lookupPublicLegalSource(
-      document,
-      kind,
-      locator,
-      typeof args.context_blocks === "number" ? args.context_blocks : 0,
-    );
+    const lookup =
+      source === "journal"
+        ? lookupJournalArticle(
+            fetchJournalArticle(document.identity)!,
+            kind,
+            locator,
+            typeof args.context_blocks === "number" ? args.context_blocks : 0,
+          )
+        : lookupPublicLegalSource(
+            document,
+            kind,
+            locator,
+            typeof args.context_blocks === "number" ? args.context_blocks : 0,
+          );
     if (lookup.status === "found" && lookup.block) {
       state.lookups.push({ document, lookup });
     }
@@ -173,6 +243,10 @@ export async function executePublicLegalSourceTool(
       provider: source,
       identifier: document.identity,
       requested: { kind, locator },
+      hit_id:
+        "hitId" in lookup
+          ? lookup.hitId
+          : `${source}:${document.identity}:${kind}:${lookup.block?.label ?? lookup.requestedLabel}`,
       status: lookup.status,
       matches: lookup.matches,
       block: safeBlock(lookup.block),
@@ -276,4 +350,64 @@ export function getPublicLegalCitationDocument(
   state?: PublicLegalSourceState,
 ) {
   return state ? (citedDocument(state, citation) ?? null) : null;
+}
+
+function locatorLabel(kind: LegalLocatorKind, label: string) {
+  const value = label.replace(
+    kind === "paragraph"
+      ? /^(?:par(?:agraph)?)[=_ -]*/iu
+      : kind === "section"
+        ? /^(?:sec(?:tion)?)[=_ -]*/iu
+        : kind === "page"
+          ? /^page[=_ -]*/iu
+          : /^(?:fn|footnote|note)[=_ -]*/iu,
+    "",
+  );
+  return kind === "paragraph"
+    ? `para. ${value}`
+    : kind === "section"
+      ? `s. ${value}`
+      : kind === "page"
+        ? `p. ${value}`
+        : `fn. ${value}`;
+}
+
+export function appendPublicLegalPinpointLinks(
+  answer: string,
+  state: PublicLegalSourceState,
+  existingUrls: string[] = [],
+) {
+  return appendLegalSourcePinpointLinks(
+    answer,
+    state.lookups.flatMap(({ document, lookup }) =>
+      [lookup.block, ...lookup.before, ...lookup.after].flatMap((block) =>
+        block
+          ? [
+              {
+                key: [
+                  document.provider,
+                  document.identity,
+                  block.kind,
+                  block.label,
+                  block.anchor ?? "",
+                ].join("|"),
+                label: `${document.title || document.identity}, ${locatorLabel(block.kind, block.label)}`,
+                evidence: {
+                  url: document.url,
+                  anchor:
+                    block.anchor ??
+                    (block === lookup.block
+                      ? lookup.anchor ?? undefined
+                      : undefined),
+                  blockText: block.text,
+                  documentText: document.text,
+                  pageScoped: block.kind === "page",
+                },
+              },
+            ]
+          : [],
+      ),
+    ),
+    existingUrls,
+  );
 }

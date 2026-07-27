@@ -188,16 +188,24 @@ export function ChatView({
     const upsertTab = useCallback(
         (tab: AssistantSidePanelTab) => {
             setTabs((prev) => {
-                const idx = prev.findIndex((t) =>
-                    tab.kind === "case"
-                        ? t.kind === "case" && t.id === tab.id
-                        : t.kind !== "case" && t.documentId === tab.documentId,
-                );
+                const idx = prev.findIndex((t) => {
+                    if (tab.kind === "case" || tab.kind === "legal") {
+                        return t.kind === tab.kind && t.id === tab.id;
+                    }
+                    return (
+                        t.kind !== "case" &&
+                        t.kind !== "legal" &&
+                        t.documentId === tab.documentId
+                    );
+                });
                 if (idx >= 0) {
                     const existing = prev[idx];
                     const copy = prev.slice();
                     copy[idx] =
-                        tab.kind === "case" || existing.kind === "case"
+                        tab.kind === "case" ||
+                        tab.kind === "legal" ||
+                        existing.kind === "case" ||
+                        existing.kind === "legal"
                             ? tab
                             : {
                                   ...tab,
@@ -223,7 +231,39 @@ export function ChatView({
         (citation: Citation, options?: { showQuotes?: boolean }) => {
             const showQuotes = options?.showQuotes ?? true;
             if (citation.kind === "a2aj") {
-                if (citation.url) {
+                if (citation.citation) {
+                    upsertTab({
+                        kind: "legal",
+                        id: `legal:${citation.dataset ?? ""}:${citation.citation}`,
+                        citation: citation.citation,
+                        name: citation.name ?? null,
+                        dataset: citation.dataset ?? null,
+                        docType: "auto",
+                        language: "en",
+                        citationRef: citation.ref,
+                        quotes: showQuotes ? citation.quotes : undefined,
+                    });
+                } else if (citation.url) {
+                    window.open(citation.url, "_blank", "noopener,noreferrer");
+                }
+                return;
+            }
+            if (citation.kind === "public_legal") {
+                if (citation.provider === "journal") {
+                    upsertTab({
+                        kind: "legal",
+                        id: `legal:journal:${citation.identifier}`,
+                        provider: "journal",
+                        sourceId: citation.identifier,
+                        citation: citation.title ?? citation.identifier,
+                        name: citation.title ?? null,
+                        dataset: null,
+                        docType: "articles",
+                        language: "en",
+                        citationRef: citation.ref,
+                        quotes: showQuotes ? citation.quotes : undefined,
+                    });
+                } else if (citation.url) {
                     window.open(citation.url, "_blank", "noopener,noreferrer");
                 }
                 return;
@@ -419,7 +459,12 @@ export function ChatView({
             setTabs((prev) => {
                 const idx = prev.findIndex((t) => t.id === tabId);
                 if (idx < 0) return prev;
-                if (prev[idx].kind === "case") return prev;
+                if (
+                    prev[idx].kind === "case" ||
+                    prev[idx].kind === "legal"
+                ) {
+                    return prev;
+                }
                 const copy = prev.slice();
                 copy[idx] = { ...copy[idx], ...patch };
                 return copy;
@@ -438,7 +483,9 @@ export function ChatView({
             // Surface the warning on every tab tied to this document.
             setTabs((prev) =>
                 prev.map((t) =>
-                    t.kind !== "case" && t.documentId === args.documentId
+                    t.kind !== "case" &&
+                    t.kind !== "legal" &&
+                    t.documentId === args.documentId
                         ? { ...t, warning: args.message }
                         : t,
                 ),
@@ -655,14 +702,14 @@ export function ChatView({
                             <div className="space-y-6 md:space-y-8 w-full">
                                 <div className="flex justify-end">
                                     <div className="bg-gray-100 rounded-2xl p-4 w-2/5">
-                                        <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded w-full" />
+                                        <div className="h-4 animate-pulse rounded bg-gray-200 w-full" />
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     {[1, 2, 3, 4].map((i) => (
                                         <div
                                             key={i}
-                                            className={`h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
+                                            className={`h-4 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
                                         />
                                     ))}
                                 </div>

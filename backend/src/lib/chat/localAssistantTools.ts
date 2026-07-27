@@ -7,6 +7,8 @@ import {
   type A2AJLocatorLookup,
 } from "../a2aj";
 import { docxToPdf } from "../convert";
+import { linkLocalDocxCitations } from "../docxCitationLinking";
+import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import {
   isPresentationDocumentType,
@@ -21,6 +23,10 @@ import type {
 } from "../llm";
 import { extractPresentationText } from "../officeText";
 import { spreadsheetToLLMText } from "../spreadsheet";
+import {
+  getTableOfAuthoritiesJob,
+  submitTableOfAuthoritiesDocument,
+} from "../tableOfAuthorities";
 import { A2AJ_TOOL_NAMES, A2AJ_TOOLS } from "./tools/a2ajTools";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
@@ -96,6 +102,86 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           },
         },
         required: ["document_id", "query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "library_link_docx_citations",
+      description:
+        "Create a new version of a local Library DOCX with verified provider links on its footnote citations. This bounded workflow splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: {
+            type: "string",
+            description: "DOCX document_id returned by library_list.",
+          },
+        },
+        required: ["document_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "library_fix_docx_supras",
+      description:
+        "Run the deterministic first pass for a local Library DOCX: turn unambiguous plain 'supra note N' numbers into native updating Word footnote cross-references. It creates a new version when it changes anything and reports ambiguous/restarted/split cases for review. Call this before asking the model to reason through or manually rewrite supra references.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: {
+            type: "string",
+            description: "DOCX document_id returned by library_list.",
+          },
+        },
+        required: ["document_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "toa_submit_library_document",
+      description:
+        "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: {
+            type: "string",
+            description: "DOCX document_id returned by library_list.",
+          },
+          version_id: {
+            type: "string",
+            description:
+              "Optional explicit Library version id. Omit for the active version.",
+          },
+          split_fallback: {
+            type: "string",
+            enum: ["off", "auto"],
+            description:
+              "Use auto to invoke the cached bounded Codex splitter only when deterministic citation splitting is incomplete. Defaults to auto.",
+          },
+        },
+        required: ["document_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "toa_job_status",
+      description:
+        "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Mike page to open.",
+      parameters: {
+        type: "object",
+        properties: {
+          job_id: { type: "string", pattern: "^[0-9a-f]{32}$" },
+        },
+        required: ["job_id"],
       },
     },
   },
@@ -258,6 +344,120 @@ export async function runLocalAssistantTools(
           query,
           ...matches,
         });
+      }
+
+      if (call.name === "library_link_docx_citations") {
+        const documentId =
+          typeof args.document_id === "string" ? args.document_id.trim() : "";
+        if (!documentId) {
+          return result(call, { ok: false, error: "document_id is required" });
+        }
+        try {
+          return result(
+            call,
+            await linkLocalDocxCitations(userId, documentId),
+          );
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "DOCX citation linking failed",
+          });
+        }
+      }
+
+      if (call.name === "library_fix_docx_supras") {
+        const documentId =
+          typeof args.document_id === "string" ? args.document_id.trim() : "";
+        if (!documentId) {
+          return result(call, { ok: false, error: "document_id is required" });
+        }
+        try {
+          return result(
+            call,
+            await fixLocalDocxSupraCrossReferences(userId, documentId),
+          );
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "DOCX supra cleanup failed",
+          });
+        }
+      }
+
+      if (call.name === "toa_submit_library_document") {
+        const documentId =
+          typeof args.document_id === "string" ? args.document_id.trim() : "";
+        const versionId =
+          typeof args.version_id === "string" ? args.version_id.trim() : "";
+        if (!documentId) {
+          return result(call, { ok: false, error: "document_id is required" });
+        }
+        try {
+          const file = await getLocalVersionFile(
+            userId,
+            documentId,
+            versionId || undefined,
+          );
+          if (!file) {
+            return result(call, {
+              ok: false,
+              error: "DOCX Library version not found",
+            });
+          }
+          if (file.fileType.toLowerCase() !== "docx") {
+            return result(call, {
+              ok: false,
+              error: "Table of Authorities requires a DOCX Library version",
+            });
+          }
+          const job = await submitTableOfAuthoritiesDocument({
+            bytes: await readFile(file.path),
+            filename: file.version.filename,
+            splitFallback: args.split_fallback === "off" ? "off" : "auto",
+          });
+          return result(call, {
+            ok: true,
+            document_id: documentId,
+            version_id: file.version.id,
+            filename: file.version.filename,
+            job,
+            next_required_action:
+              "Use toa_job_status with this job id until detection is complete, then give the user job.open_path.",
+          });
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Table of Authorities submission failed",
+          });
+        }
+      }
+
+      if (call.name === "toa_job_status") {
+        const jobId =
+          typeof args.job_id === "string" ? args.job_id.trim() : "";
+        try {
+          return result(call, {
+            ok: true,
+            job: await getTableOfAuthoritiesJob(jobId),
+          });
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Table of Authorities status lookup failed",
+          });
+        }
       }
 
       if (call.name === A2AJ_TOOL_NAMES.search) {

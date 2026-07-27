@@ -1,3 +1,14 @@
+import crypto from "node:crypto";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import path from "node:path";
 import {
   buildA2AJStructure,
   lookupA2AJStructure,
@@ -10,12 +21,23 @@ import {
   getLocalA2AJStructure,
   searchLocalA2AJ,
 } from "./a2ajLocalBulk";
+import { legalProviderCache } from "./legalDataPath";
 
 const A2AJ_BASE_URL = "https://api.a2aj.ca";
 const A2AJ_TIMEOUT_MS = 15_000;
 const MAX_CACHED_DOCUMENTS = 32;
+const A2AJ_HTTP_CACHE_MAX_FILES = 512;
+const A2AJ_HTTP_CACHE_MAX_BYTES = 256 * 1024 * 1024;
+const A2AJ_FETCH_CACHE_MS = 30 * 24 * 60 * 60_000;
+const A2AJ_SEARCH_CACHE_MS = 24 * 60 * 60_000;
 
 type JsonRecord = Record<string, unknown>;
+
+type PersistentResponse = {
+  status?: number;
+  json?: unknown;
+  body?: unknown;
+};
 
 export type A2AJStructureSummary = {
   status: "usable" | "unavailable";
@@ -63,6 +85,30 @@ export type A2AJLocatorLookup = {
   sourceMethod: "structure_index" | "api_section";
 };
 
+export type A2AJViewerPayload = {
+  schemaVersion: "mike.legal-source.v1";
+  provider: "a2aj";
+  reference: {
+    docType: "cases" | "laws";
+    citation: string;
+    language: "en" | "fr";
+    dataset: string | null;
+  };
+  metadata: {
+    title: string;
+    citation: string;
+    alternateCitation: string | null;
+    date: string | null;
+    dataset: string;
+    url: string | null;
+    language: "en" | "fr";
+    upstreamLicense: string | null;
+  };
+  text: string;
+  structure: Omit<A2AJStructure, "text">;
+  truncated: boolean;
+};
+
 const rawRecords = new WeakMap<A2AJDocument, JsonRecord>();
 const structureIndexes = new WeakMap<A2AJDocument, A2AJStructure>();
 const lookupDocumentTexts = new WeakMap<A2AJLocatorLookup, string>();
@@ -70,6 +116,17 @@ const documentCache = new Map<
   string,
   { expiresAt: number; promise: Promise<A2AJDocument | null> }
 >();
+const viewerDocumentCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<{
+      payload: A2AJViewerPayload;
+      etag: string;
+    } | null>;
+  }
+>();
+let lastPersistentCachePrune = 0;
 
 const EMPTY_STRUCTURE: A2AJStructureSummary = {
   status: "unavailable",
@@ -174,21 +231,149 @@ function apiError(status: number, body: unknown): Error {
   return new Error(message || `A2AJ API error (${status})`);
 }
 
-async function request(
-  path: string,
+function pythonStyleJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(pythonStyleJson).join(", ")}]`;
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as JsonRecord)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(
+        ([key, item]) =>
+          `${JSON.stringify(key)}: ${pythonStyleJson(item)}`,
+      )
+      .join(", ")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function requestCacheFile(
+  endpoint: string,
   params: Record<string, string | number | undefined>,
 ) {
+  const compact = Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== "",
+    ),
+  );
+  const identity = pythonStyleJson({ endpoint, params: compact });
+  const key = crypto.createHash("sha256").update(identity).digest("hex");
+  return path.join(legalProviderCache("a2aj"), "http", `${key}.json`);
+}
+
+function persistentCacheEnabled() {
+  return process.env.NODE_ENV !== "test" || !!process.env.OPEN_LEGAL_DATA_HOME;
+}
+
+function requestCacheTtl(endpoint: string) {
+  return endpoint === "/search"
+    ? A2AJ_SEARCH_CACHE_MS
+    : A2AJ_FETCH_CACHE_MS;
+}
+
+async function readPersistentResponse(
+  endpoint: string,
+  params: Record<string, string | number | undefined>,
+) {
+  if (!persistentCacheEnabled()) return null;
+  const filename = requestCacheFile(endpoint, params);
+  try {
+    const [raw, file] = await Promise.all([
+      readFile(filename, "utf8"),
+      stat(filename),
+    ]);
+    if (Date.now() - file.mtimeMs > requestCacheTtl(endpoint)) return null;
+    const cached = JSON.parse(raw) as PersistentResponse;
+    if (cached.status !== undefined && cached.status !== 200) return null;
+    return asRecord(cached.json ?? cached.body);
+  } catch {
+    return null;
+  }
+}
+
+async function prunePersistentResponses(directory: string) {
+  try {
+    const entries = (await readdir(directory, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"));
+    const files = await Promise.all(
+      entries.map(async (entry) => {
+        const filename = path.join(directory, entry.name);
+        const details = await stat(filename);
+        return {
+          filename,
+          size: details.size,
+          mtimeMs: details.mtimeMs,
+        };
+      }),
+    );
+    files.sort((left, right) => right.mtimeMs - left.mtimeMs);
+    let bytes = 0;
+    for (const [index, file] of files.entries()) {
+      bytes += file.size;
+      if (
+        index >= A2AJ_HTTP_CACHE_MAX_FILES ||
+        bytes > A2AJ_HTTP_CACHE_MAX_BYTES ||
+        Date.now() - file.mtimeMs > A2AJ_FETCH_CACHE_MS
+      ) {
+        await rm(file.filename, { force: true });
+      }
+    }
+  } catch {
+    // A cache cleanup failure must not make a legal source unavailable.
+  }
+}
+
+async function writePersistentResponse(
+  endpoint: string,
+  params: Record<string, string | number | undefined>,
+  body: JsonRecord,
+) {
+  if (!persistentCacheEnabled()) return;
+  const filename = requestCacheFile(endpoint, params);
+  const directory = path.dirname(filename);
+  const temporary = `${filename}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        status: 200,
+        json: body,
+        error: "",
+        cached_at: new Date().toISOString(),
+      }),
+      "utf8",
+    );
+    await rename(temporary, filename);
+    if (Date.now() - lastPersistentCachePrune > 5 * 60_000) {
+      lastPersistentCachePrune = Date.now();
+      void prunePersistentResponses(directory);
+    }
+  } catch {
+    await rm(temporary, { force: true }).catch(() => undefined);
+  }
+}
+
+async function request(
+  endpoint: string,
+  params: Record<string, string | number | undefined>,
+) {
+  const cached = await readPersistentResponse(endpoint, params);
+  if (cached) return cached;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
   }
-  const response = await fetch(`${A2AJ_BASE_URL}${path}?${query}`, {
+  const response = await fetch(`${A2AJ_BASE_URL}${endpoint}?${query}`, {
     headers: { Accept: "application/json" },
     signal: AbortSignal.timeout(A2AJ_TIMEOUT_MS),
   });
   const body = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) throw apiError(response.status, body);
-  return asRecord(body) ?? {};
+  const record = asRecord(body) ?? {};
+  await writePersistentResponse(endpoint, params, record);
+  return record;
 }
 
 function sectionMap(
@@ -242,11 +427,13 @@ function cacheKey(args: {
   citation: string;
   docType: "cases" | "laws";
   language: "en" | "fr";
+  dataset?: string;
   section?: string;
 }) {
   return JSON.stringify([
     args.docType,
     args.language,
+    args.dataset?.trim().toLowerCase() ?? "",
     args.citation.trim().toLowerCase(),
     args.section?.trim().toLowerCase() ?? "",
   ]);
@@ -256,6 +443,7 @@ async function fullA2AJDocument(args: {
   citation: string;
   docType: "cases" | "laws";
   language: "en" | "fr";
+  dataset?: string;
   section?: string;
 }) {
   const key = cacheKey(args);
@@ -273,6 +461,7 @@ async function fullA2AJDocument(args: {
         citation: args.citation,
         docType: args.docType,
         language: args.language,
+        dataset: args.dataset,
         maxChars: Number.MAX_SAFE_INTEGER,
       });
       if (localDocument) {
@@ -289,11 +478,16 @@ async function fullA2AJDocument(args: {
     });
     const document = (Array.isArray(payload.results) ? payload.results : [])
       .map((item) => documentFromResult(item, args.language))
-      .find((item): item is A2AJDocument => !!item);
+      .find(
+        (item): item is A2AJDocument =>
+          !!item &&
+          (!args.dataset?.trim() ||
+            item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()),
+      );
     if (document) structureFor(document, args.docType);
     return document ?? null;
   })();
-  const ttl = args.docType === "cases" ? 24 * 60 * 60_000 : 5 * 60_000;
+  const ttl = args.docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000;
   documentCache.set(key, { expiresAt: now + ttl, promise: cachedPromise });
   if (documentCache.size > MAX_CACHED_DOCUMENTS) {
     documentCache.delete(documentCache.keys().next().value!);
@@ -304,6 +498,105 @@ async function fullA2AJDocument(args: {
 
 export function clearA2AJCache() {
   documentCache.clear();
+  viewerDocumentCache.clear();
+}
+
+export async function resolveA2AJViewerDocument(args: {
+  citation: string;
+  docType?: "cases" | "laws" | "auto";
+  language?: "en" | "fr";
+  dataset?: string;
+  maxChars?: number;
+}): Promise<{ payload: A2AJViewerPayload; etag: string } | null> {
+  const citation = args.citation.trim();
+  if (!citation) throw new Error("citation is required");
+  const language = args.language === "fr" ? "fr" : "en";
+  const requestedDocType = args.docType ?? "cases";
+  const maxChars = Math.min(
+    Math.max(Math.trunc(args.maxChars ?? 5_000_000), 1),
+    10_000_000,
+  );
+  const key = JSON.stringify([
+    requestedDocType,
+    language,
+    args.dataset?.trim().toLowerCase() ?? "",
+    citation.toLowerCase(),
+    maxChars,
+  ]);
+  const now = Date.now();
+  const cached = viewerDocumentCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.promise;
+  if (cached) viewerDocumentCache.delete(key);
+
+  const promise = (async () => {
+    const candidates: Array<"cases" | "laws"> =
+      requestedDocType === "auto"
+        ? ["cases", "laws"]
+        : [requestedDocType];
+    for (const docType of candidates) {
+      const document = await fullA2AJDocument({
+        citation,
+        docType,
+        language,
+        dataset: args.dataset,
+      });
+      if (!document) continue;
+      const fullStructure = structureFor(document, docType);
+      const truncated = fullStructure.text.length > maxChars;
+      const text = fullStructure.text.slice(0, maxChars);
+      const structure: Omit<A2AJStructure, "text"> = {
+        status: fullStructure.status,
+        source: fullStructure.source,
+        counts: fullStructure.counts,
+        blocks: fullStructure.blocks
+          .filter((block) => block.start < text.length)
+          .map((block) => ({
+            ...block,
+            end: Math.min(block.end, text.length),
+          })),
+      };
+      const payload: A2AJViewerPayload = {
+        schemaVersion: "mike.legal-source.v1",
+        provider: "a2aj",
+        reference: {
+          docType,
+          citation: document.citation,
+          language: document.language,
+          dataset: document.dataset || null,
+        },
+        metadata: {
+          title: document.name || document.citation,
+          citation: document.citation,
+          alternateCitation: document.alternateCitation,
+          date: document.date,
+          dataset: document.dataset,
+          url: document.url,
+          language: document.language,
+          upstreamLicense: document.upstreamLicense,
+        },
+        text,
+        structure,
+        truncated,
+      };
+      const digest = crypto
+        .createHash("sha256")
+        .update(JSON.stringify(payload))
+        .digest("base64url");
+      return { payload, etag: `"${digest}"` };
+    }
+    return null;
+  })();
+  viewerDocumentCache.set(key, {
+    expiresAt:
+      now +
+      (requestedDocType === "laws" ? 60 * 60_000 : 24 * 60 * 60_000),
+    promise,
+  });
+  if (viewerDocumentCache.size > MAX_CACHED_DOCUMENTS) {
+    viewerDocumentCache.delete(viewerDocumentCache.keys().next().value!);
+  }
+  promise.catch(() => viewerDocumentCache.delete(key));
+  return promise;
 }
 
 export function getA2AJLookupDocumentText(lookup: A2AJLocatorLookup) {
@@ -314,6 +607,7 @@ export async function fetchA2AJDocument(args: {
   citation: string;
   docType?: "cases" | "laws";
   language?: "en" | "fr";
+  dataset?: string;
   section?: string;
   maxChars?: number;
 }): Promise<A2AJDocument | null> {
@@ -324,6 +618,7 @@ export async function fetchA2AJDocument(args: {
     citation,
     docType: args.docType ?? "cases",
     language,
+    dataset: args.dataset,
     section: args.section,
   });
   if (!document) return null;
@@ -340,6 +635,7 @@ export async function lookupA2AJLocator(args: {
   citation: string;
   docType?: "cases" | "laws";
   language?: "en" | "fr";
+  dataset?: string;
   kind: A2AJLocatorKind;
   locator: string;
   contextBlocks?: number;
@@ -354,6 +650,7 @@ export async function lookupA2AJLocator(args: {
     citation,
     docType,
     language,
+    dataset: args.dataset,
   });
   if (!document) return null;
   const structure = structureFor(document, docType);
@@ -375,6 +672,7 @@ export async function lookupA2AJLocator(args: {
         citation,
         docType,
         language,
+        dataset: args.dataset,
         section,
       });
       if (native?.text.trim()) {

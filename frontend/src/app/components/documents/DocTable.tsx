@@ -83,6 +83,7 @@ import {
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 export interface DocTableSelectionActions {
     selectedCount: number;
+    selectedDocuments: Document[];
     hasDocumentsInFolders: boolean;
     onDownload: () => Promise<void>;
     onRemoveFromFolder: () => Promise<void>;
@@ -2171,6 +2172,9 @@ export function DocTable({
         if (selectedDocIds.length === 0) return null;
         return {
             selectedCount: selectedDocIds.length,
+            selectedDocuments: selectedDocIds
+                .map((id) => docs.find((document) => document.id === id))
+                .filter((document): document is Document => !!document),
             hasDocumentsInFolders: selectedDocIds.some(
                 (id) => docs.find((d) => d.id === id)?.folder_id != null,
             ),

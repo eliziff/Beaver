@@ -17,6 +17,16 @@ next-env.d.ts
 .DS_Store
 .vercel
 coverage
+__pycache__/
+*.py[cod]
+
+# User-supplied benchmark documents and derived local manifests can contain
+# privileged or otherwise non-redistributable material.  Keep the harness in
+# git, but never commit the private corpus.
+benchmarks/docx_corpus/private_sources/
+benchmarks/docx_corpus/private_results/
+benchmarks/docx_corpus/private_manifest.json
+benchmarks/docx_corpus/private_manifest.jsonl
 
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)
 test-results/

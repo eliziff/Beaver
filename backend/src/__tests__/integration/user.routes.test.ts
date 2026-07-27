@@ -179,7 +179,13 @@ function profileRow(overrides: Record<string, unknown> = {}) {
     };
 }
 
-const STATUS = { claude: true, openai: false, gemini: false, sources: {} };
+const STATUS = {
+    claude: true,
+    openai: false,
+    gemini: false,
+    deepseek: false,
+    sources: {},
+};
 
 // The exact 403 body the web client's MFA gate consumes (mirrors the real
 // requireMfaIfEnrolled). Used by tests that simulate an unsatisfied factor.
@@ -202,7 +208,7 @@ describe("user.routes", () => {
         saveUserApiKey.mockResolvedValue(undefined);
         hasEnvApiKey.mockReturnValue(false);
         normalizeApiKeyProvider.mockImplementation((v: string) =>
-            ["claude", "openai", "gemini"].includes(v) ? v : null,
+            ["claude", "openai", "gemini", "deepseek"].includes(v) ? v : null,
         );
         deleteAllUserChats.mockResolvedValue(undefined);
         deleteAllUserTabularReviews.mockResolvedValue(undefined);
@@ -294,7 +300,7 @@ describe("user.routes", () => {
     describe("PUT /user/api-keys/:provider", () => {
         it("stores the key via the encryption helper and returns status", async () => {
             const res = await request(app)
-                .put("/user/api-keys/claude")
+                .put("/user/api-keys/deepseek")
                 .set(...AUTH)
                 .send({ api_key: "sk-secret-value" });
 
@@ -304,7 +310,7 @@ describe("user.routes", () => {
             // boundary), keyed by provider + value, never persisted by the route.
             expect(saveUserApiKey).toHaveBeenCalledWith(
                 "u1",
-                "claude",
+                "deepseek",
                 "sk-secret-value",
                 expect.anything(),
             );

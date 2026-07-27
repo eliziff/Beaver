@@ -23,6 +23,7 @@ import {
   contentTypeForDocumentType,
   shouldConvertToPdf,
 } from "../lib/documentTypes";
+import { imageValidationError } from "../lib/llm/images";
 import {
   findMissingUserEmails,
   loadProfileUsersByEmail,
@@ -946,6 +947,8 @@ export async function handleDocumentUpload(
       .json({
         detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
       });
+  const imageError = imageValidationError(filename, file.buffer);
+  if (imageError) return void res.status(400).json({ detail: imageError });
 
   const content = file.buffer;
   const { data: doc, error: insertErr } = await db

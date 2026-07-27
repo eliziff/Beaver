@@ -1,0 +1,868 @@
+{
+  "metadata": {
+    "runner": "openai_responses",
+    "model": "gpt-5.6",
+    "effort": "low",
+    "tail_turns": 8,
+    "native_compaction_contract": "The /responses/compact output array was passed through unchanged and the new user message appended, per OpenAI documentation.",
+    "timestamp_utc": "2026-07-27T03:11:45.090828+00:00"
+  },
+  "summary": {
+    "no_instruction_state": {
+      "successful_runs": 1,
+      "failed_runs": 0,
+      "mean_exact_score": 0.8571428571428571,
+      "hard_passes": 0
+    },
+    "no_pinpoint_state": {
+      "successful_runs": 1,
+      "failed_runs": 0,
+      "mean_exact_score": 0.7619047619047619,
+      "hard_passes": 0
+    },
+    "no_edit_state": {
+      "successful_runs": 1,
+      "failed_runs": 0,
+      "mean_exact_score": 0.9047619047619048,
+      "hard_passes": 0
+    },
+    "no_tool_receipt_state": {
+      "successful_runs": 1,
+      "failed_runs": 0,
+      "mean_exact_score": 0.6666666666666666,
+      "hard_passes": 0
+    }
+  },
+  "records": [
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "no_instruction_state",
+      "input_sha256": "0b681c85958c66df0e4dadf4fe72a12bb9f6be2760a9f45644c7e37427449858",
+      "input_chars": 4509,
+      "prediction": {
+        "active_instruction_id": null,
+        "active_instruction_text": null,
+        "superseded_instruction_ids": null,
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": "paragraph",
+        "locator_value": "62",
+        "quote_exact": "The reviewing court must assess the record as it stood when the decision was made.",
+        "qualifier_exact": "unless the governing statute expressly authorizes fresh evidence.",
+        "source_url": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+        "accepted_edit_ids": [
+          "E-22"
+        ],
+        "rejected_edit_ids": [
+          "E-17",
+          "E-18"
+        ],
+        "tool_receipt_id": "J-204",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 23,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 18,
+        "total": 21,
+        "score": 0.8571428571428571,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 0,
+            "total": 3,
+            "score": 0.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": false,
+            "expected": "R-02",
+            "actual": null
+          },
+          "active_instruction_text": {
+            "pass": false,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": null
+          },
+          "superseded_instruction_ids": {
+            "pass": false,
+            "expected": [
+              "R-01"
+            ],
+            "actual": null
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "paragraph",
+            "actual": "paragraph"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "62",
+            "actual": "62"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": "The reviewing court must assess the record as it stood when the decision was made."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": "unless the governing statute expressly authorizes fresh evidence."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-22"
+            ],
+            "actual": [
+              "E-22"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": [
+              "E-17",
+              "E-18"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-204",
+            "actual": "J-204"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 23,
+            "actual": 23
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": "sha256:cc8f13c9d2d19c4a-ca-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 1371,
+        "input_tokens_details": {
+          "cache_write_tokens": 1368,
+          "cached_tokens": 0
+        },
+        "output_tokens": 252,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1623
+      },
+      "response_model": "gpt-5.6-sol",
+      "elapsed_seconds": 2.937,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "no_pinpoint_state",
+      "input_sha256": "beb0830a51d77894f2d6e1d8f815bc355464e1254b075810843529c7179d366f",
+      "input_chars": 4311,
+      "prediction": {
+        "active_instruction_id": "R-02",
+        "active_instruction_text": "Use only authority version D-004 and preserve every limiting qualifier.",
+        "superseded_instruction_ids": [
+          "R-01"
+        ],
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": null,
+        "locator_value": null,
+        "quote_exact": null,
+        "qualifier_exact": null,
+        "source_url": null,
+        "accepted_edit_ids": [
+          "E-22"
+        ],
+        "rejected_edit_ids": [
+          "E-17",
+          "E-18"
+        ],
+        "tool_receipt_id": "J-204",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 23,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 16,
+        "total": 21,
+        "score": 0.7619047619047619,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 0,
+            "total": 5,
+            "score": 0.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-02",
+            "actual": "R-02"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": "Use only authority version D-004 and preserve every limiting qualifier."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-01"
+            ],
+            "actual": [
+              "R-01"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": false,
+            "expected": "paragraph",
+            "actual": null
+          },
+          "locator_value": {
+            "pass": false,
+            "expected": "62",
+            "actual": null
+          },
+          "quote_exact": {
+            "pass": false,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": null
+          },
+          "qualifier_exact": {
+            "pass": false,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": null
+          },
+          "source_url": {
+            "pass": false,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": null
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-22"
+            ],
+            "actual": [
+              "E-22"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": [
+              "E-17",
+              "E-18"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-204",
+            "actual": "J-204"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 23,
+            "actual": 23
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": "sha256:cc8f13c9d2d19c4a-ca-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 1318,
+        "input_tokens_details": {
+          "cache_write_tokens": 1315,
+          "cached_tokens": 0
+        },
+        "output_tokens": 208,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1526
+      },
+      "response_model": "gpt-5.6-sol",
+      "elapsed_seconds": 4.002,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "no_edit_state",
+      "input_sha256": "dbbd69eb6e14ac3868febec799967108a9a1bca21acde2d80b293a5f7035e3d3",
+      "input_chars": 4600,
+      "prediction": {
+        "active_instruction_id": "R-02",
+        "active_instruction_text": "Use only authority version D-004 and preserve every limiting qualifier.",
+        "superseded_instruction_ids": [
+          "R-01"
+        ],
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": "paragraph",
+        "locator_value": "62",
+        "quote_exact": "The reviewing court must assess the record as it stood when the decision was made.",
+        "qualifier_exact": "unless the governing statute expressly authorizes fresh evidence.",
+        "source_url": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+        "accepted_edit_ids": null,
+        "rejected_edit_ids": null,
+        "tool_receipt_id": "J-204",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 23,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 19,
+        "total": 21,
+        "score": 0.9047619047619048,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 0,
+            "total": 2,
+            "score": 0.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-02",
+            "actual": "R-02"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": "Use only authority version D-004 and preserve every limiting qualifier."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-01"
+            ],
+            "actual": [
+              "R-01"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "paragraph",
+            "actual": "paragraph"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "62",
+            "actual": "62"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": "The reviewing court must assess the record as it stood when the decision was made."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": "unless the governing statute expressly authorizes fresh evidence."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute"
+          },
+          "accepted_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-22"
+            ],
+            "actual": null
+          },
+          "rejected_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": null
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-204",
+            "actual": "J-204"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 23,
+            "actual": 23
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": "sha256:cc8f13c9d2d19c4a-ca-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 1382,
+        "input_tokens_details": {
+          "cache_write_tokens": 1379,
+          "cached_tokens": 0
+        },
+        "output_tokens": 258,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1640
+      },
+      "response_model": "gpt-5.6-sol",
+      "elapsed_seconds": 2.631,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "no_tool_receipt_state",
+      "input_sha256": "643f7b4de7d4cf21a2e866e538736e92927aee5c937f58e66401fc7d864dcd0a",
+      "input_chars": 4451,
+      "prediction": {
+        "active_instruction_id": "R-02",
+        "active_instruction_text": "Use only authority version D-004 and preserve every limiting qualifier.",
+        "superseded_instruction_ids": [
+          "R-01"
+        ],
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": "paragraph",
+        "locator_value": "62",
+        "quote_exact": "The reviewing court must assess the record as it stood when the decision was made.",
+        "qualifier_exact": "unless the governing statute expressly authorizes fresh evidence.",
+        "source_url": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+        "accepted_edit_ids": [
+          "E-22"
+        ],
+        "rejected_edit_ids": [
+          "E-17",
+          "E-18"
+        ],
+        "tool_receipt_id": null,
+        "tool_status": null,
+        "tool_exit_code": null,
+        "tool_result_count": null,
+        "tool_next_cursor": null,
+        "tool_artifact_sha256": null,
+        "tool_truncated": null,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 14,
+        "total": 21,
+        "score": 0.6666666666666666,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 0,
+            "total": 7,
+            "score": 0.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-02",
+            "actual": "R-02"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": "Use only authority version D-004 and preserve every limiting qualifier."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-01"
+            ],
+            "actual": [
+              "R-01"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "paragraph",
+            "actual": "paragraph"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "62",
+            "actual": "62"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": "The reviewing court must assess the record as it stood when the decision was made."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": "unless the governing statute expressly authorizes fresh evidence."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-22"
+            ],
+            "actual": [
+              "E-22"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": [
+              "E-17",
+              "E-18"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": false,
+            "expected": "J-204",
+            "actual": null
+          },
+          "tool_status": {
+            "pass": false,
+            "expected": "complete",
+            "actual": null
+          },
+          "tool_exit_code": {
+            "pass": false,
+            "expected": 0,
+            "actual": null
+          },
+          "tool_result_count": {
+            "pass": false,
+            "expected": 23,
+            "actual": null
+          },
+          "tool_next_cursor": {
+            "pass": false,
+            "expected": "NONE",
+            "actual": null
+          },
+          "tool_artifact_sha256": {
+            "pass": false,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": null
+          },
+          "tool_truncated": {
+            "pass": false,
+            "expected": false,
+            "actual": null
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 1335,
+        "input_tokens_details": {
+          "cache_write_tokens": 1332,
+          "cached_tokens": 0
+        },
+        "output_tokens": 248,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 1583
+      },
+      "response_model": "gpt-5.6-sol",
+      "elapsed_seconds": 3.129,
+      "repetition": 1
+    }
+  ]
+}

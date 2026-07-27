@@ -23,7 +23,10 @@ import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
-import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
+import {
+    ModelToggle,
+    ReasoningEffortToggle,
+} from "./ModelToggle";
 import {
     useSelectedModel,
     useSelectedReasoningEffort,
@@ -281,9 +284,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             files: files.length > 0 ? files : undefined,
             workflow: wf ?? undefined,
             model,
-            reasoningEffort: model.startsWith("codex")
-                ? reasoningEffort
-                : undefined,
+            reasoningEffort:
+                model.startsWith("codex:") || model.startsWith("deepseek-")
+                    ? reasoningEffort
+                    : undefined,
         });
     };
 
@@ -436,13 +440,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         </div>
 
                         <div className="flex items-center gap-1">
-                            {model.startsWith("codex") && (
-                                <ReasoningEffortToggle
-                                    model={model}
-                                    value={reasoningEffort}
-                                    onChange={setReasoningEffort}
-                                />
-                            )}
+                            <ReasoningEffortToggle
+                                model={model}
+                                value={reasoningEffort}
+                                onChange={setReasoningEffort}
+                            />
                             <ModelToggle
                                 value={model}
                                 onChange={setModel}
@@ -451,8 +453,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             <button
                                 type="button"
                                 className={cn(
-                                    "relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center cursor-pointer disabled:cursor-default disabled:from-neutral-600 disabled:to-black backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150",
-                                    "shadow-[0_5px_14px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.24)]",
+                                    "relative h-8 w-8 rounded-[10px] bg-brand text-white flex items-center justify-center cursor-pointer hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-all duration-150",
                                 )}
                                 onClick={handleActionClick}
                                 disabled={!isLoading && !value.trim()}

@@ -12,10 +12,14 @@ export type LegalSourceProvider =
   | "courtlistener"
   | "govinfo"
   | "govuk-et"
+  | "journal"
   | "scc"
   | "tna";
 
-export type LegalStructureBlock = A2AJStructureBlock & {
+export type LegalLocatorKind = A2AJLocatorKind | "footnote";
+
+export type LegalStructureBlock = Omit<A2AJStructureBlock, "kind"> & {
+  kind: LegalLocatorKind;
   anchor?: string;
   aliases?: string[];
   origin: "native" | "heuristic";
@@ -27,7 +31,7 @@ export type LegalSourceStructure = {
   source: "native" | "hybrid" | "flat_text" | "section_map";
   text: string;
   blocks: LegalStructureBlock[];
-  counts: Record<A2AJLocatorKind, number>;
+  counts: Record<LegalLocatorKind, number>;
 };
 
 export type LegalStructureLookup = {
@@ -306,6 +310,7 @@ function countBlocks(blocks: LegalStructureBlock[]) {
     paragraph: blocks.filter(({ kind }) => kind === "paragraph").length,
     page: blocks.filter(({ kind }) => kind === "page").length,
     section: blocks.filter(({ kind }) => kind === "section").length,
+    footnote: blocks.filter(({ kind }) => kind === "footnote").length,
   };
 }
 
@@ -392,13 +397,34 @@ function materialize(
   };
 }
 
+function normalizeLegalLocator(kind: LegalLocatorKind, locator: string) {
+  if (kind === "footnote") {
+    const match = locator
+      .trim()
+      .match(/^(?:fn|footnotes?|notes?)?[\s#.]*(\d{1,5})$/iu);
+    return match ? `fn${Number(match[1])}` : "";
+  }
+  const standard = normalizeA2AJLocator(kind, locator);
+  if (standard || kind !== "section") return standard;
+  const compact = locator
+    .trim()
+    .replace(/^(?:ss?\.?|sections?)\s*/iu, "")
+    .replace(/[.\s]+$/gu, "");
+  if (/^(?:[IVXLCDM]+|[A-Z])$/u.test(compact)) return `sec${compact}`;
+  const title = compact
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  return title ? `sectitle:${title}` : "";
+}
+
 export function lookupLegalSourceStructure(
   structure: LegalSourceStructure,
-  kind: A2AJLocatorKind,
+  kind: LegalLocatorKind,
   locator: string,
   contextBlocks = 0,
 ): LegalStructureLookup {
-  const requestedLabel = normalizeA2AJLocator(kind, locator);
+  const requestedLabel = normalizeLegalLocator(kind, locator);
   const available = structure.blocks.filter((block) => block.kind === kind);
   if (!requestedLabel || !available.length) {
     return {

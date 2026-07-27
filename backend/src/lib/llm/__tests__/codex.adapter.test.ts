@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { existsSync, readFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -185,6 +186,41 @@ describe("streamCodex", () => {
     expect(
       args.some((arg) => arg.startsWith("mcp_servers.mike_runtime.url=")),
     ).toBe(true);
+  });
+
+  it("passes images to Codex through its native image argument", async () => {
+    let imagePath = "";
+    spawnMock.mockImplementation((_command, args: string[]) => {
+      const imageIndex = args.indexOf("-i");
+      imagePath = args[imageIndex + 1];
+      expect(imageIndex).toBeGreaterThan(0);
+      expect(readFileSync(imagePath).subarray(0, 8)).toEqual(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
+      return fakeChild([
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: "I see it." },
+        }),
+      ]);
+    });
+
+    await streamCodex({
+      model: "codex-exec",
+      systemPrompt: "",
+      messages: [{
+        role: "user",
+        content: "What is shown?",
+        images: [{
+          filename: "scan.png",
+          mimeType: "image/png",
+          data: "iVBORw0KGgo=",
+        }],
+      }],
+    });
+
+    expect(imagePath).toContain("mike-codex-images-");
+    expect(existsSync(imagePath)).toBe(false);
   });
 
   it("does not spawn Codex when already aborted", async () => {

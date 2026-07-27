@@ -7,10 +7,15 @@ export const ALLOWED_DOCUMENT_TYPES = new Set([
   "xls",
   "pptx",
   "ppt",
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
 ]);
 
 export const ALLOWED_DOCUMENT_TYPES_LABEL =
-  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt";
+  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp";
 
 const WORD_TYPES = new Set(["docx", "doc"]);
 const SPREADSHEET_TYPES = new Set(["xlsx", "xlsm", "xls"]);
@@ -54,6 +59,15 @@ export function contentTypeForDocumentType(fileType: string | null | undefined) 
       return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
     case "ppt":
       return "application/vnd.ms-powerpoint";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
     default:
       return "application/octet-stream";
   }

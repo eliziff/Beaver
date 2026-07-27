@@ -5,13 +5,21 @@ import {
   createLocalDocument,
   createLocalFolder,
   deleteLocalFolder,
+  getLocalVersionFile,
   listLocalLibrary,
   moveLocalDocument,
   renameLocalDocument,
   updateLocalFolder,
   type LocalLibraryKind,
 } from "../lib/localDocumentStore";
+import {
+  queueLocalPdfParse,
+  readLocalPdfParseState,
+} from "../lib/localPdfIngestion";
+import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
+import { fixLocalDocxSupraCrossReferences } from "../lib/docxDeterministicCleanup";
 import { singleFileUpload } from "../lib/upload";
+import { imageValidationError } from "../lib/llm/images";
 
 export const localLibraryRouter = Router();
 
@@ -59,6 +67,11 @@ localLibraryRouter.post(
     const kind = libraryKind(req.params.kind);
     if (!kind) return void res.status(404).json({ detail: "Library not found" });
     if (!req.file) return void res.status(400).json({ detail: "file is required" });
+    const imageError = imageValidationError(
+      req.file.originalname,
+      req.file.buffer,
+    );
+    if (imageError) return void res.status(400).json({ detail: imageError });
     try {
       const document = await createLocalDocument({
         userId: res.locals.userId as string,
@@ -94,6 +107,127 @@ localLibraryRouter.post(
     );
     if (!folder) return void res.status(404).json({ detail: "Parent folder not found" });
     res.status(201).json(folder);
+  }),
+);
+
+localLibraryRouter.post(
+  "/:kind/documents/:documentId/actions/fix-supras",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (kind !== "file") {
+      return void res
+        .status(400)
+        .json({ detail: "Supra cleanup applies to Library files" });
+    }
+    try {
+      res.json(
+        await fixLocalDocxSupraCrossReferences(
+          res.locals.userId as string,
+          req.params.documentId,
+        ),
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "DOCX supra cleanup failed";
+      res.status(detail === "Document not found" ? 404 : 400).json({ detail });
+    }
+  }),
+);
+
+localLibraryRouter.post(
+  "/:kind/documents/:documentId/actions/link-citations",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (kind !== "file") {
+      return void res
+        .status(400)
+        .json({ detail: "Citation linking applies to Library files" });
+    }
+    try {
+      res.json(
+        await linkLocalDocxCitations(
+          res.locals.userId as string,
+          req.params.documentId,
+        ),
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "DOCX citation linking failed";
+      res.status(detail === "Document not found" ? 404 : 400).json({ detail });
+    }
+  }),
+);
+
+localLibraryRouter.get(
+  "/:kind/documents/:documentId/pdf-parse",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    const userId = res.locals.userId as string;
+    const collection = await listLocalLibrary(userId, kind);
+    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    const versionId =
+      typeof req.query.version_id === "string" ? req.query.version_id : null;
+    const file = await getLocalVersionFile(
+      userId,
+      req.params.documentId,
+      versionId,
+    );
+    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (file.fileType !== "pdf") {
+      return void res.status(409).json({ detail: "Version is not a PDF" });
+    }
+    const state = await readLocalPdfParseState(file.path);
+    if (!state) {
+      return void res.status(404).json({
+        detail: "No structural PDF parse state exists for this version",
+        retry_available: true,
+        flat_text_fallback_available: true,
+      });
+    }
+    res.json(state);
+  }),
+);
+
+localLibraryRouter.post(
+  "/:kind/documents/:documentId/actions/retry-pdf-parse",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    const userId = res.locals.userId as string;
+    const collection = await listLocalLibrary(userId, kind);
+    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    const versionId =
+      typeof req.body?.version_id === "string" ? req.body.version_id : null;
+    const file = await getLocalVersionFile(
+      userId,
+      req.params.documentId,
+      versionId,
+    );
+    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (file.fileType !== "pdf") {
+      return void res.status(409).json({ detail: "Version is not a PDF" });
+    }
+    res.status(202).json(
+      await queueLocalPdfParse({
+        documentId: req.params.documentId,
+        versionId: file.version.id,
+        sourcePath: file.path,
+        sourceSha256:
+          typeof file.version.source_sha256 === "string"
+            ? file.version.source_sha256
+            : undefined,
+        force: true,
+      }),
+    );
   }),
 );
 

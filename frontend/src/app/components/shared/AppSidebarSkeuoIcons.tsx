@@ -1,49 +1,47 @@
-import Image, { type ImageProps } from "next/image";
+import type { HTMLAttributes } from "react";
 
-type IconProps = Omit<
-    ImageProps,
-    "alt" | "src" | "width" | "height" | "unoptimized"
->;
+type IconProps = HTMLAttributes<HTMLSpanElement>;
 
-const ICON_BASE_PATH = "/icons/app-sidebar";
-const ICON_VERSION = "27";
-
-function AppSidebarIcon({
-    name,
+function AppSymbol({
+    symbol,
     className,
     ...props
-}: IconProps & { name: string }) {
+}: IconProps & { symbol: string }) {
     return (
-        <Image
-            src={`${ICON_BASE_PATH}/${name}.svg?v=${ICON_VERSION}`}
-            alt=""
-            width={64}
-            height={64}
-            unoptimized
-            aria-hidden="true"
-            draggable={false}
-            className={`${className ?? ""} object-contain`}
+        <span
             {...props}
-        />
+            aria-hidden="true"
+            className={`app-symbol-icon ${className ?? ""}`}
+        >
+            {symbol}
+        </span>
     );
 }
 
 export function ChatSkeuoIcon(props: IconProps) {
-    return <AppSidebarIcon name="chat" {...props} />;
+    return <AppSymbol symbol={"✦\uFE0E"} {...props} />;
 }
 
 export function FolderSkeuoIcon(props: IconProps) {
-    return <AppSidebarIcon name="project-closed" {...props} />;
+    return <AppSymbol symbol="⊞" {...props} />;
 }
 
 export function LibrarySkeuoIcon(props: IconProps) {
-    return <AppSidebarIcon name="library" {...props} />;
+    return <AppSymbol symbol="▤" {...props} />;
 }
 
 export function TabularReviewSkeuoIcon(props: IconProps) {
-    return <AppSidebarIcon name="tabular-review" {...props} />;
+    return <AppSymbol symbol="▦" {...props} />;
+}
+
+export function TableOfAuthoritiesSkeuoIcon(props: IconProps) {
+    return <AppSymbol symbol={"⚖\uFE0E"} {...props} />;
 }
 
 export function WorkflowSkeuoIcon(props: IconProps) {
-    return <AppSidebarIcon name="workflow" {...props} />;
+    return <AppSymbol symbol="⎇" {...props} />;
+}
+
+export function QuickActionsSkeuoIcon(props: IconProps) {
+    return <AppSymbol symbol={"⚡\uFE0E"} {...props} />;
 }

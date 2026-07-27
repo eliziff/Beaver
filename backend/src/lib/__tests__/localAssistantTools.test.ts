@@ -7,6 +7,7 @@ let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  vi.doUnmock("../tableOfAuthorities");
   vi.unstubAllGlobals();
   vi.resetModules();
   if (temporaryDirectory) {
@@ -16,6 +17,33 @@ afterEach(async () => {
 });
 
 describe("local assistant tools", () => {
+  it("offers bounded deterministic DOCX actions", async () => {
+    const { LOCAL_ASSISTANT_TOOLS } = await import(
+      "../chat/localAssistantTools"
+    );
+    const names = LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name);
+
+    expect(names).toContain("library_link_docx_citations");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_link_docx_citations",
+      )?.function.description,
+    ).toContain("do not read, split, classify, or construct citation URLs");
+    expect(names).toContain("library_fix_docx_supras");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_fix_docx_supras",
+      )?.function.description,
+    ).toContain("before asking the model");
+    expect(names).toContain("toa_submit_library_document");
+    expect(names).toContain("toa_job_status");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "toa_submit_library_document",
+      )?.function.parameters.properties,
+    ).not.toHaveProperty("path");
+  });
+
   it("discovers documents in the local Mike Library", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -44,6 +72,64 @@ describe("local assistant tools", () => {
           filename: "Chamberlain.pdf",
         },
       ],
+    });
+  });
+
+  it("submits only an owned Library DOCX version to the ToA bridge", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const jobId = "a".repeat(32);
+    const submit = vi.fn().mockResolvedValue({
+      id: jobId,
+      state: "running",
+      operation: "detection",
+      progress: 0,
+      message: "Starting detection",
+      error: "",
+      has_review: false,
+      split_fallback: "auto",
+      files: [],
+      open_path: `/table-of-authorities?job=${jobId}`,
+    });
+    vi.doMock("../tableOfAuthorities", () => ({
+      submitTableOfAuthoritiesDocument: submit,
+      getTableOfAuthoritiesJob: vi.fn(),
+    }));
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "factum.docx",
+      bytes: Buffer.from("owned-docx-bytes"),
+    });
+    const tools = await import("../chat/localAssistantTools");
+
+    const [response] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "call-toa",
+        name: "toa_submit_library_document",
+        input: {
+          document_id: document.id,
+          version_id: document.current_version_id,
+          split_fallback: "auto",
+        },
+      },
+    ]);
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit.mock.calls[0][0]).toMatchObject({
+      filename: "factum.docx",
+      splitFallback: "auto",
+    });
+    expect(submit.mock.calls[0][0].bytes.toString()).toBe("owned-docx-bytes");
+    expect(JSON.parse(response.content)).toMatchObject({
+      ok: true,
+      document_id: document.id,
+      version_id: document.current_version_id,
+      job: {
+        id: jobId,
+        open_path: `/table-of-authorities?job=${jobId}`,
+      },
     });
   });
 

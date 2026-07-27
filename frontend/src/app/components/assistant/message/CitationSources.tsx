@@ -18,6 +18,9 @@ function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {
         return `a2aj:${annotation.url ?? annotation.citation ?? annotation.ref}`;
     }
+    if (annotation.kind === "public_legal") {
+        return `public:${annotation.provider}:${annotation.identifier}`;
+    }
     return `document:${annotation.document_id}`;
 }
 
@@ -30,6 +33,9 @@ function citationSourceLabel(annotation: Citation): string {
     }
     if (annotation.kind === "a2aj") {
         return annotation.name || annotation.citation || "A2AJ source";
+    }
+    if (annotation.kind === "public_legal") {
+        return annotation.title || annotation.identifier;
     }
     return annotation.filename;
 }
@@ -45,7 +51,11 @@ function CitationSourceIcon({
 }: {
     annotation: Citation;
 }) {
-    if (annotation.kind === "case" || annotation.kind === "a2aj") {
+    if (
+        annotation.kind === "case" ||
+        annotation.kind === "a2aj" ||
+        annotation.kind === "public_legal"
+    ) {
         return <Scale className="h-3.5 w-3.5 text-slate-600" />;
     }
     return (

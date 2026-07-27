@@ -39,6 +39,7 @@ import {
 import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
+  appendPublicLegalPinpointLinks,
   createPublicLegalSourceState,
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
@@ -197,7 +198,11 @@ export async function runLLMStream(params: {
 
   // Extract system prompt; pass remaining turns to the adapter as
   // plain user/assistant messages.
-  const rawMsgs = apiMessages as { role: string; content: string | null }[];
+  const rawMsgs = apiMessages as {
+    role: string;
+    content: string | null;
+    images?: import("../llm").LlmImage[];
+  }[];
   const systemPrompt =
     rawMsgs[0]?.role === "system" ? (rawMsgs[0].content ?? "") : "";
   const chatMessages: LlmMessage[] = rawMsgs
@@ -205,6 +210,7 @@ export async function runLLMStream(params: {
     .map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content ?? "",
+      images: m.images,
     }));
 
   const events: AssistantEvent[] = [];
@@ -556,6 +562,24 @@ export async function runLLMStream(params: {
           publicLegalState,
         ),
       );
+  const visibleText = events.flatMap((event) =>
+    event.type === "content" ? [event.text] : [],
+  ).join("\n\n");
+  const linkedText = appendPublicLegalPinpointLinks(
+    visibleText,
+    publicLegalState,
+    citations.flatMap((citation) => {
+      const url = (citation as { url?: unknown })?.url;
+      return typeof url === "string" ? [url] : [];
+    }),
+  );
+  const linkDelta = linkedText.slice(visibleText.length);
+  if (linkDelta) {
+    events.push({ type: "content", text: linkDelta });
+    write(
+      `data: ${JSON.stringify({ type: "content_delta", text: linkDelta })}\n\n`,
+    );
+  }
   devLog("[chat/stream] final citations", {
     hasCitationsBlock: citationDiagnostics.hasBlock,
     citationsBlockLength: citationDiagnostics.rawLength,

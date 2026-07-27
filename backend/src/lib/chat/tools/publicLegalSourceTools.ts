@@ -1,17 +1,45 @@
 export const PUBLIC_LEGAL_SOURCE_TOOL_NAMES = {
+  search: "public_legal_source_search",
   fetch: "public_legal_source_fetch",
   lookup: "public_legal_source_lookup",
 } as const;
 
-const PROVIDERS = ["tna", "govuk-et", "govinfo"] as const;
+const PROVIDERS = ["tna", "govuk-et", "govinfo", "journal"] as const;
 
 export const PUBLIC_LEGAL_SOURCE_TOOLS = [
   {
     type: "function",
     function: {
+      name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.search,
+      description:
+        "Search local journal-article metadata in public_endpoint.db. Results are candidates only; fetch or look up the returned article_id before relying on text.",
+      parameters: {
+        type: "object",
+        properties: {
+          provider: {
+            type: "string",
+            enum: ["journal"],
+          },
+          query: {
+            type: "string",
+            description: "Article title, author, journal, or citation terms.",
+          },
+          size: {
+            type: "integer",
+            minimum: 1,
+            maximum: 25,
+          },
+        },
+        required: ["provider", "query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch,
       description:
-        "Fetch one exact public legal source from the UK National Archives Find Case Law, GOV.UK Employment Tribunal decisions, or US GovInfo. URLs are resolved and retained by Mike; do not supply or construct one.",
+        "Fetch one exact public legal source from UK Find Case Law, GOV.UK Employment Tribunal decisions, US GovInfo, or the local journal corpus. For journals, pass an article_id returned by search. URLs are retained by Mike; do not supply or construct one.",
       parameters: {
         type: "object",
         properties: {
@@ -19,12 +47,12 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
             type: "string",
             enum: PROVIDERS,
             description:
-              "tna for a UK neutral citation, govuk-et for an Employment Tribunal case number, or govinfo for a US federal docket.",
+              "tna for a UK neutral citation, govuk-et for an Employment Tribunal case number, govinfo for a US federal docket, or journal for a public_endpoint.db article.",
           },
           identifier: {
             type: "string",
             description:
-              'Exact provider identifier, such as "[2024] UKSC 1", "2200123/2024", or "1:22-cv-00930".',
+              'Exact provider identifier, such as "[2024] UKSC 1", "2200123/2024", "1:22-cv-00930", or a journal article_id.',
           },
         },
         required: ["provider", "identifier"],
@@ -36,7 +64,7 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
     function: {
       name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
       description:
-        "Look up one paragraph, section/subsection, or page in an exact TNA, GOV.UK Employment Tribunal, or GovInfo source. Mike fetches and indexes the source if needed, preserves provider-native locators, and reconstructs structure only when native structure is absent.",
+        "Look up one paragraph, section/subsection, page, or journal footnote. Mike preserves native locators and page maps, reconstructs structure only when necessary, and retains the final URL privately.",
       parameters: {
         type: "object",
         properties: {
@@ -51,7 +79,7 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
           },
           locator_type: {
             type: "string",
-            enum: ["paragraph", "section", "page"],
+            enum: ["paragraph", "section", "page", "footnote"],
           },
           locator: {
             type: "string",
@@ -75,5 +103,6 @@ Use public_legal_source_fetch and public_legal_source_lookup for:
 - UK Find Case Law (provider "tna") using an exact neutral citation.
 - GOV.UK Employment Tribunal decisions (provider "govuk-et") using an exact case number.
 - US GovInfo court opinions (provider "govinfo") using an exact federal docket.
-Prefer lookup for a requested paragraph, section/subsection, or page. Base claims only on fetched or returned text, not search metadata or memory. Provider URLs and native anchors are private server evidence: never invent, request, copy, or include a URL in citation data.
+- Local journal articles (provider "journal"): search first, then fetch or look up using the returned article_id.
+Prefer lookup for a requested paragraph, section/subsection, page, or journal footnote. Search/FTS results are candidates only. Base claims only on fetched or returned text, not search metadata, embeddings, or memory. Provider URLs and native anchors are private server evidence: never invent, request, copy, or include a URL in citation data.
 When relying on one of these sources, include [N] and a matching <CITATIONS> entry: {"ref": N, "source": "public_legal", "provider": "tna", "identifier": "[2024] UKSC 1", "quotes": [{"quote": "exact returned text"}]}. Mike verifies the quote against fetched full text and attaches the trusted provider link automatically.`;

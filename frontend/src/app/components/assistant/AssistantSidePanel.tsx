@@ -17,6 +17,10 @@ import {
     CaseLawPanel,
     type CaseTab,
 } from "./CaseLawPanel";
+import {
+    LegalSourceViewer,
+    type LegalSourceTab,
+} from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 
@@ -59,7 +63,8 @@ export type AssistantSidePanelTab =
     | DocumentTab
     | CitationTab
     | EditTab
-    | CaseTab;
+    | CaseTab
+    | LegalSourceTab;
 
 interface Props {
     tabs: AssistantSidePanelTab[];
@@ -116,6 +121,9 @@ function maxPanelWidth() {
 function tabTitle(tab: AssistantSidePanelTab): string {
     if (tab.kind === "case") {
         return tab.caseName || tab.citation || "Case";
+    }
+    if (tab.kind === "legal") {
+        return tab.name || tab.citation;
     }
     return tab.filename;
 }
@@ -226,6 +234,7 @@ export function AssistantSidePanel({
                         const isActive = tab.id === active.id;
                         const showVersionBadge =
                             tab.kind !== "case" &&
+                            tab.kind !== "legal" &&
                             typeof tab.versionNumber === "number" &&
                             Number.isFinite(tab.versionNumber) &&
                             tab.versionNumber > 1;
@@ -296,6 +305,27 @@ export function AssistantSidePanel({
                                 <CaseLawPanel
                                     tab={tab}
                                     compactActions={panelWidth < 600}
+                                />
+                            </div>
+                        );
+                    }
+                    if (tab.kind === "legal") {
+                        return (
+                            <div
+                                key={tab.id}
+                                className={`absolute inset-0 flex flex-col ${isActive ? "" : "invisible pointer-events-none"}`}
+                                aria-hidden={!isActive}
+                            >
+                                <LegalSourceViewer
+                                    provider={tab.provider}
+                                    citation={tab.citation}
+                                    sourceId={tab.sourceId}
+                                    docType={tab.docType}
+                                    language={tab.language}
+                                    dataset={tab.dataset}
+                                    quotes={tab.quotes}
+                                    citationRef={tab.citationRef}
+                                    compact
                                 />
                             </div>
                         );

@@ -1,11 +1,12 @@
 import { XMLParser } from "fast-xml-parser";
-import type { A2AJLocatorKind } from "./a2ajStructure";
 import {
   buildLegalSourceStructure,
   lookupLegalSourceStructure,
+  type LegalLocatorKind,
   type LegalSourceStructure,
   type LegalStructureLookup,
 } from "./legalSourceStructure";
+import type { JournalArticleSearchResult } from "./journalArticles";
 
 const TNA_ORIGIN = "https://caselaw.nationalarchives.gov.uk";
 const GOVUK_ORIGIN = "https://www.gov.uk";
@@ -41,7 +42,8 @@ export type GovInfoCaseSearchResult = {
 export type PublicLegalSearchResult =
   | TnaCaseSearchResult
   | GovUkEtSearchResult
-  | GovInfoCaseSearchResult;
+  | GovInfoCaseSearchResult
+  | JournalArticleSearchResult;
 
 export type PublicLegalAttachment = {
   title: string | null;
@@ -531,7 +533,7 @@ export async function fetchGovInfoCase(
 
 export function lookupPublicLegalSource(
   document: PublicLegalDocument,
-  kind: A2AJLocatorKind,
+  kind: LegalLocatorKind,
   locator: string,
   contextBlocks = 0,
 ): PublicLegalLookup {

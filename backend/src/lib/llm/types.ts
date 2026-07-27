@@ -2,7 +2,13 @@
 // Callers always speak OpenAI-style tools + { role, content } messages; each
 // provider translates internally.
 
-export type Provider = "claude" | "gemini" | "openai" | "codex";
+export type Provider =
+  | "claude"
+  | "gemini"
+  | "openai"
+  | "deepseek"
+  | "openrouter"
+  | "codex";
 
 export type OpenAIToolSchema = {
     type: "function";
@@ -16,6 +22,14 @@ export type OpenAIToolSchema = {
 export type LlmMessage = {
     role: "user" | "assistant";
     content: string;
+    images?: LlmImage[];
+};
+
+export type LlmImage = {
+    filename: string;
+    mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    /** Raw base64 bytes, without a data-URL prefix. */
+    data: string;
 };
 
 export type NormalizedToolCall = {
@@ -40,6 +54,7 @@ export type UserApiKeys = {
     claude?: string | null;
     gemini?: string | null;
     openai?: string | null;
+    deepseek?: string | null;
     openrouter?: string | null;
     courtlistener?: string | null;
     codex?: string | null;
@@ -61,7 +76,7 @@ export type StreamChatParams = {
      * one-shot completions should leave this off to save tokens and latency.
      */
   enableThinking?: boolean;
-  /** Codex reasoning effort, passed through to the CLI when selected. */
+  /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
   abortSignal?: AbortSignal;
 };

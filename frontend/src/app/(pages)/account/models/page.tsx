@@ -147,11 +147,11 @@ function ModelPreferenceDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const selected = options.find((m) => m.id === value);
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ("Anthropic" | "Google" | "OpenAI" | "Codex")[] = [
+    const groups: ModelOption["group"][] = [
         "Anthropic",
         "Google",
         "OpenAI",
-        "Codex",
+        "DeepSeek",
     ];
 
     return (

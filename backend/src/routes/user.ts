@@ -9,6 +9,7 @@ import {
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
     CLAUDE_LOW_MODELS,
+    DEEPSEEK_MAIN_MODELS,
     OPENAI_LOW_MODELS,
     resolveModel,
 } from "../lib/llm";
@@ -283,6 +284,8 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         ? DEFAULT_TITLE_MODEL
         : apiKeyStatus?.openai
           ? OPENAI_LOW_MODELS[0]
+          : apiKeyStatus?.deepseek
+            ? DEEPSEEK_MAIN_MODELS[0]
           : apiKeyStatus?.claude
             ? CLAUDE_LOW_MODELS[0]
             : DEFAULT_TITLE_MODEL;
@@ -308,6 +311,7 @@ function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
         claude: hasEnvApiKey("claude") ? "env" : null,
         gemini: hasEnvApiKey("gemini") ? "env" : null,
         openai: hasEnvApiKey("openai") ? "env" : null,
+        deepseek: hasEnvApiKey("deepseek") ? "env" : null,
         openrouter: hasEnvApiKey("openrouter") ? "env" : null,
         courtlistener: hasEnvApiKey("courtlistener") ? "env" : null,
     };
@@ -315,6 +319,7 @@ function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
         claude: providers.claude === "env",
         gemini: providers.gemini === "env",
         openai: providers.openai === "env",
+        deepseek: providers.deepseek === "env",
         openrouter: providers.openrouter === "env",
         courtlistener: providers.courtlistener === "env",
         sources: providers,

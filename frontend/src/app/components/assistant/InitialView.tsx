@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { QuickActionsSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
 import { QuickActionsModal } from "./QuickActionsModal";
@@ -199,15 +199,7 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                     <div className="flex flex-col items-center">
                         <div className="group relative flex h-5 items-center justify-center">
                             <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
-                                <Image
-                                    src="/icons/app-sidebar/quick-actions.svg"
-                                    alt=""
-                                    width={14}
-                                    height={14}
-                                    unoptimized
-                                    aria-hidden="true"
-                                    className="h-3.5 w-3.5 shrink-0"
-                                />
+                                <QuickActionsSkeuoIcon className="h-3.5 w-3.5 shrink-0" />
                                 Quick actions
                             </span>
                             <button

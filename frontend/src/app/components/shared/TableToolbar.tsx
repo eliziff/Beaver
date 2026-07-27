@@ -33,7 +33,7 @@ interface ToolbarItem<T extends string> {
 }
 
 interface Props<T extends string> {
-    items?: ToolbarItem<T>[];
+    items?: readonly ToolbarItem<T>[];
     active?: T;
     onChange?: (id: T) => void;
     /** Optional content rendered on the right side of the toolbar */

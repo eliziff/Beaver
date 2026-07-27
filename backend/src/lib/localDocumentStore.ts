@@ -12,8 +12,25 @@ import {
   ALLOWED_DOCUMENT_TYPES,
   shouldConvertToPdf,
 } from "./documentTypes";
+import { mikeLocalDataHome } from "./legalDataPath";
+import { isImageDocumentType, validateImageBytes } from "./llm/images";
+import {
+  queueLocalPdfParse,
+  removeLocalPdfParseArtifacts,
+} from "./localPdfIngestion";
 
 export type LocalLibraryKind = "file" | "template";
+
+export type LocalLegalSourcePointer = {
+  id: string;
+  userId: string;
+  provider: "a2aj" | "journal";
+  docType: "cases" | "laws" | "articles";
+  citation: string;
+  language: "en" | "fr";
+  dataset: string | null;
+  sourceId?: string | null;
+};
 
 type LocalVersion = {
   id: string;
@@ -26,6 +43,7 @@ type LocalVersion = {
   pageCount: number | null;
   storagePath: string;
   pdfStoragePath: string | null;
+  sourceSha256?: string;
 };
 
 type LocalDocument = {
@@ -53,16 +71,15 @@ type LocalStore = {
   version: 1;
   documents: LocalDocument[];
   folders: LocalFolder[];
+  legalSources: LocalLegalSourcePointer[];
 };
 
-const dataRoot = path.resolve(
-  process.env.MIKE_LOCAL_DATA_DIR?.trim() || path.join(process.cwd(), ".mike-local"),
-);
+const dataRoot = mikeLocalDataHome();
 const indexPath = path.join(dataRoot, "library.json");
 let mutationTail: Promise<unknown> = Promise.resolve();
 
 function emptyStore(): LocalStore {
-  return { version: 1, documents: [], folders: [] };
+  return { version: 1, documents: [], folders: [], legalSources: [] };
 }
 
 async function readStore(): Promise<LocalStore> {
@@ -72,6 +89,9 @@ async function readStore(): Promise<LocalStore> {
       version: 1,
       documents: Array.isArray(parsed.documents) ? parsed.documents : [],
       folders: Array.isArray(parsed.folders) ? parsed.folders : [],
+      legalSources: Array.isArray(parsed.legalSources)
+        ? parsed.legalSources
+        : [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyStore();
@@ -132,9 +152,14 @@ async function writeVersionFiles(
   if (!ALLOWED_DOCUMENT_TYPES.has(suffix)) {
     throw new Error(`Unsupported file type: ${suffix || "unknown"}`);
   }
+  if (isImageDocumentType(suffix)) validateImageBytes(filename, bytes);
 
+  const sourceSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
   const relativeDirectory = path.join("files", documentId);
-  const relativeSource = path.join(relativeDirectory, `${versionId}.${suffix}`);
+  const relativeSource = path.join(
+    relativeDirectory,
+    `${versionId}-${sourceSha256.slice(0, 16)}.${suffix}`,
+  );
   await mkdir(absoluteDataPath(relativeDirectory), { recursive: true });
   await writeFile(absoluteDataPath(relativeSource), bytes);
 
@@ -142,7 +167,11 @@ async function writeVersionFiles(
   if (shouldConvertToPdf(suffix)) {
     try {
       const pdf = await docxToPdf(bytes);
-      relativePdf = path.join(relativeDirectory, `${versionId}.pdf`);
+      const pdfHash = crypto.createHash("sha256").update(pdf).digest("hex");
+      relativePdf = path.join(
+        relativeDirectory,
+        `${versionId}-${pdfHash.slice(0, 16)}.pdf`,
+      );
       await writeFile(absoluteDataPath(relativePdf), pdf);
     } catch (error) {
       console.warn("[local-library] Office to PDF conversion unavailable", {
@@ -152,7 +181,22 @@ async function writeVersionFiles(
     }
   }
 
-  return { suffix, relativeSource, relativePdf };
+  return { suffix, relativeSource, relativePdf, sourceSha256 };
+}
+
+async function queueVersionPdf(
+  documentId: string,
+  version: LocalVersion,
+  response: Record<string, unknown>,
+) {
+  if (version.fileType !== "pdf") return response;
+  const pdfParse = await queueLocalPdfParse({
+    documentId,
+    versionId: version.id,
+    sourcePath: absoluteDataPath(version.storagePath),
+    sourceSha256: version.sourceSha256,
+  });
+  return { ...response, pdf_parse: pdfParse };
 }
 
 export function localDocumentResponse(document: LocalDocument) {
@@ -170,6 +214,7 @@ export function localDocumentResponse(document: LocalDocument) {
     pdf_storage_path: version.pdfStoragePath,
     size_bytes: version.sizeBytes,
     page_count: version.pageCount,
+    source_sha256: version.sourceSha256,
     status: "ready",
     current_version_id: document.currentVersionId,
     active_version_number: version.versionNumber,
@@ -201,6 +246,7 @@ export function localVersionResponse(version: LocalVersion) {
     file_type: version.fileType,
     size_bytes: version.sizeBytes,
     page_count: version.pageCount,
+    source_sha256: version.sourceSha256,
     deleted_at: null,
     deleted_by: null,
   };
@@ -224,7 +270,7 @@ export async function createLocalDocument(params: {
   filename: string;
   bytes: Buffer;
 }) {
-  return mutateStore(async (store) => {
+  const saved = await mutateStore(async (store) => {
     const now = new Date().toISOString();
     const documentId = crypto.randomUUID();
     const versionId = crypto.randomUUID();
@@ -245,6 +291,7 @@ export async function createLocalDocument(params: {
       pageCount: null,
       storagePath: files.relativeSource,
       pdfStoragePath: files.relativePdf,
+      sourceSha256: files.sourceSha256,
     };
     const document: LocalDocument = {
       id: documentId,
@@ -257,8 +304,13 @@ export async function createLocalDocument(params: {
       versions: [version],
     };
     store.documents.push(document);
-    return localDocumentResponse(document);
+    return { document, version };
   });
+  return queueVersionPdf(
+    saved.document.id,
+    saved.version,
+    localDocumentResponse(saved.document),
+  );
 }
 
 export async function getLocalDocument(userId: string, documentId: string) {
@@ -294,6 +346,32 @@ export async function getLocalVersionFile(
   };
 }
 
+export async function getLocalVersionFiles(
+  userId: string,
+  documentIds: Iterable<string>,
+) {
+  const wanted = new Set(documentIds);
+  const store = await currentStore();
+  return new Map(
+    store.documents
+      .filter(
+        (document) =>
+          document.userId === userId && wanted.has(document.id),
+      )
+      .map((document) => {
+        const version = activeVersion(document);
+        return [
+          document.id,
+          {
+            path: absoluteDataPath(version.storagePath),
+            fileType: version.fileType,
+            filename: version.filename,
+          },
+        ] as const;
+      }),
+  );
+}
+
 export async function listLocalVersions(userId: string, documentId: string) {
   const document = await getLocalDocument(userId, documentId);
   if (!document) return null;
@@ -309,7 +387,7 @@ export async function addLocalVersion(params: {
   filename: string;
   bytes: Buffer;
 }) {
-  return mutateStore(async (store) => {
+  const saved = await mutateStore(async (store) => {
     const document = store.documents.find(
       (item) => item.id === params.documentId && item.userId === params.userId,
     );
@@ -333,12 +411,19 @@ export async function addLocalVersion(params: {
       pageCount: null,
       storagePath: files.relativeSource,
       pdfStoragePath: files.relativePdf,
+      sourceSha256: files.sourceSha256,
     };
     document.versions.push(version);
     document.currentVersionId = version.id;
     document.updatedAt = version.createdAt;
-    return localVersionResponse(version);
+    return { document, version };
   });
+  if (!saved) return null;
+  return queueVersionPdf(
+    saved.document.id,
+    saved.version,
+    localVersionResponse(saved.version),
+  );
 }
 
 export async function renameLocalVersion(
@@ -366,7 +451,7 @@ export async function replaceLocalVersion(params: {
   filename: string;
   bytes: Buffer;
 }) {
-  return mutateStore(async (store) => {
+  const saved = await mutateStore(async (store) => {
     const document = store.documents.find(
       (item) => item.id === params.documentId && item.userId === params.userId,
     );
@@ -390,6 +475,7 @@ export async function replaceLocalVersion(params: {
     version.createdAt = new Date().toISOString();
     version.storagePath = files.relativeSource;
     version.pdfStoragePath = files.relativePdf;
+    version.sourceSha256 = files.sourceSha256;
     document.updatedAt = version.createdAt;
     const nextPaths = new Set(
       [version.storagePath, version.pdfStoragePath].filter(
@@ -399,10 +485,22 @@ export async function replaceLocalVersion(params: {
     await Promise.all(
       [...previousPaths]
         .filter((item) => !nextPaths.has(item))
-        .map((item) => rm(absoluteDataPath(item), { force: true })),
+        .flatMap((item) => {
+          const absolute = absoluteDataPath(item);
+          return [
+            rm(absolute, { force: true }),
+            removeLocalPdfParseArtifacts(absolute),
+          ];
+        }),
     );
-    return localVersionResponse(version);
+    return { document, version };
   });
+  if (!saved) return null;
+  return queueVersionPdf(
+    saved.document.id,
+    saved.version,
+    localVersionResponse(saved.version),
+  );
 }
 
 export async function deleteLocalVersion(
@@ -428,7 +526,13 @@ export async function deleteLocalVersion(
     await Promise.all(
       [...new Set([removed.storagePath, removed.pdfStoragePath])]
         .filter((item): item is string => !!item)
-        .map((item) => rm(absoluteDataPath(item), { force: true })),
+        .flatMap((item) => {
+          const absolute = absoluteDataPath(item);
+          return [
+            rm(absolute, { force: true }),
+            removeLocalPdfParseArtifacts(absolute),
+          ];
+        }),
     );
     return {
       status: "deleted" as const,
@@ -619,6 +723,99 @@ export async function deleteLocalFolder(
           }),
         ),
     );
+    return true;
+  });
+}
+
+function legalSourceResponse(pointer: LocalLegalSourcePointer) {
+  return {
+    id: pointer.id,
+    provider: pointer.provider,
+    doc_type: pointer.docType,
+    citation: pointer.citation,
+    language: pointer.language,
+    dataset: pointer.dataset,
+    source_id: pointer.sourceId ?? null,
+  };
+}
+
+function legalSourceId(pointer: {
+  provider: "a2aj" | "journal";
+  docType: "cases" | "laws" | "articles";
+  citation: string;
+  language: "en" | "fr";
+  dataset?: string | null;
+  sourceId?: string | null;
+}) {
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify([
+        pointer.provider,
+        pointer.docType,
+        pointer.language,
+        pointer.dataset?.trim().toLowerCase() ?? "",
+        pointer.sourceId?.trim().toLowerCase() ?? "",
+        pointer.citation.trim().toLowerCase(),
+      ]),
+    )
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export async function listLocalLegalSources(userId: string) {
+  const store = await currentStore();
+  return store.legalSources
+    .filter((pointer) => pointer.userId === userId)
+    .map(legalSourceResponse);
+}
+
+export async function getLocalLegalSource(userId: string, id: string) {
+  const store = await currentStore();
+  return (
+    store.legalSources.find(
+      (pointer) => pointer.userId === userId && pointer.id === id,
+    ) ?? null
+  );
+}
+
+export async function saveLocalLegalSource(params: {
+  userId: string;
+  provider: "a2aj" | "journal";
+  docType: "cases" | "laws" | "articles";
+  citation: string;
+  language: "en" | "fr";
+  dataset?: string | null;
+  sourceId?: string | null;
+}) {
+  return mutateStore((store) => {
+    const sourceId = params.sourceId?.trim();
+    const pointer: LocalLegalSourcePointer = {
+      id: legalSourceId(params),
+      userId: params.userId,
+      provider: params.provider,
+      docType: params.docType,
+      citation: params.citation.trim(),
+      language: params.language,
+      dataset: params.dataset?.trim() || null,
+      ...(sourceId ? { sourceId } : {}),
+    };
+    const existing = store.legalSources.find(
+      (item) => item.userId === params.userId && item.id === pointer.id,
+    );
+    if (existing) return legalSourceResponse(existing);
+    store.legalSources.push(pointer);
+    return legalSourceResponse(pointer);
+  });
+}
+
+export async function deleteLocalLegalSource(userId: string, id: string) {
+  return mutateStore((store) => {
+    const index = store.legalSources.findIndex(
+      (pointer) => pointer.userId === userId && pointer.id === id,
+    );
+    if (index < 0) return false;
+    store.legalSources.splice(index, 1);
     return true;
   });
 }

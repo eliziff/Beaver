@@ -9,6 +9,7 @@ import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 
 type GeminiPart = {
   text?: string;
+  inlineData?: { mimeType: string; data: string };
   // Set by Gemini when the text content is a thought summary rather than
   // final-answer prose. Requires `thinkingConfig.includeThoughts: true`.
   thought?: boolean;
@@ -43,12 +44,19 @@ function client(override?: string | null): GoogleGenAI {
   return new GoogleGenAI({ apiKey: apiKey(override) });
 }
 
-function toNativeContents(
+export function toNativeContents(
   messages: StreamChatParams["messages"],
 ): GeminiContent[] {
   return messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
+    parts: [
+      { text: m.content },
+      ...(m.role === "user"
+        ? (m.images ?? []).map((image) => ({
+            inlineData: { mimeType: image.mimeType, data: image.data },
+          }))
+        : []),
+    ],
   }));
 }
 

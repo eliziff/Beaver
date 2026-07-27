@@ -39,6 +39,52 @@ export interface Project {
   review_count?: number;
 }
 
+export type PdfParseStatus =
+  | "queued"
+  | "parsing"
+  | "ready"
+  | "degraded"
+  | "failed";
+
+export interface PdfParseState {
+  schema_version: "mike.pdf_parse.v1";
+  job_id: string;
+  document_id: string;
+  version_id: string;
+  status: PdfParseStatus;
+  source_path: string;
+  source_sha256: string;
+  parser_version: string;
+  parser_config_version: string;
+  parser_config: {
+    mode: "local";
+    ocr_provider: null;
+    model: null;
+    prompt_version: null;
+    text_fidelity_root: string | null;
+    text_fidelity_native: false;
+  };
+  cache_key: string;
+  artifact_manifest: string;
+  attempts: number;
+  queued_at: string;
+  updated_at: string;
+  started_at?: string;
+  completed_at?: string;
+  interrupted_at?: string;
+  engine_status?: string;
+  cache_hit?: boolean;
+  page_count?: number;
+  counts?: Record<string, number>;
+  diagnostic_count?: number;
+  diagnostic_summary?: {
+    by_severity: Record<string, number>;
+    by_code: Record<string, number>;
+  };
+  error?: string;
+  flat_text_fallback_available: true;
+}
+
 export interface Document {
   id: string;
   user_id?: string;
@@ -58,10 +104,13 @@ export interface Document {
   status: "pending" | "processing" | "ready" | "error";
   created_at: string | null;
   updated_at?: string | null;
+  current_version_id?: string | null;
   /** Version number of the document row pointed to by current_version_id. */
   active_version_number?: number | null;
   /** Legacy: max version_number across assistant_edit rows, null if doc is unedited. */
   latest_version_number?: number | null;
+  /** Returned immediately by local PDF uploads; later state is read on demand. */
+  pdf_parse?: PdfParseState | null;
 }
 
 export interface StructureNode {
@@ -379,6 +428,17 @@ export type A2AJCitation = {
   quotes: { quote: string }[];
 };
 
+export type PublicLegalCitation = {
+  type: "citation_data";
+  kind: "public_legal";
+  ref: number;
+  provider: "tna" | "govuk-et" | "govinfo" | "journal";
+  identifier: string;
+  title?: string | null;
+  url?: string | null;
+  quotes: { quote: string }[];
+};
+
 /**
  * A citation emitted by the assistant. Document citations have doc/page
  * anchors. Case citations anchor to a CourtListener cluster and include a
@@ -387,7 +447,8 @@ export type A2AJCitation = {
 export type Citation =
   | DocumentCitation
   | CaseCitation
-  | A2AJCitation;
+  | A2AJCitation
+  | PublicLegalCitation;
 
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 
@@ -427,7 +488,12 @@ function formatCellLocatorReadable(sheet?: string, cell?: string): string {
 export function getCitationCells(
   a: Citation,
 ): { sheet?: string; cell?: string }[] {
-  if (a.kind === "case" || a.kind === "a2aj") return [];
+  if (
+    a.kind === "case" ||
+    a.kind === "a2aj" ||
+    a.kind === "public_legal"
+  )
+    return [];
   return getDocumentCitationQuotes(a)
     .filter((q) => q.cell || q.sheet)
     .map((q) => ({ sheet: q.sheet, cell: q.cell }));
@@ -458,7 +524,12 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
 export function getDocumentCitationQuotes(
   a: Citation,
 ): DocumentCitationQuote[] {
-  if (a.kind === "case" || a.kind === "a2aj") return [];
+  if (
+    a.kind === "case" ||
+    a.kind === "a2aj" ||
+    a.kind === "public_legal"
+  )
+    return [];
   if (Array.isArray(a.quotes) && a.quotes.length) {
     return a.quotes.filter((entry) => entry.quote.trim().length > 0);
   }
@@ -473,7 +544,12 @@ export function getDocumentCitationQuotes(
 export function expandCitationToEntries(
   a: Citation,
 ): CitationQuote[] {
-  if (a.kind === "case" || a.kind === "a2aj") return [];
+  if (
+    a.kind === "case" ||
+    a.kind === "a2aj" ||
+    a.kind === "public_legal"
+  )
+    return [];
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
 
@@ -487,6 +563,9 @@ export function formatCitationPage(a: Citation): string {
     return a.citation || a.case_name || `Case ${a.cluster_id}`;
   }
   if (a.kind === "a2aj") return a.citation || a.name || "A2AJ source";
+  if (a.kind === "public_legal") {
+    return a.title || a.identifier || "Public legal source";
+  }
   const quotes = getDocumentCitationQuotes(a);
   // Spreadsheets are located by cell, e.g. "Sheet1!B7" (or several).
   if (isSpreadsheetFilename(a.filename)) {
@@ -511,7 +590,12 @@ export function formatCitationQuotePage(
   page: number | string,
   quote?: DocumentCitationQuote,
 ): string {
-  if (a.kind !== "case" && a.kind !== "a2aj" && isSpreadsheetFilename(a.filename)) {
+  if (a.kind === "public_legal") return "Source";
+  if (
+    a.kind !== "case" &&
+    a.kind !== "a2aj" &&
+    isSpreadsheetFilename(a.filename)
+  ) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
   return `Page ${page}`;
@@ -536,6 +620,11 @@ export function displayCitationQuote(a: Citation): string {
       .join(" / ");
   }
   if (a.kind === "a2aj") {
+    return a.quotes
+      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
+      .join(" / ");
+  }
+  if (a.kind === "public_legal") {
     return a.quotes
       .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
       .join(" / ");
