@@ -19,6 +19,8 @@ import { getLocalVersionFile, listLocalLibrary } from "../localDocumentStore";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
   lookupLocalPdfStructure,
+  readLocalPdfEvidenceReceipt,
+  rehydrateLocalPdfEvidence,
   type LocalPdfLocatorKind,
 } from "../localPdfLookup";
 import type {
@@ -160,6 +162,24 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           },
         },
         required: ["document_id", "locator_kind", "locator"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "library_evidence",
+      description:
+        "Rehydrate a prior mike-evidence handle from its exact immutable Library PDF version. Use this after compaction or in a later turn instead of asking for the same locator again. The server verifies source, parser, artifact IDs, and text hash before returning text.",
+      parameters: {
+        type: "object",
+        properties: {
+          handle: {
+            type: "string",
+            description: "Opaque mike-evidence:v1 handle from library_lookup.",
+          },
+        },
+        required: ["handle"],
       },
     },
   },
@@ -309,6 +329,22 @@ function result(
   };
 }
 
+const SAFE_PDF_EVIDENCE_ERRORS = new Set([
+  "Invalid PDF evidence handle",
+  "Invalid PDF evidence receipt",
+  "PDF evidence receipt handle does not match its content",
+  "PDF evidence receipt does not belong to this source",
+  "PDF evidence source bytes no longer match their version",
+  "PDF evidence no longer matches the authoritative source artifacts",
+]);
+
+function pdfEvidenceError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return SAFE_PDF_EVIDENCE_ERRORS.has(message)
+    ? message
+    : "PDF evidence is unavailable";
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -316,6 +352,7 @@ export async function runLocalAssistantTools(
   a2ajDocuments?: A2AJDocument[],
   courtlistenerState?: LocalCourtlistenerState,
   publicLegalState?: PublicLegalSourceState,
+  allowedDocumentIds?: ReadonlySet<string>,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   return Promise.all(
@@ -334,6 +371,18 @@ export async function runLocalAssistantTools(
         );
         if (courtlistenerResult) return courtlistenerResult;
       }
+      const documentId =
+        typeof args.document_id === "string" ? args.document_id.trim() : "";
+      if (
+        allowedDocumentIds &&
+        documentId &&
+        !allowedDocumentIds.has(documentId)
+      ) {
+        return result(call, {
+          ok: false,
+          error: "Document is not attached to this matter",
+        });
+      }
       if (call.name === "library_list") {
         const kind =
           args.kind === "file" || args.kind === "template" ? args.kind : "all";
@@ -348,6 +397,10 @@ export async function runLocalAssistantTools(
             : [await listLocalLibrary(userId, kind)];
         const documents = collections
           .flatMap((collection) => collection.documents)
+          .filter(
+            (document) =>
+              !allowedDocumentIds || allowedDocumentIds.has(document.id),
+          )
           .filter(
             (document) =>
               !query || document.filename.toLowerCase().includes(query),
@@ -446,6 +499,47 @@ export async function runLocalAssistantTools(
           filename: file.version.filename,
           ...lookup,
         });
+      }
+
+      if (call.name === "library_evidence") {
+        const handle =
+          typeof args.handle === "string" ? args.handle.trim() : "";
+        if (!handle) {
+          return result(call, { ok: false, error: "handle is required" });
+        }
+        try {
+          const receipt = await readLocalPdfEvidenceReceipt(handle);
+          if (
+            allowedDocumentIds &&
+            !allowedDocumentIds.has(receipt.source.document_id)
+          ) {
+            return result(call, {
+              ok: false,
+              error: "Document is not attached to this matter",
+            });
+          }
+          const file = await getLocalVersionFile(
+            userId,
+            receipt.source.document_id,
+            receipt.source.version_id,
+          );
+          if (!file || file.fileType.toLowerCase() !== "pdf") {
+            return result(call, {
+              ok: false,
+              error: "PDF Library version not found",
+            });
+          }
+          return result(call, {
+            ok: true,
+            filename: file.version.filename,
+            ...(await rehydrateLocalPdfEvidence(file.path, handle)),
+          });
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error: pdfEvidenceError(error),
+          });
+        }
       }
 
       if (call.name === "library_link_docx_citations") {

@@ -58,7 +58,10 @@ export interface PdfParseState {
   parser_config_version: string;
   parser_config: {
     mode: "local";
-    ocr_provider: null;
+    ocr_provider: "tesseract" | null;
+    ocr_language?: string;
+    ocr_dpi?: number;
+    ocr_psm?: number;
     model: null;
     prompt_version: null;
     text_fidelity_root: string | null;

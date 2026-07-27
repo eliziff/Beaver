@@ -164,6 +164,16 @@ export function listAnonymousChats(userId: string): AnonymousChat[] {
     );
 }
 
+export function listAnonymousProjectChats(
+  userId: string,
+  projectId: string,
+): AnonymousChat[] {
+  if (!validId(projectId)) return [];
+  return listAnonymousChats(userId).filter(
+    (chat) => chat.project_id === projectId,
+  );
+}
+
 export function getAnonymousChat(
   userId: string,
   chatId: string,
@@ -191,6 +201,44 @@ export function appendAnonymousMessage(
   return row;
 }
 
+export function appendAnonymousAssistantEvents(
+  chat: AnonymousChat,
+  events: unknown[],
+  citations?: unknown[],
+) {
+  let index = -1;
+  for (let current = chat.messages.length - 1; current >= 0; current -= 1) {
+    if (chat.messages[current].role === "assistant") {
+      index = current;
+      break;
+    }
+  }
+  if (index < 0) return false;
+
+  const current = chat.messages[index];
+  const nextMessage = {
+    ...current,
+    content: [
+      ...(Array.isArray(current.content) ? current.content : []),
+      ...events,
+    ],
+    citations: [
+      ...(Array.isArray(current.citations) ? current.citations : []),
+      ...(citations ?? []),
+    ],
+  };
+  const next = {
+    ...chat,
+    messages: chat.messages.map((message, currentIndex) =>
+      currentIndex === index ? nextMessage : message,
+    ),
+    updated_at: new Date().toISOString(),
+  };
+  writeChat(next);
+  Object.assign(chat, next);
+  return true;
+}
+
 export function updateAnonymousChatTitle(chat: AnonymousChat, title: string) {
   const next = {
     ...chat,
@@ -207,4 +255,14 @@ export function deleteAnonymousChat(userId: string, chatId: string): boolean {
   rmSync(chatPath(chat.id), { force: true });
   chats.delete(chat.id);
   return true;
+}
+
+export function deleteAnonymousProjectChats(
+  userId: string,
+  projectId: string,
+) {
+  for (const chat of listAnonymousProjectChats(userId, projectId)) {
+    rmSync(chatPath(chat.id), { force: true });
+    chats.delete(chat.id);
+  }
 }

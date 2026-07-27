@@ -103,7 +103,9 @@ export function DocumentActionsPanel({
     const [pdfParseError, setPdfParseError] = useState("");
     const [pdfParsePollPaused, setPdfParsePollPaused] = useState(false);
     const [pdfParseRefreshKey, setPdfParseRefreshKey] = useState(0);
-    const [pdfParseRetrying, setPdfParseRetrying] = useState(false);
+    const [pdfParseAction, setPdfParseAction] = useState<
+        "retry" | "ocr" | null
+    >(null);
 
     useEffect(() => {
         setResult(null);
@@ -173,15 +175,18 @@ export function DocumentActionsPanel({
         pdfVersionId,
     ]);
 
-    async function retryPdfParse() {
+    async function retryPdfParse(ocrProvider?: "tesseract") {
         if (!document) return;
-        setPdfParseRetrying(true);
+        setPdfParseAction(ocrProvider ? "ocr" : "retry");
         setPdfParseError("");
         try {
-            const next = await retryLibraryPdfParse(
-                document.id,
-                pdfVersionId,
-            );
+            const next = ocrProvider
+                ? await retryLibraryPdfParse(
+                      document.id,
+                      pdfVersionId,
+                      ocrProvider,
+                  )
+                : await retryLibraryPdfParse(document.id, pdfVersionId);
             setPdfParse(next);
             setPdfParseRefreshKey((value) => value + 1);
         } catch (retryError) {
@@ -191,7 +196,7 @@ export function DocumentActionsPanel({
                     : "Could not retry the structural parse.",
             );
         } finally {
-            setPdfParseRetrying(false);
+            setPdfParseAction(null);
         }
     }
 
@@ -359,13 +364,14 @@ export function DocumentActionsPanel({
                         <PdfParseCard
                             state={pdfParse}
                             loading={pdfParseLoading}
-                            retrying={pdfParseRetrying}
+                            action={pdfParseAction}
                             pollPaused={pdfParsePollPaused}
                             error={pdfParseError}
                             onRefresh={() =>
                                 setPdfParseRefreshKey((value) => value + 1)
                             }
                             onRetry={() => void retryPdfParse()}
+                            onOcr={() => void retryPdfParse("tesseract")}
                         />
                     )}
                     <ActionCard
@@ -446,21 +452,25 @@ export function DocumentActionsPanel({
 function PdfParseCard({
     state,
     loading,
-    retrying,
+    action,
     pollPaused,
     error,
     onRefresh,
     onRetry,
+    onOcr,
 }: {
     state: PdfParseState | null;
     loading: boolean;
-    retrying: boolean;
+    action: "retry" | "ocr" | null;
     pollPaused: boolean;
     error: string;
     onRefresh: () => void;
     onRetry: () => void;
+    onOcr: () => void;
 }) {
     const active = isActivePdfParse(state);
+    const ocrRequired =
+        (state?.diagnostic_summary?.by_code.OCR_REQUIRED ?? 0) > 0;
     const statusLabel = state
         ? PDF_PARSE_LABELS[state.status]
         : loading
@@ -529,6 +539,9 @@ function PdfParseCard({
                                 ? ` · ${state.page_count} page${state.page_count === 1 ? "" : "s"}`
                                 : ""}
                             {state.cache_hit ? " · cache hit" : ""}
+                            {state.parser_config.ocr_provider === "tesseract"
+                                ? " · Tesseract OCR"
+                                : ""}
                         </p>
                     )}
                     {diagnostics && (
@@ -554,15 +567,15 @@ function PdfParseCard({
                 </div>
             </div>
             <p className="mt-3 text-[11px] leading-4 text-gray-500">
-                Retry re-runs the configured local parser. It does not silently
-                add OCR or model processing.
+                Retry preserves the current parser settings. OCR is opt-in and
+                processes only pages marked OCR required.
             </p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2">
                 <PillButton
                     type="button"
                     tone="white"
                     size="normal"
-                    disabled={loading || retrying}
+                    disabled={loading || !!action}
                     onClick={onRefresh}
                     className="min-w-0 flex-1"
                 >
@@ -576,14 +589,29 @@ function PdfParseCard({
                         type="button"
                         tone="white"
                         size="normal"
-                        disabled={loading || retrying}
+                        disabled={loading || !!action}
                         onClick={onRetry}
                         className="min-w-0 flex-1"
                     >
-                        {retrying && (
+                        {action === "retry" && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         )}
                         {retryLabel}
+                    </PillButton>
+                )}
+                {!active && ocrRequired && (
+                    <PillButton
+                        type="button"
+                        tone="white"
+                        size="normal"
+                        disabled={loading || !!action}
+                        onClick={onOcr}
+                        className="col-span-2 min-w-0"
+                    >
+                        {action === "ocr" && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
+                        OCR affected pages
                     </PillButton>
                 )}
             </div>

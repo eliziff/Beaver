@@ -18,6 +18,7 @@ import {
   queueLocalPdfParse,
   removeLocalPdfParseArtifacts,
 } from "./localPdfIngestion";
+import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 
 export type LocalLibraryKind = "file" | "template";
 
@@ -184,10 +185,10 @@ async function writeVersionFiles(
   return { suffix, relativeSource, relativePdf, sourceSha256 };
 }
 
-async function queueVersionPdf(
+async function queueVersionPdf<T extends Record<string, unknown>>(
   documentId: string,
   version: LocalVersion,
-  response: Record<string, unknown>,
+  response: T,
 ) {
   if (version.fileType !== "pdf") return response;
   const pdfParse = await queueLocalPdfParse({
@@ -262,6 +263,23 @@ export async function listLocalLibrary(userId: string, kind: LocalLibraryKind) {
       .filter((folder) => folder.userId === userId && folder.kind === kind)
       .map(localFolderResponse),
   };
+}
+
+export async function listLocalDocumentsById(
+  userId: string,
+  documentIds: Iterable<string>,
+) {
+  const wanted = [...documentIds];
+  const store = await currentStore();
+  const byId = new Map(
+    store.documents
+      .filter((document) => document.userId === userId)
+      .map((document) => [document.id, document] as const),
+  );
+  return wanted.flatMap((documentId) => {
+    const document = byId.get(documentId);
+    return document ? [localDocumentResponse(document)] : [];
+  });
 }
 
 export async function createLocalDocument(params: {
@@ -584,11 +602,21 @@ export async function moveLocalDocument(
 }
 
 export async function deleteLocalDocument(userId: string, documentId: string) {
-  return mutateStore(async (store) => {
+  const deleted = await mutateStore(async (store) => {
     const index = store.documents.findIndex(
       (document) => document.id === documentId && document.userId === userId,
     );
     if (index < 0) return false;
+    const document = store.documents[index];
+    await Promise.all(
+      document.versions
+        .filter((version) => version.fileType === "pdf")
+        .map((version) =>
+          removeLocalPdfParseArtifacts(
+            absoluteDataPath(version.storagePath),
+          ),
+        ),
+    );
     store.documents.splice(index, 1);
     if (/^[a-f0-9-]{36}$/i.test(documentId)) {
       await rm(absoluteDataPath(path.join("files", documentId)), {
@@ -598,6 +626,10 @@ export async function deleteLocalDocument(userId: string, documentId: string) {
     }
     return true;
   });
+  if (deleted) {
+    legalKnowledgeGraphStore().removeDocumentsFromMatters(userId, [documentId]);
+  }
+  return deleted;
 }
 
 export async function createLocalFolder(
@@ -674,14 +706,14 @@ export async function deleteLocalFolder(
   kind: LocalLibraryKind,
   folderId: string,
 ) {
-  return mutateStore(async (store) => {
+  const deletedDocumentIds = await mutateStore(async (store) => {
     if (
       !store.folders.some(
         (folder) =>
           folder.id === folderId && folder.userId === userId && folder.kind === kind,
       )
     ) {
-      return false;
+      return null;
     }
     const folderIds = new Set([folderId]);
     let changed = true;
@@ -709,6 +741,20 @@ export async function deleteLocalFolder(
           folderIds.has(document.folderId),
       )
       .map((document) => document.id);
+    const documents = store.documents.filter((document) =>
+      documentIds.includes(document.id),
+    );
+    await Promise.all(
+      documents.flatMap((document) =>
+        document.versions
+          .filter((version) => version.fileType === "pdf")
+          .map((version) =>
+            removeLocalPdfParseArtifacts(
+              absoluteDataPath(version.storagePath),
+            ),
+          ),
+      ),
+    );
     store.documents = store.documents.filter(
       (document) => !documentIds.includes(document.id),
     );
@@ -723,8 +769,14 @@ export async function deleteLocalFolder(
           }),
         ),
     );
-    return true;
+    return documentIds;
   });
+  if (!deletedDocumentIds) return false;
+  legalKnowledgeGraphStore().removeDocumentsFromMatters(
+    userId,
+    deletedDocumentIds,
+  );
+  return true;
 }
 
 function legalSourceResponse(pointer: LocalLegalSourcePointer) {

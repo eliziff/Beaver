@@ -62,6 +62,7 @@ export async function loadStoredChatImages(
 export async function loadLocalChatImages(
   messages: ChatMessage[],
   userId: string,
+  allowedDocumentIds?: ReadonlySet<string>,
 ): Promise<Map<string, LlmImage>> {
   const documentIds = new Set(
     messages.flatMap((message) =>
@@ -70,6 +71,12 @@ export async function loadLocalChatImages(
       ),
     ),
   );
+  if (
+    allowedDocumentIds &&
+    [...documentIds].some((documentId) => !allowedDocumentIds.has(documentId))
+  ) {
+    throw new Error("Attached document is not in this matter.");
+  }
   const candidates = await getLocalVersionFiles(userId, documentIds);
   const ids = referencedImageIds(
     messages,

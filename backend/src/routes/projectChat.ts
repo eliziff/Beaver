@@ -32,6 +32,8 @@ import {
 } from "../lib/chat/imageAttachments";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import { isAnonymousLocalMode } from "../lib/localMode";
+import { parseChatMessages, streamAnonymousChat } from "./chat";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -69,6 +71,48 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     const askInputsResponse = parseAskInputsResponsePayload(
         ask_inputs_response,
     );
+
+    if (isAnonymousLocalMode()) {
+        const parsedMessages = parseChatMessages(messages);
+        if (!parsedMessages.ok) {
+            return void res
+                .status(400)
+                .json({ detail: parsedMessages.detail });
+        }
+        if (
+            chat_id !== undefined &&
+            (typeof chat_id !== "string" || !chat_id.trim())
+        ) {
+            return void res
+                .status(400)
+                .json({ detail: "chat_id must be a non-empty string" });
+        }
+        await streamAnonymousChat({
+            res,
+            userId,
+            chatId: chat_id?.trim() || null,
+            messages: parsedMessages.messages,
+            model:
+                typeof model === "string" ? model.trim() || undefined : undefined,
+            reasoningEffort:
+                typeof reasoning_effort === "string"
+                    ? reasoning_effort.trim().slice(0, 32) || undefined
+                    : undefined,
+            projectId,
+            projectIdProvided: true,
+            displayedDocument:
+                displayed_doc &&
+                typeof displayed_doc === "object" &&
+                !Array.isArray(displayed_doc)
+                    ? displayed_doc
+                    : undefined,
+            attachedDocuments: Array.isArray(attached_documents)
+                ? attached_documents
+                : undefined,
+            askInputsResponse,
+        });
+        return;
+    }
 
     const db = createServerSupabase();
 

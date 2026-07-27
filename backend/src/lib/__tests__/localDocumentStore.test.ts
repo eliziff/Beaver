@@ -89,4 +89,88 @@ describe("local document store", () => {
       /(?:text|title|structure|metadata)/u,
     );
   });
+
+  it("removes matter pointers whenever a Library document is deleted", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const graphModule = await import("../legalKnowledgeGraphStore");
+    const graph = graphModule.legalKnowledgeGraphStore();
+    try {
+      const matter = graph.createMatter("local-user", { name: "Appeal" });
+      const document = await store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "record.xlsx",
+        bytes: Buffer.from("record"),
+      });
+      graph.attachMatterDocument("local-user", matter.id, document.id);
+
+      expect(await store.deleteLocalDocument("local-user", document.id)).toBe(
+        true,
+      );
+      expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([]);
+    } finally {
+      graph.close();
+    }
+  });
+
+  it("removes every matter pointer when a Library folder tree is deleted", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const graphModule = await import("../legalKnowledgeGraphStore");
+    const graph = graphModule.legalKnowledgeGraphStore();
+    try {
+      const matter = graph.createMatter("local-user", { name: "Appeal" });
+      const parent = await store.createLocalFolder(
+        "local-user",
+        "file",
+        "Record",
+        null,
+      );
+      const child = await store.createLocalFolder(
+        "local-user",
+        "file",
+        "Authorities",
+        parent!.id,
+      );
+      const parentDocument = await store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "record.xlsx",
+        bytes: Buffer.from("record"),
+      });
+      const childDocument = await store.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "authorities.xlsx",
+        bytes: Buffer.from("authorities"),
+      });
+      await store.moveLocalDocument(
+        "local-user",
+        "file",
+        parentDocument.id,
+        parent!.id,
+      );
+      await store.moveLocalDocument(
+        "local-user",
+        "file",
+        childDocument.id,
+        child!.id,
+      );
+      graph.attachMatterDocument("local-user", matter.id, parentDocument.id);
+      graph.attachMatterDocument("local-user", matter.id, childDocument.id);
+
+      expect(
+        await store.deleteLocalFolder("local-user", "file", parent!.id),
+      ).toBe(true);
+      expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([]);
+      expect((await store.listLocalLibrary("local-user", "file")).documents).toEqual(
+        [],
+      );
+    } finally {
+      graph.close();
+    }
+  });
 });

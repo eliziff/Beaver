@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
+import { createReadStream } from "node:fs";
 import {
   access,
   mkdir,
@@ -25,6 +26,8 @@ export type LocalPdfParseStatus =
   | "degraded"
   | "failed";
 
+export type LocalPdfOcrProvider = "tesseract";
+
 export type LocalPdfParseState = {
   schema_version: typeof STATE_SCHEMA;
   job_id: string;
@@ -37,7 +40,11 @@ export type LocalPdfParseState = {
   parser_config_version: string;
   parser_config: {
     mode: "local";
-    ocr_provider: null;
+    ocr_provider: LocalPdfOcrProvider | null;
+    ocr_identity?: string;
+    ocr_language?: string;
+    ocr_dpi?: number;
+    ocr_psm?: number;
     model: null;
     prompt_version: null;
     text_fidelity_root: string | null;
@@ -68,6 +75,10 @@ type JsonObject = Record<string, unknown>;
 
 const dataRoot = mikeLocalDataHome();
 const scheduled = new Set<string>();
+const cancelled = new Set<string>();
+const activeControllers = new Map<string, AbortController>();
+const jobs = new Map<string, Promise<void>>();
+const atomicWriteTails = new Map<string, Promise<void>>();
 // ponytail: one parser at a time protects weak local machines; use a bounded
 // worker pool only if measured queue latency justifies the extra machinery.
 let workTail: Promise<unknown> = Promise.resolve();
@@ -76,15 +87,85 @@ function configVersion() {
   return process.env.MIKE_PDF_PARSE_CONFIG_VERSION?.trim() || "mike-local-v1";
 }
 
-function parserConfig(): LocalPdfParseState["parser_config"] {
-  return {
+function parserConfig(
+  ocrProvider: LocalPdfOcrProvider | null,
+  ocrIdentity?: string,
+): LocalPdfParseState["parser_config"] {
+  const config: LocalPdfParseState["parser_config"] = {
     mode: "local",
-    ocr_provider: null,
+    ocr_provider: ocrProvider,
     model: null,
     prompt_version: null,
     text_fidelity_root: process.env.LEGALPDF_TEXT_FIDELITY_ROOT?.trim() || null,
     text_fidelity_native: false,
   };
+  if (!ocrProvider) return config;
+  const language = process.env.MIKE_PDF_OCR_LANGUAGE?.trim() || "eng";
+  const dpi = Number(process.env.MIKE_PDF_OCR_DPI);
+  const psm = Number(process.env.MIKE_PDF_OCR_PSM);
+  return {
+    ...config,
+    ...(ocrIdentity ? { ocr_identity: ocrIdentity } : {}),
+    ocr_language: /^[A-Za-z0-9_+-]+$/u.test(language) ? language : "eng",
+    ocr_dpi: Number.isInteger(dpi) && dpi >= 72 && dpi <= 600 ? dpi : 180,
+    ocr_psm: Number.isInteger(psm) && psm >= 0 && psm <= 13 ? psm : 3,
+  };
+}
+
+function safeParserError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/Tesseract was not found/iu.test(message)) {
+    return "Tesseract was not found. Install it or configure its executable.";
+  }
+  if (/timed out|ETIMEDOUT/iu.test(message)) {
+    return "PDF structural parsing timed out";
+  }
+  if (/Tesseract identity changed/iu.test(message)) {
+    return "Tesseract changed before OCR began; retry the parse";
+  }
+  if (/Tesseract OCR failed/iu.test(message)) return "Tesseract OCR failed";
+  if (/source changed after its parse job was queued/iu.test(message)) {
+    return "PDF source changed after its parse job was queued";
+  }
+  return "PDF structural parser failed";
+}
+
+async function detectedTesseractIdentity(
+  config: LocalPdfParseState["parser_config"],
+  signal?: AbortSignal,
+) {
+  try {
+    const result = await runLegalPdf(
+      [
+        "ocr-identity",
+        "--provider",
+        "tesseract",
+        "--ocr-language",
+        config.ocr_language || "eng",
+        "--ocr-dpi",
+        String(config.ocr_dpi ?? 180),
+        "--ocr-psm",
+        String(config.ocr_psm ?? 3),
+      ],
+      { timeoutMs: 15_000, signal },
+    );
+    const payload = JSON.parse(String(result.stdout)) as {
+      provider?: unknown;
+      identity?: unknown;
+    };
+    if (
+      payload.provider !== "tesseract" ||
+      typeof payload.identity !== "string" ||
+      !payload.identity ||
+      payload.identity.length > 256 ||
+      /[\r\n\u0000]/u.test(payload.identity)
+    ) {
+      throw new Error("Invalid Tesseract identity");
+    }
+    return payload.identity;
+  } catch (error) {
+    throw new Error(safeParserError(error));
+  }
 }
 
 function sha256(value: string | Buffer) {
@@ -109,6 +190,10 @@ function statePath(sourcePath: string) {
   return `${sourcePath}${STATE_SUFFIX}`;
 }
 
+function jobKey(sourcePath: string) {
+  return path.resolve(statePath(sourcePath));
+}
+
 function artifactRoot(sourcePath: string) {
   return `${sourcePath}${ARTIFACT_SUFFIX}`;
 }
@@ -126,12 +211,14 @@ async function exists(filePath: string) {
   }
 }
 
-async function atomicWrite(filePath: string, content: string) {
+async function atomicWriteNow(filePath: string, content: string) {
   await mkdir(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${crypto.randomUUID()}.tmp`;
   try {
     await writeFile(temporary, content, "utf8");
-    for (let attempt = 0; ; attempt++) {
+    const deadline = Date.now() + 5_000;
+    let retryDelay = 10;
+    for (;;) {
       try {
         await rename(temporary, filePath);
         break;
@@ -140,15 +227,33 @@ async function atomicWrite(filePath: string, content: string) {
         if (
           process.platform !== "win32" ||
           !["EACCES", "EBUSY", "EPERM"].includes(String(code)) ||
-          attempt >= 20
+          Date.now() >= deadline
         ) {
           throw error;
         }
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        retryDelay = Math.min(retryDelay * 2, 100);
       }
     }
   } finally {
     await rm(temporary, { force: true });
+  }
+}
+
+async function atomicWrite(filePath: string, content: string) {
+  const key = path.resolve(filePath);
+  const previous = atomicWriteTails.get(key);
+  let release = () => {};
+  const turn = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  atomicWriteTails.set(key, turn);
+  if (previous) await previous;
+  try {
+    await atomicWriteNow(filePath, content);
+  } finally {
+    release();
+    if (atomicWriteTails.get(key) === turn) atomicWriteTails.delete(key);
   }
 }
 
@@ -170,10 +275,10 @@ function parseState(value: unknown): LocalPdfParseState {
 }
 
 async function readState(sourcePath: string) {
+  const filePath = statePath(sourcePath);
+  await atomicWriteTails.get(path.resolve(filePath));
   try {
-    return parseState(
-      JSON.parse(await readFile(statePath(sourcePath), "utf8")),
-    );
+    return parseState(JSON.parse(await readFile(filePath, "utf8")));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
@@ -190,14 +295,25 @@ async function writeState(sourcePath: string, state: LocalPdfParseState) {
 }
 
 async function hashFile(filePath: string) {
-  return sha256(await readFile(filePath));
+  return new Promise<string>((resolve, reject) => {
+    const digest = crypto.createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => digest.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(digest.digest("hex")));
+  });
 }
 
-function cacheKey(sourceSha256: string, version: string, config: object) {
+function cacheKey(
+  sourceSha256: string,
+  version: string,
+  config: object,
+  parserVersion = LOCAL_PDF_PARSER_VERSION,
+) {
   return sha256(
     JSON.stringify({
       source_sha256: sourceSha256,
-      parser_version: LOCAL_PDF_PARSER_VERSION,
+      parser_version: parserVersion,
       parser_config_version: version,
       parser_config: config,
     }),
@@ -209,10 +325,12 @@ function newQueuedState(params: {
   versionId: string;
   sourcePath: string;
   sourceSha256: string;
+  ocrProvider: LocalPdfOcrProvider | null;
+  ocrIdentity?: string;
   previous?: LocalPdfParseState | null;
 }) {
   const now = new Date().toISOString();
-  const config = parserConfig();
+  const config = parserConfig(params.ocrProvider, params.ocrIdentity);
   const version = configVersion();
   const key = cacheKey(params.sourceSha256, version, config);
   return {
@@ -235,6 +353,43 @@ function newQueuedState(params: {
     updated_at: now,
     interrupted_at: params.previous?.interrupted_at,
     flat_text_fallback_available: true,
+  } satisfies LocalPdfParseState;
+}
+
+function rekeyOcrState(
+  sourcePath: string,
+  state: LocalPdfParseState,
+  identity: string,
+) {
+  if (state.parser_config.ocr_identity === identity) return state;
+  const now = new Date().toISOString();
+  const config = { ...state.parser_config, ocr_identity: identity };
+  const key = cacheKey(
+    state.source_sha256,
+    state.parser_config_version,
+    config,
+    state.parser_version,
+  );
+  return {
+    ...state,
+    job_id: crypto.randomUUID(),
+    status: "queued",
+    parser_config: config,
+    cache_key: key,
+    artifact_manifest: relativeDataPath(
+      path.join(artifactDirectory(sourcePath, key), "document.json"),
+    ),
+    queued_at: now,
+    updated_at: now,
+    started_at: undefined,
+    completed_at: undefined,
+    engine_status: undefined,
+    cache_hit: undefined,
+    page_count: undefined,
+    counts: undefined,
+    diagnostic_count: undefined,
+    diagnostic_summary: undefined,
+    error: undefined,
   } satisfies LocalPdfParseState;
 }
 
@@ -328,49 +483,81 @@ async function diagnosticSummary(output: string) {
 }
 
 async function processJob(sourcePath: string) {
-  const queued = await readState(sourcePath);
-  if (!queued || queued.status !== "queued") return;
-  const started = new Date().toISOString();
-  const parsing: LocalPdfParseState = {
-    ...queued,
-    status: "parsing",
-    attempts: queued.attempts + 1,
-    started_at: started,
-    updated_at: started,
-    error: undefined,
-  };
-  const output = artifactDirectory(sourcePath, parsing.cache_key);
+  const key = jobKey(sourcePath);
+  if (cancelled.has(key)) return;
+  const controller = new AbortController();
+  activeControllers.set(key, controller);
+  let parsing: LocalPdfParseState | null = null;
   try {
+    let queued = await readState(sourcePath);
+    if (!queued || queued.status !== "queued" || cancelled.has(key)) return;
+    if (queued.parser_config.ocr_provider === "tesseract") {
+      const identity = await detectedTesseractIdentity(
+        queued.parser_config,
+        controller.signal,
+      );
+      if (cancelled.has(key)) return;
+      const rekeyed = rekeyOcrState(sourcePath, queued, identity);
+      if (rekeyed !== queued) {
+        queued = rekeyed;
+        if (!(await writeState(sourcePath, queued))) return;
+      }
+    }
+    const started = new Date().toISOString();
+    parsing = {
+      ...queued,
+      status: "parsing",
+      attempts: queued.attempts + 1,
+      started_at: started,
+      updated_at: started,
+      error: undefined,
+    };
+    const output = artifactDirectory(sourcePath, parsing.cache_key);
     const actualHash = await hashFile(sourcePath);
     if (actualHash !== queued.source_sha256) {
       throw new Error("PDF source changed after its parse job was queued");
     }
+    if (cancelled.has(key)) return;
     if (!(await writeState(sourcePath, parsing))) return;
     const configuredTimeout = Number(process.env.MIKE_PDF_PARSE_TIMEOUT_MS);
-    await runLegalPdf(
-      [
-        "parse",
-        sourcePath,
-        "--output",
-        output,
-        "--mode",
-        "local",
-        "--cache-dir",
-        path.join(
-          dataRoot,
-          "cache",
-          "legalpdf",
-          parsing.parser_version,
-          parsing.parser_config_version,
-        ),
-      ],
-      {
-        timeoutMs:
-          Number.isFinite(configuredTimeout) && configuredTimeout > 0
-            ? configuredTimeout
-            : 30 * 60 * 1000,
-      },
-    );
+    const arguments_ = [
+      "parse",
+      sourcePath,
+      "--output",
+      output,
+      "--mode",
+      "local",
+      "--cache-dir",
+      path.join(
+        dataRoot,
+        "cache",
+        "legalpdf",
+        parsing.parser_version,
+        parsing.parser_config_version,
+      ),
+    ];
+    if (parsing.parser_config.ocr_provider === "tesseract") {
+      arguments_.push(
+        "--ocr-provider",
+        "tesseract",
+        "--ocr-language",
+        parsing.parser_config.ocr_language || "eng",
+        "--ocr-dpi",
+        String(parsing.parser_config.ocr_dpi ?? 180),
+        "--ocr-psm",
+        String(parsing.parser_config.ocr_psm ?? 3),
+        "--expected-ocr-identity",
+        String(parsing.parser_config.ocr_identity),
+      );
+    }
+    await runLegalPdf(arguments_, {
+      timeoutMs:
+        Number.isFinite(configuredTimeout) && configuredTimeout > 0
+          ? configuredTimeout
+          : 30 * 60 * 1000,
+      signal: controller.signal,
+    });
+    if (cancelled.has(key)) return;
     if (
       !(await exists(sourcePath)) ||
       (await hashFile(sourcePath)) !== parsing.source_sha256
@@ -379,6 +566,7 @@ async function processJob(sourcePath: string) {
       return;
     }
     const manifest = await publishBridgeArtifacts(sourcePath, parsing);
+    if (cancelled.has(key)) return;
     const diagnostics = await diagnosticSummary(output);
     const completed = new Date().toISOString();
     const engineStatus = String(manifest.status || "degraded");
@@ -395,6 +583,7 @@ async function processJob(sourcePath: string) {
             ),
           )
         : {};
+    if (cancelled.has(key)) return;
     await writeState(sourcePath, {
       ...parsing,
       status: engineStatus === "ready" ? "ready" : "degraded",
@@ -411,6 +600,20 @@ async function processJob(sourcePath: string) {
       updated_at: completed,
     });
   } catch (error) {
+    if (cancelled.has(key) || controller.signal.aborted) return;
+    if (!parsing) {
+      const queued = await readState(sourcePath);
+      if (!queued) return;
+      const started = new Date().toISOString();
+      parsing = {
+        ...queued,
+        status: "parsing",
+        attempts: queued.attempts + 1,
+        started_at: started,
+        updated_at: started,
+        error: undefined,
+      };
+    }
     const failed = new Date().toISOString();
     if (!(await exists(sourcePath))) {
       if (await exists(statePath(sourcePath))) {
@@ -434,18 +637,19 @@ async function processJob(sourcePath: string) {
     await writeState(sourcePath, {
       ...parsing,
       status: "failed",
-      error: (error instanceof Error ? error.message : String(error)).slice(
-        0,
-        2000,
-      ),
+      error: safeParserError(error),
       completed_at: failed,
       updated_at: failed,
     });
+  } finally {
+    if (activeControllers.get(key) === controller) {
+      activeControllers.delete(key);
+    }
   }
 }
 
 function schedule(sourcePath: string) {
-  const key = statePath(sourcePath);
+  const key = jobKey(sourcePath);
   if (scheduled.has(key)) return;
   scheduled.add(key);
   const job = workTail
@@ -453,11 +657,15 @@ function schedule(sourcePath: string) {
     .then(() => processJob(sourcePath))
     .catch((error) => {
       console.error("[local-library] PDF parse worker failed", {
-        sourcePath,
-        error: error instanceof Error ? error.message : String(error),
+        error: safeParserError(error),
       });
     })
-    .finally(() => scheduled.delete(key));
+    .finally(() => {
+      scheduled.delete(key);
+      jobs.delete(key);
+      cancelled.delete(key);
+    });
+  jobs.set(key, job);
   workTail = job;
 }
 
@@ -467,13 +675,24 @@ export async function queueLocalPdfParse(params: {
   sourcePath: string;
   sourceSha256?: string;
   force?: boolean;
+  ocrProvider?: LocalPdfOcrProvider | null;
 }) {
   const sourceSha256 =
     params.sourceSha256 || (await hashFile(params.sourcePath));
   const current = await readState(params.sourcePath);
+  const ocrProvider =
+    params.ocrProvider === undefined
+      ? (current?.parser_config.ocr_provider ?? null)
+      : params.ocrProvider;
+  const ocrIdentity =
+    ocrProvider === "tesseract"
+      ? await detectedTesseractIdentity(parserConfig(ocrProvider))
+      : undefined;
   const candidate = newQueuedState({
     ...params,
     sourceSha256,
+    ocrProvider,
+    ocrIdentity,
     previous: current,
   });
   if (
@@ -499,6 +718,7 @@ export async function queueLocalPdfParse(params: {
     }
     if (!params.force && current.status === "failed") return current;
   }
+  cancelled.delete(jobKey(params.sourcePath));
   await writeState(params.sourcePath, candidate);
   schedule(params.sourcePath);
   return candidate;
@@ -527,10 +747,18 @@ export async function readLocalPdfParseState(sourcePath: string) {
 }
 
 export async function removeLocalPdfParseArtifacts(sourcePath: string) {
+  const key = jobKey(sourcePath);
+  const wasScheduled = scheduled.has(key);
+  const active = activeControllers.get(key);
+  const job = jobs.get(key);
+  cancelled.add(key);
+  active?.abort();
+  if (active) await job?.catch(() => undefined);
   await Promise.all([
     rm(statePath(sourcePath), { force: true }),
     rm(artifactRoot(sourcePath), { recursive: true, force: true }),
   ]);
+  if (!wasScheduled) cancelled.delete(key);
 }
 
 async function stateFiles(directory: string): Promise<string[]> {
