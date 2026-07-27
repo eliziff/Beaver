@@ -202,10 +202,10 @@ test("anonymous production stack completes its release path", async ({
         expect(turn.model).toBe(`codex:${selectedModel.slug}`);
         expect(turn.reasoning_effort).toBe(effort);
         expect(turnResponse.ok()).toBeTruthy();
-        expect(await turnResponse.finished()).toBeNull();
         await expect(
             page.locator("div.prose.font-serif").last(),
         ).toContainText(responseToken, { timeout: 120_000 });
+        expect(await turnResponse.finished()).toBeNull();
 
         const launchResponsePromise = page.waitForResponse((response) =>
             responsePath(response, "/table-of-authorities/launch"),
