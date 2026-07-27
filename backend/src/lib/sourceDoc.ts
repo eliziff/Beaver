@@ -499,16 +499,56 @@ function crossesLineBreak(lineBreaks: number[], start: number, end: number) {
   return low < lineBreaks.length && lineBreaks[low] < end;
 }
 
-/** Every position of `word` in [from, until), for the unindexed first query. */
-function* wordPositions(
-  tokens: WordSpan[],
-  word: string,
-  from: number,
-  until: number,
-) {
-  for (let index = Math.max(from, 0); index < until; index += 1) {
-    if (tokens[index].word === word) yield index;
+/**
+ * First-query path: walk the text with the tokenizer over a ring buffer of the
+ * last N words, stopping as soon as `limit` matches are found. A document
+ * asked exactly one question - the common single-quote link - never pays to be
+ * fully tokenized or indexed, and an abundant phrase stops early instead of
+ * scanning to the end.
+ */
+function scanPhraseSpans(
+  doc: SourceDoc,
+  words: string[],
+  options: SourceDocPhraseOptions,
+): SourceDocQuoteSpan[] {
+  const spans: SourceDocQuoteSpan[] = [];
+  const size = words.length;
+  const limit = options.limit ?? Number.POSITIVE_INFINITY;
+  const ring: WordSpan[] = Array.from({ length: size }, () => ({
+    word: "",
+    start: 0,
+    end: 0,
+  }));
+  let seen = 0;
+  for (const match of doc.text.matchAll(WORD_RE)) {
+    const slot = ring[seen % size];
+    slot.word = match[0].toLowerCase();
+    slot.start = match.index;
+    slot.end = match.index + match[0].length;
+    seen += 1;
+    if (seen < size) continue;
+    let matched = true;
+    for (let offset = 0; offset < size; offset += 1) {
+      if (ring[(seen - size + offset) % size].word !== words[offset]) {
+        matched = false;
+        break;
+      }
+    }
+    if (!matched) continue;
+    const first = ring[(seen - size) % size];
+    const last = ring[(seen - 1) % size];
+    if (options.sameLine && doc.text.lastIndexOf("\n", last.end) >= first.start) {
+      continue;
+    }
+    spans.push({
+      start: first.start,
+      end: last.end,
+      firstWord: seen - size,
+      lastWord: seen - 1,
+    });
+    if (spans.length >= limit) break;
   }
+  return spans;
 }
 
 export type SourceDocPhraseOptions = {
@@ -532,11 +572,13 @@ export function sourceDocPhraseSpans(
 ): SourceDocQuoteSpan[] {
   const spans: SourceDocQuoteSpan[] = [];
   if (!words.length) return spans;
-  const tokens = doc.tokens;
   const state = searchState(doc);
   state.queries += 1;
-  const postings =
-    state.postings ?? (state.queries > 1 ? postingsFor(doc, state) : null);
+  if (!state.postings && !options.block && state.queries === 1) {
+    return scanPhraseSpans(doc, words, options);
+  }
+  const tokens = doc.tokens;
+  const postings = state.postings ?? postingsFor(doc, state);
   const lineBreaks = options.sameLine ? lineBreaksFor(doc, state) : [];
   const from = options.block
     ? tokenIndexAtOrAfter(tokens, options.block.start)
@@ -549,22 +591,17 @@ export function sourceDocPhraseSpans(
   // Anchor on the rarest word: "the court held" costs the occurrences of
   // "held", not the occurrences of "the".
   let anchor = 0;
-  if (postings) {
-    let rarest = Number.POSITIVE_INFINITY;
-    for (const [offset, word] of words.entries()) {
-      const size = postings.get(word)?.length ?? 0;
-      if (!size) return spans;
-      if (size < rarest) {
-        rarest = size;
-        anchor = offset;
-      }
+  let rarest = Number.POSITIVE_INFINITY;
+  for (const [offset, word] of words.entries()) {
+    const size = postings.get(word)?.length ?? 0;
+    if (!size) return spans;
+    if (size < rarest) {
+      rarest = size;
+      anchor = offset;
     }
   }
-  const starts = postings
-    ? postings.get(words[anchor])!
-    : wordPositions(tokens, words[0], from, until - words.length + 1);
 
-  for (const position of starts) {
+  for (const position of postings.get(words[anchor])!) {
     const start = position - anchor;
     if (start < from) continue;
     if (start + words.length > until) break;
