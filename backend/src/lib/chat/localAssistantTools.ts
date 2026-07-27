@@ -16,6 +16,11 @@ import {
   isWordDocumentType,
 } from "../documentTypes";
 import { getLocalVersionFile, listLocalLibrary } from "../localDocumentStore";
+import {
+  LOCAL_PDF_LOCATOR_KINDS,
+  lookupLocalPdfStructure,
+  type LocalPdfLocatorKind,
+} from "../localPdfLookup";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
@@ -102,6 +107,59 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           },
         },
         required: ["document_id", "query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "library_lookup",
+      description:
+        "Return only an exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an exactly encoded section/provision. Prefer this over library_read for pinpoint requests. It never guesses or reparses the whole document.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: { type: "string" },
+          version_id: {
+            type: "string",
+            description: "Optional exact Library version. Defaults to active.",
+          },
+          locator_kind: {
+            type: "string",
+            enum: [...LOCAL_PDF_LOCATOR_KINDS],
+            description:
+              "paragraph means parser artifact order; use provision_paragraph for an explicitly encoded legal provision.",
+          },
+          locator: {
+            type: "string",
+            description:
+              "Exact start locator, pair_id, symbol note label, heading, or provider-encoded provision ID.",
+          },
+          end_locator: {
+            type: "string",
+            description:
+              "Optional inclusive range end for page, paragraph, or footnote; maximum 20 units.",
+          },
+          context_blocks: {
+            type: "integer",
+            minimum: 0,
+            maximum: 2,
+            description: "Exact structural neighbors on each side.",
+          },
+          page: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "Optional reference/body page to disambiguate a restarted footnote label.",
+          },
+          occurrence: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "Optional occurrence to disambiguate a restarted footnote label.",
+          },
+        },
+        required: ["document_id", "locator_kind", "locator"],
       },
     },
   },
@@ -343,6 +401,50 @@ export async function runLocalAssistantTools(
           filename: document.filename,
           query,
           ...matches,
+        });
+      }
+
+      if (call.name === "library_lookup") {
+        const documentId =
+          typeof args.document_id === "string" ? args.document_id.trim() : "";
+        const versionId =
+          typeof args.version_id === "string" ? args.version_id.trim() : "";
+        if (!documentId) {
+          return result(call, { ok: false, error: "document_id is required" });
+        }
+        const file = await getLocalVersionFile(
+          userId,
+          documentId,
+          versionId || undefined,
+        );
+        if (!file) {
+          return result(call, { ok: false, error: "PDF Library version not found" });
+        }
+        if (file.fileType.toLowerCase() !== "pdf") {
+          return result(call, {
+            ok: false,
+            error: "Exact structural lookup requires a parsed PDF version",
+          });
+        }
+        const lookup = await lookupLocalPdfStructure(file.path, {
+          locatorKind: args.locator_kind as LocalPdfLocatorKind,
+          locator: typeof args.locator === "string" ? args.locator : "",
+          endLocator:
+            typeof args.end_locator === "string"
+              ? args.end_locator
+              : undefined,
+          contextBlocks:
+            typeof args.context_blocks === "number"
+              ? args.context_blocks
+              : undefined,
+          page: typeof args.page === "number" ? args.page : undefined,
+          occurrence:
+            typeof args.occurrence === "number" ? args.occurrence : undefined,
+        });
+        return result(call, {
+          ok: lookup.status === "found",
+          filename: file.version.filename,
+          ...lookup,
         });
       }
 
