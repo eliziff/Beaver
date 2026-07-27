@@ -1,19 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { launchTableOfAuthorities } from "@/app/lib/mikeApi";
 
 export default function TableOfAuthoritiesPage() {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sessionRef = useRef("");
 
   useEffect(() => {
     let active = true;
+    if (!sessionRef.current) {
+      const key = "mike-table-of-authorities-session";
+      try {
+        const stored = window.sessionStorage.getItem(key);
+        sessionRef.current =
+          stored && /^[0-9a-f]{32}$/.test(stored)
+            ? stored
+            : crypto.randomUUID().replaceAll("-", "");
+        window.sessionStorage.setItem(key, sessionRef.current);
+      } catch {
+        sessionRef.current = crypto.randomUUID().replaceAll("-", "");
+      }
+    }
     launchTableOfAuthorities()
       .then((result) => {
         if (!active) return;
         const job = new URLSearchParams(window.location.search).get("job");
         const serviceUrl = new URL(result.url);
+        serviceUrl.searchParams.set("mode", "mike");
+        serviceUrl.searchParams.set("session", sessionRef.current);
         if (job && /^[0-9a-f]{32}$/.test(job)) {
           serviceUrl.searchParams.set("job", job);
         }
