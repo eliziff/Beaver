@@ -15,10 +15,12 @@ import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { LIBRARY_TABS } from "@/app/components/library/LibraryWorkspace";
 import {
     deleteLegalSource,
+    getLegalSourceCoverage,
     listLegalLibrary,
     saveLegalSource,
     searchLegalSources,
     type LegalDocumentType,
+    type LegalSourceCoverage,
     type LegalSourceReference,
     type LegalSourceSearchResult,
 } from "@/app/lib/mikeApi";
@@ -36,12 +38,33 @@ function sourceKindLabel(docType: LegalDocumentType) {
           : "Decision";
 }
 
+function directSourceHref(result: LegalSourceSearchResult) {
+    const query = new URLSearchParams({
+        provider: result.provider,
+        citation: result.citation,
+        doc_type: result.doc_type,
+        language: "en",
+    });
+    if (result.dataset) query.set("dataset", result.dataset);
+    if (result.source_id) query.set("source_id", result.source_id);
+    return `/library/legal/view?${query}`;
+}
+
 export function LegalLibraryPage() {
     const router = useRouter();
     const [references, setReferences] = useState<LegalSourceReference[]>([]);
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
+    const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [query, setQuery] = useState("");
     const [docType, setDocType] = useState<LegalDocumentType>("cases");
+    const [jurisdiction, setJurisdiction] = useState("");
+    const [sourceKind, setSourceKind] = useState("");
+    const [dataset, setDataset] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+    const [sortResults, setSortResults] = useState<
+        "default" | "newest_first" | "oldest_first"
+    >("default");
     const [loadingLibrary, setLoadingLibrary] = useState(true);
     const [searching, setSearching] = useState(false);
     const [savingCitation, setSavingCitation] = useState<string | null>(null);
@@ -70,6 +93,38 @@ export function LegalLibraryPage() {
         };
     }, []);
 
+    useEffect(() => {
+        let cancelled = false;
+        getLegalSourceCoverage()
+            .then((loaded) => {
+                if (!cancelled) setCoverage(loaded);
+            })
+            .catch(() => {
+                // Search still works without facets when the provider is offline.
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const typeCoverage = coverage.filter((item) => item.docType === docType);
+    const jurisdictions = [
+        ...new Map(
+            typeCoverage.map((item) => [
+                item.jurisdictionCode,
+                item.jurisdiction,
+            ]),
+        ),
+    ].sort((left, right) => left[1].localeCompare(right[1]));
+    const availableSources = typeCoverage.filter(
+        (item) =>
+            (!jurisdiction || item.jurisdictionCode === jurisdiction) &&
+            (!sourceKind || item.sourceKind === sourceKind),
+    );
+    const selectedDatasets = dataset
+        ? [dataset]
+        : availableSources.map((item) => item.dataset);
+
     async function runSearch(event: FormEvent) {
         event.preventDefault();
         if (!query.trim()) return;
@@ -80,6 +135,11 @@ export function LegalLibraryPage() {
                 await searchLegalSources({
                     query: query.trim(),
                     docType,
+                    datasets:
+                        docType === "articles" ? undefined : selectedDatasets,
+                    startDate: startDate || undefined,
+                    endDate: endDate || undefined,
+                    sortResults,
                 }),
             );
         } catch (reason) {
@@ -91,7 +151,7 @@ export function LegalLibraryPage() {
         }
     }
 
-    async function saveAndOpen(result: LegalSourceSearchResult) {
+    async function saveResult(result: LegalSourceSearchResult) {
         setSavingCitation(result.citation);
         setError(null);
         try {
@@ -106,7 +166,6 @@ export function LegalLibraryPage() {
                     ? current
                     : [...current, saved],
             );
-            router.push(`/library/legal/${saved.id}`);
         } catch (reason) {
             setError(
                 reason instanceof Error
@@ -151,28 +210,24 @@ export function LegalLibraryPage() {
                 <div className="mx-auto max-w-5xl space-y-6">
                     <form
                         onSubmit={runSearch}
-                        className="rounded-xl border border-gray-200 bg-white/65 p-4 shadow-sm backdrop-blur-xl"
+                        className="rounded-lg border border-gray-200 bg-white p-4"
                     >
-                        <div className="mb-3">
-                            <h1 className="font-serif text-xl text-gray-900">
-                                Find a Canadian legal source
-                            </h1>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Search cases, legislation, and locally indexed
-                                journal articles. Saving stores only a
-                                lightweight source pointer.
-                            </p>
-                        </div>
+                        <h1 className="mb-3 text-lg font-semibold text-gray-900">
+                            Find Canadian law
+                        </h1>
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <select
                                 value={docType}
-                                onChange={(event) =>
+                                onChange={(event) => {
                                     setDocType(
                                         event.target.value as LegalDocumentType,
-                                    )
-                                }
+                                    );
+                                    setJurisdiction("");
+                                    setSourceKind("");
+                                    setDataset("");
+                                }}
                                 aria-label="Legal source type"
-                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand"
+                                className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand"
                             >
                                 <option value="cases">Cases</option>
                                 <option value="laws">Legislation</option>
@@ -180,7 +235,7 @@ export function LegalLibraryPage() {
                                     Journal articles
                                 </option>
                             </select>
-                            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 focus-within:border-brand">
+                            <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand">
                                 <Search className="h-4 w-4 shrink-0 text-gray-400" />
                                 <span className="sr-only">Search A2AJ</span>
                                 <input
@@ -201,7 +256,7 @@ export function LegalLibraryPage() {
                             <button
                                 type="submit"
                                 disabled={searching || !query.trim()}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-45"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-45"
                             >
                                 {searching ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -211,6 +266,128 @@ export function LegalLibraryPage() {
                                 Search
                             </button>
                         </div>
+                        {docType !== "articles" ? (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                    Jurisdiction
+                                    <select
+                                        value={jurisdiction}
+                                        onChange={(event) => {
+                                            setJurisdiction(event.target.value);
+                                            setDataset("");
+                                        }}
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    >
+                                        <option value="">All jurisdictions</option>
+                                        {jurisdictions.map(([code, name]) => (
+                                            <option key={code} value={code}>
+                                                {name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                    Source type
+                                    <select
+                                        value={sourceKind}
+                                        onChange={(event) => {
+                                            setSourceKind(event.target.value);
+                                            setDataset("");
+                                        }}
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    >
+                                        <option value="">All source types</option>
+                                        {docType === "cases" ? (
+                                            <>
+                                                <option value="court">Courts</option>
+                                                <option value="tribunal">
+                                                    Tribunals and boards
+                                                </option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="legislation">
+                                                    Statutes
+                                                </option>
+                                                <option value="regulation">
+                                                    Regulations
+                                                </option>
+                                            </>
+                                        )}
+                                    </select>
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-600 lg:col-span-2">
+                                    {docType === "cases"
+                                        ? "Court or tribunal"
+                                        : "Collection"}
+                                    <select
+                                        value={dataset}
+                                        onChange={(event) =>
+                                            setDataset(event.target.value)
+                                        }
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    >
+                                        <option value="">
+                                            {docType === "cases"
+                                                ? "All courts and tribunals"
+                                                : "All statutes and regulations"}
+                                        </option>
+                                        {availableSources.map((item) => (
+                                            <option
+                                                key={item.dataset}
+                                                value={item.dataset}
+                                            >
+                                                {item.description}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                    From
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(event) =>
+                                            setStartDate(event.target.value)
+                                        }
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                    To
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(event) =>
+                                            setEndDate(event.target.value)
+                                        }
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    />
+                                </label>
+                                <label className="min-w-0 text-xs font-medium text-gray-600 sm:col-span-2">
+                                    Sort
+                                    <select
+                                        value={sortResults}
+                                        onChange={(event) =>
+                                            setSortResults(
+                                                event.target.value as typeof sortResults,
+                                            )
+                                        }
+                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                    >
+                                        <option value="default">
+                                            Most relevant
+                                        </option>
+                                        <option value="newest_first">
+                                            Newest first
+                                        </option>
+                                        <option value="oldest_first">
+                                            Oldest first
+                                        </option>
+                                    </select>
+                                </label>
+                            </div>
+                        ) : null}
                     </form>
 
                     {error ? (
@@ -228,20 +405,20 @@ export function LegalLibraryPage() {
                                 {results.map((result) => (
                                     <article
                                         key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
-                                        className="rounded-lg border border-gray-200 bg-white/60 p-4"
+                                        className="rounded-md border border-gray-200 bg-white p-4"
                                     >
-                                        <div className="flex items-start gap-3">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">
                                                     {sourceKindLabel(
                                                         result.doc_type,
                                                     )}
                                                 </p>
-                                                <h3 className="mt-0.5 font-serif text-base text-gray-900">
+                                                <h3 className="mt-0.5 text-base font-semibold text-gray-900">
                                                     {result.name ||
                                                         result.citation}
                                                 </h3>
-                                                <p className="mt-1 font-serif text-sm italic text-gray-600">
+                                                <p className="mt-1 text-sm text-gray-600">
                                                     {result.citation}
                                                 </p>
                                                 <p className="mt-1 text-xs text-gray-400">
@@ -253,30 +430,68 @@ export function LegalLibraryPage() {
                                                         .join(" / ")}
                                                 </p>
                                                 {result.snippet ? (
-                                                    <p className="mt-2 line-clamp-3 font-serif text-sm leading-6 text-gray-600">
+                                                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">
                                                         {result.snippet}
                                                     </p>
                                                 ) : null}
                                             </div>
-                                            <button
-                                                type="button"
-                                                disabled={
-                                                    savingCitation ===
-                                                    result.citation
-                                                }
-                                                onClick={() =>
-                                                    void saveAndOpen(result)
-                                                }
-                                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-brand bg-brand-soft px-2.5 py-1.5 text-xs font-medium text-brand hover:bg-brand hover:text-white disabled:opacity-50"
-                                            >
-                                                {savingCitation ===
-                                                result.citation ? (
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <LibraryBig className="h-3.5 w-3.5" />
-                                                )}
-                                                Save & open
-                                            </button>
+                                            <div className="flex shrink-0 flex-wrap gap-2">
+                                                <Link
+                                                    href={directSourceHref(result)}
+                                                    className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
+                                                >
+                                                    View
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        savingCitation ===
+                                                            result.citation ||
+                                                        references.some(
+                                                            (reference) =>
+                                                                reference.provider ===
+                                                                    result.provider &&
+                                                                reference.citation ===
+                                                                    result.citation &&
+                                                                reference.dataset ===
+                                                                    result.dataset,
+                                                        )
+                                                    }
+                                                    onClick={() =>
+                                                        void saveResult(result)
+                                                    }
+                                                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:border-brand disabled:text-gray-400"
+                                                >
+                                                    {savingCitation ===
+                                                    result.citation ? (
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <LibraryBig className="h-3.5 w-3.5" />
+                                                    )}
+                                                    {references.some(
+                                                        (reference) =>
+                                                            reference.provider ===
+                                                                result.provider &&
+                                                            reference.citation ===
+                                                                result.citation &&
+                                                            reference.dataset ===
+                                                                result.dataset,
+                                                    )
+                                                        ? "Saved"
+                                                        : "Save"}
+                                                </button>
+                                                {result.url ? (
+                                                    <a
+                                                        href={result.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-brand"
+                                                    >
+                                                        View original source
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                    </a>
+                                                ) : null}
+                                            </div>
                                         </div>
                                     </article>
                                 ))}
@@ -386,6 +601,51 @@ export function LegalLibraryDocumentPage({
             />
             <div className="min-h-0 flex-1">
                 <LegalSourceViewer referenceId={referenceId} />
+            </div>
+        </div>
+    );
+}
+
+export function LegalLibraryDirectDocumentPage({
+    provider,
+    citation,
+    sourceId,
+    docType,
+    language,
+    dataset,
+}: {
+    provider: "a2aj" | "journal";
+    citation: string;
+    sourceId?: string | null;
+    docType: LegalDocumentType | "auto";
+    language: "en" | "fr";
+    dataset?: string | null;
+}) {
+    const router = useRouter();
+    return (
+        <div className="flex h-full min-h-0 flex-col">
+            <PageHeader
+                breadcrumbs={[
+                    {
+                        label: "Library",
+                        onClick: () => router.push("/library"),
+                    },
+                    {
+                        label: "Legal Sources",
+                        onClick: () => router.push("/library/legal"),
+                    },
+                    { label: "Source" },
+                ]}
+            />
+            <div className="min-h-0 flex-1">
+                <LegalSourceViewer
+                    provider={provider}
+                    citation={citation}
+                    sourceId={sourceId}
+                    docType={docType}
+                    language={language}
+                    dataset={dataset}
+                />
             </div>
         </div>
     );

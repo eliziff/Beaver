@@ -22,6 +22,10 @@ import {
   searchLocalA2AJ,
 } from "./a2ajLocalBulk";
 import { legalProviderCache } from "./legalDataPath";
+import {
+  classifyLegalMarkdown,
+  deriveOriginalPdfCandidates,
+} from "./legalSourcePresentation";
 
 const A2AJ_BASE_URL = "https://api.a2aj.ca";
 const A2AJ_TIMEOUT_MS = 15_000;
@@ -68,6 +72,33 @@ export type A2AJSearchResult = {
   snippet: string | null;
 };
 
+export type A2AJCoverageResult = {
+  dataset: string;
+  description: string;
+  descriptionFr: string | null;
+  docType: "cases" | "laws";
+  jurisdictionCode:
+    | "FED"
+    | "AB"
+    | "BC"
+    | "MB"
+    | "NB"
+    | "NL"
+    | "NS"
+    | "NT"
+    | "NU"
+    | "ON"
+    | "PE"
+    | "QC"
+    | "SK"
+    | "YT";
+  jurisdiction: string;
+  sourceKind: "court" | "tribunal" | "legislation" | "regulation";
+  earliestDate: string | null;
+  latestDate: string | null;
+  documentCount: number;
+};
+
 export type A2AJLocatorLookup = {
   status: "found" | "not_found" | "unavailable" | "ambiguous";
   citation: string;
@@ -101,11 +132,20 @@ export type A2AJViewerPayload = {
     date: string | null;
     dataset: string;
     url: string | null;
+    pdfUrl: string | null;
     language: "en" | "fr";
     upstreamLicense: string | null;
   };
   text: string;
   structure: Omit<A2AJStructure, "text">;
+  presentation: {
+    source: "a2aj_markdown";
+    segments: Array<{
+      start: number;
+      end: number;
+      blocks: ReturnType<typeof classifyLegalMarkdown>;
+    }>;
+  };
   truncated: boolean;
 };
 
@@ -157,6 +197,30 @@ function textForLanguage(
   );
 }
 
+function safeWebUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function canonicalA2AJSourceUrl(
+  record: Record<string, unknown>,
+  language: "en" | "fr" = "en",
+) {
+  return (
+    safeWebUrl(textForLanguage(record, "source_url", language)) ??
+    safeWebUrl(textForLanguage(record, "url", language))
+  );
+}
+
 function documentFromResult(
   value: unknown,
   language: "en" | "fr",
@@ -177,9 +241,7 @@ function documentFromResult(
     alternateCitation: textForLanguage(record, "citation2", actualLanguage),
     name: textForLanguage(record, "name", actualLanguage),
     date: textForLanguage(record, "document_date", actualLanguage),
-    url:
-      textForLanguage(record, "source_url", actualLanguage) ??
-      textForLanguage(record, "url", actualLanguage),
+    url: canonicalA2AJSourceUrl(record, actualLanguage),
     text,
     language: actualLanguage,
     upstreamLicense: asString(record.upstream_license),
@@ -209,9 +271,7 @@ function searchResultFromResult(
     alternateCitation: textForLanguage(record, "citation2", language),
     name: textForLanguage(record, "name", language),
     date: textForLanguage(record, "document_date", language),
-    url:
-      textForLanguage(record, "source_url", language) ??
-      textForLanguage(record, "url", language),
+    url: canonicalA2AJSourceUrl(record, language),
     snippet: snippet ? snippet.slice(0, 1200) : null,
   };
 }
@@ -267,7 +327,7 @@ function persistentCacheEnabled() {
 }
 
 function requestCacheTtl(endpoint: string) {
-  return endpoint === "/search"
+  return endpoint === "/search" || endpoint === "/coverage"
     ? A2AJ_SEARCH_CACHE_MS
     : A2AJ_FETCH_CACHE_MS;
 }
@@ -423,6 +483,49 @@ function structureFor(
   return structure;
 }
 
+function readerSegments(
+  text: string,
+  structure: Omit<A2AJStructure, "text">,
+  docType: "cases" | "laws",
+) {
+  const kind = docType === "laws" ? "section" : "paragraph";
+  const starts = [
+    ...new Set([
+      0,
+      ...structure.blocks
+        .filter(
+          (block) =>
+            block.start >= 0 &&
+            block.start < text.length &&
+            (block.kind === kind || block.kind === "page"),
+        )
+        .map((block) => block.start),
+      text.length,
+    ]),
+  ].sort((left, right) => left - right);
+  return starts.slice(0, -1).flatMap((start, index) => {
+    const end = starts[index + 1];
+    let source = text.slice(start, end).trim();
+    if (docType === "cases" && start === 0) {
+      const decisionContent = source.match(/\bDecision Content\b\s*/iu);
+      if (decisionContent?.index !== undefined) {
+        source = source.slice(
+          decisionContent.index + decisionContent[0].length,
+        );
+        // A2AJ's SCC text uses single newlines as durable front-matter
+        // boundaries. Preserve those blocks without changing the evidence text.
+        source = source
+          .split(/\n/gu)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join("\n\n");
+      }
+    }
+    const blocks = classifyLegalMarkdown(source);
+    return blocks.length ? [{ start, end, blocks }] : [];
+  });
+}
+
 function cacheKey(args: {
   citation: string;
   docType: "cases" | "laws";
@@ -555,6 +658,11 @@ export async function resolveA2AJViewerDocument(args: {
             end: Math.min(block.end, text.length),
           })),
       };
+      const pdfUrl = document.url
+        ? (deriveOriginalPdfCandidates({
+            canonicalUrl: document.url,
+          })[0]?.url ?? null)
+        : null;
       const payload: A2AJViewerPayload = {
         schemaVersion: "mike.legal-source.v1",
         provider: "a2aj",
@@ -571,11 +679,16 @@ export async function resolveA2AJViewerDocument(args: {
           date: document.date,
           dataset: document.dataset,
           url: document.url,
+          pdfUrl,
           language: document.language,
           upstreamLicense: document.upstreamLicense,
         },
         text,
         structure,
+        presentation: {
+          source: "a2aj_markdown",
+          segments: readerSegments(text, structure, docType),
+        },
         truncated,
       };
       const digest = crypto
@@ -768,4 +881,110 @@ export async function searchA2AJ(args: {
     .map((item) => searchResultFromResult(item, language))
     .filter((item): item is A2AJSearchResult => !!item)
     .slice(0, 50);
+}
+
+const JURISDICTIONS = {
+  FED: "Federal",
+  AB: "Alberta",
+  BC: "British Columbia",
+  MB: "Manitoba",
+  NB: "New Brunswick",
+  NL: "Newfoundland and Labrador",
+  NS: "Nova Scotia",
+  NT: "Northwest Territories",
+  NU: "Nunavut",
+  ON: "Ontario",
+  PE: "Prince Edward Island",
+  QC: "Quebec",
+  SK: "Saskatchewan",
+  YT: "Yukon",
+} as const;
+
+type JurisdictionCode = keyof typeof JURISDICTIONS;
+
+const CASE_TRIBUNAL_DATASETS = new Set([
+  "CART",
+  "CHRT",
+  "CIRB",
+  "CITT",
+  "CT",
+  "FPSLREB",
+  "OHSTC",
+  "OIC",
+  "PSDPT",
+  "RAD",
+  "RLLR",
+  "RPD",
+  "SCT",
+  "SST",
+  "TATC",
+]);
+
+function jurisdictionCode(dataset: string, docType: "cases" | "laws") {
+  if (docType === "laws") {
+    const suffix = dataset.toUpperCase().match(/-([A-Z]{2,3})$/u)?.[1];
+    if (suffix === "FED") return "FED" as const;
+    if (suffix === "YK") return "YT" as const;
+    if (suffix && suffix in JURISDICTIONS) return suffix as JurisdictionCode;
+    return "FED" as const;
+  }
+  const prefix = dataset.toUpperCase().slice(0, 2);
+  if (prefix === "YK") return "YT" as const;
+  return prefix in JURISDICTIONS && prefix !== "FED"
+    ? (prefix as Exclude<JurisdictionCode, "FED">)
+    : ("FED" as const);
+}
+
+function coverageResult(
+  value: unknown,
+  docType: "cases" | "laws",
+): A2AJCoverageResult | null {
+  const record = asRecord(value);
+  const dataset = asString(record?.dataset)?.toUpperCase();
+  if (!record || !dataset) return null;
+  const code = jurisdictionCode(dataset, docType);
+  const rawCount = record.number_of_documents;
+  const documentCount =
+    typeof rawCount === "number"
+      ? rawCount
+      : Number.parseInt(String(rawCount ?? "0"), 10);
+  return {
+    dataset,
+    description:
+      asString(record.description_en) ??
+      asString(record.description_fr) ??
+      dataset,
+    descriptionFr: asString(record.description_fr),
+    docType,
+    jurisdictionCode: code,
+    jurisdiction: JURISDICTIONS[code],
+    sourceKind:
+      docType === "laws"
+        ? dataset.startsWith("REGULATIONS-")
+          ? "regulation"
+          : "legislation"
+        : CASE_TRIBUNAL_DATASETS.has(dataset) ||
+            /\b(?:board|commissioner|division|reporter|tribunal)\b/iu.test(
+              asString(record.description_en) ?? "",
+            )
+          ? "tribunal"
+          : "court",
+    earliestDate: asString(record.earliest_document_date),
+    latestDate: asString(record.latest_document_date),
+    documentCount: Number.isFinite(documentCount) ? documentCount : 0,
+  };
+}
+
+export async function getA2AJCoverage(
+  docType: "cases" | "laws",
+): Promise<A2AJCoverageResult[]> {
+  const payload = await request("/coverage", { doc_type: docType });
+  return (Array.isArray(payload.results) ? payload.results : [])
+    .map((item) => coverageResult(item, docType))
+    .filter((item): item is A2AJCoverageResult => !!item)
+    .sort(
+      (left, right) =>
+        left.jurisdiction.localeCompare(right.jurisdiction) ||
+        left.description.localeCompare(right.description),
+    );
 }
