@@ -11,6 +11,7 @@ import {
   type LegalStructureLookup,
 } from "./legalSourceStructure";
 import type { JournalArticleSearchResult } from "./journalArticles";
+import { sha256 } from "./hash";
 
 const TNA_ORIGIN = "https://caselaw.nationalarchives.gov.uk";
 const GOVUK_ORIGIN = "https://www.gov.uk";
@@ -123,10 +124,6 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
   trimValues: true,
 });
-
-function sha256(value: string) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
 
 function evidencePath(handle: string) {
   const digest = handle.match(EVIDENCE_HANDLE)?.[1];

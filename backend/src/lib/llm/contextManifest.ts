@@ -8,6 +8,7 @@ import type {
   StreamChatParams,
   StreamChatResult,
 } from "./types";
+import { sha256 } from "../hash";
 
 type ComponentMeasurement = {
   count: number;
@@ -63,10 +64,6 @@ const EMPTY_USAGE: NormalizedLlmUsage = {
   cacheReadInputTokens: null,
   cacheWriteInputTokens: null,
 };
-
-function sha256(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) {

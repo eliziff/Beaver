@@ -1,3 +1,4 @@
+import { normalizeWhitespace } from "./text";
 export type LegalInlineToken =
   | { kind: "text" | "em" | "strong" | "code" | "sup" | "sub"; text: string }
   | { kind: "link"; text: string; href: string };
@@ -96,10 +97,6 @@ function decodeHtmlEntities(value: string) {
         ? String.fromCodePoint(value)
         : match;
     });
-}
-
-function normalizeWhitespace(value: string) {
-  return value.trim().replace(/[ \t\r\n\f\v]+/gu, " ");
 }
 
 function cleanTokenText(value: string) {

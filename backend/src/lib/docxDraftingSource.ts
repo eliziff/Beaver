@@ -3,11 +3,11 @@ import JSZip from "jszip";
 
 export const DOCX_DRAFTING_SOURCE_FORMAT = "beaver-precedent-html-v1";
 export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
-export const MAX_DRAFTING_HTML_CHARS = 300_000;
-export const MAX_DRAFTING_ZIP_ENTRIES = 2_048;
-export const MAX_DRAFTING_EXPANDED_BYTES = 96 * 1024 * 1024;
+const MAX_DRAFTING_HTML_CHARS = 300_000;
+const MAX_DRAFTING_ZIP_ENTRIES = 2_048;
+const MAX_DRAFTING_EXPANDED_BYTES = 96 * 1024 * 1024;
 export const MAX_DRAFTING_XML_ENTRY_BYTES = 16 * 1024 * 1024;
-export const MAX_DRAFTING_XML_BYTES = 32 * 1024 * 1024;
+const MAX_DRAFTING_XML_BYTES = 32 * 1024 * 1024;
 const MAX_DRAFTING_WARNINGS = 20;
 
 export type DocxDraftingSource = {

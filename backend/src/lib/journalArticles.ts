@@ -100,7 +100,7 @@ function trustedUrl(value: string | null) {
   }
 }
 
-export function journalDatabasePath() {
+function journalDatabasePath() {
   const configured =
     process.env.MIKE_PUBLIC_ENDPOINT_DB?.trim() ||
     process.env.ALR_PUBLIC_ENDPOINT_DB?.trim();
@@ -109,11 +109,7 @@ export function journalDatabasePath() {
     : legalProviderDatabase("journals", "public_endpoint.db");
 }
 
-export function journalDatabaseAvailable() {
-  return existsSync(journalDatabasePath());
-}
-
-export function journalSearchDatabasePath() {
+function journalSearchDatabasePath() {
   const configured = process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB?.trim();
   return configured
     ? path.resolve(configured)

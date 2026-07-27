@@ -11,14 +11,10 @@ type DocType = "cases" | "laws";
 
 const documentStructures = new WeakMap<A2AJDocument, A2AJStructure>();
 
-export function a2ajLocalBulkPath() {
+function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
   return legalProviderDatabase("a2aj", "a2aj.sqlite");
-}
-
-export function a2ajLocalBulkAvailable() {
-  return existsSync(a2ajLocalBulkPath());
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {

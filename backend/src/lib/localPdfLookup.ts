@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { readLocalPdfParseState } from "./localPdfIngestion";
+import { sha256 } from "./hash";
 
 export const LOCAL_PDF_LOCATOR_KINDS = [
   "page",
@@ -121,10 +122,6 @@ export type LocalPdfLinkEvidence = {
     };
   }[];
 };
-
-function sha256(value: string) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
 
 type EvidenceHandleIdentity = {
   document_id: string;

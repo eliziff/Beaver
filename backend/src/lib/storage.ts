@@ -1,14 +1,3 @@
-/**
- * Cloudflare R2 storage utilities for Beaver document management.
- * R2 is S3-compatible — uses @aws-sdk/client-s3.
- *
- * Required env vars:
- *   R2_ENDPOINT_URL     — https://<account-id>.r2.cloudflarestorage.com
- *   R2_ACCESS_KEY_ID    — R2 API token (Access Key ID)
- *   R2_SECRET_ACCESS_KEY — R2 API token (Secret Access Key)
- *   R2_BUCKET_NAME      — bucket name (default: "mike")
- */
-
 let storageSdk:
   | Promise<{
       client: import("@aws-sdk/client-s3").S3Client;
@@ -38,7 +27,7 @@ function getStorageSdk() {
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
 
-export const storageEnabled = Boolean(
+const storageEnabled = Boolean(
   process.env.R2_ENDPOINT_URL &&
   process.env.R2_ACCESS_KEY_ID &&
   process.env.R2_SECRET_ACCESS_KEY,
@@ -52,9 +41,6 @@ function requireStorageConfig(): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Upload
-// ---------------------------------------------------------------------------
 
 export async function uploadFile(
   key: string,
@@ -73,9 +59,6 @@ export async function uploadFile(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Download
-// ---------------------------------------------------------------------------
 
 export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
   if (!storageEnabled) return null;
@@ -113,9 +96,6 @@ export async function listFiles(prefix: string): Promise<string[]> {
   return keys;
 }
 
-// ---------------------------------------------------------------------------
-// Delete
-// ---------------------------------------------------------------------------
 
 export async function deleteFile(key: string): Promise<void> {
   if (!storageEnabled) return;
@@ -125,9 +105,6 @@ export async function deleteFile(key: string): Promise<void> {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Signed URL (pre-signed for temporary direct access)
-// ---------------------------------------------------------------------------
 
 export async function getSignedUrl(
   key: string,
@@ -137,10 +114,7 @@ export async function getSignedUrl(
   if (!storageEnabled) return null;
   try {
     const { client, commands, getSignedUrl: sign } = await getStorageSdk();
-    // Override the response Content-Disposition so the browser uses this
-    // filename on download, instead of the last path segment of the R2 key
-    // (which includes the document UUID). The `download` attribute on <a>
-    // is ignored for cross-origin URLs, so we have to set it server-side.
+    // Cross-origin links ignore `download`; set the filename server-side.
     const responseContentDisposition = downloadFilename
       ? buildContentDisposition("attachment", downloadFilename)
       : undefined;
@@ -182,9 +156,6 @@ export function buildContentDisposition(
   return `${kind}; filename="${sanitizeDispositionFilename(normalized)}"; filename*=UTF-8''${encodeRFC5987(normalized)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Storage key helpers
-// ---------------------------------------------------------------------------
 
 export function storageKey(
   userId: string,

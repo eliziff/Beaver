@@ -4,6 +4,7 @@ import {
   addLocalVersion,
   getLocalVersionFile,
 } from "./localDocumentStore";
+import { decodeXmlText, escapeXmlText } from "./text";
 
 const SUPRA_PATTERN = /\bsupra,?\s+note\s+(\d+)\b/giu;
 const RUN_PATTERN = /<w:r\b([^>]*)>([\s\S]*?)<\/w:r>/gu;
@@ -37,28 +38,6 @@ function setZipEntry(zip: JSZip, canonicalPath: string, contents: string) {
     return;
   }
   zip.file(canonicalPath, contents);
-}
-
-function decodeXmlText(value: string) {
-  return value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&amp;", "&")
-    .replace(/&#(\d+);/gu, (_match, digits: string) =>
-      String.fromCodePoint(Number(digits)),
-    )
-    .replace(/&#x([\da-f]+);/giu, (_match, digits: string) =>
-      String.fromCodePoint(Number.parseInt(digits, 16)),
-    );
-}
-
-function escapeXmlText(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 }
 
 function elementIsOpen(xml: string, offset: number, tag: string) {

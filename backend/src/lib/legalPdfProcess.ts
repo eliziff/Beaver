@@ -12,7 +12,7 @@ type LegalPdfRuntimeOptions = {
   exists?: (candidate: string) => boolean;
 };
 
-export function legalPdfEngineRoot(options?: LegalPdfRuntimeOptions) {
+function legalPdfEngineRoot(options?: LegalPdfRuntimeOptions) {
   const env = options?.env ?? process.env;
   return path.resolve(
     options?.engineRoot ||

@@ -231,7 +231,7 @@ async function queueVersionPdf<T extends Record<string, unknown>>(
   return { ...response, pdf_parse: pdfParse };
 }
 
-export function localDocumentResponse(document: LocalDocument) {
+function localDocumentResponse(document: LocalDocument) {
   const version = activeVersion(document);
   return {
     id: document.id,
@@ -276,7 +276,7 @@ function localFolderResponse(folder: LocalFolder) {
   };
 }
 
-export function localVersionResponse(version: LocalVersion) {
+function localVersionResponse(version: LocalVersion) {
   return {
     id: version.id,
     version_number: version.versionNumber,
@@ -381,7 +381,7 @@ export async function createLocalDocument(params: {
   );
 }
 
-export async function getLocalDocument(userId: string, documentId: string) {
+async function getLocalDocument(userId: string, documentId: string) {
   const store = await currentStore();
   return (
     store.documents.find(

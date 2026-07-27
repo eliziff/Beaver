@@ -27,6 +27,7 @@ import {
   type LocalPdfParseStatus,
 } from "./localPdfIngestion";
 import { guardedRemoteFetch } from "./remoteUrlSafety";
+import { sha256 } from "./hash";
 
 export type ProviderPdfFallbackProvider =
   | "a2aj"
@@ -194,10 +195,6 @@ type RequestLease = {
 
 class InvalidProviderPdfRevalidationError extends Error {}
 class LostProviderPdfLeaseError extends Error {}
-
-function sha256(value: string | Buffer) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
 
 async function acquireDownloadSlot() {
   if (activeDownloads < MAX_CONCURRENT_PDF_DOWNLOADS) {

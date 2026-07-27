@@ -15,8 +15,9 @@ import {
 } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { runLegalPdf } from "./legalPdfProcess";
+import { sha256 } from "./hash";
 
-export const LOCAL_PDF_PARSER_VERSION = "0.1.0";
+const LOCAL_PDF_PARSER_VERSION = "0.1.0";
 const STATE_SUFFIX = ".legalpdf-state.json";
 const ARTIFACT_SUFFIX = ".legalpdf";
 const STATE_SCHEMA = "mike.pdf_parse.v1";
@@ -328,10 +329,6 @@ function cachedRepairIdentity() {
     throw error;
   });
   return repairIdentityPromise;
-}
-
-function sha256(value: string | Buffer) {
-  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 function relativeDataPath(absolutePath: string) {
