@@ -202,7 +202,7 @@ describe("verified legal-source links", () => {
     );
   });
 
-  it("uses the SCC scrollable view without duplicate query settings", () => {
+  it("rewrites Decisia shell URLs to the inline document view", () => {
     const text =
       "The court described the motiveless act as unusual in all the circumstances.";
     const lookup = lookupFixture({
@@ -210,16 +210,17 @@ describe("verified legal-source links", () => {
       locator: "para 191",
       label: "par191",
       url:
-        "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/1705/index.do" +
+        "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21212/index.do" +
         "?foo=bar&iframe=false&site_preference=desktop",
     });
     const result = buildA2AJPinpointUrl(lookup, ["motiveless act"], text)!;
 
-    expect(result).toContain("foo=bar&iframe=true&site_preference=mobile");
+    expect(result).toContain("foo=bar&iframe=true");
     expect(result).toContain("#par191:~:text=");
     expect(result).toContain("motiveless%20act");
     expect(result).not.toContain("iframe=false");
-    expect(result).not.toContain("site_preference=desktop");
+    // site_preference pins a persistent layout cookie; it must not be set.
+    expect(result).not.toContain("site_preference");
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
@@ -241,23 +242,24 @@ describe("verified legal-source links", () => {
     expect(result).toContain(".pdf#page=19:~:text=");
   });
 
-  it("uses native Lexum paragraph anchors across A2AJ court datasets", () => {
+  it("uses native paragraph anchors on every Decisia deployment", () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
-    const lookup = lookupFixture({
-      text,
-      dataset: "ONCA",
-      url: "https://www.canlii.invalid/decisions/onca/2026/540/document.do?foo=bar",
-    });
-    const result = buildA2AJPinpointUrl(
-      lookup,
-      ["distinctive controlling principle"],
-      text,
-    )!;
-
-    expect(result).toContain(
-      "?foo=bar&iframe=true&site_preference=mobile#par42:~:text=",
-    );
+    for (const url of [
+      "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22684/index.do?foo=bar",
+      "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do",
+      "https://decisia.lexum.com/nsc/nsca/en/item/523504/index.do",
+    ]) {
+      const lookup = lookupFixture({ text, dataset: "ONCA", url });
+      const result = buildA2AJPinpointUrl(
+        lookup,
+        ["distinctive controlling principle"],
+        text,
+      )!;
+      expect(result).toContain("iframe=true");
+      expect(result).toContain("#par42:~:text=");
+      expect(result).not.toContain("site_preference");
+    }
   });
 
   it("does not fabricate paragraph anchors for BC-family decisions", () => {
