@@ -30,8 +30,8 @@ import {
   parseCitationsWithDiagnostics,
   parsePartialCitationObjects,
   createCitation,
-  CITATIONS_OPEN_TAG,
 } from "./citations";
+import { createVisibleStreamSplitter } from "./visibleStream";
 import {
   runToolCalls,
   type CourtlistenerTurnState,
@@ -224,8 +224,6 @@ export async function runLLMStream(params: {
   let iterText = "";
   let iterVisibleText = "";
   let iterReasoning = "";
-  let visibleTailBuffer = "";
-  let citationsOpenSeen = false;
   let streamingCitationsBuffer = "";
   let streamedCitationCount = 0;
 
@@ -258,58 +256,30 @@ export async function runLLMStream(params: {
     emitCitationStreamSnapshot("partial", citations);
   };
 
-  const streamVisibleContent = (delta: string) => {
-    if (!delta) return;
-    if (citationsOpenSeen) {
-      streamHiddenCitationContent(delta);
-      return;
-    }
-
-    const combined = visibleTailBuffer + delta;
-    const markerIdx = combined.indexOf(CITATIONS_OPEN_TAG);
-    if (markerIdx >= 0) {
-      const visible = combined.slice(0, markerIdx);
-      if (visible) {
-        iterVisibleText += visible;
-        write(
-          `data: ${JSON.stringify({ type: "content_delta", text: visible })}\n\n`,
-        );
-      }
-      visibleTailBuffer = "";
-      citationsOpenSeen = true;
-      streamingCitationsBuffer = "";
-      streamedCitationCount = 0;
-      emitCitationStreamSnapshot("started", []);
-      streamHiddenCitationContent(
-        combined.slice(markerIdx + CITATIONS_OPEN_TAG.length),
-      );
-      return;
-    }
-
-    const keep = Math.min(CITATIONS_OPEN_TAG.length - 1, combined.length);
-    const visible = combined.slice(0, combined.length - keep);
-    visibleTailBuffer = combined.slice(combined.length - keep);
-    if (visible) {
+  const splitter = createVisibleStreamSplitter({
+    onVisible: (visible) => {
       iterVisibleText += visible;
       write(
         `data: ${JSON.stringify({ type: "content_delta", text: visible })}\n\n`,
       );
-    }
-  };
+    },
+    onOpen: () => {
+      streamingCitationsBuffer = "";
+      streamedCitationCount = 0;
+      emitCitationStreamSnapshot("started", []);
+    },
+    onHidden: streamHiddenCitationContent,
+  });
 
   const flushVisibleTail = (opts: { emit?: boolean } = {}) => {
-    const emit = opts.emit ?? true;
-    if (citationsOpenSeen || !visibleTailBuffer) {
-      visibleTailBuffer = "";
-      return;
-    }
-    iterVisibleText += visibleTailBuffer;
-    if (emit) {
+    const tail = splitter.takeTail();
+    if (!tail) return;
+    iterVisibleText += tail;
+    if (opts.emit ?? true) {
       write(
-        `data: ${JSON.stringify({ type: "content_delta", text: visibleTailBuffer })}\n\n`,
+        `data: ${JSON.stringify({ type: "content_delta", text: tail })}\n\n`,
       );
     }
-    visibleTailBuffer = "";
   };
 
   const flushText = (opts: { emit?: boolean } = {}) => {
@@ -321,8 +291,7 @@ export async function runLLMStream(params: {
     }
     iterText = "";
     iterVisibleText = "";
-    visibleTailBuffer = "";
-    citationsOpenSeen = false;
+    splitter.reset();
     streamingCitationsBuffer = "";
     streamedCitationCount = 0;
   };
@@ -352,7 +321,7 @@ export async function runLLMStream(params: {
       callbacks: {
         onContentDelta: (delta) => {
           iterText += delta;
-          streamVisibleContent(delta);
+          splitter.push(delta);
         },
         onReasoningDelta: (delta) => {
           iterReasoning += delta;
