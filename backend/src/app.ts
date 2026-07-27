@@ -17,6 +17,7 @@ import { codexRouter } from "./routes/codex";
 import { localDocumentsRouter } from "./routes/localDocuments";
 import { localLibraryRouter } from "./routes/localLibrary";
 import { legalLibraryRouter } from "./routes/legalLibrary";
+import { legalKnowledgeRouter } from "./routes/legalKnowledge";
 import { tableOfAuthoritiesRouter } from "./routes/tableOfAuthorities";
 import { isAnonymousLocalMode } from "./lib/localMode";
 
@@ -185,6 +186,7 @@ app.use("/projects/:projectId/chat", projectChatRouter);
 app.use("/single-documents", localDocumentsRouter);
 app.use("/single-documents", documentsRouter);
 app.use("/library/legal", legalLibraryRouter);
+app.use("/legal-knowledge", legalKnowledgeRouter);
 app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
 app.use("/tabular-review", requirePersistentData, tabularRouter);
