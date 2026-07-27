@@ -11,7 +11,7 @@ Maker.
 ## Requirements
 
 - Windows PowerShell
-- Node.js 22+
+- Node.js 22.13+
 - Python 3.11+
 - npm
 - A signed-in Codex CLI or one supported model-provider API key

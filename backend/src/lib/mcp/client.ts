@@ -1,11 +1,11 @@
 import crypto from "crypto";
-import dns from "dns/promises";
-import net from "net";
 import {
-    BLOCKED_METADATA_HOSTS,
     HEADER_NAME_RE,
     MAX_CUSTOM_HEADER_VALUE_LENGTH,
     MAX_CUSTOM_HEADERS,
+    MAX_MCP_RESPONSE_BYTES,
+    MAX_MCP_SSE_EVENT_BYTES,
+    MCP_CREDENTIAL_EPOCH_KEY,
     type ConnectorRow,
     type Db,
     type McpConnectorAuthConfig,
@@ -14,6 +14,7 @@ import {
     type OAuthTokenRow,
     type ToolCacheRow,
 } from "./types";
+import { guardedRemoteFetch, validateRemoteHttpsUrl } from "../remoteUrlSafety";
 
 function encryptionSecret(): string {
     const secret =
@@ -134,6 +135,22 @@ export function decryptAuthConfig(row: ConnectorRow): McpConnectorAuthConfig {
     }
 }
 
+export function oauthTokenMatchesConnectorCredentials(
+    token: Pick<OAuthTokenRow, "updated_at"> | null | undefined,
+    connector: Pick<ConnectorRow, "tool_policy">,
+) {
+    const credentialEpoch = connector.tool_policy?.[MCP_CREDENTIAL_EPOCH_KEY];
+    if (typeof credentialEpoch !== "string" || !credentialEpoch) return true;
+    if (!token?.updated_at) return false;
+    const tokenUpdate = Date.parse(token.updated_at);
+    const connectorUpdate = Date.parse(credentialEpoch);
+    return (
+        Number.isFinite(tokenUpdate) &&
+        Number.isFinite(connectorUpdate) &&
+        tokenUpdate === connectorUpdate
+    );
+}
+
 function sanitizeToolPart(value: string, fallback: string, maxLength: number) {
     const sanitized = value
         .toLowerCase()
@@ -214,7 +231,10 @@ export function toConnectorSummary(
         enabled: connector.enabled,
         hasAuthConfig: !!connector.encrypted_auth_config,
         customHeaderKeys: Object.keys(authConfig.headers ?? {}),
-        oauthConnected: !!oauthToken?.encrypted_access_token,
+        oauthConnected:
+            connector.auth_type === "oauth" &&
+            !!oauthToken?.encrypted_access_token &&
+            oauthTokenMatchesConnectorCredentials(oauthToken, connector),
         toolPolicy: connector.tool_policy ?? {},
         tools: tools.map(toToolSummary),
         toolCount,
@@ -223,74 +243,8 @@ export function toConnectorSummary(
     };
 }
 
-function isPrivateIpv4(ip: string) {
-    const parts = ip.split(".").map((part) => Number.parseInt(part, 10));
-    if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) {
-        return true;
-    }
-    const [a, b] = parts;
-    return (
-        a === 0 ||
-        a === 10 ||
-        a === 127 ||
-        (a === 100 && b >= 64 && b <= 127) ||
-        (a === 169 && b === 254) ||
-        (a === 172 && b >= 16 && b <= 31) ||
-        (a === 192 && b === 168) ||
-        (a === 192 && b === 0) ||
-        (a === 198 && (b === 18 || b === 19)) ||
-        a >= 224
-    );
-}
-
-function isPrivateIpv6(ip: string) {
-    const normalized = ip.toLowerCase();
-    if (normalized === "::1" || normalized === "::") return true;
-    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
-    if (/^fe[89ab]:/.test(normalized)) return true;
-    const ipv4Tail = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    return ipv4Tail ? isPrivateIpv4(ipv4Tail[1]) : false;
-}
-
-function isBlockedIp(ip: string) {
-    const family = net.isIP(ip);
-    if (family === 4) return isPrivateIpv4(ip);
-    if (family === 6) return isPrivateIpv6(ip);
-    return true;
-}
-
 export async function validateRemoteMcpUrl(rawUrl: string): Promise<string> {
-    let url: URL;
-    try {
-        url = new URL(rawUrl);
-    } catch {
-        throw new Error("MCP server URL must be a valid URL.");
-    }
-    if (url.protocol !== "https:") {
-        throw new Error("MCP server URL must use HTTPS.");
-    }
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-
-    const hostname = url.hostname.toLowerCase();
-    if (
-        hostname === "localhost" ||
-        hostname.endsWith(".localhost") ||
-        BLOCKED_METADATA_HOSTS.has(hostname)
-    ) {
-        throw new Error("MCP server URL points to a blocked host.");
-    }
-
-    const literalFamily = net.isIP(hostname);
-    const addresses = literalFamily
-        ? [{ address: hostname }]
-        : await dns.lookup(hostname, { all: true, verbatim: true });
-    if (!addresses.length || addresses.some(({ address }) => isBlockedIp(address))) {
-        throw new Error("MCP server URL resolves to a blocked network address.");
-    }
-
-    return url.toString();
+    return validateRemoteHttpsUrl(rawUrl, "MCP server URL");
 }
 
 export function headersForAuth(config: McpConnectorAuthConfig) {
@@ -315,12 +269,17 @@ export function validateCustomHeaders(
     }
     const entries = Object.entries(raw);
     if (entries.length > MAX_CUSTOM_HEADERS) {
-        throw new Error(`Custom headers may not exceed ${MAX_CUSTOM_HEADERS} entries.`);
+        throw new Error(
+            `Custom headers may not exceed ${MAX_CUSTOM_HEADERS} entries.`,
+        );
     }
     const headers: Record<string, string> = {};
     for (const [key, value] of entries) {
         const trimmedKey = key.trim();
-        if (!HEADER_NAME_RE.test(trimmedKey) || trimmedKey.toLowerCase() === "host") {
+        if (
+            !HEADER_NAME_RE.test(trimmedKey) ||
+            trimmedKey.toLowerCase() === "host"
+        ) {
             throw new Error(`Invalid custom header name: ${key}`);
         }
         if (
@@ -336,7 +295,9 @@ export function validateCustomHeaders(
     return headers;
 }
 
-export function authConfigPatch(config: McpConnectorAuthConfig): Record<string, unknown> {
+export function authConfigPatch(
+    config: McpConnectorAuthConfig,
+): Record<string, unknown> {
     const hasBearer = !!config.bearerToken?.trim();
     const hasHeaders = Object.keys(config.headers ?? {}).length > 0;
     if (!hasBearer && !hasHeaders) {
@@ -356,14 +317,82 @@ export async function guardedFetch(
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
 ) {
-    const url =
-        typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.toString()
-              : input.url;
-    await validateRemoteMcpUrl(url);
-    return fetch(input, { ...init, redirect: "manual" });
+    return guardedRemoteFetch(input, init, "MCP server URL");
+}
+
+function limitedBody(
+    body: ReadableStream<Uint8Array>,
+    limit: number,
+    perSseEvent: boolean,
+) {
+    let bytes = 0;
+    let lineHasContent = false;
+    let pendingCr = false;
+    const endSseLine = () => {
+        if (!lineHasContent) bytes = 0;
+        lineHasContent = false;
+    };
+    return body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+                for (const byte of chunk) {
+                    if (perSseEvent && pendingCr) {
+                        if (byte === 0x0a) {
+                            bytes += 1;
+                            if (bytes > limit)
+                                throw new Error(
+                                    "MCP SSE event exceeds the size limit.",
+                                );
+                            endSseLine();
+                            pendingCr = false;
+                            continue;
+                        }
+                        endSseLine();
+                        pendingCr = false;
+                    }
+                    bytes += 1;
+                    if (bytes > limit) {
+                        throw new Error(
+                            perSseEvent
+                                ? "MCP SSE event exceeds the size limit."
+                                : "MCP response exceeds the size limit.",
+                        );
+                    }
+                    if (!perSseEvent) continue;
+                    if (byte === 0x0d) pendingCr = true;
+                    else if (byte === 0x0a) endSseLine();
+                    else lineHasContent = true;
+                }
+                controller.enqueue(chunk);
+            },
+        }),
+    );
+}
+
+export async function boundMcpResponse(response: Response) {
+    const isSse =
+        response.headers
+            .get("content-type")
+            ?.split(";", 1)[0]
+            .trim()
+            .toLowerCase() === "text/event-stream";
+    const limit = isSse ? MAX_MCP_SSE_EVENT_BYTES : MAX_MCP_RESPONSE_BYTES;
+    const declared = response.headers.get("content-length");
+    if (
+        !isSse &&
+        declared !== null &&
+        Number.isFinite(Number(declared)) &&
+        Number(declared) > limit
+    ) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error("MCP response exceeds the size limit.");
+    }
+    if (!response.body) return response;
+    return new Response(limitedBody(response.body, limit, isSse), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+    });
 }
 
 export function base64Url(buffer: Buffer) {
