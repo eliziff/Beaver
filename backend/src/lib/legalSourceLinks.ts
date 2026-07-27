@@ -38,6 +38,25 @@ export type AutomaticLegalSourceLink = {
   evidence: LegalSourceEvidence;
 };
 
+export function formatLegalLocator(
+  kind: "paragraph" | "section" | "page" | "footnote",
+  label: string,
+) {
+  const value = label
+    .trim()
+    .replace(
+      kind === "paragraph"
+        ? /^(?:para?[\s._-]*)/iu
+        : kind === "section"
+          ? /^(?:s(?:ec(?:tion)?)?[\s._-]*)/iu
+          : kind === "page"
+            ? /^(?:p(?:age)?[\s=_-]*)/iu
+            : /^(?:fn|footnote|note)[\s._-]*/iu,
+      "",
+    );
+  return `${kind === "paragraph" ? "para." : kind === "section" ? "s." : kind === "page" ? "p." : "n."} ${value || label.trim()}`;
+}
+
 export type CourtlistenerCitationIdentity = {
   quotes: { opinionId: number | null; quote: string }[];
 };
@@ -462,6 +481,55 @@ export function buildLegalSourcePinpointUrl(
   return appendDirectives(baseUrl, directives);
 }
 
+export function buildLegalSourceMultiPassageUrl(
+  url: string,
+  passages: {
+    key: string;
+    blockText: string;
+    documentText?: string;
+    pageScoped?: boolean;
+    quotes: string[];
+  }[],
+) {
+  const baseUrl = sourceUrl(url);
+  if (!baseUrl || !passages.length) return null;
+
+  const uniquePassages = [
+    ...new Map(passages.map((passage) => [passage.key, passage])).values(),
+  ];
+  const directives: string[] = [];
+  for (const passage of uniquePassages) {
+    const verificationText = passage.documentText?.trim()
+      ? passage.documentText
+      : passage.blockText;
+    const quotes = [
+      ...new Map(
+        passage.quotes.map((quote) => [quoteWords(quote).join(" "), quote]),
+      ).values(),
+    ].filter((quote) => quoteWords(quote).length > 0);
+    if (!quotes.length) return null;
+    const built = quotes
+      .map((quote) =>
+        buildDirective(
+          passage.blockText,
+          quote,
+          verificationText,
+          passage.pageScoped === true,
+        ),
+      )
+      .sort((left, right) => (left?.start ?? 0) - (right?.start ?? 0));
+    if (built.some((directive) => !directive)) return null;
+    directives.push(
+      ...built
+        .filter((directive): directive is NonNullable<typeof directive> =>
+          Boolean(directive),
+        )
+        .map(({ directive }) => directive),
+    );
+  }
+  return appendDirectives(baseUrl, [...new Set(directives)]);
+}
+
 function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
 }
@@ -799,7 +867,9 @@ export function appendLegalSourcePinpointLinks(
   sources: AutomaticLegalSourceLink[],
   existingUrls: string[] = [],
 ) {
-  const uniqueSources = [...new Map(sources.map((source) => [source.key, source])).values()];
+  const uniqueSources = [
+    ...new Map(sources.map((source) => [source.key, source])).values(),
+  ];
   const assigned = new Map<
     string,
     { source: AutomaticLegalSourceLink; quotes: string[] }
@@ -828,9 +898,7 @@ export function appendLegalSourcePinpointLinks(
     ) {
       return [];
     }
-    return [
-      `[${source.label.replace(/[[\]]/gu, "\\$&")}](${markdownUrl})`,
-    ];
+    return [`[${source.label.replace(/[[\]]/gu, "\\$&")}](${markdownUrl})`];
   });
   if (!links.length) return answer;
   return `${answer}${answer ? "\n\n" : ""}Source${links.length === 1 ? "" : "s"}: ${links.join("; ")}`;

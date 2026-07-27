@@ -2,24 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { applyTrackedEdits, extractDocxBodyText } from "../docxTrackedChanges";
 import { LOCAL_ASSISTANT_TOOLS } from "../chat/localAssistantTools";
-import { renderDocx } from "../chat/tools/documentOps";
+import { renderMarkdownDocx } from "../chat/tools/documentOps";
 import { TOOLS } from "../chat/tools/toolSchemas";
 
-const agreementSections = [
+const agreementMarkdown = `# Parties and termination
+
+This Agreement is between {{party_a}} and {{party_b}}.
+
+{{termination_clause}}`;
+const agreementFields = [
+  { id: "party_a", value: "Acme & <North>" },
+  { id: "party_b", value: "[Second party]" },
   {
-    heading: "Parties and termination",
-    content:
-      "This Agreement is between {{party_a}} and {{party_b}}.\n{{termination_clause}}",
-    contentControls: [
-      { tag: "party_a", label: "First party", value: "Acme & <North>" },
-      { tag: "party_b", label: "Second party" },
-      {
-        tag: "termination_clause",
-        label: "Termination clause",
-        value: "Either party may terminate on 30 days' notice.",
-        kind: "clause",
-      },
-    ],
+    id: "termination_clause",
+    value: "Either party may terminate on 30 days' notice.",
   },
 ];
 
@@ -31,8 +27,16 @@ async function documentXml(bytes: Buffer) {
 
 describe("agreement DOCX drafting", () => {
   it("renders deterministic tagged Word content controls without leaking markers", async () => {
-    const first = await renderDocx("Service Agreement", agreementSections);
-    const second = await renderDocx("Service Agreement", agreementSections);
+    const first = await renderMarkdownDocx(
+      "Service Agreement",
+      agreementMarkdown,
+      agreementFields,
+    );
+    const second = await renderMarkdownDocx(
+      "Service Agreement",
+      agreementMarkdown,
+      agreementFields,
+    );
     if ("error" in first) throw new Error(first.error);
     if ("error" in second) throw new Error(second.error);
 
@@ -68,50 +72,27 @@ describe("agreement DOCX drafting", () => {
     expect(edit.errors[0]?.reason).toContain("Word content control");
   });
 
-  it("fails closed when a declared control is not placed", async () => {
-    const rendered = await renderDocx("Agreement", [
-      {
-        content: "No marker appears here.",
-        contentControls: [{ tag: "effective_date", label: "Effective date" }],
-      },
-    ]);
-
-    expect(rendered).toEqual({
-      error: expect.stringContaining(
-        'Content control "effective_date" has no matching',
-      ),
-    });
-  });
-
-  it("fails closed on malformed control markers", async () => {
-    const rendered = await renderDocx("Agreement", [
-      {
-        content: "This starts on {{Effective Date}}.",
-      },
-    ]);
-
-    expect(rendered).toEqual({
-      error: expect.stringContaining("{{lowercase_tag}}"),
-    });
-  });
-
-  it("makes agreement artifacts and controls explicit in both tool catalogs", () => {
+  it("exposes concise semantic Markdown in both tool catalogs", () => {
     const generated = TOOLS.find(
       (tool) => tool.function.name === "generate_docx",
     )!;
     const local = LOCAL_ASSISTANT_TOOLS.find(
       (tool) => tool.function.name === "library_create_docx",
     )!;
-    const sections = generated.function.parameters.properties.sections as {
-      items: { properties: Record<string, unknown> };
-    };
+    const properties = generated.function.parameters.properties as Record<
+      string,
+      unknown
+    >;
 
-    expect(generated.function.description).toContain(
-      "default output when the user asks to draft an agreement",
-    );
-    expect(sections.items.properties).toHaveProperty("contentControls");
-    expect(local.function.description).toContain(
-      "modern Word content controls",
-    );
+    expect(generated.function.description).toContain("semantic Markdown");
+    expect(generated.function.parameters.required).toEqual([
+      "title",
+      "markdown",
+    ]);
+    expect(properties).toHaveProperty("markdown");
+    expect(properties).toHaveProperty("fields");
+    expect(properties).toHaveProperty("sources");
+    expect(properties).not.toHaveProperty("sections");
+    expect(local.function.description).toContain("local Library");
   });
 });
