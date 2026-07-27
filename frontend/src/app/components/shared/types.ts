@@ -1,4 +1,4 @@
-// Shared TypeScript types for Mike AI legal assistant
+// Shared TypeScript types for Beaver AI legal assistant
 
 export interface Folder {
   id: string;
@@ -131,8 +131,6 @@ export interface Document {
   current_version_id?: string | null;
   /** Version number of the document row pointed to by current_version_id. */
   active_version_number?: number | null;
-  /** Legacy: max version_number across assistant_edit rows, null if doc is unedited. */
-  latest_version_number?: number | null;
   /** Returned immediately by local PDF uploads; later state is read on demand. */
   pdf_parse?: PdfParseState | null;
 }

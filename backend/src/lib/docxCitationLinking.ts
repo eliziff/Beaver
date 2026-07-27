@@ -478,7 +478,7 @@ export async function linkLocalDocxCitations(
   if (file.fileType.toLowerCase() !== "docx") {
     throw new Error("Citation linking currently requires a DOCX document");
   }
-  const temporary = await mkdtemp(path.join(os.tmpdir(), "mike-docx-links-"));
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "beaver-docx-links-"));
   try {
     const planPath = path.join(temporary, "plan.json");
     const linksPath = path.join(temporary, "links.json");

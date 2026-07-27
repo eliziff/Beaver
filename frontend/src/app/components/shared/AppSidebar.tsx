@@ -14,7 +14,7 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
@@ -25,7 +25,7 @@ import {
   WorkflowSkeuoIcon,
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { ProjectSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { listProjects } from "@/app/lib/mikeApi";
+import { listProjects } from "@/app/lib/beaverApi";
 import type { Project } from "@/app/components/shared/types";
 import { cn } from "@/app/lib/utils";
 import {
@@ -51,11 +51,16 @@ const NAV_ITEMS = [
 ];
 
 interface AppSidebarProps {
-  isOpen: boolean;
+  desktopOpen: boolean;
+  mobileOpen: boolean;
   onToggle: () => void;
 }
 
-export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
+export function AppSidebar({
+  desktopOpen,
+  mobileOpen,
+  onToggle,
+}: AppSidebarProps) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { chats, hasMoreChats, loadMoreChats, setCurrentChatId } =
@@ -72,7 +77,6 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     );
     return projectChatMatch?.[1] ?? null;
   }, [pathname]);
-  const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
@@ -80,6 +84,10 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const assistantChats = useMemo(
     () => chats?.filter((chat) => !chat.project_id) ?? chats,
     [chats],
+  );
+  const expandedOnly = cn(
+    !mobileOpen && "max-md:hidden",
+    !desktopOpen && "md:hidden",
   );
 
   useEffect(() => {
@@ -105,9 +113,11 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
       });
   }, [pathname, user]);
 
-  const handleToggle = () => {
-    if (isOpen) setShouldAnimate(true);
-    onToggle();
+  const navigate = (href: string) => {
+    if (!window.matchMedia("(min-width: 768px)").matches && mobileOpen) {
+      onToggle();
+    }
+    router.push(href);
   };
 
   useEffect(() => {
@@ -145,54 +155,55 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
       {/* Mobile: tapping outside the expanded sidebar closes it. The
                 sidebar (z-[99]) sits above this scrim (z-[98]); md+ is
                 unaffected since the sidebar is part of the layout there. */}
-      {isOpen && (
+      {mobileOpen && (
         <div
           className="fixed inset-0 z-[98] bg-gray-300/20 md:hidden"
-          onClick={handleToggle}
+          onClick={onToggle}
           aria-hidden="true"
         />
       )}
       <div
         className={cn(
-          isOpen
-            ? "w-64 h-[calc(100dvh-1rem)] md:h-[calc(100dvh-1.5rem)] bg-app-surface"
-            : "max-md:hidden w-14 md:h-[calc(100dvh-1.5rem)] md:bg-app-surface h-auto bg-transparent pointer-events-none md:pointer-events-auto",
-          "my-2 ml-2 mr-0 md:my-3 md:ml-3 md:mr-0 rounded-2xl border border-white/70 shadow-[0_-1px_6px_rgba(15,23,42,0.034),0_4px_9px_rgba(15,23,42,0.074),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-2xl overflow-visible",
-          "flex flex-col transition-all duration-300 absolute md:relative z-[99]",
+          mobileOpen
+            ? "max-md:h-[calc(100dvh-1rem)] max-md:w-64"
+            : "max-md:hidden",
+          desktopOpen ? "md:w-64" : "md:w-14",
+          "md:h-[calc(100dvh-1.5rem)]",
+          "my-2 ml-2 mr-0 md:my-3 md:ml-3 md:mr-0 rounded-2xl border border-gray-200 bg-app-surface overflow-visible",
+          "flex flex-col absolute md:relative z-[99]",
         )}
       >
         {/* Toggle + Logo */}
-        <div
-          className={`items-center justify-between px-2.5 py-3 ${
-            !isOpen ? "hidden md:flex" : "flex"
-          }`}
-        >
-          {isOpen && (
-            <div className="px-2">
+        <div className="flex items-center justify-between px-2.5 py-3">
+          <div className={cn("px-2", expandedOnly)}>
               <Link
                 href="/assistant"
                 prefetch={false}
                 className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  if (
+                    !window.matchMedia("(min-width: 768px)").matches &&
+                    mobileOpen
+                  ) {
+                    onToggle();
+                  }
+                }}
               >
-                <MikeIcon size={22} spin />
-                <span
-                  className={`text-2xl font-light font-serif ${
-                    shouldAnimate ? "sidebar-fade-in" : ""
-                  }`}
-                >
+                <BeaverIcon size={22} />
+                <span className="text-2xl font-light font-serif">
                   Beaver
                 </span>
               </Link>
-            </div>
-          )}
+          </div>
           <button
-            onClick={handleToggle}
+            onClick={onToggle}
             className={cn(
               "h-9 w-9 p-2.5 items-center flex transition-colors",
               "rounded-md",
               APP_SURFACE_HOVER_CLASS,
             )}
-            title={isOpen ? "Close sidebar" : "Open sidebar"}
+            title="Toggle sidebar"
+            aria-label="Toggle sidebar"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
@@ -200,7 +211,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
 
         <nav
           aria-label="Primary"
-          className={cn("min-h-0 flex-1", isOpen && "overflow-y-auto pb-2")}
+          className="min-h-0 flex-1 overflow-y-auto pb-2"
         >
           {NAV_ITEMS.filter(
             ({ href }) =>
@@ -213,15 +224,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
               <div key={href} role="group" aria-label={label}>
                 <div className="py-0.5 px-2.5">
                   <button
-                    onClick={() => router.push(href)}
-                    title={!isOpen ? label : undefined}
+                    onClick={() => navigate(href)}
+                    title={label}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left",
                       isActive
                         ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
                         : `text-gray-700 ${APP_SURFACE_HOVER_CLASS}`,
-                      !isOpen ? "hidden md:flex" : "flex",
                     )}
                   >
                     <Icon
@@ -229,29 +239,27 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                         isActive ? "text-gray-900" : "text-black"
                       }`}
                     />
-                    {isOpen && (
-                      <span
-                        className={`text-sm font-medium ${
-                          shouldAnimate ? "sidebar-fade-in-2" : ""
-                        }`}
-                      >
-                        {label}
-                      </span>
-                    )}
+                    <span className={cn("text-sm font-medium", expandedOnly)}>
+                      {label}
+                    </span>
                   </button>
                 </div>
 
-                {isOpen && isActive && href === "/assistant" && (
-                  <div className="mb-2 flex min-h-0 flex-col">
+                {isActive && href === "/assistant" && (
+                  <div
+                    className={cn(
+                      "mb-2 min-h-0 flex-col",
+                      expandedOnly,
+                      (desktopOpen || mobileOpen) && "flex",
+                    )}
+                  >
                     <button
                       type="button"
                       onClick={() => setHistoryCollapsed((value) => !value)}
                       aria-label="Assistant history"
                       aria-expanded={!historyCollapsed}
                       aria-controls="assistant-history"
-                      className={`mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
-                        shouldAnimate ? "sidebar-fade-in" : ""
-                      }`}
+                      className="mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 hover:text-gray-700"
                     >
                       <span>History</span>
                       <ChevronDown
@@ -275,9 +283,9 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                               key={index}
                               className="flex h-8 items-center rounded-md px-2.5"
                             >
-                              <div className="mr-2 h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-gray-200" />
+                              <div className="mr-2 h-3.5 w-3.5 shrink-0 rounded bg-gray-200" />
                               <div
-                                className="h-3 animate-pulse rounded bg-gray-200"
+                                className="h-3 rounded bg-gray-200"
                                 style={{ width: `${width}%` }}
                               />
                             </div>
@@ -285,19 +293,13 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                         </div>
                       ) : assistantChats.length === 0 ? (
                         <div
-                          className={`px-5 py-2 text-xs text-gray-500 ${
-                            shouldAnimate ? "sidebar-fade-in-2" : ""
-                          }`}
+                          className="px-5 py-2 text-xs text-gray-500"
                         >
                           No chats yet
                         </div>
                       ) : (
                         <>
-                          <div
-                            className={`space-y-1.5 px-2.5 ${
-                              shouldAnimate ? "sidebar-fade-in-2" : ""
-                            }`}
-                          >
+                          <div className="space-y-1.5 px-2.5">
                             {assistantChats.map((chat) => (
                               <SidebarChatItem
                                 key={chat.id}
@@ -305,7 +307,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                 isActive={routeChatId === chat.id}
                                 onSelect={() => {
                                   setCurrentChatId(chat.id);
-                                  router.push(`/assistant/chat/${chat.id}`);
+                                  navigate(`/assistant/chat/${chat.id}`);
                                 }}
                               />
                             ))}
@@ -330,16 +332,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                   </div>
                 )}
 
-                {isOpen && isActive && href === "/projects" && (
-                  <div className="mb-2">
+                {isActive && href === "/projects" && (
+                  <div className={cn("mb-2", expandedOnly)}>
                     <button
                       type="button"
                       onClick={() => setProjectsCollapsed((value) => !value)}
                       aria-expanded={!projectsCollapsed}
                       aria-controls="recent-projects"
-                      className={`mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700 ${
-                        shouldAnimate ? "sidebar-fade-in" : ""
-                      }`}
+                      className="mb-1 flex w-full items-center justify-between px-5 text-xs font-semibold text-gray-500 hover:text-gray-700"
                     >
                       <span>Recent projects</span>
                       <ChevronDown
@@ -359,26 +359,18 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                 className="flex h-8 items-center rounded-md px-3"
                               >
                                 <div
-                                  className="h-3 animate-pulse rounded bg-gray-200"
+                                  className="h-3 rounded bg-gray-200"
                                   style={{ width: `${width}%` }}
                                 />
                               </div>
                             ))}
                           </div>
                         ) : recentProjects.length === 0 ? (
-                          <div
-                            className={`px-5 py-2 text-xs text-gray-500 ${
-                              shouldAnimate ? "sidebar-fade-in-2" : ""
-                            }`}
-                          >
+                          <div className="px-5 py-2 text-xs text-gray-500">
                             No projects yet
                           </div>
                         ) : (
-                          <div
-                            className={`space-y-1 px-2.5 ${
-                              shouldAnimate ? "sidebar-fade-in-2" : ""
-                            }`}
-                          >
+                          <div className="space-y-1 px-2.5">
                             {recentProjects.map((project) => {
                               const projectIsActive =
                                 pathname === `/projects/${project.id}` ||
@@ -390,7 +382,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                   key={project.id}
                                   type="button"
                                   onClick={() =>
-                                    router.push(`/projects/${project.id}`)
+                                    navigate(`/projects/${project.id}`)
                                   }
                                   title={project.name}
                                   aria-current={
@@ -429,8 +421,8 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
           {user && isAnonymousMode && (
             <button
               type="button"
-              onClick={() => router.push("/account/api-keys")}
-              title={!isOpen ? "API keys" : undefined}
+              onClick={() => navigate("/account/api-keys")}
+              title="API keys"
               aria-current={
                 pathname === "/account/api-keys" ? "page" : undefined
               }
@@ -439,11 +431,10 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 pathname === "/account/api-keys"
                   ? APP_SURFACE_ACTIVE_CLASS
                   : APP_SURFACE_HOVER_CLASS,
-                !isOpen ? "hidden md:flex" : "",
               )}
             >
               <KeyRound className="h-4 w-4 shrink-0" />
-              {isOpen && <span>API keys</span>}
+              <span className={expandedOnly}>API keys</span>
             </button>
           )}
           {user && !isAnonymousMode && (
@@ -453,22 +444,22 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 className={cn(
                   "flex items-center transition-colors w-full px-2.5 py-3 border-t",
                   "rounded-xl border-white/60",
-                  !isOpen ? "hidden md:flex" : "",
                   pathname === "/account" || isDropdownOpen
                     ? APP_SURFACE_ACTIVE_CLASS
                     : APP_SURFACE_HOVER_CLASS,
                 )}
-                title={!isOpen ? user.email : undefined}
+                title={user.email}
               >
                 <div className="h-6.5 w-6.5 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
                   {getUserInitials(user.email)}
                 </div>
-                {isOpen && (
-                  <div
-                    className={`text-left flex-1 min-w-0 pl-3 flex items-center justify-between gap-2 ${
-                      shouldAnimate ? "sidebar-fade-in-2" : ""
-                    }`}
-                  >
+                <div
+                  className={cn(
+                    "text-left flex-1 min-w-0 pl-3 items-center justify-between gap-2",
+                    expandedOnly,
+                    (desktopOpen || mobileOpen) && "flex",
+                  )}
+                >
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <div className="text-sm font-medium text-gray-900 leading-none">
                         {getDisplayName()}
@@ -478,16 +469,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                       </div>
                     </div>
                     <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                  </div>
-                )}
+                </div>
               </button>
 
               {isDropdownOpen && (
                 <div
                   className={cn(
-                    "absolute bottom-full left-0 z-50 mb-1 p-1 whitespace-nowrap",
-                    isOpen ? "right-0" : "w-56",
-                    "bg-app-floating rounded-xl shadow-[0_6px_17px_rgba(15,23,42,0.1)] border border-white/70 backdrop-blur-xl",
+                    "absolute bottom-full left-0 z-50 mb-1 w-56 p-1 whitespace-nowrap",
+                    "bg-app-floating rounded-xl border border-gray-200 shadow-sm",
                   )}
                 >
                   <button

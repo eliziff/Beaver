@@ -15,7 +15,7 @@ import {
     Trash2,
     X,
 } from "lucide-react";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import {
     streamTabularChat,
     getTabularChats,
@@ -25,7 +25,7 @@ import {
     mapTRMessages,
     type TRChat,
     type TRCitationAnnotation,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type { AssistantEvent, ColumnConfig, Document } from "../shared/types";
 import { ModelToggle } from "../assistant/ModelToggle";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
@@ -41,7 +41,7 @@ import {
     isModelAvailable,
     type ModelProvider,
 } from "@/app/lib/modelAvailability";
-import type { ApiKeyState } from "@/app/lib/mikeApi";
+import type { ApiKeyState } from "@/app/lib/beaverApi";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
@@ -110,34 +110,9 @@ function preprocessTRCitations(
 // ---------------------------------------------------------------------------
 
 function TRResponseStatus({ isActive }: { isActive: boolean }) {
-    const [showDone, setShowDone] = useState(false);
-    const [doneVisible, setDoneVisible] = useState(false);
-    const wasActiveRef = useRef(false);
-
-    useEffect(() => {
-        if (wasActiveRef.current && !isActive) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- timed 'Done' flash on the active->idle transition
-            setShowDone(true);
-            setDoneVisible(true);
-            const t = setTimeout(() => setDoneVisible(false), 1500);
-            wasActiveRef.current = isActive;
-            return () => clearTimeout(t);
-        }
-        if (!wasActiveRef.current && isActive) {
-            setShowDone(false);
-            setDoneVisible(false);
-        }
-        wasActiveRef.current = isActive;
-    }, [isActive]);
-
     return (
         <div className="w-full h-9 flex items-center mb-2">
-            <MikeIcon
-                spin={isActive}
-                done={showDone && doneVisible}
-                mike={!(showDone && doneVisible)}
-                size={22}
-            />
+            {isActive && <ThinkingSpinner size={18} />}
         </div>
     );
 }
@@ -461,7 +436,7 @@ function TRChatInput({
             <div
                 className={cn(
                     "pt-2 pb-1.5 flex flex-col gap-1",
-                    "rounded-xl border border-white/65 bg-white/60 shadow-[0_4px_10px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-6px_14px_rgba(255,255,255,0.18)] backdrop-blur-2xl",
+                    "rounded-xl border border-gray-200 bg-white shadow-sm",
                 )}
             >
                 <textarea
@@ -492,8 +467,8 @@ function TRChatInput({
                         onClick={handleAction}
                         disabled={!isLoading && !value.trim()}
                         className={cn(
-                            "relative h-7 w-7 shrink-0 rounded-[10px] bg-brand text-white flex items-center justify-center hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-all duration-150",
-                            "shadow-[0_5px_14px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.24)]",
+                            "relative h-7 w-7 shrink-0 rounded-[10px] bg-brand text-white flex items-center justify-center hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-colors",
+                            "shadow-sm",
                         )}
                     >
                         {isLoading ? (
@@ -697,7 +672,7 @@ function findLastContentIndex(events: AssistantEvent[]): number {
 // ---------------------------------------------------------------------------
 
 const HEADER_PILL_CLASS =
-    "flex shrink-0 items-center gap-1 rounded-full border border-white/70 bg-app-surface px-1 py-0.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl";
+    "flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-app-surface px-1 py-0.5 shadow-sm";
 const HEADER_PILL_BUTTON_CLASS = `flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
 
 // ---------------------------------------------------------------------------
@@ -1812,14 +1787,14 @@ export function TRChatPanel({
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-end">
                             <div className="bg-gray-100 rounded-2xl p-3 w-3/5">
-                                <div className="h-3 animate-pulse rounded bg-gray-200 w-full" />
+                                <div className="h-3 rounded bg-gray-200 w-full" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             {[1, 2, 3, 4].map((i) => (
                                 <div
                                     key={i}
-                                    className={`h-3 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
+                                    className={`h-3 rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
                                 />
                             ))}
                         </div>

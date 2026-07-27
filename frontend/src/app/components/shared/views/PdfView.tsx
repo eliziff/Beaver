@@ -13,13 +13,9 @@ import {
 
 interface Props {
     doc: { document_id: string; version_id?: string | null } | null;
-    /** Preferred: one or more (page, quote) pairs to highlight. */
     quotes?: CitationQuote[];
     /** Changes when the parent wants the current quote re-focused. */
     quoteFocusKey?: string | number;
-    /** Back-compat single-quote API. Ignored if `quotes` is provided. */
-    quote?: string;
-    fallbackPage?: number;
     rounded?: boolean;
 }
 
@@ -42,8 +38,6 @@ export function PdfView({
     doc,
     quotes,
     quoteFocusKey,
-    quote,
-    fallbackPage,
     rounded = true,
 }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -57,11 +51,10 @@ export function PdfView({
     const currentPageRef = useRef(1);
 
     const quoteList: QuoteEntry[] = useMemo(() => {
-        if (quotes?.length)
-            return quotes.map((q) => ({ page: q.page, quote: q.quote }));
-        if (quote) return [{ page: fallbackPage, quote }];
-        return [];
-    }, [quotes, quote, fallbackPage]);
+        return (
+            quotes?.map((q) => ({ page: q.page, quote: q.quote })) ?? []
+        );
+    }, [quotes]);
 
     // Stable string key so effects can depend on quote-list identity
     const quoteKey = quoteList
@@ -552,13 +545,13 @@ export function PdfView({
                 <>
                     {/* Page counter — bottom left */}
                     <div className="absolute bottom-4 left-4 pointer-events-none">
-                        <span className="flex items-center px-3 py-1.5 rounded-full text-xs font-medium tabular-nums text-gray-700 bg-white/25 backdrop-blur-md border border-white/30 shadow-md">
+                        <span className="flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium tabular-nums text-gray-700 shadow-sm">
                             {currentPage}/{numPages}
                         </span>
                     </div>
 
                     {/* Zoom controls — bottom right */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full bg-white/25 backdrop-blur-md border border-white/30 shadow-md px-1 py-1">
+                    <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white px-1 py-1 shadow-sm">
                         <button
                             onClick={handleZoomOut}
                             disabled={zoom <= ZOOM_MIN}

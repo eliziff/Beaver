@@ -16,6 +16,6 @@ void resumeLocalPdfParses().catch((error) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`Mike backend running on port ${PORT}`);
+  console.log(`Beaver backend running on port ${PORT}`);
 });
 server.on("close", releaseRuntimeLock);

@@ -25,7 +25,7 @@ beforeEach(async () => {
     "OPEN_LEGAL_DATA_HOME",
     path.join(temporaryDirectory, "legal-data"),
   );
-  vi.stubEnv("MIKE_LOCAL_DATA_DIR", path.join(temporaryDirectory, "mike-data"));
+  vi.stubEnv("MIKE_LOCAL_DATA_DIR", path.join(temporaryDirectory, "beaver-data"));
 });
 
 afterEach(async () => {

@@ -148,7 +148,7 @@ describe("LLM context manifests", () => {
   });
 
   it("writes one durable JSONL record around the provider dispatch", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "mike-context-manifest-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "beaver-context-manifest-"));
     tempDirs.push(dir);
     const filename = path.join(dir, "turns.jsonl");
     process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH = filename;
@@ -181,7 +181,7 @@ describe("LLM context manifests", () => {
   });
 
   it("records provider errors and preserves the original rejection", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "mike-context-manifest-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "beaver-context-manifest-"));
     tempDirs.push(dir);
     const filename = path.join(dir, "turns.jsonl");
     process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH = filename;
@@ -200,7 +200,7 @@ describe("LLM context manifests", () => {
   });
 
   it("serializes concurrent JSONL appends", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "mike-context-manifest-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "beaver-context-manifest-"));
     tempDirs.push(dir);
     const filename = path.join(dir, "turns.jsonl");
     process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH = filename;

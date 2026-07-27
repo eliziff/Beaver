@@ -49,7 +49,6 @@ When the user wants a new draft based on an existing DOCX, call read_document on
 
 export const projectChatRouter = Router({ mergeParams: true });
 
-// POST /projects/:projectId/chat — streaming
 projectChatRouter.post("/", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;

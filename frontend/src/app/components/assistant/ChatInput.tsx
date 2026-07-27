@@ -43,7 +43,7 @@ import { cn } from "@/app/lib/utils";
 import {
     uploadProjectDocument,
     uploadStandaloneDocument,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import {
     formatUnsupportedDocumentWarning,
     partitionSupportedDocumentFiles,

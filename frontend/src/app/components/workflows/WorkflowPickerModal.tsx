@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { listWorkflows } from "@/app/lib/mikeApi";
+import { listWorkflows } from "@/app/lib/beaverApi";
 import { Modal } from "../modals/Modal";
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";

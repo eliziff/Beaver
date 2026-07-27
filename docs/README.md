@@ -1,15 +1,15 @@
-# Mike-Canada documentation
+# Beaver documentation
 
 ## Start here
 
-- [Canonical master plan](mike-canada-master-plan.md) — authoritative status,
+- [Canonical master plan](beaver-master-plan.md) — authoritative status,
   priorities, acceptance gates, and execution order.
 - [Research reader](../frontend/public/mike-research-reader.html) — a
   self-contained visual explanation of the research and proposed experiments.
 
 ## Architecture and implementation appendices
 
-- [Mike document intelligence](mike-document-intelligence-plan.md)
+- [Beaver document intelligence](beaver-document-intelligence-plan.md)
 - [Universal legal PDF engine](universal-legal-pdf-engine-plan.md)
 - [Shared legal data and tool UI](shared-legal-data-and-tool-ui-plan.md)
 - [ALR independence and shared data](alr-independence-and-shared-data-plan.md)
@@ -29,13 +29,13 @@
 - [ALR macro portability](alr-macro-portability-audit.md)
 - [Deterministic Word actions catalog](deterministic-word-actions-catalog.md)
   — **research complete**; implementation gaps remain under master-plan P1.6.
-- [Legal skill and plugin ecosystems compared to Mike](legal-skills-ecosystem-comparison.md)
+- [Legal skill and plugin ecosystems compared to Beaver](legal-skills-ecosystem-comparison.md)
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
 - [Runnable private-corpus harness](../benchmarks/docx_corpus/README.md)
 
 The two context tracks are independent evidence appendices; the synthesis
-states the falsifiable Mike-Canada hypothesis. The master plan remains the
+states the falsifiable Beaver hypothesis. The master plan remains the
 authoritative implementation/status record.
 
 ## Testing and operations

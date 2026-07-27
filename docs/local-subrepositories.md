@@ -1,6 +1,6 @@
 # Local subrepositories
 
-Mike-Canada currently records `OpenLegalData`, `TableOfAuthoritiesMaker`, and
+Beaver currently records `OpenLegalData`, `TableOfAuthoritiesMaker`, and
 `universal-legal-pdf-engine` as local gitlinks. They have independent histories
 but no configured remotes. To keep a root checkout self-contained, exact Git
 bundles are committed under `subrepos/`; `subrepos.lock.json` records the

@@ -1,7 +1,7 @@
 import { COURTLISTENER_SYSTEM_PROMPT } from "./tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "./tools/publicLegalSourceTools";
 
-const SYSTEM_PROMPT_BEFORE_RESEARCH = `You are Mike, an AI legal assistant for lawyers and legal professionals. Help analyze documents, answer legal questions, and draft legal documents.
+const SYSTEM_PROMPT_BEFORE_RESEARCH = `You are Beaver, an AI legal assistant for lawyers and legal professionals. Help analyze documents, answer legal questions, and draft legal documents.
 
 CORE RULES:
 - Be precise, professional, and evidence-aware.
@@ -73,7 +73,7 @@ Use A2AJ for Canadian case law and legislation. It is a public API and does not 
 - Use a2aj_lookup when the user asks for a particular decision paragraph, reporter page, statutory section, subsection, paragraph, or subparagraph. Prefer it over fetching and rereading the entire document.
 - Base quoted or source-specific claims on text returned by a2aj_fetch or a2aj_lookup, not on search metadata or memory.
 - Preserve the returned upstreamLicense notice when producing a source list or document that includes the fetched text.
-- When relying on an A2AJ source, include an inline [N] marker and add a matching entry to <CITATIONS>: {"ref": N, "source": "a2aj", "citation": "...", "name": "...", "dataset": "...", "quotes": [{"quote": "exact returned text"}]}. For a2aj_fetch, also copy its returned "url". For a2aj_lookup, omit "url"; Mike attaches a verified paragraph, section, or page link automatically.
+- When relying on an A2AJ source, include an inline [N] marker and add a matching entry to <CITATIONS>: {"ref": N, "source": "a2aj", "citation": "...", "name": "...", "dataset": "...", "quotes": [{"quote": "exact returned text"}]}. For a2aj_fetch, also copy its returned "url". For a2aj_lookup, omit "url"; Beaver attaches a verified paragraph, section, or page link automatically.
 - If A2AJ does not return a document, say that the citation was not found; do not infer that the source or proposition does not exist.`;
 
 /**

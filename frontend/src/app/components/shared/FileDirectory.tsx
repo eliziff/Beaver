@@ -46,7 +46,7 @@ function formatBytes(bytes: number | null | undefined) {
 }
 
 function versionLabel(doc: Document) {
-    const n = doc.active_version_number ?? doc.latest_version_number;
+    const n = doc.active_version_number;
     return typeof n === "number" && Number.isFinite(n) && n >= 1
         ? `${n}`
         : null;
@@ -297,7 +297,7 @@ export function FileDirectory({
                 key={doc.id}
                 onClick={() => toggle(doc)}
                 style={{ paddingLeft: indentedRowPadding(depth) }}
-                className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-all text-left  ${
+                className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-colors text-left  ${
                     selected
                         ? APP_SURFACE_ACTIVE_CLASS
                         : APP_SURFACE_HOVER_CLASS
@@ -350,7 +350,7 @@ export function FileDirectory({
                         type="button"
                         onClick={() => toggleLibraryFolder(folder.id)}
                         style={{ paddingLeft: indentedRowPadding(depth) }}
-                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-all text-left ${APP_SURFACE_HOVER_CLASS}`}
+                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-colors text-left ${APP_SURFACE_HOVER_CLASS}`}
                     >
                         <span
                             role="checkbox"
@@ -445,9 +445,9 @@ export function FileDirectory({
                                 className={`${DIRECTORY_GRID_CLASS} rounded-md px-2 py-2`}
                             >
                                 <div className="h-3.5 w-3.5 rounded border border-gray-200 shrink-0" />
-                                <div className="h-3.5 w-3.5 rounded bg-gray-100 animate-pulse shrink-0" />
+                                <div className="h-3.5 w-3.5 rounded bg-gray-100 shrink-0" />
                                 <div
-                                    className="h-3 rounded bg-gray-100 animate-pulse"
+                                    className="h-3 rounded bg-gray-100"
                                     style={{ width: `${w}%` }}
                                 />
                                 <SkeletonLine className="w-8" />
@@ -603,7 +603,7 @@ export function FileDirectory({
                                         onClick={() =>
                                             toggleFolder(project.id)
                                         }
-                                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} px-2 py-2 text-xs transition-all text-left ${APP_SURFACE_HOVER_CLASS}`}
+                                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} px-2 py-2 text-xs transition-colors text-left ${APP_SURFACE_HOVER_CLASS}`}
                                     >
                                         <span
                                             role="checkbox"
@@ -676,7 +676,7 @@ export function FileDirectory({
                                                             onClick={() =>
                                                                 toggle(doc)
                                                             }
-                                                            className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pl-7 pr-2 text-xs transition-all text-left  ${
+                                                            className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pl-7 pr-2 text-xs transition-colors text-left  ${
                                                                 selected
                                                                     ? APP_SURFACE_ACTIVE_CLASS
                                                                     : APP_SURFACE_HOVER_CLASS

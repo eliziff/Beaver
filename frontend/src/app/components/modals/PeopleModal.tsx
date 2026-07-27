@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { User, Loader2 } from "lucide-react";
-import type { ProjectPeople } from "@/app/lib/mikeApi";
+import type { ProjectPeople } from "@/app/lib/beaverApi";
 import { AddUserInput } from "../shared/AddUserInput";
 import { Modal } from "./Modal";
 
@@ -47,7 +47,7 @@ type RosterRow = {
 };
 
 /**
- * Roster of every Mike member with access to the project, with controls to
+ * Roster of every Beaver member with access to the project, with controls to
  * add/remove members. Mirrors AddDocumentsModal's frame.
  */
 export function PeopleModal({
@@ -287,11 +287,11 @@ export function PeopleModal({
                                     key={item}
                                     className="flex items-center gap-2.5 rounded-lg px-2 py-1.5"
                                 >
-                                    <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-gray-100" />
+                                    <div className="h-6 w-6 shrink-0 rounded-full bg-gray-100" />
                                     <div className="min-w-0 flex-1">
-                                        <div className="h-3 w-40 animate-pulse rounded bg-gray-100" />
+                                        <div className="h-3 w-40 rounded bg-gray-100" />
                                     </div>
-                                    <div className="h-4 w-12 shrink-0 animate-pulse rounded-full bg-gray-100" />
+                                    <div className="h-4 w-12 shrink-0 rounded-full bg-gray-100" />
                                 </div>
                             ))}
                         </div>
@@ -329,7 +329,7 @@ export function PeopleModal({
                                         key={`${entry.role}-${rowKey}`}
                                         className="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100/70"
                                     >
-                                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white text-gray-700 shadow-[0_4px_12px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(255,255,255,0.64)]">
+                                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
                                             {initial ? (
                                                 <span className="font-serif text-[11px] leading-none">
                                                     {initial}
@@ -380,7 +380,7 @@ export function PeopleModal({
                                                                 busy !== null
                                                             }
                                                             title="Member actions"
-                                                            className={`flex h-6 items-center justify-center overflow-hidden rounded-full text-xs leading-none text-gray-500 transition-all hover:bg-gray-200/70 hover:text-gray-800 disabled:opacity-50 ${
+                                                            className={`flex h-6 items-center justify-center overflow-hidden rounded-full text-xs leading-none text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50 ${
                                                                 memberMenuEmail ===
                                                                 entryEmail
                                                                     ? "w-6 opacity-100"
@@ -392,7 +392,7 @@ export function PeopleModal({
                                                         {memberMenuEmail ===
                                                             entryEmail && (
                                                             <div
-                                                                className="absolute right-0 top-full z-30 mt-1 min-w-28 overflow-hidden rounded-xl border border-white/70 bg-gray-50/95 p-1 shadow-[0_8px_20px_rgba(15,23,42,0.09),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-2xl"
+                                                                className="absolute right-0 top-full z-30 mt-1 min-w-28 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 p-1 shadow-sm"
                                                                 onClick={(
                                                                     event,
                                                                 ) =>

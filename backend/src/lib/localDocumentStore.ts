@@ -259,7 +259,6 @@ export function localDocumentResponse(document: LocalDocument) {
           change_count: version.provenance.changeCount,
         }
       : undefined,
-    latest_version_number: Math.max(...document.versions.map((item) => item.versionNumber)),
     created_at: document.createdAt,
     updated_at: document.updatedAt,
   };

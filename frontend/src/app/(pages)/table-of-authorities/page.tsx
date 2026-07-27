@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { launchTableOfAuthorities } from "@/app/lib/mikeApi";
+import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
 
 export default function TableOfAuthoritiesPage() {
   const [url, setUrl] = useState<string | null>(null);

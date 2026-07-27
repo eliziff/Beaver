@@ -1,10 +1,10 @@
-# Citators and a defensible Mike-Canada good-law service
+# Citators and a defensible Beaver good-law service
 
 Status: research complete; proposed implementation and benchmark contract.
 
 ## Decision
 
-Mike should build a transparent Canadian citator, but it should not initially
+Beaver should build a transparent Canadian citator, but it should not initially
 claim that a case is simply “good law.” A case can be reversed on one issue,
 remain useful on another, be binding in one jurisdiction and merely persuasive
 in another, or depend on a statutory version that is no longer in force.
@@ -30,7 +30,7 @@ none exists.
 Commercial citator internals are proprietary. This note treats vendor help,
 methodology, training material, and product documentation as **documented**.
 Patents are **disclosed possible designs**, not proof of the current production
-implementation. The architecture proposed for Mike is **our inference** from
+implementation. The architecture proposed for Beaver is **our inference** from
 those public facts and ordinary information-retrieval practice.
 
 ## What the established services publicly document
@@ -123,7 +123,7 @@ Shepard’s own documentation notes that an overall signal follows the strongest
 negative treatment regardless of point of law or rendering court. Its
 headnote-level report exists because the overall badge is only a triage device.
 Lexis also stresses that an overruled case can retain followed points of law.
-Mike should preserve that nuance instead of copying only the badge.
+Beaver should preserve that nuance instead of copying only the badge.
 
 Depth is also not validity. A long discussion is useful for prioritization, and
 a frequently quoted paragraph may identify the proposition in play, but neither
@@ -174,7 +174,7 @@ and external indexing except where authorized
 Archives requires a separate licence for computational analysis of Find Case
 Law records
 ([licensing terms](https://caselaw.nationalarchives.gov.uk/permissions-and-licensing)).
-Mike should use licensed or expressly bulk-downloadable sources, not scrape
+Beaver should use licensed or expressly bulk-downloadable sources, not scrape
 consumer sites.
 
 For Canada, the existing A2AJ integration is the sensible bulk substrate:
@@ -220,7 +220,7 @@ best tested model on its fine-grained precedent-treatment task. It is promising
 benchmark material, not evidence that an LLM can replace an editor
 ([*Validate Your Authority*](https://arxiv.org/abs/2605.17691)).
 
-## Proposed Mike architecture
+## Proposed Beaver architecture
 
 ### Stage 1 — exact note-up graph
 
@@ -408,9 +408,9 @@ Initial release gates:
 - under 50 ms p95 for a warm local note-up lookup on the weak-hardware test
   machine.
 
-## What Mike can and cannot defensibly replicate
+## What Beaver can and cannot defensibly replicate
 
-Mike can reproduce the useful foundation: citation normalization, parallel
+Beaver can reproduce the useful foundation: citation normalization, parallel
 identity, exact contexts, provider pinpoints, appellate families, provision
 versions, jurisdiction-aware note-up, deterministic links, transparent
 receipts, incremental alerts, and a reviewable treatment layer.

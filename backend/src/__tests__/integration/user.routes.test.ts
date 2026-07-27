@@ -158,7 +158,7 @@ vi.mock("../../lib/userDataExport", () => ({
     buildUserTabularReviewsExport: (...args: unknown[]) =>
         buildUserTabularReviewsExport(...args),
     userExportFilename: (kind: string, userId: string) =>
-        `mike-${kind}-export-${userId.slice(0, 8)}.json`,
+        `beaver-${kind}-export-${userId.slice(0, 8)}.json`,
 }));
 
 import { app } from "../../app";
@@ -437,7 +437,7 @@ describe("user.routes", () => {
             expect(res.headers["content-type"]).toContain("application/json");
             expect(res.headers["content-disposition"]).toContain("attachment");
             expect(res.headers["content-disposition"]).toContain(
-                "mike-account-export-u1.json",
+                "beaver-account-export-u1.json",
             );
             expect(buildUserAccountExport).toHaveBeenCalledWith(
                 expect.anything(),
@@ -454,7 +454,7 @@ describe("user.routes", () => {
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ chats: "data" });
             expect(res.headers["content-disposition"]).toContain(
-                "mike-chats-export-u1.json",
+                "beaver-chats-export-u1.json",
             );
             expect(buildUserChatsExport).toHaveBeenCalledTimes(1);
         });
@@ -467,7 +467,7 @@ describe("user.routes", () => {
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ reviews: "data" });
             expect(res.headers["content-disposition"]).toContain(
-                "mike-tabular-reviews-export-u1.json",
+                "beaver-tabular-reviews-export-u1.json",
             );
             expect(buildUserTabularReviewsExport).toHaveBeenCalledTimes(1);
         });

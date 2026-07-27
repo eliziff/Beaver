@@ -1738,7 +1738,6 @@ async function getAccessibleChat(
   return null;
 }
 
-// GET /chat
 // Visible chats = the user's own chats + every chat under a project the
 // user owns (so a project owner sees all collaborator chats in their
 // own projects in the global recent-chats list). Chats in projects that
@@ -1779,7 +1778,6 @@ chatRouter.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST /chat/create
 chatRouter.post("/create", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1818,7 +1816,6 @@ chatRouter.post("/create", requireAuth, async (req, res) => {
   res.json({ id: data.id });
 });
 
-// GET /chat/:chatId
 chatRouter.get("/:chatId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -1875,7 +1872,6 @@ async function hydrateEditStatuses(
   }
   if (editIds.size === 0 && versionIds.size === 0) return messages;
 
-  // Edit status patch.
   const statusById = new Map<string, "pending" | "accepted" | "rejected">();
   if (editIds.size > 0) {
     const { data: rows } = await db
@@ -1893,9 +1889,6 @@ async function hydrateEditStatuses(
     }
   }
 
-  // Version-number patch — old stored events don't carry `version_number`
-  // because they predate the schema change. Look it up from
-  // document_versions so the UI can render "V3" chips + download filenames.
   const versionNumberById = new Map<string, number | null>();
   if (versionIds.size > 0) {
     const { data: vrows } = await db
@@ -1954,7 +1947,6 @@ async function hydrateEditStatuses(
   });
 }
 
-// PATCH /chat/:chatId
 chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { chatId } = req.params;
@@ -1983,7 +1975,6 @@ chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
   res.json(data);
 });
 
-// DELETE /chat/:chatId
 chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { chatId } = req.params;
@@ -2005,7 +1996,6 @@ chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-// POST /chat/:chatId/generate-title
 chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -2047,7 +2037,6 @@ chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
   }
 });
 
-// POST /chat — streaming
 chatRouter.post("/", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const body =
@@ -2389,7 +2378,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
       write("data: [DONE]\n\n");
     } catch {
-      /* ignore */
     }
   } finally {
     streamFinished = true;

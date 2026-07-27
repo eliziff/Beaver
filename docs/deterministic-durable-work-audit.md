@@ -5,7 +5,7 @@ production code was changed.
 
 ## Scope and decision rule
 
-This audit covers the Mike frontend/backend, `OpenLegalData`,
+This audit covers the Beaver frontend/backend, `OpenLegalData`,
 `universal-legal-pdf-engine`, and `TableOfAuthoritiesMaker`. A **strict win**
 preserves the supported result while removing a model round trip, reducing
 model-visible text, making verified state survive a restart, or deleting a
@@ -64,7 +64,7 @@ missing work:
 - `universal-legal-pdf-engine/src/legalpdf/core.py:2247-2307` performs bounded
   footnote lookup.
 
-The only Mike integration with the universal engine is currently the bounded
+The only Beaver integration with the universal engine is currently the bounded
 DOCX citation-linking subprocess
 (`backend/src/lib/docxCitationLinking.ts:477-519`); normal Library reads do not
 use the parser.
@@ -72,7 +72,7 @@ use the parser.
 **Cost.** A targeted question can currently cause another download, parse, and
 as much as 300,000 characters of model context. The rough four-characters-per-
 token heuristic makes that an upper bound near 75,000 tokens before the
-answer. Restarting Mike discards the parsed local result. DOCX footnote content
+answer. Restarting Beaver discards the parsed local result. DOCX footnote content
 is not merely slow; it is absent.
 
 **Smallest replacement.** Add one Library operation:
@@ -110,7 +110,7 @@ visible in diagnostics and may fall back to the flat read. Tests must prove:
 and repeat full citation JSON (`backend/src/lib/chat/prompts.ts:14-39`), with
 separate A2AJ instructions at `prompts.ts:80-83`. Public legal tools repeat the
 same contract (`backend/src/lib/chat/tools/publicLegalSourceTools.ts:101-108`).
-Mike then tolerantly reparses partial or malformed JSON
+Beaver then tolerantly reparses partial or malformed JSON
 (`backend/src/lib/chat/citations.ts:71-197` and `:284-386`).
 
 The trusted work is already deterministic after parsing:
@@ -200,13 +200,13 @@ write only provider-neutral block metadata:
 
 Offsets point into the existing provider text; do not duplicate the raw body.
 Keep candidate FTS/vector data in a separate optional sidecar. `OpenLegalData`
-should own the sidecar schema so Mike and Table of Authorities do not fork the
+should own the sidecar schema so Beaver and Table of Authorities do not fork the
 same indexer.
 
 **Persistence and invalidation.** Key a sidecar by provider snapshot
 revision/content hash, language, structure-parser version, and normalization
 version. Build beside the live file and atomically replace only after counts
-and foreign-key checks pass. Mike may cache opened read-only connections, but
+and foreign-key checks pass. Beaver may cache opened read-only connections, but
 the snapshot signature remains authoritative. Include that signature in the
 journal document-cache key and close/clear cached source objects when it
 changes.
@@ -476,7 +476,7 @@ record:
 ## Do not build yet
 
 - No universal cache daemon.
-- No second legal-source parser in Mike.
+- No second legal-source parser in Beaver.
 - No model-based provider router for exact citations.
 - No vector index before the lexical/hybrid benchmark passes.
 - No model call to repair citation JSON, UI markup, or deterministic titles.

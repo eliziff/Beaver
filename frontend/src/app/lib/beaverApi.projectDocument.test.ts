@@ -25,7 +25,7 @@ describe("removeProjectDocument", () => {
     vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", authMode);
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    const { removeProjectDocument } = await import("./mikeApi");
+    const { removeProjectDocument } = await import("./beaverApi");
 
     await removeProjectDocument("matter-1", "document-1");
 

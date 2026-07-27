@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Loader2, MoreHorizontal, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { generateTabularColumnPrompt } from "@/app/lib/mikeApi";
+import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
 import { FORMAT_OPTIONS, formatLabel, formatIcon } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
 import {
@@ -19,10 +19,8 @@ import {
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TABLE_SCROLL_CLOSE_EVENT } from "../shared/TablePrimitive";
 
-// Liquid-glass field styling shared by the menu's inputs/controls, matching the
-// modal's glass treatment (translucent white over the light-gray panel).
-const GLASS_FIELD =
-    "border border-white/70 bg-white/55 shadow-[0_3px_9px_rgba(15,23,42,0.052),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl";
+const FIELD_CLASS =
+    "border border-gray-200 bg-white shadow-sm";
 
 export interface TREditColumnMenuProps {
     column: ColumnConfig;
@@ -244,7 +242,7 @@ export function TREditColumnMenu({
                 createPortal(
                     <div
                         ref={panelRef}
-                        className="fixed z-[40] rounded-3xl border border-white/70 bg-gray-50/95 p-3 shadow-[0_14px_40px_rgba(15,23,42,0.071),0_5px_14px_rgba(15,23,42,0.047)] backdrop-blur-3xl"
+                        className="fixed z-[40] rounded-3xl border border-gray-200 bg-gray-50 p-3 shadow-sm"
                         style={{
                             top: menuPos.top,
                             left: menuPos.left,
@@ -260,7 +258,7 @@ export function TREditColumnMenu({
                             type="button"
                             onClick={() => setOpen(false)}
                             aria-label="Close"
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/55 text-gray-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.55),0_6px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-colors hover:bg-white/75 hover:text-gray-700"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700"
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
@@ -272,7 +270,7 @@ export function TREditColumnMenu({
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className={`mt-1 w-full rounded-lg px-2 py-1 text-xs font-normal text-gray-800 transition-colors focus:bg-white/70 focus:outline-none ${GLASS_FIELD}`}
+                        className={`mt-1 w-full rounded-lg px-2 py-1 text-xs font-normal text-gray-800 transition-colors focus:bg-white/70 focus:outline-none ${FIELD_CLASS}`}
                     />
 
                     {/* Format */}
@@ -283,7 +281,7 @@ export function TREditColumnMenu({
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
-                                    className={`mt-1 flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-white/75 focus:outline-none ${GLASS_FIELD}`}
+                                    className={`mt-1 flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-white/75 focus:outline-none ${FIELD_CLASS}`}
                                 >
                                     <span className="flex items-center gap-1.5">
                                         {(() => {
@@ -331,7 +329,7 @@ export function TREditColumnMenu({
                     {format === "tag" && (
                         <div className="mt-2">
                             <div
-                                className={`flex min-h-[28px] flex-wrap gap-1 rounded-lg px-2 py-1 transition-colors focus-within:bg-white/70 ${GLASS_FIELD}`}
+                                className={`flex min-h-[28px] flex-wrap gap-1 rounded-lg px-2 py-1 transition-colors focus-within:bg-white/70 ${FIELD_CLASS}`}
                             >
                                 {tags.map((tag, tagIdx) => (
                                     <span
@@ -395,7 +393,7 @@ export function TREditColumnMenu({
                             rows={6}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
-                            className={`mt-2 w-full resize-none rounded-lg px-3 py-2 text-xs font-normal leading-relaxed text-gray-800 placeholder-gray-300 transition-colors focus:bg-white/70 focus:outline-none ${GLASS_FIELD}`}
+                            className={`mt-2 w-full resize-none rounded-lg px-3 py-2 text-xs font-normal leading-relaxed text-gray-800 placeholder-gray-300 transition-colors focus:bg-white/70 focus:outline-none ${FIELD_CLASS}`}
                         />
                     </div>
 

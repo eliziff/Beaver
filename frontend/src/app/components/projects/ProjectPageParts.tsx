@@ -16,7 +16,7 @@ import {
 } from "@/app/components/shared/PageHeader";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import type { Project } from "@/app/components/shared/types";
-import type { DocumentVersion } from "@/app/lib/mikeApi";
+import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
 import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";
@@ -142,25 +142,25 @@ export function DocVersionHistory({
                             style={treeNameCellStyle(depth)}
                         >
                             <div className="flex items-center gap-4">
-                                <div className="h-2.5 w-2.5 shrink-0 rounded bg-gray-200 animate-pulse" />
-                                <div className="h-4 w-4 shrink-0 rounded bg-gray-200 animate-pulse" />
-                                <div className="h-3 w-32 rounded bg-gray-200 animate-pulse" />
+                                <div className="h-2.5 w-2.5 shrink-0 rounded bg-gray-200" />
+                                <div className="h-4 w-4 shrink-0 rounded bg-gray-200" />
+                                <div className="h-3 w-32 rounded bg-gray-200" />
                             </div>
                         </div>
                         <div className="ml-auto w-20 shrink-0">
-                            <div className="h-3 w-8 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-8 rounded bg-gray-200" />
                         </div>
                         <div className="w-24 shrink-0">
-                            <div className="h-3 w-10 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-10 rounded bg-gray-200" />
                         </div>
                         <div className="w-20 shrink-0 pl-1">
-                            <div className="h-3 w-5 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-5 rounded bg-gray-200" />
                         </div>
                         <div className="w-32 shrink-0">
-                            <div className="h-3 w-16 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-16 rounded bg-gray-200" />
                         </div>
                         <div className="w-32 shrink-0">
-                            <div className="h-3 w-10 rounded bg-gray-200 animate-pulse" />
+                            <div className="h-3 w-10 rounded bg-gray-200" />
                         </div>
                         <div className="w-8 shrink-0" />
                     </div>

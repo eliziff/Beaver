@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,

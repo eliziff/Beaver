@@ -1,10 +1,10 @@
-# Mike-Canada agent guide
+# Beaver agent guide
 
 Keep changes small, measured, and local-first.
 
 ## Source of truth
 
-- `docs/mike-canada-master-plan.md` owns priorities and acceptance gates.
+- `docs/beaver-master-plan.md` owns priorities and acceptance gates.
 - `docs/README.md` indexes research and architecture notes.
 - `subrepos.lock.json` pins the three independent local repositories.
 

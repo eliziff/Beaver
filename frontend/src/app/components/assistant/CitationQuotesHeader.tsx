@@ -14,7 +14,7 @@ export type CitationQuoteHeaderItem = {
 };
 
 const QUOTE_GLASS_SURFACE =
-    "rounded-2xl bg-white/58 shadow-[0_5px_15px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.88),inset_0_-8px_16px_rgba(255,255,255,0.16)] backdrop-blur-2xl";
+    "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const QUOTE_CARD_SURFACE = "rounded-2xl bg-gray-100";
 
 interface Props {
@@ -106,7 +106,7 @@ export function CitationQuotesHeader({
                             }`}
                         >
                             <div
-                                className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                                className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm ${
                                     !isExpanded
                                         ? "left-1"
                                         : hasMultipleQuotes &&
@@ -216,7 +216,7 @@ export function CitationQuotesHeader({
 
 function RelevantQuoteSkeleton() {
     return (
-        <div className={`animate-pulse px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
+        <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
             <div className="h-3 w-28 rounded bg-gray-200" />
             <div className="mt-2.5 h-3 w-full rounded bg-gray-200" />
             <div className="mt-2 h-3 w-11/12 rounded bg-gray-200" />

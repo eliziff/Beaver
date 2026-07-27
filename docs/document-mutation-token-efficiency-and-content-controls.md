@@ -5,23 +5,23 @@ production code was changed.
 
 ## Bottom line
 
-Mike's DOCX editor has a sound deterministic core, but the model-facing
+Beaver's DOCX editor has a sound deterministic core, but the model-facing
 workflow spends far more context than that core requires. The largest strict
 win is to stop treating a full-document read as the admission ticket for every
 question and edit. A targeted match, a stable document-version identifier, and
 a deterministic edit result are enough for many operations.
 
-Spreadsheet support is farther behind: Mike can read a workbook and generate a
+Spreadsheet support is farther behind: Beaver can read a workbook and generate a
 new static workbook, but it cannot make a bounded mutation to an existing
 workbook. The UI is explicitly read-only. As a result, a task that should be
 `Budget!F22 = Budget!E22*1.05` either cannot be done or must be expressed as a
 new whole workbook, with avoidable model context and a serious risk of losing
 formatting, formulas, links, names, comments, and other workbook state.
 
-Mike does not currently offer general Word content-control creation or
+Beaver does not currently offer general Word content-control creation or
 data-bound document assembly. The installed `docx` dependency can create a
 checkbox content control and has useful native field/bookmark primitives, but
-Mike's own text extractor cannot see text inside an inline content control.
+Beaver's own text extractor cannot see text inside an inline content control.
 Content controls are therefore a conditional future feature, not the first
 fix. Bookmarks, Word fields, template placeholders, and bounded edits offer
 more value with less machinery.
@@ -48,7 +48,7 @@ provider billing records; tokenization and prompt-cache discounts vary.
 | System prompt with research appendix | 11,468 | 2,867 |
 | Citation reminder appended to a typical document read | about 550 | 138 |
 
-The schemas are sent as part of the provider request. Mike constructs
+The schemas are sent as part of the provider request. Beaver constructs
 `baseTools` from all ordinary tools and workflow tools even when no document is
 available ([`streaming.ts:193`](../backend/src/lib/chat/streaming.ts#L193)).
 OpenAI continuation uses `previous_response_id`, which is good, but still
@@ -151,7 +151,7 @@ only direct runs and runs inside `<w:ins>`
 ([`docxTrackedChanges.ts:208`](../backend/src/lib/docxTrackedChanges.ts#L208)).
 An inline content control inside a paragraph is therefore invisible. A
 controlled probe using the installed `docx.CheckBox` produced valid
-`<w:sdt><w:sdtPr><w14:checkbox>…` markup, while Mike's extractor returned only
+`<w:sdt><w:sdtPr><w14:checkbox>…` markup, while Beaver's extractor returned only
 the surrounding text. This is why content-control authoring must not be exposed
 before extraction and edit tests cover it.
 
@@ -201,7 +201,7 @@ official [common spreadsheet format](https://docs.sheetjs.com/docs/csf/),
 [formula support](https://docs.sheetjs.com/docs/csf/features/formulae/),
 [defined names](https://docs.sheetjs.com/docs/csf/features/names/), and
 [hyperlink support](https://docs.sheetjs.com/docs/csf/features/hyperlinks/)
-cover most of the bounded mutation surface Mike needs. This does not require a
+cover most of the bounded mutation surface Beaver needs. This does not require a
 new spreadsheet framework.
 
 ## Ranked implementation plan
@@ -250,12 +250,12 @@ operation.
 
 ## Content controls and automatically linked objects
 
-### Can Mike create content controls now?
+### Can Beaver create content controls now?
 
 Not as a supported feature. The installed `docx` library exposes a
 high-level [`CheckBox`](https://docx.js.org/api/classes/CheckBox.html), but not
 a complete high-level API for plain-text, rich-text, date, combo, dropdown,
-repeating-section, and XML-bound controls. Mike itself has no tool contract,
+repeating-section, and XML-bound controls. Beaver itself has no tool contract,
 tag index, custom-XML binding layer, or round-trip test suite for those
 controls.
 
@@ -286,7 +286,7 @@ scanner should expose tags such as `party.legal_name`, validate a small
 key/value payload, update every occurrence, and update the bound XML part when
 one exists. Unknown or duplicate tags should be reported, not guessed.
 
-Before that feature is enabled, Mike needs fixtures for inline/block/table
+Before that feature is enabled, Beaver needs fixtures for inline/block/table
 controls, locked controls, nested controls, tracked changes inside controls,
 bound/unbound controls, and Word/LibreOffice/browser round trips. The extractor
 must see the accepted display text without destroying control structure.
@@ -322,7 +322,7 @@ security reasons
 and Excel workbook links require explicit maintenance
 ([workbook-link management](https://support.microsoft.com/en-us/excel/manage-workbook-links)).
 
-For Mike's local-plus-cloud and browser-plus-desktop targets, the robust
+For Beaver's local-plus-cloud and browser-plus-desktop targets, the robust
 default is a deterministic table or chart snapshot plus durable source
 metadata and a normal hyperlink. Regenerate the snapshot from the source on
 request. Use OLE only as an opt-in desktop export for a user who explicitly
@@ -349,7 +349,7 @@ equivalent to the current full-context path where equivalence is promised.
    external links. A one-cell patch must preserve every untouched feature or
    reject the file before writing.
 6. **Content controls:** do not ship authoring until Word, LibreOffice, and the
-   browser viewer preserve the supported controls and Mike can read/edit their
+   browser viewer preserve the supported controls and Beaver can read/edit their
    displayed values.
 7. **Token benchmark:** record actual provider input/output/cache tokens for
    targeted lookup, one replacement, replace-all, and one-cell spreadsheet
@@ -361,5 +361,5 @@ equivalent to the current full-context path where equivalence is promised.
 The model should decide **what** change is wanted and, when necessary, select
 between semantically different replacements. Code should locate exact spans,
 apply repeated replacements, preserve OOXML, maintain fields/numbering,
-validate versions, and report what changed. That boundary uses Mike's existing
+validate versions, and report what changed. That boundary uses Beaver's existing
 deterministic strengths and avoids building a second word processor.

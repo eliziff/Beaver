@@ -87,7 +87,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     function: {
       name: "library_list",
       description:
-        "List documents in the user's local Mike Library. Use this before claiming a Library document is unavailable. Optionally filter filenames with query.",
+        "List documents in the user's local Beaver Library. Use this before claiming a Library document is unavailable. Optionally filter filenames with query.",
       parameters: {
         type: "object",
         properties: {
@@ -109,7 +109,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     function: {
       name: "library_read",
       description:
-        "Read the active version of a document from the local Mike Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
+        "Read the active version of a document from the local Beaver Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
       parameters: {
         type: "object",
         properties: {
@@ -130,7 +130,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     function: {
       name: "library_find",
       description:
-        "Search inside a local Mike Library document and return exact matching excerpts with surrounding context. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
+        "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
       parameters: {
         type: "object",
         properties: {
@@ -352,7 +352,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     function: {
       name: "toa_job_status",
       description:
-        "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Mike page to open.",
+        "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Beaver page to open.",
       parameters: {
         type: "object",
         properties: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 
 export interface FetchDocxResult {
     bytes: ArrayBuffer | null;

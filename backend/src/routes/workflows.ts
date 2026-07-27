@@ -76,7 +76,7 @@ type OpenSourceSubmissionSummary = Pick<
 };
 
 const DEFAULT_WORKFLOW_CONTRIBUTOR: WorkflowContributor = {
-  name: "Mike",
+  name: "Beaver",
   organisation: null,
   role: null,
   linkedin: null,
@@ -304,7 +304,6 @@ function validateOpenSourceWorkflow(workflow: WorkflowRecord): string | null {
   return "Workflow type must be 'assistant' or 'tabular'.";
 }
 
-// GET /workflows
 workflowsRouter.get("/", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -331,7 +330,6 @@ workflowsRouter.get("/", requireAuth, asyncRoute(async (req, res) => {
   res.json([...systemWorkflows, ...databaseWorkflows]);
 }));
 
-// POST /workflows
 workflowsRouter.post("/", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const {
@@ -447,13 +445,8 @@ async function handleWorkflowUpdate(req: Request, res: Response) {
   );
 }
 
-// PUT /workflows/:workflowId
-workflowsRouter.put("/:workflowId", requireAuth, asyncRoute(handleWorkflowUpdate));
-
-// PATCH /workflows/:workflowId
 workflowsRouter.patch("/:workflowId", requireAuth, asyncRoute(handleWorkflowUpdate));
 
-// DELETE /workflows/:workflowId
 workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
@@ -474,7 +467,6 @@ workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) 
   res.status(204).send();
 }));
 
-// GET /workflows/hidden
 workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const db = createServerSupabase();
@@ -486,7 +478,6 @@ workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (req, res) => {
   res.json((data ?? []).map((r) => r.workflow_id));
 }));
 
-// POST /workflows/hidden
 workflowsRouter.post("/hidden", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflow_id } = req.body as { workflow_id: string };
@@ -500,7 +491,6 @@ workflowsRouter.post("/hidden", requireAuth, asyncRoute(async (req, res) => {
   res.status(204).send();
 }));
 
-// DELETE /workflows/hidden/:workflowId
 workflowsRouter.delete("/hidden/:workflowId", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
@@ -514,7 +504,6 @@ workflowsRouter.delete("/hidden/:workflowId", requireAuth, asyncRoute(async (req
   res.status(204).send();
 }));
 
-// POST /workflows/:workflowId/open-source
 workflowsRouter.post("/:workflowId/open-source", requireAuth, asyncRoute(async (req, res) => {
   if (!WORKFLOW_CONTRIBUTIONS_ENABLED) {
     return void res.status(404).json({ detail: "Workflow contributions are disabled" });
@@ -641,7 +630,6 @@ workflowsRouter.post("/:workflowId/open-source", requireAuth, asyncRoute(async (
   });
 }));
 
-// GET /workflows/:workflowId
 workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -671,7 +659,6 @@ workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => 
   );
 }));
 
-// GET /workflows/:workflowId/shares
 workflowsRouter.get("/:workflowId/shares", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
@@ -695,7 +682,6 @@ workflowsRouter.get("/:workflowId/shares", requireAuth, asyncRoute(async (req, r
   res.json(shares ?? []);
 }));
 
-// DELETE /workflows/:workflowId/shares/:shareId
 workflowsRouter.delete("/:workflowId/shares/:shareId", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId, shareId } = req.params;
@@ -713,7 +699,6 @@ workflowsRouter.delete("/:workflowId/shares/:shareId", requireAuth, asyncRoute(a
   res.status(204).send();
 }));
 
-// POST /workflows/:workflowId/share
 workflowsRouter.post("/:workflowId/share", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
@@ -742,7 +727,7 @@ workflowsRouter.post("/:workflowId/share", requireAuth, asyncRoute(async (req, r
   const missingSharedUsers = await findMissingUserEmails(db, normalizedEmails);
   if (missingSharedUsers.length > 0) {
     return void res.status(400).json({
-      detail: `${missingSharedUsers[0]} does not belong to a Mike user.`,
+      detail: `${missingSharedUsers[0]} does not belong to a Beaver user.`,
     });
   }
 

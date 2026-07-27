@@ -35,7 +35,7 @@ afterEach(async () => {
 describe("legal Library provider PDF fallback", () => {
   it("durably records the pointer and reschedules it when reopened", async () => {
     temporaryDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "mike-legal-pdf-pointer-"),
+      path.join(os.tmpdir(), "beaver-legal-pdf-pointer-"),
     );
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     process.env.AUTH_MODE = "anonymous";
@@ -158,7 +158,7 @@ describe("legal Library provider PDF fallback", () => {
 
   it("saves valid provider text when the optional PDF cannot be validated", async () => {
     temporaryDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "mike-legal-pdf-optional-"),
+      path.join(os.tmpdir(), "beaver-legal-pdf-optional-"),
     );
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     process.env.AUTH_MODE = "anonymous";

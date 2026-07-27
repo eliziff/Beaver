@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 
 interface SiteLogoProps {
     size?: "sm" | "md" | "lg" | "xl";
     className?: string;
     iconClassName?: string;
-    animate?: boolean;
     asLink?: boolean;
 }
 
@@ -13,7 +12,6 @@ export function SiteLogo({
     size = "md",
     className = "",
     iconClassName = "",
-    animate = false,
     asLink = false,
 }: SiteLogoProps) {
     const landingHref =
@@ -36,14 +34,12 @@ export function SiteLogo({
 
     const logo = (
         <h1
-            className={`flex items-center gap-1.5 ${sizeClasses[size]} font-light font-serif ${
-                animate ? "sidebar-fade-in" : ""
-            } ${className}`}
+            className={`flex items-center gap-1.5 ${sizeClasses[size]} font-light font-serif ${className}`}
         >
             <span
                 className={`inline-flex shrink-0 items-center leading-none ${iconClassName}`}
             >
-                <MikeIcon size={iconSizes[size]} />
+                <BeaverIcon size={iconSizes[size]} />
             </span>
             <span>Beaver</span>
         </h1>

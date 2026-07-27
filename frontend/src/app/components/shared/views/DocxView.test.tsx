@@ -16,7 +16,7 @@ vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
     useFetchDocxBytes: mocks.useFetchDocxBytes,
 }));
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     getAuthHeader: mocks.getAuthHeader,
 }));
 

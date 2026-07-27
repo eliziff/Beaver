@@ -8,7 +8,7 @@ import {
     MfaVerificationPopup,
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
-import { isMfaRequiredError } from "@/app/lib/mikeApi";
+import { isMfaRequiredError } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
     accountGlassIconButtonClassName,

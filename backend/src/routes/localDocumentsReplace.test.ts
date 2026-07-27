@@ -29,7 +29,7 @@ afterEach(async () => {
 describe("local document version replacement", () => {
   it("omits stale assistant provenance from the replace and versions APIs", async () => {
     temporaryDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "mike-local-api-"),
+      path.join(os.tmpdir(), "beaver-local-api-"),
     );
     process.env.AUTH_MODE = "anonymous";
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;

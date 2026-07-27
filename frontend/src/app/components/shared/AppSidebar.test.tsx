@@ -46,7 +46,7 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     deleteChat: vi.fn(),
   }),
 }));
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
   listProjects: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
@@ -77,7 +77,9 @@ describe("AppSidebar history ownership", () => {
   });
 
   it("keeps non-project chat history inside the active Assistant section", () => {
-    render(<AppSidebar isOpen onToggle={vi.fn()} />);
+    render(
+      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
+    );
 
     const assistant = screen.getByRole("group", { name: "Assistant" });
     expect(
@@ -95,7 +97,9 @@ describe("AppSidebar history ownership", () => {
 
   it("marks nested tool routes active without exposing a global history area", () => {
     mocks.pathname = "/table-of-authorities";
-    render(<AppSidebar isOpen onToggle={vi.fn()} />);
+    render(
+      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
+    );
 
     const authorities = screen.getByRole("group", { name: "Authorities" });
     expect(
@@ -108,7 +112,9 @@ describe("AppSidebar history ownership", () => {
   });
 
   it("hides account-only tools and exposes local API-key status", () => {
-    render(<AppSidebar isOpen onToggle={vi.fn()} />);
+    render(
+      <AppSidebar desktopOpen mobileOpen={false} onToggle={vi.fn()} />,
+    );
 
     expect(
       screen.queryByRole("group", { name: "Tabular Review" }),

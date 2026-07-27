@@ -33,7 +33,7 @@ export function HeaderActionsMenu({
                 <button
                     type="button"
                     className={cn(
-                        "inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition-all",
+                        "inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition-colors",
                         APP_SURFACE_HOVER_CLASS,
                         "hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300",
                     )}

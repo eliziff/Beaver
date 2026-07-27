@@ -16,7 +16,7 @@ afterEach(async () => {
 
 describe("local A2AJ bulk data", () => {
   it("imports JSONL and returns API-shaped bilingual fetch/search results", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-a2aj-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-a2aj-"));
     const input = path.join(temporaryDirectory, "records.jsonl");
     const database = path.join(temporaryDirectory, "a2aj.sqlite");
     const longText = Array.from(

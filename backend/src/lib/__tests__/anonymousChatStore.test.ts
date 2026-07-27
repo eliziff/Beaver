@@ -14,7 +14,7 @@ async function loadStore() {
 }
 
 beforeEach(async () => {
-  dataHome = await mkdtemp(path.join(os.tmpdir(), "mike-chat-store-"));
+  dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-chat-store-"));
   process.env.OPEN_LEGAL_DATA_HOME = dataHome;
 });
 
@@ -115,52 +115,6 @@ describe("anonymous chat store", () => {
     expect(await readFile(chatFile, "utf8")).toBe(committedBytes);
     expect(firstReference.transcript_version).toBe(2);
     expect(firstReference.messages).toHaveLength(2);
-  });
-
-  it("loads schema v1 and lazily upgrades it on the next transcript write", async () => {
-    const chatsDirectory = path.join(dataHome, "apps", "mike", "chats");
-    await mkdir(chatsDirectory, { recursive: true });
-    const chatId = randomUUID();
-    const messageId = randomUUID();
-    const now = "2026-07-26T12:00:00.000Z";
-    const chatFile = path.join(chatsDirectory, `${chatId}.json`);
-    await writeFile(
-      chatFile,
-      JSON.stringify({
-        version: 1,
-        chat: {
-          id: chatId,
-          user_id: owner,
-          project_id: null,
-          title: null,
-          created_at: now,
-          updated_at: now,
-          messages: [
-            {
-              id: messageId,
-              chat_id: chatId,
-              role: "user",
-              content: "Legacy",
-              created_at: now,
-            },
-          ],
-        },
-      }),
-      "utf8",
-    );
-
-    const store = await loadStore();
-    const chat = store.getAnonymousChat(owner, chatId)!;
-    expect(chat.transcript_version).toBe(1);
-    store.appendAnonymousMessage(
-      chat,
-      { role: "assistant", content: "Upgraded" },
-      1,
-    );
-
-    const stored = JSON.parse(await readFile(chatFile, "utf8"));
-    expect(stored.version).toBe(2);
-    expect(stored.chat.transcript_version).toBe(2);
   });
 
   it("orders chats by their latest durable update and persists titles", async () => {

@@ -11,7 +11,6 @@ import {
     useRef,
     useState,
 } from "react";
-import { createPortal } from "react-dom";
 import {
     Loader2,
     AlertCircle,
@@ -29,17 +28,14 @@ import {
     deleteDocumentVersion,
     renameDocumentVersion,
     type DocumentVersion,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type {
     Document,
     Folder as ProjectFolder,
     LibraryFolder,
 } from "@/app/components/shared/types";
 import {
-    closeRowActionMenus,
-    RowActionMenuItems,
     RowActions,
-    type RowActionMenuSurfaceProps,
 } from "@/app/components/shared/RowActions";
 import {
     SubfolderSvgIcon,
@@ -60,7 +56,6 @@ import {
     formatBytes,
     formatDate,
     treeNameCellStyle,
-    type ProjectContextMenu,
 } from "@/app/components/projects/ProjectPageParts";
 import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import { LibrarySkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
@@ -179,7 +174,7 @@ function dateTimeValue(value: string | null | undefined): number {
 }
 
 function documentVersionNumber(doc: Document): number | null {
-    return doc.active_version_number ?? doc.latest_version_number ?? null;
+    return doc.active_version_number ?? null;
 }
 
 function ProjectTableLoadingHeader({
@@ -194,7 +189,7 @@ function ProjectTableLoadingHeader({
                 widthClassName={DOC_NAME_COL_W}
                 bgClassName={stickyCellBg}
             >
-                <div className="mr-4 h-2.5 w-2.5 rounded bg-gray-100 animate-pulse" />
+                <div className="mr-4 h-2.5 w-2.5 rounded bg-gray-100" />
                 <span className="mr-1">Name</span>
             </TableStickyCell>
             <TableHeaderCell className="ml-auto flex w-20 items-center gap-1">
@@ -229,28 +224,28 @@ function ProjectTableLoading({ stickyCellBg }: { stickyCellBg: string }) {
                         className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${stickyCellBg} py-2 pl-4 pr-2`}
                     >
                         <div className="flex items-center">
-                            <div className="mr-4 h-2.5 w-2.5 shrink-0 rounded bg-gray-100 animate-pulse" />
-                            <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100 animate-pulse" />
+                            <div className="mr-4 h-2.5 w-2.5 shrink-0 rounded bg-gray-100" />
+                            <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
                             <div
-                                className="h-3.5 rounded bg-gray-100 animate-pulse"
+                                className="h-3.5 rounded bg-gray-100"
                                 style={{ width: `${210 + i * 16}px` }}
                             />
                         </div>
                     </div>
                     <div className="ml-auto w-20 shrink-0">
-                        <div className="h-3 w-8 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-8 rounded bg-gray-100" />
                     </div>
                     <div className="w-24 shrink-0">
-                        <div className="h-3 w-12 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-12 rounded bg-gray-100" />
                     </div>
                     <div className="w-20 shrink-0">
-                        <div className="h-3 w-5 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-5 rounded bg-gray-100" />
                     </div>
                     <div className="w-32 shrink-0">
-                        <div className="h-3 w-16 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-16 rounded bg-gray-100" />
                     </div>
                     <div className="w-32 shrink-0">
-                        <div className="h-3 w-16 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-16 rounded bg-gray-100" />
                     </div>
                     <div className="w-8 shrink-0" />
                 </div>
@@ -554,10 +549,6 @@ export function DocTable({
         null,
     );
     const [renameFolderValue, setRenameFolderValue] = useState("");
-    const [contextMenu, setContextMenu] = useState<ProjectContextMenu | null>(
-        null,
-    );
-    const contextMenuRef = useRef<HTMLDivElement>(null);
     const newFolderInputRef = useRef<HTMLDivElement | null>(null);
     const versionUploadInputRef = useRef<HTMLInputElement>(null);
     const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(
@@ -634,24 +625,9 @@ export function DocTable({
 
     useEffect(() => {
         setSelectedDocIds([]);
-        setContextMenu(null);
         setTypeFilter(null);
         setSort(null);
     }, [scopeKey]);
-
-    // Close context menu on outside click
-    useEffect(() => {
-        if (!contextMenu) return;
-        function handle(e: MouseEvent) {
-            if (
-                contextMenuRef.current &&
-                !contextMenuRef.current.contains(e.target as Node)
-            )
-                setContextMenu(null);
-        }
-        document.addEventListener("mousedown", handle);
-        return () => document.removeEventListener("mousedown", handle);
-    }, [contextMenu]);
 
     // Clear all drag state when any drag operation ends
     useEffect(() => {
@@ -792,9 +768,6 @@ export function DocTable({
             if (renamingFolderId && toDelete.has(renamingFolderId)) {
                 setRenamingFolderId(null);
             }
-            if (contextMenu?.folderId && toDelete.has(contextMenu.folderId)) {
-                setContextMenu(null);
-            }
             const deletedDocIds = new Set(pending.documentIds);
             setSelectedDocIds((prev) =>
                 prev.filter((id) => !deletedDocIds.has(id)),
@@ -859,7 +832,6 @@ export function DocTable({
         });
         setViewingDoc((prev) => (prev?.id === docId ? null : prev));
         if (renamingDocumentId === docId) setRenamingDocumentId(null);
-        if (contextMenu?.docId === docId) setContextMenu(null);
     }
 
     function restoreDocumentToLocalState(
@@ -1421,19 +1393,30 @@ export function DocTable({
         );
     }
 
-    function renderLevel(parentId: string | null, depth: number) {
+    function renderLevel(
+        parentId: string | null,
+        depth: number,
+        flat = false,
+    ) {
         const nameMultiplier =
             enableHeaderFilters &&
             sort?.key === "name" &&
             sort.direction === "desc"
                 ? -1
                 : 1;
-        const childFolders = folders
-            .filter((f) => f.parent_folder_id === parentId)
-            .sort((a, b) => a.name.localeCompare(b.name) * nameMultiplier);
-        const childDocs = filteredDocs.filter(
-            (d) => (d.folder_id ?? null) === parentId,
-        );
+        const childFolders = flat
+            ? []
+            : folders
+                  .filter((f) => f.parent_folder_id === parentId)
+                  .sort(
+                      (a, b) =>
+                          a.name.localeCompare(b.name) * nameMultiplier,
+                  );
+        const childDocs = flat
+            ? filteredDocs
+            : filteredDocs.filter(
+                  (d) => (d.folder_id ?? null) === parentId,
+              );
 
         return (
             <>
@@ -1494,18 +1477,6 @@ export function DocTable({
                                 onClick={() => {
                                     setViewingDocVersion(null);
                                     setViewingDoc(doc);
-                                }}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    closeRowActionMenus();
-                                    setContextMenu({
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        docId: doc.id,
-                                        folderId: null,
-                                        showFolderActions: false,
-                                    });
                                 }}
                                 className={`group flex h-10 min-w-max items-center pr-8 cursor-pointer transition-colors ${isVersionDragOver ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
                             >
@@ -1829,17 +1800,6 @@ export function DocTable({
                                     );
                                 }}
                                 onClick={() => toggleFolder(folder.id)}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    closeRowActionMenus();
-                                    setContextMenu({
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        folderId: folder.id,
-                                        showFolderActions: true,
-                                    });
-                                }}
                                 className={`group flex h-10 min-w-max items-center pr-8 ${APP_SURFACE_HOVER_CLASS} cursor-pointer transition-colors ${isRenaming ? "" : "select-none"} ${dragOverFolderId === folder.id ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : ""}`}
                             >
                                 <div
@@ -1918,6 +1878,18 @@ export function DocTable({
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <RowActions
+                                        onNewSubfolder={() => {
+                                            setCreatingFolderIn(folder.id);
+                                            setNewFolderName("");
+                                            setExpandedFolderIds(
+                                                (prev) =>
+                                                    new Set([
+                                                        ...prev,
+                                                        folder.id,
+                                                    ]),
+                                            );
+                                        }}
+                                        newSubfolderLabel="New subfolder inside"
                                         onRename={() => {
                                             setRenameFolderValue(folder.name);
                                             setRenamingFolderId(folder.id);
@@ -1934,7 +1906,7 @@ export function DocTable({
                 })}
 
                 {/* New-folder input row at the bottom of this level */}
-                {renderFolderInput(parentId, depth)}
+                {!flat && renderFolderInput(parentId, depth)}
             </>
         );
     }
@@ -2620,17 +2592,6 @@ export function DocTable({
                                 ) : (
                                     <div
                                         className="flex-1 flex flex-col"
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            closeRowActionMenus();
-                                            setContextMenu({
-                                                x: e.clientX,
-                                                y: e.clientY,
-                                                folderId: null,
-                                                showFolderActions: false,
-                                            });
-                                        }}
-                                        onClick={() => setContextMenu(null)}
                                         onDragOver={(e) => {
                                             if (!hasMovePayload(e.dataTransfer))
                                                 return;

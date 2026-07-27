@@ -215,7 +215,7 @@ function safeDocument(
     next_required_action:
       pdfFallbacks.length > 0
         ? "The provider PDF is queued for shared-cache parsing. Quote only returned text until its parse is ready."
-        : "Quote only returned text. Mike attaches the verified source URL.",
+        : "Quote only returned text. Beaver attaches the verified source URL.",
   };
 }
 
@@ -255,8 +255,8 @@ function safeLookup(
       : {}),
     pdf_fallbacks: pdfFallbacks,
     next_required_action: receipt
-      ? "Quote only returned text. Preserve evidence.handle to rehydrate this exact source version; Mike attaches the verified source URL and pinpoint."
-      : "Quote only returned text. Mike attaches the verified source URL and pinpoint.",
+      ? "Quote only returned text. Preserve evidence.handle to rehydrate this exact source version; Beaver attaches the verified source URL and pinpoint."
+      : "Quote only returned text. Beaver attaches the verified source URL and pinpoint.",
   };
 }
 

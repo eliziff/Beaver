@@ -84,7 +84,7 @@ export function codexModelSlug(model: string): string | null {
     return slug || null;
 }
 
-/** All currently exposed Mike models accept images; unknown future models fail closed. */
+/** All currently exposed Beaver models accept images; unknown future models fail closed. */
 export function modelSupportsImageInput(model: string): boolean {
     if (model.startsWith("deepseek-")) return false;
     return (

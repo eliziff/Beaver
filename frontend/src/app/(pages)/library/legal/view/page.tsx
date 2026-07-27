@@ -1,5 +1,5 @@
 import { LegalLibraryDirectDocumentPage } from "@/app/components/legal/LegalLibrary";
-import type { LegalDocumentType } from "@/app/lib/mikeApi";
+import type { LegalDocumentType } from "@/app/lib/beaverApi";
 
 export default async function DirectLegalSourcePage({
     searchParams,

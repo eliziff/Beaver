@@ -1,33 +1,20 @@
-import { streamClaude, completeClaudeText } from "./claude";
-import { streamGemini, completeGeminiText } from "./gemini";
-import { streamOpenAI, completeOpenAIText } from "./openai";
-import { streamDeepSeek, completeDeepSeekText } from "./deepseek";
-import { streamOpenRouter, completeOpenRouterText } from "./openrouter";
-import { streamCodex, completeCodexText } from "./codex";
 import { appendContextManifest, buildContextManifest } from "./contextManifest";
 import { providerForModel } from "./models";
 import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
 
 export * from "./types";
 export * from "./models";
-export { streamCodex };
+
+export async function streamCodex(
+  params: StreamChatParams,
+): Promise<StreamChatResult> {
+  return (await import("./codex")).streamCodex(params);
+}
 
 export async function streamChatWithTools(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
   const provider = providerForModel(params.model);
-  const dispatch =
-    provider === "claude"
-      ? streamClaude
-      : provider === "openai"
-        ? streamOpenAI
-        : provider === "deepseek"
-          ? streamDeepSeek
-          : provider === "openrouter"
-            ? streamOpenRouter
-            : provider === "codex"
-              ? streamCodex
-              : streamGemini;
   const startedAt = performance.now();
   const startedAtIso = new Date().toISOString();
   let firstContentAt: number | null = null;
@@ -45,7 +32,20 @@ export async function streamChatWithTools(
   };
 
   try {
-    const result = await dispatch(measuredParams);
+    const result =
+      provider === "claude"
+        ? await (await import("./claude")).streamClaude(measuredParams)
+        : provider === "openai"
+          ? await (await import("./openai")).streamOpenAI(measuredParams)
+          : provider === "deepseek"
+            ? await (await import("./deepseek")).streamDeepSeek(measuredParams)
+            : provider === "openrouter"
+              ? await (
+                  await import("./openrouter")
+                ).streamOpenRouter(measuredParams)
+              : provider === "codex"
+                ? await streamCodex(measuredParams)
+                : await (await import("./gemini")).streamGemini(measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
       params,
@@ -97,10 +97,15 @@ export async function completeText(params: {
   apiKeys?: UserApiKeys;
 }): Promise<string> {
   const provider = providerForModel(params.model);
-  if (provider === "claude") return completeClaudeText(params);
-  if (provider === "openai") return completeOpenAIText(params);
-  if (provider === "deepseek") return completeDeepSeekText(params);
-  if (provider === "openrouter") return completeOpenRouterText(params);
-  if (provider === "codex") return completeCodexText(params);
-  return completeGeminiText(params);
+  if (provider === "claude")
+    return (await import("./claude")).completeClaudeText(params);
+  if (provider === "openai")
+    return (await import("./openai")).completeOpenAIText(params);
+  if (provider === "deepseek")
+    return (await import("./deepseek")).completeDeepSeekText(params);
+  if (provider === "openrouter")
+    return (await import("./openrouter")).completeOpenRouterText(params);
+  if (provider === "codex")
+    return (await import("./codex")).completeCodexText(params);
+  return (await import("./gemini")).completeGeminiText(params);
 }

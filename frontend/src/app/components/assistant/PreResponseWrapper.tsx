@@ -47,7 +47,7 @@ export function PreResponseWrapper({
     const childrenGapClass = compact ? "gap-2.5" : "gap-4";
 
     return (
-        <div className="rounded-xl border border-white/70 bg-white/55 px-3 py-2 shadow-[0_3px_9px_rgba(15,23,42,0.03),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-4px_9px_rgba(255,255,255,0.05)] backdrop-blur-2xl">
+        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
             <button
                 type="button"
                 onClick={() => {
@@ -60,9 +60,9 @@ export function PreResponseWrapper({
                     <span className="truncate">{label}</span>
                     {isStreaming && (
                         <span className="inline-flex ml-1 shrink-0 items-baseline">
-                            <span className="w-0.5 h-0.5 rounded-full bg-gray-400 mr-0.5 animate-[bounce_1.4s_infinite_0s]" />
-                            <span className="w-0.5 h-0.5 rounded-full bg-gray-400 mr-0.5 animate-[bounce_1.4s_infinite_0.2s]" />
-                            <span className="w-0.5 h-0.5 rounded-full bg-gray-400 animate-[bounce_1.4s_infinite_0.4s]" />
+                            <span className="mr-0.5 h-0.5 w-0.5 rounded-full bg-gray-400" />
+                            <span className="mr-0.5 h-0.5 w-0.5 rounded-full bg-gray-400" />
+                            <span className="h-0.5 w-0.5 rounded-full bg-gray-400" />
                         </span>
                     )}
                 </span>

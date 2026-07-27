@@ -11,7 +11,7 @@ const stores: LegalKnowledgeGraphStore[] = [];
 const directories: string[] = [];
 
 async function store() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "mike-knowledge-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-knowledge-"));
   directories.push(directory);
   const result = new LegalKnowledgeGraphStore(
     path.join(directory, "knowledge.sqlite"),

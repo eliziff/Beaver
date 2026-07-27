@@ -35,7 +35,7 @@ import {
     retryLibraryPdfParse,
     submitLibraryDocumentToAuthorities,
     type DeterministicDocxActionResult,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 
 type ActionName = "supras" | "citations" | "authorities";
 
@@ -277,7 +277,7 @@ export function DocumentActionsPanel({
         return createPortal(
             <div
                 className={cn(
-                    "fixed bottom-5 z-[180] flex max-w-[min(440px,calc(100vw-2rem))] items-center gap-1 rounded-2xl border border-white/80 bg-white/92 p-1.5 shadow-[0_12px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl",
+                    "fixed bottom-5 z-[180] flex max-w-[min(440px,calc(100vw-2rem))] items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm",
                     dock === "right" ? "right-5" : "left-5",
                 )}
             >
@@ -310,7 +310,7 @@ export function DocumentActionsPanel({
         <aside
             aria-label="Document actions"
             className={cn(
-                "fixed bottom-5 top-20 z-[180] flex w-[min(430px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-white/80 bg-gray-50/94 shadow-[0_18px_55px_rgba(15,23,42,0.18)] backdrop-blur-2xl",
+                "fixed bottom-5 top-20 z-[180] flex w-[min(430px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 shadow-sm",
                 dock === "right" ? "right-5" : "left-5",
             )}
         >

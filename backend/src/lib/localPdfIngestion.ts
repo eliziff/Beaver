@@ -343,7 +343,7 @@ function relativeDataPath(absolutePath: string) {
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   ) {
-    throw new Error("PDF parse path is outside Mike's local data directory");
+    throw new Error("PDF parse path is outside Beaver's local data directory");
   }
   return relative;
 }

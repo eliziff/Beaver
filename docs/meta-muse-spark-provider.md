@@ -22,9 +22,9 @@ Checked 26 July 2026.
   `https://openrouter.ai/api/v1/responses`:
   <https://openrouter.ai/docs/api/reference/responses/overview>.
 
-## Mike route
+## Beaver route
 
-Mike exposes Muse Spark under a **Meta** model group and invokes it through
+Beaver exposes Muse Spark under a **Meta** model group and invokes it through
 OpenRouter using the existing `OPENROUTER_API_KEY` setting. This is the
 smallest available integration on this Canadian installation: this machine has
 no direct Meta Model API credential, and it already has an OpenRouter
@@ -32,7 +32,7 @@ credential. OpenRouter's current model page labels this particular hosted
 preview as available only to US users. That is a distribution policy, not an
 inherent model capability.
 
-The adapter reuses Mike's Responses API implementation. OpenAI requests retain
+The adapter reuses Beaver's Responses API implementation. OpenAI requests retain
 their provider session continuation; OpenRouter requests replay completed
 output items and tool results because OpenRouter's Responses API is stateless.
 No secret is sent to the browser or written to logs.
@@ -43,7 +43,7 @@ configuration, not another model/tool implementation.
 
 ## Live validation
 
-The adapter reached OpenRouter through Mike on 2026-07-26. The configured
+The adapter reached OpenRouter through Beaver on 2026-07-26. The configured
 `OPENROUTER_API_KEY` was rejected first with HTTP 401 `User not found`, so this
 run did **not** test whether OpenRouter would enforce its displayed US-user
 restriction for this account. Replace or reissue the OpenRouter key, then rerun

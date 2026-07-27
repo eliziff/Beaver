@@ -356,7 +356,7 @@ export function WorkflowPromptEditor({
             className={`flex h-full flex-col overflow-hidden ${LIQUID_TABLE_SURFACE_CLASS}`}
         >
             {!readOnly && editor && (
-                <div className="flex shrink-0 items-center gap-0.5 border-b border-white/70 bg-app-surface px-2 py-1.5 backdrop-blur-xl">
+                <div className="flex shrink-0 items-center gap-0.5 border-b border-gray-200 bg-app-surface px-2 py-1.5">
                     <AppToolbarButton
                         onClick={() =>
                             rawMode
@@ -555,7 +555,7 @@ export function WorkflowPromptEditor({
                 </div>
             )}
             {readOnly && (
-                <div className="flex h-9 shrink-0 items-center justify-between bg-app-surface px-5 backdrop-blur-xl">
+                <div className="flex h-9 shrink-0 items-center justify-between bg-app-surface px-5">
                     <span className="text-xs font-medium text-gray-500">
                         Read-only
                     </span>

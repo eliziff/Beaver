@@ -121,7 +121,7 @@ async function setup(
   headers: Record<string, string> = {},
 ) {
   temporaryDirectory = await mkdtemp(
-    path.join(os.tmpdir(), "mike-provider-pdf-"),
+    path.join(os.tmpdir(), "beaver-provider-pdf-"),
   );
   process.env.OPEN_LEGAL_DATA_HOME = temporaryDirectory;
   process.env.MIKE_LOCAL_DATA_DIR = path.join(temporaryDirectory, "library");
@@ -714,7 +714,7 @@ describe("provider PDF Library bridge", () => {
     );
   });
 
-  it("copies cache bytes only when the Mike data directory is on another volume", async () => {
+  it("copies cache bytes only when the Beaver data directory is on another volume", async () => {
     const { bytes } = await setup();
     const sourceSha256 = digest(bytes);
     const blob = blobPath(sourceSha256);

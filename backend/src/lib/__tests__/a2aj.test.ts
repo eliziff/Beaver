@@ -238,7 +238,7 @@ describe("A2AJ client", () => {
 
   it("returns a stable pointer payload and reuses the persistent response cache", async () => {
     temporaryLegalDataHome = await mkdtemp(
-      path.join(os.tmpdir(), "mike-a2aj-cache-"),
+      path.join(os.tmpdir(), "beaver-a2aj-cache-"),
     );
     process.env.OPEN_LEGAL_DATA_HOME = temporaryLegalDataHome;
     const text = Array.from(

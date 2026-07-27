@@ -2,13 +2,9 @@ import type { createServerSupabase } from "./supabase";
 
 type Supa = ReturnType<typeof createServerSupabase>;
 
-interface DocRow {
+interface VersionPathRow {
     id: string;
-    latest_version_number?: number | null;
     [k: string]: unknown;
-}
-
-interface VersionPathRow extends DocRow {
     /** API/client alias for document_versions.filename of the active version. */
     filename?: string | null;
     /** Set from document_versions.storage_path of the active version. */
@@ -155,42 +151,6 @@ export async function attachActiveVersionPaths<T extends VersionPathRow>(
         d.file_type = v?.file_type ?? null;
         d.size_bytes = v?.size_bytes ?? null;
         d.page_count = v?.page_count ?? null;
-    }
-    return docs;
-}
-
-/**
- * Given a list of document rows, attach `latest_version_number` — the
- * max `version_number` across all assistant_edit rows for that doc, or
- * null if none. Mutates rows in place and returns the same reference.
- * One extra query regardless of list size.
- */
-export async function attachLatestVersionNumbers<T extends DocRow>(
-    db: Supa,
-    docs: T[],
-): Promise<T[]> {
-    if (docs.length === 0) return docs;
-    const ids = docs.map((d) => d.id);
-    const { data: rows } = await db
-        .from("document_versions")
-        .select("document_id, version_number")
-        .in("document_id", ids)
-        .eq("source", "assistant_edit")
-        .is("deleted_at", null)
-        .not("version_number", "is", null);
-
-    const latestByDoc = new Map<string, number>();
-    for (const r of (rows ?? []) as {
-        document_id: string;
-        version_number: number | null;
-    }[]) {
-        if (r.version_number == null) continue;
-        const prev = latestByDoc.get(r.document_id) ?? 0;
-        if (r.version_number > prev)
-            latestByDoc.set(r.document_id, r.version_number);
-    }
-    for (const d of docs) {
-        d.latest_version_number = latestByDoc.get(d.id) ?? null;
     }
     return docs;
 }

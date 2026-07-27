@@ -9,7 +9,7 @@ Inputs:
 
 ## Decision
 
-The two independent tracks support building and testing a layered Mike-Canada
+The two independent tracks support building and testing a layered Beaver
 context architecture. They do not support replacing the transcript with a prose
 summary, treating an opaque provider checkpoint as an auditable legal record, or
 compacting every session by default.
@@ -138,9 +138,9 @@ primary research:
   benchmark.
 
 Those source findings motivate experiments. They do not prove that the proposed
-Mike architecture is superior on Canadian legal work.
+Beaver architecture is superior on Canadian legal work.
 
-## Inference: proposed Mike-Canada architecture
+## Inference: proposed Beaver architecture
 
 | Component | Authority and lifecycle | Routine model visibility |
 |---|---|---|
@@ -254,13 +254,13 @@ targets.
 
 ### Stage 0 - rights and provenance
 
-Do not copy Canadian Semantic LegalBench data into Mike yet. At the pinned
+Do not copy Canadian Semantic LegalBench data into Beaver yet. At the pinned
 revision reviewed by Track B, the repository is public but declares no license;
 public access does not grant redistribution or derivative-fixture rights.
 Obtain an explicit license or written permission and review the provenance and
 reuse terms of the underlying A2AJ decision text. Until then, use only synthetic
 fixtures or a caller-supplied external path, and commit only fixture IDs, hashes,
-annotations that Mike owns, and run results.
+annotations that Beaver owns, and run results.
 
 Apply the same source-level review to CanLegalRAGBench: its code/annotations may
 be MIT-labelled, but underlying judicial decisions retain upstream terms. Record
@@ -298,7 +298,7 @@ Run:
 5. oracle active projection plus event-aware tail;
 6. automatically generated/updated active projection plus event-aware tail;
 7. native compaction plus the external active projection; and
-8. Mike's production context path.
+8. Beaver's production context path.
 
 Repeat at one, three, and five compaction generations and across same-model and
 cross-model resume. Report exact-field accuracy, all-fields hard pass,
@@ -330,7 +330,7 @@ length, not only in aggregate.
 
 ### Stage 4 - production shadow and canary
 
-Replay consented, de-identified Mike workflows with real tool schemas,
+Replay consented, de-identified Beaver workflows with real tool schemas,
 retrieval, prefix caching, failures, retries, session resume, and provider
 version changes. Compare predicted and observed compaction break-even and test
 recovery solely from raw events plus durable artifacts.
@@ -350,4 +350,4 @@ or population-level superiority over full history.
 
 Build the layered path as an experimental arm, preserve full history as the
 control and recovery source, and let the staged gates decide whether it becomes
-Mike's default.
+Beaver's default.

@@ -23,7 +23,7 @@ Only the root DOCX corpus scorer and its tests were hardened to enforce this con
 | Metric area | Current disposition | Why |
 |---|---|---|
 | DOCX corpus counts, deterministic coverage, reasons, timing | Descriptive only | These count system outputs; no correctness labels are involved. |
-| Mike DOCX split accuracy and arm comparisons | **NOT SCOREABLE** | All 80 review rows are provisional; none has admissible accepted gold. |
+| Beaver DOCX split accuracy and arm comparisons | **NOT SCOREABLE** | All 80 review rows are provisional; none has admissible accepted gold. |
 | ALR split exact/tolerant accuracy | **NOT SCOREABLE as currently aggregated** | The source has 25 normalized-text duplicate rows, failure-selected sampling, unenforced human provenance, and a loader that admits unknown statuses. |
 | PDF text CER/WER | Valid DOCX-reference agreement | Gold is mechanically extracted from DOCX. It is useful silver reference, not independently verified rendered-PDF truth. |
 | PDF paragraph/line order | **NOT SCOREABLE** | Paragraph signatures collide and overwrite; unmatched content is excluded. Manual region/order gold is missing. |
@@ -82,7 +82,7 @@ Prediction IDs and admitted gold IDs must form an exact bijection. Missing predi
 
 ### Split scorers
 
-The Mike corpus scorer has the strongest status gate: it admits only exact `accepted` and currently refuses to score because none exist. Its current review queue is a deliberately balanced challenge sample, so Wilson intervals and sign-test p-values are correctly suppressed.
+The Beaver corpus scorer has the strongest status gate: it admits only exact `accepted` and currently refuses to score because none exist. Its current review queue is a deliberately balanced challenge sample, so Wilson intervals and sign-test p-values are correctly suppressed.
 
 The ALR and legacy universal loaders exclude a short denylist rather than accepting a strict allowlist. That allows unknown, `auto`, or `agent` states to become gold. Current ALR manual split data also contains 25 repeated normalized texts. The existing 405-row aggregate must not be called accuracy until strict provenance and content-dedup gates are applied.
 

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
-import type { DocumentVersion } from "@/app/lib/mikeApi";
+import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { DocumentSidePanel } from "./DocumentSidePanel";
 
 vi.mock("@/app/components/shared/views/PdfView", () => ({

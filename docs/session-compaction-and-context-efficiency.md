@@ -1,4 +1,4 @@
-# Mike session compaction and context-efficiency audit
+# Beaver session compaction and context-efficiency audit
 
 Audit date: 2026-07-26
 
@@ -6,7 +6,7 @@ Status: report only. This audit does not change runtime behavior.
 
 ## Bottom line
 
-Mike is not yet defensible for long-running legal sessions.
+Beaver is not yet defensible for long-running legal sessions.
 
 It durably stores cloud chat messages and legal/document artifacts, and its
 direct OpenAI adapter correctly reuses a Responses API response ID inside one
@@ -19,18 +19,18 @@ tool-calling turn. Those are useful foundations. However:
   provider session or server-owned compacted context: every turn still trusts
   and projects the full history supplied by the browser;
 - Codex is launched as a fresh `--ephemeral` thread for every user turn, so
-  Mike discards Codex's native session, cache, and compaction machinery;
+  Beaver discards Codex's native session, cache, and compaction machinery;
 - the default cloud research surface is about 7.6k prompt tokens before chat
   history, document lists, MCP connectors, retrieved text, or the current user
   request; and
 - some document and project tools can return unbounded full text.
 
-The safe direction is not “summarize everything.” Mike should preserve the raw
+The safe direction is not “summarize everything.” Beaver should preserve the raw
 transcript, store exact legal/document/workflow state separately, use
 provider-native continuation and compaction where available, and treat a prose
 summary as disposable context rather than a source of truth.
 
-## What Mike does now
+## What Beaver does now
 
 ### Conversation and persistence paths
 
@@ -40,8 +40,8 @@ summary as disposable context rather than a source of truth.
 | Cloud project assistant | Supabase, plus project/document records | Full history plus project document inventory | None across user turns |
 | Anonymous local assistant | Versioned atomic JSON under shared AppData; process `Map` is a cache | Full history sent by the browser | Durable across restart, but no model compaction/checkpoint |
 | Direct OpenAI tool loop | Current turn is in memory | Initial full history, then only tool results through `previous_response_id` | Good within one turn; reset on next user turn |
-| Codex bridge | Mike transcript only | One flattened prompt containing the full conversation | Fresh ephemeral Codex thread every turn |
-| Claude/Gemini adapters | Mike transcript only | Full history; the in-turn tool loop appends and resends results | No provider session/checkpoint |
+| Codex bridge | Beaver transcript only | One flattened prompt containing the full conversation | Fresh ephemeral Codex thread every turn |
+| Claude/Gemini adapters | Beaver transcript only | Full history; the in-turn tool loop appends and resends results | No provider session/checkpoint |
 
 Evidence in the current tree:
 
@@ -170,7 +170,7 @@ both reviewed 2026-07-26.
 | Stable state | Turn/world-state baseline, provider continuation, session cache key | Separate instruction epoch and session-derived cache key |
 
 The shared lesson is that the raw durable transcript and the lossy model
-projection are different objects. Mike should combine OpenCode's final-request
+projection are different objects. Beaver should combine OpenCode's final-request
 preflight with Codex's richer persisted checkpoint and world-state discipline.
 
 ### OpenAI Responses API
@@ -190,7 +190,7 @@ or pruning the chain. `store=false` is supported for stateless/ZDR-oriented
 flows. See the official [OpenAI compaction
 guide](https://developers.openai.com/api/docs/guides/compaction).
 
-Mike uses `previous_response_id` correctly inside a single tool loop, including
+Beaver uses `previous_response_id` correctly inside a single tool loop, including
 resending instructions because response instructions do not automatically
 become durable application state. It does not use response continuation or
 compaction across user turns, nor does it request automatic compaction.
@@ -203,7 +203,7 @@ matching and to avoid concentrating excessive traffic on one key. See the
 official [prompt caching
 guide](https://developers.openai.com/api/docs/guides/prompt-caching).
 
-Mike does not set `prompt_cache_key` and records no cached/cache-write token
+Beaver does not set `prompt_cache_key` and records no cached/cache-write token
 telemetry. Its stable core prompt comes before the document inventory, which is
 directionally good, but changing document inventories, research tool sets, and
 MCP schemas shorten the reusable prefix.
@@ -243,8 +243,8 @@ Codex also uses a session-scoped prompt-cache key and supports incremental
 provider requests against prior response state
 ([client](https://github.com/openai/codex/blob/18f50c9e628af083a52d9240de09fc2db24d79ce/codex-rs/core/src/client.rs#L475-L487)).
 
-Mike's `--ephemeral` invocation bypasses these cross-turn benefits. Codex may
-compact during one unusually long Mike turn, but Mike closes the bridge and
+Beaver's `--ephemeral` invocation bypasses these cross-turn benefits. Codex may
+compact during one unusually long Beaver turn, but Beaver closes the bridge and
 throws the thread away immediately afterward. The next turn starts over with a
 new flattened transcript.
 
@@ -292,7 +292,7 @@ versioned static instructions + selected stable tool groups
                          |
 authoritative state capsule (IDs, versions, locators, decisions)
                          |
-provider checkpoint or Mike narrative summary
+provider checkpoint or Beaver narrative summary
                          |
 bounded recent-turn tail
                          |
@@ -359,7 +359,7 @@ The context-state record needs:
 - a checksum and timestamps.
 
 Provider continuation data is an optimization, not the only copy of state. If
-it is missing, expired, corrupt, or incompatible, Mike must rebuild from the raw
+it is missing, expired, corrupt, or incompatible, Beaver must rebuild from the raw
 transcript plus authoritative capsule.
 
 The next strict API boundary should be current-turn-only submission. The
@@ -384,7 +384,7 @@ rollout memories and later consolidates them
 No built-in equivalent was found in the OpenCode V2 core and documentation
 reviewed.
 
-For Mike, cross-session recall may include user preferences and reusable
+For Beaver, cross-session recall may include user preferences and reusable
 workflow habits. Client facts, matter facts, quotations, legal conclusions,
 and document state should remain matter-scoped by default, with provenance,
 expiry, and deletion controls. They must not leak through a global narrative
@@ -410,15 +410,15 @@ memory.
 **Codex**
 
 1. Remove `--ephemeral` for chat turns.
-2. Parse `thread.started`, persist its thread ID against the Mike chat, and call
+2. Parse `thread.started`, persist its thread ID against the Beaver chat, and call
    `codex exec resume <thread-id> <new-turn>` on later turns.
-3. Keep model, reasoning effort, Codex auth identity, and Mike prompt/tool
+3. Keep model, reasoning effort, Codex auth identity, and Beaver prompt/tool
    contract in the session compatibility key.
 4. Send the current user turn and deterministic state delta, not another
    flattened copy of the entire transcript.
 5. Start a new Codex thread when the compatibility key changes, while keeping
-   the Mike transcript/state intact.
-6. Continue to use the bounded Mike MCP bridge for tool execution. Recreate the
+   the Beaver transcript/state intact.
+6. Continue to use the bounded Beaver MCP bridge for tool execution. Recreate the
    bridge endpoint per invocation if necessary; the Codex thread ID and bridge
    process lifetime are separate concerns.
 
@@ -429,7 +429,7 @@ equivalence and crash-recovery test before replacing the current path.
 
 Use the same authoritative capsule and recent-tail projection. If a provider
 has a tested native cache/session API, store that as optional provider state.
-Otherwise use the Mike summary/checkpoint fallback. Do not let provider-specific
+Otherwise use the Beaver summary/checkpoint fallback. Do not let provider-specific
 state become required for chat recovery.
 
 ### Tool exposure
@@ -562,7 +562,7 @@ not depend on a judge model.
 For the same provider/model/effort, compare:
 
 1. current full-history replay;
-2. Mike authoritative capsule + summary + recent tail;
+2. Beaver authoritative capsule + summary + recent tail;
 3. direct OpenAI native compaction/continuation; and
 4. Codex resumed thread with native compaction.
 

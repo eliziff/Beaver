@@ -99,7 +99,7 @@ export const A2AJ_TOOLS = [
     function: {
       name: A2AJ_TOOL_NAMES.lookup,
       description:
-        "Look up one exact paragraph, reporter page, section, subsection, paragraph, or subparagraph inside an A2AJ Canadian decision or law. This uses Mike's structural index and returns only the requested block instead of the entire document.",
+        "Look up one exact paragraph, reporter page, section, subsection, paragraph, or subparagraph inside an A2AJ Canadian decision or law. This uses Beaver's structural index and returns only the requested block instead of the entire document.",
       parameters: {
         type: "object",
         properties: {

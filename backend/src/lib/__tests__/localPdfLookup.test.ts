@@ -28,7 +28,7 @@ async function writeJsonLines(filePath: string, rows: object[]) {
 }
 
 async function fixture() {
-  temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-lookup-"));
+  temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-lookup-"));
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
   const sourceRelative = path.join(
     "files",

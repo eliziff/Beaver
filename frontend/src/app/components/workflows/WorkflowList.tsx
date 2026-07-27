@@ -13,13 +13,13 @@ import {
     listHiddenWorkflows,
     hideWorkflow,
     unhideWorkflow,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type { Workflow } from "../shared/types";
 import { UseWorkflowModal } from "./UseWorkflowModal";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 import { TableToolbar } from "../shared/TableToolbar";
 import { RowActionMenuItems, RowActions } from "../shared/RowActions";
-import { MikeIcon } from "@/app/components/chat/mike-icon";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
@@ -741,7 +741,7 @@ export function WorkflowList() {
                                 <TableCell className="w-44">
                                     {wf.is_system ? (
                                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
-                                            <MikeIcon size={14} />
+                                            <BeaverIcon size={14} />
                                             System
                                         </span>
                                     ) : wf.is_owner !== false ? (
@@ -872,7 +872,7 @@ function compareWorkflows(
 // and bottom inset shadow give it depth, plus a slight drop shadow so the bead
 // lifts off the row. The color class is appended per practice.
 const GLASS_DOT =
-    "h-2 w-2 shrink-0 rounded-full shadow-[inset_0_1px_0.5px_rgba(255,255,255,0.65),inset_0_-1px_1px_rgba(15,23,42,0.28),0_1px_1.5px_rgba(15,23,42,0.2)]";
+    "h-2 w-2 shrink-0 rounded-full";
 
 // Full literal class names so Tailwind's scanner keeps them (no dynamic strings).
 const PRACTICE_DOT_COLORS = [

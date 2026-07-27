@@ -4,7 +4,7 @@ Beaver is a local-first legal workspace for research, document review,
 drafting, and tables of authorities. Account-free mode stores files and chats
 on disk; Supabase and cloud storage remain optional.
 
-The checkout includes the Mike web app, a shared legal-data layer, the
+The checkout includes the Beaver web app, a shared legal-data layer, the
 universal legal-PDF engine, and the standalone/embedded Table of Authorities
 Maker.
 

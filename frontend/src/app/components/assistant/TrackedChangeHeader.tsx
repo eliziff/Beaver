@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { applyOptimisticResolution } from "./EditCard";
 import type { EditAnnotation } from "../shared/types";
 
 const PANEL_GLASS_SURFACE =
-    "rounded-2xl bg-white/58 shadow-[0_5px_15px_rgba(15,23,42,0.095),inset_0_1px_0_rgba(255,255,255,0.88),inset_0_-8px_16px_rgba(255,255,255,0.16)] backdrop-blur-2xl";
+    "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const PANEL_CARD_SURFACE = "rounded-lg bg-gray-100";
 
 type ResolveArgs = {

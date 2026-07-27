@@ -607,7 +607,7 @@ def run_codex_one(
         "prompt_chars": len(prompt),
     }
     try:
-        with tempfile.TemporaryDirectory(prefix="mike-context-b-") as temp:
+        with tempfile.TemporaryDirectory(prefix="beaver-context-b-") as temp:
             temp_path = Path(temp)
             schema_path = temp_path / "schema.json"
             output_path = temp_path / "answer.json"

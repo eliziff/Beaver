@@ -15,7 +15,6 @@ function contentTypeFor(filename: string): string {
     return contentTypeForDocumentType(suffix);
 }
 
-// GET /download/:token
 downloadsRouter.get("/:token", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;

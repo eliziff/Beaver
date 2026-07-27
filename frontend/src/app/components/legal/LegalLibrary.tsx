@@ -23,7 +23,7 @@ import {
     type LegalSourceCoverage,
     type LegalSourceReference,
     type LegalSourceSearchResult,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import { LegalSourceViewer } from "./LegalSourceViewer";
 

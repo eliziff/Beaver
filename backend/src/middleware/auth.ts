@@ -30,7 +30,7 @@ function isLoginMfaBootstrapRoute(req: Request) {
   const path = req.originalUrl.split("?")[0];
   return (
     (req.method === "GET" || req.method === "POST") &&
-    (path === "/user/profile" || path === "/users/profile")
+    path === "/user/profile"
   );
 }
 
@@ -56,7 +56,6 @@ async function enforceLoginMfaIfEnabled(
       error: error.message,
       code: error.code,
     });
-    if (error.code === "42703") return true;
     res.status(500).json({ detail: error.message });
     return false;
   }

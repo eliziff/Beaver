@@ -21,7 +21,7 @@ vi.mock("@/app/lib/supabase", () => {
     };
 });
 
-vi.mock("@/app/lib/mikeApi", () => ({
+vi.mock("@/app/lib/beaverApi", () => ({
     getUserProfile: mocks.getUserProfile,
     isMfaRequiredError: vi.fn(() => false),
     saveApiKey: vi.fn(),

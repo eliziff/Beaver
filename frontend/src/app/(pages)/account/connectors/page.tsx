@@ -18,7 +18,7 @@ import {
 } from "@/app/components/popups/MfaVerificationPopup";
 import {
     type McpConnectorSummary,
-    MikeApiError,
+    BeaverApiError,
     createMcpConnector,
     deleteMcpConnector,
     getMcpConnector,
@@ -28,7 +28,7 @@ import {
     setMcpToolEnabled,
     startMcpConnectorOAuth,
     updateMcpConnector,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import {
     accountGlassIconButtonClassName,
     accountGlassInputClassName,
@@ -365,7 +365,7 @@ export default function ConnectorsPage() {
                     refreshed = await refreshMcpConnectorTools(connector.id);
                 } catch (err) {
                     if (
-                        err instanceof MikeApiError &&
+                        err instanceof BeaverApiError &&
                         err.code === "oauth_required"
                     ) {
                         replaceConnector(connector);
@@ -491,7 +491,7 @@ export default function ConnectorsPage() {
                     replaceConnector(await refreshMcpConnectorTools(connectorId));
                 } catch (err) {
                     if (
-                        err instanceof MikeApiError &&
+                        err instanceof BeaverApiError &&
                             err.code === "oauth_required"
                     ) {
                         await connectConnectorOAuth(connectorId);
@@ -699,19 +699,19 @@ function ConnectorsSkeleton() {
                 <AccountSection key={index} className="px-4 py-3">
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3">
                         <div className="flex min-h-5 min-w-0 items-center gap-2">
-                            <div className="h-3.5 w-28 animate-pulse rounded bg-gray-100" />
+                            <div className="h-3.5 w-28 rounded bg-gray-100" />
                             <div className="h-1 w-1 rounded-full bg-gray-100" />
-                            <div className="h-3 w-12 animate-pulse rounded bg-gray-100" />
+                            <div className="h-3 w-12 rounded bg-gray-100" />
                         </div>
                         <div className="flex min-h-5 shrink-0 items-center justify-self-end gap-1.5">
-                            <div className="h-3 w-12 animate-pulse rounded bg-gray-100" />
-                            <div className="h-4 w-7 animate-pulse rounded-full bg-gray-100" />
+                            <div className="h-3 w-12 rounded bg-gray-100" />
+                            <div className="h-4 w-7 rounded-full bg-gray-100" />
                         </div>
                         <div className="flex min-h-4 min-w-0 items-center">
-                            <div className="h-3 w-full max-w-sm animate-pulse rounded bg-gray-100" />
+                            <div className="h-3 w-full max-w-sm rounded bg-gray-100" />
                         </div>
                         <div className="flex min-h-4 items-center justify-self-end">
-                            <div className="h-3 w-12 animate-pulse rounded bg-gray-100" />
+                            <div className="h-3 w-12 rounded bg-gray-100" />
                         </div>
                     </div>
                 </AccountSection>
@@ -1184,8 +1184,8 @@ function ToolListSkeleton({
                     <div key={index} className="px-3 py-2">
                         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
                             <div className="h-5 w-5" />
-                            <div className="h-3.5 w-full max-w-[220px] animate-pulse rounded bg-gray-100" />
-                            <div className="h-4 w-7 animate-pulse rounded-full bg-gray-100" />
+                            <div className="h-3.5 w-full max-w-[220px] rounded bg-gray-100" />
+                            <div className="h-4 w-7 rounded-full bg-gray-100" />
                         </div>
                     </div>
                 ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getLibrary, listProjects } from "@/app/lib/mikeApi";
+import { getLibrary, listProjects } from "@/app/lib/beaverApi";
 import type { Document, LibraryFolder, Project } from "./types";
 
 export type DirectoryTab = "files" | "templates" | "projects";

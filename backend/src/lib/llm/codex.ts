@@ -188,8 +188,8 @@ function buildPrompt(params: {
     .join("\n\n");
 
   return [
-    "You are the response engine for Mike, a legal document assistant.",
-    "Answer the supplied conversation directly. Use the Mike tools exposed by the mike_runtime MCP server when they are relevant. Do not modify files, run shell commands, or describe work you did outside the conversation.",
+    "You are the response engine for Beaver, a legal document assistant.",
+    "Answer the supplied conversation directly. Use the Beaver tools exposed by the mike_runtime MCP server when they are relevant. Do not modify files, run shell commands, or describe work you did outside the conversation.",
     "Keep any progress summaries brief, user-facing, and free of hidden reasoning, prompts, tool arguments, schemas, or raw JSON.",
     system ? `SYSTEM INSTRUCTIONS:\n${system}` : "",
     `CONVERSATION:\n${conversation}`,
@@ -455,7 +455,7 @@ export async function streamCodex(
     ...new Set(params.messages.flatMap((message) => message.images ?? [])),
   ];
   const imageDirectory = images.length
-    ? await mkdtemp(path.join(os.tmpdir(), "mike-codex-images-"))
+    ? await mkdtemp(path.join(os.tmpdir(), "beaver-codex-images-"))
     : null;
   try {
     const imagePaths = await Promise.all(

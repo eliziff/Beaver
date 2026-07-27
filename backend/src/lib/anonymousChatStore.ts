@@ -52,7 +52,7 @@ const messageSchema = z
     created_at: z.string().datetime(),
   })
   .strict();
-const legacyChatSchema = z
+const chatSchema = z
   .object({
     id: idSchema,
     user_id: idSchema,
@@ -60,17 +60,12 @@ const legacyChatSchema = z
     title: z.string().nullable(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
+    transcript_version: z.number().int().nonnegative(),
     messages: z.array(messageSchema),
   })
   .strict();
-const chatSchema = legacyChatSchema
-  .extend({ transcript_version: z.number().int().nonnegative() })
-  .strict();
 const storedChatSchema = z
   .object({ version: z.literal(2), chat: chatSchema })
-  .strict();
-const legacyStoredChatSchema = z
-  .object({ version: z.literal(1), chat: legacyChatSchema })
   .strict();
 
 const chatDirectory = path.join(legalDataHome(), "apps", "mike", "chats");
@@ -91,18 +86,8 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
 
   try {
     const raw = JSON.parse(readFileSync(chatPath(chatId), "utf8"));
-    const current = storedChatSchema.safeParse(raw);
-    const legacy = current.success
-      ? null
-      : legacyStoredChatSchema.safeParse(raw);
-    const chat = current.success
-      ? current.data.chat
-      : legacy?.success
-        ? {
-            ...legacy.data.chat,
-            transcript_version: legacy.data.chat.messages.length,
-          }
-        : null;
+    const parsed = storedChatSchema.safeParse(raw);
+    const chat = parsed.success ? parsed.data.chat : null;
     if (
       !chat ||
       chat.id !== chatId ||

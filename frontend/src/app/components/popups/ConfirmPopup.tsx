@@ -60,7 +60,7 @@ export function ConfirmPopup({
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[230] flex justify-center px-4">
             <div
                 className={cn(
-                    "pointer-events-auto w-[min(92vw,520px)] rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm shadow-[0_4px_14px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] backdrop-blur-2xl",
+                    "pointer-events-auto w-[min(92vw,520px)] rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm",
                     className,
                 )}
             >

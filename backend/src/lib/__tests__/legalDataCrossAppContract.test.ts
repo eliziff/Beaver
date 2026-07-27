@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { legalDataHome, legalProviderDatabase } from "../legalDataPath";
 
-describe("Mike and Table of Authorities shared-data contract", () => {
+describe("Beaver and Table of Authorities shared-data contract", () => {
   it("resolve one A2AJ database under OPEN_LEGAL_DATA_HOME", () => {
     const override = path.join(os.tmpdir(), "open-legal-data-contract");
     const previous = process.env.OPEN_LEGAL_DATA_HOME;

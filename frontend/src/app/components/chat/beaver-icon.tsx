@@ -1,30 +1,17 @@
-"use client";
+import type { CSSProperties } from "react";
 
-import React from "react";
-
-export function MikeIcon({
-    spin = false,
-    done = false,
-    error = false,
-    mike = false,
+export function BeaverIcon({
     size = 24,
     style,
 }: {
-    spin?: boolean;
-    done?: boolean;
-    error?: boolean;
-    mike?: boolean;
     size?: number;
-    style?: React.CSSProperties;
+    style?: CSSProperties;
 }) {
-    void mike;
-    const color = error ? "#991b1b" : done ? "#166534" : "#d52b1e";
-
     return (
         <span
             aria-hidden="true"
-            className={`maple-leaf-mark${spin ? " maple-leaf-mark--active" : ""}`}
-            style={{ color, ...style }}
+            className="maple-leaf-mark"
+            style={{ color: "#d52b1e", ...style }}
         >
             <svg
                 viewBox="0 0 64 64"

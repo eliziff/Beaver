@@ -25,7 +25,7 @@ import {
     isDocxFilename,
     isSpreadsheetFilename,
 } from "@/app/components/shared/types";
-import type { DocumentVersion } from "@/app/lib/mikeApi";
+import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { formatBytes } from "@/app/components/projects/ProjectPageParts";
@@ -523,7 +523,7 @@ export function DocumentSidePanel({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/55 text-gray-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.55),0_6px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-colors hover:bg-white/75 hover:text-gray-700"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 hover:text-gray-700"
                         aria-label="Close"
                     >
                         <X className="h-3.5 w-3.5" />
@@ -767,7 +767,7 @@ export function DocumentSidePanel({
                                                 }}
                                                 aria-disabled={deleted}
                                                 className={cn(
-                                                    "group relative flex w-full flex-col overflow-hidden rounded-lg border border-white/70 bg-white px-3 py-2 shadow-[0_1px_4px_rgba(15,23,42,0.045),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-xl transition-all hover:bg-white",
+                                                    "group relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-2 hover:bg-gray-50",
                                                     deleted
                                                         ? "cursor-not-allowed opacity-55"
                                                         : "cursor-pointer",
@@ -1068,7 +1068,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
 function VersionUploadSkeleton() {
     return (
         <div className="rounded-lg border border-white/70 bg-white px-3 py-2 shadow-[0_1px_4px_rgba(15,23,42,0.045),inset_0_1px_0_rgba(255,255,255,0.72)]">
-            <div className="animate-pulse space-y-2">
+            <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         <div className="h-3 w-3 shrink-0 rounded bg-gray-200" />

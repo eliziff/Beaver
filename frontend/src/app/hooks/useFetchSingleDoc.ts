@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getAuthHeader } from "@/app/lib/mikeApi";
+import { getAuthHeader } from "@/app/lib/beaverApi";
 
 /**
  * /display returns PDF bytes (when the active version has a PDF rendition),

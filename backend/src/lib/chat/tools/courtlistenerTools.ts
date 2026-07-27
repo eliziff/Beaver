@@ -90,7 +90,7 @@ Workflow:
 
 Citation rules:
 - Final case citations must be based on opinion text or passage snippets supplied in this turn. Do not cite cases based only on memory, metadata, search results, citationLinks, or verification results.
-- If you mention a CourtListener case as legal support in the final answer, add an inline [N] marker. Do not construct or repeat a CourtListener markdown link; Mike attaches a verified opinion-text link automatically.
+- If you mention a CourtListener case as legal support in the final answer, add an inline [N] marker. Do not construct or repeat a CourtListener markdown link; Beaver attaches a verified opinion-text link automatically.
 - Assign new annotation refs in first-use order as much as possible: [1], then [2], then [3]. Reuse an existing ref when citing the same case/passage again, even if that means a later sentence cites [3] and then [1] again.
 - The final <CITATIONS> block must include one matching case entry for each [N] case marker: {"ref": N, "cluster_id": 123, "quotes": [{"opinion_id": 456, "quote": "exact verbatim opinion text"}]}.
 - Do not use doc_id, page, top-level quote, case_name, or citation fields in case entries.
@@ -181,7 +181,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.lookupCaseLocator,
       description:
-        "Look up one numbered paragraph, reporter page, or numbered section in an already-fetched CourtListener case. Mike uses provider-native structure when present and reconstructs missing structure from the opinion text. It returns only the selected block and small optional neighboring context.",
+        "Look up one numbered paragraph, reporter page, or numbered section in an already-fetched CourtListener case. Beaver uses provider-native structure when present and reconstructs missing structure from the opinion text. It returns only the selected block and small optional neighboring context.",
       parameters: {
         type: "object",
         properties: {

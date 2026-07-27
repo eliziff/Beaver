@@ -60,7 +60,7 @@ describe("local assistant tools", () => {
   });
 
   it("creates and immutably revises a matter DOCX across reloads", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     vi.doMock("../convert", async (importOriginal) => ({
       ...(await importOriginal<typeof import("../convert")>()),
@@ -415,7 +415,7 @@ describe("local assistant tools", () => {
   });
 
   it("rolls back a generated DOCX when matter attachment fails", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     vi.doMock("../convert", async (importOriginal) => ({
       ...(await importOriginal<typeof import("../convert")>()),
@@ -468,8 +468,8 @@ describe("local assistant tools", () => {
     }
   });
 
-  it("discovers documents in the local Mike Library", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+  it("discovers documents in the local Beaver Library", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const tools = await import("../chat/localAssistantTools");
@@ -511,7 +511,7 @@ describe("local assistant tools", () => {
   });
 
   it("does not expose local paths for a missing evidence receipt", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const tools = await import("../chat/localAssistantTools");
 
@@ -532,7 +532,7 @@ describe("local assistant tools", () => {
   });
 
   it("submits only an owned Library DOCX version to the ToA bridge", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const jobId = "a".repeat(32);
     const submit = vi.fn().mockResolvedValue({

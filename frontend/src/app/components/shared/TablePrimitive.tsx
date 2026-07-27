@@ -154,7 +154,7 @@ export function TableFilters<T extends string>({
 export function SkeletonLine({ className }: { className?: string }) {
     return (
         <div
-            className={cn("h-3 rounded bg-gray-100 animate-pulse", className)}
+            className={cn("h-3 rounded bg-gray-100", className)}
         />
     );
 }
@@ -163,7 +163,7 @@ export function SkeletonDot({ className }: { className?: string }) {
     return (
         <div
             className={cn(
-                "h-2.5 w-2.5 shrink-0 rounded bg-gray-100 animate-pulse",
+                "h-2.5 w-2.5 shrink-0 rounded bg-gray-100",
                 className,
             )}
         />
@@ -215,7 +215,7 @@ export function TableHeaderRow({ children, className, ...props }: DivProps) {
     return (
         <div
             className={cn(
-                "z-[70] flex h-10 min-w-max items-center bg-app-surface pr-3 text-xs font-medium text-gray-500 select-none backdrop-blur-xl",
+                "z-[70] flex h-10 min-w-max items-center bg-app-surface pr-3 text-xs font-medium text-gray-500 select-none",
                 className,
             )}
             {...props}

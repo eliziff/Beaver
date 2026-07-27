@@ -78,10 +78,10 @@ type TRPanelCitation = {
 };
 
 const FLAG_BADGE: Record<string, string> = {
-    green: "bg-emerald-600 backdrop-blur-md border border-emerald-300/20 text-white shadow-md",
-    grey: "bg-slate-500 backdrop-blur-md border border-slate-300/20 text-white shadow-md",
-    yellow: "bg-amber-500 backdrop-blur-md border border-amber-300/20 text-white shadow-md",
-    red: "bg-red-600 backdrop-blur-md border border-red-300/20 text-white shadow-md",
+    green: "bg-emerald-600 border border-emerald-700 text-white shadow-sm",
+    grey: "bg-slate-500 border border-slate-600 text-white shadow-sm",
+    yellow: "bg-amber-500 border border-amber-600 text-white shadow-sm",
+    red: "bg-red-600 border border-red-700 text-white shadow-sm",
 };
 
 const MIN_DOCUMENT_PANE_WIDTH = 420;
@@ -344,8 +344,16 @@ export function TRSidePanel({
                     ) : (
                         <PdfView
                             doc={{ document_id: doc.id }}
-                            quote={docCitation?.quote}
-                            fallbackPage={docCitation?.page}
+                            quotes={
+                                docCitation
+                                    ? [
+                                          {
+                                              page: docCitation.page,
+                                              quote: docCitation.quote,
+                                          },
+                                      ]
+                                    : undefined
+                            }
                         />
                     )}
                 </div>
@@ -400,7 +408,7 @@ export function TRSidePanel({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/55 text-gray-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.55),0_6px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-colors hover:bg-white/75 hover:text-gray-700"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700"
                         aria-label="Close"
                     >
                         <X className="h-3.5 w-3.5" />

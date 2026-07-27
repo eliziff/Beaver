@@ -1,5 +1,5 @@
 import { SETTINGS_MODELS, type ModelOption } from "../components/assistant/ModelToggle";
-import type { ApiKeyState } from "@/app/lib/mikeApi";
+import type { ApiKeyState } from "@/app/lib/beaverApi";
 
 export type ModelProvider =
     | "claude"

@@ -20,7 +20,7 @@ type MfaFactor = {
 };
 
 const authGlassCardClassName =
-    "rounded-2xl border border-white/70 bg-white/72 px-8 py-8 shadow-[0_4px_14px_rgba(15,23,42,0.045),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-8px_18px_rgba(255,255,255,0.12)] backdrop-blur-2xl";
+    "rounded-2xl border border-gray-200 bg-white px-8 py-8 shadow-sm";
 
 export default function VerifyMfaPage() {
     const router = useRouter();

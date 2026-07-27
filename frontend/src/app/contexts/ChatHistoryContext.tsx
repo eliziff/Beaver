@@ -9,13 +9,14 @@ import {
     useState,
     type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import {
     createChat,
     deleteChat,
     listChats,
     renameChat,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import type { Chat, Message } from "@/app/components/shared/types";
 
 interface ChatHistoryContextType {
@@ -46,6 +47,11 @@ const CHAT_LIMIT_INCREMENT = 10;
 
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
+    const pathname = usePathname();
+    const displaysAssistantHistory =
+        pathname === null ||
+        pathname === "/assistant" ||
+        pathname.startsWith("/assistant/");
     const [chats, setChats] = useState<Chat[] | null>(null);
     const [chatLimit, setChatLimit] = useState(INITIAL_CHAT_LIMIT);
     const [hasMoreChats, setHasMoreChats] = useState(false);
@@ -81,8 +87,9 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             return;
         }
 
+        if (!displaysAssistantHistory) return;
         void loadChats();
-    }, [user, loadChats]);
+    }, [user, displaysAssistantHistory, loadChats]);
 
     const loadMoreChats = useCallback(() => {
         setChatLimit((prev) => prev + CHAT_LIMIT_INCREMENT);

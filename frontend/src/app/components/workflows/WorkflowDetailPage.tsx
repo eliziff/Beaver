@@ -24,7 +24,7 @@ import {
     shareWorkflow,
     updateWorkflow,
     type ProjectPeople,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { UseWorkflowModal } from "@/app/components/workflows/UseWorkflowModal";
 import { WFEditColumnModal } from "@/app/components/workflows/WFEditColumnModal";
 import { WFColumnViewModal } from "@/app/components/workflows/WFColumnViewModal";
@@ -850,21 +850,21 @@ function AssistantWorkflowEditorSkeleton() {
                 className={`h-full px-5 py-4 ${LIQUID_TABLE_SURFACE_CLASS}`}
             >
                 <div className="space-y-3">
-                    <div className="h-3 w-24 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-5/6 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-3/4 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-4/5 animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-24 rounded bg-gray-100" />
+                    <div className="h-3 w-5/6 rounded bg-gray-100" />
+                    <div className="h-3 w-3/4 rounded bg-gray-100" />
+                    <div className="h-3 w-4/5 rounded bg-gray-100" />
                 </div>
                 <div className="mt-8 space-y-3">
-                    <div className="h-3 w-28 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-11/12 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-2/3 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-10/12 animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-28 rounded bg-gray-100" />
+                    <div className="h-3 w-11/12 rounded bg-gray-100" />
+                    <div className="h-3 w-2/3 rounded bg-gray-100" />
+                    <div className="h-3 w-10/12 rounded bg-gray-100" />
                 </div>
                 <div className="mt-8 space-y-3">
-                    <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-4/6 animate-pulse rounded bg-gray-100" />
-                    <div className="h-3 w-5/6 animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-20 rounded bg-gray-100" />
+                    <div className="h-3 w-4/6 rounded bg-gray-100" />
+                    <div className="h-3 w-5/6 rounded bg-gray-100" />
                 </div>
             </div>
         </div>

@@ -8,7 +8,7 @@ import {
     listWorkflows,
     uploadProjectDocument,
     uploadStandaloneDocument,
-} from "@/app/lib/mikeApi";
+} from "@/app/lib/beaverApi";
 import { FileDirectory } from "../shared/FileDirectory";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
