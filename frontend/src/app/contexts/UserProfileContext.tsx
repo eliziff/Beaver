@@ -4,11 +4,13 @@ import React, {
     createContext,
     useContext,
     useEffect,
+    useRef,
     useState,
     ReactNode,
     useCallback,
 } from "react";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import {
     type ApiKeyState,
     type ApiKeyProvider,
@@ -97,22 +99,28 @@ function toProfile(data: ApiUserProfile): UserProfile {
 }
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, authLoading } = useAuth();
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [loading, setLoading] = useState(true);
     const userId = user?.id ?? null;
+    const [profileUserId, setProfileUserId] = useState<string | null>(null);
+    const profileRequest = useRef(0);
+    const loading =
+        !isAnonymousMode &&
+        (authLoading || (isAuthenticated && profileUserId !== userId));
 
-    const loadProfile = useCallback(async () => {
+    const loadProfile = useCallback(async (targetUserId: string) => {
+        const request = ++profileRequest.current;
+        let nextProfile: UserProfile;
         try {
             const profileData = await getUserProfile();
-            setProfile(toProfile(profileData));
+            nextProfile = toProfile(profileData);
         } catch {
             // Calculate a default future reset date for fallback
             const futureResetDate = new Date();
             futureResetDate.setDate(futureResetDate.getDate() + 30);
 
             // Set fallback profile data on exception
-            setProfile({
+            nextProfile = {
                 displayName: null,
                 organisation: null,
                 messageCreditsUsed: 0,
@@ -124,21 +132,24 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 mfaOnLogin: false,
                 legalResearchUs: true,
                 apiKeys: emptyApiKeys(),
-            });
-        } finally {
-            setLoading(false);
+            };
         }
+        if (request !== profileRequest.current) return;
+        setProfile(nextProfile);
+        setProfileUserId(targetUserId);
     }, []);
 
     useEffect(() => {
+        if (authLoading) return;
         if (isAuthenticated && userId) {
-            setLoading(true);
-            loadProfile();
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- starts an async API-backed profile refresh
+            void loadProfile(userId);
         } else {
+            profileRequest.current += 1;
             setProfile(null);
-            setLoading(false);
+            setProfileUserId(null);
         }
-    }, [isAuthenticated, userId, loadProfile]);
+    }, [authLoading, isAuthenticated, userId, loadProfile]);
 
     const updateDisplayName = useCallback(
         async (displayName: string): Promise<boolean> => {
@@ -266,7 +277,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
     const reloadProfile = useCallback(async () => {
         if (userId) {
-            await loadProfile();
+            await loadProfile(userId);
         }
     }, [userId, loadProfile]);
 

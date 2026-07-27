@@ -8,7 +8,7 @@ import React, {
     ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { isAnonymousMode, supabase } from "@/app/lib/supabase";
+import { isAnonymousMode } from "@/app/lib/authMode";
 
 interface User {
     id: string;
@@ -47,37 +47,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (isAnonymousMode) return;
 
-        const checkUser = async () => {
+        let cancelled = false;
+        let unsubscribe: (() => void) | undefined;
+
+        async function startCloudAuth() {
+            const { supabase } = await import("@/app/lib/supabase");
+            if (cancelled) return;
+
             const {
-                data: { session },
-            } = await supabase.auth.getSession();
+                data: { subscription },
+            } = supabase.auth.onAuthStateChange((_event, session) => {
+                if (cancelled) return;
+                setUser(session?.user ? toUser(session.user) : null);
+                setAuthLoading(false);
+            });
+            unsubscribe = () => subscription.unsubscribe();
+        }
 
-            if (session?.user) {
-                setUser(toUser(session.user));
-            }
-            setAuthLoading(false);
-        };
-
-        checkUser();
-
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session?.user) {
-                setUser(toUser(session.user));
-            } else {
-                setUser(null);
-            }
-            setAuthLoading(false);
+        void startCloudAuth().catch(() => {
+            if (!cancelled) setAuthLoading(false);
         });
 
         return () => {
-            subscription.unsubscribe();
+            cancelled = true;
+            unsubscribe?.();
         };
     }, []);
 
     const signOut = async () => {
         if (isAnonymousMode) return;
+        const { supabase } = await import("@/app/lib/supabase");
         await supabase.auth.signOut({ scope: "local" });
         setUser(null);
     };
@@ -86,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isAnonymousMode) {
             throw new Error("Accounts are disabled in anonymous mode");
         }
+        const { supabase } = await import("@/app/lib/supabase");
         const redirectTo =
             typeof window === "undefined"
                 ? undefined

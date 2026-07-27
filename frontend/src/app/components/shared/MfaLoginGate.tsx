@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { FullScreenLoader } from "@/app/components/shared/FullScreenLoader";
-import { needsMfaVerification } from "../popups/MfaVerificationPopup";
 
 type GateState = "idle" | "checking" | "required" | "verified";
 const MFA_VERIFIED_AT_KEY = "mike:mfa-verified-at";
@@ -46,6 +45,9 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
 
         async function checkLoginMfa() {
             try {
+                const { needsMfaVerification } = await import(
+                    "../popups/MfaVerificationPopup"
+                );
                 const required = await needsMfaVerification();
                 if (cancelled) return;
                 setGateState(required ? "required" : "verified");
