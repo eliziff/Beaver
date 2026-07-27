@@ -31,6 +31,12 @@ describe("local assistant tools", () => {
       )?.function.description,
     ).toContain("do not read, split, classify, or construct citation URLs");
     expect(names).toContain("library_fix_docx_supras");
+    expect(names).toContain("library_lint_docx_structure");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_lint_docx_structure",
+      )?.function.description,
+    ).toContain("instead of asking the model");
     expect(names).toContain("provider_pdf_lookup");
     expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
@@ -111,6 +117,36 @@ describe("local assistant tools", () => {
       expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([
         created.document_id,
       ]);
+
+      const [draftingReadResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-drafting-read",
+            name: "library_read",
+            input: {
+              document_id: created.document_id,
+              mode: "drafting",
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      const draftingRead = JSON.parse(draftingReadResponse.content);
+
+      expect(draftingRead).toMatchObject({
+        ok: true,
+        format: "beaver-precedent-html-v1",
+        document_id: created.document_id,
+        version_id: created.version_id,
+      });
+      expect(draftingRead.source_sha256).toBe(created.source_sha256);
+      expect(draftingRead.html).toContain("<h1>Background</h1>");
+      expect(draftingRead.html).toContain("footnote");
 
       const [revisedResponse] = await tools.runLocalAssistantTools(
         "local-user",
