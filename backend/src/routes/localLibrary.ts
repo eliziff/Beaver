@@ -31,6 +31,7 @@ import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../lib/docxDeterministicCleanup";
 import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
+import { getCodexModelCatalog } from "../lib/codexCatalog";
 
 export const localLibraryRouter = Router();
 
@@ -344,8 +345,63 @@ localLibraryRouter.post(
         .status(400)
         .json({ detail: "ocr_provider must be tesseract" });
     }
+    const repairBody = req.body?.repair;
+    let requestedRepair:
+      | {
+          model: string;
+          effort: string;
+        }
+      | undefined;
+    if (repairBody !== undefined) {
+      if (
+        !repairBody ||
+        typeof repairBody !== "object" ||
+        Array.isArray(repairBody) ||
+        typeof repairBody.model !== "string" ||
+        !repairBody.model.startsWith("codex:") ||
+        repairBody.model.length <= "codex:".length ||
+        repairBody.model.length > 166 ||
+        /[\u0000-\u001f\u007f]/u.test(repairBody.model) ||
+        repairBody.model.slice("codex:".length).trim() !==
+          repairBody.model.slice("codex:".length) ||
+        typeof repairBody.effort !== "string" ||
+        !/^[A-Za-z0-9_-]{1,32}$/u.test(repairBody.effort)
+      ) {
+        return void res.status(400).json({
+          detail:
+            "Structural repair requires a Codex model and reasoning effort selected in Assistant",
+        });
+      }
+      requestedRepair = {
+        model: repairBody.model.slice("codex:".length),
+        effort: repairBody.effort,
+      };
+      const catalog = await getCodexModelCatalog();
+      if (catalog.source === "unavailable") {
+        return void res
+          .status(503)
+          .json({ detail: "Codex model catalog is unavailable" });
+      }
+      const catalogModel = catalog.models.find(
+        (model) => model.slug === requestedRepair?.model,
+      );
+      if (
+        !catalogModel ||
+        !catalogModel.supportedReasoningLevels.some(
+          (level) => level.effort === requestedRepair?.effort,
+        )
+      ) {
+        return void res.status(400).json({
+          detail:
+            "The selected Codex model or reasoning effort is not available",
+        });
+      }
+    }
+    const current =
+      requestedOcrProvider === "tesseract" || requestedRepair
+        ? await readLocalPdfParseState(file.path)
+        : null;
     if (requestedOcrProvider === "tesseract") {
-      const current = await readLocalPdfParseState(file.path);
       if (
         !current?.diagnostic_summary?.by_code ||
         !(Number(current.diagnostic_summary.by_code.OCR_REQUIRED) > 0)
@@ -354,6 +410,11 @@ localLibraryRouter.post(
           .status(409)
           .json({ detail: "No PDF pages currently require OCR" });
       }
+    }
+    if (requestedRepair && current?.structural_repair_available !== true) {
+      return void res.status(409).json({
+        detail: "No unresolved PDF structure is eligible for bounded repair",
+      });
     }
     try {
       const state = await queueLocalPdfParse({
@@ -368,9 +429,16 @@ localLibraryRouter.post(
         ...(requestedOcrProvider === "tesseract"
           ? { ocrProvider: "tesseract" as const }
           : {}),
+        ...(requestedRepair ? { repair: requestedRepair } : {}),
       });
       res.status(202).json(state);
     } catch (error) {
+      if (requestedRepair) {
+        return void res.status(503).json({
+          detail:
+            "Structural repair could not start. Check the local Codex installation and retry.",
+        });
+      }
       if (requestedOcrProvider !== "tesseract") throw error;
       const message = error instanceof Error ? error.message : "";
       res.status(503).json({

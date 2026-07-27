@@ -57,15 +57,35 @@ export interface PdfParseState {
   parser_version: string;
   parser_config_version: string;
   parser_config: {
-    mode: "local";
+    mode: "local" | "codex";
     ocr_provider: "tesseract" | null;
+    ocr_identity?: string;
     ocr_language?: string;
     ocr_dpi?: number;
     ocr_psm?: number;
-    model: null;
-    prompt_version: null;
+    model: string | null;
+    effort?: string | null;
+    prompt_version: string | null;
+    response_schema_sha256?: string | null;
+    repairable_diagnostics_sha256?: string | null;
+    repairable_diagnostics?: string[];
+    context_radius?: number | null;
+    max_attempts?: number | null;
+    max_live_calls?: number | null;
+    max_scope_pages?: number | null;
     text_fidelity_root: string | null;
     text_fidelity_native: false;
+  };
+  repair_contract?: {
+    schema_version: "legalpdf.codex.repair-identity.v1";
+    prompt_version: string;
+    response_schema_sha256: string;
+    repairable_diagnostics_sha256: string;
+    repairable_diagnostics: string[];
+    context_radius: number;
+    max_attempts: number;
+    max_live_calls: number;
+    max_scope_pages: number;
   };
   cache_key: string;
   artifact_manifest: string;
@@ -84,6 +104,7 @@ export interface PdfParseState {
     by_severity: Record<string, number>;
     by_code: Record<string, number>;
   };
+  structural_repair_available?: boolean;
   error?: string;
   flat_text_fallback_available: true;
 }

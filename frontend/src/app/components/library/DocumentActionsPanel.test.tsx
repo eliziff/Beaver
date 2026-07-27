@@ -78,6 +78,7 @@ const degradedParse: PdfParseState = {
 describe("DocumentActionsPanel", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        window.localStorage.clear();
     });
 
     it("stays non-modal, docks to either side, and minimizes", async () => {
@@ -182,6 +183,7 @@ describe("DocumentActionsPanel", () => {
         expect(retryLibraryPdfParse).toHaveBeenCalledWith(
             "pdf-1",
             "version-1",
+            undefined,
         );
         await waitFor(() =>
             expect(screen.getByLabelText("PDF parse status")).toHaveTextContent(
@@ -241,13 +243,119 @@ describe("DocumentActionsPanel", () => {
         expect(retryLibraryPdfParse).toHaveBeenCalledWith(
             "pdf-1",
             "version-1",
-            "tesseract",
+            { ocrProvider: "tesseract" },
         );
         await waitFor(() =>
             expect(screen.getByLabelText("PDF parse status")).toHaveTextContent(
                 "Queued",
             ),
         );
+    });
+
+    it("offers bounded repair only for eligible diagnostics and reuses Assistant settings", async () => {
+        const user = userEvent.setup();
+        window.localStorage.setItem(
+            "mike.selectedModel",
+            "codex:gpt-5.6-luna",
+        );
+        window.localStorage.setItem("mike.reasoningEffort", "max");
+        const repairable: PdfParseState = {
+            ...degradedParse,
+            structural_repair_available: true,
+            diagnostic_count: 1,
+            diagnostic_summary: {
+                by_severity: { warning: 1 },
+                by_code: { COLUMN_ORDER_UNCERTAIN: 1 },
+            },
+        };
+        const queued: PdfParseState = {
+            ...repairable,
+            status: "queued",
+            parser_config: {
+                ...repairable.parser_config,
+                mode: "codex",
+                model: "gpt-5.6-luna",
+                effort: "max",
+                prompt_version: "legalpdf.codex.structure.r1.v2",
+                response_schema_sha256: "b".repeat(64),
+                context_radius: 1,
+                max_attempts: 3,
+            },
+        };
+        vi.mocked(getLibraryPdfParseState)
+            .mockResolvedValueOnce(repairable)
+            .mockResolvedValue(queued);
+        vi.mocked(retryLibraryPdfParse).mockResolvedValue(queued);
+        const pdf: Document = {
+            ...selectedDocument,
+            id: "pdf-1",
+            filename: "columns.pdf",
+            file_type: "pdf",
+            current_version_id: "version-1",
+        };
+
+        render(
+            <DocumentActionsPanel
+                open
+                onClose={vi.fn()}
+                document={pdf}
+                onDocumentChanged={vi.fn().mockResolvedValue(undefined)}
+            />,
+        );
+
+        await user.click(
+            await screen.findByRole("button", {
+                name: "Repair uncertain structure",
+            }),
+        );
+
+        expect(retryLibraryPdfParse).toHaveBeenCalledWith(
+            "pdf-1",
+            "version-1",
+            {
+                repair: {
+                    model: "codex:gpt-5.6-luna",
+                    effort: "max",
+                },
+            },
+        );
+    });
+
+    it("does not send repair with a non-Codex Assistant selection", async () => {
+        const user = userEvent.setup();
+        const repairable: PdfParseState = {
+            ...degradedParse,
+            structural_repair_available: true,
+        };
+        vi.mocked(getLibraryPdfParseState).mockResolvedValue(repairable);
+        const pdf: Document = {
+            ...selectedDocument,
+            id: "pdf-1",
+            filename: "columns.pdf",
+            file_type: "pdf",
+            current_version_id: "version-1",
+        };
+
+        render(
+            <DocumentActionsPanel
+                open
+                onClose={vi.fn()}
+                document={pdf}
+                onDocumentChanged={vi.fn().mockResolvedValue(undefined)}
+            />,
+        );
+        await user.click(
+            await screen.findByRole("button", {
+                name: "Repair uncertain structure",
+            }),
+        );
+
+        expect(
+            screen.getByText(
+                "Choose a Codex model and reasoning effort in Assistant first.",
+            ),
+        ).toBeInTheDocument();
+        expect(retryLibraryPdfParse).not.toHaveBeenCalled();
     });
 
     it("bounds background checks to the active selected PDF", async () => {

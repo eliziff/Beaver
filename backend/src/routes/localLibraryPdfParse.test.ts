@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   queueLocalPdfParse: vi.fn(),
   readLocalPdfEvidenceReceipt: vi.fn(),
   rehydrateLocalPdfEvidence: vi.fn(),
+  getCodexModelCatalog: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isAnonymousLocalMode: () => true }));
@@ -26,6 +27,9 @@ vi.mock("../lib/localPdfLookup", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/localPdfLookup")>()),
   readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
   rehydrateLocalPdfEvidence: mocks.rehydrateLocalPdfEvidence,
+}));
+vi.mock("../lib/codexCatalog", () => ({
+  getCodexModelCatalog: mocks.getCodexModelCatalog,
 }));
 
 import { localLibraryRouter } from "./localLibrary";
@@ -58,6 +62,16 @@ beforeEach(() => {
     source: { document_id: "document-1", version_id: "version-1" },
   });
   mocks.rehydrateLocalPdfEvidence.mockResolvedValue({ status: "found" });
+  mocks.getCodexModelCatalog.mockResolvedValue({
+    source: "live",
+    models: [
+      {
+        slug: "gpt-5.6-luna",
+        displayName: "GPT-5.6 Luna",
+        supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
+      },
+    ],
+  });
 });
 
 describe("local Library PDF parse routes", () => {
@@ -147,6 +161,62 @@ describe("local Library PDF parse routes", () => {
     expect(response.body).toEqual({
       detail: "No PDF pages currently require OCR",
     });
+  });
+
+  it("queues opt-in structural repair with the selected Codex settings", async () => {
+    mocks.readLocalPdfParseState.mockResolvedValue({
+      status: "degraded",
+      structural_repair_available: true,
+    });
+
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({
+        version_id: "version-1",
+        repair: { model: "codex:gpt-5.6-luna", effort: "max" },
+      });
+
+    expect(response.status).toBe(202);
+    expect(mocks.queueLocalPdfParse).toHaveBeenCalledWith({
+      documentId: "document-1",
+      versionId: "version-1",
+      sourcePath: "C:\\data\\source.pdf",
+      sourceSha256: "a".repeat(64),
+      force: true,
+      repair: { model: "gpt-5.6-luna", effort: "max" },
+    });
+  });
+
+  it("fails closed for non-Codex repair settings or ineligible diagnostics", async () => {
+    const nonCodex = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({
+        repair: { model: "deepseek:deepseek-chat", effort: "low" },
+      });
+
+    expect(nonCodex.status).toBe(400);
+    expect(nonCodex.body.detail).toContain("requires a Codex model");
+
+    const unsupportedEffort = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({
+        repair: { model: "codex:gpt-5.6-luna", effort: "ultra" },
+      });
+
+    expect(unsupportedEffort.status).toBe(400);
+    expect(unsupportedEffort.body.detail).toContain("is not available");
+
+    const ineligible = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({
+        repair: { model: "codex:gpt-5.6-luna", effort: "low" },
+      });
+
+    expect(ineligible.status).toBe(409);
+    expect(ineligible.body).toEqual({
+      detail: "No unresolved PDF structure is eligible for bounded repair",
+    });
+    expect(mocks.queueLocalPdfParse).not.toHaveBeenCalled();
   });
 
   it("rehydrates evidence only inside the matching Library kind", async () => {
