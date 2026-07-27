@@ -6,7 +6,8 @@ import type {
 } from "./types";
 import { toGeminiTools } from "./tools";
 import { abortError, throwIfAborted } from "./abort";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { requireApiKey } from "./apiKeys";
+import { createLlmTrace } from "./rawStreamLog";
 
 type GeminiPart = {
   text?: string;
@@ -31,18 +32,10 @@ type GeminiContent = {
   parts: GeminiPart[];
 };
 
-function apiKey(override?: string | null): string {
-  const key = override?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
-  if (!key) {
-    throw new Error(
-      "Gemini API key is not configured. Set GEMINI_API_KEY or add a user Gemini key.",
-    );
-  }
-  return key;
-}
-
 function client(override?: string | null): GoogleGenAI {
-  return new GoogleGenAI({ apiKey: apiKey(override) });
+  return new GoogleGenAI({
+    apiKey: requireApiKey(override, ["GEMINI_API_KEY"], "Gemini"),
+  });
 }
 
 export function toNativeContents(
@@ -174,10 +167,7 @@ export async function streamGemini(
 
   const contents: GeminiContent[] = toNativeContents(params.messages);
   let fullText = "";
-  const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: "gemini",
-    model,
-  });
+  const trace = createLlmTrace({ provider: "gemini", model });
 
   try {
     for (let iter = 0; iter < maxIter; iter++) {
@@ -228,18 +218,7 @@ export async function streamGemini(
             abortPromise,
           ]);
           if (done) break;
-          logRawLlmStream({
-            provider: "gemini",
-            model,
-            iteration: iter,
-            label: "chunk",
-            payload: chunk,
-          });
-          rawStreamRecorder?.record({
-            iteration: iter,
-            label: "chunk",
-            payload: chunk,
-          });
+          trace.record({ iteration: iter, label: "chunk", payload: chunk });
           const failureMessage = geminiStreamFailureMessage(chunk);
           if (failureMessage) throw new Error(failureMessage);
 
@@ -319,10 +298,10 @@ export async function streamGemini(
       });
     }
 
-    await rawStreamRecorder?.flush("completed");
+    await trace.flush("completed");
     return { fullText };
   } catch (error) {
-    await rawStreamRecorder?.flush("error", error);
+    await trace.flush("error", error);
     throw error;
   }
 }

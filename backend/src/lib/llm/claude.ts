@@ -8,7 +8,8 @@ import type {
 } from "./types";
 import { toClaudeTools } from "./tools";
 import { abortError, throwIfAborted } from "./abort";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { requireApiKey } from "./apiKeys";
+import { createLlmTrace } from "./rawStreamLog";
 
 type ContentBlock =
   | { type: "text"; text: string }
@@ -30,19 +31,10 @@ type NativeMessage = {
 
 const MAX_TOKENS = 16384;
 
-function apiKey(override?: string | null): string {
-  const key = override?.trim() || process.env.ANTHROPIC_API_KEY?.trim() || "";
-  if (!key) {
-    throw new Error(
-      "Anthropic API key is not configured. Set ANTHROPIC_API_KEY or add a user Anthropic key.",
-    );
-  }
-  return key;
-}
-
 function client(override?: string | null): Anthropic {
-  const apiKeyValue = apiKey(override);
-  return new Anthropic({ apiKey: apiKeyValue });
+  return new Anthropic({
+    apiKey: requireApiKey(override, ["ANTHROPIC_API_KEY"], "Anthropic"),
+  });
 }
 
 export function toNativeMessages(
@@ -134,10 +126,7 @@ export async function streamClaude(
 
   const messages: NativeMessage[] = toNativeMessages(params.messages);
   let fullText = "";
-  const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: "claude",
-    model,
-  });
+  const trace = createLlmTrace({ provider: "claude", model });
 
   try {
     for (let iter = 0; iter < maxIter; iter++) {
@@ -170,18 +159,7 @@ export async function streamClaude(
       });
 
       stream.on("streamEvent", (event) => {
-        logRawLlmStream({
-          provider: "claude",
-          model,
-          iteration: iter,
-          label: "streamEvent",
-          payload: event,
-        });
-        rawStreamRecorder?.record({
-          iteration: iter,
-          label: "streamEvent",
-          payload: event,
-        });
+        trace.record({ iteration: iter, label: "streamEvent", payload: event });
         const failureMessage = claudeStreamFailureMessage(event);
         if (failureMessage) {
           streamFailureMessage = failureMessage;
@@ -189,18 +167,7 @@ export async function streamClaude(
         }
       });
       stream.on("error", (error) => {
-        logRawLlmStream({
-          provider: "claude",
-          model,
-          iteration: iter,
-          label: "error",
-          payload: error,
-        });
-        rawStreamRecorder?.record({
-          iteration: iter,
-          label: "error",
-          payload: error,
-        });
+        trace.record({ iteration: iter, label: "error", payload: error });
       });
 
       stream.on("text", (delta) => {
@@ -272,10 +239,10 @@ export async function streamClaude(
       });
     }
 
-    await rawStreamRecorder?.flush("completed");
+    await trace.flush("completed");
     return { fullText };
   } catch (error) {
-    await rawStreamRecorder?.flush("error", error);
+    await trace.flush("error", error);
     throw error;
   }
 }
