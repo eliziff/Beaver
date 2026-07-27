@@ -189,21 +189,6 @@ function nextInlineMatch(value: string, offset: number): InlineMatch | null {
       expression: /<sub\b[^>]*>([\s\S]*?)<\/sub\s*>/giu,
       content: 1,
     },
-    {
-      kind: "strong",
-      expression: /<(strong|b)\b[^>]*>([\s\S]*?)<\/\1\s*>/giu,
-      content: 2,
-    },
-    {
-      kind: "em",
-      expression: /<(em|i)\b[^>]*>([\s\S]*?)<\/\1\s*>/giu,
-      content: 2,
-    },
-    {
-      kind: "code",
-      expression: /<code\b[^>]*>([\s\S]*?)<\/code\s*>/giu,
-      content: 1,
-    },
     { kind: "em", expression: /\*([^*\r\n]+)\*/gu, content: 1 },
     {
       kind: "em",
