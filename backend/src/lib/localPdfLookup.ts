@@ -87,6 +87,30 @@ export type LocalPdfEvidenceReceipt = {
   };
 };
 
+export type LocalPdfLinkEvidence = {
+  handle: string;
+  documentId: string;
+  versionId: string;
+  href: string;
+  label: string;
+  blockText: string;
+  documentText: string;
+  pageScoped: boolean;
+  pageNumbers: number[];
+  pages: {
+    pageNumber: number;
+    href: string;
+    label: string;
+    blockText: string;
+    evidence: {
+      url: string;
+      blockText: string;
+      documentText: string;
+      pageScoped: true;
+    };
+  }[];
+};
+
 function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -389,9 +413,12 @@ function cleanParagraphText(value: unknown) {
     .trim();
 }
 
-function pageText(row: JsonObject) {
-  const page = integerValue(row.number) ?? (integerValue(row.index) ?? 0) + 1;
-  const lines = Array.isArray(row.lines)
+function pageNumber(row: JsonObject) {
+  return integerValue(row.number) ?? (integerValue(row.index) ?? 0) + 1;
+}
+
+function pageLines(row: JsonObject) {
+  return Array.isArray(row.lines)
     ? (row.lines as JsonObject[])
         .slice()
         .sort(
@@ -402,6 +429,11 @@ function pageText(row: JsonObject) {
         .map((line) => stringValue(line.text).trim())
         .filter(Boolean)
     : [];
+}
+
+function pageText(row: JsonObject) {
+  const page = pageNumber(row);
+  const lines = pageLines(row);
   return lines.length ? `[page ${page}]\n${lines.join("\n")}` : "";
 }
 
@@ -675,7 +707,10 @@ function exactFootnoteMatches(
 export async function lookupLocalPdfStructure(
   sourcePath: string,
   input: LocalPdfLookupInput,
-  options?: { persistEvidence?: boolean },
+  options?: {
+    persistEvidence?: boolean;
+    capturePageRows?: (rows: JsonObject[]) => void;
+  },
 ) {
   const base = baseResult(input);
   if (
@@ -710,6 +745,7 @@ export async function lookupLocalPdfStructure(
         error: loaded.error,
       };
     }
+    options?.capturePageRows?.(loaded.pages);
     const { state, manifest, rows, pages, paragraphs } = loaded;
     const pageInfo = pageMaps(pages).byIndex;
     let ordered: LocalPdfLookupUnit[] = [];
@@ -960,7 +996,7 @@ export async function lookupLocalPdfStructure(
   }
 }
 
-export async function rehydrateLocalPdfEvidence(
+async function verifiedLocalPdfEvidence(
   sourcePath: string,
   handle: string,
 ) {
@@ -970,12 +1006,20 @@ export async function rehydrateLocalPdfEvidence(
   ) {
     throw new Error("PDF evidence receipt does not belong to this source");
   }
-  if ((await sha256File(sourcePath)) !== receipt.source.source_sha256) {
-    throw new Error("PDF evidence source bytes no longer match their version");
-  }
+  let pageRows: JsonObject[] = [];
   const lookup = await lookupLocalPdfStructure(sourcePath, receipt.lookup, {
     persistEvidence: false,
+    capturePageRows: (rows) => {
+      pageRows = rows;
+    },
   });
+  if (
+    lookup.status !== "found" &&
+    "error" in lookup &&
+    lookup.error === "PDF source bytes no longer match their version"
+  ) {
+    throw new Error("PDF evidence source bytes no longer match their version");
+  }
   if (
     lookup.status !== "found" ||
     lookup.evidence.handle !== handle ||
@@ -1003,5 +1047,68 @@ export async function rehydrateLocalPdfEvidence(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  return lookup;
+  return { lookup, pageRows };
+}
+
+export async function rehydrateLocalPdfEvidence(
+  sourcePath: string,
+  handle: string,
+) {
+  return (await verifiedLocalPdfEvidence(sourcePath, handle)).lookup;
+}
+
+export async function rehydrateLocalPdfLinkEvidence(
+  sourcePath: string,
+  handle: string,
+): Promise<LocalPdfLinkEvidence> {
+  const { lookup, pageRows } = await verifiedLocalPdfEvidence(
+    sourcePath,
+    handle,
+  );
+
+  const rows = pageRows
+    .map((row) => ({
+      number: pageNumber(row),
+      text: pageLines(row).join(" ").replace(/\s+/gu, " ").trim(),
+    }))
+    .filter(({ text }) => text);
+  const documentText = rows.map(({ text }) => text).join("\n");
+  const pageNumbers = new Set(
+    [...lookup.before, ...lookup.units, ...lookup.after].flatMap(
+      (unit) => unit.page_numbers,
+    ),
+  );
+  const pages = rows
+    .filter(({ number }) => pageNumbers.has(number))
+    .map(({ number, text }) => ({
+      pageNumber: number,
+      href: `${lookup.link.display_path}#page=${number}`,
+      label: `[page ${number}]`,
+      blockText: text,
+      evidence: {
+        url: `${lookup.link.display_path}#page=${number}`,
+        blockText: text,
+        documentText,
+        pageScoped: true as const,
+      },
+    }));
+  if (!pages.length) {
+    throw new Error("PDF evidence has no exact page text for linking");
+  }
+  const selectedPageNumbers = pages.map(({ pageNumber }) => pageNumber);
+  return {
+    handle,
+    documentId: lookup.source.document_id,
+    versionId: lookup.source.version_id,
+    href: pages[0].href,
+    label:
+      pages.length === 1
+        ? pages[0].label
+        : `[pages ${selectedPageNumbers.join(", ")}]`,
+    blockText: pages.map(({ blockText }) => blockText).join("\n"),
+    documentText,
+    pageScoped: pages.length === 1,
+    pageNumbers: selectedPageNumbers,
+    pages,
+  };
 }

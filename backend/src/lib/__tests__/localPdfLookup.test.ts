@@ -488,6 +488,78 @@ describe("exact local PDF structure lookup", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("rehydrates page-scoped link evidence after restart", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure } = await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    vi.resetModules();
+    const { rehydrateLocalPdfLinkEvidence } =
+      await import("../localPdfLookup");
+    const { buildLegalSourcePinpointUrl } =
+      await import("../legalSourceLinks");
+    const linkEvidence = await rehydrateLocalPdfLinkEvidence(
+      built.source,
+      lookup.evidence.handle,
+    );
+
+    expect(linkEvidence).toMatchObject({
+      handle: lookup.evidence.handle,
+      documentId,
+      versionId,
+      href: `/single-documents/${documentId}/display?version_id=${versionId}#page=1`,
+      label: "[page 1]",
+      blockText: "First line. Second line.",
+      pageScoped: true,
+      pageNumbers: [1],
+      pages: [
+        {
+          pageNumber: 1,
+          label: "[page 1]",
+          blockText: "First line. Second line.",
+        },
+      ],
+    });
+    const source = {
+      url: linkEvidence.href,
+      blockText: linkEvidence.blockText,
+      documentText: linkEvidence.documentText,
+      pageScoped: linkEvidence.pageScoped,
+    };
+    const link = buildLegalSourcePinpointUrl(source, [
+      "First line",
+      "Second line",
+    ]);
+    expect(link?.match(/text=/gu)).toHaveLength(2);
+    expect(link).toContain("#page=1:~:text=");
+    expect(
+      buildLegalSourcePinpointUrl(source, ["not present in the PDF"]),
+    ).toBe(linkEvidence.href);
+
+    const pages = (await readFile(built.pagesPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const firstPage = pages[0] as {
+      lines: { reading_order: number; text: string }[];
+    };
+    firstPage.lines[0].text = "Changed authoritative text.";
+    await writeJsonLines(built.pagesPath, pages);
+    await expect(
+      rehydrateLocalPdfLinkEvidence(
+        built.source,
+        lookup.evidence.handle,
+      ),
+    ).rejects.toThrow(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  });
+
   it("hashes current source bytes before the first exact lookup or receipt", async () => {
     const built = await fixture();
     const { lookupLocalPdfStructure } = await import("../localPdfLookup");
@@ -784,51 +856,76 @@ describe("exact local PDF structure lookup", () => {
   it("exposes the same bounded lookup through the assistant tool", async () => {
     await fixture();
     const tools = await import("../chat/localAssistantTools");
+    const handles = new Set<string>();
     expect(
       tools.LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name),
     ).toEqual(expect.arrayContaining(["library_lookup", "library_evidence"]));
 
-    const [response] = await tools.runLocalAssistantTools("local-user", [
-      {
-        id: "lookup-1",
-        name: "library_lookup",
-        input: {
-          document_id: documentId,
-          version_id: versionId,
-          locator_kind: "footnote",
-          locator: "fn-a",
+    const [response] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "lookup-1",
+          name: "library_lookup",
+          input: {
+            document_id: documentId,
+            version_id: versionId,
+            locator_kind: "footnote",
+            locator: "fn-a",
+          },
         },
-      },
-    ]);
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      handles,
+    );
     const lookupPayload = JSON.parse(response.content) as {
-      evidence: { handle: string };
+      handle: string;
     };
     expect(lookupPayload).toMatchObject({
       ok: true,
       filename: "fixture.pdf",
       status: "found",
       exact: true,
+      handle: expect.stringMatching(/^mike-evidence:v1:/u),
+      version_id: versionId,
       units: [
         {
           id: "fn-a",
           proposition: { sentence: "The rule applies." },
         },
       ],
-      source: { document_id: documentId, version_id: versionId },
-      evidence: { handle: expect.stringMatching(/^mike-evidence:v1:/u) },
+      context: { before: [], after: [] },
+      link: { page_numbers: [1, 2] },
     });
-    const [rehydrated] = await tools.runLocalAssistantTools("local-user", [
-      {
-        id: "evidence-1",
-        name: "library_evidence",
-        input: { handle: lookupPayload.evidence.handle },
-      },
-    ]);
+    expect(lookupPayload).not.toHaveProperty("source");
+    expect(lookupPayload).not.toHaveProperty("evidence");
+    expect(handles).toEqual(new Set([lookupPayload.handle]));
+    const [rehydrated] = await tools.runLocalAssistantTools(
+      "local-user",
+      [
+        {
+          id: "evidence-1",
+          name: "library_evidence",
+          input: { handle: lookupPayload.handle },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      handles,
+    );
     expect(JSON.parse(rehydrated.content)).toMatchObject({
       ok: true,
       filename: "fixture.pdf",
       status: "found",
-      evidence: { handle: lookupPayload.evidence.handle },
+      handle: lookupPayload.handle,
+      version_id: versionId,
       units: [{ id: "fn-a", text: "First note body." }],
     });
 

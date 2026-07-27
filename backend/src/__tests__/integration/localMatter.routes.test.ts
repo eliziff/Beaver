@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     systemPrompt: string;
     messages: { role: string; content: string }[];
   }[],
+  appendLocalPdfPinpointLinks: vi.fn(),
   streamChatWithTools: vi.fn(),
 }));
 
@@ -36,6 +37,10 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
 vi.mock("../../lib/llm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/llm")>()),
   streamChatWithTools: mocks.streamChatWithTools,
+}));
+
+vi.mock("../../lib/chat/localPdfEvidenceState", () => ({
+  appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
 }));
 
 let dataHome: string;
@@ -74,6 +79,8 @@ beforeEach(async () => {
   mocks.supabaseCalls = 0;
   mocks.toolResults.length = 0;
   mocks.modelInputs.length = 0;
+  mocks.appendLocalPdfPinpointLinks.mockReset();
+  mocks.appendLocalPdfPinpointLinks.mockImplementation(async (answer) => answer);
   mocks.streamChatWithTools.mockReset();
   mocks.streamChatWithTools.mockImplementation(async (params) => {
     mocks.modelInputs.push({
@@ -98,6 +105,32 @@ afterEach(async () => {
 });
 
 describe("account-free matter routes", () => {
+  it("streams links added by local PDF evidence finalization", async () => {
+    const app = await loadApp();
+    mocks.appendLocalPdfPinpointLinks.mockImplementationOnce(
+      async (answer: string) =>
+        `${answer}\n\nSource: [fixture.pdf, p. 7](/single-documents/document-1/display?version_id=version-1#page=7)`,
+    );
+
+    const streamed = await request(app)
+      .post("/chat")
+      .send({
+        messages: [{ role: "user", content: "Quote the retrieved rule." }],
+      });
+
+    expect(streamed.status).toBe(200);
+    expect(streamedContent(streamed.text)).toContain(
+      "Source: [fixture.pdf, p. 7]",
+    );
+    expect(mocks.appendLocalPdfPinpointLinks).toHaveBeenCalledWith(
+      "Scoped answer",
+      expect.any(String),
+      expect.any(Set),
+      undefined,
+      [],
+    );
+  });
+
   it("persists pointer-only Library membership and isolated matter chat", async () => {
     let app = await loadApp();
     const firstMatter = await request(app)

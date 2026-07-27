@@ -229,13 +229,22 @@ function sourceUrl(
   anchor?: string,
   options: { scrollableLexum?: boolean } = {},
 ): string | null {
+  const local =
+    rawUrl.startsWith("/") &&
+    !rawUrl.startsWith("//") &&
+    !rawUrl.includes("\\");
   let url: URL;
   try {
-    url = new URL(rawUrl);
+    url = local ? new URL(rawUrl, "http://mike.local") : new URL(rawUrl);
   } catch {
     return null;
   }
-  if (!["http:", "https:"].includes(url.protocol)) return null;
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    (local && url.origin !== "http://mike.local")
+  ) {
+    return null;
+  }
 
   const existingAnchor = url.hash.slice(1).split(":~:", 1)[0];
   const canliiPdf =
@@ -260,7 +269,7 @@ function sourceUrl(
   const resolvedAnchor =
     anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
   url.hash = resolvedAnchor ? `#${resolvedAnchor}` : "";
-  return url.toString();
+  return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
 }
 
 function wordsEqual(
@@ -779,6 +788,10 @@ function answerQuoteCandidates(answer: string) {
     }
   }
   return [...unique.values()];
+}
+
+export function hasLegalSourceQuoteCandidates(answer: string) {
+  return answerQuoteCandidates(answer).length > 0;
 }
 
 export function appendLegalSourcePinpointLinks(
