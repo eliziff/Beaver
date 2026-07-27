@@ -3,13 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     getAuthHeader: vi.fn(),
-    renderAsync: vi.fn(),
+    parseAsync: vi.fn(),
+    renderDocument: vi.fn(),
     useFetchDocxBytes: vi.fn(),
     withTrackedChanges: false,
 }));
 
 vi.mock("docx-preview", () => ({
-    renderAsync: mocks.renderAsync,
+    parseAsync: mocks.parseAsync,
+    renderDocument: mocks.renderDocument,
 }));
 
 vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
@@ -41,16 +43,16 @@ describe("DocxView", () => {
         vi.stubGlobal("cancelAnimationFrame", vi.fn());
 
         mocks.useFetchDocxBytes.mockReturnValue({
+            // Fresh buffer per test so the parsed-document cache is cold.
             bytes: new ArrayBuffer(8),
             downloadUrl: null,
             loading: false,
             error: null,
         });
-        mocks.renderAsync.mockImplementation(
-            async (
-                _bytes: ArrayBuffer,
-                container: HTMLElement,
-            ) => {
+        mocks.parseAsync.mockImplementation(async () => ({}));
+        mocks.renderDocument.mockImplementation(
+            async (_doc: unknown, container: HTMLElement) => {
+                container.innerHTML = "";
                 const wrapper = document.createElement("div");
                 wrapper.className = "docx-wrapper";
                 for (let index = 0; index < 2; index++) {
@@ -76,7 +78,7 @@ describe("DocxView", () => {
         vi.unstubAllGlobals();
     });
 
-    it("uses saved Word page breaks and labels rendered pages", async () => {
+    it("renders saved Word page breaks without inventing page numbers", async () => {
         const onReady = vi.fn();
         const { container } = render(
             <DocxView documentId="doc-1" onReady={onReady} />,
@@ -84,19 +86,19 @@ describe("DocxView", () => {
 
         await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
 
-        expect(mocks.renderAsync).toHaveBeenCalledOnce();
-        expect(mocks.renderAsync.mock.calls[0][3]).toMatchObject({
-            breakPages: true,
+        expect(mocks.renderDocument).toHaveBeenCalledOnce();
+        expect(mocks.renderDocument.mock.calls[0][3]).toMatchObject({
             ignoreLastRenderedPageBreak: false,
-            renderFootnotes: true,
-            renderEndnotes: true,
+            renderChanges: true,
         });
         const pages = container.querySelectorAll("section.docx");
         expect(pages).toHaveLength(2);
-        expect(pages[0]).toHaveAttribute("data-page-number", "1");
-        expect(pages[0]).toHaveAttribute("aria-label", "Page 1");
-        expect(pages[1]).toHaveAttribute("data-page-number", "2");
-        expect(pages[1]).toHaveAttribute("aria-label", "Page 2");
+        // Page boundaries come from Word; page *numbers* do not, so none are
+        // fabricated onto the DOM.
+        for (const page of pages) {
+            expect(page).not.toHaveAttribute("data-page-number");
+            expect(page).not.toHaveAttribute("aria-label");
+        }
         expect(mocks.getAuthHeader).not.toHaveBeenCalled();
     });
 
@@ -140,5 +142,8 @@ describe("DocxView", () => {
 
         expect(fetchMock).toHaveBeenCalledOnce();
         expect(mocks.getAuthHeader).toHaveBeenCalledOnce();
+        // The same bytes are parsed once and re-rendered from cache.
+        expect(mocks.parseAsync).toHaveBeenCalledOnce();
+        expect(mocks.renderDocument).toHaveBeenCalledTimes(2);
     });
 });
