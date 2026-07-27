@@ -139,6 +139,79 @@ describe("streamCodex", () => {
     );
   });
 
+  it("persists a new thread only when the caller opts in", async () => {
+    const threadId = "10000000-0000-4000-8000-000000000001";
+    spawnMock.mockReturnValue(
+      fakeChild([
+        JSON.stringify({ type: "thread.started", thread_id: threadId }),
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "agent_message", text: "Persistent answer." },
+        }),
+      ]),
+    );
+
+    const result = await streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "Stable contract.",
+      messages: [{ role: "user", content: "First turn." }],
+      providerSession: { persist: true },
+    });
+
+    const args = spawnMock.mock.calls[0][1] as string[];
+    expect(args.slice(0, 2)).toEqual(["exec", "--ignore-user-config"]);
+    expect(args).not.toContain("--ephemeral");
+    expect(result.continuationId).toBe(threadId);
+  });
+
+  it("resumes the exact thread without initial-only flags", async () => {
+    const threadId = "10000000-0000-4000-8000-000000000001";
+    const child = fakeChild([
+      JSON.stringify({
+        type: "item.completed",
+        item: { type: "agent_message", text: "Continued answer." },
+      }),
+    ]);
+    let prompt = "";
+    child.stdin.on("data", (chunk) => {
+      prompt += String(chunk);
+    });
+    spawnMock.mockReturnValue(child);
+
+    const result = await streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "Current evidence handle.",
+      messages: [{ role: "user", content: "Only this new turn." }],
+      providerSession: { persist: true, continuationId: threadId },
+    });
+
+    const args = spawnMock.mock.calls[0][1] as string[];
+    expect(args.slice(0, 2)).toEqual(["exec", "resume"]);
+    expect(args).toContain(threadId);
+    expect(args.at(-1)).toBe("-");
+    expect(args).not.toEqual(
+      expect.arrayContaining(["--ephemeral", "--sandbox", "--color"]),
+    );
+    expect(prompt).toContain("Only this new turn.");
+    expect(prompt).toContain("Current evidence handle.");
+    expect(result.continuationId).toBe(threadId);
+  });
+
+  it("rejects an untrusted continuation ID before spawning", async () => {
+    await expect(
+      streamCodex({
+        model: "codex:gpt-5.6-luna",
+        systemPrompt: "",
+        messages: [{ role: "user", content: "Do not run." }],
+        providerSession: {
+          persist: true,
+          continuationId: "thread; remove-everything",
+        },
+      }),
+    ).rejects.toThrow("Invalid Codex continuation ID");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it("suppresses reasoning when thinking is disabled", async () => {
     spawnMock.mockReturnValue(
       fakeChild([

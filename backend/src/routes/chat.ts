@@ -28,7 +28,9 @@ import {
   modelSupportsImageInput,
   streamChatWithTools,
   type LlmImage,
+  type StreamChatResult,
 } from "../lib/llm";
+import { providerForModel } from "../lib/llm/models";
 import {
   LOCAL_ASSISTANT_TOOLS,
   runLocalAssistantTools,
@@ -84,6 +86,12 @@ import {
   beginAnonymousTurn,
   finishAnonymousTurn,
 } from "../lib/anonymousChatTurns";
+import {
+  claimAnonymousCodexSession,
+  deleteAnonymousProviderSessions,
+  providerSessionCompatibilityKey,
+  writeAnonymousCodexSession,
+} from "../lib/anonymousProviderSessionStore";
 
 export const chatRouter = Router();
 
@@ -845,6 +853,42 @@ export async function streamAnonymousChat(params: {
   const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
     priorEvidenceRegistry,
   );
+  const systemPrompt =
+    `${
+      projectId
+        ? "The current Beaver matter is connected through its attached Library documents"
+        : "The user's local Beaver Library is connected"
+    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+    "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
+    focusPrompt +
+    priorEvidencePrompt +
+    COURTLISTENER_SYSTEM_PROMPT +
+    "\n\n" +
+    PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT;
+  const isCodex = providerForModel(selectedModel) === "codex";
+  const codexCompatibilityKey = isCodex
+    ? providerSessionCompatibilityKey({
+        schema_version: 1,
+        model: selectedModel,
+        reasoning_effort: params.reasoningEffort?.trim() || "max",
+        system_prompt: systemPrompt,
+        tools: LOCAL_ASSISTANT_TOOLS,
+        scope: {
+          user_id: userId,
+          project_id: projectId,
+          document_ids: allowedDocumentIds
+            ? [...allowedDocumentIds].sort()
+            : null,
+        },
+        auth: {
+          command: process.env.CODEX_EXEC_COMMAND?.trim() || "codex",
+          codex_home: process.env.CODEX_HOME?.trim() || "default",
+          api_key_sha256: process.env.CODEX_API_KEY
+            ? providerSessionCompatibilityKey(process.env.CODEX_API_KEY)
+            : null,
+        },
+      })
+    : null;
 
   if (anonymousTurnInProgress(chat.id)) {
     res.status(409).json({
@@ -1004,6 +1048,35 @@ export async function streamAnonymousChat(params: {
     }
     throw error;
   }
+  const discardProviderSession = () => {
+    try {
+      deleteAnonymousProviderSessions(chat.id);
+    } catch (error) {
+      console.warn(
+        "[chat/anonymous] Could not discard provider continuation.",
+        safeErrorLog(error),
+      );
+    }
+  };
+  let claimedCodexSession: ReturnType<typeof claimAnonymousCodexSession> = null;
+  if (isCodex && codexCompatibilityKey) {
+    try {
+      claimedCodexSession = claimAnonymousCodexSession({
+        userId,
+        chatId: chat.id,
+        projectId,
+        compatibilityKey: codexCompatibilityKey,
+        transcriptVersion: params.expectedVersion,
+      });
+    } catch (error) {
+      console.warn(
+        "[chat/anonymous] Could not claim Codex continuation; rebuilding from the canonical transcript.",
+        safeErrorLog(error),
+      );
+    }
+  } else {
+    discardProviderSession();
+  }
   const messages = projectAnonymousTranscript(
     retryingNormalTurn && normalTurnId
       ? chat.messages.filter(
@@ -1080,6 +1153,7 @@ export async function streamAnonymousChat(params: {
   const finalizePendingAskInputs = async () => {
     const event = pendingAskInputs;
     if (!event || askInputsFinalized) return Boolean(event);
+    if (isCodex) discardProviderSession();
     if (!citationsOpen && visibleTail) {
       visibleText += visibleTail;
       if (!res.destroyed) {
@@ -1143,35 +1217,34 @@ export async function streamAnonymousChat(params: {
     }
     return true;
   };
+  let providerActivity = false;
+  let providerResult: StreamChatResult | undefined;
   try {
     sseWrite(res, {
       type: "chat_id",
       chatId: chat.id,
       transcriptVersion: chat.transcript_version,
     });
-    await streamChatWithTools({
+    const runProvider = (continuationId?: string) => streamChatWithTools({
       model: selectedModel,
-      systemPrompt:
-        `${
-          projectId
-            ? "The current Beaver matter is connected through its attached Library documents"
-            : "The user's local Beaver Library is connected"
-        } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
-        "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
-        focusPrompt +
-        priorEvidencePrompt +
-        COURTLISTENER_SYSTEM_PROMPT +
-        "\n\n" +
-        PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
-      messages: messages.map((message) => ({
-        role: message.role === "assistant" ? "assistant" : "user",
-        content: message.content ?? "",
-        images: imagesForMessage(message, imagesByDocumentId),
-      })),
+      systemPrompt: continuationId ? "" : systemPrompt,
+      messages: (continuationId ? messages.slice(-1) : messages).map(
+        (message) => ({
+          role: message.role === "assistant" ? "assistant" : "user",
+          content: message.content ?? "",
+          images: imagesForMessage(message, imagesByDocumentId),
+        }),
+      ),
       enableThinking: true,
       reasoningEffort: params.reasoningEffort,
       abortSignal: streamAbort.signal,
       tools: LOCAL_ASSISTANT_TOOLS,
+      providerSession: isCodex
+        ? {
+            persist: true,
+            ...(continuationId ? { continuationId } : {}),
+          }
+        : undefined,
       runTools: async (calls) => {
         if (!pendingAskInputs) {
           const askCall = calls.find((call) => call.name === "ask_inputs");
@@ -1278,10 +1351,12 @@ export async function streamAnonymousChat(params: {
       callbacks: {
         onContentDelta: (text: string) => {
           if (pendingAskInputs) return;
+          if (text) providerActivity = true;
           rawText += text;
           streamVisible(text);
         },
         onReasoningDelta: (text: string) => {
+          if (text) providerActivity = true;
           if (!pendingAskInputs) {
             sseWrite(res, { type: "reasoning_delta", text });
           }
@@ -1292,6 +1367,7 @@ export async function streamAnonymousChat(params: {
           }
         },
         onToolCallStart: (call) => {
+          providerActivity = true;
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
@@ -1299,6 +1375,22 @@ export async function streamAnonymousChat(params: {
         },
       },
     });
+    try {
+      providerResult = await runProvider(claimedCodexSession?.continuation_id);
+    } catch (error) {
+      if (
+        claimedCodexSession &&
+        !providerActivity &&
+        !pendingAskInputs &&
+        !localMutationCommitted &&
+        !streamAbort.signal.aborted
+      ) {
+        claimedCodexSession = null;
+        providerResult = await runProvider();
+      } else {
+        throw error;
+      }
+    }
 
     if (!citationsOpen && visibleTail) {
       visibleText += visibleTail;
@@ -1382,6 +1474,33 @@ export async function streamAnonymousChat(params: {
     if (!chat.title && lastUser?.content) {
       updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
     }
+    if (
+      isCodex &&
+      codexCompatibilityKey &&
+      providerResult?.continuationId
+    ) {
+      try {
+        writeAnonymousCodexSession({
+          userId,
+          chatId: chat.id,
+          projectId,
+          continuationId: providerResult.continuationId,
+          compatibilityKey: codexCompatibilityKey,
+          transcriptVersion: chat.transcript_version,
+          ...(claimedCodexSession
+            ? { createdAt: claimedCodexSession.created_at }
+            : {}),
+        });
+      } catch (error) {
+        discardProviderSession();
+        console.warn(
+          "[chat/anonymous] Could not persist Codex continuation; the next turn will rebuild from the canonical transcript.",
+          safeErrorLog(error),
+        );
+      }
+    } else if (isCodex) {
+      discardProviderSession();
+    }
     sseWrite(res, {
       type: "transcript_version",
       transcriptVersion: chat.transcript_version,
@@ -1404,6 +1523,7 @@ export async function streamAnonymousChat(params: {
         );
       }
     }
+    if (isCodex) discardProviderSession();
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
     const visiblePartial =

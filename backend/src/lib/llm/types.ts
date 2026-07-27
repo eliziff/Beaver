@@ -79,6 +79,15 @@ export type StreamChatParams = {
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
   abortSignal?: AbortSignal;
+  /**
+   * Opt in to a provider-owned durable session. Callers remain responsible for
+   * binding an opaque continuation ID to the correct user, chat, model, and
+   * canonical transcript version before supplying it again.
+   */
+  providerSession?: {
+    persist: true;
+    continuationId?: string;
+  };
 };
 
 export type NormalizedLlmUsage = {

@@ -56,6 +56,7 @@ export type ParsedCodexEvent = {
 };
 
 const CODEX_TIMEOUT_MS = 180_000;
+const CODEX_THREAD_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
 function terminateProcessTree(child: ChildProcessWithoutNullStreams) {
   if (process.platform !== "win32" || !child.pid) {
@@ -219,8 +220,13 @@ async function runCodex(params: {
   reasoningEffort?: string;
   maxIterations?: number;
   imagePaths?: string[];
+  persistSession?: boolean;
+  continuationId?: string;
 }): Promise<StreamChatResult> {
   throwIfAborted(params.abortSignal);
+  if (params.continuationId && !CODEX_THREAD_ID.test(params.continuationId)) {
+    throw new Error("Invalid Codex continuation ID.");
+  }
   const maxIterations = Math.max(1, params.maxIterations ?? 10);
   let bridge: CodexToolBridge | null = null;
   let stderr = "";
@@ -269,17 +275,13 @@ async function runCodex(params: {
     });
   }
 
-  const args = [
-    "exec",
-    "--ephemeral",
-    "--ignore-user-config",
-    "--sandbox",
-    "read-only",
-    "--skip-git-repo-check",
-    "--json",
-    "--color",
-    "never",
-  ];
+  const resuming = Boolean(params.continuationId);
+  const args = ["exec", ...(resuming ? ["resume"] : [])];
+  if (!resuming && !params.persistSession) args.push("--ephemeral");
+  args.push("--ignore-user-config");
+  if (!resuming) args.push("--sandbox", "read-only");
+  args.push("--skip-git-repo-check", "--json");
+  if (!resuming) args.push("--color", "never");
   const modelSlug = codexModelSlug(params.model);
   if (modelSlug) args.push("-m", modelSlug);
   if (params.enableThinking) {
@@ -307,6 +309,7 @@ async function runCodex(params: {
   for (const imagePath of params.imagePaths ?? []) {
     args.push("-i", imagePath);
   }
+  if (params.continuationId) args.push(params.continuationId);
   args.push("-");
 
   const childEnv = {
@@ -415,10 +418,19 @@ async function runCodex(params: {
     }
     endReasoning();
     streamStatus = "completed";
+    const continuationId =
+      params.persistSession &&
+      providerInvocationId &&
+      CODEX_THREAD_ID.test(providerInvocationId)
+        ? providerInvocationId
+        : params.persistSession && params.continuationId
+          ? params.continuationId
+          : undefined;
     return {
       fullText,
       ...(usage ? { usage } : {}),
       ...(providerInvocationId ? { providerInvocationId } : {}),
+      ...(continuationId ? { continuationId } : {}),
     };
   } catch (error) {
     streamError = error;
@@ -471,6 +483,8 @@ export async function streamCodex(
       reasoningEffort: params.reasoningEffort,
       maxIterations: params.maxIterations,
       imagePaths,
+      persistSession: params.providerSession?.persist,
+      continuationId: params.providerSession?.continuationId,
     });
   } finally {
     params.abortSignal?.removeEventListener("abort", abort);
