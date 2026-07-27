@@ -16,6 +16,10 @@ import {
   queueLocalPdfParse,
   readLocalPdfParseState,
 } from "../lib/localPdfIngestion";
+import {
+  lookupLocalPdfStructure,
+  type LocalPdfLocatorKind,
+} from "../lib/localPdfLookup";
 import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../lib/docxDeterministicCleanup";
 import { singleFileUpload } from "../lib/upload";
@@ -191,6 +195,49 @@ localLibraryRouter.get(
       });
     }
     res.json(state);
+  }),
+);
+
+localLibraryRouter.post(
+  "/:kind/documents/:documentId/lookup",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    const userId = res.locals.userId as string;
+    const collection = await listLocalLibrary(userId, kind);
+    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    const versionId =
+      typeof req.body?.version_id === "string" ? req.body.version_id : null;
+    const file = await getLocalVersionFile(
+      userId,
+      req.params.documentId,
+      versionId,
+    );
+    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (file.fileType !== "pdf") {
+      return void res.status(409).json({ detail: "Version is not a PDF" });
+    }
+    const lookup = await lookupLocalPdfStructure(file.path, {
+      locatorKind: req.body?.locator_kind as LocalPdfLocatorKind,
+      locator: typeof req.body?.locator === "string" ? req.body.locator : "",
+      endLocator:
+        typeof req.body?.end_locator === "string"
+          ? req.body.end_locator
+          : undefined,
+      contextBlocks:
+        typeof req.body?.context_blocks === "number"
+          ? req.body.context_blocks
+          : undefined,
+      page: typeof req.body?.page === "number" ? req.body.page : undefined,
+      occurrence:
+        typeof req.body?.occurrence === "number"
+          ? req.body.occurrence
+          : undefined,
+    });
+    res.status(lookup.status === "invalid" ? 400 : 200).json(lookup);
   }),
 );
 
