@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import { loadZip } from "./zip";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -97,7 +98,7 @@ async function getConvert() {
 export async function normalizeDocxZipPaths(buffer: Buffer): Promise<Buffer> {
   let zip: JSZip;
   try {
-    zip = await JSZip.loadAsync(buffer);
+    zip = await loadZip(buffer);
   } catch {
     return buffer;
   }

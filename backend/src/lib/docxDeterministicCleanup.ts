@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
 import {
   addLocalVersion,
@@ -362,7 +363,7 @@ function convertSafeParagraphs(
 export async function fixDocxSupraCrossReferences(
   bytes: Buffer,
 ): Promise<SupraCleanupResult> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadZip(bytes);
   const documentEntry = getZipEntry(zip, "word/document.xml");
   const footnotesEntry = getZipEntry(zip, "word/footnotes.xml");
   if (!documentEntry || !footnotesEntry) {
