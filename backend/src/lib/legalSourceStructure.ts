@@ -22,6 +22,8 @@ export type LegalStructureBlock = Omit<A2AJStructureBlock, "kind"> & {
   kind: LegalLocatorKind;
   anchor?: string;
   aliases?: string[];
+  locator_kind?: LegalLocatorKind;
+  provider_locator?: string;
   origin: "native" | "heuristic";
   parentLabel?: string;
 };
@@ -235,6 +237,8 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
             start: pending.start,
             end,
             anchor: pending.anchor,
+            locator_kind: pending.kind,
+            provider_locator: pending.anchor ?? pending.label,
             origin: "native",
             parentLabel: pending.parentLabel,
           });
@@ -284,6 +288,8 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
         start: pending.start,
         end: text.length,
         anchor: pending.anchor,
+        locator_kind: pending.kind,
+        provider_locator: pending.anchor ?? pending.label,
         origin: "native",
         parentLabel: pending.parentLabel,
       });
@@ -298,6 +304,8 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
         start: page.start,
         end,
         anchor: page.anchor,
+        locator_kind: "page",
+        provider_locator: page.anchor ?? page.label,
         origin: "native",
       });
     }
@@ -424,7 +432,14 @@ export function lookupLegalSourceStructure(
   locator: string,
   contextBlocks = 0,
 ): LegalStructureLookup {
-  const requestedLabel = normalizeLegalLocator(kind, locator);
+  const exactLabel = locator.trim();
+  const requestedLabel = structure.blocks.some(
+    (block) =>
+      block.kind === kind &&
+      block.label.toLowerCase() === exactLabel.toLowerCase(),
+  )
+    ? exactLabel
+    : normalizeLegalLocator(kind, locator);
   const available = structure.blocks.filter((block) => block.kind === kind);
   if (!requestedLabel || !available.length) {
     return {

@@ -1,4 +1,8 @@
+import crypto from "node:crypto";
+import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
+import { legalProviderCache, mikeLocalDataHome } from "./legalDataPath";
 import {
   buildLegalSourceStructure,
   lookupLegalSourceStructure,
@@ -61,12 +65,45 @@ export type PublicLegalDocument = {
   text: string;
   structure: LegalSourceStructure;
   attachments: PublicLegalAttachment[];
+  sourceVersion?: {
+    format: "tna-akn-xml";
+    url: string;
+    sha256: string;
+    body: string;
+  };
 };
 
 export type PublicLegalLookup = LegalStructureLookup & {
   provider: PublicLegalDocument["provider"];
   url: string;
   anchor: string | null;
+};
+
+const EVIDENCE_SCHEMA = "mike.provider_legal_evidence.v1";
+const EVIDENCE_HANDLE = /^mike-provider-evidence:v1:([0-9a-f]{64})$/u;
+
+export type PublicLegalEvidenceReceipt = {
+  schema_version: typeof EVIDENCE_SCHEMA;
+  handle: string;
+  source: {
+    provider: "tna";
+    identifier: string;
+    title: string | null;
+    canonical_url: string;
+    source_url: string;
+    source_sha256: string;
+    format: "tna-akn-xml";
+  };
+  lookup: {
+    locator_kind: LegalLocatorKind;
+    locator: string;
+    provider_locator: string;
+    context_blocks: number;
+  };
+  evidence: {
+    block_text_sha256: string;
+    payload_sha256: string;
+  };
 };
 
 const TNA_CITATION =
@@ -86,6 +123,277 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
   trimValues: true,
 });
+
+function sha256(value: string) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function evidencePath(handle: string) {
+  const digest = handle.match(EVIDENCE_HANDLE)?.[1];
+  if (!digest) throw new Error("Invalid provider evidence handle");
+  return path.join(
+    mikeLocalDataHome(),
+    "evidence",
+    "provider-native",
+    "v1",
+    `${digest}.json`,
+  );
+}
+
+function sourcePath(sourceSha256: string) {
+  return path.join(
+    legalProviderCache("tna"),
+    "native",
+    "blobs",
+    "v1",
+    `${sourceSha256}.xml`,
+  );
+}
+
+async function atomicWriteOnce(filename: string, value: string) {
+  await mkdir(path.dirname(filename), { recursive: true });
+  try {
+    await access(filename);
+    return;
+  } catch {
+    // Publish the complete content-addressed file below.
+  }
+  const temporary = `${filename}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, value, { encoding: "utf8", flag: "wx" });
+    try {
+      await link(temporary, filename);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      await access(filename);
+    }
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+function lookupPayload(lookup: PublicLegalLookup) {
+  const block = (value: PublicLegalLookup["block"]) =>
+    value
+      ? {
+          kind: value.kind,
+          label: value.label,
+          start: value.start,
+          end: value.end,
+          anchor: value.anchor ?? null,
+          locator_kind: value.locator_kind ?? value.kind,
+          provider_locator: value.provider_locator ?? value.label,
+          origin: value.origin,
+          parent_label: value.parentLabel ?? null,
+          text: value.text,
+        }
+      : null;
+  return {
+    requested_label: lookup.requestedLabel,
+    matches: lookup.matches,
+    block: block(lookup.block),
+    before: lookup.before.map(block),
+    after: lookup.after.map(block),
+  };
+}
+
+function receiptValue(value: unknown): PublicLegalEvidenceReceipt {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid provider evidence receipt");
+  }
+  const receipt = value as Partial<PublicLegalEvidenceReceipt>;
+  const source = receipt.source;
+  const lookup = receipt.lookup;
+  const evidence = receipt.evidence;
+  if (
+    receipt.schema_version !== EVIDENCE_SCHEMA ||
+    typeof receipt.handle !== "string" ||
+    !EVIDENCE_HANDLE.test(receipt.handle) ||
+    !source ||
+    source.provider !== "tna" ||
+    typeof source.identifier !== "string" ||
+    !source.identifier ||
+    (source.title !== null && typeof source.title !== "string") ||
+    typeof source.canonical_url !== "string" ||
+    typeof source.source_url !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(source.source_sha256 ?? "") ||
+    source.format !== "tna-akn-xml" ||
+    !lookup ||
+    !["paragraph", "page", "section", "footnote"].includes(
+      lookup.locator_kind,
+    ) ||
+    typeof lookup.locator !== "string" ||
+    !lookup.locator ||
+    typeof lookup.provider_locator !== "string" ||
+    !lookup.provider_locator ||
+    !Number.isInteger(lookup.context_blocks) ||
+    lookup.context_blocks < 0 ||
+    lookup.context_blocks > 2 ||
+    !evidence ||
+    !/^[a-f0-9]{64}$/u.test(evidence.block_text_sha256 ?? "") ||
+    !/^[a-f0-9]{64}$/u.test(evidence.payload_sha256 ?? "")
+  ) {
+    throw new Error("Invalid provider evidence receipt");
+  }
+  const canonicalUrl = trustedUrl(
+    source.canonical_url,
+    TNA_ORIGIN,
+    new Set(["caselaw.nationalarchives.gov.uk"]),
+  );
+  const sourceUrl = trustedUrl(
+    source.source_url,
+    TNA_ORIGIN,
+    new Set(["caselaw.nationalarchives.gov.uk"]),
+  );
+  if (
+    canonicalUrl !== source.canonical_url ||
+    sourceUrl !== source.source_url
+  ) {
+    throw new Error("Invalid provider evidence receipt");
+  }
+  const { handle: _handle, ...identity } =
+    receipt as PublicLegalEvidenceReceipt;
+  if (
+    `mike-provider-evidence:v1:${sha256(JSON.stringify(identity))}` !==
+    receipt.handle
+  ) {
+    throw new Error(
+      "Provider evidence receipt handle does not match its content",
+    );
+  }
+  return receipt as PublicLegalEvidenceReceipt;
+}
+
+export async function persistPublicLegalEvidence(
+  document: PublicLegalDocument,
+  lookup: PublicLegalLookup,
+  contextBlocks = 0,
+) {
+  if (
+    document.provider !== "tna" ||
+    !document.sourceVersion ||
+    lookup.status !== "found" ||
+    !lookup.block
+  ) {
+    return null;
+  }
+  const sourceVersion = document.sourceVersion;
+  if (
+    sourceVersion.format !== "tna-akn-xml" ||
+    sha256(sourceVersion.body) !== sourceVersion.sha256
+  ) {
+    throw new Error("Provider source version does not match its bytes");
+  }
+  const context = Math.min(Math.max(Math.trunc(contextBlocks), 0), 2);
+  const identity = {
+    schema_version: EVIDENCE_SCHEMA as typeof EVIDENCE_SCHEMA,
+    source: {
+      provider: "tna" as const,
+      identifier: document.identity,
+      title: document.title,
+      canonical_url: document.url,
+      source_url: sourceVersion.url,
+      source_sha256: sourceVersion.sha256,
+      format: sourceVersion.format,
+    },
+    lookup: {
+      locator_kind: lookup.block.locator_kind ?? lookup.block.kind,
+      locator: lookup.block.label,
+      provider_locator:
+        lookup.block.provider_locator ??
+        lookup.block.anchor ??
+        lookup.block.label,
+      context_blocks: context,
+    },
+    evidence: {
+      block_text_sha256: sha256(lookup.block.text),
+      payload_sha256: sha256(JSON.stringify(lookupPayload(lookup))),
+    },
+  };
+  const handle = `mike-provider-evidence:v1:${sha256(JSON.stringify(identity))}`;
+  const receipt: PublicLegalEvidenceReceipt = { ...identity, handle };
+  const blob = sourcePath(sourceVersion.sha256);
+  await atomicWriteOnce(blob, sourceVersion.body);
+  if (sha256(await readFile(blob, "utf8")) !== sourceVersion.sha256) {
+    throw new Error("Provider source snapshot failed integrity verification");
+  }
+  const filename = evidencePath(handle);
+  await atomicWriteOnce(filename, `${JSON.stringify(receipt, null, 2)}\n`);
+  const stored = receiptValue(JSON.parse(await readFile(filename, "utf8")));
+  if (stored.handle !== handle) {
+    throw new Error("Conflicting provider evidence receipt");
+  }
+  return stored;
+}
+
+export async function readPublicLegalEvidenceReceipt(handle: string) {
+  const receipt = receiptValue(
+    JSON.parse(await readFile(evidencePath(handle), "utf8")),
+  );
+  if (receipt.handle !== handle) {
+    throw new Error("Provider evidence receipt handle does not match its path");
+  }
+  return receipt;
+}
+
+export async function rehydratePublicLegalEvidence(handle: string) {
+  const receipt = await readPublicLegalEvidenceReceipt(handle);
+  const body = await readFile(sourcePath(receipt.source.source_sha256), "utf8");
+  if (sha256(body) !== receipt.source.source_sha256) {
+    throw new Error("Provider source snapshot failed integrity verification");
+  }
+  const structure = buildLegalSourceStructure({
+    provider: "tna",
+    text: "",
+    markup: body,
+    docType: "cases",
+    citation: receipt.source.identifier,
+    name: receipt.source.title,
+  });
+  const document: PublicLegalDocument = {
+    provider: "tna",
+    identity: receipt.source.identifier,
+    title: receipt.source.title,
+    url: receipt.source.canonical_url,
+    text: structure.text,
+    structure,
+    attachments: [],
+    sourceVersion: {
+      format: receipt.source.format,
+      url: receipt.source.source_url,
+      sha256: receipt.source.source_sha256,
+      body,
+    },
+  };
+  const lookup = lookupPublicLegalSource(
+    document,
+    receipt.lookup.locator_kind,
+    receipt.lookup.locator,
+    receipt.lookup.context_blocks,
+  );
+  if (lookup.status !== "found" || !lookup.block) {
+    throw new Error(
+      "Provider evidence locator is absent from its source snapshot",
+    );
+  }
+  if (
+    (lookup.block.provider_locator ??
+      lookup.block.anchor ??
+      lookup.block.label) !== receipt.lookup.provider_locator
+  ) {
+    throw new Error("Provider evidence locator changed in its source snapshot");
+  }
+  if (sha256(lookup.block.text) !== receipt.evidence.block_text_sha256) {
+    throw new Error("Provider evidence text changed in its source snapshot");
+  }
+  if (
+    sha256(JSON.stringify(lookupPayload(lookup))) !==
+    receipt.evidence.payload_sha256
+  ) {
+    throw new Error("Provider evidence no longer matches its source snapshot");
+  }
+  return { document, lookup, receipt };
+}
 
 function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -274,6 +582,7 @@ export async function fetchTnaCase(
     citation: result.citation,
     name: result.title,
   });
+  const sourceSha256 = sha256(xml);
   return {
     provider: "tna",
     identity: result.citation,
@@ -282,6 +591,12 @@ export async function fetchTnaCase(
     text: structure.text,
     structure,
     attachments: [],
+    sourceVersion: {
+      format: "tna-akn-xml",
+      url: xmlUrl,
+      sha256: sourceSha256,
+      body: xml,
+    },
   };
 }
 

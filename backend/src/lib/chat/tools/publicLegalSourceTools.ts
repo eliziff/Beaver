@@ -64,7 +64,7 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
     function: {
       name: PUBLIC_LEGAL_SOURCE_TOOL_NAMES.lookup,
       description:
-        "Look up one paragraph, section/subsection, page, or journal footnote. Mike preserves native locators and page maps, reconstructs structure only when necessary, and retains the final URL privately.",
+        "Look up one paragraph, section/subsection, page, or journal footnote. Mike preserves native locators and page maps, reconstructs structure only when necessary, and retains the final URL privately. To rehydrate exact TNA evidence from an earlier turn, pass its evidence_handle with the same provider and identifier instead of locator fields.",
       parameters: {
         type: "object",
         properties: {
@@ -76,6 +76,11 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
             type: "string",
             description:
               "Exact neutral citation, Employment Tribunal case number, or federal docket.",
+          },
+          evidence_handle: {
+            type: "string",
+            description:
+              "Optional mike-provider-evidence:v1 handle returned by an earlier exact TNA lookup.",
           },
           locator_type: {
             type: "string",
@@ -92,7 +97,7 @@ export const PUBLIC_LEGAL_SOURCE_TOOLS = [
             maximum: 2,
           },
         },
-        required: ["provider", "identifier", "locator_type", "locator"],
+        required: ["provider", "identifier"],
       },
     },
   },
@@ -105,4 +110,5 @@ Use public_legal_source_fetch and public_legal_source_lookup for:
 - US GovInfo court opinions (provider "govinfo") using an exact federal docket.
 - Local journal articles (provider "journal"): search first, then fetch or look up using the returned article_id.
 Prefer lookup for a requested paragraph, section/subsection, page, or journal footnote. Search/FTS results are candidates only. Base claims only on fetched or returned text, not search metadata, embeddings, or memory. Provider URLs and native anchors are private server evidence: never invent, request, copy, or include a URL in citation data.
+Preserve an exact lookup's evidence.handle when its passage may be needed after compaction. Rehydrate it with public_legal_source_lookup using evidence_handle plus the same provider and identifier; do not expose the handle to the user.
 When relying on one of these sources, include [N] and a matching <CITATIONS> entry: {"ref": N, "source": "public_legal", "provider": "tna", "identifier": "[2024] UKSC 1", "quotes": [{"quote": "exact returned text"}]}. Mike verifies the quote against fetched full text and attaches the trusted provider link automatically.`;
