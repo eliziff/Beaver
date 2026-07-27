@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { applyOptimisticResolution } from "./EditCard";
 import type { EditAnnotation } from "../shared/types";
@@ -145,10 +145,7 @@ function EditResolveButtons({
                 );
             }
             try {
-                const {
-                    data: { session },
-                } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const authHeaders = await getAuthHeader();
                 const apiBase =
                     process.env.NEXT_PUBLIC_API_BASE_URL ??
                     "http://localhost:3001";
@@ -156,9 +153,7 @@ function EditResolveButtons({
                     `${apiBase}/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,
                     {
                         method: "POST",
-                        headers: token
-                            ? { Authorization: `Bearer ${token}` }
-                            : undefined,
+                        headers: authHeaders,
                     },
                 );
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

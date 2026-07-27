@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 import type { EditAnnotation } from "../../shared/types";
 import { applyOptimisticResolution } from "../EditCard";
 
@@ -60,10 +60,7 @@ function BulkEditActions({
         setBusy(verb);
         setProgress({ done: 0, total: pending.length });
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const authHeaders = await getAuthHeader();
             const apiBase =
                 process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 
@@ -92,9 +89,7 @@ function BulkEditActions({
                         `${apiBase}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
                         {
                             method: "POST",
-                            headers: token
-                                ? { Authorization: `Bearer ${token}` }
-                                : undefined,
+                            headers: authHeaders,
                         },
                     );
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

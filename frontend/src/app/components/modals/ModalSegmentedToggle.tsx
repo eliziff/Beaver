@@ -29,8 +29,8 @@ export function ModalSegmentedToggle<T extends string>({
     return (
         <div
             className={cn(
-                "inline-grid gap-1 rounded-full bg-white/80 shadow-[0_6px_18px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(15,23,42,0.04)] backdrop-blur-xl",
-                size === "sm" ? "h-8 p-1" : "h-9 p-1",
+                "inline-grid gap-1 rounded-full border border-gray-200 bg-white shadow-sm",
+                size === "sm" ? "min-h-8 p-1" : "min-h-9 p-1",
                 className,
             )}
             style={{
@@ -48,7 +48,7 @@ export function ModalSegmentedToggle<T extends string>({
                         disabled={disabled}
                         aria-pressed={active}
                         className={cn(
-                            "flex h-full items-center justify-center rounded-full text-xs transition-all disabled:cursor-not-allowed disabled:opacity-60",
+                            "flex items-center justify-center whitespace-normal break-normal rounded-full py-1 text-xs leading-tight transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                             size === "sm" ? "gap-1 px-3" : "gap-1.5 px-3",
                             active
                                 ? "bg-gray-100 text-gray-900"

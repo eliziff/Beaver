@@ -23,7 +23,7 @@ describe("PillButton", () => {
     it("applies the tone class", () => {
         render(<PillButton tone="danger">Delete</PillButton>);
         expect(screen.getByRole("button", { name: "Delete" })).toHaveClass(
-            "bg-red-600/90",
+            "bg-red-600",
         );
     });
 

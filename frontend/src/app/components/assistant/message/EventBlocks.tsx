@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
@@ -54,7 +54,7 @@ export function EventBlock({
                     className={`mt-2 w-1.5 h-1.5 shrink-0 rounded-full ${dotColorClass}`}
                 />
             )}
-            <div className="ml-2 min-w-0 flex-1 whitespace-normal break-words">
+            <div className="ml-2 min-w-0 flex-1 overflow-x-auto whitespace-normal break-normal">
                 {children}
             </div>
         </div>
@@ -390,12 +390,9 @@ export function DocDownloadBlock({
         if (busy || isReloading || !href) return;
         setBusy(true);
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const authHeaders = await getAuthHeader();
             const resp = await fetch(href, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                headers: authHeaders,
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const blob = await resp.blob();

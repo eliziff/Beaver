@@ -108,7 +108,7 @@ export function PageHeader({
     return (
         <div
             className={cn(
-                "flex items-center justify-between",
+                "flex min-w-0 items-center justify-between gap-4",
                 "mx-4 md:mx-6",
                 "min-h-[76px] pb-4 pt-5.5",
                 shrink && "shrink-0",
@@ -116,7 +116,7 @@ export function PageHeader({
         >
             {headerContent}
             {hasActions && (
-                <div className="ml-4 hidden shrink-0 items-center gap-3 md:flex">
+                <div className="hidden shrink-0 items-center gap-3 md:flex">
                     <PageHeaderActionGroups
                         groupedActionItems={groupedActionItems}
                         actionsDisabled={actionsDisabled}
@@ -154,7 +154,7 @@ function PageHeaderActionGroups({
                     key={groupIndex}
                     className={cn(
                         "flex shrink-0 items-center gap-2",
-                        "rounded-full border border-white/70 bg-app-surface px-1 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl",
+                        "rounded-full border border-gray-200 bg-app-surface p-1 shadow-sm",
                     )}
                 >
                     {group.actions.map((action, index) => (
@@ -311,7 +311,7 @@ function PageHeaderSearchActionControl({
                     className={cn(
                         pageHeaderActionControlClassName({
                             className:
-                                "cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700",
+                                "max-w-[calc(100vw-6.5rem)] cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700",
                         }),
                         `w-56 sm:w-80 ${APP_SURFACE_ACTIVE_CLASS}`,
                     )}
@@ -324,7 +324,7 @@ function PageHeaderSearchActionControl({
                         placeholder={placeholder}
                         value={action.value}
                         onChange={(e) => action.onChange(e.target.value)}
-                        className="flex-1 text-sm text-gray-700 placeholder:text-gray-400 outline-none bg-transparent"
+                        className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
                     />
                 </div>
             ) : (

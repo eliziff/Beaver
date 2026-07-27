@@ -266,7 +266,7 @@ function WorkflowPromptPreview({ content }: { content: string }) {
     const previewContent = stripLeadingMarkdownHeading(content);
 
     return (
-        <div className="min-w-0 flex-1 break-words rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
+        <div className="min-w-0 flex-1 overflow-x-auto break-normal rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
             <WorkflowPromptMarkdown content={previewContent} />
         </div>
     );
@@ -394,7 +394,7 @@ function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
                                 />
                             </button>
                             {isExpanded ? (
-                                <div className="mt-1 min-w-0 space-y-3 break-words rounded-md bg-white/60 px-4 py-3 font-serif text-sm leading-relaxed text-gray-600">
+                                <div className="mt-1 min-w-0 space-y-3 overflow-x-auto break-normal rounded-md bg-white/60 px-4 py-3 font-serif text-sm leading-relaxed text-gray-600">
                                     {column.tags && column.tags.length > 0 ? (
                                         <div>
                                             <p className="mb-1.5 font-sans text-[11px] font-medium text-gray-600">

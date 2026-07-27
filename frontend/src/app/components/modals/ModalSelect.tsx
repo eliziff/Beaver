@@ -69,8 +69,9 @@ export function ModalSelect({
                 type="button"
                 onClick={() => setOpen(!isOpen)}
                 disabled={disabled}
+                title={selected?.label ?? (hasValue ? value : placeholder)}
                 className={cn(
-                    "flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/55 px-3 text-sm text-gray-700 shadow-[0_3px_9px_rgba(15,23,42,0.052),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl transition-colors hover:bg-white/70 focus:bg-white/70 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60",
+                    "flex h-10 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:border-gray-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60",
                     className,
                 )}
                 aria-haspopup="listbox"
@@ -106,7 +107,7 @@ export function ModalSelect({
                     role="listbox"
                     aria-labelledby={id}
                     className={cn(
-                        "absolute left-0 top-full z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-2xl border border-white/70 bg-gray-50/95 p-1 shadow-[0_12px_32px_rgba(15,23,42,0.156),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-1px_0_rgba(255,255,255,0.58)] backdrop-blur-2xl",
+                        "absolute left-0 top-full z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-1 shadow-lg",
                         menuClassName,
                     )}
                 >
@@ -117,8 +118,9 @@ export function ModalSelect({
                             role="option"
                             aria-selected={option.value === value}
                             onClick={() => handleSelect(option.value)}
+                            title={option.label}
                             className={cn(
-                                "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-all hover:bg-gray-100/70",
+                                "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100/70",
                                 option.value === value
                                     ? "bg-gray-100 text-gray-900"
                                     : "text-gray-700",
@@ -133,7 +135,7 @@ export function ModalSelect({
                                         )}
                                     />
                                 )}
-                                <span className="truncate">
+                                <span className="whitespace-normal break-normal leading-snug">
                                     {option.label}
                                 </span>
                             </span>

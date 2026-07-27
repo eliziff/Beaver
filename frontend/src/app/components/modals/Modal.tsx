@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
@@ -61,6 +61,7 @@ export function Modal({
     // Portals can't render during SSR, so a keep-mounted modal only renders
     // (hidden) after the first client mount.
     const [hasMounted, setHasMounted] = useState(false);
+    const titleId = useId();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR portal gate: must flip after first client mount
     useEffect(() => setHasMounted(true), []);
     const hasHeader = breadcrumbs?.length;
@@ -77,16 +78,20 @@ export function Modal({
         <div
             className={cn(
                 "fixed inset-0 z-[200] flex items-center justify-center px-4",
-                "bg-white/10 backdrop-blur-[2px]",
+                "bg-gray-950/20",
                 !open && "hidden",
             )}
             onClick={onClose}
         >
             <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={hasHeader ? titleId : undefined}
+                aria-label={hasHeader ? undefined : "Dialog"}
                 className={cn(
-                    "w-full rounded-3xl flex h-[600px] flex-col",
+                    "flex h-[min(600px,calc(100dvh-2rem))] w-full flex-col rounded-3xl",
                     sizeClassName[size],
-                    "border border-white/70 bg-gray-50/95 shadow-[0_14px_40px_rgba(15,23,42,0.101),0_5px_14px_rgba(15,23,42,0.067)] backdrop-blur-3xl",
+                    "border border-gray-200 bg-gray-50 shadow-xl",
                     className,
                 )}
                 onClick={(e) => e.stopPropagation()}
@@ -102,6 +107,12 @@ export function Modal({
                                     >
                                         {index > 0 && <span>›</span>}
                                         <span
+                                            id={
+                                                index ===
+                                                (breadcrumbs?.length ?? 0) - 1
+                                                    ? titleId
+                                                    : undefined
+                                            }
                                             className={cn(
                                                 "truncate",
                                                 index ===
@@ -117,29 +128,26 @@ export function Modal({
                             {headerAction}
                         </div>
                         <button
+                            type="button"
                             onClick={onClose}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/55 text-gray-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.55),0_6px_18px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-colors hover:bg-white/75 hover:text-gray-700"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700"
                             aria-label="Close"
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
                     </div>
                 )}
-                {/* Body never scrolls itself (so children's edge shadows are
-                    never clipped by the header/footer). Content that can exceed
-                    the modal height wraps its scrollable region in an inner
-                    `overflow-y-auto` div. */}
-                <div className="flex min-h-0 flex-1 flex-col px-5">
+                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col px-5">
                     {children}
                 </div>
                 {hasFooter && (
                     <div
                         className={cn(
-                            "flex items-center gap-3 p-3",
+                            "flex flex-wrap items-center gap-3 p-3",
                             secondaryAction
                                 ? "justify-between"
                                 : "justify-end",
-                            "border-t border-white/60",
+                            "border-t border-gray-200",
                         )}
                     >
                         {secondaryAction && (
@@ -150,7 +158,7 @@ export function Modal({
                                 />
                             </div>
                         )}
-                        <div className="flex items-center gap-2">
+                        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                             {footerStatus}
                             {resolvedCancelAction && (
                                 <ModalActionButton

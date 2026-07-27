@@ -1298,7 +1298,7 @@ function ScrollableToolList({
                                             {tool.description}
                                         </p>
                                     )}
-                                    <p className="mt-1 break-all font-mono text-[11px] text-gray-400">
+                                    <p className="mt-1 overflow-x-auto whitespace-nowrap font-mono text-[11px] text-gray-400">
                                         {tool.openaiToolName}
                                     </p>
                                 </div>

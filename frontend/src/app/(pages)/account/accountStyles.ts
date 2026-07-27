@@ -8,7 +8,7 @@ export const accountGlassInputClassName = cn(
 );
 
 export const accountGlassSectionClassName =
-    "overflow-hidden rounded-xl border border-white/70 bg-white/55 shadow-[0_3px_9px_rgba(15,23,42,0.03),inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-4px_9px_rgba(255,255,255,0.05)] backdrop-blur-2xl";
+    "overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm";
 
 export const accountGlassButtonClassName = cn(
     "rounded-lg border border-transparent bg-transparent px-3 text-gray-700 shadow-none transition-colors hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200",

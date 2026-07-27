@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { supabase } from "@/app/lib/supabase";
+import { getAuthHeader } from "@/app/lib/mikeApi";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
@@ -115,10 +115,7 @@ async function loadTrackedChangeIds(
     if (cached) return cached;
 
     const pending = (async () => {
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const authHeaders = await getAuthHeader();
         const apiBase =
             process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
@@ -126,7 +123,7 @@ async function loadTrackedChangeIds(
             : "";
         const response = await fetch(
             `${apiBase}/single-documents/${documentId}/tracked-change-ids${qs}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+            { headers: authHeaders },
         );
         if (!response.ok) {
             throw new Error(`tracked-change-ids HTTP ${response.status}`);

@@ -5,13 +5,11 @@ import { PlusIcon } from "lucide-react";
 interface Props {
     onBrowseAll: () => void;
     selectedDocIds?: string[];
-    hideLabel?: boolean;
 }
 
 export function AddDocButton({
     onBrowseAll,
     selectedDocIds = [],
-    hideLabel = false,
 }: Props) {
     return (
         <button
@@ -32,7 +30,7 @@ export function AddDocButton({
             ) : (
                 <PlusIcon className="h-4 w-4 shrink-0" />
             )}
-            <span className={hideLabel ? "hidden" : "hidden sm:inline"}>
+            <span className="chat-input-control-label hidden sm:inline">
                 {selectedDocIds.length === 1 ? "Document" : "Documents"}
             </span>
         </button>

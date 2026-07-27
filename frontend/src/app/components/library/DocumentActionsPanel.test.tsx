@@ -24,7 +24,7 @@ vi.mock("@/app/lib/mikeApi", () => ({
     submitLibraryDocumentToAuthorities: vi.fn(),
 }));
 
-vi.mock("@/app/lib/supabase", () => ({
+vi.mock("@/app/lib/authMode", () => ({
     isAnonymousMode: true,
 }));
 
