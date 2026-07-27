@@ -9,7 +9,6 @@ import {
   CODEX_THREAD_ID,
   CODEX_TIMEOUT_MS,
   buildCodexPrompt,
-  codexAbortError,
   codexCommand,
   codexStreamCallbacks,
   normalizeCodexUsage,
@@ -17,6 +16,7 @@ import {
   terminateProcessTree,
   withCodexImages,
 } from "./codex";
+import { abortError } from "./abort";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { codexModelSlug } from "./models";
 import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
@@ -284,7 +284,7 @@ async function runTurn(
   imagePaths: string[],
   progress: { streamed: boolean },
 ): Promise<StreamChatResult> {
-  if (params.abortSignal?.aborted) throw codexAbortError();
+  if (params.abortSignal?.aborted) throw abortError();
   const continuationId = params.providerSession?.continuationId;
   if (continuationId && !CODEX_THREAD_ID.test(continuationId)) {
     throw new Error("Invalid Codex continuation ID.");
@@ -409,7 +409,7 @@ async function runTurn(
           | { status?: string; error?: { message?: string } }
           | undefined;
         if (turn?.status === "completed") settle.resolve();
-        else if (turn?.status === "interrupted") settle.reject(codexAbortError());
+        else if (turn?.status === "interrupted") settle.reject(abortError());
         else {
           settle.reject(
             new CodexTurnError(
@@ -430,7 +430,7 @@ async function runTurn(
   };
   const onAbort = () => {
     interruptTurn();
-    setTimeout(() => settle.reject(codexAbortError()), INTERRUPT_GRACE_MS);
+    setTimeout(() => settle.reject(abortError()), INTERRUPT_GRACE_MS);
   };
   const timer = setTimeout(() => {
     interruptTurn();
