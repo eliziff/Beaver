@@ -29,6 +29,8 @@
 - [ALR macro portability](alr-macro-portability-audit.md)
 - [Deterministic Word actions catalog](deterministic-word-actions-catalog.md)
   — **research complete**; implementation gaps remain under master-plan P1.6.
+- [Minimal evaluation, context, compaction, and caching plan](beaver-minimal-evaluation-context-plan.md)
+  — **adopted**; measure engineering changes before building infrastructure.
 - [Legal skill and plugin ecosystems compared to Beaver](legal-skills-ecosystem-comparison.md)
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
