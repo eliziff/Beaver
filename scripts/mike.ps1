@@ -134,7 +134,7 @@ function Resolve-Application([string[]]$Names) {
     return $null
 }
 
-function Resolve-Codex {
+function Resolve-Codex([switch]$Optional) {
     $configured = [Environment]::GetEnvironmentVariable('CODEX_EXEC_COMMAND')
     if (-not $configured) {
         $configured = Get-ConfigValue 'CODEX_EXEC_COMMAND'
@@ -151,6 +151,9 @@ function Resolve-Codex {
     }
     $resolved = Resolve-Application @('codex.cmd', 'codex.exe')
     if (-not $resolved) {
+        if ($Optional) {
+            return $null
+        }
         throw 'Codex CLI was not found. Install/update Codex so codex.cmd is available.'
     }
     return $resolved
@@ -193,6 +196,42 @@ function Get-Python {
     return $python
 }
 
+function Resolve-LegalPdfPython {
+    $configured = Get-ConfigValue 'LEGALPDF_PYTHON'
+    if ($configured) {
+        if (Test-Path -LiteralPath $configured -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $configured).Path
+        }
+        $resolved = Resolve-Application @($configured)
+        if ($resolved) {
+            return $resolved
+        }
+        throw "LEGALPDF_PYTHON does not resolve to an executable: $configured"
+    }
+    $managed = Join-Path $Repo 'universal-legal-pdf-engine\.venv\Scripts\python.exe'
+    if (Test-Path -LiteralPath $managed -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $managed).Path
+    }
+    return Get-Python
+}
+
+function Get-LegalPdfRuntimeVersion([string]$Python) {
+    $pythonVersion = Get-CommandVersion $Python @('--version')
+    $match = [regex]::Match([string]$pythonVersion, '(\d+)\.(\d+)\.(\d+)')
+    if (-not $match.Success -or
+        [int]$match.Groups[1].Value -lt 3 -or
+        ([int]$match.Groups[1].Value -eq 3 -and [int]$match.Groups[2].Value -lt 11)) {
+        throw "Unsupported Legal PDF Python version '$pythonVersion'. Install Python 3.11 or newer."
+    }
+    $probeOutput = @(& $Python -c 'import fitz; print(fitz.VersionBind)' 2>$null)
+    $probeExitCode = $LASTEXITCODE
+    $pymupdf = $probeOutput | Select-Object -First 1
+    if ($probeExitCode -ne 0 -or -not $pymupdf) {
+        throw 'Legal PDF support requires PyMuPDF. Run: python -m venv universal-legal-pdf-engine\.venv; .\universal-legal-pdf-engine\.venv\Scripts\python -m pip install -e .\universal-legal-pdf-engine'
+    }
+    return $pymupdf.ToString().Trim()
+}
+
 function Get-ConfigValue([string]$Name) {
     $value = [Environment]::GetEnvironmentVariable($Name)
     if ($null -ne $value -and $value.Trim()) {
@@ -220,6 +259,13 @@ function Test-Configured([string[]]$Names) {
     return $false
 }
 
+function Get-CredentialStatus([string[]]$Names) {
+    if (Test-Configured $Names) {
+        return 'configured'
+    }
+    return 'not configured (optional)'
+}
+
 function Assert-Builds {
     foreach ($service in $Services) {
         if (-not (Test-Path -LiteralPath $service.Build -PathType Leaf)) {
@@ -234,16 +280,19 @@ function Assert-Builds {
     }
 }
 
-function Assert-PortsFree([switch]$IncludeToa) {
-    $wanted = @($Services)
-    if ($IncludeToa) {
-        $wanted += [pscustomobject]@{ Name = 'table-of-authorities'; Port = 8765 }
+function Assert-PortFree([string]$Name, [int]$Port) {
+    $owners = Get-PortOwners $Port
+    if ($owners) {
+        throw "$Name cannot start: $(Format-PortOwners $Port)."
     }
-    foreach ($service in $wanted) {
-        $owners = Get-PortOwners $service.Port
-        if ($owners) {
-            throw "$($service.Name) cannot start: $(Format-PortOwners $service.Port)."
-        }
+}
+
+function Assert-PortsFree([switch]$IncludeToa) {
+    foreach ($service in $Services) {
+        Assert-PortFree $service.Name $service.Port
+    }
+    if ($IncludeToa) {
+        Assert-PortFree 'table-of-authorities' 8765
     }
 }
 
@@ -377,8 +426,22 @@ function Invoke-Doctor {
         $failed = $true
     }
     try {
-        $codex = Resolve-Codex
-        Write-Host "Codex: $(Get-CommandVersion $codex @('--version')) ($codex)"
+        $codex = Resolve-Codex -Optional
+        if ($codex) {
+            Write-Host "Codex: $(Get-CommandVersion $codex @('--version')) ($codex)"
+        }
+        else {
+            Write-Host 'Codex: not installed (optional when another provider is used)'
+        }
+    }
+    catch {
+        Write-Host "ERROR: $($_.Exception.Message)"
+        $failed = $true
+    }
+    try {
+        $legalPdfPython = Resolve-LegalPdfPython
+        $pymupdfVersion = Get-LegalPdfRuntimeVersion $legalPdfPython
+        Write-Host "Legal PDF: PyMuPDF $pymupdfVersion ($legalPdfPython)"
     }
     catch {
         Write-Host "ERROR: $($_.Exception.Message)"
@@ -456,7 +519,7 @@ function Invoke-Doctor {
         GovInfo = @('GOVINFO_API_KEY')
     }
     foreach ($provider in $providers.Keys) {
-        $status = if (Test-Configured $providers[$provider]) { 'configured' } else { 'not configured (optional)' }
+        $status = Get-CredentialStatus $providers[$provider]
         Write-Host "$provider credential: $status"
     }
     if ($failed) {
@@ -474,7 +537,9 @@ function Start-Stack {
     }
     Assert-Builds
     $node = Get-Node
-    $codex = Resolve-Codex
+    $codex = Resolve-Codex -Optional
+    $legalPdfPython = Resolve-LegalPdfPython
+    [void](Get-LegalPdfRuntimeVersion $legalPdfPython)
     $python = if ($WithTableOfAuthorities) { Get-Python } else { $null }
     Assert-PortsFree -IncludeToa:$WithTableOfAuthorities
 
@@ -487,9 +552,13 @@ function Start-Stack {
     Write-State $state
     $launched = @()
     $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_EXEC_COMMAND', 'Process')
+    $previousLegalPdfPython = [Environment]::GetEnvironmentVariable('LEGALPDF_PYTHON', 'Process')
     try {
-        # Pin the resolved executable for the backend child; PATH is untouched.
-        [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $codex, 'Process')
+        # Pin resolved executables for the backend child; PATH is untouched.
+        if ($codex) {
+            [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $codex, 'Process')
+        }
+        [Environment]::SetEnvironmentVariable('LEGALPDF_PYTHON', $legalPdfPython, 'Process')
 
         $backendStart = Start-LoggedProcess 'backend' $node @('dist/index.js') $Backend $state
         $launched += [pscustomobject]@{
@@ -535,6 +604,7 @@ function Start-Stack {
     }
     finally {
         [Environment]::SetEnvironmentVariable('CODEX_EXEC_COMMAND', $previousCodex, 'Process')
+        [Environment]::SetEnvironmentVariable('LEGALPDF_PYTHON', $previousLegalPdfPython, 'Process')
     }
 
     if (-not $NoBrowser) {
@@ -561,9 +631,17 @@ function Invoke-Smoke {
     $checks = @(
         [pscustomobject]@{ Name = 'backend'; Url = 'http://127.0.0.1:3001/health' },
         [pscustomobject]@{ Name = 'frontend'; Url = 'http://127.0.0.1:3000/' },
-        [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3001/library/files' },
-        [pscustomobject]@{ Name = 'Codex model catalog'; Url = 'http://127.0.0.1:3001/codex/models' }
+        [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3001/library/files' }
     )
+    if ($state.codex) {
+        $checks += [pscustomobject]@{ Name = 'Codex model catalog'; Url = 'http://127.0.0.1:3001/codex/models' }
+    }
+    elseif ($Full) {
+        throw 'Full smoke requires an installed and authenticated Codex CLI.'
+    }
+    else {
+        Write-Host 'SKIP Codex model catalog: Codex is not installed; another provider may be used.'
+    }
     if ($WithTableOfAuthorities) {
         $checks += [pscustomobject]@{ Name = 'table-of-authorities'; Url = 'http://127.0.0.1:8765/api/status' }
     }
@@ -646,6 +724,15 @@ function Invoke-SelfTest {
         if (-not (Test-LauncherOwnedListener $ownedState 'self-test' $port)) {
             throw 'Launcher-owned listener check rejected a matching process.'
         }
+        try {
+            Assert-PortFree 'self-test' $port
+            throw 'Occupied port check did not fail.'
+        }
+        catch {
+            if ($_.Exception.Message -notmatch "^self-test cannot start: port $port is owned by PID $PID \(.+\)\.$") {
+                throw
+            }
+        }
         $ownedState.processes[0].listenerStartedAt = [DateTime]::UtcNow.AddDays(-1).ToString('o')
         if (Test-LauncherOwnedListener $ownedState 'self-test' $port) {
             throw 'Launcher-owned listener check accepted a stale process.'
@@ -654,8 +741,25 @@ function Invoke-SelfTest {
     finally {
         $listener.Stop()
     }
-    if (-not (Resolve-Codex)) {
+    $resolvedCodex = Resolve-Codex -Optional
+    if ($resolvedCodex -and -not (Test-Path -LiteralPath $resolvedCodex -PathType Leaf)) {
         throw 'Codex resolution check failed.'
+    }
+    if ((Get-CredentialStatus @("MIKE_SELF_TEST_MISSING_OPTIONAL_KEY_$PID")) -ne 'not configured (optional)') {
+        throw 'Missing optional credential check failed.'
+    }
+    $node = Get-Node
+    $failedProcess = Start-Process -FilePath $node -ArgumentList @('-e', 'process.exit(23)') `
+        -WindowStyle Hidden -PassThru
+    $failedProcess.WaitForExit()
+    try {
+        Wait-Ready 'backend' 'http://127.0.0.1:1/' $failedProcess 1
+        throw 'Failed backend check did not fail.'
+    }
+    catch {
+        if ($_.Exception.Message -ne 'backend exited during startup with code 23.') {
+            throw
+        }
     }
     $build = $Services[0].Build
     try {
