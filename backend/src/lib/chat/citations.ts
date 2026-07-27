@@ -295,42 +295,50 @@ export function parseCitationsWithDiagnostics(text: string): {
   citations: ParsedCitation[];
   diagnostics: CitationParseDiagnostics;
 } {
+  // Models sometimes drop the final "]" or the closing </CITATIONS> tag.
+  // Accept a block that opens correctly even when the close tag is missing,
+  // and recover complete citation objects one by one when the array as a
+  // whole does not parse. Each recovered object still passes the strict
+  // per-citation normalization, so a truncated tail never invents a citation.
   const match = text.match(CITATIONS_BLOCK_RE);
-  if (!match) {
+  const openIndex = text.indexOf(CITATIONS_OPEN_TAG);
+  const raw = match
+    ? (match[1] ?? "")
+    : openIndex >= 0
+      ? text.slice(openIndex + CITATIONS_OPEN_TAG.length)
+      : null;
+  if (raw === null) {
     return {
       citations: [],
       diagnostics: { hasBlock: false, rawLength: 0, error: null },
     };
   }
-  const raw = match[1] ?? "";
+  let strictError: string;
   try {
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
+    if (Array.isArray(parsed)) {
       return {
-        citations: [],
-        diagnostics: {
-          hasBlock: true,
-          rawLength: raw.length,
-          error: "CITATIONS block JSON was not an array.",
-        },
+        citations: parsed
+          .map(normalizeCitation)
+          .filter((c): c is ParsedCitation => c !== null),
+        diagnostics: { hasBlock: true, rawLength: raw.length, error: null },
       };
     }
-    return {
-      citations: parsed
-        .map(normalizeCitation)
-        .filter((c): c is ParsedCitation => c !== null),
-      diagnostics: { hasBlock: true, rawLength: raw.length, error: null },
-    };
+    strictError = "CITATIONS block JSON was not an array.";
   } catch (error) {
-    return {
-      citations: [],
-      diagnostics: {
-        hasBlock: true,
-        rawLength: raw.length,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    };
+    strictError = error instanceof Error ? error.message : String(error);
   }
+  const recovered = parsePartialCitationObjects(raw);
+  return {
+    citations: recovered,
+    diagnostics: {
+      hasBlock: true,
+      rawLength: raw.length,
+      error: recovered.length
+        ? `strict parse failed (${strictError}); recovered ${recovered.length} citation(s) object-by-object`
+        : strictError,
+    },
+  };
 }
 
 export function parseCitations(text: string): ParsedCitation[] {

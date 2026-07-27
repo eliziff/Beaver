@@ -75,14 +75,63 @@ function relaxed(value: string) {
 }
 
 function rawEntries(text: string): Record<string, unknown>[] | null {
+  // Mirrors the server: strict array parse first, then object-by-object
+  // recovery for truncated blocks (missing "]" or missing close tag).
   const match = text.match(CITATIONS_BLOCK_RE);
-  if (!match) return null;
+  const openIndex = text.indexOf("<CITATIONS>");
+  const raw = match
+    ? (match[1] ?? "")
+    : openIndex >= 0
+      ? text.slice(openIndex + "<CITATIONS>".length)
+      : null;
+  if (raw === null) return null;
   try {
-    const parsed = JSON.parse(match[1] ?? "");
-    return Array.isArray(parsed) ? parsed : null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
   } catch {
-    return null;
+    /* fall through to recovery */
   }
+  const recovered: Record<string, unknown>[] = [];
+  const arrayStart = raw.indexOf("[");
+  if (arrayStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let objectStart = -1;
+  for (let index = arrayStart + 1; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{") {
+      if (depth === 0) objectStart = index;
+      depth += 1;
+    } else if (char === "}") {
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0 && objectStart >= 0) {
+        try {
+          recovered.push(JSON.parse(raw.slice(objectStart, index + 1)));
+        } catch {
+          /* ignore malformed object */
+        }
+        objectStart = -1;
+      }
+    } else if (char === "]" && depth === 0) {
+      break;
+    }
+  }
+  return recovered.length ? recovered : null;
 }
 
 function proseBeforeBlock(text: string) {
@@ -156,7 +205,22 @@ const SCENARIOS: Scenario[] = [
     validate: (text) => {
       const failures = checkDiscipline(text, LEASE_TEXT, { docId: "doc-0" });
       const entries = rawEntries(text) ?? [];
-      if (entries.length < 2) failures.push(`only ${entries.length} citations`);
+      // Fact coverage across all quotes — the rules allow bundling facts
+      // into one entry with up to 3 quotes, so entry count is not the test.
+      const allQuotes = relaxed(
+        entries
+          .flatMap((entry) =>
+            ((entry.quotes as Record<string, unknown>[]) ?? []).map((quote) =>
+              String(quote.quote ?? ""),
+            ),
+          )
+          .join(" | "),
+      );
+      for (const fact of ["84,000", "five (5) years", "terminate"]) {
+        if (!allQuotes.includes(relaxed(fact))) {
+          failures.push(`fact not cited: ${fact}`);
+        }
+      }
       for (const entry of entries) {
         for (const quote of (entry.quotes as Record<string, unknown>[]) ?? []) {
           const page = quote.page;
@@ -179,7 +243,21 @@ const SCENARIOS: Scenario[] = [
       const failures: string[] = [];
       const entries = rawEntries(text);
       if (!entries) return ["no parseable <CITATIONS> block"];
-      if (entries.length < 2) failures.push(`only ${entries.length} citations`);
+      const cited = relaxed(
+        entries
+          .flatMap((entry) =>
+            ((entry.quotes as Record<string, unknown>[]) ?? [entry]).map(
+              (quote) => String(quote.quote ?? ""),
+            ),
+          )
+          .join(" | "),
+      );
+      if (!cited.includes("5250") && !cited.includes("5,250")) {
+        failures.push("Unit 102 rent not cited");
+      }
+      if (!cited.includes("building a rent summary")) {
+        failures.push("summary title not cited");
+      }
       const cellForm = /^[A-Z]{1,2}\d+(?::[A-Z]{1,2}\d+)?$/u;
       for (const entry of entries) {
         const quotes = ((entry.quotes as Record<string, unknown>[]) ?? []).length

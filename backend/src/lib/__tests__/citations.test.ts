@@ -395,3 +395,54 @@ describe("createCitation", () => {
         });
     });
 });
+
+// ---------------------------------------------------------------------------
+// parseCitationsWithDiagnostics — truncation recovery
+// ---------------------------------------------------------------------------
+
+describe("parseCitationsWithDiagnostics (truncation recovery)", () => {
+    const entryOne =
+        '{"ref": 1, "doc_id": "doc-0", "quotes": [{"page": 1, "quote": "annual rent"}]}';
+    const entryTwo =
+        '{"ref": 2, "doc_id": "doc-0", "quotes": [{"page": 2, "quote": "the term"}]}';
+
+    it("recovers complete objects when the closing ] is missing", () => {
+        const { citations, diagnostics } = parseCitationsWithDiagnostics(
+            `Rent is set out in the lease. [1][2]\n${CITATIONS_OPEN_TAG}\n[\n${entryOne},\n${entryTwo}\n${CITATIONS_CLOSE_TAG}`,
+        );
+        expect(citations).toHaveLength(2);
+        expect(citations[0]).toMatchObject({ ref: 1, doc_id: "doc-0" });
+        expect(citations[1]).toMatchObject({ ref: 2, doc_id: "doc-0" });
+        expect(diagnostics.error).toContain("recovered 2 citation(s)");
+    });
+
+    it("recovers when the closing </CITATIONS> tag is missing entirely", () => {
+        const { citations, diagnostics } = parseCitationsWithDiagnostics(
+            `Prose with markers [1] and [2].\n${CITATIONS_OPEN_TAG}\n[\n${entryOne},\n${entryTwo}\n]`,
+        );
+        expect(citations).toHaveLength(2);
+        expect(diagnostics.hasBlock).toBe(true);
+    });
+
+    it("drops an incomplete trailing object instead of inventing it", () => {
+        const { citations } = parseCitationsWithDiagnostics(
+            `Text [1].\n${CITATIONS_OPEN_TAG}\n[\n${entryOne},\n{"ref": 2, "doc_id": "doc-0", "quo`,
+        );
+        expect(citations).toHaveLength(1);
+        expect(citations[0]).toMatchObject({ ref: 1 });
+    });
+
+    it("does not treat prose markers before the block as JSON", () => {
+        const { citations } = parseCitationsWithDiagnostics(
+            `See [1] and also [12] of the judgment.\n${CITATIONS_OPEN_TAG}\n[\n${entryOne}\n]`,
+        );
+        expect(citations).toHaveLength(1);
+    });
+
+    it("still parses a fully well-formed block strictly", () => {
+        const { diagnostics } = parseCitationsWithDiagnostics(
+            `Text [1].\n${CITATIONS_OPEN_TAG}\n[${entryOne}]\n${CITATIONS_CLOSE_TAG}`,
+        );
+        expect(diagnostics.error).toBeNull();
+    });
+});
