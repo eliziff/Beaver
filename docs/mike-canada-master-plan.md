@@ -694,6 +694,31 @@ Acceptance:
 - Vision is invoked only for images/pages that require it.
 - Quoted visual text is grounded in an OCR/region artifact with page and box.
 
+### P1.15 Role-aware onboarding and settings
+
+Status: **Deferred**
+
+Do not build this until Mike has enough genuinely distinct litigator and
+solicitor capabilities for a preset to change the product meaningfully.
+
+- On first use, offer an optional account-free Mike profile that asks what kind
+  of legal work the user does and explains what the answer changes.
+- Provide editable presets rather than permanent roles. A litigator preset can
+  foreground Table of Authorities and case-research workflows; later solicitor
+  presets should be based on implemented transactional workflows, not guesses.
+- Add a normal Settings area where the same choices, defaults, providers,
+  privacy controls, and local/cloud behavior can be reviewed or changed.
+- Store local profiles under the shared AppData contract and keep cloud profile
+  compatibility without requiring an account.
+- Allow skipping onboarding and changing or resetting the profile at any time.
+
+Acceptance:
+
+- Onboarding is introduced only after at least two evidence-backed role presets
+  produce materially different useful navigation or defaults.
+- Presets never hide capabilities, hardcode a professional identity, or make
+  account creation mandatory.
+
 ## Priority 2 — legal benchmarks and deployment gates
 
 ### P2.1 Benchmark inventory and licensing
@@ -886,6 +911,8 @@ The consolidated backlog deliberately retains these user priorities:
   memos;
 - Mike-Canada branding, maple leaf/red visual identity, visible assistant,
   non-duplicated models, and usable icons;
+- optional role-aware onboarding plus an editable Settings area, deferred until
+  litigator and solicitor presets can reflect real implemented capabilities;
 - reliable startup, working Library import, responsive UI, and dramatically
   shorter measured builds without harmful warmup cuts;
 - curated example documents; and
