@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   matterDocuments: undefined as string[] | undefined,
   preflightFailure: false,
   providerMessages: [] as { role: string; content: string }[][],
+  providerReferences: new Map<string, string[]>(),
   systemPrompts: [] as string[],
   appendLocalPdfPinpointLinks: vi.fn(),
   readLocalPdfEvidenceReceipt: vi.fn(),
@@ -31,6 +32,10 @@ vi.mock("../lib/chat/localAssistantTools", () => ({
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
   appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
+  providerPdfReferencesForTurn: (
+    _handles: ReadonlySet<string>,
+    handle: string,
+  ) => mocks.providerReferences.get(handle) ?? [],
 }));
 vi.mock("../lib/localPdfLookup", () => ({
   readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
@@ -60,6 +65,8 @@ const PROJECT_ID = "20000000-0000-4000-8000-000000000001";
 const DOCUMENT_ID = "30000000-0000-4000-8000-000000000001";
 const VERSION_ID = "40000000-0000-4000-8000-000000000001";
 const HANDLE = `mike-evidence:v1:${"a".repeat(64)}`;
+const PROVIDER_REFERENCE_ONE = `mike-provider-pdf:v1:govinfo:${"b".repeat(64)}:${"c".repeat(64)}`;
+const PROVIDER_REFERENCE_TWO = `mike-provider-pdf:v1:courtlistener:${"d".repeat(64)}:${"c".repeat(64)}`;
 const REGISTRY_EVENT = "local_pdf_evidence_handles";
 
 let dataHome: string;
@@ -102,6 +109,7 @@ beforeEach(async () => {
   mocks.matterDocuments = undefined;
   mocks.preflightFailure = false;
   mocks.providerMessages.length = 0;
+  mocks.providerReferences.clear();
   mocks.systemPrompts.length = 0;
   mocks.appendLocalPdfPinpointLinks.mockReset();
   mocks.readLocalPdfEvidenceReceipt.mockReset();
@@ -228,6 +236,95 @@ describe("anonymous chat PDF evidence durability", () => {
     const refreshed = await request(loaded.app).get(`/chat/${created.body.id}`);
     expect(JSON.stringify(refreshed.body)).not.toContain(HANDLE);
     expect(JSON.stringify(refreshed.body)).not.toContain(REGISTRY_EVENT);
+  });
+
+  it("retains mirrored provider evidence across reload inside a matter", async () => {
+    mocks.activeHandles.push(HANDLE);
+    mocks.providerReferences.set(HANDLE, [
+      PROVIDER_REFERENCE_ONE,
+      PROVIDER_REFERENCE_TWO,
+    ]);
+    mocks.matterDocuments = [];
+    let loaded = await loadApp();
+    const created = await request(loaded.app)
+      .post("/chat/create")
+      .send({ project_id: PROJECT_ID });
+    const firstCurrentTurn = {
+      kind: "message",
+      turn_id: "70000000-0000-4000-8000-000000000001",
+      content: "Use the exact provider PDF passage.",
+    };
+
+    const firstTurn = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      project_id: PROJECT_ID,
+      expected_version: 0,
+      current_turn: firstCurrentTurn,
+    });
+
+    expect(firstTurn.status).toBe(200);
+    expect(
+      registryEvent(loaded.store.getAnonymousChat(USER_ID, created.body.id)!),
+    ).toEqual({
+      type: REGISTRY_EVENT,
+      schema_version: 1,
+      handles: [
+        { handle: HANDLE, source_reference: PROVIDER_REFERENCE_ONE },
+        { handle: HANDLE, source_reference: PROVIDER_REFERENCE_TWO },
+      ],
+    });
+    expect(mocks.readLocalPdfEvidenceReceipt).not.toHaveBeenCalled();
+
+    const visible = await request(loaded.app).get(`/chat/${created.body.id}`);
+    expect(visible.text).not.toContain(HANDLE);
+    expect(visible.text).not.toContain(PROVIDER_REFERENCE_ONE);
+    expect(visible.text).not.toContain(PROVIDER_REFERENCE_TWO);
+
+    const durableVersion = loaded.store.getAnonymousChat(
+      USER_ID,
+      created.body.id,
+    )!.transcript_version;
+    mocks.activeHandles.length = 0;
+    mocks.providerReferences.clear();
+    loaded = await loadApp();
+    const replay = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      project_id: PROJECT_ID,
+      expected_version: durableVersion,
+      current_turn: firstCurrentTurn,
+    });
+    expect(replay.status).toBe(409);
+    expect(replay.body.code).toBe("chat_turn_already_completed");
+
+    const secondTurn = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        project_id: PROJECT_ID,
+        expected_version: durableVersion,
+        current_turn: {
+          kind: "message",
+          turn_id: "70000000-0000-4000-8000-000000000002",
+          content: "Continue from the exact provider evidence.",
+        },
+      });
+
+    expect(secondTurn.status).toBe(200);
+    expect(mocks.systemPrompts[1]).toContain(
+      `reference_id=${JSON.stringify(PROVIDER_REFERENCE_ONE)}`,
+    );
+    expect(mocks.systemPrompts[1]).toContain(
+      `reference_id=${JSON.stringify(PROVIDER_REFERENCE_TWO)}`,
+    );
+    expect(mocks.systemPrompts[1]).toContain("provider_pdf_lookup");
+    expect(
+      registryEvent(loaded.store.getAnonymousChat(USER_ID, created.body.id)!),
+    ).toMatchObject({
+      handles: [
+        { handle: HANDLE, source_reference: PROVIDER_REFERENCE_ONE },
+        { handle: HANDLE, source_reference: PROVIDER_REFERENCE_TWO },
+      ],
+    });
   });
 
   it("drops registry entries that are no longer in the chat's matter scope", async () => {

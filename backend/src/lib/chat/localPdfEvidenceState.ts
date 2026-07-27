@@ -4,6 +4,7 @@ import {
   createLocalPdfLinkEvidenceSession,
   readLocalPdfEvidenceReceipt,
   type LocalPdfArtifactSession,
+  type LocalPdfLinkEvidence,
 } from "../localPdfLookup";
 import {
   appendLegalSourcePinpointLinks,
@@ -16,6 +17,59 @@ const artifactSessionsByTurn = new WeakMap<
   ReadonlySet<string>,
   Map<string, LocalPdfArtifactSession>
 >();
+const providerReferencesByTurn = new WeakMap<
+  ReadonlySet<string>,
+  Map<
+    string,
+    Map<
+      string,
+      {
+        sourceReference: string;
+        sourceUrl: string;
+        sourceTitle: string;
+        linkEvidence: LocalPdfLinkEvidence;
+      }
+    >
+  >
+>();
+
+export function registerProviderPdfEvidenceForTurn(
+  handles: ReadonlySet<string>,
+  handle: string,
+  sourceReference: string,
+  sourceUrl: string,
+  sourceTitle: string,
+  linkEvidence: LocalPdfLinkEvidence,
+) {
+  let references = providerReferencesByTurn.get(handles);
+  if (!references) {
+    references = new Map();
+    providerReferencesByTurn.set(handles, references);
+  }
+  let sources = references.get(handle);
+  if (!sources) {
+    sources = new Map();
+    references.set(handle, sources);
+  }
+  if (!sources.has(sourceReference) && sources.size >= MAX_HANDLES_PER_ANSWER) {
+    return;
+  }
+  sources.set(sourceReference, {
+    sourceReference,
+    sourceUrl,
+    sourceTitle,
+    linkEvidence,
+  });
+}
+
+export function providerPdfReferencesForTurn(
+  handles: ReadonlySet<string>,
+  handle: string,
+) {
+  return [
+    ...(providerReferencesByTurn.get(handles)?.get(handle)?.keys() ?? []),
+  ];
+}
 
 export function localPdfArtifactSessionForTurn(
   handles: ReadonlySet<string>,
@@ -60,8 +114,33 @@ export async function appendLocalPdfPinpointLinks(
     string,
     ReturnType<typeof createLocalPdfLinkEvidenceSession>
   >();
+  const providerReferences = providerReferencesByTurn.get(handles);
   for (const handle of [...handles].slice(0, MAX_HANDLES_PER_ANSWER)) {
     try {
+      const providerEvidence = providerReferences?.get(handle);
+      if (providerEvidence) {
+        for (const providerSource of providerEvidence.values()) {
+          for (const source of providerSource.linkEvidence.sources) {
+            const key = `${providerSource.sourceReference}|${source.key}`;
+            if (resolved.has(key)) continue;
+            const url = new URL(providerSource.sourceUrl);
+            if (source.pageNumbers[0]) {
+              url.hash = `page=${source.pageNumbers[0]}`;
+            }
+            resolved.set(key, {
+              key,
+              label: sourceLabel(providerSource.sourceTitle, source.label),
+              evidence: {
+                url: url.toString(),
+                blockText: source.blockText,
+                documentText: source.documentText,
+                pageScoped: source.pageScoped,
+              },
+            });
+          }
+        }
+        continue;
+      }
       const receipt = await readLocalPdfEvidenceReceipt(handle);
       if (
         allowedDocumentIds &&

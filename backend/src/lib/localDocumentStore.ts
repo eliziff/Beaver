@@ -22,6 +22,16 @@ import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 
 export type LocalLibraryKind = "file" | "template";
 
+export type LocalLegalSourcePdfFallback = {
+  provider: "a2aj";
+  identity: string;
+  url: string;
+  canonicalUrl: string;
+  title?: string | null;
+  version?: string | null;
+  requestReference: string;
+};
+
 export type LocalLegalSourcePointer = {
   id: string;
   userId: string;
@@ -31,6 +41,7 @@ export type LocalLegalSourcePointer = {
   language: "en" | "fr";
   dataset: string | null;
   sourceId?: string | null;
+  pdfFallback?: LocalLegalSourcePdfFallback;
 };
 
 type LocalVersion = {
@@ -825,6 +836,16 @@ function legalSourceResponse(pointer: LocalLegalSourcePointer) {
     language: pointer.language,
     dataset: pointer.dataset,
     source_id: pointer.sourceId ?? null,
+    ...(pointer.pdfFallback
+      ? {
+          pdf_fallback: {
+            provider: pointer.pdfFallback.provider,
+            identity: pointer.pdfFallback.identity,
+            reference_id: pointer.pdfFallback.requestReference,
+            status_url: `/library/legal/${encodeURIComponent(pointer.id)}/pdf-status`,
+          },
+        }
+      : {}),
   };
 }
 
@@ -876,6 +897,7 @@ export async function saveLocalLegalSource(params: {
   language: "en" | "fr";
   dataset?: string | null;
   sourceId?: string | null;
+  pdfFallback?: LocalLegalSourcePdfFallback;
 }) {
   return mutateStore((store) => {
     const sourceId = params.sourceId?.trim();
@@ -888,11 +910,15 @@ export async function saveLocalLegalSource(params: {
       language: params.language,
       dataset: params.dataset?.trim() || null,
       ...(sourceId ? { sourceId } : {}),
+      ...(params.pdfFallback ? { pdfFallback: params.pdfFallback } : {}),
     };
     const existing = store.legalSources.find(
       (item) => item.userId === params.userId && item.id === pointer.id,
     );
-    if (existing) return legalSourceResponse(existing);
+    if (existing) {
+      if (params.pdfFallback) existing.pdfFallback = params.pdfFallback;
+      return legalSourceResponse(existing);
+    }
     store.legalSources.push(pointer);
     return legalSourceResponse(pointer);
   });
