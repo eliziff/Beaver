@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+const apiBase =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/u, "") ||
+    "http://localhost:3001";
+
 const nextConfig: NextConfig = {
     /* config options here */
     reactCompiler: true,
@@ -19,6 +23,10 @@ const nextConfig: NextConfig = {
             {
                 source: "/sitemap_:slug.xml",
                 destination: "/api/sitemap/sitemap_:slug.xml",
+            },
+            {
+                source: "/single-documents/:documentId/display",
+                destination: `${apiBase}/single-documents/:documentId/display`,
             },
         ];
     },

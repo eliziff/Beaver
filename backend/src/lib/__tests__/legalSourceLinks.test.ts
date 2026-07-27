@@ -4,6 +4,7 @@ import {
   appendA2AJPinpointLinks,
   buildA2AJPinpointUrl,
   buildCourtlistenerCitationPinpointUrl,
+  buildLegalSourcePinpointUrl,
   buildTnaPinpointUrl,
 } from "../legalSourceLinks";
 import { createCitation, parseCitations } from "../chat/citations";
@@ -120,6 +121,35 @@ describe("verified legal-source links", () => {
     ).toBe(
       "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html#sec6",
     );
+  });
+
+  it("allows same-origin viewer paths and rejects unsafe relative URLs", () => {
+    const evidence = {
+      url: "/single-documents/doc-1/display?version_id=version-1#page=1",
+      blockText: "First exact passage. A second exact passage.",
+      documentText: "First exact passage. A second exact passage.",
+      pageScoped: true,
+    };
+    const result = buildLegalSourcePinpointUrl(evidence, [
+      "First exact passage",
+      "second exact passage",
+    ]);
+
+    expect(result).toContain(
+      "/single-documents/doc-1/display?version_id=version-1#page=1:~:text=",
+    );
+    expect(result?.match(/text=/gu)).toHaveLength(2);
+    for (const url of [
+      "//evil.example/path",
+      "/\\evil.example/path",
+      "javascript:alert(1)",
+    ]) {
+      expect(
+        buildLegalSourcePinpointUrl({ ...evidence, url }, [
+          "First exact passage",
+        ]),
+      ).toBeNull();
+    }
   });
 
   it("falls back to the structural anchor when the target is ambiguous", () => {

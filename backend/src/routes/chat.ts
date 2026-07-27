@@ -30,6 +30,7 @@ import {
   LOCAL_ASSISTANT_TOOLS,
   runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
+import { appendLocalPdfPinpointLinks } from "../lib/chat/localPdfEvidenceState";
 import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
@@ -269,6 +270,7 @@ export async function streamAnonymousChat(params: {
     casesByClusterId: new Map(),
   };
   const publicLegalState = createPublicLegalSourceState();
+  const localPdfEvidenceHandles = new Set<string>();
   const streamVisible = (delta: string) => {
     if (!delta || citationsOpen) return;
     const combined = visibleTail + delta;
@@ -300,7 +302,7 @@ export async function streamAnonymousChat(params: {
           projectId
             ? "The current Beaver matter is connected through its attached Library documents"
             : "The user's local Beaver Library is connected"
-        } through library_list, library_lookup, library_evidence, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and link metadata and do not invent locators or URLs. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+        } through library_list, library_lookup, library_evidence, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
         focusPrompt +
         COURTLISTENER_SYSTEM_PROMPT +
         "\n\n" +
@@ -326,6 +328,7 @@ export async function streamAnonymousChat(params: {
           courtlistenerState,
           publicLegalState,
           allowedDocumentIds,
+          localPdfEvidenceHandles,
         ),
       callbacks: {
         onContentDelta: (text: string) => {
@@ -359,13 +362,21 @@ export async function streamAnonymousChat(params: {
         publicLegalState,
       ),
     );
-    const linkedText = appendPublicLegalPinpointLinks(
+    const citationUrls = citations.flatMap((citation) => {
+      const url = "url" in citation ? citation.url : null;
+      return typeof url === "string" ? [url] : [];
+    });
+    const providerLinkedText = appendPublicLegalPinpointLinks(
       appendA2AJPinpointLinks(visibleText.trimEnd(), a2ajLookups),
       publicLegalState,
-      citations.flatMap((citation) => {
-        const url = "url" in citation ? citation.url : null;
-        return typeof url === "string" ? [url] : [];
-      }),
+      citationUrls,
+    );
+    const linkedText = await appendLocalPdfPinpointLinks(
+      providerLinkedText,
+      userId,
+      localPdfEvidenceHandles,
+      allowedDocumentIds,
+      citationUrls,
     );
     const linkDelta = linkedText.slice(visibleText.trimEnd().length);
     if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });

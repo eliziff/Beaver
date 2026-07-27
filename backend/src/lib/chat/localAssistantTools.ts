@@ -345,6 +345,49 @@ function pdfEvidenceError(error: unknown) {
     : "PDF evidence is unavailable";
 }
 
+type LocalPdfLookupResult = Awaited<
+  ReturnType<typeof lookupLocalPdfStructure>
+>;
+const MAX_COMPACT_PDF_MATCHES = 20;
+
+function compactPdfLookup(
+  filename: string,
+  lookup: LocalPdfLookupResult,
+) {
+  if (lookup.status !== "found") {
+    const matches = lookup.matches.slice(0, MAX_COMPACT_PDF_MATCHES);
+    return {
+      ok: false,
+      filename,
+      status: lookup.status,
+      exact: false,
+      ...(matches.length ? { matches } : {}),
+      ...(lookup.matches.length > matches.length
+        ? { matches_truncated: true }
+        : {}),
+      ...("error" in lookup ? { error: lookup.error } : {}),
+    };
+  }
+  const confidence = lookup.units
+    .map((unit) => unit.confidence)
+    .filter((value): value is number => typeof value === "number");
+  return {
+    ok: true,
+    filename,
+    status: lookup.status,
+    exact: true,
+    handle: lookup.evidence.handle,
+    version_id: lookup.source.version_id,
+    units: lookup.units,
+    context: { before: lookup.before, after: lookup.after },
+    confidence: confidence.length ? Math.min(...confidence) : null,
+    link: {
+      href: lookup.link.href,
+      page_numbers: lookup.link.page_numbers,
+    },
+  };
+}
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -353,6 +396,7 @@ export async function runLocalAssistantTools(
   courtlistenerState?: LocalCourtlistenerState,
   publicLegalState?: PublicLegalSourceState,
   allowedDocumentIds?: ReadonlySet<string>,
+  localPdfEvidenceHandles?: Set<string>,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   return Promise.all(
@@ -494,11 +538,10 @@ export async function runLocalAssistantTools(
           occurrence:
             typeof args.occurrence === "number" ? args.occurrence : undefined,
         });
-        return result(call, {
-          ok: lookup.status === "found",
-          filename: file.version.filename,
-          ...lookup,
-        });
+        if (lookup.status === "found") {
+          localPdfEvidenceHandles?.add(lookup.evidence.handle);
+        }
+        return result(call, compactPdfLookup(file.version.filename, lookup));
       }
 
       if (call.name === "library_evidence") {
@@ -529,11 +572,12 @@ export async function runLocalAssistantTools(
               error: "PDF Library version not found",
             });
           }
-          return result(call, {
-            ok: true,
-            filename: file.version.filename,
-            ...(await rehydrateLocalPdfEvidence(file.path, handle)),
-          });
+          const lookup = await rehydrateLocalPdfEvidence(file.path, handle);
+          localPdfEvidenceHandles?.add(handle);
+          return result(
+            call,
+            compactPdfLookup(file.version.filename, lookup),
+          );
         } catch (error) {
           return result(call, {
             ok: false,
