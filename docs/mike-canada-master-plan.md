@@ -528,6 +528,10 @@ Implemented:
 - Generated agreement drafts can place explicit fields and clauses in stable,
   tagged Word content controls. Reads include their accepted text; assistant
   tracked edits fail closed at the control boundary.
+- DOCX creation now has one model contract and one renderer: bounded semantic
+  Markdown for headings, lists, tables, native footnotes, fields, page breaks,
+  bookmarks, and verified `[@source]` links. The former `sections[]` path was
+  deleted rather than maintained.
 - **Document actions** is a non-modal floating side panel, not a focus-stealing
   dialog. It docks left/right, minimizes to a launcher, and leaves the Library
   interactive. A component test verifies background interaction, docking,

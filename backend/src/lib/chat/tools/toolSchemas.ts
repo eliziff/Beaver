@@ -258,104 +258,88 @@ export const TOOLS = [
     function: {
       name: "generate_docx",
       description:
-        "Generate a durable Word (.docx) document from structured content. This is the default output when the user asks to draft an agreement or contract; return the artifact instead of dumping the full draft in chat. Put unresolved fields and editable clauses in modern Word content controls.",
+        "Create a durable Word document from concise semantic Markdown. Use this for requested agreements, contracts, memos, briefs, letters, and other drafts; return the artifact instead of dumping the full draft in chat. Word styling, numbering, footnote mechanics, fields, and OOXML are deterministic.",
       parameters: {
         type: "object",
         properties: {
           title: {
             type: "string",
-            description: "Document title (used as filename and heading)",
+            description:
+              "Document title, rendered once and also used for the filename. Do not repeat it in markdown.",
           },
           landscape: {
             type: "boolean",
             description:
               "Set to true for landscape page orientation. Default is portrait.",
           },
-          sections: {
-            type: "array",
+          markdown: {
+            type: "string",
             description:
-              "List of document sections. Each section may contain a heading, prose content, or a table.",
+              "Document body. Use #, ##, or ### for heading hierarchy; add {-} to an unnumbered heading or {#bookmark_id} for a bookmark. Ordinary paragraphs, *italics*, **bold**, lists, and simple pipe tables are supported. Put [^1] where a native Word footnote belongs and define it with [^1]: text. Use {{field_id}} for an editable field; a marker alone on its line becomes a rich editable clause. Use <!-- pagebreak --> only for an intentional page break.",
+          },
+          fields: {
+            type: "array",
+            maxItems: 100,
+            description:
+              "Optional initial values for {{field_id}} markers. Omit unresolved fields; Word will display a labelled placeholder.",
             items: {
               type: "object",
               properties: {
-                heading: {
-                  type: "string",
-                  description: "Optional section heading",
-                },
-                level: {
-                  type: "integer",
-                  description: "Heading level: 1, 2, or 3",
-                },
-                content: {
+                id: {
                   type: "string",
                   description:
-                    "Prose text content. Use {{tag}} where a contentControls item belongs.",
+                    "Stable lowercase field identifier used by a {{field_id}} marker.",
                 },
-                contentControls: {
-                  type: "array",
-                  maxItems: 50,
+                value: {
+                  type: "string",
                   description:
-                    "Editable Word fields or clauses used by {{tag}} markers in this section. Use stable lowercase tags. The generator, not the model, creates the OOXML.",
-                  items: {
-                    type: "object",
-                    properties: {
-                      tag: {
-                        type: "string",
-                        pattern: "^[a-z][a-z0-9_.-]{0,63}$",
-                        description:
-                          "Stable identifier referenced as {{tag}} in content.",
-                      },
-                      label: {
-                        type: "string",
-                        description:
-                          "Short label Word displays for the editable control.",
-                      },
-                      value: {
-                        type: "string",
-                        description:
-                          "Initial field or clause text. Omit to show [label].",
-                      },
-                      kind: {
-                        type: "string",
-                        enum: ["field", "clause"],
-                        description:
-                          "field creates a plain-text control; clause creates a rich-text control.",
-                      },
-                    },
-                    required: ["tag"],
-                  },
-                },
-                pageBreak: {
-                  type: "boolean",
-                  description:
-                    "Set to true to start this section on a new page. Use for contract signature pages.",
-                },
-                table: {
-                  type: "object",
-                  description: "Optional table to render in this section",
-                  properties: {
-                    headers: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "Column header labels",
-                    },
-                    rows: {
-                      type: "array",
-                      items: {
-                        type: "array",
-                        items: { type: "string" },
-                      },
-                      description:
-                        "Array of rows, each row is an array of cell strings matching the headers order",
-                    },
-                  },
-                  required: ["headers", "rows"],
+                    "Initial text placed in the native Word content control.",
                 },
               },
+              required: ["id", "value"],
+            },
+          },
+          sources: {
+            type: "array",
+            maxItems: 100,
+            description:
+              "Optional verified legal sources expanded by [@source_id] markers. The generator creates the link and ordered pinpoints; write the marker once instead of repeating the citation for each pinpoint.",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                  description:
+                    "Stable lowercase identifier used by one or more [@source_id] markers.",
+                },
+                citation: {
+                  type: "string",
+                  description:
+                    "Visible citation text without a URL or repeated pinpoint list.",
+                },
+                handles: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "One to sixteen ordered evidence handles returned by exact legal-source lookups.",
+                },
+                source_reference: {
+                  type: "string",
+                  description:
+                    "Required only for cached provider-PDF evidence: the SHA-qualified mike-provider-pdf source_reference returned with the handle.",
+                },
+                quotes: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "Optional exact quote per handle. Omit when the evidence unit itself identifies the pinpoint.",
+                },
+              },
+              required: ["id", "citation", "handles"],
             },
           },
         },
-        required: ["title", "sections"],
+        required: ["title", "markdown"],
       },
     },
   },

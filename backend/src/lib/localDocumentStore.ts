@@ -54,6 +54,19 @@ type LocalVersion = {
     action: "created" | "revised";
     parentVersionId?: string;
     changeCount?: number;
+    generation?: {
+      rendererVersion: "beaver.docx-markdown.v1";
+      markdownSha256: string;
+      fieldValuesSha256: string;
+      sourceRegistrySha256: string;
+      evidenceBindings: {
+        id: string;
+        handles: string[];
+        sourceSha256: string;
+        locators: string[];
+        url: string;
+      }[];
+    };
   };
   createdAt: string;
   filename: string;

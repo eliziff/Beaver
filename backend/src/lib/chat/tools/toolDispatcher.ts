@@ -44,6 +44,7 @@ import { contentTypeForDocumentType } from "../../documentTypes";
 import { buildDownloadUrl } from "../../downloadTokens";
 import { loadActiveVersion } from "../../documentVersions";
 import { type EditInput } from "../../docxTrackedChanges";
+import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
 import {
   citationReminder,
   generateDocx,
@@ -2100,9 +2101,25 @@ export async function runToolCalls(
       write(
         `data: ${JSON.stringify({ type: "doc_created_start", filename: previewFilename })}\n\n`,
       );
+      let evidence: Awaited<ReturnType<typeof resolveDocxEvidenceCitations>>;
+      try {
+        evidence = await resolveDocxEvidenceCitations(userId, args.sources);
+      } catch {
+        registerGeneratedDocument(
+          tc,
+          { error: "DOCX evidence could not be verified." },
+          previewFilename,
+          "docx",
+        );
+        continue;
+      }
       const result = await generateDocx(
         title,
-        args.sections as unknown[],
+        {
+          markdown: typeof args.markdown === "string" ? args.markdown : "",
+          fields: args.fields,
+          citations: evidence.citations,
+        },
         userId,
         db,
         { landscape, projectId: projectId ?? null },

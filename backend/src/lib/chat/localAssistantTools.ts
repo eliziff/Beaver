@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   fetchA2AJDocument,
@@ -9,6 +10,7 @@ import {
 import { docxToPdf } from "../convert";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
+import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   applyTrackedEdits,
   extractDocxBodyText,
@@ -69,7 +71,7 @@ import {
 import {
   extractPdfText,
   findTextMatches,
-  renderDocx,
+  renderMarkdownDocx,
 } from "./tools/documentOps";
 import { TOOLS } from "./tools/toolSchemas";
 import {
@@ -341,8 +343,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
         function: {
           ...tool.function,
           name: "library_create_docx",
-          description:
-            `${tool.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
+          description: `${tool.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
         },
       },
     ];
@@ -469,15 +470,12 @@ function pdfEvidenceError(error: unknown) {
     : "PDF evidence is unavailable";
 }
 
-type LocalPdfLookupResult = Awaited<
-  ReturnType<typeof lookupLocalPdfStructure>
-> | Awaited<ReturnType<typeof rehydrateLocalPdfEvidence>>;
+type LocalPdfLookupResult =
+  | Awaited<ReturnType<typeof lookupLocalPdfStructure>>
+  | Awaited<ReturnType<typeof rehydrateLocalPdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
 
-function compactPdfLookup(
-  filename: string,
-  lookup: LocalPdfLookupResult,
-) {
+function compactPdfLookup(filename: string, lookup: LocalPdfLookupResult) {
   if (lookup.status !== "found") {
     const matches = lookup.matches.slice(0, MAX_COMPACT_PDF_MATCHES);
     return {
@@ -711,24 +709,31 @@ export async function runLocalAssistantTools(
       }
       if (call.name === "library_create_docx") {
         const title = typeof args.title === "string" ? args.title.trim() : "";
-        const sections = Array.isArray(args.sections) ? args.sections : [];
-        if (
-          !title ||
-          !sections.length ||
-          sections.length > 200 ||
-          JSON.stringify(sections).length > 1_000_000
-        ) {
+        const markdown =
+          typeof args.markdown === "string" ? args.markdown.trim() : "";
+        if (!title || title.length > 256 || !markdown) {
           return result(call, {
             ok: false,
-            error: "DOCX title or sections are invalid",
+            error: "DOCX title or Markdown is invalid",
           });
         }
         try {
-          const rendered = await renderDocx(title, sections, {
-            landscape: args.landscape === true,
-          });
+          const evidence = await resolveDocxEvidenceCitations(
+            userId,
+            args.sources,
+            allowedDocumentIds,
+          );
+          const rendered = await renderMarkdownDocx(
+            title,
+            markdown,
+            args.fields,
+            {
+              landscape: args.landscape === true,
+              citations: evidence.citations,
+            },
+          );
           if ("error" in rendered) {
-            return result(call, { ok: false, error: "DOCX creation failed" });
+            return result(call, { ok: false, error: rendered.error });
           }
           const document = await createLocalDocument({
             userId,
@@ -739,6 +744,28 @@ export async function runLocalAssistantTools(
               schemaVersion: 1,
               actor: "assistant",
               action: "created",
+              generation: {
+                rendererVersion: "beaver.docx-markdown.v1",
+                markdownSha256: crypto
+                  .createHash("sha256")
+                  .update(markdown)
+                  .digest("hex"),
+                fieldValuesSha256: crypto
+                  .createHash("sha256")
+                  .update(JSON.stringify(args.fields ?? []))
+                  .digest("hex"),
+                sourceRegistrySha256: crypto
+                  .createHash("sha256")
+                  .update(JSON.stringify(args.sources ?? []))
+                  .digest("hex"),
+                evidenceBindings: evidence.bindings.map((binding) => ({
+                  id: binding.id,
+                  handles: binding.handles,
+                  sourceSha256: binding.source_sha256,
+                  locators: binding.locators,
+                  url: binding.url,
+                })),
+              },
             },
           });
           if (matterId) {
@@ -999,7 +1026,10 @@ export async function runLocalAssistantTools(
           versionId || undefined,
         );
         if (!file) {
-          return result(call, { ok: false, error: "PDF Library version not found" });
+          return result(call, {
+            ok: false,
+            error: "PDF Library version not found",
+          });
         }
         if (file.fileType.toLowerCase() !== "pdf") {
           return result(call, {
@@ -1072,10 +1102,7 @@ export async function runLocalAssistantTools(
             artifactSession,
           );
           localPdfEvidenceHandles?.add(handle);
-          return result(
-            call,
-            compactPdfLookup(file.version.filename, lookup),
-          );
+          return result(call, compactPdfLookup(file.version.filename, lookup));
         } catch (error) {
           return result(call, {
             ok: false,
@@ -1091,10 +1118,7 @@ export async function runLocalAssistantTools(
           return result(call, { ok: false, error: "document_id is required" });
         }
         try {
-          return result(
-            call,
-            await linkLocalDocxCitations(userId, documentId),
-          );
+          return result(call, await linkLocalDocxCitations(userId, documentId));
         } catch (error) {
           return result(call, {
             ok: false,
@@ -1180,8 +1204,7 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "toa_job_status") {
-        const jobId =
-          typeof args.job_id === "string" ? args.job_id.trim() : "";
+        const jobId = typeof args.job_id === "string" ? args.job_id.trim() : "";
         try {
           return result(call, {
             ok: true,
@@ -1268,9 +1291,7 @@ export async function runLocalAssistantTools(
         if (lookup?.status === "found" && lookup.block) {
           a2ajLookups?.push(lookup);
         }
-        const pdfFallback = lookup
-          ? await queueA2ajPdfFallback(lookup)
-          : null;
+        const pdfFallback = lookup ? await queueA2ajPdfFallback(lookup) : null;
         return result(
           call,
           lookup

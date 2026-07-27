@@ -4,6 +4,7 @@ import {
   appendA2AJPinpointLinks,
   buildA2AJPinpointUrl,
   buildCourtlistenerCitationPinpointUrl,
+  buildLegalSourceMultiPassageUrl,
   buildLegalSourcePinpointUrl,
   buildTnaPinpointUrl,
 } from "../legalSourceLinks";
@@ -121,6 +122,45 @@ describe("verified legal-source links", () => {
     ).toBe(
       "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html#sec6",
     );
+  });
+
+  it("keeps identical language at distinct verified pinpoints", () => {
+    const first =
+      "Alpha context explains why the same rule applies uniquely here. End alpha.";
+    const second =
+      "Beta context explains why the same rule applies uniquely here. End beta.";
+    const documentText = `${first}\n${second}`;
+    const result = buildLegalSourceMultiPassageUrl(
+      "https://example.test/decision",
+      [
+        {
+          key: "para-1",
+          blockText: first,
+          documentText,
+          quotes: ["the same rule applies uniquely here"],
+        },
+        {
+          key: "para-2",
+          blockText: second,
+          documentText,
+          quotes: ["the same rule applies uniquely here"],
+        },
+      ],
+    )!;
+
+    expect(result.match(/text=/gu)).toHaveLength(2);
+    expect(result).toContain("Alpha%20context");
+    expect(result).toContain("Beta%20context");
+    expect(
+      buildLegalSourceMultiPassageUrl("https://example.test/decision", [
+        {
+          key: "para-1",
+          blockText: first,
+          documentText,
+          quotes: ["words absent from the source"],
+        },
+      ]),
+    ).toBeNull();
   });
 
   it("allows same-origin viewer paths and rejects unsafe relative URLs", () => {

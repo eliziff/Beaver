@@ -19,9 +19,8 @@ afterEach(async () => {
 
 describe("local assistant tools", () => {
   it("offers bounded deterministic DOCX actions", async () => {
-    const { LOCAL_ASSISTANT_TOOLS } = await import(
-      "../chat/localAssistantTools"
-    );
+    const { LOCAL_ASSISTANT_TOOLS } =
+      await import("../chat/localAssistantTools");
     const names = LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name);
 
     expect(names).toContain("ask_inputs");
@@ -77,10 +76,12 @@ describe("local assistant tools", () => {
             name: "library_create_docx",
             input: {
               title: "Opinion Draft",
-              sections: [
+              markdown:
+                "# Background\n\nOriginal provision.\n\nEffective on {{effective_date}}.[^1]\n\n[^1]: The effective date remains editable.",
+              fields: [
                 {
-                  heading: "Background",
-                  content: "Original provision.",
+                  id: "effective_date",
+                  value: "July 27, 2026",
                 },
               ],
             },
@@ -352,6 +353,18 @@ describe("local assistant tools", () => {
           },
         },
       ]);
+      const durableStore = JSON.parse(
+        await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
+      );
+      expect(
+        durableStore.documents[0].versions[0].provenance.generation,
+      ).toMatchObject({
+        rendererVersion: "beaver.docx-markdown.v1",
+        markdownSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        fieldValuesSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        sourceRegistrySha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        evidenceBindings: [],
+      });
       expect(
         await trackedChanges.extractDocxBodyText(
           await readFile(original!.path),
@@ -390,7 +403,7 @@ describe("local assistant tools", () => {
             name: "library_create_docx",
             input: {
               title: "Unattached Draft",
-              sections: [{ content: "Draft text." }],
+              markdown: "Draft text.",
             },
           },
         ],
@@ -408,10 +421,11 @@ describe("local assistant tools", () => {
         error: "Could not attach document to matter",
       });
       expect(
-        (await (await import("../localDocumentStore")).listLocalLibrary(
-          "local-user",
-          "file",
-        )).documents,
+        (
+          await (
+            await import("../localDocumentStore")
+          ).listLocalLibrary("local-user", "file")
+        ).documents,
       ).toEqual([]);
     } finally {
       graph.close();
