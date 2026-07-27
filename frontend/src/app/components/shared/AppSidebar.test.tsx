@@ -105,4 +105,16 @@ describe("AppSidebar history ownership", () => {
     ).not.toHaveTextContent("History");
     expect(screen.queryByText("Assistant History")).not.toBeInTheDocument();
   });
+
+  it("hides account-only tools and exposes local API-key status", () => {
+    render(<AppSidebar isOpen onToggle={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("group", { name: "Tabular Review" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "Workflows" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "API keys" })).toBeInTheDocument();
+  });
 });

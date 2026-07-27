@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { normalizeApiKeyProvider, hasEnvApiKey } from "../userApiKeys";
+import {
+    getEnvironmentApiKeyStatus,
+    normalizeApiKeyProvider,
+    hasEnvApiKey,
+} from "../userApiKeys";
 
 describe("normalizeApiKeyProvider", () => {
     it('returns "claude" for "claude"', () => {
@@ -34,6 +38,8 @@ describe("hasEnvApiKey", () => {
         "GEMINI_API_KEY",
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_OCR_KEY",
+        "OPENROUTER_API_KEY",
+        "COURTLISTENER_API_TOKEN",
     ];
 
     // Clear before AND after each test so keys exported in the developer's
@@ -84,5 +90,25 @@ describe("hasEnvApiKey", () => {
     it("ignores whitespace-only env values", () => {
         process.env.ANTHROPIC_API_KEY = "   ";
         expect(hasEnvApiKey("claude")).toBe(false);
+    });
+
+    it("returns an environment-only status map without a database", () => {
+        process.env.DEEPSEEK_API_KEY = "configured";
+        expect(getEnvironmentApiKeyStatus()).toEqual({
+            claude: false,
+            gemini: false,
+            openai: false,
+            deepseek: true,
+            openrouter: false,
+            courtlistener: false,
+            sources: {
+                claude: null,
+                gemini: null,
+                openai: null,
+                deepseek: "env",
+                openrouter: null,
+                courtlistener: null,
+            },
+        });
     });
 });

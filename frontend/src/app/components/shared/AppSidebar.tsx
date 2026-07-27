@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { PanelLeft, User, ChevronsUpDown, ChevronDown } from "lucide-react";
+import {
+  PanelLeft,
+  User,
+  ChevronsUpDown,
+  ChevronDown,
+  KeyRound,
+} from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -195,7 +201,11 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
           aria-label="Primary"
           className={cn("min-h-0 flex-1", isOpen && "overflow-y-auto pb-2")}
         >
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {NAV_ITEMS.filter(
+            ({ href }) =>
+              !isAnonymousMode ||
+              (href !== "/tabular-reviews" && href !== "/workflows"),
+          ).map(({ href, label, icon: Icon }) => {
             const isActive =
               pathname === href || pathname.startsWith(`${href}/`);
             return (
@@ -415,6 +425,26 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
 
         {/* User Profile */}
         <div className="mt-auto p-1">
+          {user && isAnonymousMode && (
+            <button
+              type="button"
+              onClick={() => router.push("/account/api-keys")}
+              title={!isOpen ? "API keys" : undefined}
+              aria-current={
+                pathname === "/account/api-keys" ? "page" : undefined
+              }
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl border-t border-white/60 px-3 py-3 text-sm text-gray-700 transition-colors",
+                pathname === "/account/api-keys"
+                  ? APP_SURFACE_ACTIVE_CLASS
+                  : APP_SURFACE_HOVER_CLASS,
+                !isOpen ? "hidden md:flex" : "",
+              )}
+            >
+              <KeyRound className="h-4 w-4 shrink-0" />
+              {isOpen && <span>API keys</span>}
+            </button>
+          )}
           {user && !isAnonymousMode && (
             <div className="relative">
               <button
