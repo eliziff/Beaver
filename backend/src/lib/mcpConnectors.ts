@@ -1,11 +1,4 @@
-export type {
-    McpAuthType,
-    McpConnectorAuthConfig,
-    McpConnectorSummary,
-    McpToolEvent,
-    McpToolSummary,
-    McpTransport,
-} from "./mcp/types";
+export type { McpToolEvent } from "./mcp/types";
 export { McpOAuthRequiredError } from "./mcp/oauth";
 export {
     buildUserMcpTools,
@@ -19,5 +12,4 @@ export {
     setUserMcpToolEnabled,
     startUserMcpConnectorOAuth,
     updateUserMcpConnector,
-    validateRemoteMcpUrl,
 } from "./mcp/servers";

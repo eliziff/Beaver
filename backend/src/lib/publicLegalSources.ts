@@ -44,13 +44,13 @@ export type GovInfoCaseSearchResult = {
   url: string;
 };
 
-export type PublicLegalSearchResult =
+type PublicLegalSearchResult =
   | TnaCaseSearchResult
   | GovUkEtSearchResult
   | GovInfoCaseSearchResult
   | JournalArticleSearchResult;
 
-export type PublicLegalAttachment = {
+type PublicLegalAttachment = {
   title: string | null;
   url: string;
   contentType: string | null;

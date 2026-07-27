@@ -27,7 +27,7 @@ const ATTACHMENT_LABELS = [
   "Annexure",
 ] as const;
 
-export type DocxLintFindingCode =
+type DocxLintFindingCode =
   | "cross_reference_missing"
   | "attachment_reference_missing"
   | "numbering_gap"
@@ -35,7 +35,7 @@ export type DocxLintFindingCode =
   | "defined_term_duplicate"
   | "defined_term_unused";
 
-export type DocxLintFinding = {
+type DocxLintFinding = {
   code: DocxLintFindingCode;
   severity: "error" | "warning";
   subject: string;

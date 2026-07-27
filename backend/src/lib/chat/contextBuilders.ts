@@ -9,7 +9,6 @@ import {
   type ChatMessage,
   type AskInputsResponseRequest,
   type AskInputResponseItem,
-  devLog,
 } from "./types";
 import { buildSystemPrompt, SPREADSHEET_CITATION_PROMPT } from "./prompts";
 import { parseCitations, createCitation } from "./citations";
@@ -420,14 +419,6 @@ export async function buildDocContext(
     }
   }
 
-  devLog(
-    "[buildDocContext] available docs:",
-    Object.entries(docIndex).map(([label, info]) => ({
-      label,
-      filename: info.filename,
-      document_id: info.document_id,
-    })),
-  );
   return { docIndex, docStore };
 }
 
@@ -512,15 +503,6 @@ export async function buildProjectDocContext(
     if (path) folderPaths.set(docLabel, path);
   }
 
-  devLog(
-    "[buildProjectDocContext] available docs:",
-    Object.entries(docIndex).map(([label, info]) => ({
-      label,
-      filename: info.filename,
-      document_id: info.document_id,
-      folder: folderPaths.get(label) ?? null,
-    })),
-  );
   return { docIndex, docStore, folderPaths };
 }
 

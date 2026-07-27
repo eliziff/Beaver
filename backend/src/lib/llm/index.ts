@@ -5,7 +5,7 @@ import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
 export * from "./types";
 export * from "./models";
 
-export async function streamCodex(
+async function streamCodex(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
   // The app-server adapter owns the exec fallback, so this stays a single door.
