@@ -75,6 +75,27 @@ describe("local assistant tools", () => {
     });
   });
 
+  it("does not expose local paths for a missing evidence receipt", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const tools = await import("../chat/localAssistantTools");
+
+    const [response] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "call-evidence",
+        name: "library_evidence",
+        input: { handle: `mike-evidence:v1:${"a".repeat(64)}` },
+      },
+    ]);
+
+    expect(JSON.parse(response.content)).toEqual({
+      ok: false,
+      error: "PDF evidence is unavailable",
+    });
+    expect(response.content).not.toContain(temporaryDirectory);
+    expect(response.content).not.toContain("ENOENT");
+  });
+
   it("submits only an owned Library DOCX version to the ToA bridge", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;

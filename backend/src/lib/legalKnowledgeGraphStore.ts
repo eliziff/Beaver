@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mikeLocalDataHome } from "./legalDataPath";
 
 export const GENERAL_RESEARCH_PROJECT_ID = "general";
-export const LEGAL_KNOWLEDGE_SCHEMA_VERSION = 1;
+export const LEGAL_KNOWLEDGE_SCHEMA_VERSION = 2;
 const MAX_LABEL_DEPTH = 3;
 const KIND = /^[a-z][a-z0-9_-]{0,39}$/u;
 
@@ -22,6 +22,16 @@ export type LegalKnowledgeNode = {
 export type LegalKnowledgeProject = {
   id: string;
   name: string;
+  order: number;
+};
+
+export type LocalMatter = {
+  id: string;
+  name: string;
+  cm_number: string | null;
+  practice: string | null;
+  created_at: string;
+  updated_at: string;
   order: number;
 };
 
@@ -107,6 +117,12 @@ function requiredText(value: string, name: string, maximum: number) {
   if (!normalized) throw new Error(`${name} is required`);
   if (normalized.length > maximum) throw new Error(`${name} is too long`);
   return normalized;
+}
+
+function optionalMatterText(value: string | null | undefined, maximum: number) {
+  if (value === null || value === undefined) return null;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, maximum) : null;
 }
 
 function kind(value: string, name: string) {
@@ -273,6 +289,29 @@ export class LegalKnowledgeGraphStore {
       );
       CREATE INDEX IF NOT EXISTS legal_knowledge_source_mark_labels_scope
         ON legal_knowledge_source_mark_labels(user_id, project_id, source_id, sort_order);
+      CREATE TABLE IF NOT EXISTS mike_matter_metadata (
+        user_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        cm_number TEXT,
+        practice TEXT,
+        PRIMARY KEY (user_id, project_id),
+        FOREIGN KEY (user_id, project_id)
+          REFERENCES legal_knowledge_projects(user_id, id)
+          ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS mike_matter_documents (
+        user_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        document_id TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, project_id, document_id),
+        FOREIGN KEY (user_id, project_id)
+          REFERENCES legal_knowledge_projects(user_id, id)
+          ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS mike_matter_documents_scope
+        ON mike_matter_documents(user_id, project_id, sort_order, created_at);
     `);
     this.migrateSourceMarks();
   }
@@ -307,7 +346,8 @@ export class LegalKnowledgeGraphStore {
     if (version === LEGAL_KNOWLEDGE_SCHEMA_VERSION) return;
 
     this.transaction(() => {
-      this.database.exec(`
+      if (version < 1) {
+        this.database.exec(`
         INSERT OR IGNORE INTO legal_knowledge_source_marks
           (user_id, project_id, source_id, note, created_at, updated_at)
         SELECT evidence.user_id, evidence.project_id, evidence.source_id,
@@ -345,7 +385,8 @@ export class LegalKnowledgeGraphStore {
             FROM legal_knowledge_evidence_links AS link
             WHERE link.evidence_id = legal_knowledge_evidence.id
           );
-      `);
+        `);
+      }
       this.database.exec(
         `PRAGMA user_version = ${LEGAL_KNOWLEDGE_SCHEMA_VERSION}`,
       );
@@ -379,38 +420,211 @@ export class LegalKnowledgeGraphStore {
   }
 
   createProject(userId: string, name: string) {
+    const matter = this.createMatter(userId, { name });
+    return { id: matter.id, name: matter.name, order: matter.order };
+  }
+
+  renameProject(userId: string, projectId: string, name: string) {
+    const matter = this.updateMatter(userId, projectId, { name });
+    return matter
+      ? { id: matter.id, name: matter.name, order: matter.order }
+      : null;
+  }
+
+  listMatters(userId: string): LocalMatter[] {
+    const user = requiredText(userId, "user_id", 200);
+    this.listProjects(user);
+    return (
+      this.database
+        .prepare(
+          `SELECT project.id, project.name, project.sort_order,
+                  project.created_at, project.updated_at,
+                  metadata.cm_number, metadata.practice
+           FROM legal_knowledge_projects AS project
+           LEFT JOIN mike_matter_metadata AS metadata
+             ON metadata.user_id = project.user_id
+            AND metadata.project_id = project.id
+           WHERE project.user_id = ? AND project.id <> ?
+           ORDER BY project.sort_order, project.name COLLATE NOCASE, project.id`,
+        )
+        .all(user, GENERAL_RESEARCH_PROJECT_ID) as {
+        id: string;
+        name: string;
+        sort_order: number;
+        created_at: string;
+        updated_at: string;
+        cm_number: string | null;
+        practice: string | null;
+      }[]
+    ).map((row) => ({
+      id: row.id,
+      name: row.name,
+      cm_number: row.cm_number,
+      practice: row.practice,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      order: row.sort_order,
+    }));
+  }
+
+  getMatter(userId: string, projectId: string) {
+    return (
+      this.listMatters(userId).find((matter) => matter.id === projectId) ?? null
+    );
+  }
+
+  createMatter(
+    userId: string,
+    input: { name: string; cmNumber?: string | null; practice?: string | null },
+  ) {
     const user = requiredText(userId, "user_id", 200);
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const order = this.listProjects(user).length;
-    this.database
-      .prepare(
-        `INSERT INTO legal_knowledge_projects
-          (user_id, id, name, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(user, id, requiredText(name, "name", 120), order, now, now);
-    return { id, name: name.trim(), order };
+    this.transaction(() => {
+      this.database
+        .prepare(
+          `INSERT INTO legal_knowledge_projects
+            (user_id, id, name, sort_order, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          user,
+          id,
+          requiredText(input.name, "name", 120),
+          order,
+          now,
+          now,
+        );
+      this.database
+        .prepare(
+          `INSERT INTO mike_matter_metadata
+            (user_id, project_id, cm_number, practice)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(
+          user,
+          id,
+          optionalMatterText(input.cmNumber, 200),
+          optionalMatterText(input.practice, 200),
+        );
+    });
+    return this.getMatter(user, id)!;
   }
 
-  renameProject(userId: string, projectId: string, name: string) {
-    const normalized = requiredText(name, "name", 120);
-    const changed = this.database
+  updateMatter(
+    userId: string,
+    projectId: string,
+    input: {
+      name?: string;
+      cmNumber?: string | null;
+      practice?: string | null;
+    },
+  ) {
+    const current = this.getMatter(userId, projectId);
+    if (!current) return null;
+    const name =
+      input.name === undefined
+        ? current.name
+        : requiredText(input.name, "name", 120);
+    const cmNumber =
+      input.cmNumber === undefined
+        ? current.cm_number
+        : optionalMatterText(input.cmNumber, 200);
+    const practice =
+      input.practice === undefined
+        ? current.practice
+        : optionalMatterText(input.practice, 200);
+    const now = new Date().toISOString();
+    this.transaction(() => {
+      this.database
+        .prepare(
+          `UPDATE legal_knowledge_projects
+           SET name = ?, updated_at = ?
+           WHERE user_id = ? AND id = ?`,
+        )
+        .run(name, now, userId, projectId);
+      this.database
+        .prepare(
+          `INSERT INTO mike_matter_metadata
+            (user_id, project_id, cm_number, practice)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(user_id, project_id)
+           DO UPDATE SET
+             cm_number = excluded.cm_number,
+             practice = excluded.practice`,
+        )
+        .run(userId, projectId, cmNumber, practice);
+    });
+    return this.getMatter(userId, projectId);
+  }
+
+  listMatterDocumentIds(userId: string, projectId: string) {
+    if (!this.getMatter(userId, projectId)) return null;
+    return (
+      this.database
+        .prepare(
+          `SELECT document_id
+           FROM mike_matter_documents
+           WHERE user_id = ? AND project_id = ?
+           ORDER BY sort_order, created_at, document_id`,
+        )
+        .all(userId, projectId) as { document_id: string }[]
+    ).map((row) => row.document_id);
+  }
+
+  attachMatterDocument(userId: string, projectId: string, documentId: string) {
+    if (!this.getMatter(userId, projectId)) return false;
+    const order = (
+      this.database
+        .prepare(
+          `SELECT COUNT(*) AS count
+           FROM mike_matter_documents
+           WHERE user_id = ? AND project_id = ?`,
+        )
+        .get(userId, projectId) as { count: number }
+    ).count;
+    this.database
       .prepare(
-        `UPDATE legal_knowledge_projects
-         SET name = ?, updated_at = ?
-         WHERE user_id = ? AND id = ?`,
+        `INSERT OR IGNORE INTO mike_matter_documents
+          (user_id, project_id, document_id, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
       )
       .run(
-        normalized,
-        new Date().toISOString(),
         userId,
         projectId,
-      ).changes;
-    if (!changed) return null;
-    return this.listProjects(userId).find(
-      (project) => project.id === projectId,
-    )!;
+        requiredText(documentId, "document_id", 200),
+        order,
+        new Date().toISOString(),
+      );
+    return true;
+  }
+
+  removeMatterDocument(userId: string, projectId: string, documentId: string) {
+    return (
+      this.database
+        .prepare(
+          `DELETE FROM mike_matter_documents
+           WHERE user_id = ? AND project_id = ? AND document_id = ?`,
+        )
+        .run(userId, projectId, documentId).changes > 0
+    );
+  }
+
+  removeDocumentFromMatters(userId: string, documentId: string) {
+    this.removeDocumentsFromMatters(userId, [documentId]);
+  }
+
+  removeDocumentsFromMatters(userId: string, documentIds: Iterable<string>) {
+    const ids = [...new Set(documentIds)];
+    if (!ids.length) return;
+    const statement = this.database.prepare(
+      `DELETE FROM mike_matter_documents
+       WHERE user_id = ? AND document_id = ?`,
+    );
+    this.transaction(() => {
+      for (const documentId of ids) statement.run(userId, documentId);
+    });
   }
 
   deleteProject(userId: string, projectId: string) {

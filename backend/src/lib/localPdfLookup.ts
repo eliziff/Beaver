@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { access, readFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
+import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { readLocalPdfParseState } from "./localPdfIngestion";
 
@@ -61,9 +63,42 @@ const MAX_UNITS = 20;
 const MAX_CONTEXT_BLOCKS = 2;
 const MAX_RETURN_CHARS = 60_000;
 const dataRoot = path.resolve(mikeLocalDataHome());
+const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
+const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
+
+export type LocalPdfEvidenceReceipt = {
+  schema_version: typeof EVIDENCE_SCHEMA;
+  handle: string;
+  source: {
+    document_id: string;
+    version_id: string;
+    source_path: string;
+    source_sha256: string;
+    parser_version: string;
+    parser_config_version: string;
+    cache_key: string;
+  };
+  lookup: LocalPdfLookupInput;
+  evidence: {
+    artifact_ids: string[];
+    context_artifact_ids: string[];
+    text_sha256: string;
+    payload_sha256: string;
+  };
+};
 
 function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function sha256File(filename: string) {
+  return new Promise<string>((resolve, reject) => {
+    const digest = crypto.createHash("sha256");
+    const stream = createReadStream(filename);
+    stream.on("data", (chunk) => digest.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(digest.digest("hex")));
+  });
 }
 
 function within(root: string, candidate: string) {
@@ -77,6 +112,126 @@ function within(root: string, candidate: string) {
     throw new Error("PDF lookup artifact path is outside its data directory");
   }
   return resolved;
+}
+
+function evidencePath(handle: string) {
+  const digest = handle.match(EVIDENCE_HANDLE)?.[1];
+  if (!digest) throw new Error("Invalid PDF evidence handle");
+  return path.join(dataRoot, "evidence", "pdf", "v1", `${digest}.json`);
+}
+
+async function atomicWriteOnce(filename: string, value: string) {
+  await mkdir(path.dirname(filename), { recursive: true });
+  try {
+    await access(filename);
+    return;
+  } catch {
+    // Publish the complete receipt below.
+  }
+  const temporary = `${filename}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, value, { encoding: "utf8", flag: "wx" });
+    try {
+      await link(temporary, filename);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw error;
+      await access(filename);
+    }
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid PDF evidence receipt");
+  }
+  const receipt = value as Partial<LocalPdfEvidenceReceipt>;
+  const source = receipt.source;
+  const lookup = receipt.lookup;
+  const evidence = receipt.evidence;
+  if (
+    receipt.schema_version !== EVIDENCE_SCHEMA ||
+    typeof receipt.handle !== "string" ||
+    !EVIDENCE_HANDLE.test(receipt.handle) ||
+    !source ||
+    typeof source.document_id !== "string" ||
+    typeof source.version_id !== "string" ||
+    typeof source.source_path !== "string" ||
+    typeof source.source_sha256 !== "string" ||
+    typeof source.parser_version !== "string" ||
+    typeof source.parser_config_version !== "string" ||
+    typeof source.cache_key !== "string" ||
+    !lookup ||
+    !LOCAL_PDF_LOCATOR_KINDS.includes(lookup.locatorKind) ||
+    typeof lookup.locator !== "string" ||
+    !evidence ||
+    !Array.isArray(evidence.artifact_ids) ||
+    !evidence.artifact_ids.every((id) => typeof id === "string") ||
+    !Array.isArray(evidence.context_artifact_ids) ||
+    !evidence.context_artifact_ids.every((id) => typeof id === "string") ||
+    typeof evidence.text_sha256 !== "string" ||
+    typeof evidence.payload_sha256 !== "string"
+  ) {
+    throw new Error("Invalid PDF evidence receipt");
+  }
+  within(dataRoot, source.source_path);
+  return receipt as LocalPdfEvidenceReceipt;
+}
+
+async function persistEvidenceReceipt(receipt: LocalPdfEvidenceReceipt) {
+  const filename = evidencePath(receipt.handle);
+  const assertSameEvidence = (existing: LocalPdfEvidenceReceipt) => {
+    if (
+      existing.handle !== receipt.handle ||
+      existing.source.document_id !== receipt.source.document_id ||
+      existing.source.version_id !== receipt.source.version_id ||
+      existing.source.source_path !== receipt.source.source_path ||
+      existing.source.source_sha256 !== receipt.source.source_sha256 ||
+      existing.source.parser_version !== receipt.source.parser_version ||
+      existing.source.parser_config_version !==
+        receipt.source.parser_config_version ||
+      existing.source.cache_key !== receipt.source.cache_key ||
+      existing.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
+      existing.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
+      existing.evidence.artifact_ids.length !==
+        receipt.evidence.artifact_ids.length ||
+      existing.evidence.artifact_ids.some(
+        (id, index) => id !== receipt.evidence.artifact_ids[index],
+      ) ||
+      existing.evidence.context_artifact_ids.length !==
+        receipt.evidence.context_artifact_ids.length ||
+      existing.evidence.context_artifact_ids.some(
+        (id, index) => id !== receipt.evidence.context_artifact_ids[index],
+      )
+    ) {
+      throw new Error("Conflicting PDF evidence receipt");
+    }
+  };
+  try {
+    const existing = evidenceReceipt(
+      JSON.parse(await readFile(filename, "utf8")),
+    );
+    assertSameEvidence(existing);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  await atomicWriteOnce(filename, `${JSON.stringify(receipt, null, 2)}\n`);
+  assertSameEvidence(
+    evidenceReceipt(JSON.parse(await readFile(filename, "utf8"))),
+  );
+}
+
+export async function readLocalPdfEvidenceReceipt(handle: string) {
+  const receipt = evidenceReceipt(
+    JSON.parse(await readFile(evidencePath(handle), "utf8")),
+  );
+  if (receipt.handle !== handle) {
+    throw new Error("PDF evidence receipt handle does not match its content");
+  }
+  return receipt;
 }
 
 function jsonLines(raw: string) {
@@ -275,6 +430,9 @@ async function artifacts(sourcePath: string, kind: CanonicalKind) {
       "PDF lookup parse state does not match the selected source",
     );
   }
+  if ((await sha256File(source)) !== state.source_sha256) {
+    throw new Error("PDF source bytes no longer match their version");
+  }
   const manifestPath = within(dataRoot, state.artifact_manifest);
   const manifest = JSON.parse(
     await readFile(manifestPath, "utf8"),
@@ -308,7 +466,8 @@ async function artifacts(sourcePath: string, kind: CanonicalKind) {
     parserConfig.source_sha256 !== state.source_sha256 ||
     parserConfig.parser_version !== state.parser_version ||
     parserConfig.parser_config_version !== state.parser_config_version ||
-    parserConfig.cache_key !== state.cache_key
+    parserConfig.cache_key !== state.cache_key ||
+    !isDeepStrictEqual(parserConfig.parser_config, state.parser_config)
   ) {
     throw new Error(
       "PDF lookup parser configuration does not match the selected source",
@@ -516,6 +675,7 @@ function exactFootnoteMatches(
 export async function lookupLocalPdfStructure(
   sourcePath: string,
   input: LocalPdfLookupInput,
+  options?: { persistEvidence?: boolean },
 ) {
   const base = baseResult(input);
   if (
@@ -704,13 +864,21 @@ export async function lookupLocalPdfStructure(
 
     const textSha256 = sha256(selected.map((unit) => unit.text).join("\u001e"));
     const artifactIds = selected.map((unit) => unit.id);
+    const contextArtifactIds = [...before, ...after].map((unit) => unit.id);
+    const payloadSha256 = sha256(
+      JSON.stringify({ units: selected, before, after }),
+    );
     const evidenceHandle = `mike-evidence:v1:${sha256(
       JSON.stringify({
+        document_id: state.document_id,
+        version_id: state.version_id,
         source_sha256: state.source_sha256,
         cache_key: state.cache_key,
         kind,
         artifact_ids: artifactIds,
         text_sha256: textSha256,
+        context_artifact_ids: contextArtifactIds,
+        payload_sha256: payloadSha256,
       }),
     )}`;
     const pageNumbers = [
@@ -719,6 +887,28 @@ export async function lookupLocalPdfStructure(
     const displayPath = `/single-documents/${encodeURIComponent(
       state.document_id,
     )}/display?version_id=${encodeURIComponent(state.version_id)}`;
+    if (options?.persistEvidence !== false) {
+      await persistEvidenceReceipt({
+        schema_version: EVIDENCE_SCHEMA,
+        handle: evidenceHandle,
+        source: {
+          document_id: state.document_id,
+          version_id: state.version_id,
+          source_path: state.source_path,
+          source_sha256: state.source_sha256,
+          parser_version: state.parser_version,
+          parser_config_version: state.parser_config_version,
+          cache_key: state.cache_key,
+        },
+        lookup: { ...input },
+        evidence: {
+          artifact_ids: artifactIds,
+          context_artifact_ids: contextArtifactIds,
+          text_sha256: textSha256,
+          payload_sha256: payloadSha256,
+        },
+      });
+    }
 
     return {
       ...base,
@@ -741,7 +931,9 @@ export async function lookupLocalPdfStructure(
       evidence: {
         handle: evidenceHandle,
         artifact_ids: artifactIds,
+        context_artifact_ids: contextArtifactIds,
         text_sha256: textSha256,
+        payload_sha256: payloadSha256,
       },
       link: {
         type: "local-library-pdf",
@@ -766,4 +958,50 @@ export async function lookupLocalPdfStructure(
           : "PDF lookup failed",
     };
   }
+}
+
+export async function rehydrateLocalPdfEvidence(
+  sourcePath: string,
+  handle: string,
+) {
+  const receipt = await readLocalPdfEvidenceReceipt(handle);
+  if (
+    within(dataRoot, receipt.source.source_path) !== path.resolve(sourcePath)
+  ) {
+    throw new Error("PDF evidence receipt does not belong to this source");
+  }
+  if ((await sha256File(sourcePath)) !== receipt.source.source_sha256) {
+    throw new Error("PDF evidence source bytes no longer match their version");
+  }
+  const lookup = await lookupLocalPdfStructure(sourcePath, receipt.lookup, {
+    persistEvidence: false,
+  });
+  if (
+    lookup.status !== "found" ||
+    lookup.evidence.handle !== handle ||
+    lookup.source.document_id !== receipt.source.document_id ||
+    lookup.source.version_id !== receipt.source.version_id ||
+    lookup.source.source_sha256 !== receipt.source.source_sha256 ||
+    lookup.source.parser_version !== receipt.source.parser_version ||
+    lookup.source.parser_config_version !==
+      receipt.source.parser_config_version ||
+    lookup.source.cache_key !== receipt.source.cache_key ||
+    lookup.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
+    lookup.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
+    lookup.evidence.artifact_ids.length !==
+      receipt.evidence.artifact_ids.length ||
+    lookup.evidence.artifact_ids.some(
+      (id, index) => id !== receipt.evidence.artifact_ids[index],
+    ) ||
+    lookup.evidence.context_artifact_ids.length !==
+      receipt.evidence.context_artifact_ids.length ||
+    lookup.evidence.context_artifact_ids.some(
+      (id, index) => id !== receipt.evidence.context_artifact_ids[index],
+    )
+  ) {
+    throw new Error(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  }
+  return lookup;
 }

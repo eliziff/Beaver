@@ -25,6 +25,21 @@ import {
 } from "../lib/documentTypes";
 import { imageValidationError } from "../lib/llm/images";
 import {
+  createLocalDocument,
+  deleteLocalDocument,
+  listLocalDocumentsById,
+  renameLocalDocument,
+  type LocalLibraryKind,
+} from "../lib/localDocumentStore";
+import {
+  legalKnowledgeGraphStore,
+  type LocalMatter,
+} from "../lib/legalKnowledgeGraphStore";
+import {
+  deleteAnonymousProjectChats,
+  listAnonymousProjectChats,
+} from "../lib/anonymousChatStore";
+import {
   findMissingUserEmails,
   loadProfileUsersByEmail,
 } from "../lib/userLookup";
@@ -44,6 +59,41 @@ function normalizeDocumentFilename(nextName: unknown, currentName: string) {
   if (/\.[a-z0-9]{1,6}$/i.test(trimmed)) return trimmed;
   const ext = currentName.match(/\.[a-z0-9]{1,6}$/i)?.[0] ?? "";
   return `${trimmed}${ext}`;
+}
+
+async function localMatterDocuments(userId: string, projectId: string) {
+  const documentIds =
+    legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId) ?? [];
+  return (await listLocalDocumentsById(userId, documentIds)).map((document) => ({
+    ...document,
+    project_id: projectId,
+    folder_id: null,
+  }));
+}
+
+async function localMatterResponse(
+  userId: string,
+  matter: LocalMatter,
+  includeDocuments = false,
+) {
+  const documents = await localMatterDocuments(userId, matter.id);
+  return {
+    id: matter.id,
+    user_id: userId,
+    is_owner: true,
+    owner_display_name: null,
+    owner_email: null,
+    name: matter.name,
+    cm_number: matter.cm_number,
+    practice: matter.practice,
+    shared_with: [],
+    created_at: matter.created_at,
+    updated_at: matter.updated_at,
+    document_count: documents.length,
+    chat_count: listAnonymousProjectChats(userId, matter.id).length,
+    review_count: 0,
+    ...(includeDocuments ? { documents, folders: [] } : {}),
+  };
 }
 
 async function deleteProjectDocumentsAndVersionFiles(
@@ -162,7 +212,17 @@ async function attachChatCreatorLabels(
 // and a fixed number of queries regardless of project count.
 projectsRouter.get("/", requireAuth, async (req, res) => {
   if (isAnonymousLocalMode()) {
-    res.json([]);
+    const userId = res.locals.userId as string;
+    const includeDocuments = req.query.include === "documents";
+    res.json(
+      await Promise.all(
+        legalKnowledgeGraphStore()
+          .listMatters(userId)
+          .map((matter) =>
+            localMatterResponse(userId, matter, includeDocuments),
+          ),
+      ),
+    );
     return;
   }
   try {
@@ -226,13 +286,41 @@ projectsRouter.get("/", requireAuth, async (req, res) => {
 projectsRouter.post("/", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
-  const { name, cm_number, practice, shared_with } = req.body as {
-    name: string;
-    cm_number?: string;
-    practice?: string;
-    shared_with?: string[];
-  };
-  if (!name?.trim())
+  const body =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const { name, cm_number, practice, shared_with } = body;
+  if (isAnonymousLocalMode()) {
+    if (typeof name !== "string" || !name.trim()) {
+      return void res.status(400).json({ detail: "name is required" });
+    }
+    if (
+      (cm_number != null && typeof cm_number !== "string") ||
+      (practice != null && typeof practice !== "string")
+    ) {
+      return void res
+        .status(400)
+        .json({ detail: "Project fields must be text" });
+    }
+    try {
+      const matter = legalKnowledgeGraphStore().createMatter(userId, {
+        name,
+        cmNumber: cm_number,
+        practice,
+      });
+      res.status(201).json({
+        ...(await localMatterResponse(userId, matter, true)),
+        documents: [],
+      });
+    } catch (error) {
+      res.status(400).json({
+        detail: error instanceof Error ? error.message : "Invalid project",
+      });
+    }
+    return;
+  }
+  if (typeof name !== "string" || !name.trim())
     return void res.status(400).json({ detail: "name is required" });
   const normalizedUserEmail = userEmail?.trim().toLowerCase();
   const cleanedSharedWith: string[] = [];
@@ -280,6 +368,13 @@ projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    const matter = legalKnowledgeGraphStore().getMatter(userId, projectId);
+    if (!matter)
+      return void res.status(404).json({ detail: "Project not found" });
+    res.json(await localMatterResponse(userId, matter, true));
+    return;
+  }
   const db = createServerSupabase();
 
   const { data: project, error } = await db
@@ -326,6 +421,20 @@ projectsRouter.get("/:projectId/people", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    res.json({
+      owner: {
+        user_id: userId,
+        email: null,
+        display_name: null,
+      },
+      members: [],
+    });
+    return;
+  }
   const db = createServerSupabase();
 
   const { data: project } = await db
@@ -369,6 +478,29 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    try {
+      const matter = legalKnowledgeGraphStore().updateMatter(
+        userId,
+        projectId,
+        {
+          name: req.body.name,
+          cmNumber: req.body.cm_number,
+          practice: Object.hasOwn(req.body ?? {}, "practice")
+            ? req.body.practice
+            : undefined,
+        },
+      );
+      if (!matter)
+        return void res.status(404).json({ detail: "Project not found" });
+      res.json(await localMatterResponse(userId, matter, true));
+    } catch (error) {
+      res.status(400).json({
+        detail: error instanceof Error ? error.message : "Invalid project",
+      });
+    }
+    return;
+  }
   const updates: Record<string, unknown> = {};
   if (req.body.name != null) updates.name = req.body.name;
   if (req.body.cm_number != null) updates.cm_number = req.body.cm_number;
@@ -436,6 +568,20 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
 projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    try {
+      if (!legalKnowledgeGraphStore().deleteProject(userId, projectId)) {
+        return void res.status(404).json({ detail: "Project not found" });
+      }
+      deleteAnonymousProjectChats(userId, projectId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(400).json({
+        detail: error instanceof Error ? error.message : "Invalid project",
+      });
+    }
+    return;
+  }
   const db = createServerSupabase();
   try {
     const deletedCount = await deleteUserProjects(db, userId, [projectId]);
@@ -453,6 +599,13 @@ projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    res.json(await localMatterDocuments(userId, projectId));
+    return;
+  }
   const db = createServerSupabase();
 
   const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -480,6 +633,25 @@ projectsRouter.post(
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { projectId, documentId } = req.params;
+    if (isAnonymousLocalMode()) {
+      const store = legalKnowledgeGraphStore();
+      if (!store.getMatter(userId, projectId)) {
+        return void res.status(404).json({ detail: "Project not found" });
+      }
+      const [document] = await listLocalDocumentsById(userId, [documentId]);
+      if (!document) {
+        return void res.status(404).json({ detail: "Document not found" });
+      }
+      if (!store.attachMatterDocument(userId, projectId, documentId)) {
+        return void res.status(404).json({ detail: "Project not found" });
+      }
+      res.json({
+        ...document,
+        project_id: projectId,
+        folder_id: null,
+      });
+      return;
+    }
     const db = createServerSupabase();
 
     const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -661,6 +833,34 @@ projectsRouter.patch("/:projectId/documents/:documentId", requireAuth, async (re
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, documentId } = req.params;
+  if (isAnonymousLocalMode()) {
+    const store = legalKnowledgeGraphStore();
+    if (!store.getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    if (!(store.listMatterDocumentIds(userId, projectId) ?? []).includes(documentId)) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    const [current] = await listLocalDocumentsById(userId, [documentId]);
+    if (!current)
+      return void res.status(404).json({ detail: "Document not found" });
+    const filename = normalizeDocumentFilename(
+      req.body?.filename,
+      current.filename,
+    );
+    if (!filename)
+      return void res.status(400).json({ detail: "filename is required" });
+    const updated = await renameLocalDocument(
+      userId,
+      current.library_kind as LocalLibraryKind,
+      documentId,
+      filename,
+    );
+    if (!updated)
+      return void res.status(404).json({ detail: "Document not found" });
+    res.json({ ...updated, project_id: projectId, folder_id: null });
+    return;
+  }
   const db = createServerSupabase();
 
   const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -726,6 +926,44 @@ projectsRouter.post(
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { projectId } = req.params;
+    if (isAnonymousLocalMode()) {
+      const store = legalKnowledgeGraphStore();
+      if (!store.getMatter(userId, projectId)) {
+        return void res.status(404).json({ detail: "Project not found" });
+      }
+      if (!req.file)
+        return void res.status(400).json({ detail: "file is required" });
+      const imageError = imageValidationError(
+        req.file.originalname,
+        req.file.buffer,
+      );
+      if (imageError)
+        return void res.status(400).json({ detail: imageError });
+      try {
+        const document = await createLocalDocument({
+          userId,
+          kind: "file",
+          filename: req.file.originalname,
+          bytes: req.file.buffer,
+        });
+        if (!store.attachMatterDocument(userId, projectId, document.id)) {
+          await deleteLocalDocument(userId, document.id);
+          return void res.status(404).json({ detail: "Project not found" });
+        }
+        res.status(201).json({
+          ...document,
+          project_id: projectId,
+          folder_id: null,
+        });
+      } catch (error) {
+        const detail =
+          error instanceof Error ? error.message : "Upload failed";
+        res
+          .status(detail.startsWith("Unsupported file type") ? 400 : 500)
+          .json({ detail });
+      }
+      return;
+    }
     const db = createServerSupabase();
 
     const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -745,6 +983,20 @@ projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    res.json(
+      listAnonymousProjectChats(userId, projectId).map(
+        ({ messages: _messages, ...chat }) => ({
+          ...chat,
+          creator_display_name: null,
+        }),
+      ),
+    );
+    return;
+  }
   const db = createServerSupabase();
 
   const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -769,6 +1021,14 @@ projectsRouter.post("/:projectId/folders", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    return void res.status(409).json({
+      detail: "Folders are not available in account-free matters yet.",
+    });
+  }
   const { name, parent_folder_id } = req.body as { name: string; parent_folder_id?: string | null };
   if (!name?.trim()) return void res.status(400).json({ detail: "name is required" });
 
@@ -797,6 +1057,12 @@ projectsRouter.patch("/:projectId/folders/:folderId", requireAuth, async (req, r
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, folderId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    return void res.status(404).json({ detail: "Folder not found" });
+  }
   const body = req.body as { name?: string; parent_folder_id?: string | null };
 
   const db = createServerSupabase();
@@ -835,6 +1101,12 @@ projectsRouter.delete("/:projectId/folders/:folderId", requireAuth, async (req, 
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, folderId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    return void res.status(404).json({ detail: "Folder not found" });
+  }
   const db = createServerSupabase();
 
   const access = await checkProjectAccess(projectId, userId, userEmail, db);
@@ -895,6 +1167,25 @@ projectsRouter.patch("/:projectId/documents/:documentId/folder", requireAuth, as
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, documentId } = req.params;
   const { folder_id } = req.body as { folder_id: string | null };
+  if (isAnonymousLocalMode()) {
+    if (!legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    if (folder_id) {
+      return void res.status(409).json({
+        detail: "Folders are not available in account-free matters yet.",
+      });
+    }
+    const [document] = await listLocalDocumentsById(userId, [documentId]);
+    const belongsToMatter = (
+      legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId) ?? []
+    ).includes(documentId);
+    if (!document || !belongsToMatter) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    res.json({ ...document, project_id: projectId, folder_id: null });
+    return;
+  }
 
   const db = createServerSupabase();
   const access = await checkProjectAccess(projectId, userId, userEmail, db);

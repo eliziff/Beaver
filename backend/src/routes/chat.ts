@@ -16,6 +16,7 @@ import {
   runLLMStream,
   stripTransientAssistantEvents,
   parseAskInputsResponsePayload,
+  type AskInputsResponseRequest,
   type ChatMessage,
 } from "../lib/chat";
 import {
@@ -47,6 +48,7 @@ import { getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 import {
+  appendAnonymousAssistantEvents,
   appendAnonymousMessage,
   createAnonymousChat,
   deleteAnonymousChat,
@@ -59,6 +61,8 @@ import {
   loadLocalChatImages,
   loadStoredChatImages,
 } from "../lib/chat/imageAttachments";
+import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
+import { listLocalDocumentsById } from "../lib/localDocumentStore";
 
 export const chatRouter = Router();
 
@@ -90,18 +94,111 @@ function sseWrite(res: import("express").Response, payload: unknown) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
-async function streamAnonymousChat(params: {
+export async function streamAnonymousChat(params: {
   res: import("express").Response;
   userId: string;
   chatId: string | null;
   messages: ChatMessage[];
   model?: string;
   reasoningEffort?: string;
+  projectId?: string | null;
+  projectIdProvided?: boolean;
+  displayedDocument?: { filename: string; document_id: string };
+  attachedDocuments?: { filename: string; document_id: string }[];
+  askInputsResponse?: AskInputsResponseRequest | null;
 }) {
   const { res, userId, messages } = params;
+  const existingChat = params.chatId
+    ? getAnonymousChat(userId, params.chatId)
+    : null;
+  if (params.chatId && !existingChat) {
+    res.status(404).json({ detail: "Chat not found" });
+    return;
+  }
+  if (
+    existingChat &&
+    params.projectIdProvided &&
+    existingChat.project_id !== (params.projectId ?? null)
+  ) {
+    res.status(400).json({ detail: "project_id does not match chat" });
+    return;
+  }
+  const projectId = existingChat?.project_id ?? params.projectId ?? null;
+  const matterDocumentIds = projectId
+    ? legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId)
+    : undefined;
+  if (projectId && !matterDocumentIds) {
+    res.status(404).json({ detail: "Project not found" });
+    return;
+  }
+  const allowedDocumentIds = matterDocumentIds
+    ? new Set(matterDocumentIds)
+    : undefined;
+  const displayedDocumentId =
+    typeof params.displayedDocument?.document_id === "string"
+      ? params.displayedDocument.document_id.trim()
+      : "";
+  const attachedDocumentIds = (params.attachedDocuments ?? []).map((document) =>
+    typeof document?.document_id === "string"
+      ? document.document_id.trim()
+      : "",
+  );
+  const requestedFocusIds = [
+    ...(displayedDocumentId ? [displayedDocumentId] : []),
+    ...attachedDocumentIds.filter(Boolean),
+  ];
+  if (
+    (params.displayedDocument && !displayedDocumentId) ||
+    attachedDocumentIds.some((documentId) => !documentId) ||
+    (requestedFocusIds.length > 0 && !allowedDocumentIds) ||
+    (allowedDocumentIds &&
+      requestedFocusIds.some(
+        (documentId) => !allowedDocumentIds.has(documentId),
+      ))
+  ) {
+    res.status(400).json({ detail: "Focused document is not in this matter" });
+    return;
+  }
+  const uniqueFocusIds = [...new Set(requestedFocusIds)];
+  const focusedDocuments = uniqueFocusIds.length
+    ? await listLocalDocumentsById(userId, uniqueFocusIds)
+    : [];
+  if (focusedDocuments.length !== uniqueFocusIds.length) {
+    res.status(400).json({ detail: "Focused document is unavailable" });
+    return;
+  }
+  const focusedById = new Map(
+    focusedDocuments.map((document) => [document.id, document] as const),
+  );
+  const focusLines: string[] = [];
+  if (displayedDocumentId) {
+    focusLines.push(
+      `Displayed document: ${JSON.stringify(
+        focusedById.get(displayedDocumentId)!.filename,
+      )} (document_id: ${displayedDocumentId})`,
+    );
+  }
+  if (attachedDocumentIds.length) {
+    focusLines.push(
+      "User-attached documents for this turn:",
+      ...attachedDocumentIds.map(
+        (documentId) =>
+          `- ${JSON.stringify(
+            focusedById.get(documentId)!.filename,
+          )} (document_id: ${documentId})`,
+      ),
+    );
+  }
+  const focusPrompt = focusLines.length
+    ? `CURRENT MATTER FOCUS:\n${focusLines.join("\n")}\n\n`
+    : "";
   let imagesByDocumentId: Map<string, LlmImage>;
   try {
-    imagesByDocumentId = await loadLocalChatImages(messages, userId);
+    imagesByDocumentId = await loadLocalChatImages(
+      messages,
+      userId,
+      allowedDocumentIds,
+    );
   } catch (error) {
     res.status(400).json({
       detail: safeErrorMessage(error, "Invalid image attachment"),
@@ -118,18 +215,30 @@ async function streamAnonymousChat(params: {
     });
     return;
   }
-  const chat = params.chatId
-    ? getAnonymousChat(userId, params.chatId)
-    : createAnonymousChat(userId);
-  if (!chat) {
-    res.status(404).json({ detail: "Chat not found" });
-    return;
-  }
+  const chat = existingChat ?? createAnonymousChat(userId, projectId);
 
   const lastUser = [...messages].reverse().find((message) => {
     return message.role === "user" && typeof message.content === "string";
   });
-  if (lastUser) {
+  const askInputsContext = params.askInputsResponse
+    ? `\n\n[User responses to requested inputs]\n${params.askInputsResponse.responses
+        .map((response) => {
+          if (response.skipped) return `- ${response.id}: skipped`;
+          if (response.kind === "choice") {
+            return `- ${response.question}: ${response.answer ?? ""}`;
+          }
+          return `- ${response.id}: ${response.filenames.join(", ") || "none"}`;
+        })
+        .join("\n")}`
+    : "";
+  if (params.askInputsResponse) {
+    appendAnonymousAssistantEvents(chat, [
+      {
+        type: "ask_inputs_response",
+        responses: params.askInputsResponse.responses,
+      },
+    ]);
+  } else if (lastUser) {
     appendAnonymousMessage(chat, {
       role: "user",
       content: lastUser.content,
@@ -187,13 +296,21 @@ async function streamAnonymousChat(params: {
     await streamChatWithTools({
       model: selectedModel,
       systemPrompt:
-        "The user's local Mike Library is connected through library_list, library_lookup, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and link metadata and do not invent locators or URLs. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Mike attaches verified pinpoint links automatically.\n\n" +
+        `${
+          projectId
+            ? "The current Beaver matter is connected through its attached Library documents"
+            : "The user's local Beaver Library is connected"
+        } through library_list, library_lookup, library_evidence, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and link metadata and do not invent locators or URLs. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+        focusPrompt +
         COURTLISTENER_SYSTEM_PROMPT +
         "\n\n" +
         PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
       messages: messages.map((message) => ({
         role: message.role === "assistant" ? "assistant" : "user",
-        content: message.content ?? "",
+        content:
+          message === lastUser && askInputsContext
+            ? `${message.content ?? ""}${askInputsContext}`
+            : message.content ?? "",
         images: imagesForMessage(message, imagesByDocumentId),
       })),
       enableThinking: true,
@@ -208,6 +325,7 @@ async function streamAnonymousChat(params: {
           a2ajDocuments,
           courtlistenerState,
           publicLegalState,
+          allowedDocumentIds,
         ),
       callbacks: {
         onContentDelta: (text: string) => {
@@ -253,13 +371,18 @@ async function streamAnonymousChat(params: {
     if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
     visibleText = linkedText;
 
-    appendAnonymousMessage(chat, {
-      role: "assistant",
-      content: visibleText
-        ? [{ type: "content", text: visibleText }]
-        : [{ type: "error", message: "The selected model returned no response." }],
-      citations,
-    });
+    const assistantEvents = visibleText
+      ? [{ type: "content", text: visibleText }]
+      : [{ type: "error", message: "The selected model returned no response." }];
+    if (params.askInputsResponse) {
+      appendAnonymousAssistantEvents(chat, assistantEvents, citations);
+    } else {
+      appendAnonymousMessage(chat, {
+        role: "assistant",
+        content: assistantEvents,
+        citations,
+      });
+    }
     if (!chat.title && lastUser?.content) {
       updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
     }
@@ -312,7 +435,7 @@ function parseOptionalChatId(
   return { ok: true, chatId: value.trim() };
 }
 
-function parseChatMessages(
+export function parseChatMessages(
   value: unknown,
 ): { ok: true; messages: ChatMessage[] } | { ok: false; detail: string } {
   if (!Array.isArray(value) || value.length === 0) {
@@ -405,6 +528,7 @@ chatRouter.get("/", requireAuth, async (req, res) => {
       : 20;
     res.json(
       listAnonymousChats(userId)
+        .filter((chat) => chat.project_id === null)
         .slice(0, limit)
         .map(({ messages: _messages, ...chat }) => chat),
     );
@@ -440,12 +564,10 @@ chatRouter.post("/create", requireAuth, async (req, res) => {
   }
   const projectId = parsedProjectId.projectId;
   if (isAnonymousLocalMode()) {
-    if (projectId) {
-      return void res.status(503).json({
-        detail: "Projects require Supabase persistence in local mode",
-      });
+    if (projectId && !legalKnowledgeGraphStore().getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
     }
-    const chat = createAnonymousChat(userId);
+    const chat = createAnonymousChat(userId, projectId);
     res.json({ id: chat.id });
     return;
   }
@@ -737,11 +859,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       : undefined;
 
   if (isAnonymousLocalMode()) {
-    if (project_id) {
-      return void res.status(503).json({
-        detail: "Project chat requires Supabase persistence in local mode",
-      });
-    }
     await streamAnonymousChat({
       res,
       userId: res.locals.userId as string,
@@ -749,6 +866,9 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       messages,
       model,
       reasoningEffort,
+      projectId: project_id,
+      projectIdProvided: parsedProjectId.provided,
+      askInputsResponse,
     });
     return;
   }

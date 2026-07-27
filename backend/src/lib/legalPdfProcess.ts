@@ -13,7 +13,7 @@ export function legalPdfEngineRoot() {
 
 export async function runLegalPdf(
   args: string[],
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number; signal?: AbortSignal },
 ) {
   const root = legalPdfEngineRoot();
   const executable =
@@ -32,6 +32,7 @@ export async function runLegalPdf(
       },
       maxBuffer: 2 * 1024 * 1024,
       timeout: options?.timeoutMs ?? 11 * 60 * 1000,
+      signal: options?.signal,
       windowsHide: true,
     },
   );

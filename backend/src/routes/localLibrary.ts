@@ -1,4 +1,9 @@
-import { Router, type NextFunction, type Request, type Response } from "express";
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { requireAuth } from "../middleware/auth";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
@@ -18,6 +23,8 @@ import {
 } from "../lib/localPdfIngestion";
 import {
   lookupLocalPdfStructure,
+  readLocalPdfEvidenceReceipt,
+  rehydrateLocalPdfEvidence,
   type LocalPdfLocatorKind,
 } from "../lib/localPdfLookup";
 import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
@@ -27,9 +34,7 @@ import { imageValidationError } from "../lib/llm/images";
 
 export const localLibraryRouter = Router();
 
-function asyncRoute(
-  handler: (req: Request, res: Response) => Promise<void>,
-) {
+function asyncRoute(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     void handler(req, res).catch(next);
   };
@@ -58,7 +63,8 @@ localLibraryRouter.get(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     res.json(await listLocalLibrary(res.locals.userId as string, kind));
   }),
 );
@@ -69,8 +75,10 @@ localLibraryRouter.post(
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
-    if (!req.file) return void res.status(400).json({ detail: "file is required" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
+    if (!req.file)
+      return void res.status(400).json({ detail: "file is required" });
     const imageError = imageValidationError(
       req.file.originalname,
       req.file.buffer,
@@ -86,7 +94,9 @@ localLibraryRouter.post(
       res.status(201).json(document);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Upload failed";
-      res.status(detail.startsWith("Unsupported file type") ? 400 : 500).json({ detail });
+      res
+        .status(detail.startsWith("Unsupported file type") ? 400 : 500)
+        .json({ detail });
     }
   }),
 );
@@ -96,7 +106,8 @@ localLibraryRouter.post(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
     const parentFolderId =
       typeof req.body?.parent_folder_id === "string"
@@ -109,7 +120,8 @@ localLibraryRouter.post(
       name,
       parentFolderId,
     );
-    if (!folder) return void res.status(404).json({ detail: "Parent folder not found" });
+    if (!folder)
+      return void res.status(404).json({ detail: "Parent folder not found" });
     res.status(201).json(folder);
   }),
 );
@@ -169,10 +181,13 @@ localLibraryRouter.get(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
     const collection = await listLocalLibrary(userId, kind);
-    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+    if (
+      !collection.documents.some((item) => item.id === req.params.documentId)
+    ) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -182,7 +197,8 @@ localLibraryRouter.get(
       req.params.documentId,
       versionId,
     );
-    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (!file)
+      return void res.status(404).json({ detail: "Version not found" });
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
@@ -203,10 +219,13 @@ localLibraryRouter.post(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
     const collection = await listLocalLibrary(userId, kind);
-    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+    if (
+      !collection.documents.some((item) => item.id === req.params.documentId)
+    ) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -216,7 +235,8 @@ localLibraryRouter.post(
       req.params.documentId,
       versionId,
     );
-    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (!file)
+      return void res.status(404).json({ detail: "Version not found" });
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
@@ -242,14 +262,65 @@ localLibraryRouter.post(
 );
 
 localLibraryRouter.post(
+  "/:kind/evidence/rehydrate",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
+    const handle =
+      typeof req.body?.handle === "string" ? req.body.handle.trim() : "";
+    if (!handle) {
+      return void res.status(400).json({ detail: "handle is required" });
+    }
+    let receipt: Awaited<ReturnType<typeof readLocalPdfEvidenceReceipt>>;
+    try {
+      receipt = await readLocalPdfEvidenceReceipt(handle);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return void res.status(code === "ENOENT" ? 404 : 409).json({
+        detail:
+          code === "ENOENT"
+            ? "PDF evidence receipt not found"
+            : "PDF evidence receipt is invalid",
+      });
+    }
+    const file = await getLocalVersionFile(
+      res.locals.userId as string,
+      receipt.source.document_id,
+      receipt.source.version_id,
+    );
+    if (
+      !file ||
+      file.fileType !== "pdf" ||
+      file.document.library_kind !== kind
+    ) {
+      return void res
+        .status(409)
+        .json({ detail: "PDF evidence source or artifact is unavailable" });
+    }
+    try {
+      res.json(await rehydrateLocalPdfEvidence(file.path, handle));
+    } catch {
+      res
+        .status(409)
+        .json({ detail: "PDF evidence source or artifact is unavailable" });
+    }
+  }),
+);
+
+localLibraryRouter.post(
   "/:kind/documents/:documentId/actions/retry-pdf-parse",
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const userId = res.locals.userId as string;
     const collection = await listLocalLibrary(userId, kind);
-    if (!collection.documents.some((item) => item.id === req.params.documentId)) {
+    if (
+      !collection.documents.some((item) => item.id === req.params.documentId)
+    ) {
       return void res.status(404).json({ detail: "Document not found" });
     }
     const versionId =
@@ -259,12 +330,33 @@ localLibraryRouter.post(
       req.params.documentId,
       versionId,
     );
-    if (!file) return void res.status(404).json({ detail: "Version not found" });
+    if (!file)
+      return void res.status(404).json({ detail: "Version not found" });
     if (file.fileType !== "pdf") {
       return void res.status(409).json({ detail: "Version is not a PDF" });
     }
-    res.status(202).json(
-      await queueLocalPdfParse({
+    const requestedOcrProvider = req.body?.ocr_provider;
+    if (
+      requestedOcrProvider !== undefined &&
+      requestedOcrProvider !== "tesseract"
+    ) {
+      return void res
+        .status(400)
+        .json({ detail: "ocr_provider must be tesseract" });
+    }
+    if (requestedOcrProvider === "tesseract") {
+      const current = await readLocalPdfParseState(file.path);
+      if (
+        !current?.diagnostic_summary?.by_code ||
+        !(Number(current.diagnostic_summary.by_code.OCR_REQUIRED) > 0)
+      ) {
+        return void res
+          .status(409)
+          .json({ detail: "No PDF pages currently require OCR" });
+      }
+    }
+    try {
+      const state = await queueLocalPdfParse({
         documentId: req.params.documentId,
         versionId: file.version.id,
         sourcePath: file.path,
@@ -273,8 +365,20 @@ localLibraryRouter.post(
             ? file.version.source_sha256
             : undefined,
         force: true,
-      }),
-    );
+        ...(requestedOcrProvider === "tesseract"
+          ? { ocrProvider: "tesseract" as const }
+          : {}),
+      });
+      res.status(202).json(state);
+    } catch (error) {
+      if (requestedOcrProvider !== "tesseract") throw error;
+      const message = error instanceof Error ? error.message : "";
+      res.status(503).json({
+        detail: message.startsWith("Tesseract was not found")
+          ? message
+          : "OCR could not start. Check the local Tesseract installation and retry.",
+      });
+    }
   }),
 );
 
@@ -283,12 +387,16 @@ localLibraryRouter.patch(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const name =
       typeof req.body?.name === "string" && req.body.name.trim()
         ? req.body.name.trim()
         : undefined;
-    const hasParent = Object.prototype.hasOwnProperty.call(req.body ?? {}, "parent_folder_id");
+    const hasParent = Object.prototype.hasOwnProperty.call(
+      req.body ?? {},
+      "parent_folder_id",
+    );
     const parentFolderId = hasParent
       ? typeof req.body.parent_folder_id === "string"
         ? req.body.parent_folder_id
@@ -301,7 +409,8 @@ localLibraryRouter.patch(
       name,
       parentFolderId,
     });
-    if (!folder) return void res.status(404).json({ detail: "Folder not found" });
+    if (!folder)
+      return void res.status(404).json({ detail: "Folder not found" });
     res.json(folder);
   }),
 );
@@ -311,13 +420,15 @@ localLibraryRouter.delete(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const deleted = await deleteLocalFolder(
       res.locals.userId as string,
       kind,
       req.params.folderId,
     );
-    if (!deleted) return void res.status(404).json({ detail: "Folder not found" });
+    if (!deleted)
+      return void res.status(404).json({ detail: "Folder not found" });
     res.status(204).send();
   }),
 );
@@ -327,7 +438,8 @@ localLibraryRouter.patch(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
     const folderId =
       typeof req.body?.folder_id === "string" ? req.body.folder_id : null;
     const document = await moveLocalDocument(
@@ -336,7 +448,8 @@ localLibraryRouter.patch(
       req.params.documentId,
       folderId,
     );
-    if (!document) return void res.status(404).json({ detail: "Document not found" });
+    if (!document)
+      return void res.status(404).json({ detail: "Document not found" });
     res.json(document);
   }),
 );
@@ -346,19 +459,28 @@ localLibraryRouter.patch(
   requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
-    if (!kind) return void res.status(404).json({ detail: "Library not found" });
-    const collection = await listLocalLibrary(res.locals.userId as string, kind);
-    const current = collection.documents.find((item) => item.id === req.params.documentId);
-    if (!current) return void res.status(404).json({ detail: "Document not found" });
+    if (!kind)
+      return void res.status(404).json({ detail: "Library not found" });
+    const collection = await listLocalLibrary(
+      res.locals.userId as string,
+      kind,
+    );
+    const current = collection.documents.find(
+      (item) => item.id === req.params.documentId,
+    );
+    if (!current)
+      return void res.status(404).json({ detail: "Document not found" });
     const filename = renamedFilename(req.body?.filename, current.filename);
-    if (!filename) return void res.status(400).json({ detail: "filename is required" });
+    if (!filename)
+      return void res.status(400).json({ detail: "filename is required" });
     const document = await renameLocalDocument(
       res.locals.userId as string,
       kind,
       req.params.documentId,
       filename,
     );
-    if (!document) return void res.status(404).json({ detail: "Document not found" });
+    if (!document)
+      return void res.status(404).json({ detail: "Document not found" });
     res.json(document);
   }),
 );

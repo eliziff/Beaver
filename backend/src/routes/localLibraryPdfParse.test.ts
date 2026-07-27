@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getLocalVersionFile: vi.fn(),
   readLocalPdfParseState: vi.fn(),
   queueLocalPdfParse: vi.fn(),
+  readLocalPdfEvidenceReceipt: vi.fn(),
+  rehydrateLocalPdfEvidence: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isAnonymousLocalMode: () => true }));
@@ -20,6 +22,11 @@ vi.mock("../lib/localPdfIngestion", async (importOriginal) => ({
   readLocalPdfParseState: mocks.readLocalPdfParseState,
   queueLocalPdfParse: mocks.queueLocalPdfParse,
 }));
+vi.mock("../lib/localPdfLookup", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/localPdfLookup")>()),
+  readLocalPdfEvidenceReceipt: mocks.readLocalPdfEvidenceReceipt,
+  rehydrateLocalPdfEvidence: mocks.rehydrateLocalPdfEvidence,
+}));
 
 import { localLibraryRouter } from "./localLibrary";
 
@@ -28,6 +35,7 @@ app.use(express.json());
 app.use("/library", localLibraryRouter);
 
 beforeEach(() => {
+  vi.clearAllMocks();
   process.env.AUTH_MODE = "anonymous";
   mocks.listLocalLibrary.mockResolvedValue({
     documents: [{ id: "document-1" }],
@@ -46,6 +54,10 @@ beforeEach(() => {
     diagnostics: [{ code: "OCR_REQUIRED" }],
   });
   mocks.queueLocalPdfParse.mockResolvedValue({ status: "queued" });
+  mocks.readLocalPdfEvidenceReceipt.mockResolvedValue({
+    source: { document_id: "document-1", version_id: "version-1" },
+  });
+  mocks.rehydrateLocalPdfEvidence.mockResolvedValue({ status: "found" });
 });
 
 describe("local Library PDF parse routes", () => {
@@ -75,5 +87,140 @@ describe("local Library PDF parse routes", () => {
       sourceSha256: "a".repeat(64),
       force: true,
     });
+  });
+
+  it("queues Tesseract only when the current artifacts require OCR", async () => {
+    mocks.readLocalPdfParseState.mockResolvedValue({
+      status: "degraded",
+      diagnostic_summary: {
+        by_code: { OCR_REQUIRED: 2 },
+        by_severity: { warning: 2 },
+      },
+    });
+
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({
+        version_id: "version-1",
+        ocr_provider: "tesseract",
+      });
+
+    expect(response.status).toBe(202);
+    expect(mocks.queueLocalPdfParse).toHaveBeenCalledWith({
+      documentId: "document-1",
+      versionId: "version-1",
+      sourcePath: "C:\\data\\source.pdf",
+      sourceSha256: "a".repeat(64),
+      force: true,
+      ocrProvider: "tesseract",
+    });
+  });
+
+  it("returns a safe actionable response when Tesseract is unavailable", async () => {
+    mocks.readLocalPdfParseState.mockResolvedValue({
+      status: "degraded",
+      diagnostic_summary: { by_code: { OCR_REQUIRED: 1 } },
+    });
+    mocks.queueLocalPdfParse.mockRejectedValue(
+      new Error(
+        "Tesseract was not found. Install it or configure its executable.",
+      ),
+    );
+
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ ocr_provider: "tesseract" });
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      detail:
+        "Tesseract was not found. Install it or configure its executable.",
+    });
+  });
+
+  it("rejects OCR escalation when no page is marked OCR required", async () => {
+    const response = await request(app)
+      .post("/library/files/documents/document-1/actions/retry-pdf-parse")
+      .send({ ocr_provider: "tesseract" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      detail: "No PDF pages currently require OCR",
+    });
+  });
+
+  it("rehydrates evidence only inside the matching Library kind", async () => {
+    mocks.getLocalVersionFile.mockResolvedValue({
+      path: "C:\\data\\source.pdf",
+      fileType: "pdf",
+      document: { library_kind: "template" },
+      version: { id: "version-1" },
+    });
+
+    const response = await request(app)
+      .post("/library/templates/evidence/rehydrate")
+      .send({ handle: "mike-evidence:v1:receipt" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: "found" });
+    expect(mocks.rehydrateLocalPdfEvidence).toHaveBeenCalledWith(
+      "C:\\data\\source.pdf",
+      "mike-evidence:v1:receipt",
+    );
+  });
+
+  it("rejects evidence from a different Library kind", async () => {
+    mocks.getLocalVersionFile.mockResolvedValue({
+      path: "C:\\private\\template.pdf",
+      fileType: "pdf",
+      document: { library_kind: "template" },
+      version: { id: "version-1" },
+    });
+
+    const response = await request(app)
+      .post("/library/files/evidence/rehydrate")
+      .send({ handle: "mike-evidence:v1:receipt" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      detail: "PDF evidence source or artifact is unavailable",
+    });
+    expect(mocks.rehydrateLocalPdfEvidence).not.toHaveBeenCalled();
+    expect(JSON.stringify(response.body)).not.toContain("C:\\private");
+  });
+
+  it("distinguishes a missing receipt from a missing downstream artifact", async () => {
+    mocks.readLocalPdfEvidenceReceipt.mockRejectedValueOnce(
+      Object.assign(new Error("missing"), { code: "ENOENT" }),
+    );
+    const missingReceipt = await request(app)
+      .post("/library/files/evidence/rehydrate")
+      .send({ handle: "mike-evidence:v1:missing" });
+
+    expect(missingReceipt.status).toBe(404);
+    expect(missingReceipt.body).toEqual({
+      detail: "PDF evidence receipt not found",
+    });
+
+    mocks.getLocalVersionFile.mockResolvedValue({
+      path: "C:\\private\\source.pdf",
+      fileType: "pdf",
+      document: { library_kind: "file" },
+      version: { id: "version-1" },
+    });
+    mocks.rehydrateLocalPdfEvidence.mockRejectedValueOnce(
+      Object.assign(new Error("ENOENT C:\\private\\source.pdf"), {
+        code: "ENOENT",
+      }),
+    );
+    const missingArtifact = await request(app)
+      .post("/library/files/evidence/rehydrate")
+      .send({ handle: "mike-evidence:v1:receipt" });
+
+    expect(missingArtifact.status).toBe(409);
+    expect(missingArtifact.body).toEqual({
+      detail: "PDF evidence source or artifact is unavailable",
+    });
+    expect(JSON.stringify(missingArtifact.body)).not.toContain("C:\\private");
   });
 });

@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -262,6 +269,7 @@ async function fixture() {
     manifestPath,
     parserConfigPath: path.join(output, "parser-config.json"),
     pagesPath: path.join(output, "pages.jsonl"),
+    footnotesPath: path.join(output, "footnotes.jsonl"),
     state,
     manifest,
     parserConfig,
@@ -400,6 +408,210 @@ describe("exact local PDF structure lookup", () => {
     ).resolves.toMatchObject({
       status: "found",
       units: [{ id: "fn-a" }, { id: "fn-c" }],
+    });
+  });
+
+  it("persists a version-bound evidence receipt and fails closed after artifact drift", async () => {
+    const built = await fixture();
+    const {
+      lookupLocalPdfStructure,
+      readLocalPdfEvidenceReceipt,
+      rehydrateLocalPdfEvidence,
+    } = await import("../localPdfLookup");
+
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+      contextBlocks: 1,
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    const receipt = await readLocalPdfEvidenceReceipt(lookup.evidence.handle);
+    expect(receipt).toMatchObject({
+      handle: lookup.evidence.handle,
+      source: {
+        document_id: documentId,
+        version_id: versionId,
+        source_sha256: built.state.source_sha256,
+      },
+      lookup: { locatorKind: "page", locator: "1", contextBlocks: 1 },
+      evidence: {
+        artifact_ids: ["page-1"],
+        context_artifact_ids: ["page-2"],
+        text_sha256: lookup.evidence.text_sha256,
+        payload_sha256: lookup.evidence.payload_sha256,
+      },
+    });
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).resolves.toMatchObject({
+      status: "found",
+      evidence: { handle: lookup.evidence.handle },
+      before: [],
+      after: [{ id: "page-2" }],
+    });
+
+    const sourceBytes = await readFile(built.source);
+    await writeFile(built.source, "%PDF-1.4 changed bytes", "utf8");
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).rejects.toThrow(
+      "PDF evidence source bytes no longer match their version",
+    );
+    await writeFile(built.source, sourceBytes);
+
+    const pages = (await readFile(built.pagesPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const firstPage = pages[0] as {
+      lines: { reading_order: number; text: string }[];
+    };
+    firstPage.lines[0].text = "Changed authoritative text.";
+    await writeJsonLines(built.pagesPath, pages);
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).rejects.toThrow(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+    const drifted = await lookupLocalPdfStructure(
+      built.source,
+      { locatorKind: "page", locator: "1", contextBlocks: 1 },
+      { persistEvidence: false },
+    );
+    expect(drifted.status).toBe("found");
+    if (drifted.status !== "found") throw new Error("fixture lookup failed");
+    expect(drifted.evidence.handle).not.toBe(lookup.evidence.handle);
+    await expect(
+      readLocalPdfEvidenceReceipt(drifted.evidence.handle),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("hashes current source bytes before the first exact lookup or receipt", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure } = await import("../localPdfLookup");
+    await writeFile(built.source, "%PDF-1.4 replaced bytes", "utf8");
+
+    await expect(
+      lookupLocalPdfStructure(built.source, {
+        locatorKind: "page",
+        locator: "1",
+      }),
+    ).resolves.toMatchObject({
+      status: "unavailable",
+      exact: false,
+      error: "PDF source bytes no longer match their version",
+    });
+    await expect(
+      access(path.join(temporaryDirectory!, "evidence")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("fails an old receipt closed after the detected OCR identity rekeys it", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure, rehydrateLocalPdfEvidence } =
+      await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    const nextConfig = {
+      ...built.state.parser_config,
+      ocr_provider: "tesseract",
+      ocr_identity: "tesseract-cli-v1:tesseract 5.4.0",
+      ocr_language: "eng",
+      ocr_dpi: 180,
+      ocr_psm: 3,
+    };
+    const nextCacheKey = "d".repeat(64);
+    await Promise.all([
+      writeFile(
+        built.statePath,
+        JSON.stringify({
+          ...built.state,
+          parser_config: nextConfig,
+          cache_key: nextCacheKey,
+        }),
+        "utf8",
+      ),
+      writeFile(
+        built.parserConfigPath,
+        JSON.stringify({
+          ...built.parserConfig,
+          parser_config: nextConfig,
+          cache_key: nextCacheKey,
+        }),
+        "utf8",
+      ),
+    ]);
+
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).rejects.toThrow(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  });
+
+  it("binds evidence to proposition and provenance metadata, not text alone", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure, rehydrateLocalPdfEvidence } =
+      await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "footnote",
+      locator: "fn-a",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    const notes = (await readFile(built.footnotesPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    notes[0].sentence_proposition = "Changed proposition metadata.";
+    await writeJsonLines(built.footnotesPath, notes);
+
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).rejects.toThrow(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  });
+
+  it("does not alias identical bytes imported as another Library version", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure, readLocalPdfEvidenceReceipt } =
+      await import("../localPdfLookup");
+    const first = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+    });
+    expect(first.status).toBe("found");
+    if (first.status !== "found") throw new Error("fixture lookup failed");
+
+    await writeFile(
+      built.statePath,
+      JSON.stringify({
+        ...built.state,
+        document_id: "document-2",
+        version_id: "version-2",
+      }),
+      "utf8",
+    );
+    const second = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+    });
+    expect(second.status).toBe("found");
+    if (second.status !== "found") throw new Error("fixture lookup failed");
+    expect(second.evidence.handle).not.toBe(first.evidence.handle);
+    await expect(
+      readLocalPdfEvidenceReceipt(second.evidence.handle),
+    ).resolves.toMatchObject({
+      source: { document_id: "document-2", version_id: "version-2" },
     });
   });
 
@@ -574,7 +786,7 @@ describe("exact local PDF structure lookup", () => {
     const tools = await import("../chat/localAssistantTools");
     expect(
       tools.LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name),
-    ).toContain("library_lookup");
+    ).toEqual(expect.arrayContaining(["library_lookup", "library_evidence"]));
 
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
@@ -588,7 +800,10 @@ describe("exact local PDF structure lookup", () => {
         },
       },
     ]);
-    expect(JSON.parse(response.content)).toMatchObject({
+    const lookupPayload = JSON.parse(response.content) as {
+      evidence: { handle: string };
+    };
+    expect(lookupPayload).toMatchObject({
       ok: true,
       filename: "fixture.pdf",
       status: "found",
@@ -601,6 +816,20 @@ describe("exact local PDF structure lookup", () => {
       ],
       source: { document_id: documentId, version_id: versionId },
       evidence: { handle: expect.stringMatching(/^mike-evidence:v1:/u) },
+    });
+    const [rehydrated] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "evidence-1",
+        name: "library_evidence",
+        input: { handle: lookupPayload.evidence.handle },
+      },
+    ]);
+    expect(JSON.parse(rehydrated.content)).toMatchObject({
+      ok: true,
+      filename: "fixture.pdf",
+      status: "found",
+      evidence: { handle: lookupPayload.evidence.handle },
+      units: [{ id: "fn-a", text: "First note body." }],
     });
 
     const [missing] = await tools.runLocalAssistantTools("local-user", [

@@ -984,13 +984,17 @@ export async function getLibraryPdfParseState(
 export function retryLibraryPdfParse(
   documentId: string,
   versionId?: string | null,
+  ocrProvider?: "tesseract",
 ) {
   return apiRequest<PdfParseState>(
     `/library/files/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(versionId ? { version_id: versionId } : {}),
+      body: JSON.stringify({
+        ...(versionId ? { version_id: versionId } : {}),
+        ...(ocrProvider ? { ocr_provider: ocrProvider } : {}),
+      }),
     },
   );
 }

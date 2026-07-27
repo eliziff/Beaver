@@ -71,6 +71,48 @@ describe("LegalKnowledgeGraphStore", () => {
     );
   });
 
+  it("stores matter metadata and pointer-only Library membership by owner", async () => {
+    const knowledge = await store();
+    const matter = knowledge.createMatter("owner-a", {
+      name: "Appeal",
+      cmNumber: "CA-42",
+      practice: "Litigation",
+    });
+
+    expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-a")).toBe(
+      true,
+    );
+    expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-a")).toBe(
+      true,
+    );
+    expect(knowledge.attachMatterDocument("owner-a", matter.id, "document-b")).toBe(
+      true,
+    );
+    expect(knowledge.listMatterDocumentIds("owner-a", matter.id)).toEqual([
+      "document-a",
+      "document-b",
+    ]);
+    expect(knowledge.getMatter("owner-b", matter.id)).toBeNull();
+
+    expect(
+      knowledge.updateMatter("owner-a", matter.id, {
+        name: "Appeal record",
+        cmNumber: null,
+      }),
+    ).toMatchObject({
+      id: matter.id,
+      name: "Appeal record",
+      cm_number: null,
+      practice: "Litigation",
+    });
+    expect(
+      knowledge.removeMatterDocument("owner-a", matter.id, "document-a"),
+    ).toBe(true);
+    expect(knowledge.listMatterDocumentIds("owner-a", matter.id)).toEqual([
+      "document-b",
+    ]);
+  });
+
   it("uses the same graph for hierarchical labels and legal-test ontology", async () => {
     const knowledge = await store();
     const label = knowledge.createLabel({

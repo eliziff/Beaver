@@ -5,8 +5,32 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const runLegalPdf = vi.hoisted(() => vi.fn());
+const renameFault = vi.hoisted(() => ({ remaining: 0, injected: 0 }));
 
 vi.mock("../legalPdfProcess", () => ({ runLegalPdf }));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    rename: async (
+      oldPath: string | Buffer | URL,
+      newPath: string | Buffer | URL,
+    ) => {
+      if (
+        process.platform === "win32" &&
+        String(newPath).endsWith(".legalpdf-state.json") &&
+        renameFault.remaining > 0
+      ) {
+        renameFault.remaining -= 1;
+        renameFault.injected += 1;
+        throw Object.assign(new Error("simulated Windows file contention"), {
+          code: "EPERM",
+        });
+      }
+      return actual.rename(oldPath, newPath);
+    },
+  };
+});
 
 let temporaryDirectory: string | null = null;
 
@@ -98,6 +122,21 @@ async function fakeArtifacts(args: string[], status = "ready") {
   );
 }
 
+async function fakeLegalPdf(
+  args: string[],
+  status = "ready",
+  identity = "tesseract-cli-v1:tesseract 5.3.0",
+) {
+  if (args[0] === "ocr-identity") {
+    return {
+      stdout: JSON.stringify({ provider: "tesseract", identity }),
+      stderr: "",
+    };
+  }
+  await fakeArtifacts(args, status);
+  return { stdout: "", stderr: "" };
+}
+
 async function waitForState(
   ingestion: typeof import("../localPdfIngestion"),
   sourcePath: string,
@@ -117,8 +156,13 @@ async function waitForState(
 
 afterEach(async () => {
   runLegalPdf.mockReset();
+  renameFault.remaining = 0;
+  renameFault.injected = 0;
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.MIKE_PDF_PARSE_CONFIG_VERSION;
+  delete process.env.MIKE_PDF_OCR_LANGUAGE;
+  delete process.env.MIKE_PDF_OCR_DPI;
+  delete process.env.MIKE_PDF_OCR_PSM;
   vi.resetModules();
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -184,13 +228,48 @@ describe("local PDF ingestion", () => {
       sourcePath: file!.path,
     });
     expect(runLegalPdf).toHaveBeenCalledTimes(1);
+    expect(runLegalPdf.mock.calls[0][0][0]).toBe("parse");
+  });
+
+  it("survives overlapping state reads and extended Windows rename contention", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockImplementation((args: string[]) => fakeArtifacts(args));
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 concurrent", "utf8");
+    renameFault.remaining = process.platform === "win32" ? 21 : 0;
+
+    const queued = ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const readers = Array.from({ length: 32 }, async () => {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await ingestion.readLocalPdfParseState(source);
+      }
+    });
+    await Promise.all([queued, ...readers]);
+    const state = await waitForState(ingestion, source, "ready");
+
+    expect(state!.error).toBeUndefined();
+    expect(renameFault.remaining).toBe(0);
+    expect(renameFault.injected).toBe(process.platform === "win32" ? 21 : 0);
   });
 
   it("reports raster-only parser output honestly as degraded", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    let identity = "tesseract-cli-v1:tesseract 5.3.0";
     runLegalPdf.mockImplementation((args: string[]) =>
-      fakeArtifacts(args, "ocr_required"),
+      fakeLegalPdf(args, "ocr_required", identity),
     );
     const store = await import("../localDocumentStore");
     const ingestion = await import("../localPdfIngestion");
@@ -213,12 +292,83 @@ describe("local PDF ingestion", () => {
       },
     });
     expect(state!.diagnostics).toHaveLength(1);
+
+    process.env.MIKE_PDF_OCR_LANGUAGE = "fra";
+    process.env.MIKE_PDF_OCR_DPI = "144";
+    process.env.MIKE_PDF_OCR_PSM = "6";
+    runLegalPdf.mockImplementation((args: string[]) =>
+      fakeLegalPdf(args, "ready", identity),
+    );
+    const queued = await ingestion.queueLocalPdfParse({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      ocrProvider: "tesseract",
+      force: true,
+    });
+    const recovered = await waitForState(ingestion, file!.path, "ready");
+
+    expect(queued.cache_key).not.toBe(state!.cache_key);
+    expect(recovered!.parser_config).toMatchObject({
+      ocr_provider: "tesseract",
+      ocr_identity: identity,
+      ocr_language: "fra",
+      ocr_dpi: 144,
+      ocr_psm: 6,
+    });
+    const ocrParse = runLegalPdf.mock.calls.find(
+      ([args]) => args[0] === "parse" && args.includes("--ocr-provider"),
+    )?.[0];
+    expect(ocrParse?.slice(-10)).toEqual([
+      "--ocr-provider",
+      "tesseract",
+      "--ocr-language",
+      "fra",
+      "--ocr-dpi",
+      "144",
+      "--ocr-psm",
+      "6",
+      "--expected-ocr-identity",
+      identity,
+    ]);
+    const firstOcrManifest = recovered!.artifact_manifest;
+    identity = "tesseract-cli-v1:tesseract 5.4.0";
+    const requeued = await ingestion.queueLocalPdfParse({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      ocrProvider: "tesseract",
+      force: true,
+    });
+    const upgraded = await waitForState(ingestion, file!.path, "ready");
+    expect(requeued.cache_key).not.toBe(recovered!.cache_key);
+    expect(upgraded!.artifact_manifest).not.toBe(firstOcrManifest);
+    expect(upgraded!.parser_config.ocr_identity).toBe(identity);
+
+    process.env.MIKE_PDF_OCR_LANGUAGE = "eng; unsafe";
+    process.env.MIKE_PDF_OCR_DPI = "601";
+    process.env.MIKE_PDF_OCR_PSM = "14";
+    identity = "tesseract-cli-v1:tesseract 5.5.0";
+    const validated = await ingestion.queueLocalPdfParse({
+      documentId: document.id,
+      versionId: file!.version.id,
+      sourcePath: file!.path,
+      ocrProvider: "tesseract",
+      force: true,
+    });
+    expect(validated.parser_config).toMatchObject({
+      ocr_identity: identity,
+      ocr_language: "eng",
+      ocr_dpi: 180,
+      ocr_psm: 3,
+    });
+    await waitForState(ingestion, file!.path, "ready");
   });
 
   it("requeues a parse left in parsing state and records the interruption", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    runLegalPdf.mockImplementation((args: string[]) => fakeArtifacts(args));
+    runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await import("../localPdfIngestion");
     const source = path.join(
       temporaryDirectory,
@@ -232,6 +382,7 @@ describe("local PDF ingestion", () => {
       documentId: "document",
       versionId: "version",
       sourcePath: source,
+      ocrProvider: "tesseract",
     });
     await waitForState(ingestion, source, "ready");
     const stateFile = `${source}.legalpdf-state.json`;
@@ -245,6 +396,97 @@ describe("local PDF ingestion", () => {
 
     expect(resumed!.interrupted_at).toBeTruthy();
     expect(resumed!.attempts).toBe(2);
+    expect(resumed!.parser_config.ocr_identity).toBe(
+      "tesseract-cli-v1:tesseract 5.3.0",
+    );
+  });
+
+  it("sanitizes parser failures before persisting them", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    runLegalPdf.mockRejectedValue(
+      new Error(
+        `Command failed while reading ${path.join(temporaryDirectory, "private", "source.pdf")}`,
+      ),
+    );
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 failure", "utf8");
+
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const state = await waitForState(ingestion, source, "failed");
+
+    expect(state!.error).toBe("PDF structural parser failed");
+    expect(state!.error).not.toContain(temporaryDirectory);
+  });
+
+  it("aborts an in-flight OCR parse before deleting its artifacts", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    let started!: () => void;
+    let partialPath = "";
+    const parseStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    runLegalPdf.mockImplementation(
+      async (
+        args: string[],
+        options?: { signal?: AbortSignal },
+      ): Promise<{ stdout: string; stderr: string }> => {
+        if (args[0] === "ocr-identity") {
+          return fakeLegalPdf(args);
+        }
+        const output = args[args.indexOf("--output") + 1];
+        await mkdir(output, { recursive: true });
+        partialPath = path.join(output, "partial.json");
+        await writeFile(partialPath, "partial", "utf8");
+        started();
+        return new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () =>
+              reject(new Error("aborted parser with C:\\private\\path.pdf")),
+            { once: true },
+          );
+        });
+      },
+    );
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 OCR cancellation", "utf8");
+
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+      ocrProvider: "tesseract",
+    });
+    await parseStarted;
+    await ingestion.removeLocalPdfParseArtifacts(source);
+
+    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    await expect(
+      readFile(`${source}.legalpdf-state.json`, "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(partialPath, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("recovers a stored PDF if shutdown occurred before its job sidecar was written", async () => {

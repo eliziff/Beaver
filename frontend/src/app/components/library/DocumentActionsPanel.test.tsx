@@ -169,6 +169,9 @@ describe("DocumentActionsPanel", () => {
             ),
         ).toBeInTheDocument();
         expect(screen.getByText("Attempt 1 · 12 pages")).toBeInTheDocument();
+        expect(
+            screen.queryByRole("button", { name: "OCR affected pages" }),
+        ).not.toBeInTheDocument();
 
         await user.click(
             screen.getByRole("button", {
@@ -179,6 +182,66 @@ describe("DocumentActionsPanel", () => {
         expect(retryLibraryPdfParse).toHaveBeenCalledWith(
             "pdf-1",
             "version-1",
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("PDF parse status")).toHaveTextContent(
+                "Queued",
+            ),
+        );
+    });
+
+    it("offers selective OCR only for pages diagnosed as OCR required", async () => {
+        const user = userEvent.setup();
+        const ocrRequired: PdfParseState = {
+            ...degradedParse,
+            diagnostic_count: 2,
+            diagnostic_summary: {
+                by_severity: { warning: 2 },
+                by_code: { OCR_REQUIRED: 2 },
+            },
+        };
+        const queued: PdfParseState = {
+            ...ocrRequired,
+            status: "queued",
+            parser_config: {
+                ...ocrRequired.parser_config,
+                ocr_provider: "tesseract",
+                ocr_language: "eng",
+                ocr_dpi: 180,
+                ocr_psm: 3,
+            },
+        };
+        vi.mocked(getLibraryPdfParseState)
+            .mockResolvedValueOnce(ocrRequired)
+            .mockResolvedValue(queued);
+        vi.mocked(retryLibraryPdfParse).mockResolvedValue(queued);
+        const pdf: Document = {
+            ...selectedDocument,
+            id: "pdf-1",
+            filename: "scan.pdf",
+            file_type: "pdf",
+            current_version_id: "version-1",
+        };
+
+        render(
+            <DocumentActionsPanel
+                open
+                onClose={vi.fn()}
+                document={pdf}
+                onDocumentChanged={vi.fn().mockResolvedValue(undefined)}
+            />,
+        );
+
+        await user.click(
+            await screen.findByRole("button", {
+                name: "OCR affected pages",
+            }),
+        );
+
+        expect(retryLibraryPdfParse).toHaveBeenCalledWith(
+            "pdf-1",
+            "version-1",
+            "tesseract",
         );
         await waitFor(() =>
             expect(screen.getByLabelText("PDF parse status")).toHaveTextContent(
