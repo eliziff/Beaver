@@ -248,11 +248,16 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   if (isDecisiaDocument(url)) {
     // The default Decisia URL is an iframe shell with no document text, so
     // neither anchors nor text fragments can resolve against it. iframe=true
-    // serves the document inline. site_preference=mobile is deliberately NOT
-    // set: it is unnecessary and pins a persistent layout cookie.
+    // serves the document inline. site_preference=mobile is REQUIRED, not
+    // cosmetic: in the desktop rendering a text-fragment jump locks the
+    // viewport on the matched text and the page cannot be scrolled. Server
+    // probes cannot see this — do not remove it based on HTML inspection.
+    // The preference cookie it sets is harmless: users only reach these
+    // URLs through Beaver's deep links, never with the iframe flag by hand.
     url.searchParams.delete("iframe");
     url.searchParams.delete("site_preference");
     url.searchParams.set("iframe", "true");
+    url.searchParams.set("site_preference", "mobile");
   }
 
   const resolvedAnchor =
