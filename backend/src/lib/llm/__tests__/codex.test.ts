@@ -25,8 +25,11 @@ describe("parseCodexEventLine", () => {
     ).toEqual({ error: "Codex unavailable" });
   });
 
-  it("ignores metadata events", () => {
+  it("captures the provider invocation ID without treating it as continuation", () => {
     expect(parseCodexEventLine('{"type":"thread.started"}')).toEqual({});
+    expect(
+      parseCodexEventLine('{"type":"thread.started","thread_id":"thread-123"}'),
+    ).toEqual({ providerInvocationId: "thread-123" });
   });
 
   it("normalizes turn lifecycle events", () => {
@@ -35,6 +38,29 @@ describe("parseCodexEventLine", () => {
     });
     expect(parseCodexEventLine('{"type":"turn.completed"}')).toEqual({
       turnCompleted: true,
+    });
+    expect(
+      parseCodexEventLine(
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 15140,
+            cached_input_tokens: 12032,
+            cache_write_input_tokens: 0,
+            output_tokens: 5,
+            reasoning_output_tokens: 2,
+          },
+        }),
+      ),
+    ).toEqual({
+      turnCompleted: true,
+      usage: {
+        inputTokens: 15140,
+        outputTokens: 5,
+        reasoningTokens: 2,
+        cacheReadInputTokens: 12032,
+        cacheWriteInputTokens: 0,
+      },
     });
   });
 

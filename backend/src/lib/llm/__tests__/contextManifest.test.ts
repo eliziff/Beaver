@@ -135,6 +135,7 @@ describe("LLM context manifests", () => {
       cacheReadInputTokens: null,
       cacheWriteInputTokens: null,
     });
+    expect(first.providerInvocationId).toBeNull();
     expect(first.compaction).toEqual({
       strategy: "none",
       reason: null,

@@ -93,6 +93,8 @@ export type StreamChatResult = {
   fullText: string;
   /** Provider-reported usage when an adapter can supply it. */
   usage?: NormalizedLlmUsage;
+  /** Opaque provider request/thread ID for diagnostics, not automatic reuse. */
+  providerInvocationId?: string;
   /** Opaque provider continuation identifier, when one survives this call. */
   continuationId?: string;
 };
