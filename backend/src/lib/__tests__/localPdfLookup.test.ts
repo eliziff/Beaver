@@ -166,6 +166,13 @@ async function fixture() {
       warnings: [],
     },
   ];
+  const propositions = footnotes.map((footnote) => ({
+    pair_id: footnote.pair_id,
+    label: footnote.label,
+    reference_page: footnote.reference_page,
+    sentence: footnote.sentence_proposition,
+    passage_since_prior_note: footnote.passage_since_prior_note,
+  }));
   const parserConfig = {
     parser_version: parserVersion,
     parser_config_version: parserConfigVersion,
@@ -185,12 +192,24 @@ async function fixture() {
     parser_version: parserVersion,
     document_id: "parsed-document",
     source_sha256: sourceSha256,
+    page_count: pages.length,
     status: "ready",
+    counts: {
+      pages: pages.length,
+      paragraphs: paragraphs.length,
+      sections: sections.length,
+      footnotes: footnotes.length,
+      diagnostics: 0,
+      repairs: 0,
+    },
     artifacts: {
       pages: "pages.jsonl",
       paragraphs: "paragraphs.jsonl",
       sections: "sections.jsonl",
       footnotes: "footnotes.jsonl",
+      diagnostics: "diagnostics.jsonl",
+      repairs: "repairs.jsonl",
+      propositions: "propositions.jsonl",
       parser_config: "parser-config.json",
     },
   };
@@ -220,6 +239,9 @@ async function fixture() {
     writeJsonLines(path.join(output, "paragraphs.jsonl"), paragraphs),
     writeJsonLines(path.join(output, "sections.jsonl"), sections),
     writeJsonLines(path.join(output, "footnotes.jsonl"), footnotes),
+    writeJsonLines(path.join(output, "propositions.jsonl"), propositions),
+    writeFile(path.join(output, "diagnostics.jsonl"), "", "utf8"),
+    writeFile(path.join(output, "repairs.jsonl"), "", "utf8"),
     writeFile(manifestPath, JSON.stringify(manifest), "utf8"),
     writeFile(
       path.join(output, "parser-config.json"),

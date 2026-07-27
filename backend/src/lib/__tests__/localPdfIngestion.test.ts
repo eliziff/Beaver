@@ -105,6 +105,7 @@ async function fakeArtifacts(args: string[], status = "ready") {
         pages: 1,
         lines: 0,
         paragraphs: 1,
+        sections: 1,
         footnotes: 1,
         diagnostics: status === "ready" ? 0 : 1,
         repairs: 0,
@@ -229,6 +230,68 @@ describe("local PDF ingestion", () => {
     });
     expect(runLegalPdf).toHaveBeenCalledTimes(1);
     expect(runLegalPdf.mock.calls[0][0][0]).toBe("parse");
+  });
+
+  it("rebuilds incomplete or corrupt ready publications before reuse", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-pdf-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    let parseCalls = 0;
+    const rebuildStartedWithManifest: boolean[] = [];
+    runLegalPdf.mockImplementation(async (args: string[]) => {
+      parseCalls += 1;
+      if (parseCalls > 1) {
+        const output = args[args.indexOf("--output") + 1];
+        try {
+          await readFile(path.join(output, "document.json"), "utf8");
+          rebuildStartedWithManifest.push(true);
+        } catch (error) {
+          expect(error).toMatchObject({ code: "ENOENT" });
+          rebuildStartedWithManifest.push(false);
+        }
+      }
+      return fakeArtifacts(args);
+    });
+    const ingestion = await import("../localPdfIngestion");
+    const source = path.join(
+      temporaryDirectory,
+      "files",
+      "document",
+      "version-hash.pdf",
+    );
+    await mkdir(path.dirname(source), { recursive: true });
+    await writeFile(source, "%PDF-1.4 cache integrity", "utf8");
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    const first = await waitForState(ingestion, source, "ready");
+    const output = path.dirname(
+      path.join(temporaryDirectory, first!.artifact_manifest),
+    );
+
+    await writeFile(path.join(output, "paragraphs.jsonl"), "{broken", "utf8");
+    await expect(
+      ingestion.readLocalPdfParseState(source),
+    ).resolves.toMatchObject({ status: "queued" });
+    const repaired = await waitForState(ingestion, source, "ready");
+    expect(repaired!.attempts).toBe(2);
+
+    await rm(path.join(output, "sections.jsonl"));
+    await ingestion.resumeLocalPdfParses();
+    const completed = await waitForState(ingestion, source, "ready");
+    expect(completed!.attempts).toBe(3);
+    await expect(
+      readFile(path.join(output, "sections.jsonl"), "utf8"),
+    ).resolves.toContain("Introduction");
+    expect(rebuildStartedWithManifest).toEqual([false, false]);
+
+    await ingestion.queueLocalPdfParse({
+      documentId: "document",
+      versionId: "version",
+      sourcePath: source,
+    });
+    expect(parseCalls).toBe(3);
   });
 
   it("survives overlapping state reads and extended Windows rename contention", async () => {

@@ -576,7 +576,12 @@ function pageText(row: JsonObject) {
 async function loadArtifactSource(sourcePath: string) {
   const source = within(dataRoot, sourcePath);
   await access(source);
-  const state = await readLocalPdfParseState(source);
+  // Exact lookup validates and snapshots the artifact contract below. Bypass
+  // ingestion's repair-on-report path so a lookup can preserve precise drift
+  // errors and an established session remains immutable.
+  const state = await readLocalPdfParseState(source, {
+    validatePublication: false,
+  });
   if (!state || !["ready", "degraded"].includes(state.status)) {
     return {
       available: false as const,

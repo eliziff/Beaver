@@ -422,6 +422,9 @@ describe("local assistant tools", () => {
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("../localDocumentStore");
     const tools = await import("../chat/localAssistantTools");
+    const graph = (
+      await import("../legalKnowledgeGraphStore")
+    ).legalKnowledgeGraphStore();
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
@@ -429,23 +432,31 @@ describe("local assistant tools", () => {
       bytes: Buffer.from("%PDF-1.4 test"),
     });
 
-    const [response] = await tools.runLocalAssistantTools("local-user", [
-      {
-        id: "call-1",
-        name: "library_list",
-        input: { query: "chamberlain" },
-      },
-    ]);
-
-    expect(JSON.parse(response.content)).toMatchObject({
-      ok: true,
-      documents: [
+    try {
+      const [response] = await tools.runLocalAssistantTools("local-user", [
         {
-          document_id: document.id,
-          filename: "Chamberlain.pdf",
+          id: "call-1",
+          name: "library_list",
+          input: { query: "chamberlain" },
         },
-      ],
-    });
+      ]);
+
+      expect(JSON.parse(response.content)).toMatchObject({
+        ok: true,
+        documents: [
+          {
+            document_id: document.id,
+            filename: "Chamberlain.pdf",
+          },
+        ],
+      });
+    } finally {
+      try {
+        await store.deleteLocalDocument("local-user", document.id);
+      } finally {
+        graph.close();
+      }
+    }
   });
 
   it("does not expose local paths for a missing evidence receipt", async () => {
