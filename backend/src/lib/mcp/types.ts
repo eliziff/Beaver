@@ -1,3 +1,4 @@
+import type { OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { createServerSupabase } from "../supabase";
 
 export type Db = ReturnType<typeof createServerSupabase>;
@@ -39,16 +40,15 @@ export type McpToolSummary = {
     lastSeenAt: string;
 };
 
-export type McpToolEvent =
-    | {
-          type: "mcp_tool_call";
-          connector_id: string;
-          connector_name: string;
-          tool_name: string;
-          openai_tool_name: string;
-          status: "ok" | "error";
-          error?: string;
-      };
+export type McpToolEvent = {
+    type: "mcp_tool_call";
+    connector_id: string;
+    connector_name: string;
+    tool_name: string;
+    openai_tool_name: string;
+    status: "ok" | "error";
+    error?: string;
+};
 
 export type ConnectorRow = {
     id: string;
@@ -92,12 +92,19 @@ export type OAuthTokenRow = {
 export type OAuthStateConfig = {
     codeVerifier: string;
     redirectUri: string;
-    authorizationServer?: string;
-    tokenEndpoint?: string;
-    clientId?: string;
-    clientSecret?: string;
-    resource?: string;
-    scope?: string;
+    connectorUpdatedAt: string;
+    serverUrl?: string;
+    serverOrigin?: string;
+    discoveryState?: OAuthDiscoveryState;
+    endpointBinding?: OAuthEndpointBinding;
+};
+
+export type OAuthEndpointBinding = {
+    authorizationServerUrl: string;
+    issuer: string;
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+    registrationEndpoint: string | null;
 };
 
 export type OAuthMetadata = {
@@ -125,12 +132,11 @@ export type ToolCacheRow = {
 
 export const CLIENT_INFO = { name: "mike-mcp-client", version: "1.0.0" };
 export const MAX_MCP_RESULT_CHARS = 60000;
+export const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;
+export const MAX_MCP_SSE_EVENT_BYTES = 256 * 1024;
+export const MCP_CREDENTIAL_EPOCH_KEY = "__mike_credential_epoch";
 export const MCP_REQUEST_TIMEOUT_MS = 30000;
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 export const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
 export const MAX_CUSTOM_HEADERS = 20;
 export const MAX_CUSTOM_HEADER_VALUE_LENGTH = 4096;
-export const BLOCKED_METADATA_HOSTS = new Set([
-    "metadata.google.internal",
-    "instance-data",
-]);

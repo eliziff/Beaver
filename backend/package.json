@@ -2,6 +2,9 @@
   "name": "mike-backend",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -33,6 +36,7 @@
     "mammoth": "^1.9.0",
     "multer": "^1.4.5-lts.2",
     "pdfjs-dist": "^4.10.38",
+    "undici": "6.28.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"
   },

@@ -171,12 +171,14 @@ function Get-CommandVersion([string]$Executable, [string[]]$Arguments) {
 function Get-Node {
     $node = Resolve-Application @('node.exe', 'node')
     if (-not $node) {
-        throw 'Node.js is missing. Beaver requires Node.js 22 or newer.'
+        throw 'Node.js is missing. Beaver requires Node.js 22.13 or newer.'
     }
     $version = Get-CommandVersion $node @('--version')
     $match = [regex]::Match([string]$version, '(\d+)\.(\d+)\.(\d+)')
-    if (-not $match.Success -or [int]$match.Groups[1].Value -lt 22) {
-        throw "Unsupported Node.js version '$version'. Install Node.js 22 or newer."
+    if (-not $match.Success -or
+        [int]$match.Groups[1].Value -lt 22 -or
+        ([int]$match.Groups[1].Value -eq 22 -and [int]$match.Groups[2].Value -lt 13)) {
+        throw "Unsupported Node.js version '$version'. Install Node.js 22.13 or newer."
     }
     return $node
 }
