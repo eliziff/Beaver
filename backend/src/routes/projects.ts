@@ -625,6 +625,28 @@ projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
   res.json(docsTyped);
 });
 
+// DELETE /projects/:projectId/documents/:documentId — detach a local Library
+// document from one matter without deleting the canonical file.
+projectsRouter.delete(
+  "/:projectId/documents/:documentId",
+  requireAuth,
+  (req, res) => {
+    if (!isAnonymousLocalMode()) {
+      return void res.status(404).json({ detail: "Not found" });
+    }
+    const userId = res.locals.userId as string;
+    const { projectId, documentId } = req.params;
+    const store = legalKnowledgeGraphStore();
+    if (!store.getMatter(userId, projectId)) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    if (!store.removeMatterDocument(userId, projectId, documentId)) {
+      return void res.status(404).json({ detail: "Document not found" });
+    }
+    res.status(204).send();
+  },
+);
+
 // POST /projects/:projectId/documents/:documentId — assign or copy existing doc into project
 projectsRouter.post(
   "/:projectId/documents/:documentId",

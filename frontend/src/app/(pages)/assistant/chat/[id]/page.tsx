@@ -16,8 +16,17 @@ export default function AssistantChatPage() {
         useChatHistoryContext();
 
     const initialMessages = newChatMessages ?? [];
-    const { messages, isResponseLoading, handleChat, setMessages, cancel } =
-        useAssistantChat({ initialMessages, chatId: id });
+    const {
+        messages,
+        isResponseLoading,
+        handleChat,
+        setMessages,
+        setTranscriptVersion,
+        rejectedTurn,
+        clearRejectedTurn,
+        retryRejectedTurn,
+        cancel,
+    } = useAssistantChat({ initialMessages, chatId: id });
 
     const hasAutoSent = useRef(false);
     const hasLoaded = useRef(false);
@@ -35,7 +44,8 @@ export default function AssistantChatPage() {
         hasLoaded.current = true;
 
         getChat(id)
-            .then(({ messages: loaded }) => {
+            .then(({ chat, messages: loaded }) => {
+                setTranscriptVersion(chat.transcript_version ?? 0);
                 if (loaded.length > 0) {
                     setMessages(loaded);
                 } else {
@@ -66,6 +76,9 @@ export default function AssistantChatPage() {
             isResponseLoading={isResponseLoading}
             handleChat={handleChat}
             cancel={cancel}
+            rejectedTurn={rejectedTurn}
+            onRejectedTurnRestored={clearRejectedTurn}
+            onRetryRejectedTurn={() => void retryRejectedTurn()}
         />
     );
 }

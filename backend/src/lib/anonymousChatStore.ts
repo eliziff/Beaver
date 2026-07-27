@@ -10,10 +10,12 @@ import {
 import path from "node:path";
 import { z } from "zod";
 import { legalDataHome } from "./legalDataPath";
+import { abortAnonymousTurnForDeletion } from "./anonymousChatTurns";
 
 export type AnonymousChatMessage = {
   id: string;
   chat_id: string;
+  turn_id?: string;
   role: "user" | "assistant";
   content: unknown;
   files?: unknown;
@@ -29,6 +31,7 @@ export type AnonymousChat = {
   title: string | null;
   created_at: string;
   updated_at: string;
+  transcript_version: number;
   messages: AnonymousChatMessage[];
 };
 
@@ -39,6 +42,7 @@ const messageSchema = z
   .object({
     id: idSchema,
     chat_id: idSchema,
+    turn_id: idSchema.optional(),
     role: z.enum(["user", "assistant"]),
     content: z.unknown(),
     files: z.unknown().optional(),
@@ -47,21 +51,25 @@ const messageSchema = z
     created_at: z.string().datetime(),
   })
   .strict();
-const storedChatSchema = z
+const legacyChatSchema = z
   .object({
-    version: z.literal(1),
-    chat: z
-      .object({
-        id: idSchema,
-        user_id: idSchema,
-        project_id: idSchema.nullable(),
-        title: z.string().nullable(),
-        created_at: z.string().datetime(),
-        updated_at: z.string().datetime(),
-        messages: z.array(messageSchema),
-      })
-      .strict(),
+    id: idSchema,
+    user_id: idSchema,
+    project_id: idSchema.nullable(),
+    title: z.string().nullable(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+    messages: z.array(messageSchema),
   })
+  .strict();
+const chatSchema = legacyChatSchema
+  .extend({ transcript_version: z.number().int().nonnegative() })
+  .strict();
+const storedChatSchema = z
+  .object({ version: z.literal(2), chat: chatSchema })
+  .strict();
+const legacyStoredChatSchema = z
+  .object({ version: z.literal(1), chat: legacyChatSchema })
   .strict();
 
 const chatDirectory = path.join(legalDataHome(), "apps", "mike", "chats");
@@ -81,27 +89,37 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
   if (cached) return cached.user_id === userId ? cached : null;
 
   try {
-    const parsed = storedChatSchema.safeParse(
-      JSON.parse(readFileSync(chatPath(chatId), "utf8")),
-    );
+    const raw = JSON.parse(readFileSync(chatPath(chatId), "utf8"));
+    const current = storedChatSchema.safeParse(raw);
+    const legacy = current.success
+      ? null
+      : legacyStoredChatSchema.safeParse(raw);
+    const chat = current.success
+      ? current.data.chat
+      : legacy?.success
+        ? {
+            ...legacy.data.chat,
+            transcript_version: legacy.data.chat.messages.length,
+          }
+        : null;
     if (
-      !parsed.success ||
-      parsed.data.chat.id !== chatId ||
-      parsed.data.chat.user_id !== userId ||
-      parsed.data.chat.messages.some((message) => message.chat_id !== chatId)
+      !chat ||
+      chat.id !== chatId ||
+      chat.user_id !== userId ||
+      chat.messages.some((message) => message.chat_id !== chatId)
     ) {
       return null;
     }
-    const chat = parsed.data.chat as AnonymousChat;
-    chats.set(chat.id, chat);
-    return chat;
+    const hydrated = chat as AnonymousChat;
+    chats.set(hydrated.id, hydrated);
+    return hydrated;
   } catch {
     return null;
   }
 }
 
 function writeChat(chat: AnonymousChat) {
-  const parsed = storedChatSchema.safeParse({ version: 1, chat });
+  const parsed = storedChatSchema.safeParse({ version: 2, chat });
   if (!parsed.success) throw new Error("Invalid anonymous chat");
 
   mkdirSync(chatDirectory, { recursive: true });
@@ -110,7 +128,7 @@ function writeChat(chat: AnonymousChat) {
     `.${chat.id}.${process.pid}.${randomUUID()}.tmp`,
   );
   try {
-    writeFileSync(temporaryPath, JSON.stringify({ version: 1, chat }), {
+    writeFileSync(temporaryPath, JSON.stringify({ version: 2, chat }), {
       encoding: "utf8",
       flag: "wx",
     });
@@ -118,7 +136,12 @@ function writeChat(chat: AnonymousChat) {
   } finally {
     rmSync(temporaryPath, { force: true });
   }
-  chats.set(chat.id, chat);
+  const canonical = chats.get(chat.id);
+  if (canonical && canonical !== chat) {
+    Object.assign(canonical, chat);
+  } else if (!canonical) {
+    chats.set(chat.id, chat);
+  }
 }
 
 export function createAnonymousChat(
@@ -136,6 +159,7 @@ export function createAnonymousChat(
     title: null,
     created_at: now,
     updated_at: now,
+    transcript_version: 0,
     messages: [],
   };
   writeChat(chat);
@@ -184,20 +208,24 @@ export function getAnonymousChat(
 export function appendAnonymousMessage(
   chat: AnonymousChat,
   message: Omit<AnonymousChatMessage, "id" | "chat_id" | "created_at">,
+  expectedVersion?: number,
 ) {
+  const currentChat = assertTranscriptVersion(chat, expectedVersion);
   const row: AnonymousChatMessage = {
     ...message,
     id: randomUUID(),
-    chat_id: chat.id,
+    chat_id: currentChat.id,
     created_at: new Date().toISOString(),
   };
   const next = {
-    ...chat,
-    messages: [...chat.messages, row],
+    ...currentChat,
+    messages: [...currentChat.messages, row],
     updated_at: row.created_at,
+    transcript_version: currentChat.transcript_version + 1,
   };
   writeChat(next);
-  Object.assign(chat, next);
+  Object.assign(currentChat, next);
+  if (chat !== currentChat) Object.assign(chat, next);
   return row;
 }
 
@@ -205,17 +233,27 @@ export function appendAnonymousAssistantEvents(
   chat: AnonymousChat,
   events: unknown[],
   citations?: unknown[],
+  expectedVersion?: number,
+  turnId?: string,
 ) {
+  const currentChat = assertTranscriptVersion(chat, expectedVersion);
   let index = -1;
-  for (let current = chat.messages.length - 1; current >= 0; current -= 1) {
-    if (chat.messages[current].role === "assistant") {
+  for (
+    let current = currentChat.messages.length - 1;
+    current >= 0;
+    current -= 1
+  ) {
+    if (
+      currentChat.messages[current].role === "assistant" &&
+      (!turnId || currentChat.messages[current].turn_id === turnId)
+    ) {
       index = current;
       break;
     }
   }
   if (index < 0) return false;
 
-  const current = chat.messages[index];
+  const current = currentChat.messages[index];
   const nextMessage = {
     ...current,
     content: [
@@ -228,30 +266,90 @@ export function appendAnonymousAssistantEvents(
     ],
   };
   const next = {
-    ...chat,
-    messages: chat.messages.map((message, currentIndex) =>
+    ...currentChat,
+    messages: currentChat.messages.map((message, currentIndex) =>
       currentIndex === index ? nextMessage : message,
     ),
     updated_at: new Date().toISOString(),
+    transcript_version: currentChat.transcript_version + 1,
   };
   writeChat(next);
-  Object.assign(chat, next);
+  Object.assign(currentChat, next);
+  if (chat !== currentChat) Object.assign(chat, next);
   return true;
 }
 
-export function updateAnonymousChatTitle(chat: AnonymousChat, title: string) {
+export function resetAnonymousAssistantEvents(
+  chat: AnonymousChat,
+  turnId: string,
+) {
+  const currentChat = assertTranscriptVersion(chat, undefined);
+  let index = -1;
+  for (
+    let current = currentChat.messages.length - 1;
+    current >= 0;
+    current -= 1
+  ) {
+    const message = currentChat.messages[current];
+    if (message.role === "assistant" && message.turn_id === turnId) {
+      index = current;
+      break;
+    }
+  }
+  if (index < 0) return false;
   const next = {
-    ...chat,
+    ...currentChat,
+    messages: currentChat.messages.map((message, currentIndex) =>
+      currentIndex === index
+        ? { ...message, content: [], citations: [] }
+        : message,
+    ),
+    updated_at: new Date().toISOString(),
+    transcript_version: currentChat.transcript_version + 1,
+  };
+  writeChat(next);
+  Object.assign(currentChat, next);
+  if (chat !== currentChat) Object.assign(chat, next);
+  return true;
+}
+
+export class AnonymousChatVersionConflictError extends Error {
+  constructor(readonly currentVersion: number) {
+    super("Anonymous chat transcript version conflict");
+    this.name = "AnonymousChatVersionConflictError";
+  }
+}
+
+function assertTranscriptVersion(
+  chat: AnonymousChat,
+  expectedVersion: number | undefined,
+) {
+  const current = chats.get(chat.id) ?? chat;
+  if (
+    expectedVersion !== undefined &&
+    current.transcript_version !== expectedVersion
+  ) {
+    throw new AnonymousChatVersionConflictError(current.transcript_version);
+  }
+  return current;
+}
+
+export function updateAnonymousChatTitle(chat: AnonymousChat, title: string) {
+  const current = chats.get(chat.id) ?? chat;
+  const next = {
+    ...current,
     title,
     updated_at: new Date().toISOString(),
   };
   writeChat(next);
-  Object.assign(chat, next);
+  Object.assign(current, next);
+  if (chat !== current) Object.assign(chat, next);
 }
 
 export function deleteAnonymousChat(userId: string, chatId: string): boolean {
   const chat = getAnonymousChat(userId, chatId);
   if (!chat) return false;
+  abortAnonymousTurnForDeletion(chat.id);
   rmSync(chatPath(chat.id), { force: true });
   chats.delete(chat.id);
   return true;
@@ -262,6 +360,7 @@ export function deleteAnonymousProjectChats(
   projectId: string,
 ) {
   for (const chat of listAnonymousProjectChats(userId, projectId)) {
+    abortAnonymousTurnForDeletion(chat.id);
     rmSync(chatPath(chat.id), { force: true });
     chats.delete(chat.id);
   }

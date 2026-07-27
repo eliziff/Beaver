@@ -180,6 +180,7 @@ export function AskInputPopup({
                           id: item.id,
                           kind: "documents" as const,
                           filenames: [],
+                          documents: [],
                           skipped: true,
                       };
             }
@@ -195,6 +196,10 @@ export function AskInputPopup({
                 id: item.id,
                 kind: "documents" as const,
                 filenames: docsForItem(item.id).map((doc) => doc.filename),
+                documents: docsForItem(item.id).map((doc) => ({
+                    document_id: doc.id,
+                    filename: doc.filename,
+                })),
             };
         });
         return { type: "ask_inputs_response", responses };

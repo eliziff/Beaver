@@ -48,6 +48,119 @@ describe("anonymous chat store", () => {
       { role: "user", content: "Question" },
       { role: "assistant", content: "Answer" },
     ]);
+    expect(
+      secondStore.getAnonymousChat(owner, chat.id)?.transcript_version,
+    ).toBe(2);
+  });
+
+  it("atomically rejects a stale transcript version without changing bytes", async () => {
+    const store = await loadStore();
+    const chat = store.createAnonymousChat(owner);
+    store.appendAnonymousMessage(
+      chat,
+      { role: "user", content: "First" },
+      0,
+    );
+    const chatFile = path.join(
+      dataHome,
+      "apps",
+      "mike",
+      "chats",
+      `${chat.id}.json`,
+    );
+    const acceptedBytes = await readFile(chatFile, "utf8");
+
+    expect(() =>
+      store.appendAnonymousMessage(
+        chat,
+        { role: "user", content: "Duplicate" },
+        0,
+      ),
+    ).toThrow(store.AnonymousChatVersionConflictError);
+    expect(await readFile(chatFile, "utf8")).toBe(acceptedBytes);
+    expect(chat.transcript_version).toBe(1);
+    expect(chat.messages).toHaveLength(1);
+  });
+
+  it("keeps one canonical in-process chat identity across commits", async () => {
+    const store = await loadStore();
+    const firstReference = store.createAnonymousChat(owner);
+    store.appendAnonymousMessage(
+      firstReference,
+      { role: "user", content: "First" },
+      0,
+    );
+    const secondReference = store.getAnonymousChat(owner, firstReference.id)!;
+    store.appendAnonymousMessage(firstReference, {
+      role: "assistant",
+      content: "Answer",
+    });
+    const chatFile = path.join(
+      dataHome,
+      "apps",
+      "mike",
+      "chats",
+      `${firstReference.id}.json`,
+    );
+    const committedBytes = await readFile(chatFile, "utf8");
+
+    expect(secondReference).toBe(firstReference);
+    expect(() =>
+      store.appendAnonymousMessage(
+        secondReference,
+        { role: "user", content: "Stale overwrite" },
+        1,
+      ),
+    ).toThrow(store.AnonymousChatVersionConflictError);
+    expect(await readFile(chatFile, "utf8")).toBe(committedBytes);
+    expect(firstReference.transcript_version).toBe(2);
+    expect(firstReference.messages).toHaveLength(2);
+  });
+
+  it("loads schema v1 and lazily upgrades it on the next transcript write", async () => {
+    const chatsDirectory = path.join(dataHome, "apps", "mike", "chats");
+    await mkdir(chatsDirectory, { recursive: true });
+    const chatId = randomUUID();
+    const messageId = randomUUID();
+    const now = "2026-07-26T12:00:00.000Z";
+    const chatFile = path.join(chatsDirectory, `${chatId}.json`);
+    await writeFile(
+      chatFile,
+      JSON.stringify({
+        version: 1,
+        chat: {
+          id: chatId,
+          user_id: owner,
+          project_id: null,
+          title: null,
+          created_at: now,
+          updated_at: now,
+          messages: [
+            {
+              id: messageId,
+              chat_id: chatId,
+              role: "user",
+              content: "Legacy",
+              created_at: now,
+            },
+          ],
+        },
+      }),
+      "utf8",
+    );
+
+    const store = await loadStore();
+    const chat = store.getAnonymousChat(owner, chatId)!;
+    expect(chat.transcript_version).toBe(1);
+    store.appendAnonymousMessage(
+      chat,
+      { role: "assistant", content: "Upgraded" },
+      1,
+    );
+
+    const stored = JSON.parse(await readFile(chatFile, "utf8"));
+    expect(stored.version).toBe(2);
+    expect(stored.chat.transcript_version).toBe(2);
   });
 
   it("orders chats by their latest durable update and persists titles", async () => {

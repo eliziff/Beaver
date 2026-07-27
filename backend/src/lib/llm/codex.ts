@@ -57,6 +57,23 @@ export type ParsedCodexEvent = {
 
 const CODEX_TIMEOUT_MS = 180_000;
 
+function terminateProcessTree(child: ChildProcessWithoutNullStreams) {
+  if (process.platform !== "win32" || !child.pid) {
+    child.kill();
+    return;
+  }
+  const killer = spawn(
+    "taskkill.exe",
+    ["/pid", String(child.pid), "/t", "/f"],
+    {
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
+  killer.once("error", () => child.kill());
+  killer.unref();
+}
+
 export function parseCodexEventLine(line: string): ParsedCodexEvent {
   try {
     const event = JSON.parse(line) as CodexEvent;
@@ -247,6 +264,7 @@ async function runCodex(params: {
       tools: params.tools,
       runTools: params.runTools,
       callbacks,
+      abortSignal: params.abortSignal,
       maxToolCalls: maxIterations,
     });
   }
@@ -324,9 +342,9 @@ async function runCodex(params: {
   });
   const timeout = setTimeout(() => {
     timedOut = true;
-    child.kill();
+    terminateProcessTree(child);
   }, CODEX_TIMEOUT_MS);
-  const abort = () => child.kill();
+  const abort = () => terminateProcessTree(child);
   params.abortSignal?.addEventListener("abort", abort, { once: true });
 
   try {

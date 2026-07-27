@@ -80,12 +80,10 @@ export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
   }
 }
 
-export async function generateDocx(
+export async function renderDocx(
   title: string,
   sections: unknown[],
-  userId: string,
-  db: ReturnType<typeof createServerSupabase>,
-  options?: { landscape?: boolean; projectId?: string | null },
+  options?: { landscape?: boolean },
 ) {
   try {
     const {
@@ -502,13 +500,26 @@ export async function generateDocx(
         };
       }
     }
+    const filename = safeGeneratedFilename(title, "docx");
+    return { filename, bytes: buf };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+export async function generateDocx(
+  title: string,
+  sections: unknown[],
+  userId: string,
+  db: ReturnType<typeof createServerSupabase>,
+  options?: { landscape?: boolean; projectId?: string | null },
+) {
+  const rendered = await renderDocx(title, sections, options);
+  if ("error" in rendered) return rendered;
+
+  try {
+    const { filename, bytes: buf } = rendered;
     const docId = crypto.randomUUID().replace(/-/g, "");
-    const safeTitle =
-      title
-        .replace(/[^a-zA-Z0-9 -]/g, "")
-        .trim()
-        .slice(0, 64) || "document";
-    const filename = `${safeTitle}.docx`;
     const key = generatedDocKey(userId, docId, filename);
 
     await uploadFile(

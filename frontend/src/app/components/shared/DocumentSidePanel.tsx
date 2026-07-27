@@ -72,6 +72,7 @@ interface DocumentSidePanelProps {
     canDelete?: boolean;
     onOwnerOnlyAction?: (action: string) => void;
     onDelete: (doc: Document) => Promise<void> | void;
+    documentRemovalMode?: "delete" | "detach";
 }
 
 export function DocumentSidePanel({
@@ -91,6 +92,7 @@ export function DocumentSidePanel({
     canDelete = true,
     onOwnerOnlyAction,
     onDelete,
+    documentRemovalMode = "delete",
 }: DocumentSidePanelProps) {
     const [mounted, setMounted] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -116,6 +118,9 @@ export function DocumentSidePanel({
     const [deleteDocumentStatus, setDeleteDocumentStatus] = useState<
         "idle" | "deleting" | "deleted"
     >("idle");
+    const [deleteDocumentError, setDeleteDocumentError] = useState<
+        string | null
+    >(null);
     const [dataColumnWidth, setDataColumnWidth] = useState(
         DEFAULT_DATA_COLUMN_WIDTH,
     );
@@ -151,6 +156,7 @@ export function DocumentSidePanel({
     useEffect(() => {
         if (!doc) return;
         setUploadError(null);
+        setDeleteDocumentError(null);
         void onLoadVersions(doc.id);
     }, [doc?.id]);
 
@@ -364,6 +370,7 @@ export function DocumentSidePanel({
     async function handleDeleteDocument() {
         if (deleteDocumentStatus === "deleting") return;
         setDeleteDocumentStatus("deleting");
+        setDeleteDocumentError(null);
         setDeletingDocument(true);
         try {
             await onDelete(activeDoc);
@@ -376,6 +383,11 @@ export function DocumentSidePanel({
         } catch (err) {
             console.error("delete document failed", err);
             setDeleteDocumentStatus("idle");
+            setDeleteDocumentError(
+                documentRemovalMode === "detach"
+                    ? "The document could not be removed from this project. Please try again."
+                    : "The document could not be deleted. Please try again.",
+            );
         } finally {
             setDeletingDocument(false);
         }
@@ -383,15 +395,16 @@ export function DocumentSidePanel({
 
     function requestDeleteDocument() {
         if (!canDelete) {
-            onOwnerOnlyAction?.("delete this document");
+            onOwnerOnlyAction?.(
+                documentRemovalMode === "detach"
+                    ? "remove this document from the project"
+                    : "delete this document",
+            );
             return;
         }
-        if (versions.length > 1) {
-            setDeleteDocumentStatus("idle");
-            setConfirmDeleteDocumentOpen(true);
-            return;
-        }
-        void handleDeleteDocument();
+        setDeleteDocumentStatus("idle");
+        setDeleteDocumentError(null);
+        setConfirmDeleteDocumentOpen(true);
     }
 
     function handleResizeMouseDown(e: React.MouseEvent<HTMLDivElement>) {
@@ -941,8 +954,10 @@ export function DocumentSidePanel({
                             )}
                             title={
                                 canDelete
-                                    ? "Delete document"
-                                    : "Only the document owner can delete this document"
+                                    ? documentRemovalMode === "detach"
+                                        ? "Remove from project"
+                                        : "Delete document"
+                                    : "Only the document owner can remove this document"
                             }
                         >
                             {deletingDocument ? (
@@ -950,7 +965,9 @@ export function DocumentSidePanel({
                             ) : (
                                 <Trash2 className="h-3.5 w-3.5 shrink-0" />
                             )}
-                            Delete
+                            {documentRemovalMode === "detach"
+                                ? "Remove"
+                                : "Delete"}
                         </PillButton>
                         <PillButton
                             tone="blue"
@@ -978,6 +995,11 @@ export function DocumentSidePanel({
                         : "File extensions cannot be changed here."
                 }
             />
+            <WarningPopup
+                open={!!deleteDocumentError}
+                onClose={() => setDeleteDocumentError(null)}
+                message={deleteDocumentError}
+            />
             <ConfirmPopup
                 open={replaceConfirmOpen}
                 title="Replace version?"
@@ -995,9 +1017,25 @@ export function DocumentSidePanel({
             />
             <ConfirmPopup
                 open={confirmDeleteDocumentOpen}
-                title="Delete document?"
-                message={`${selectedFilename} has ${versions.length} versions. Deleting this document will delete all of its versions.`}
-                confirmLabel="Delete"
+                title={
+                    documentRemovalMode === "detach"
+                        ? "Remove from project?"
+                        : "Delete document?"
+                }
+                message={
+                    documentRemovalMode === "detach"
+                        ? `Remove ${selectedFilename} from this project? The Library file and its links in other projects will be kept.`
+                        : activeVersionCount > 0
+                          ? `${selectedFilename} has ${activeVersionCount} ${
+                                activeVersionCount === 1
+                                    ? "version"
+                                    : "versions"
+                            }. Deleting this document will delete all of its versions.`
+                          : `Delete ${selectedFilename}? This will delete the document and all of its versions.`
+                }
+                confirmLabel={
+                    documentRemovalMode === "detach" ? "Remove" : "Delete"
+                }
                 confirmStatus={
                     deleteDocumentStatus === "deleting"
                         ? "loading"

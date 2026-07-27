@@ -12,6 +12,8 @@ import type {
 } from "@/app/components/shared/types";
 import { VersionChip } from "@/app/components/shared/VersionChip";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
+import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import {
     ProjectSvgIcon,
     SubfolderSvgIcon,
@@ -27,6 +29,7 @@ interface Props {
     onRenameFolder?: (folderId: string, name: string) => Promise<void>;
     onDeleteFolder?: (folderId: string) => Promise<void>;
     onDeleteDoc?: (docId: string) => Promise<void>;
+    documentRemovalMode?: "delete" | "detach";
     onMoveDoc?: (docId: string, targetFolderId: string | null) => Promise<void>;
     onMoveFolder?: (folderId: string, targetFolderId: string | null) => Promise<void>;
 }
@@ -53,6 +56,7 @@ export function ProjectExplorer({
     onRenameFolder,
     onDeleteFolder,
     onDeleteDoc,
+    documentRemovalMode = "delete",
     onMoveDoc,
     onMoveFolder,
 }: Props) {
@@ -64,6 +68,15 @@ export function ProjectExplorer({
     const [renameValue, setRenameValue] = useState("");
     const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
     const [dragOverRoot, setDragOverRoot] = useState(false);
+    const [pendingDocumentId, setPendingDocumentId] = useState<string | null>(
+        null,
+    );
+    const [documentRemovalStatus, setDocumentRemovalStatus] = useState<
+        "idle" | "deleting" | "deleted"
+    >("idle");
+    const [documentRemovalError, setDocumentRemovalError] = useState<
+        string | null
+    >(null);
     const newFolderInputRef = useRef<HTMLInputElement>(null);
     const contextMenuRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +133,33 @@ export function ProjectExplorer({
         setRenamingId(null);
         if (!name || !onRenameFolder) return;
         await onRenameFolder(folderId, name);
+    }
+
+    async function confirmDocumentRemoval() {
+        if (
+            !pendingDocumentId ||
+            !onDeleteDoc ||
+            documentRemovalStatus === "deleting"
+        ) {
+            return;
+        }
+        setDocumentRemovalStatus("deleting");
+        setDocumentRemovalError(null);
+        try {
+            await onDeleteDoc(pendingDocumentId);
+            setDocumentRemovalStatus("deleted");
+            window.setTimeout(() => {
+                setPendingDocumentId(null);
+                setDocumentRemovalStatus("idle");
+            }, 650);
+        } catch {
+            setDocumentRemovalStatus("idle");
+            setDocumentRemovalError(
+                documentRemovalMode === "detach"
+                    ? "The document could not be removed from this project."
+                    : "The document could not be deleted.",
+            );
+        }
     }
 
     function openContextMenu(
@@ -318,7 +358,13 @@ export function ProjectExplorer({
         );
     }
 
+    const pendingDocument = documents.find(
+        (document) => document.id === pendingDocumentId,
+    );
+    const detachesDocument = documentRemovalMode === "detach";
+
     return (
+        <>
         <ul
             className={`p-1 relative h-full ${dragOverRoot && dragOverFolderId === null ? "ring-2 ring-blue-400 ring-inset" : ""}`}
             onContextMenu={(e) => {
@@ -420,16 +466,51 @@ export function ProjectExplorer({
                         <button
                             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
                             onClick={() => {
-                                void onDeleteDoc(contextMenu.docId!);
+                                setPendingDocumentId(contextMenu.docId!);
+                                setDocumentRemovalStatus("idle");
                                 setContextMenu(null);
                             }}
                         >
                             <Trash2 className="h-3.5 w-3.5 shrink-0" />
-                            Delete file
+                            {detachesDocument
+                                ? "Remove from project"
+                                : "Delete file"}
                         </button>
                     )}
                 </div>
             )}
         </ul>
+        <ConfirmPopup
+            open={!!pendingDocumentId}
+            title={
+                detachesDocument ? "Remove from project?" : "Delete document?"
+            }
+            message={
+                detachesDocument
+                    ? `Remove ${pendingDocument?.filename ?? "this document"} from this project? The Library file and its links in other projects will be kept.`
+                    : `Permanently delete ${pendingDocument?.filename ?? "this document"} and all of its versions?`
+            }
+            confirmLabel={detachesDocument ? "Remove" : "Delete"}
+            confirmStatus={
+                documentRemovalStatus === "deleting"
+                    ? "loading"
+                    : documentRemovalStatus === "deleted"
+                      ? "complete"
+                      : "idle"
+            }
+            cancelLabel="Cancel"
+            onCancel={() => {
+                if (documentRemovalStatus === "deleting") return;
+                setPendingDocumentId(null);
+                setDocumentRemovalStatus("idle");
+            }}
+            onConfirm={() => void confirmDocumentRemoval()}
+        />
+        <WarningPopup
+            open={!!documentRemovalError}
+            message={documentRemovalError}
+            onClose={() => setDocumentRemovalError(null)}
+        />
+        </>
     );
 }

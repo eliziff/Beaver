@@ -24,10 +24,17 @@ type ToolDispatcher = (
   calls: NormalizedToolCall[],
 ) => Promise<NormalizedToolResult[]>;
 
+type BridgeState = {
+  toolCallCount: number;
+  dispatchTail: Promise<void>;
+  closed: boolean;
+};
+
 export type CodexToolBridgeParams = {
   tools: OpenAIToolSchema[];
   runTools: ToolDispatcher;
   callbacks?: StreamCallbacks;
+  abortSignal?: AbortSignal;
   /** Maximum number of tool calls this short-lived bridge may dispatch. */
   maxToolCalls?: number;
 };
@@ -76,7 +83,7 @@ function mcpTools(tools: OpenAIToolSchema[]): McpTool[] {
 function bridgeServer(
   params: CodexToolBridgeParams,
   tools: McpTool[],
-  state: { toolCallCount: number },
+  state: BridgeState,
 ) {
   const server = new Server(
     { name: "mike-codex-bridge", version: "1.0.0" },
@@ -123,10 +130,20 @@ function bridgeServer(
       name,
       input: input as Record<string, unknown>,
     };
-    params.callbacks?.onToolCallStart?.(call);
 
     try {
-      const results = await params.runTools([call]);
+      const dispatch = state.dispatchTail.then(async () => {
+        if (state.closed || params.abortSignal?.aborted) {
+          throw new Error("Mike tool dispatch was cancelled.");
+        }
+        params.callbacks?.onToolCallStart?.(call);
+        return params.runTools([call]);
+      });
+      state.dispatchTail = dispatch.then(
+        () => undefined,
+        () => undefined,
+      );
+      const results = await dispatch;
       const result = results.find(
         (candidate) => candidate.tool_use_id === call.id,
       );
@@ -197,7 +214,11 @@ export async function startCodexToolBridge(
 ): Promise<CodexToolBridge> {
   const token = randomBytes(32).toString("hex");
   const tools = mcpTools(params.tools);
-  const state = { toolCallCount: 0 };
+  const state: BridgeState = {
+    toolCallCount: 0,
+    dispatchTail: Promise.resolve(),
+    closed: false,
+  };
   const sockets = new Set<Socket>();
   const httpServer = createServer(async (request, response) => {
     if (request.url !== "/mcp" || request.method !== "POST") {
@@ -270,6 +291,8 @@ export async function startCodexToolBridge(
     close: async () => {
       if (closed) return;
       closed = true;
+      state.closed = true;
+      await state.dispatchTail;
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     },

@@ -99,10 +99,11 @@ function cleanAskInputString(value: unknown, fallback = ""): string {
   return text || fallback;
 }
 
-function normalizeAskInputsEvent(
+export function normalizeAskInputsEvent(
   args: Record<string, unknown>,
 ): AskInputsEvent {
   const rawItems = Array.isArray(args.items) ? args.items : [];
+  const seenIds = new Set<string>();
   const items = rawItems
     .map((item, index): AskInputItem | null => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return null;
@@ -166,7 +167,11 @@ function normalizeAskInputsEvent(
           : {}),
       };
     })
-    .filter((item): item is AskInputItem => !!item)
+    .filter((item): item is AskInputItem => {
+      if (!item || seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    })
     .slice(0, 12);
 
   return { type: "ask_inputs", items };

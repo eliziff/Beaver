@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ let temporaryDirectory: string | null = null;
 afterEach(async () => {
   delete process.env.MIKE_LOCAL_DATA_DIR;
   vi.doUnmock("../tableOfAuthorities");
+  vi.doUnmock("../convert");
   vi.unstubAllGlobals();
   vi.resetModules();
   if (temporaryDirectory) {
@@ -23,6 +24,7 @@ describe("local assistant tools", () => {
     );
     const names = LOCAL_ASSISTANT_TOOLS.map((tool) => tool.function.name);
 
+    expect(names).toContain("ask_inputs");
     expect(names).toContain("library_link_docx_citations");
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
@@ -30,6 +32,13 @@ describe("local assistant tools", () => {
       )?.function.description,
     ).toContain("do not read, split, classify, or construct citation URLs");
     expect(names).toContain("library_fix_docx_supras");
+    expect(names).toContain("library_create_docx");
+    expect(names).toContain("library_revise_docx");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_revise_docx",
+      )?.function.parameters.required,
+    ).toEqual(["document_id", "version_id", "edits"]);
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_fix_docx_supras",
@@ -42,6 +51,370 @@ describe("local assistant tools", () => {
         (tool) => tool.function.name === "toa_submit_library_document",
       )?.function.parameters.properties,
     ).not.toHaveProperty("path");
+  });
+
+  it("creates and immutably revises a matter DOCX across reloads", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.doMock("../convert", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../convert")>()),
+      docxToPdf: vi.fn(async () => Buffer.from("%PDF-1.4 preview")),
+    }));
+    const graph = (
+      await import("../legalKnowledgeGraphStore")
+    ).legalKnowledgeGraphStore();
+    try {
+      const matter = graph.createMatter("local-user", { name: "Appeal" });
+      const allowedDocumentIds = new Set<string>();
+      const tools = await import("../chat/localAssistantTools");
+
+      const [createdResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-create",
+            name: "library_create_docx",
+            input: {
+              title: "Opinion Draft",
+              sections: [
+                {
+                  heading: "Background",
+                  content: "Original provision.",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+        undefined,
+        matter.id,
+      );
+      const created = JSON.parse(createdResponse.content);
+
+      expect(created).toMatchObject({
+        ok: true,
+        receipt: "mike-document:v1",
+        action: "created",
+        version_number: 1,
+        filename: "Opinion Draft.docx",
+        file_type: "docx",
+        attached_to_matter: true,
+      });
+      expect(created.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
+      expect(allowedDocumentIds).toContain(created.document_id);
+      expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([
+        created.document_id,
+      ]);
+
+      const [revisedResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-revise",
+            name: "library_revise_docx",
+            input: {
+              document_id: created.document_id,
+              version_id: created.version_id,
+              edits: [
+                {
+                  find: "Original",
+                  replace: "Revised",
+                  context_before: "",
+                  context_after: " provision.",
+                  reason: "Update the draft.",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      const revised = JSON.parse(revisedResponse.content);
+
+      expect(revised).toMatchObject({
+        ok: true,
+        receipt: "mike-document:v1",
+        action: "revised",
+        document_id: created.document_id,
+        parent_version_id: created.version_id,
+        version_number: 2,
+        change_count: 1,
+      });
+      expect(revised.version_id).not.toBe(created.version_id);
+      expect(revised.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
+
+      const [noOpResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-no-op",
+            name: "library_revise_docx",
+            input: {
+              document_id: created.document_id,
+              version_id: revised.version_id,
+              edits: [
+                {
+                  find: "Revised",
+                  replace: "Revised",
+                  context_before: "",
+                  context_after: " provision.",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      expect(JSON.parse(noOpResponse.content)).toEqual({
+        ok: false,
+        error: "No revision was saved",
+        edit_errors: ["Every requested edit was a no-op"],
+      });
+
+      const [normalizedNoOpResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-normalized-no-op",
+            name: "library_revise_docx",
+            input: {
+              document_id: created.document_id,
+              version_id: revised.version_id,
+              edits: [
+                {
+                  find: "Revised  provision.",
+                  replace: "Revised provision.",
+                  context_before: "",
+                  context_after: "",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      expect(JSON.parse(normalizedNoOpResponse.content)).toEqual({
+        ok: false,
+        error: "No revision was saved",
+        edit_errors: [
+          {
+            index: 0,
+            reason: "Replacement does not change the matched text.",
+          },
+        ],
+      });
+
+      const [staleResponse] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-stale",
+            name: "library_revise_docx",
+            input: {
+              document_id: created.document_id,
+              version_id: created.version_id,
+              edits: [
+                {
+                  find: "Original",
+                  replace: "Stale",
+                  context_before: "",
+                  context_after: " provision.",
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
+      );
+      expect(JSON.parse(staleResponse.content)).toEqual({
+        ok: false,
+        error: "version_id is not the active version",
+      });
+
+      const liveStore = await import("../localDocumentStore");
+      const spreadsheet = await liveStore.createLocalDocument({
+        userId: "local-user",
+        kind: "file",
+        filename: "schedule.xlsx",
+        bytes: Buffer.from("not-used-by-the-format-guard"),
+      });
+      allowedDocumentIds.add(spreadsheet.id);
+      const [wrongVersionResponse, wrongFormatResponse] =
+        await tools.runLocalAssistantTools(
+          "local-user",
+          [
+            {
+              id: "call-wrong-version",
+              name: "library_revise_docx",
+              input: {
+                document_id: created.document_id,
+                version_id: "missing-version",
+                edits: [
+                  {
+                    find: "Revised",
+                    replace: "Changed",
+                    context_before: "",
+                    context_after: " provision.",
+                  },
+                ],
+              },
+            },
+            {
+              id: "call-wrong-format",
+              name: "library_revise_docx",
+              input: {
+                document_id: spreadsheet.id,
+                version_id: spreadsheet.current_version_id,
+                edits: [
+                  {
+                    find: "A",
+                    replace: "B",
+                    context_before: "",
+                    context_after: "",
+                  },
+                ],
+              },
+            },
+          ],
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          allowedDocumentIds,
+        );
+      expect(JSON.parse(wrongVersionResponse.content)).toEqual({
+        ok: false,
+        error: "DOCX Library version not found",
+      });
+      expect(JSON.parse(wrongFormatResponse.content)).toEqual({
+        ok: false,
+        error: "Revision requires a DOCX Library version",
+      });
+
+      vi.resetModules();
+      const reloadedStore = await import("../localDocumentStore");
+      const trackedChanges = await import("../docxTrackedChanges");
+      const versions = await reloadedStore.listLocalVersions(
+        "local-user",
+        created.document_id,
+      );
+      const original = await reloadedStore.getLocalVersionFile(
+        "local-user",
+        created.document_id,
+        created.version_id,
+      );
+      const latest = await reloadedStore.getLocalVersionFile(
+        "local-user",
+        created.document_id,
+        revised.version_id,
+      );
+
+      expect(versions?.current_version_id).toBe(revised.version_id);
+      expect(versions?.versions).toHaveLength(2);
+      expect(versions?.versions).toMatchObject([
+        {
+          id: created.version_id,
+          provenance: {
+            schema_version: 1,
+            actor: "assistant",
+            action: "created",
+          },
+        },
+        {
+          id: revised.version_id,
+          provenance: {
+            schema_version: 1,
+            actor: "assistant",
+            action: "revised",
+            parent_version_id: created.version_id,
+            change_count: 1,
+          },
+        },
+      ]);
+      expect(
+        await trackedChanges.extractDocxBodyText(
+          await readFile(original!.path),
+        ),
+      ).toContain("Original provision.");
+      expect(
+        await trackedChanges.extractDocxBodyText(await readFile(latest!.path)),
+      ).toContain("Revised provision.");
+    } finally {
+      graph.close();
+    }
+  });
+
+  it("rolls back a generated DOCX when matter attachment fails", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    vi.doMock("../convert", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../convert")>()),
+      docxToPdf: vi.fn(async () => Buffer.from("%PDF-1.4 preview")),
+    }));
+    const graph = (
+      await import("../legalKnowledgeGraphStore")
+    ).legalKnowledgeGraphStore();
+    try {
+      const matter = graph.createMatter("local-user", { name: "Appeal" });
+      vi.spyOn(graph, "attachMatterDocument").mockImplementationOnce(() => {
+        throw new Error("Storage unavailable");
+      });
+      const tools = await import("../chat/localAssistantTools");
+
+      const [response] = await tools.runLocalAssistantTools(
+        "local-user",
+        [
+          {
+            id: "call-create",
+            name: "library_create_docx",
+            input: {
+              title: "Unattached Draft",
+              sections: [{ content: "Draft text." }],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        new Set<string>(),
+        undefined,
+        matter.id,
+      );
+
+      expect(JSON.parse(response.content)).toEqual({
+        ok: false,
+        error: "Could not attach document to matter",
+      });
+      expect(
+        (await (await import("../localDocumentStore")).listLocalLibrary(
+          "local-user",
+          "file",
+        )).documents,
+      ).toEqual([]);
+    } finally {
+      graph.close();
+    }
   });
 
   it("discovers documents in the local Mike Library", async () => {

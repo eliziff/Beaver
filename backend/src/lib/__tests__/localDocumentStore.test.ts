@@ -49,6 +49,82 @@ describe("local document store", () => {
     expect(await readFile(file!.path)).toEqual(bytes);
   });
 
+  it("durably clears assistant provenance when version bytes are replaced", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "draft.xlsx",
+      bytes: Buffer.from("assistant-created"),
+      provenance: {
+        schemaVersion: 1,
+        actor: "assistant",
+        action: "revised",
+        parentVersionId: "assistant-parent",
+        changeCount: 2,
+      },
+    });
+
+    const replaced = await store.replaceLocalVersion({
+      userId: "local-user",
+      documentId: document.id,
+      versionId: document.current_version_id,
+      filename: "draft.xlsx",
+      bytes: Buffer.from("user-replacement"),
+    });
+
+    expect(replaced?.provenance).toBeUndefined();
+    const persisted = JSON.parse(
+      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
+    );
+    expect(persisted.documents[0].versions[0]).not.toHaveProperty("provenance");
+
+    vi.resetModules();
+    const reloadedStore = await import("../localDocumentStore");
+    const reloaded = await reloadedStore.listLocalVersions(
+      "local-user",
+      document.id,
+    );
+    expect(reloaded?.versions[0].provenance).toBeUndefined();
+  });
+
+  it("accepts only one concurrent version for the same expected parent", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("../localDocumentStore");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "draft.xlsx",
+      bytes: Buffer.from("v1"),
+    });
+
+    const results = await Promise.all([
+      store.addLocalVersion({
+        userId: "local-user",
+        documentId: document.id,
+        filename: "draft.xlsx",
+        bytes: Buffer.from("v2-a"),
+        expectedVersionId: document.current_version_id,
+      }),
+      store.addLocalVersion({
+        userId: "local-user",
+        documentId: document.id,
+        filename: "draft.xlsx",
+        bytes: Buffer.from("v2-b"),
+        expectedVersionId: document.current_version_id,
+      }),
+    ]);
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(results.filter((result) => result === null)).toHaveLength(1);
+    expect(
+      (await store.listLocalVersions("local-user", document.id))?.versions,
+    ).toHaveLength(2);
+  });
+
   it("reads the version-1 index and persists only legal source pointers", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "mike-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;

@@ -51,6 +51,7 @@ import {
 
 export interface ChatInputHandle {
     addDoc: (doc: Document) => void;
+    clearDraft: () => void;
     startWorkflowDocumentSelection: (
         workflow: { id: string; title: string },
         prompt?: string,
@@ -68,6 +69,8 @@ interface Props {
     projectCmNumber?: string | null;
     projectId?: string;
     onDocumentsUploaded?: (documents: Document[]) => void;
+    restoreDraft?: Message | null;
+    onDraftRestored?: () => void;
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
@@ -81,6 +84,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         projectCmNumber,
         projectId,
         onDocumentsUploaded,
+        restoreDraft,
+        onDraftRestored,
     }: Props,
     ref,
 ) {
@@ -107,6 +112,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
     const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
     const dragDepthRef = useRef(0);
+    const lastSubmittedDocsRef = useRef<Document[]>([]);
 
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => {
@@ -114,6 +120,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                 if (prev.some((d) => d.id === doc.id)) return prev;
                 return [...prev, doc];
             });
+        },
+        clearDraft: () => {
+            setValue("");
+            setAttachedDocs([]);
+            setSelectedWorkflow(null);
+            if (textareaRef.current) {
+                textareaRef.current.style.height = "auto";
+            }
         },
         startWorkflowDocumentSelection: (workflow, prompt, options) => {
             setSelectedWorkflow(workflow);
@@ -129,6 +143,41 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             setDocSelectorOpen(true);
         },
     }));
+
+    useEffect(() => {
+        if (!restoreDraft) return;
+        setValue((current) =>
+            current.trim()
+                ? `${restoreDraft.content}\n\n${current}`
+                : restoreDraft.content,
+        );
+        const restoredIds = new Set(
+            (restoreDraft.files ?? []).flatMap((file) =>
+                file.document_id ? [file.document_id] : [],
+            ),
+        );
+        setAttachedDocs((current) => {
+            const existing = new Set(current.map((document) => document.id));
+            return [
+                ...current,
+                ...lastSubmittedDocsRef.current.filter(
+                    (document) =>
+                        restoredIds.has(document.id) &&
+                        !existing.has(document.id),
+                ),
+            ];
+        });
+        if (restoreDraft.workflow) {
+            setSelectedWorkflow((current) => current ?? restoreDraft.workflow!);
+        }
+        requestAnimationFrame(() => {
+            if (!textareaRef.current) return;
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+            textareaRef.current.focus();
+        });
+        onDraftRestored?.();
+    }, [onDraftRestored, restoreDraft]);
 
     const handleAddDocsFromSelector = useCallback(
         (selectedDocs: Document[]) => {
@@ -262,6 +311,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             filename: d.filename,
             document_id: d.id,
         }));
+        lastSubmittedDocsRef.current = attachedDocs;
         setAttachedDocs([]);
         const wf = selectedWorkflow;
         setSelectedWorkflow(null);

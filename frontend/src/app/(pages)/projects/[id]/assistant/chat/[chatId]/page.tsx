@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import {
     deleteChat,
-    deleteDocument,
     getChat,
     getProject,
     uploadProjectDocument,
@@ -31,7 +30,9 @@ import {
     deleteProjectFolder,
     moveDocumentToFolder,
     moveSubfolderToFolder,
+    removeProjectDocument,
 } from "@/app/lib/mikeApi";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { UserMessage } from "@/app/components/assistant/UserMessage";
@@ -42,6 +43,7 @@ import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
 import { PdfView } from "@/app/components/shared/views/PdfView";
 import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { DocxView } from "@/app/components/shared/views/DocxView";
 import { MikeIcon } from "@/app/components/chat/mike-icon";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -258,8 +260,17 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         renameChat: renameChatInHistory,
     } = useChatHistoryContext();
     const [initialMessages] = useState<Message[]>(newChatMessages ?? []);
-    const { messages, isResponseLoading, handleChat, setMessages, cancel } =
-        useAssistantChat({ initialMessages, chatId, projectId });
+    const {
+        messages,
+        isResponseLoading,
+        handleChat,
+        setMessages,
+        setTranscriptVersion,
+        rejectedTurn,
+        clearRejectedTurn,
+        retryRejectedTurn,
+        cancel,
+    } = useAssistantChat({ initialMessages, chatId, projectId });
     const pendingInitialUserMessageRef = useRef<Message | null>(
         initialMessages.length === 1 && initialMessages[0].role === "user"
             ? initialMessages[0]
@@ -338,10 +349,15 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     useEffect(() => {
         if (hasLoaded.current) return;
         hasLoaded.current = true;
+        if (initialMessages.length > 0) {
+            setChatLoaded(true);
+            return;
+        }
         getChat(chatId)
             .then(({ chat, messages: loaded }) => {
                 setChatTitle(chat.title);
                 setChatOwnerId(chat.user_id ?? null);
+                setTranscriptVersion(chat.transcript_version ?? 0);
                 if (loaded.length > 0) setMessages(loaded);
             })
             .catch(() => router.replace(`/projects/${projectId}/assistant`))
@@ -764,7 +780,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     };
 
     const handleDeleteDoc = async (docId: string) => {
-        await deleteDocument(docId);
+        await removeProjectDocument(projectId, docId);
         setProject((prev) =>
             prev
                 ? {
@@ -978,6 +994,9 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     onRenameFolder={handleRenameFolder}
                                     onDeleteFolder={handleDeleteFolder}
                                     onDeleteDoc={handleDeleteDoc}
+                                    documentRemovalMode={
+                                        isAnonymousMode ? "detach" : "delete"
+                                    }
                                     onMoveDoc={handleMoveDoc}
                                     onMoveFolder={handleMoveFolder}
                                 />
@@ -1271,6 +1290,11 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 onSubmit={handleSubmit}
                                 onCancel={cancel}
                                 isLoading={isResponseLoading}
+                                restoreDraft={
+                                    rejectedTurn?.options?.askInputsResponse
+                                        ? null
+                                        : rejectedTurn?.message
+                                }
                                 hideAddDocButton
                                 projectId={projectId}
                                 onDocumentsUploaded={(documents) =>
@@ -1297,6 +1321,29 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}
                 onClose={() => setOwnerOnlyAction(null)}
+            />
+            <WarningPopup
+                open={!!rejectedTurn}
+                title={
+                    rejectedTurn?.options?.askInputsResponse
+                        ? "Inputs not sent"
+                        : "Response interrupted"
+                }
+                message={
+                    rejectedTurn?.options?.askInputsResponse
+                        ? "Your selections were kept. Retry them after reviewing the latest response."
+                        : "Retry the original request, or dismiss this notice to edit the restored draft."
+                }
+                onClose={clearRejectedTurn}
+                primaryAction={{
+                    label: "Retry",
+                    onClick: () => {
+                        if (!rejectedTurn?.options?.askInputsResponse) {
+                            chatInputRef.current?.clearDraft();
+                        }
+                        void retryRejectedTurn();
+                    },
+                }}
             />
         </div>
     );
