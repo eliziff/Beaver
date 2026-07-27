@@ -1,14 +1,25 @@
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearA2AJCache,
   fetchA2AJDocument,
   lookupA2AJLocator,
+  resolveA2AJViewerDocument,
   searchA2AJ,
 } from "../a2aj";
 
-afterEach(() => {
+let temporaryLegalDataHome: string | null = null;
+
+afterEach(async () => {
   clearA2AJCache();
   vi.unstubAllGlobals();
+  delete process.env.OPEN_LEGAL_DATA_HOME;
+  if (temporaryLegalDataHome) {
+    await rm(temporaryLegalDataHome, { recursive: true, force: true });
+    temporaryLegalDataHome = null;
+  }
 });
 
 describe("A2AJ client", () => {
@@ -163,5 +174,66 @@ describe("A2AJ client", () => {
       "requested nested statutory paragraph",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a stable pointer payload and reuses the persistent response cache", async () => {
+    temporaryLegalDataHome = await mkdtemp(
+      path.join(os.tmpdir(), "mike-a2aj-cache-"),
+    );
+    process.env.OPEN_LEGAL_DATA_HOME = temporaryLegalDataHome;
+    const text = Array.from(
+      { length: 6 },
+      (_, index) =>
+        `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language to establish a reliable sequence.`,
+    ).join("\n");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            dataset: "SCC",
+            citation_en: "2099 SCC 2",
+            name_en: "Cache v. Repeat Open",
+            unofficial_text_en: text,
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await resolveA2AJViewerDocument({
+      citation: "2099 SCC 2",
+      dataset: "SCC",
+    });
+    const second = await resolveA2AJViewerDocument({
+      citation: "2099 SCC 2",
+      dataset: "SCC",
+    });
+    clearA2AJCache();
+    const afterMemoryReset = await resolveA2AJViewerDocument({
+      citation: "2099 SCC 2",
+      dataset: "SCC",
+    });
+
+    expect(first).not.toBeNull();
+    expect(second?.etag).toBe(first?.etag);
+    expect(afterMemoryReset?.etag).toBe(first?.etag);
+    expect(first?.payload).toMatchObject({
+      schemaVersion: "mike.legal-source.v1",
+      reference: {
+        docType: "cases",
+        citation: "2099 SCC 2",
+        dataset: "SCC",
+      },
+      structure: {
+        counts: { paragraph: 6 },
+      },
+    });
+    expect(first?.payload.structure).not.toHaveProperty("text");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(
+      readdir(path.join(temporaryLegalDataHome, "cache", "a2aj", "http")),
+    ).resolves.toHaveLength(1);
   });
 });

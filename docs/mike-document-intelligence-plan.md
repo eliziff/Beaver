@@ -1,5 +1,10 @@
 # Mike Document Intelligence Plan
 
+> Status note (2026-07-26): this is a detailed design appendix. The
+> authoritative implementation status and backlog are in the
+> [Mike-Canada master plan](mike-canada-master-plan.md). Some “current state”
+> statements below predate the shared AppData store and standalone parser.
+
 ## Purpose
 
 Turn Mike's local Library into a persistent legal-document intelligence layer. A

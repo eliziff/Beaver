@@ -32,6 +32,12 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
+export type AutomaticLegalSourceLink = {
+  key: string;
+  label: string;
+  evidence: LegalSourceEvidence;
+};
+
 export type CourtlistenerCitationIdentity = {
   quotes: { opinionId: number | null; quote: string }[];
 };
@@ -481,7 +487,11 @@ function lookupBlocks(lookup: A2AJLocatorLookup): A2AJLookupBlock[] {
 }
 
 function blockMatchesQuote(quote: string, block: A2AJLookupBlock) {
-  return Boolean(chooseSourceSpan(block.text, quote));
+  return blockTextMatchesQuote(quote, block.text);
+}
+
+function blockTextMatchesQuote(quote: string, blockText: string) {
+  return Boolean(chooseSourceSpan(blockText, quote));
 }
 
 function blockMatchingQuotes(lookup: A2AJLocatorLookup, quotes: string[]) {
@@ -769,6 +779,48 @@ function answerQuoteCandidates(answer: string) {
     }
   }
   return [...unique.values()];
+}
+
+export function appendLegalSourcePinpointLinks(
+  answer: string,
+  sources: AutomaticLegalSourceLink[],
+  existingUrls: string[] = [],
+) {
+  const uniqueSources = [...new Map(sources.map((source) => [source.key, source])).values()];
+  const assigned = new Map<
+    string,
+    { source: AutomaticLegalSourceLink; quotes: string[] }
+  >();
+  for (const quote of answerQuoteCandidates(answer)) {
+    const matches = uniqueSources.filter(({ evidence }) =>
+      blockTextMatchesQuote(quote, evidence.blockText),
+    );
+    if (matches.length !== 1) continue;
+    const source = matches[0];
+    assigned.set(source.key, {
+      source,
+      quotes: [...(assigned.get(source.key)?.quotes ?? []), quote],
+    });
+  }
+
+  const links = [...assigned.values()].flatMap(({ source, quotes }) => {
+    const url = buildLegalSourcePinpointUrl(source.evidence, quotes);
+    const markdownUrl = url?.replace(/\)/gu, "%29");
+    if (
+      !url ||
+      !markdownUrl ||
+      answer.includes(url) ||
+      answer.includes(markdownUrl) ||
+      existingUrls.includes(url)
+    ) {
+      return [];
+    }
+    return [
+      `[${source.label.replace(/[[\]]/gu, "\\$&")}](${markdownUrl})`,
+    ];
+  });
+  if (!links.length) return answer;
+  return `${answer}${answer ? "\n\n" : ""}Source${links.length === 1 ? "" : "s"}: ${links.join("; ")}`;
 }
 
 function sourceLabel(

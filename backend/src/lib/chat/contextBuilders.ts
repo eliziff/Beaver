@@ -177,7 +177,7 @@ export function buildMessages(
       });
       content = `[The user attached the following document(s) to this message:\n${lines.join("\n")}]\n\n${content}`;
     }
-    formatted.push({ role: msg.role, content });
+    formatted.push({ role: msg.role, content, images: msg.images });
   }
   return formatted;
 }

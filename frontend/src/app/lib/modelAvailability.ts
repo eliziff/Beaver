@@ -1,10 +1,16 @@
 import { SETTINGS_MODELS, type ModelOption } from "../components/assistant/ModelToggle";
 import type { ApiKeyState } from "@/app/lib/mikeApi";
 
-export type ModelProvider = "claude" | "gemini" | "openai" | "codex";
+export type ModelProvider =
+    | "claude"
+    | "gemini"
+    | "openai"
+    | "deepseek"
+    | "openrouter"
+    | "codex";
 
 export function getModelProvider(modelId: string): ModelProvider | null {
-    if (modelId === "codex-exec" || modelId.startsWith("codex:")) {
+    if (modelId.startsWith("codex:")) {
         return "codex";
     }
     const model = SETTINGS_MODELS.find((m) => m.id === modelId);
@@ -32,7 +38,9 @@ export function isProviderAvailable(
 export function providerLabel(provider: ModelProvider): string {
     if (provider === "claude") return "Anthropic (Claude)";
     if (provider === "openai") return "OpenAI";
-    if (provider === "codex") return "Codex (local)";
+    if (provider === "deepseek") return "DeepSeek";
+    if (provider === "openrouter") return "OpenRouter";
+    if (provider === "codex") return "Codex CLI";
     return "Google (Gemini)";
 }
 
@@ -41,6 +49,8 @@ export function modelGroupToProvider(
 ): ModelProvider {
     if (group === "Anthropic") return "claude";
     if (group === "OpenAI") return "openai";
+    if (group === "DeepSeek") return "deepseek";
+    if (group === "Meta") return "openrouter";
     if (group === "Codex") return "codex";
     return "gemini";
 }

@@ -1,4 +1,5 @@
 import path from "path";
+import type { LlmImage } from "../llm/types";
 
 export const STANDARD_FONT_DATA_URL = (() => {
   try {
@@ -55,6 +56,8 @@ export type ChatMessage = {
   content: string | null;
   files?: { filename: string; document_id?: string }[];
   workflow?: { id: string; title: string };
+  /** Resolved server-side from file references; never accepted as raw client bytes. */
+  images?: LlmImage[];
 };
 
 // ---------------------------------------------------------------------------

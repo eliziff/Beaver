@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPublicLegalSourceState } from "../chat/publicLegalSourceState";
+import {
+  appendPublicLegalPinpointLinks,
+  createPublicLegalSourceState,
+} from "../chat/publicLegalSourceState";
 import { runLocalAssistantTools } from "../chat/localAssistantTools";
 import {
   PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
@@ -99,6 +102,15 @@ describe("public legal source tool integration", () => {
     );
     expect(citation.url).not.toContain("attacker.invalid");
     expect(citation.url.match(/text=/gu)).toHaveLength(2);
+
+    const withoutCitationJson = appendPublicLegalPinpointLinks(
+      'The court said "First exact proposition appears here" and "Second exact holding appears here" [1].',
+      state,
+    );
+    expect(withoutCitationJson).toContain(
+      "https://caselaw.nationalarchives.gov.uk/uksc/2024/1#para_24",
+    );
+    expect(withoutCitationJson.match(/text=/gu)).toHaveLength(2);
   });
 
   it("is available through the authenticated dispatcher with a URL-free model result", async () => {

@@ -1,0 +1,2049 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A visual briefing on Mike-Canada's deterministic legal tooling, memory design, and benchmark plan."
+    />
+    <title>Mike-Canada Research Reader</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #171717;
+        --muted: #646464;
+        --paper: #f7f5f1;
+        --card: #ffffff;
+        --line: #ddd8d0;
+        --red: #c62118;
+        --red-dark: #8e1812;
+        --red-pale: #fbe9e7;
+        --green: #24704a;
+        --green-pale: #e8f4ed;
+        --amber: #8a5b00;
+        --amber-pale: #fff5d8;
+        --blue: #315e85;
+        --blue-pale: #eaf2f8;
+        --shadow: 0 8px 24px rgba(34, 28, 23, 0.07);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.55;
+      }
+
+      a {
+        color: var(--red-dark);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
+
+      a:hover {
+        color: var(--red);
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      :focus-visible {
+        outline: 3px solid rgba(198, 33, 24, 0.35);
+        outline-offset: 3px;
+      }
+
+      .progress {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 50;
+        height: 4px;
+        background: transparent;
+      }
+
+      .progress > span {
+        display: block;
+        width: 0;
+        height: 100%;
+        background: var(--red);
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: rgba(247, 245, 241, 0.96);
+      }
+
+      .topbar {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        min-height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+
+      .brand svg {
+        width: 34px;
+        height: 34px;
+        flex: none;
+      }
+
+      .brand strong {
+        display: block;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.16rem;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+      }
+
+      .brand small {
+        display: block;
+        color: var(--muted);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .date {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .layout {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 42px;
+        align-items: start;
+      }
+
+      nav {
+        position: sticky;
+        top: 22px;
+        padding: 28px 0;
+      }
+
+      nav p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      nav a {
+        display: block;
+        padding: 7px 10px;
+        border-left: 2px solid transparent;
+        color: #54504b;
+        font-size: 0.86rem;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      nav a[aria-current="true"] {
+        border-left-color: var(--red);
+        color: var(--ink);
+        background: var(--red-pale);
+      }
+
+      main {
+        min-width: 0;
+        padding: 54px 0 90px;
+      }
+
+      section {
+        scroll-margin-top: 22px;
+        margin-top: 76px;
+      }
+
+      section:first-child {
+        margin-top: 0;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--red-dark);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-family: Georgia, "Times New Roman", serif;
+        text-wrap: balance;
+      }
+
+      h1 {
+        max-width: 850px;
+        margin: 0;
+        font-size: clamp(2.6rem, 7vw, 5.4rem);
+        font-weight: 500;
+        line-height: 0.98;
+        letter-spacing: -0.045em;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 4vw, 3.1rem);
+        font-weight: 500;
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        font-size: 1.25rem;
+      }
+
+      .lede {
+        max-width: 770px;
+        margin: 24px 0 0;
+        color: #45413d;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(1.18rem, 2.5vw, 1.55rem);
+        line-height: 1.45;
+      }
+
+      .plain-note {
+        max-width: 780px;
+        color: var(--muted);
+      }
+
+      .summary-grid,
+      .cards,
+      .source-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(3, 1fr);
+        margin-top: 38px;
+      }
+
+      .summary-card,
+      .card,
+      .diagram,
+      details,
+      .source-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: var(--shadow);
+      }
+
+      .summary-card {
+        padding: 20px;
+      }
+
+      .summary-card .number {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--red);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 2.4rem;
+        line-height: 1;
+      }
+
+      .summary-card strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .summary-card p,
+      .card p,
+      .source-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .callout {
+        margin-top: 22px;
+        padding: 18px 20px;
+        border-left: 4px solid var(--red);
+        background: var(--red-pale);
+        color: #4b2522;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 24px;
+      }
+
+      .section-head p {
+        max-width: 520px;
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .diagram {
+        overflow: hidden;
+        padding: 22px;
+      }
+
+      .diagram svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .diagram-caption {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--line);
+      }
+
+      .dot.done {
+        background: var(--green);
+      }
+
+      .dot.next {
+        background: var(--red);
+      }
+
+      .dot.conditional {
+        background: var(--amber);
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 16px;
+      }
+
+      .filters button {
+        padding: 7px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--card);
+        color: #4b4844;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.8rem;
+      }
+
+      .filters button[aria-pressed="true"] {
+        border-color: var(--red);
+        background: var(--red-pale);
+        color: var(--red-dark);
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        position: relative;
+        padding: 20px 20px 18px;
+      }
+
+      .card[hidden] {
+        display: none;
+      }
+
+      .card .rank {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        color: #aaa39c;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.3rem;
+      }
+
+      .status {
+        display: inline-block;
+        margin-bottom: 12px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .status.done {
+        background: var(--green-pale);
+        color: var(--green);
+      }
+
+      .status.next {
+        background: var(--red-pale);
+        color: var(--red-dark);
+      }
+
+      .status.conditional {
+        background: var(--amber-pale);
+        color: var(--amber);
+      }
+
+      .status.partial {
+        background: var(--blue-pale);
+        color: var(--blue);
+      }
+
+      .boundary {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+        gap: 14px;
+      }
+
+      .boundary > div {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+      }
+
+      .boundary .arrow {
+        align-self: center;
+        border: 0;
+        background: transparent;
+        color: var(--red);
+        font-size: 1.8rem;
+        box-shadow: none;
+      }
+
+      .boundary ul,
+      .checklist {
+        margin: 12px 0 0;
+        padding-left: 20px;
+      }
+
+      .boundary li,
+      .checklist li {
+        margin: 5px 0;
+      }
+
+      .ontology-shell {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: var(--shadow);
+      }
+
+      .ontology-modes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .ontology-modes button {
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--card);
+        color: #4b4844;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.78rem;
+      }
+
+      .ontology-modes button[aria-pressed="true"] {
+        border-color: var(--red);
+        background: var(--red-pale);
+        color: var(--red-dark);
+      }
+
+      .ontology-graph {
+        overflow-x: auto;
+      }
+
+      .ontology-graph svg {
+        display: block;
+        min-width: 720px;
+        width: 100%;
+        height: auto;
+      }
+
+      .ontology-graph [hidden] {
+        display: none;
+      }
+
+      .ontology-key,
+      .artifact-pipeline {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .ontology-key {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .ontology-key article,
+      .artifact-step {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fbfaf8;
+      }
+
+      .ontology-key article {
+        border-top-width: 4px;
+      }
+
+      .ontology-key article:nth-child(1) {
+        border-top-color: var(--red);
+      }
+
+      .ontology-key article:nth-child(2) {
+        border-top-color: var(--blue);
+      }
+
+      .ontology-key article:nth-child(3) {
+        border-top-color: var(--amber);
+      }
+
+      .ontology-key strong,
+      .artifact-step strong {
+        display: block;
+        margin-bottom: 4px;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .ontology-key p,
+      .artifact-step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .artifact-pipeline {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .artifact-step {
+        position: relative;
+      }
+
+      .artifact-step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        top: 50%;
+        right: -11px;
+        z-index: 1;
+        transform: translate(50%, -50%);
+        color: var(--red);
+        font-weight: 800;
+      }
+
+      .memory-stack {
+        display: grid;
+        gap: 8px;
+        max-width: 760px;
+        margin: 0 auto;
+      }
+
+      .memory-layer {
+        display: grid;
+        grid-template-columns: 140px 1fr auto;
+        gap: 15px;
+        align-items: center;
+        min-height: 74px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+      }
+
+      .memory-layer strong {
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .memory-layer p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .memory-layer code {
+        color: var(--red-dark);
+        font-size: 0.75rem;
+      }
+
+      .memory-layer.exact {
+        border-left: 5px solid var(--green);
+      }
+
+      .memory-layer.lossy {
+        border-left: 5px solid var(--amber);
+      }
+
+      .memory-layer.live {
+        border-left: 5px solid var(--red);
+      }
+
+      .formula {
+        margin: 18px 0;
+        padding: 16px;
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #22201e;
+        color: #f8f4ed;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.88rem;
+        white-space: nowrap;
+      }
+
+      .stages {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .stage {
+        min-height: 175px;
+        padding: 16px;
+        border-top: 5px solid var(--line);
+        background: var(--card);
+      }
+
+      .stage:nth-child(2) {
+        border-top-color: var(--blue);
+      }
+
+      .stage:nth-child(3) {
+        border-top-color: var(--amber);
+      }
+
+      .stage:nth-child(4) {
+        border-top-color: var(--red);
+      }
+
+      .stage small {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--muted);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .stage p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 0.83rem;
+      }
+
+      .matrix {
+        display: grid;
+        grid-template-columns: 130px repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .matrix > div {
+        min-height: 105px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        background: var(--card);
+      }
+
+      .matrix .axis {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: auto;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .matrix .control {
+        border-color: #aaa39c;
+      }
+
+      .matrix .candidate {
+        border-color: var(--red);
+      }
+
+      .matrix strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .matrix p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .benchmark-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .benchmark-grid > div {
+        padding: 17px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--card);
+      }
+
+      .benchmark-grid p {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .metric-row {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .metric-row:last-child {
+        border-bottom: 0;
+      }
+
+      .metric-row strong {
+        font-size: 0.88rem;
+      }
+
+      .metric-row span {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .warning {
+        padding: 18px 20px;
+        border: 1px solid #e2c672;
+        border-radius: 12px;
+        background: var(--amber-pale);
+      }
+
+      .warning strong {
+        color: #684600;
+      }
+
+      .warning p {
+        margin: 6px 0 0;
+        color: #6f5a28;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card);
+        font-size: 0.87rem;
+      }
+
+      th,
+      td {
+        padding: 12px 13px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: #4c4844;
+        font-size: 0.72rem;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      td:last-child {
+        color: var(--muted);
+      }
+
+      details {
+        margin-top: 10px;
+        padding: 0 18px;
+      }
+
+      summary {
+        padding: 16px 0;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      details > div {
+        padding: 0 0 18px;
+        color: var(--muted);
+      }
+
+      .source-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .source-card {
+        padding: 18px;
+      }
+
+      .source-card code {
+        display: block;
+        margin-top: 10px;
+        overflow-wrap: anywhere;
+        color: var(--red-dark);
+        font-size: 0.76rem;
+      }
+
+      footer {
+        padding: 28px 0 48px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .mobile-nav {
+        display: none;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+        }
+
+        nav {
+          display: none;
+        }
+
+        .mobile-nav {
+          display: flex;
+          width: min(1180px, calc(100% - 32px));
+          margin: 0 auto;
+          padding: 10px 0;
+          overflow-x: auto;
+          gap: 8px;
+          border-top: 1px solid var(--line);
+        }
+
+        .mobile-nav a {
+          flex: none;
+          padding: 6px 10px;
+          border: 1px solid var(--line);
+          border-radius: 999px;
+          background: var(--card);
+          color: #4b4844;
+          font-size: 0.75rem;
+          text-decoration: none;
+        }
+
+        .summary-grid,
+        .benchmark-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .artifact-pipeline {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .artifact-step::after {
+          display: none;
+        }
+
+        .stages {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 650px) {
+        .topbar {
+          align-items: flex-start;
+          padding: 16px 0;
+        }
+
+        .date {
+          display: none;
+        }
+
+        main {
+          padding-top: 40px;
+        }
+
+        section {
+          margin-top: 58px;
+        }
+
+        .section-head {
+          display: block;
+        }
+
+        .cards,
+        .source-grid,
+        .boundary {
+          grid-template-columns: 1fr;
+        }
+
+        .boundary .arrow {
+          transform: rotate(90deg);
+          text-align: center;
+        }
+
+        .memory-layer {
+          grid-template-columns: 1fr;
+          gap: 5px;
+        }
+
+        .ontology-key,
+        .artifact-pipeline {
+          grid-template-columns: 1fr;
+        }
+
+        .stages {
+          grid-template-columns: 1fr;
+        }
+
+        .matrix {
+          grid-template-columns: 82px 1fr;
+        }
+
+        .matrix .top-axis {
+          display: none;
+        }
+
+        .metric-row {
+          grid-template-columns: 1fr;
+          gap: 3px;
+        }
+      }
+
+      @media print {
+        .progress,
+        nav,
+        .mobile-nav,
+        .filters {
+          display: none;
+        }
+
+        body {
+          background: white;
+        }
+
+        .layout {
+          display: block;
+          width: 100%;
+        }
+
+        main {
+          padding: 24px;
+        }
+
+        .summary-card,
+        .card,
+        .diagram,
+        details,
+        .source-card {
+          box-shadow: none;
+          break-inside: avoid;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progress" aria-hidden="true"><span id="read-progress"></span></div>
+    <header>
+      <div class="topbar">
+        <a class="brand" href="#overview">
+          <svg viewBox="0 0 64 64" role="img" aria-label="Maple leaf">
+            <path
+              fill="#c62118"
+              d="M32 3 27.7 13.7 21.5 9.6 23.7 21.3 13.5 16.3 16.7 28 6.6 30.1 17.4 38.8 13.1 45.2 28.6 42.4 27.5 58 32 55.3 36.5 58 35.4 42.4 50.9 45.2 46.6 38.8 57.4 30.1 47.3 28 50.5 16.3 40.3 21.3 42.5 9.6 36.3 13.7Z"
+            />
+          </svg>
+          <span>
+            <strong>Mike-Canada Research Reader</strong>
+            <small>Determinism, memory, and evaluation</small>
+          </span>
+        </a>
+        <div class="date">Research snapshot: July 26, 2026</div>
+      </div>
+      <div class="mobile-nav" aria-label="Reader sections">
+        <a href="#overview">Overview</a>
+        <a href="#determinism">Determinism</a>
+        <a href="#ontology">Legal graph</a>
+        <a href="#memory">Memory</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#caveman">Caveman</a>
+        <a href="#providers">Providers</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav aria-label="Reader sections">
+        <p>Contents</p>
+        <a href="#overview">Executive readout</a>
+        <a href="#determinism">Deterministic work</a>
+        <a href="#boundary">Model/code boundary</a>
+        <a href="#ontology">Legal ontology graph</a>
+        <a href="#memory">Legal memory</a>
+        <a href="#thresholds">Compaction stages</a>
+        <a href="#benchmarks">Controlled benchmark</a>
+        <a href="#harvey">Harvey comparison</a>
+        <a href="#caveman">Caveman directive</a>
+        <a href="#providers">Provider status</a>
+        <a href="#sources">Research sources</a>
+      </nav>
+
+      <main>
+        <section id="overview" data-section>
+          <p class="eyebrow">Executive readout</p>
+          <h1>Make the model decide. Make code remember and prove.</h1>
+          <p class="lede">
+            Mike can become faster and cheaper without asking a smaller model to
+            remember less accurately. The safe move is to remove mechanical work
+            from the model, preserve exact legal state outside prose, and retrieve
+            only the evidence needed for the current question.
+          </p>
+
+          <div class="summary-grid">
+            <article class="summary-card">
+              <span class="number">7.6k</span>
+              <strong>Approximate fixed prompt/tool tokens</strong>
+              <p>
+                Current cloud legal-research turns pay this before history,
+                retrieved text, attachments, or the new user request.
+              </p>
+            </article>
+            <article class="summary-card">
+              <span class="number">75k</span>
+              <strong>Possible tokens in one flat Library read</strong>
+              <p>
+                A 300,000-character document response can dominate the entire
+                turn when a paragraph or footnote lookup would suffice.
+              </p>
+            </article>
+            <article class="summary-card">
+              <span class="number">3</span>
+              <strong>Memory forms, not one summary</strong>
+              <p>
+                Exact state, a disposable narrative summary, and a recent
+                verbatim tail serve different purposes and should stay separate.
+              </p>
+            </article>
+          </div>
+
+          <div class="callout">
+            <strong>Current conclusion:</strong> the largest strict wins are
+            structural retrieval, deterministic citations and links, durable
+            state, and bounded document edits. Generic prose compaction comes
+            after those foundations and must pass legal-fidelity benchmarks.
+          </div>
+        </section>
+
+        <section id="determinism" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Work allocation</p>
+              <h2>What should stop consuming model reasoning</h2>
+            </div>
+            <p>
+              “Deterministic” means the same validated input produces the same
+              result, with an audit trail and no model guess where exact code can
+              do the job.
+            </p>
+          </div>
+
+          <div class="filters" aria-label="Filter deterministic work">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="done" aria-pressed="false">
+              Implemented
+            </button>
+            <button type="button" data-filter="next" aria-pressed="false">
+              Strict next wins
+            </button>
+            <button type="button" data-filter="conditional" aria-pressed="false">
+              Benchmark first
+            </button>
+          </div>
+
+          <div class="cards" id="opportunity-cards">
+            <article class="card" data-status="done">
+              <span class="rank">01</span>
+              <span class="status done">Implemented</span>
+              <h3>Verified pinpoint links</h3>
+              <p>
+                A2AJ and public-source quotes are checked against source blocks.
+                Mike builds native anchors or multi-text fragments after the
+                model responds—even when citation JSON is omitted.
+              </p>
+            </article>
+            <article class="card" data-status="done">
+              <span class="rank">02</span>
+              <span class="status done">Implemented</span>
+              <h3>Bounded DOCX citation linking</h3>
+              <p>
+                The assistant calls one job. Deterministic code splits where it
+                can, resolves providers, builds links, and applies OOXML changes;
+                a bounded model handles only genuinely ambiguous splits.
+              </p>
+            </article>
+            <article class="card" data-status="done">
+              <span class="rank">03</span>
+              <span class="status done">Implemented</span>
+              <h3>Durable local chats and shared data</h3>
+              <p>
+                Account-free chats now use validated, atomic files under shared
+                local AppData. Library and legal caches use the shared legal-data
+                root while cloud/Supabase paths remain available.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">04</span>
+              <span class="status next">Strict next win</span>
+              <h3>One structural artifact per document version</h3>
+              <p>
+                Hash each PDF/DOCX once, retain pages, sections, paragraphs and
+                footnotes, and reopen the artifact on later lookups instead of
+                flattening the whole file again.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">05</span>
+              <span class="status next">Strict next win</span>
+              <h3>Opaque evidence handles</h3>
+              <p>
+                Let the model cite a short handle. The server owns numbering,
+                quote verification, source identity, locator choice, final URL,
+                storage, and cross-chat isolation.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">06</span>
+              <span class="status next">Strict next win</span>
+              <h3>Persistent provider locator sidecars</h3>
+              <p>
+                Store source ID, kind, label, parent, offsets, aliases and native
+                anchor beside each bulk snapshot. Avoid rebuilding structure into
+                process-only maps after every restart.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">07</span>
+              <span class="status next">Strict next win</span>
+              <h3>Version-bound find and replace</h3>
+              <p>
+                Return an opaque match ID from search; let code apply one,
+                repeated, or all replacements and return changed excerpts.
+                Full-document rereads become explicit verification, not ritual.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">08</span>
+              <span class="status next">Strict next win</span>
+              <h3>Bounded spreadsheet operations</h3>
+              <p>
+                Read an A1 range and patch explicit cells against an expected
+                workbook version. Preserve untouched package state or reject
+                unsupported features rather than regenerate a workbook.
+              </p>
+            </article>
+            <article class="card" data-status="next">
+              <span class="rank">09</span>
+              <span class="status next">Strict next win</span>
+              <h3>Native Word references and templates</h3>
+              <p>
+                Bookmarks, REF, PAGEREF, SEQ and tagged template fields let Word
+                maintain numbering and repeated facts. Models choose semantic
+                values; deterministic code owns OOXML.
+              </p>
+            </article>
+            <article class="card" data-status="conditional">
+              <span class="rank">10</span>
+              <span class="status conditional">Benchmark first</span>
+              <h3>Tool-group routing and compact history</h3>
+              <p>
+                Expose only relevant stable capability groups and replace old
+                prose with a state capsule plus summary. Both can hide needed
+                information if recall is not measured, so neither ships blind.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="boundary" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Design boundary</p>
+              <h2>Meaning on one side. Mechanics on the other.</h2>
+            </div>
+          </div>
+
+          <div class="boundary">
+            <div>
+              <h3>Model decides</h3>
+              <ul>
+                <li>What the user is asking</li>
+                <li>Which competing legal interpretation matters</li>
+                <li>Which supported proposition belongs in the answer</li>
+                <li>What language best communicates the result</li>
+              </ul>
+            </div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div>
+              <h3>Code performs and proves</h3>
+              <ul>
+                <li>Locate exact paragraph, section, page or footnote</li>
+                <li>Verify quote text against a frozen source version</li>
+                <li>Build anchors, text fragments and Word relationships</li>
+                <li>Apply edits, preserve packages, store hashes and receipts</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="diagram" style="margin-top: 16px">
+            <svg
+              viewBox="0 0 900 255"
+              role="img"
+              aria-labelledby="evidence-flow-title evidence-flow-desc"
+            >
+              <title id="evidence-flow-title">Deterministic evidence flow</title>
+              <desc id="evidence-flow-desc">
+                Candidate search leads to exact source hydration, then verified
+                evidence and a deterministic link before the answer is stored.
+              </desc>
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="7"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path d="M0 0 8 4 0 8Z" fill="#c62118" />
+                </marker>
+              </defs>
+              <g font-family="system-ui, sans-serif">
+                <rect x="20" y="70" width="155" height="92" rx="12" fill="#eaf2f8" stroke="#8cadc8" />
+                <text x="97" y="105" text-anchor="middle" font-size="15" font-weight="700">Candidate search</text>
+                <text x="97" y="130" text-anchor="middle" font-size="12" fill="#5e6870">FTS, vectors, provider</text>
+
+                <path d="M175 116H245" stroke="#c62118" stroke-width="3" marker-end="url(#arrowhead)" />
+
+                <rect x="255" y="70" width="155" height="92" rx="12" fill="#fff" stroke="#d4cec6" />
+                <text x="332" y="105" text-anchor="middle" font-size="15" font-weight="700">Exact hydration</text>
+                <text x="332" y="130" text-anchor="middle" font-size="12" fill="#68615a">Stable block + neighbours</text>
+
+                <path d="M410 116H480" stroke="#c62118" stroke-width="3" marker-end="url(#arrowhead)" />
+
+                <rect x="490" y="70" width="155" height="92" rx="12" fill="#e8f4ed" stroke="#76aa8d" />
+                <text x="567" y="105" text-anchor="middle" font-size="15" font-weight="700">Verification</text>
+                <text x="567" y="130" text-anchor="middle" font-size="12" fill="#496354">Quote + hash + locator</text>
+
+                <path d="M645 116H715" stroke="#c62118" stroke-width="3" marker-end="url(#arrowhead)" />
+
+                <rect x="725" y="70" width="155" height="92" rx="12" fill="#fbe9e7" stroke="#d87c76" />
+                <text x="802" y="105" text-anchor="middle" font-size="15" font-weight="700">Stored citation</text>
+                <text x="802" y="130" text-anchor="middle" font-size="12" fill="#72433f">Pinpoint link + receipt</text>
+
+                <text x="450" y="215" text-anchor="middle" font-size="13" fill="#646464">
+                  Vector similarity may say “look here.” Only source structure may say “this is paragraph 62.”
+                </text>
+              </g>
+            </svg>
+          </div>
+        </section>
+
+        <section id="ontology" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Durable legal research</p>
+              <h2>A legal test is a graph, not a model-drawn picture</h2>
+            </div>
+            <p>
+              The durable object stores doctrine, assertions, exact passages,
+              provenance and review state. Layout is a disposable view that code
+              can reproduce.
+            </p>
+          </div>
+
+          <div class="callout" style="margin: 0 0 18px">
+            <strong>Repository decision:</strong> start with MIT-licensed
+            <a href="https://github.com/xyflow/xyflow">@xyflow/react</a> and
+            <a href="https://github.com/dagrejs/dagre">@dagrejs/dagre</a>,
+            lazy-loaded on the graph route. Keep the versioned legal JSON
+            independent of either renderer. This is researched and designed;
+            the Mike runtime viewer is still an implementation item.
+          </div>
+
+          <div class="ontology-shell">
+            <div class="ontology-modes" aria-label="Show legal evidence type">
+              <button type="button" data-ontology-mode="all" aria-pressed="true">
+                All spokes
+              </button>
+              <button
+                type="button"
+                data-ontology-mode="interpretation"
+                aria-pressed="false"
+              >
+                Interpretations
+              </button>
+              <button
+                type="button"
+                data-ontology-mode="application"
+                aria-pressed="false"
+              >
+                Applications
+              </button>
+              <button
+                type="button"
+                data-ontology-mode="commentary"
+                aria-pressed="false"
+              >
+                Journal commentary
+              </button>
+            </div>
+
+            <div class="ontology-graph">
+              <svg
+                viewBox="0 0 900 430"
+                role="img"
+                aria-labelledby="ontology-title ontology-desc"
+              >
+                <title id="ontology-title">Expandable legal ontology example</title>
+                <desc id="ontology-desc">
+                  A legal test branches into factors and an exception. Evidence
+                  spokes distinguish interpretation, application examples and
+                  journal commentary.
+                </desc>
+                <defs>
+                  <marker
+                    id="ontology-arrow"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <path d="M0 0 8 4 0 8Z" fill="#8e1812" />
+                  </marker>
+                </defs>
+                <g font-family="system-ui, sans-serif">
+                  <path d="M450 84V118H160V142" fill="none" stroke="#8e1812" stroke-width="2.5" />
+                  <path d="M450 84V142" fill="none" stroke="#8e1812" stroke-width="2.5" />
+                  <path d="M450 118H740V142" fill="none" stroke="#8e1812" stroke-width="2.5" />
+
+                  <rect x="340" y="18" width="220" height="66" rx="12" fill="#fbe9e7" stroke="#c62118" stroke-width="2" />
+                  <text x="450" y="45" text-anchor="middle" font-size="16" font-weight="750">Legal test</text>
+                  <text x="450" y="66" text-anchor="middle" font-size="12" fill="#72433f">reviewed doctrinal hub</text>
+
+                  <rect x="55" y="142" width="210" height="64" rx="11" fill="#fff" stroke="#bcb4aa" />
+                  <text x="160" y="168" text-anchor="middle" font-size="15" font-weight="700">Factor 1</text>
+                  <text x="160" y="188" text-anchor="middle" font-size="12" fill="#646464">expand bounded evidence</text>
+
+                  <rect x="345" y="142" width="210" height="64" rx="11" fill="#fff" stroke="#bcb4aa" />
+                  <text x="450" y="168" text-anchor="middle" font-size="15" font-weight="700">Factor 2</text>
+                  <text x="450" y="188" text-anchor="middle" font-size="12" fill="#646464">may share descendants</text>
+
+                  <rect x="635" y="142" width="210" height="64" rx="11" fill="#fff" stroke="#bcb4aa" />
+                  <text x="740" y="168" text-anchor="middle" font-size="15" font-weight="700">Exception</text>
+                  <text x="740" y="188" text-anchor="middle" font-size="12" fill="#646464">typed doctrine edge</text>
+
+                  <g data-ontology-kind="interpretation">
+                    <path d="M160 206V250H95V276" fill="none" stroke="#c62118" stroke-width="2" marker-end="url(#ontology-arrow)" />
+                    <path d="M450 206V250H380V276" fill="none" stroke="#c62118" stroke-width="2" marker-end="url(#ontology-arrow)" />
+                    <rect x="18" y="278" width="220" height="74" rx="10" fill="#fbe9e7" stroke="#d87c76" />
+                    <text x="128" y="304" text-anchor="middle" font-size="13" font-weight="700">Interpretation passage</text>
+                    <text x="128" y="325" text-anchor="middle" font-size="11" fill="#72433f">SCC • para 42 • verified quote</text>
+                    <text x="128" y="341" text-anchor="middle" font-size="10.5" fill="#72433f">public + local pinpoint</text>
+
+                    <rect x="303" y="278" width="220" height="74" rx="10" fill="#fbe9e7" stroke="#d87c76" />
+                    <text x="413" y="304" text-anchor="middle" font-size="13" font-weight="700">Interpretation passage</text>
+                    <text x="413" y="325" text-anchor="middle" font-size="11" fill="#72433f">FC • para 19 • source revision</text>
+                    <text x="413" y="341" text-anchor="middle" font-size="10.5" fill="#72433f">proposition + exact span hash</text>
+                  </g>
+
+                  <g data-ontology-kind="application">
+                    <path d="M160 206V250H250V366" fill="none" stroke="#315e85" stroke-width="2" marker-end="url(#ontology-arrow)" />
+                    <rect x="150" y="366" width="220" height="48" rx="10" fill="#eaf2f8" stroke="#8cadc8" />
+                    <text x="260" y="387" text-anchor="middle" font-size="13" font-weight="700">Application example</text>
+                    <text x="260" y="404" text-anchor="middle" font-size="10.5" fill="#49657a">CA • para 71 • satisfied on these facts</text>
+                  </g>
+
+                  <g data-ontology-kind="commentary">
+                    <path d="M450 206V250H600V276" fill="none" stroke="#8a5b00" stroke-width="2" marker-end="url(#ontology-arrow)" />
+                    <rect x="558" y="278" width="220" height="74" rx="10" fill="#fff5d8" stroke="#c8a44f" />
+                    <text x="668" y="304" text-anchor="middle" font-size="13" font-weight="700">Journal commentary</text>
+                    <text x="668" y="325" text-anchor="middle" font-size="11" fill="#75520e">article • page 118 • exact passage</text>
+                    <text x="668" y="341" text-anchor="middle" font-size="10.5" fill="#75520e">clearly secondary authority</text>
+                  </g>
+
+                  <g data-ontology-kind="application">
+                    <path d="M740 206V366" fill="none" stroke="#315e85" stroke-width="2" marker-end="url(#ontology-arrow)" />
+                    <rect x="632" y="366" width="216" height="48" rx="10" fill="#eaf2f8" stroke="#8cadc8" />
+                    <text x="740" y="387" text-anchor="middle" font-size="13" font-weight="700">Application example</text>
+                    <text x="740" y="404" text-anchor="middle" font-size="10.5" fill="#49657a">SCC • para 90 • exception rejected</text>
+                  </g>
+                </g>
+              </svg>
+            </div>
+
+            <div class="ontology-key">
+              <article>
+                <strong>Interpretation</strong>
+                <p>What a court says a test, factor or subfactor means.</p>
+              </article>
+              <article>
+                <strong>Application</strong>
+                <p>Facts on which a court found the requirement met or unmet.</p>
+              </article>
+              <article>
+                <strong>Commentary</strong>
+                <p>Journal analysis stays identifiable as secondary material.</p>
+              </article>
+            </div>
+
+            <p class="diagram-caption">
+              Each spoke holds source ID and revision, locator hierarchy, exact
+              text and hash, authority metadata, review state, and a
+              deterministic public/local link. For example:
+              <a
+                href="https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2030/index.do?iframe=true&amp;site_preference=mobile#par64:~:text=The%20argument%20based%20on%20cognitive%20dissonance%20essentially%20asserts%20that%20children%20should%20not%20be%20exposed%20to%20information%20and%20ideas%20with%20which%20their%20parents%20disagree."
+                >2002 SCC 86, para. 64</a
+              >. The model requests evidence; it never constructs this URL.
+            </p>
+          </div>
+
+          <div class="artifact-pipeline" aria-label="Legal graph artifact pipeline">
+            <div class="artifact-step">
+              <strong>1. Model proposes</strong>
+              <p>Doctrine, relationships and evidence IDs enter a pending proposal.</p>
+            </div>
+            <div class="artifact-step">
+              <strong>2. Code verifies</strong>
+              <p>Schema, source, quote spans, locators, links, cycles and duplicates.</p>
+            </div>
+            <div class="artifact-step">
+              <strong>3. Review accepts</strong>
+              <p>Accepted content becomes a new immutable, hashed graph revision.</p>
+            </div>
+            <div class="artifact-step">
+              <strong>4. Library derives</strong>
+              <p>Interactive view plus linked Markdown or DOCX research memo.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="memory" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Legal memory</p>
+              <h2>Compaction should not be the source of truth</h2>
+            </div>
+            <p>
+              Current Mike still sends the whole visible conversation on each
+              turn. Codex is also launched as a fresh ephemeral thread, so its
+              native cross-turn memory and compaction are discarded.
+            </p>
+          </div>
+
+          <div class="memory-stack">
+            <div class="memory-layer exact">
+              <strong>Raw transcript</strong>
+              <p>Immutable audit record. Never deleted by compaction.</p>
+              <code>durable</code>
+            </div>
+            <div class="memory-layer exact">
+              <strong>Exact state capsule</strong>
+              <p>
+                User constraints and supersession; document/version hashes;
+                evidence IDs, quotes and locators; edits; workflow state.
+              </p>
+              <code>authoritative</code>
+            </div>
+            <div class="memory-layer lossy">
+              <strong>Narrative summary</strong>
+              <p>
+                Rationale, exploration and conversational history. Useful but
+                replaceable; never relied on for exact legal facts.
+              </p>
+              <code>lossy</code>
+            </div>
+            <div class="memory-layer live">
+              <strong>Recent exact tail</strong>
+              <p>
+                The newest turns remain verbatim so tone, local references and
+                unresolved reasoning survive the checkpoint boundary.
+              </p>
+              <code>bounded</code>
+            </div>
+            <div class="memory-layer live">
+              <strong>Targeted retrieval</strong>
+              <p>
+                Rehydrate only the exact cases, statutes, paragraphs, document
+                ranges or spreadsheet cells needed by the current turn.
+              </p>
+              <code>on demand</code>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>Legal advantage:</strong> citations, propositions, quote
+            spans, pinpoints, source revisions, document versions and accepted
+            edits already have natural structured identities. Mike can compact
+            surrounding prose aggressively while retaining those objects exactly.
+          </div>
+        </section>
+
+        <section id="thresholds" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Automatic policy</p>
+              <h2>Trigger on projected need, not a magic percentage</h2>
+            </div>
+            <p>
+              Codex derives an automatic threshold near 90% of context. OpenCode
+              uses context limit minus the larger of output allowance and a
+              reserve. Mike should use the reserve-based approach because legal
+              tools can return large evidence blocks mid-turn.
+            </p>
+          </div>
+
+          <div class="formula">
+            compact when estimated next request &gt; context window − max(output allowance, legal-tool reserve)
+          </div>
+
+          <div class="stages">
+            <div class="stage">
+              <small>Level 0 · always</small>
+              <strong>Keep exact receipts</strong>
+              <p>
+                Replace repeated payload copies with source IDs, hashes, ranges,
+                truncation flags and cursors. Preserve raw data in storage.
+              </p>
+            </div>
+            <div class="stage">
+              <small>Level 1 · soft pressure</small>
+              <strong>Drop old bulk</strong>
+              <p>
+                Remove old reasoning and large tool outputs from the model view.
+                Keep exact calls, outcomes and re-fetch handles.
+              </p>
+            </div>
+            <div class="stage">
+              <small>Level 2 · projected overflow</small>
+              <strong>Create checkpoint</strong>
+              <p>
+                Reduce older dialogue to a narrative summary while retaining the
+                exact state capsule and recent verbatim tail.
+              </p>
+            </div>
+            <div class="stage">
+              <small>Level 3 · recovery</small>
+              <strong>Native compact or rebuild</strong>
+              <p>
+                Use a provider checkpoint when compatible. If it fails, rebuild
+                from raw history, exact state and the recent tail.
+              </p>
+            </div>
+          </div>
+
+          <details>
+            <summary>Exact state that must never be left only in a summary</summary>
+            <div>
+              User instructions and which instruction supersedes which; client
+              facts with provenance; jurisdiction and time cutoff; document IDs,
+              versions and hashes; accepted/rejected edits; canonical source IDs;
+              verbatim quote text and its hash; paragraph, section, subsection,
+              subparagraph, page and footnote locators; proposition-to-authority
+              links; workflow phase and unresolved questions.
+            </div>
+          </details>
+        </section>
+
+        <section id="benchmarks" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Evaluation plan</p>
+              <h2>Hold everything constant except the method</h2>
+            </div>
+            <p>
+              The raw conversation and legal matter are generated once. Every arm
+              uses the same model, effort, tools, source snapshot, prompts,
+              output allowance and task order. Only memory projection or response
+              directive changes.
+            </p>
+          </div>
+
+          <div class="matrix" aria-label="Two by two benchmark design">
+            <div class="axis top-axis"></div>
+            <div class="axis top-axis">Normal legal response</div>
+            <div class="axis top-axis">Caveman-lite response</div>
+            <div class="axis">Full history</div>
+            <div class="control">
+              <strong>A · Mike control</strong>
+              <p>
+                Current full-history projection. This is the baseline every
+                claimed saving must equal or beat.
+              </p>
+            </div>
+            <div>
+              <strong>B · Directive only</strong>
+              <p>
+                Full memory, concise output instruction. Isolates output-token
+                savings and omission risk.
+              </p>
+            </div>
+            <div class="axis">Legal compact memory</div>
+            <div class="candidate">
+              <strong>C · Memory only</strong>
+              <p>
+                Exact state capsule, narrative checkpoint, recent tail and
+                targeted evidence retrieval.
+              </p>
+            </div>
+            <div class="candidate">
+              <strong>D · Combined</strong>
+              <p>
+                Tests interaction. A short answer may reduce future history but
+                also omit material qualifications.
+              </p>
+            </div>
+          </div>
+
+          <div class="benchmark-grid">
+            <div>
+              <strong>Canada</strong>
+              <p>
+                COLIEE Federal Court retrieval; 2CANLegalRAGBench where access
+                permits; frozen A2AJ cases and legislation with exact paragraph,
+                section and footnote checks.
+              </p>
+            </div>
+            <div>
+              <strong>United States</strong>
+              <p>
+                LegalBench-RAG retrieval; public Harvey LAB tasks; CourtListener
+                case-law research; document-version and citation-linking fixtures.
+              </p>
+            </div>
+            <div>
+              <strong>Mike-specific</strong>
+              <p>
+                Forty-to-eighty-turn matters with changed instructions, DOCX/PDF
+                versions, accepted and rejected edits, workflows, images, failed
+                tools and adversarial retrieved text.
+              </p>
+            </div>
+          </div>
+
+          <div style="margin-top: 22px">
+            <div class="metric-row">
+              <strong>Hard fidelity gate</strong>
+              <span>
+                100% retention of active user constraints, document versions,
+                quote text, source IDs, locators, edit state and isolation.
+              </span>
+            </div>
+            <div class="metric-row">
+              <strong>Legal quality</strong>
+              <span>
+                All-pass rubric, answer correctness, required qualifications,
+                citation precision/recall, retrieval Recall@k and locator accuracy.
+              </span>
+            </div>
+            <div class="metric-row">
+              <strong>Efficiency</strong>
+              <span>
+                Input, cached, output and reasoning tokens; dollar cost; time to
+                first token; p50/p95 latency; tool and compaction frequency.
+              </span>
+            </div>
+            <div class="metric-row">
+              <strong>Reliability</strong>
+              <span>
+                Restart recovery, provider-checkpoint failure, stale-version
+                rejection, overflow recovery and repeated-run variance.
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section id="harvey" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">External comparison</p>
+              <h2>What a Harvey comparison can honestly mean</h2>
+            </div>
+          </div>
+
+          <div class="warning">
+            <strong>We cannot presently make a direct “Mike versus Harvey” claim.</strong>
+            <p>
+              Harvey’s published 2026 model scores use a private holdout that
+              mirrors its public Legal Agent Benchmark, and its Arena uses
+              internal tasks and lawyer preference votes. Those numbers are not
+              directly comparable to a run on the public task set.
+            </p>
+          </div>
+
+          <ul class="checklist">
+            <li>
+              Run Mike in the
+              <a href="https://github.com/harveyai/harvey-labs">public Harvey LAB harness</a>
+              at a pinned commit.
+            </li>
+            <li>
+              Preserve the harness action space, task files, rubrics and all-pass
+              grader; record any adapter differences.
+            </li>
+            <li>
+              Compare Mike memory arms to each other directly. Treat Harvey’s
+              published holdout results only as contextual evidence.
+            </li>
+            <li>
+              If Harvey later publishes matching public-run product outputs or
+              grants evaluation access, run blind pairwise review on the same
+              tasks and source snapshot.
+            </li>
+          </ul>
+        </section>
+
+        <section id="caveman" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Output directive</p>
+              <h2>Caveman is a benchmark arm, not a default</h2>
+            </div>
+            <p>
+              The repository’s own documentation says the skill reduces output,
+              not input or reasoning, adds roughly 1–1.5k input tokens per turn,
+              and can become net-negative on already-terse work.
+            </p>
+          </div>
+
+          <div class="warning">
+            <strong>Legal warning:</strong>
+            <p>
+              The stock directive says to drop hedging. In law, qualifications,
+              exceptions, uncertainty, jurisdiction limits and standards of
+              review are often substantive—not filler. An omitted qualifier can
+              leave a short answer technically wrong or professionally unsafe.
+            </p>
+          </div>
+
+          <div class="cards" style="margin-top: 14px">
+            <article class="card">
+              <span class="status conditional">Test verbatim</span>
+              <h3>Repository Caveman lite</h3>
+              <p>
+                Use the published “lite” level, not full or ultra, as one
+                reproducible arm. Measure realized whole-turn cost and rubric
+                completeness, not the repository’s output-only percentage.
+              </p>
+            </article>
+            <article class="card">
+              <span class="status partial">Legal-safe candidate</span>
+              <h3>Concise legal drafting directive</h3>
+              <p>
+                Remove pleasantries, repetition and process narration while
+                expressly preserving legal qualifications, exact quotes,
+                citations, defined terms, requested format and audit-relevant
+                explanation.
+              </p>
+            </article>
+          </div>
+
+          <details>
+            <summary>Independent Caveman acceptance criteria</summary>
+            <div>
+              It wins only if total priced tokens and latency fall, every
+              mandatory rubric element survives, citation and quote fidelity do
+              not regress, legal qualifications are not omitted, and blind
+              reviewers do not prefer the control. Evaluate response-text
+              entailment and omission categories in addition to exact-answer
+              accuracy.
+            </div>
+          </details>
+        </section>
+
+        <section id="providers" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Model access</p>
+              <h2>Provider integration status</h2>
+            </div>
+            <p>
+              Model choice and reasoning effort remain independent UI controls.
+              Unsupported capabilities fail closed rather than being inferred
+              from a model name.
+            </p>
+          </div>
+
+          <div style="overflow-x: auto; border: 1px solid var(--line); border-radius: 12px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Important behavior</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Codex CLI</td>
+                  <td><span class="status done">Connected</span></td>
+                  <td>
+                    Live model catalog and effort levels use local Codex auth.
+                    Cross-turn thread resume is the next memory bridge.
+                  </td>
+                </tr>
+                <tr>
+                  <td>OpenAI, Claude, Gemini</td>
+                  <td><span class="status done">Existing</span></td>
+                  <td>
+                    Provider adapters remain available; cloud key storage stays
+                    compatible with local environment-key use.
+                  </td>
+                </tr>
+                <tr>
+                  <td>DeepSeek V4</td>
+                  <td><span class="status done">Live verified</span></td>
+                  <td>
+                    Direct V4 Flash/Pro Chat Completions, streaming, tool loops
+                    and canonical high/max thinking efforts. A real max-effort
+                    Library call returned the two stored documents.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Meta Muse Spark</td>
+                  <td><span class="status conditional">Key blocked</span></td>
+                  <td>
+                    The first-class Meta UI route, multimodal Responses adapter,
+                    tools, and five effort levels are wired through OpenRouter.
+                    The configured key currently returns 401 “User not found,”
+                    before any displayed regional policy can be tested.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="sources" data-section>
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Evidence</p>
+              <h2>Reports and primary sources</h2>
+            </div>
+          </div>
+
+          <div class="source-grid">
+            <article class="source-card">
+              <h3>Mike audit reports</h3>
+              <p>Detailed findings, measurements and implementation boundaries.</p>
+              <code>docs/deterministic-durable-work-audit.md</code>
+              <code>docs/session-compaction-and-context-efficiency.md</code>
+              <code>docs/document-mutation-token-efficiency-and-content-controls.md</code>
+              <code>docs/pinpoint-retrieval-and-vector-embeddings.md</code>
+            </article>
+            <article class="source-card">
+              <h3>Memory implementations</h3>
+              <p>
+                <a href="https://developers.openai.com/api/docs/guides/compaction">
+                  OpenAI Responses compaction
+                </a>,
+                <a href="https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md">
+                  Codex thread and compaction API
+                </a>,
+                and
+                <a href="https://opencode.ai/v2/docs/compaction">
+                  OpenCode V2 compaction
+                </a>.
+              </p>
+            </article>
+            <article class="source-card">
+              <h3>Legal benchmarks</h3>
+              <p>
+                <a href="https://coliee.org/COLIEE2026/tasks/task1">COLIEE 2026</a>,
+                <a href="https://arxiv.org/abs/2408.10343">LegalBench-RAG</a>,
+                and
+                <a href="https://github.com/harveyai/harvey-labs">Harvey LAB</a>.
+              </p>
+            </article>
+            <article class="source-card">
+              <h3>Response compression</h3>
+              <p>
+                <a href="https://github.com/JuliusBrussee/caveman">Caveman</a>
+                reports output-only savings and its own input-overhead warning.
+                <a href="https://arxiv.org/abs/2606.24083">CAVEWOMAN</a>
+                finds that short outputs can reduce cost while still diverging
+                materially from an unconstrained answer.
+              </p>
+            </article>
+            <article class="source-card">
+              <h3>Legal ontology graph</h3>
+              <p>
+                The repository and durable-artifact decision is recorded in
+                <code>docs/legal-ontology-graph-repo-evaluation.md</code>.
+                Primary projects:
+                <a href="https://github.com/xyflow/xyflow">React Flow</a>
+                and <a href="https://github.com/dagrejs/dagre">Dagre</a>.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <footer>
+          This reader is a research and engineering brief, not legal advice. It
+          intentionally separates implemented behavior from benchmark-gated
+          proposals. Open this file directly or at
+          <strong>/mike-research-reader.html</strong> while the Mike frontend is
+          running.
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        const progress = document.querySelector("#read-progress");
+        const updateProgress = () => {
+          const root = document.documentElement;
+          const available = root.scrollHeight - root.clientHeight;
+          const ratio = available > 0 ? root.scrollTop / available : 0;
+          progress.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+        };
+        document.addEventListener("scroll", updateProgress, { passive: true });
+        updateProgress();
+
+        const filterButtons = [...document.querySelectorAll("[data-filter]")];
+        const cards = [...document.querySelectorAll("#opportunity-cards [data-status]")];
+        for (const button of filterButtons) {
+          button.addEventListener("click", () => {
+            const selected = button.dataset.filter;
+            for (const candidate of filterButtons) {
+              candidate.setAttribute(
+                "aria-pressed",
+                candidate === button ? "true" : "false",
+              );
+            }
+            for (const card of cards) {
+              card.hidden =
+                selected !== "all" && card.dataset.status !== selected;
+            }
+          });
+        }
+
+        const ontologyButtons = [
+          ...document.querySelectorAll("[data-ontology-mode]"),
+        ];
+        const ontologyEvidence = [
+          ...document.querySelectorAll("[data-ontology-kind]"),
+        ];
+        for (const button of ontologyButtons) {
+          button.addEventListener("click", () => {
+            const selected = button.dataset.ontologyMode;
+            for (const candidate of ontologyButtons) {
+              candidate.setAttribute(
+                "aria-pressed",
+                candidate === button ? "true" : "false",
+              );
+            }
+            for (const evidence of ontologyEvidence) {
+              evidence.hidden =
+                selected !== "all" &&
+                evidence.dataset.ontologyKind !== selected;
+            }
+          });
+        }
+
+        const links = [...document.querySelectorAll("nav a")];
+        const sections = [...document.querySelectorAll("[data-section]")];
+        if ("IntersectionObserver" in window) {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              const visible = entries
+                .filter((entry) => entry.isIntersecting)
+                .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+              if (!visible) return;
+              for (const link of links) {
+                link.setAttribute(
+                  "aria-current",
+                  link.getAttribute("href") === `#${visible.target.id}`
+                    ? "true"
+                    : "false",
+                );
+              }
+            },
+            { rootMargin: "-20% 0px -65% 0px", threshold: [0, 0.25, 0.5] },
+          );
+          for (const section of sections) observer.observe(section);
+        }
+
+        if (window.location.hash) {
+          const target = document.getElementById(window.location.hash.slice(1));
+          if (target) {
+            requestAnimationFrame(() =>
+              target.scrollIntoView({ behavior: "auto", block: "start" }),
+            );
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

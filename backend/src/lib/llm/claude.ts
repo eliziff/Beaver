@@ -11,6 +11,14 @@ import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
 
 type ContentBlock =
   | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: {
+        type: "base64";
+        media_type: string;
+        data: string;
+      };
+    }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | { type: string; [key: string]: unknown };
 
@@ -36,10 +44,26 @@ function client(override?: string | null): Anthropic {
   return new Anthropic({ apiKey: apiKeyValue });
 }
 
-function toNativeMessages(
+export function toNativeMessages(
   messages: StreamChatParams["messages"],
 ): NativeMessage[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
+  return messages.map((message) => ({
+    role: message.role,
+    content:
+      message.role === "user" && message.images?.length
+        ? [
+            { type: "text", text: message.content },
+            ...message.images.map((image) => ({
+              type: "image" as const,
+              source: {
+                type: "base64" as const,
+                media_type: image.mimeType,
+                data: image.data,
+              },
+            })),
+          ]
+        : message.content,
+  }));
 }
 
 function claudeErrorMessage(error: unknown): string {

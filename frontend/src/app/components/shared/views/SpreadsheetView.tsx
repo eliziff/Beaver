@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import LuckyExcel, { type LuckyExcelSheet } from "luckyexcel";
+import type { LuckyExcelSheet } from "luckyexcel";
 import type { WorkbookInstance } from "@fortune-sheet/react";
 import type { Cell, Sheet } from "@fortune-sheet/core";
-import "@fortune-sheet/react/dist/index.css";
 import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 
 type HighlightRange = { row: [number, number]; column: [number, number] };
@@ -233,6 +232,8 @@ export function SpreadsheetView({
     rounded = true,
 }: Props) {
     const workbookRef = useRef<WorkbookInstance>(null);
+    const luckyExcelRef =
+        useRef<Promise<typeof import("luckyexcel")> | null>(null);
     // The frame element, used to reach Fortune-sheet's scrollbars for measuring
     // the current scroll offset and viewport size when deciding whether to scroll.
     const containerRef = useRef<HTMLDivElement>(null);
@@ -255,7 +256,11 @@ export function SpreadsheetView({
     // inside the client component even though this file also owns the view.
     useEffect(() => {
         let cancelled = false;
-        import("@fortune-sheet/react").then((mod) => {
+        luckyExcelRef.current ??= import("luckyexcel");
+        Promise.all([
+            import("@fortune-sheet/react"),
+            import("@fortune-sheet/react/dist/index.css"),
+        ]).then(([mod]) => {
             if (!cancelled) setWorkbookComponent(() => mod.Workbook);
         });
         return () => {
@@ -285,22 +290,25 @@ export function SpreadsheetView({
         setSheets(null);
         setError(null);
 
-        try {
-            const file = new File([result.buffer], "spreadsheet.xlsx");
-            LuckyExcel.transformExcelToLucky(file, (exportJson) => {
+        void (luckyExcelRef.current ?? import("luckyexcel"))
+            .then(({ default: LuckyExcel }) => {
                 if (cancelled) return;
-                if (exportJson?.sheets?.length) {
-                    applyMergeCells(exportJson.sheets);
-                    applyExcelTextOverflow(exportJson.sheets);
-                    setSheets(exportJson.sheets as unknown as Sheet[]);
-                } else {
+                const file = new File([result.buffer], "spreadsheet.xlsx");
+                LuckyExcel.transformExcelToLucky(file, (exportJson) => {
+                    if (cancelled) return;
+                    if (exportJson?.sheets?.length) {
+                        applyMergeCells(exportJson.sheets);
+                        applyExcelTextOverflow(exportJson.sheets);
+                        setSheets(exportJson.sheets as unknown as Sheet[]);
+                    } else {
+                        setError("This spreadsheet could not be displayed.");
+                    }
+                });
+            })
+            .catch(() => {
+                if (!cancelled)
                     setError("This spreadsheet could not be displayed.");
-                }
             });
-        } catch {
-            if (!cancelled)
-                setError("This spreadsheet could not be displayed.");
-        }
 
         return () => {
             cancelled = true;

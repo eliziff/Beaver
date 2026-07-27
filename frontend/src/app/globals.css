@@ -23,14 +23,17 @@
     --color-app-surface-hover: var(--app-surface-hover);
     --color-app-surface-active: var(--app-surface-active);
     --color-app-floating: var(--app-floating);
+    --color-brand: var(--brand-red);
+    --color-brand-dark: var(--brand-red-dark);
+    --color-brand-soft: var(--brand-red-soft);
     --font-sans: var(--font-inter);
     --font-serif: var(--font-eb-garamond);
-    --color-blue: rgb(0, 136, 255);
-    --color-blue-50: rgba(0, 136, 255, 0.05);
-    --color-blue-100: rgba(0, 136, 255, 0.1);
-    --color-blue-200: rgba(0, 136, 255, 0.3);
-    --color-blue-600: rgb(0, 136, 255);
-    --color-blue-700: rgb(0, 120, 230);
+    --color-blue: rgb(213, 43, 30);
+    --color-blue-50: rgba(213, 43, 30, 0.05);
+    --color-blue-100: rgba(213, 43, 30, 0.1);
+    --color-blue-200: rgba(213, 43, 30, 0.3);
+    --color-blue-600: rgb(213, 43, 30);
+    --color-blue-700: rgb(183, 32, 22);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -70,7 +73,10 @@
     --radius: 0.625rem;
     --font-inter: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-eb-garamond: "EB Garamond", Georgia, Cambria, "Times New Roman", serif;
-    --color-azure: 0, 136, 255;
+    --brand-red: #d52b1e;
+    --brand-red-dark: #b72016;
+    --brand-red-soft: #fff1f0;
+    --color-azure: 213, 43, 30;
     --app-background: #f9fafb;
     --app-surface: #fdfdfe;
     --app-surface-hover: #f9fafb;
@@ -82,7 +88,7 @@
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    --primary: var(--brand-red);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
@@ -93,7 +99,7 @@
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --ring: var(--brand-red);
     --chart-1: oklch(0.646 0.222 41.116);
     --chart-2: oklch(0.6 0.118 184.704);
     --chart-3: oklch(0.398 0.07 227.392);
@@ -101,23 +107,24 @@
     --chart-5: oklch(0.769 0.188 70.08);
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary: var(--brand-red);
     --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.97 0 0);
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-ring: var(--brand-red);
 }
 
 .dark {
+    --brand-red-soft: #351311;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
+    --primary: var(--brand-red);
+    --primary-foreground: #ffffff;
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
@@ -127,7 +134,7 @@
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --ring: var(--brand-red);
     --chart-1: oklch(0.488 0.243 264.376);
     --chart-2: oklch(0.696 0.17 162.48);
     --chart-3: oklch(0.769 0.188 70.08);
@@ -135,12 +142,12 @@
     --chart-5: oklch(0.645 0.246 16.439);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary: var(--brand-red);
     --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.269 0 0);
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar-ring: var(--brand-red);
 }
 
 @layer base {
@@ -154,6 +161,61 @@
 
     button {
         cursor: pointer;
+    }
+}
+
+.maple-leaf-mark {
+    display: inline-block;
+    flex-shrink: 0;
+    line-height: 0;
+    transform-origin: 50% 82%;
+}
+
+.app-symbol-icon,
+.file-type-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family:
+        "Segoe UI Symbol", "Noto Sans Symbols", "Arial Unicode MS", sans-serif;
+    font-variant-emoji: text;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.app-symbol-icon {
+    color: var(--brand-red);
+    font-size: 1.1rem;
+}
+
+.file-type-symbol {
+    color: #2f343a;
+    font-size: 1rem;
+}
+
+.file-type-symbol[data-file-kind="pdf"],
+.file-type-symbol[data-file-kind="image"] {
+    color: var(--brand-red);
+}
+
+.maple-leaf-mark--active {
+    animation: mapleLeafFlutter 1.8s ease-in-out infinite;
+}
+
+@keyframes mapleLeafFlutter {
+    0%,
+    100% {
+        transform: rotate(-2deg) translateY(0);
+    }
+    50% {
+        transform: rotate(3deg) translateY(-1px) scale(1.04);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .maple-leaf-mark--active {
+        animation: none;
     }
 }
 
@@ -561,6 +623,28 @@
 .docx-view-container .docx-wrapper > section.docx {
     margin: 0 auto 16px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.docx-view-container .docx-wrapper > section.docx[data-page-number]::after {
+    content: "Page " attr(data-page-number);
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 2;
+    padding: 2px 5px;
+    border: 1px solid rgba(181, 32, 22, 0.2);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #b72016;
+    font: 500 10px/1.2 system-ui, sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+@media print {
+    .docx-view-container .docx-wrapper > section.docx[data-page-number]::after {
+        display: none;
+    }
 }
 
 .docx-view-container .docx-edit-flash {

@@ -13,6 +13,10 @@ describe("fileTypeKind", () => {
         expect(fileTypeKind("xls")).toBe("excel");
         expect(fileTypeKind("pptx")).toBe("ppt");
         expect(fileTypeKind("ppt")).toBe("ppt");
+        expect(fileTypeKind("png")).toBe("image");
+        expect(fileTypeKind("jpeg")).toBe("image");
+        expect(fileTypeKind("webp")).toBe("image");
+        expect(fileTypeKind("image/png")).toBe("image");
     });
 
     it("maps filenames by their extension", () => {
@@ -35,58 +39,40 @@ describe("fileTypeKind", () => {
 });
 
 describe("FileTypeIcon", () => {
-    const svgOf = (container: HTMLElement) => container.querySelector("svg");
-    const imgOf = (container: HTMLElement) => container.querySelector("img");
+    const iconOf = (container: HTMLElement) =>
+        container.querySelector("[data-file-kind]");
 
-    it("renders the PDF icon image", () => {
+    it("renders crisp text symbols for known file kinds", () => {
         const { container } = render(<FileTypeIcon fileType="pdf" />);
-        expect(imgOf(container)).toHaveAttribute(
-            "src",
-            expect.stringContaining("/icons/file-types/pdf.svg"),
-        );
+        expect(iconOf(container)).toHaveAttribute("data-file-kind", "pdf");
+        expect(iconOf(container)).toHaveTextContent("§");
+        expect(iconOf(container)).toHaveAttribute("aria-hidden", "true");
     });
 
-    it("renders the Word icon image", () => {
-        const { container } = render(<FileTypeIcon fileType="deck.docx" />);
-        expect(imgOf(container)).toHaveAttribute(
-            "src",
-            expect.stringContaining("/icons/file-types/word.svg"),
-        );
+    it("keeps a distinct image-file symbol", () => {
+        const { container } = render(<FileTypeIcon fileType="evidence.png" />);
+        expect(iconOf(container)).toHaveAttribute("data-file-kind", "image");
+        expect(iconOf(container)).toHaveTextContent("▧");
     });
 
-    it("renders the Excel icon image", () => {
-        const { container } = render(<FileTypeIcon fileType="xlsx" />);
-        expect(imgOf(container)).toHaveAttribute(
-            "src",
-            expect.stringContaining("/icons/file-types/excel.svg"),
-        );
-    });
-
-    it("renders a grey icon for unknown types", () => {
+    it("renders a neutral symbol for unknown types", () => {
         const { container } = render(<FileTypeIcon fileType={null} />);
-        expect(svgOf(container)).toHaveClass("text-gray-500");
+        expect(iconOf(container)).toHaveAttribute("data-file-kind", "other");
+        expect(iconOf(container)).toHaveTextContent("□");
     });
 
-    it("renders a muted grayscale image for a known kind", () => {
+    it("dims muted symbols", () => {
         const { container } = render(<FileTypeIcon fileType="pdf" muted />);
-        const img = imgOf(container);
-        expect(img).toHaveClass("grayscale");
-        expect(img).toHaveClass("opacity-35");
-    });
-
-    it("renders a muted grey placeholder for unknown types", () => {
-        const { container } = render(<FileTypeIcon fileType={null} muted />);
-        const svg = svgOf(container);
-        expect(svg).toHaveClass("text-gray-300");
+        expect(iconOf(container)).toHaveClass("opacity-35");
     });
 
     it("always applies shrink-0 and merges a custom className", () => {
         const { container } = render(
             <FileTypeIcon fileType="pdf" className="h-6 w-6" />,
         );
-        const img = imgOf(container);
-        expect(img).toHaveClass("shrink-0");
-        expect(img).toHaveClass("h-6");
-        expect(img).toHaveClass("w-6");
+        const icon = iconOf(container);
+        expect(icon).toHaveClass("shrink-0");
+        expect(icon).toHaveClass("h-6");
+        expect(icon).toHaveClass("w-6");
     });
 });

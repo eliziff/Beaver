@@ -540,7 +540,7 @@ function TRChatInput({
                         onClick={handleAction}
                         disabled={!isLoading && !value.trim()}
                         className={cn(
-                            "relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-7 w-7 shrink-0 flex items-center justify-center disabled:cursor-default disabled:from-neutral-600 disabled:to-black border border-white/30 active:enabled:scale-95 transition-all duration-150",
+                            "relative h-7 w-7 shrink-0 rounded-[10px] bg-brand text-white flex items-center justify-center hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95 transition-all duration-150",
                             "shadow-[0_5px_14px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.24)]",
                         )}
                     >
@@ -1860,14 +1860,14 @@ export function TRChatPanel({
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-end">
                             <div className="bg-gray-100 rounded-2xl p-3 w-3/5">
-                                <div className="h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded w-full" />
+                                <div className="h-3 animate-pulse rounded bg-gray-200 w-full" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             {[1, 2, 3, 4].map((i) => (
                                 <div
                                     key={i}
-                                    className={`h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
+                                    className={`h-3 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-5/6" : i === 4 ? "w-4/6" : "w-full"}`}
                                 />
                             ))}
                         </div>
@@ -1901,12 +1901,6 @@ export function TRChatPanel({
                     </div>
                 )}
             </div>
-
-            {/* Top blur overlay — messages fade out under the header */}
-            <div className="pointer-events-none absolute top-0 left-0 right-2 z-[5] h-10 backdrop-blur-2xl bg-gradient-to-b from-white/80 to-transparent [mask-image:linear-gradient(to_bottom,black_65%,transparent)]" />
-
-            {/* Bottom blur overlay — messages fade out under the input */}
-            <div className="pointer-events-none absolute bottom-0 left-0 right-2 z-[5] h-32 backdrop-blur-2xl bg-gradient-to-t from-white/80 to-transparent [mask-image:linear-gradient(to_top,black_65%,transparent)]" />
 
             {/* Input */}
             <TRChatInput

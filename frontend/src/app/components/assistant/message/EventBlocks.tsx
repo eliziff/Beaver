@@ -161,7 +161,6 @@ export function ReasoningBlock({
                         </div>
                         {isCollapsed && (
                             <>
-                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-white/0 to-white" />
                                 <button
                                     type="button"
                                     onClick={() => setIsExpanded(true)}

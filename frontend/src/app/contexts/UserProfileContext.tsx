@@ -61,6 +61,7 @@ const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     "claude",
     "gemini",
     "openai",
+    "deepseek",
     "openrouter",
     "courtlistener",
 ];
@@ -70,6 +71,7 @@ function emptyApiKeys(): ApiKeyState {
         claude: { configured: false, source: null },
         gemini: { configured: false, source: null },
         openai: { configured: false, source: null },
+        deepseek: { configured: false, source: null },
         openrouter: { configured: false, source: null },
         courtlistener: { configured: false, source: null },
     };

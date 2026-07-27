@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { Check } from "lucide-react";
-import { QuoteIcon } from "@radix-ui/react-icons";
+import { Check, Quote } from "lucide-react";
 
 interface CiteButtonProps {
     quoteText: string;
@@ -49,7 +48,7 @@ export function CiteButton({
                     className="text-green-600"
                 />
             ) : (
-                <QuoteIcon style={{ width: iconSize, height: iconSize }} />
+                <Quote style={{ width: iconSize, height: iconSize }} />
             )}
             {showText && (
                 <span

@@ -18,7 +18,13 @@ import {
   parseAskInputsResponsePayload,
   type ChatMessage,
 } from "../lib/chat";
-import { completeText, streamCodex } from "../lib/llm";
+import {
+  completeText,
+  DEFAULT_MAIN_MODEL,
+  modelSupportsImageInput,
+  streamChatWithTools,
+  type LlmImage,
+} from "../lib/llm";
 import {
   LOCAL_ASSISTANT_TOOLS,
   runLocalAssistantTools,
@@ -33,7 +39,10 @@ import {
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import type { LocalCourtlistenerState } from "../lib/chat/localCourtlistenerTools";
-import { createPublicLegalSourceState } from "../lib/chat/publicLegalSourceState";
+import {
+  appendPublicLegalPinpointLinks,
+  createPublicLegalSourceState,
+} from "../lib/chat/publicLegalSourceState";
 import { getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
@@ -45,6 +54,11 @@ import {
   listAnonymousChats,
   updateAnonymousChatTitle,
 } from "../lib/anonymousChatStore";
+import {
+  imagesForMessage,
+  loadLocalChatImages,
+  loadStoredChatImages,
+} from "../lib/chat/imageAttachments";
 
 export const chatRouter = Router();
 
@@ -76,7 +90,7 @@ function sseWrite(res: import("express").Response, payload: unknown) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
-async function streamAnonymousCodex(params: {
+async function streamAnonymousChat(params: {
   res: import("express").Response;
   userId: string;
   chatId: string | null;
@@ -85,6 +99,25 @@ async function streamAnonymousCodex(params: {
   reasoningEffort?: string;
 }) {
   const { res, userId, messages } = params;
+  let imagesByDocumentId: Map<string, LlmImage>;
+  try {
+    imagesByDocumentId = await loadLocalChatImages(messages, userId);
+  } catch (error) {
+    res.status(400).json({
+      detail: safeErrorMessage(error, "Invalid image attachment"),
+    });
+    return;
+  }
+  const selectedModel = params.model || DEFAULT_MAIN_MODEL;
+  if (
+    imagesByDocumentId.size &&
+    !modelSupportsImageInput(selectedModel)
+  ) {
+    res.status(400).json({
+      detail: `Model "${selectedModel}" does not support image input.`,
+    });
+    return;
+  }
   const chat = params.chatId
     ? getAnonymousChat(userId, params.chatId)
     : createAnonymousChat(userId);
@@ -151,16 +184,17 @@ async function streamAnonymousCodex(params: {
   };
   try {
     sseWrite(res, { type: "chat_id", chatId: chat.id });
-    await streamCodex({
-      model: params.model || "codex-exec",
+    await streamChatWithTools({
+      model: selectedModel,
       systemPrompt:
-        "The user's local Mike Library is connected through library_list, library_read, and library_find. Use library_list before claiming a Library document is unavailable. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Mike attaches verified pinpoint links automatically.\n\n" +
+        "The user's local Mike Library is connected through library_list, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Mike attaches verified pinpoint links automatically.\n\n" +
         COURTLISTENER_SYSTEM_PROMPT +
         "\n\n" +
         PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
       messages: messages.map((message) => ({
         role: message.role === "assistant" ? "assistant" : "user",
         content: message.content ?? "",
+        images: imagesForMessage(message, imagesByDocumentId),
       })),
       enableThinking: true,
       reasoningEffort: params.reasoningEffort,
@@ -197,13 +231,6 @@ async function streamAnonymousCodex(params: {
       sseWrite(res, { type: "content_delta", text: visibleTail });
       visibleTail = "";
     }
-    const linkedText = appendA2AJPinpointLinks(
-      visibleText.trimEnd(),
-      a2ajLookups,
-    );
-    const linkDelta = linkedText.slice(visibleText.trimEnd().length);
-    if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
-    visibleText = linkedText;
     const citations = parseCitations(rawText).map((citation) =>
       createCitation(
         citation,
@@ -214,16 +241,27 @@ async function streamAnonymousCodex(params: {
         publicLegalState,
       ),
     );
+    const linkedText = appendPublicLegalPinpointLinks(
+      appendA2AJPinpointLinks(visibleText.trimEnd(), a2ajLookups),
+      publicLegalState,
+      citations.flatMap((citation) => {
+        const url = "url" in citation ? citation.url : null;
+        return typeof url === "string" ? [url] : [];
+      }),
+    );
+    const linkDelta = linkedText.slice(visibleText.trimEnd().length);
+    if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
+    visibleText = linkedText;
 
     appendAnonymousMessage(chat, {
       role: "assistant",
       content: visibleText
         ? [{ type: "content", text: visibleText }]
-        : [{ type: "error", message: "Codex returned no response." }],
+        : [{ type: "error", message: "The selected model returned no response." }],
       citations,
     });
     if (!chat.title && lastUser?.content) {
-      chat.title = normalizeGeneratedTitle(lastUser.content);
+      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
     }
     sseWrite(res, { type: "content_done" });
     sseWrite(res, {
@@ -233,8 +271,8 @@ async function streamAnonymousCodex(params: {
     });
     res.write("data: [DONE]\n\n");
   } catch (error) {
-    const message = safeErrorMessage(error, "Codex exec failed");
-    console.error("[chat/anonymous-codex]", safeErrorLog(error));
+    const message = safeErrorMessage(error, "Model request failed");
+    console.error("[chat/anonymous]", safeErrorLog(error));
     if (!res.headersSent) {
       res.status(502).json({ detail: message });
     } else if (!streamAbort.signal.aborted) {
@@ -704,12 +742,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
         detail: "Project chat requires Supabase persistence in local mode",
       });
     }
-    if (model && !model.startsWith("codex")) {
-      return void res.status(503).json({
-        detail: "Local mode supports the Codex model only",
-      });
-    }
-    await streamAnonymousCodex({
+    await streamAnonymousChat({
       res,
       userId: res.locals.userId as string,
       chatId: chat_id,
@@ -804,16 +837,36 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     db,
     chatId,
   );
+  let imagesByDocumentId: Map<string, LlmImage>;
+  try {
+    imagesByDocumentId = await loadStoredChatImages(messages, docIndex, docStore);
+  } catch (error) {
+    return void res.status(400).json({
+      detail: safeErrorMessage(error, "Invalid image attachment"),
+    });
+  }
+  const selectedModel = model || DEFAULT_MAIN_MODEL;
+  if (
+    imagesByDocumentId.size &&
+    !modelSupportsImageInput(selectedModel)
+  ) {
+    return void res.status(400).json({
+      detail: `Model "${selectedModel}" does not support image input.`,
+    });
+  }
   const docAvailability = Object.entries(docIndex).map(([doc_id, info]) => ({
     doc_id,
     filename: info.filename,
   }));
-  const enrichedMessages = await enrichWithPriorEvents(
+  const enrichedMessages = (await enrichWithPriorEvents(
     messages,
     chatId,
     db,
     docIndex,
-  );
+  )).map((message) => ({
+    ...message,
+    images: imagesForMessage(message, imagesByDocumentId),
+  }));
   const { api_keys: apiKeys, legal_research_us: legalResearchUs } =
     await getUserModelSettings(userId, db);
   const apiMessages = buildMessages(

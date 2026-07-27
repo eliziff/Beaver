@@ -16,6 +16,8 @@ import { caseLawRouter } from "./routes/caseLaw";
 import { codexRouter } from "./routes/codex";
 import { localDocumentsRouter } from "./routes/localDocuments";
 import { localLibraryRouter } from "./routes/localLibrary";
+import { legalLibraryRouter } from "./routes/legalLibrary";
+import { tableOfAuthoritiesRouter } from "./routes/tableOfAuthorities";
 import { isAnonymousLocalMode } from "./lib/localMode";
 
 export const app = express();
@@ -55,8 +57,7 @@ function makeLimiter(options: {
     legacyHeaders: false,
     skip: (req) => req.method === "OPTIONS",
     message: {
-      detail:
-        options.message ?? "Too many requests. Please try again later.",
+      detail: options.message ?? "Too many requests. Please try again later.",
     },
   });
 }
@@ -173,7 +174,9 @@ const requirePersistentData: express.RequestHandler = (req, res, next) => {
     res.json([]);
     return;
   }
-  res.status(503).json({ detail: "This feature requires Supabase persistence" });
+  res
+    .status(503)
+    .json({ detail: "This feature requires Supabase persistence" });
 };
 
 app.use("/chat", chatRouter);
@@ -181,6 +184,7 @@ app.use("/projects", projectsRouter);
 app.use("/projects/:projectId/chat", projectChatRouter);
 app.use("/single-documents", localDocumentsRouter);
 app.use("/single-documents", documentsRouter);
+app.use("/library/legal", legalLibraryRouter);
 app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
 app.use("/tabular-review", requirePersistentData, tabularRouter);
@@ -190,5 +194,6 @@ app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
 app.use("/codex", codexRouter);
+app.use("/table-of-authorities", tableOfAuthoritiesRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));

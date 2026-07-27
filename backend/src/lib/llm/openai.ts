@@ -22,8 +22,17 @@ End the response with a <CITATIONS> block containing one matching case entry per
 Do not use doc_id, page, top-level quote, case_name, or citation fields for CourtListener case entries.`;
 
 type ResponseInputItem =
-  | { role: "user" | "assistant"; content: string }
-  | { type: "function_call_output"; call_id: string; output: string };
+  | {
+      role: "user" | "assistant";
+      content:
+        | string
+        | (
+            | { type: "input_text"; text: string }
+            | { type: "input_image"; image_url: string }
+          )[];
+    }
+  | { type: "function_call_output"; call_id: string; output: string }
+  | Record<string, unknown>;
 
 type ResponseFunctionTool = {
   type: "function";
@@ -37,6 +46,7 @@ type ResponseFunctionCallItem = {
   call_id?: string;
   name?: string;
   arguments?: string;
+  [key: string]: unknown;
 };
 
 type ResponseStreamEvent = {
@@ -50,6 +60,15 @@ type ResponseStreamEvent = {
   };
   error?: { code?: string; message?: string } | null;
   item?: ResponseFunctionCallItem;
+};
+
+export type ResponsesAdapterConfig = {
+  endpoint: string;
+  provider: string;
+  apiKey: string;
+  persistent: boolean;
+  reasoningSummary?: boolean;
+  defaultReasoningEffort?: string;
 };
 
 function apiKey(override?: string | null): string {
@@ -71,11 +90,22 @@ function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
   }));
 }
 
-function toResponseInput(messages: LlmMessage[]): ResponseInputItem[] {
-  return messages.map((message) => ({
-    role: message.role,
-    content: message.content,
-  }));
+export function toResponseInput(messages: LlmMessage[]): ResponseInputItem[] {
+  return messages.map((message) => {
+    if (!message.images?.length || message.role !== "user") {
+      return { role: message.role, content: message.content };
+    }
+    return {
+      role: message.role,
+      content: [
+        { type: "input_text", text: message.content },
+        ...message.images.map((image) => ({
+          type: "input_image" as const,
+          image_url: `data:${image.mimeType};base64,${image.data}`,
+        })),
+      ],
+    };
+  });
 }
 
 function extractSseJson(buffer: string): { events: unknown[]; rest: string } {
@@ -161,6 +191,8 @@ function shouldAppendCourtlistenerCitationReminder(call: NormalizedToolCall) {
 }
 
 async function createResponse(params: {
+  endpoint?: string;
+  provider?: string;
   model: string;
   input: ResponseInputItem[];
   instructions?: string;
@@ -168,11 +200,11 @@ async function createResponse(params: {
   stream?: boolean;
   maxTokens?: number;
   previousResponseId?: string;
-  reasoningSummary?: boolean;
+  reasoning?: { summary?: "auto"; effort?: string };
   apiKey: string;
   signal?: AbortSignal;
 }): Promise<Response> {
-  const response = await fetch(OPENAI_RESPONSES_URL, {
+  const response = await fetch(params.endpoint ?? OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${params.apiKey}`,
@@ -186,15 +218,16 @@ async function createResponse(params: {
       stream: params.stream,
       max_output_tokens: params.maxTokens ?? MAX_OUTPUT_TOKENS,
       previous_response_id: params.previousResponseId,
-      reasoning: params.reasoningSummary ? { summary: "auto" } : undefined,
+      reasoning: params.reasoning,
     }),
     signal: params.signal,
   });
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    const provider = params.provider ?? "OpenAI";
     const err = new Error(
-      `OpenAI request failed (${response.status}): ${text || response.statusText}`,
+      `${provider} request failed (${response.status}): ${text || response.statusText}`,
     );
     (err as { status?: number }).status = response.status;
     throw err;
@@ -203,8 +236,9 @@ async function createResponse(params: {
   return response;
 }
 
-export async function streamOpenAI(
+export async function streamResponsesApi(
   params: StreamChatParams,
+  config: ResponsesAdapterConfig,
 ): Promise<StreamChatResult> {
   const {
     model,
@@ -212,18 +246,16 @@ export async function streamOpenAI(
     tools = [],
     callbacks = {},
     runTools,
-    apiKeys,
     enableThinking,
   } = params;
   const maxIter = params.maxIterations ?? 10;
-  const key = apiKey(apiKeys?.openai);
   const responseTools = toResponseTools(tools);
   let input = toResponseInput(params.messages);
   let previousResponseId: string | undefined;
   let fullText = "";
   let needsCourtlistenerCitationReminder = false;
   const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: "openai",
+    provider: config.provider,
     model,
   });
 
@@ -231,6 +263,8 @@ export async function streamOpenAI(
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
       const response = await createResponse({
+        endpoint: config.endpoint,
+        provider: config.provider,
         model,
         instructions: responseInstructions(
           systemPrompt,
@@ -239,9 +273,15 @@ export async function streamOpenAI(
         input,
         tools: responseTools,
         stream: true,
-        previousResponseId,
-        reasoningSummary: !!enableThinking,
-        apiKey: key,
+        previousResponseId: config.persistent ? previousResponseId : undefined,
+        reasoning: enableThinking
+          ? {
+              summary: config.reasoningSummary ? "auto" : undefined,
+              effort:
+                params.reasoningEffort ?? config.defaultReasoningEffort,
+            }
+          : undefined,
+        apiKey: config.apiKey,
         signal: params.abortSignal,
       });
       if (!response.body) throw new Error("OpenAI response had no body");
@@ -249,6 +289,7 @@ export async function streamOpenAI(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       const toolCalls: NormalizedToolCall[] = [];
+      const outputItems: ResponseInputItem[] = [];
       const startedToolCallIds = new Set<string>();
       let buffer = "";
       let sawReasoning = false;
@@ -260,7 +301,7 @@ export async function streamOpenAI(
 
         const decoded = decoder.decode(value, { stream: true });
         logRawLlmStream({
-          provider: "openai",
+          provider: config.provider,
           model,
           iteration: iter,
           label: "sse_chunk",
@@ -277,7 +318,7 @@ export async function streamOpenAI(
 
         for (const event of extracted.events as ResponseStreamEvent[]) {
           logRawLlmStream({
-            provider: "openai",
+            provider: config.provider,
             model,
             iteration: iter,
             label: "sse_event",
@@ -294,12 +335,13 @@ export async function streamOpenAI(
             throw new Error(failureMessage);
           }
 
-          if (event.response?.id) {
+          if (config.persistent && event.response?.id) {
             previousResponseId = event.response.id;
           }
 
           if (
-            event.type === "response.reasoning_summary_text.delta" &&
+            (event.type === "response.reasoning_summary_text.delta" ||
+              event.type === "response.reasoning_text.delta") &&
             typeof event.delta === "string"
           ) {
             sawReasoning = true;
@@ -325,13 +367,16 @@ export async function streamOpenAI(
 
           if (
             event.type === "response.output_item.done" &&
-            event.item?.type === "function_call"
+            event.item
           ) {
-            const call = parseFunctionCall(event.item);
-            if (!startedToolCallIds.has(call.id)) {
-              callbacks.onToolCallStart?.(call);
+            outputItems.push(event.item);
+            if (event.item.type === "function_call") {
+              const call = parseFunctionCall(event.item);
+              if (!startedToolCallIds.has(call.id)) {
+                callbacks.onToolCallStart?.(call);
+              }
+              toolCalls.push(call);
             }
-            toolCalls.push(call);
           }
         }
       }
@@ -349,11 +394,14 @@ export async function streamOpenAI(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
-      input = results.map((result) => ({
+      const resultItems: ResponseInputItem[] = results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
         output: result.content,
       }));
+      input = config.persistent
+        ? resultItems
+        : [...input, ...outputItems, ...resultItems];
     }
 
     await rawStreamRecorder?.flush("completed");
@@ -364,19 +412,38 @@ export async function streamOpenAI(
   }
 }
 
-export async function completeOpenAIText(params: {
-  model: string;
-  systemPrompt?: string;
-  user: string;
-  maxTokens?: number;
-  apiKeys?: { openai?: string | null };
-}): Promise<string> {
+export async function streamOpenAI(
+  params: StreamChatParams,
+): Promise<StreamChatResult> {
+  return streamResponsesApi(params, {
+    endpoint: OPENAI_RESPONSES_URL,
+    provider: "OpenAI",
+    apiKey: apiKey(params.apiKeys?.openai),
+    persistent: true,
+    reasoningSummary: true,
+  });
+}
+
+export async function completeResponsesText(
+  params: {
+    model: string;
+    systemPrompt?: string;
+    user: string;
+    maxTokens?: number;
+  },
+  config: Pick<
+    ResponsesAdapterConfig,
+    "endpoint" | "provider" | "apiKey"
+  >,
+): Promise<string> {
   const response = await createResponse({
+    endpoint: config.endpoint,
+    provider: config.provider,
     model: params.model,
     instructions: params.systemPrompt,
     input: [{ role: "user", content: params.user }],
     maxTokens: params.maxTokens ?? 512,
-    apiKey: apiKey(params.apiKeys?.openai),
+    apiKey: config.apiKey,
   });
   const json = (await response.json()) as {
     output_text?: string;
@@ -394,6 +461,20 @@ export async function completeOpenAIText(params: {
       .map((content) => content.text ?? "")
       .join("") ?? ""
   );
+}
+
+export async function completeOpenAIText(params: {
+  model: string;
+  systemPrompt?: string;
+  user: string;
+  maxTokens?: number;
+  apiKeys?: { openai?: string | null };
+}): Promise<string> {
+  return completeResponsesText(params, {
+    endpoint: OPENAI_RESPONSES_URL,
+    provider: "OpenAI",
+    apiKey: apiKey(params.apiKeys?.openai),
+  });
 }
 
 export type { NormalizedToolResult };

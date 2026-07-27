@@ -1,5 +1,10 @@
 # Universal Legal PDF Engine Plan
 
+> Status note (2026-07-26): the standalone engine now implements a substantial
+> portion of this design. This file remains the detailed requirements and
+> benchmark appendix; the authoritative remaining work is in the
+> [Mike-Canada master plan](mike-canada-master-plan.md).
+
 ## Purpose
 
 Build a small, reusable engine that converts legal PDFs into stable text and

@@ -3,6 +3,8 @@ import {
     CLAUDE_MAIN_MODELS,
     GEMINI_MAIN_MODELS,
     OPENAI_MAIN_MODELS,
+    DEEPSEEK_MAIN_MODELS,
+    META_MAIN_MODELS,
     CLAUDE_MID_MODELS,
     GEMINI_MID_MODELS,
     OPENAI_MID_MODELS,
@@ -36,6 +38,18 @@ describe("providerForModel", () => {
     it("maps gpt-* ids to the openai provider", () => {
         for (const model of [...OPENAI_MAIN_MODELS, ...OPENAI_MID_MODELS, ...OPENAI_LOW_MODELS]) {
             expect(providerForModel(model)).toBe("openai");
+        }
+    });
+
+    it("maps current DeepSeek V4 ids to the deepseek provider", () => {
+        for (const model of DEEPSEEK_MAIN_MODELS) {
+            expect(providerForModel(model)).toBe("deepseek");
+        }
+    });
+
+    it("maps Meta Muse Spark to the OpenRouter provider", () => {
+        for (const model of META_MAIN_MODELS) {
+            expect(providerForModel(model)).toBe("openrouter");
         }
     });
 
@@ -91,6 +105,8 @@ describe("resolveModel", () => {
             ...CLAUDE_LOW_MODELS,
             ...GEMINI_LOW_MODELS,
             ...OPENAI_LOW_MODELS,
+            ...DEEPSEEK_MAIN_MODELS,
+            ...META_MAIN_MODELS,
         ];
         for (const model of catalog) {
             expect(resolveModel(model, "fallback-model")).toBe(model);

@@ -88,7 +88,8 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
     const provider =
       c.provider === "tna" ||
       c.provider === "govuk-et" ||
-      c.provider === "govinfo"
+      c.provider === "govinfo" ||
+      c.provider === "journal"
         ? c.provider
         : null;
     const identifier =

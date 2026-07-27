@@ -33,18 +33,33 @@ function codexCommand() {
   );
 }
 
-function normalizeCatalog(value: unknown): CodexModelCatalog {
+function normalizedDisplayName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function preferCatalogModel(
+  candidate: CodexCatalogModel,
+  current: CodexCatalogModel,
+) {
+  return candidate.slug.startsWith("gpt-") && !current.slug.startsWith("gpt-");
+}
+
+export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
   const rawModels =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as { models?: unknown }).models
       : null;
   const models: CodexCatalogModel[] = [];
-  const seen = new Set<string>();
+  const slugIndexes = new Map<string, number>();
+  const displayIndexes = new Map<string, number>();
   for (const raw of Array.isArray(rawModels) ? rawModels : []) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
     const row = raw as Record<string, unknown>;
-    const slug = typeof row.slug === "string" ? row.slug.trim() : "";
-    if (!slug || seen.has(slug)) continue;
+    const slug =
+      typeof row.slug === "string"
+        ? row.slug.trim().replace(/^codex:/i, "").toLowerCase()
+        : "";
+    if (!slug || slugIndexes.has(slug)) continue;
     const levels = Array.isArray(row.supported_reasoning_levels)
       ? row.supported_reasoning_levels
           .map((level) => {
@@ -64,8 +79,7 @@ function normalizeCatalog(value: unknown): CodexModelCatalog {
           })
           .filter((level): level is CodexReasoningLevel => !!level)
       : [];
-    seen.add(slug);
-    models.push({
+    const model: CodexCatalogModel = {
       slug,
       displayName:
         typeof row.display_name === "string" && row.display_name.trim()
@@ -84,7 +98,21 @@ function normalizeCatalog(value: unknown): CodexModelCatalog {
       ...(typeof row.supported_in_api === "boolean"
         ? { supportedInApi: row.supported_in_api }
         : {}),
-    });
+    };
+    const displayKey = normalizedDisplayName(model.displayName);
+    const displayIndex = displayIndexes.get(displayKey);
+    if (displayIndex !== undefined) {
+      const current = models[displayIndex];
+      if (!preferCatalogModel(model, current)) continue;
+      slugIndexes.delete(current.slug);
+      models[displayIndex] = model;
+      slugIndexes.set(slug, displayIndex);
+      continue;
+    }
+    const nextIndex = models.length;
+    models.push(model);
+    slugIndexes.set(slug, nextIndex);
+    displayIndexes.set(displayKey, nextIndex);
   }
   return { models, source: "live" };
 }
@@ -123,7 +151,9 @@ async function runCatalog(args: string[]): Promise<CodexModelCatalog> {
   if (start < 0 || end <= start) {
     throw new Error("Codex model catalog returned invalid JSON.");
   }
-  return normalizeCatalog(JSON.parse(result.stdout.slice(start, end + 1)));
+  return normalizeCodexCatalog(
+    JSON.parse(result.stdout.slice(start, end + 1)),
+  );
 }
 
 export async function getCodexModelCatalog(): Promise<CodexModelCatalog> {

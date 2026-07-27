@@ -12,9 +12,12 @@ import {
     useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, Wrench } from "lucide-react";
 import { DocTable } from "@/app/components/documents/DocTable";
-import type { DocTableFolder } from "@/app/components/documents/DocTable";
+import type {
+    DocTableFolder,
+    DocTableSelectionActions,
+} from "@/app/components/documents/DocTable";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
@@ -30,6 +33,7 @@ import {
     type LibraryKind,
 } from "@/app/lib/mikeApi";
 import type { Document } from "@/app/components/shared/types";
+import { DocumentActionsPanel } from "./DocumentActionsPanel";
 
 type LibraryViewCollection = {
     documents: Document[];
@@ -55,10 +59,11 @@ type LibraryWorkspaceContextValue = {
     ) => void;
 };
 
-const LIBRARY_TABS: { id: LibraryKind; label: string }[] = [
+export const LIBRARY_TABS = [
     { id: "files", label: "Files" },
     { id: "templates", label: "Templates" },
-];
+    { id: "legal", label: "Cases & Legislation" },
+] as const;
 
 const EMPTY_COLLECTION: LibraryViewCollection = {
     documents: [],
@@ -241,8 +246,15 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     const [createFolderAction, setCreateFolderAction] = useState<
         (() => void) | null
     >(null);
+    const [selectionActions, setSelectionActions] =
+        useState<DocTableSelectionActions | null>(null);
+    const [documentActionsOpen, setDocumentActionsOpen] = useState(false);
     const loading = !collection || loadingByKind[kind];
     const addCollectionLabel = kind === "templates" ? "Templates" : "Files";
+    const selectedDocument =
+        selectionActions?.selectedDocuments.length === 1
+            ? selectionActions.selectedDocuments[0]
+            : null;
 
     const handleAddDocumentsActionChange = useCallback(
         (action: (() => void) | null) => {
@@ -279,6 +291,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     );
 
     return (
+        <>
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
                 breadcrumbs={[{ label: "Library" }, { label: title }]}
@@ -316,19 +329,41 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                 <TableToolbar
                     items={LIBRARY_TABS}
                     active={kind}
-                    onChange={(next) =>
+                    onChange={(next) => {
                         router.push(
-                            next === "files" ? "/library" : "/library/templates",
-                        )
-                    }
+                            next === "files"
+                                ? "/library"
+                                : `/library/${next}`,
+                        );
+                    }}
                     actions={
-                        <TabPillButton
-                            onClick={createFolderAction ?? undefined}
-                            disabled={!createFolderAction || loading}
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Folder</span>
-                        </TabPillButton>
+                        <div className="flex items-center gap-1.5">
+                            {kind === "files" && (
+                                <TabPillButton
+                                    onClick={() =>
+                                        setDocumentActionsOpen(true)
+                                    }
+                                    disabled={!selectedDocument || loading}
+                                    title={
+                                        selectedDocument
+                                            ? `Actions for ${selectedDocument.filename}`
+                                            : "Select one document to inspect structure or run an action"
+                                    }
+                                >
+                                    <Wrench className="h-3.5 w-3.5" />
+                                    <span className="hidden sm:inline">
+                                        Document actions
+                                    </span>
+                                </TabPillButton>
+                            )}
+                            <TabPillButton
+                                onClick={createFolderAction ?? undefined}
+                                disabled={!createFolderAction || loading}
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Folder</span>
+                            </TabPillButton>
+                        </div>
                     }
                 />
                 <DocTable
@@ -344,6 +379,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                     onCreateFolderActionChange={
                         handleCreateFolderActionChange
                     }
+                    onSelectionActionsChange={setSelectionActions}
                     enableHeaderFilters
                     emptyDropLabel={
                         kind === "templates"
@@ -353,5 +389,14 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                 />
             </div>
         </div>
+        {kind === "files" && (
+            <DocumentActionsPanel
+                open={documentActionsOpen}
+                onClose={() => setDocumentActionsOpen(false)}
+                document={selectedDocument}
+                onDocumentChanged={() => loadLibrary(kind)}
+            />
+        )}
+        </>
     );
 }

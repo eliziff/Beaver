@@ -4,38 +4,25 @@ import { Providers } from "@/app/components/providers";
 
 export const metadata: Metadata = {
     metadataBase: new URL("https://app.mikeoss.com"),
-    title: "Mike - AI Legal Platform",
+    title: "Mike-Canada - AI Legal Platform",
     description:
         "AI-powered legal document analysis and contract review platform.",
     icons: {
-        icon: [
-            { url: "/icon.svg", type: "image/svg+xml" },
-            { url: "/favicon.ico" },
-        ],
-        apple: "/apple-touch-icon.png",
+        icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     },
     openGraph: {
         type: "website",
         url: "https://app.mikeoss.com",
-        siteName: "Mike",
-        title: "Mike - AI Legal Platform",
+        siteName: "Mike-Canada",
+        title: "Mike-Canada - AI Legal Platform",
         description:
             "AI-powered legal document analysis and contract review platform.",
-        images: [
-            {
-                url: "/link-image.jpg",
-                width: 1200,
-                height: 651,
-                alt: "Mike",
-            },
-        ],
     },
     twitter: {
-        card: "summary_large_image",
-        title: "Mike - AI Legal Platform",
+        card: "summary",
+        title: "Mike-Canada - AI Legal Platform",
         description:
             "AI-powered legal document analysis and contract review platform.",
-        images: ["/link-image.jpg"],
     },
 };
 

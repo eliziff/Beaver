@@ -29,6 +29,7 @@ import {
   contentTypeForDocumentType,
   shouldConvertToPdf,
 } from "../lib/documentTypes";
+import { imageValidationError } from "../lib/llm/images";
 
 export const documentsRouter = Router();
 const isDev = process.env.NODE_ENV !== "production";
@@ -610,6 +611,8 @@ documentsRouter.post(
         detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
       });
     }
+    const imageError = imageValidationError(file.originalname, file.buffer);
+    if (imageError) return void res.status(400).json({ detail: imageError });
 
     // Peg the new version into a predictable /versions/:id path under the
     // existing document folder so ops can spot the history in storage.
@@ -822,6 +825,8 @@ documentsRouter.put(
         detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
       });
     }
+    const imageError = imageValidationError(file.originalname, file.buffer);
+    if (imageError) return void res.status(400).json({ detail: imageError });
     if (target.file_type && target.file_type !== suffix) {
       return void res.status(400).json({
         detail: `Uploaded file type (${suffix}) does not match version type (${target.file_type}).`,
@@ -1314,6 +1319,8 @@ export async function handleDocumentUpload(
       .json({
         detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
       });
+  const imageError = imageValidationError(filename, file.buffer);
+  if (imageError) return void res.status(400).json({ detail: imageError });
 
   const content = file.buffer;
   const { data: doc, error: insertErr } = await db

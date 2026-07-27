@@ -1,0 +1,1912 @@
+{
+  "schema_version": "mike.metric-gold-contract.v1",
+  "audited_at": "2026-07-26",
+  "scope": [
+    "benchmarks/docx_corpus",
+    "universal-legal-pdf-engine benchmark and scorers",
+    "TableOfAuthoritiesMaker benchmark-facing outputs",
+    "ALR-Quote-Verifier dev benchmark infrastructure",
+    "docs/docx-* benchmark reports",
+    "private aggregate manifests and results (structure and hashes only)"
+  ],
+  "reporting_policy": {
+    "dispositions": [
+      "VALID_CASESET_ACCURACY",
+      "VALID_REFERENCE_AGREEMENT",
+      "VALID_INVARIANT",
+      "DESCRIPTIVE_ONLY",
+      "NOT_SCOREABLE"
+    ],
+    "claim_types": [
+      "accuracy",
+      "case_set_accuracy",
+      "reference_agreement",
+      "invariant",
+      "descriptive"
+    ],
+    "rules": [
+      "An aggregate may claim accuracy only when its metric disposition is VALID_CASESET_ACCURACY and every required validation is evidenced.",
+      "Case-set accuracy must be labelled case-set; population or universal accuracy additionally requires a frozen representative sampling design.",
+      "Reference agreement is not accuracy and must name the reference extractor or source.",
+      "NOT_SCOREABLE metrics may be emitted as diagnostics only with the literal label NOT SCOREABLE.",
+      "Unknown, agent, auto, provisional, needs_review, rejected, and blank statuses are never silently admitted as human gold.",
+      "A score set must contain one row per normalized-content fingerprint and one least-edited upstream pstream per work family.",
+      "Gold, scorer, corpus manifest, and prediction artifacts must be content-addressed in every report."
+    ],
+    "required_aggregate_evidence_fields": [
+      "gold_sha256",
+      "scorer_sha256",
+      "corpus_manifest_sha256",
+      "admissible_statuses",
+      "duplicate_fingerprint_count",
+      "derivative_family_collision_count",
+      "pstream_policy",
+      "sampling_design"
+    ]
+  },
+  "evidence": {
+    "workspace_head": "1da1a1bd4fb0c94c5fc11bfefb7d403a800aaa27",
+    "alr_head": "3d6bc5d73ed110ac6a9e7d0a9c8da7d734fbbd34",
+    "text_fidelity_head": "d8b25257687b3b9aad644dec42cca966b45675ff",
+    "scorers": {
+      "mike_docx_corpus": "sha256:b240f6650e1149f90d4b1aa871b261d59c8cd2b72d7b1bd17d685e314d83dc6e",
+      "mike_docx_staging": "sha256:5df8fb59d651eef07cfb14583ff07884837e06b069ff755db64c37333873e501",
+      "legalpdf_benchmark": "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9",
+      "legalpdf_docx_linking": "sha256:85706cf5a84e22166c4d6697bd29e69cdeaf0bd06123129b5857219ac0a86c44",
+      "legalpdf_legacy_alr_splitter": "sha256:c0ed32b2fc5ac221e2ac3ad1b5a624df4313532a6e7d63ac231e1ffddac48cfc",
+      "alr_fast_splitter": "sha256:585e5463d205ddc2328081c71b8f9099103acaac424fc88365c497db488f99bb",
+      "alr_deterministic_splitter": "sha256:efaf0987ae17bbc5745bfbc70a1d7c2e8ab7fb08d1d3364484b5d10a2931e5b5",
+      "alr_deterministic_smoke": "sha256:dc7ee75b68e6d9ffb991efe1bf8c3502bd089873584d0f7dd8ee0509389452a9",
+      "alr_live_hybrid": "sha256:297a0e8eaf45072107cae2203da6419b9991006dd19c6ce9f7b4fc1fc5e973ef",
+      "alr_high_accuracy_hybrid": "sha256:872db8a5ca34571167836f1bb61e27db070f0346db55643e604487768af72d9c",
+      "alr_supra": "sha256:6734d05b6a4477bba394ef57886efc813e7a3aae060cafdf003a4d66f5ce3e6f",
+      "alr_link_truth": "sha256:42edb5526b9b69c53fce23005c1a061eef1348ee49bc3aae03f35b56ef658d87",
+      "toa_maker": "sha256:2e4df1356ce2cfd3e481a860a5124b8c8ec2c6a496d8ca10760fdd53fa7eaf52"
+    },
+    "gold_sources": {
+      "mike_private_manifest": {
+        "sha256_json": "fd341b63304e20d57927ea7d6cf77adb262ef86e93a65d23519e6ff2a2dd9f9d",
+        "sha256_jsonl": "c2434a2b84e407385a8f5057612b40cb6aaaa7f2da9137471cb4d3165d3ae963",
+        "rows": 24,
+        "finding": "Byte-unique, but no enforced work-family, derivative, or pstream identity."
+      },
+      "mike_split_review": {
+        "sha256": "ae799314f3910c9f8a515734c29a9b9c9c4c2a28a86abd5857af2a62be7552a9",
+        "rows": 80,
+        "statuses": {
+          "provisional": 80
+        },
+        "finding": "No admissible accepted human gold rows."
+      },
+      "alr_fast_split_manual_gold": {
+        "sha256": "95e8b9b9175499318d3b3a9f8329b5927e8cc8f9730045bd6d92ccb0bdf446c0",
+        "rows": 423,
+        "statuses": {
+          "accepted": 405,
+          "needs_review": 18
+        },
+        "normalized_text_duplicate_rows": 25,
+        "finding": "Human review product, but current aggregate is failure-selected, duplicate-weighted, and the loader does not enforce human provenance."
+      },
+      "alr_supra_candidates": {
+        "sha256": "3e30d7886b3a4c6865e8b9a94bfddf32f860090eb501b7915f10f7989d02ea5f",
+        "rows": 1690,
+        "statuses": {
+          "auto": 671,
+          "agent": 116,
+          "needs_review": 903
+        },
+        "normalized_text_duplicate_rows": 513,
+        "finding": "Derived from production/frozen outputs; not independent human target or pinpoint gold."
+      },
+      "alr_field_provisional": {
+        "sha256": "4a0414f5cf79939d70a533c121376da19ed7a8b4a380a8902639fa15689e7145",
+        "rows": 423,
+        "finding": "Provisional and inherited auto/agent fields; not accepted per-field gold."
+      },
+      "legalpdf_docx_linking_synthetic": {
+        "sha256": "5b593d919382c4ff802cf93a3c502a26e647ab8411cd2fa8b847124d9936d0dd",
+        "rows": 12,
+        "finding": "Hand-authored synthetic contract fixture; the implementation was tuned after a failure on this same fixture."
+      },
+      "legalpdf_docx_reference_pilot": {
+        "manifest_sha256": "c55cfa0913db8c4fa7a1a818ae63644d09800c36c726c92391b7d3f8c5bd0a77",
+        "results_sha256": "c2ae88b1bae245247e3ffa327519f11da46889937e4c6660c0a94bb551356d84",
+        "sources": 6,
+        "profiles_per_source": 4,
+        "finding": "DOCX-extractor silver reference; no manually adjudicated rendered-PDF regions."
+      },
+      "locked_footnote_pairing_set": {
+        "summary_sha256": "090502917cf95b6ec070e13605f348f51a745dc2f8f960b0ebe51463b1356c18",
+        "lock_summary_sha256": "b5cf49e9015f8291d74f9d7628a931c61a1d78886bbbdc0fda1da9bdb7a41ac0",
+        "markers_sha256": "239fe18400815ddae3aad1e50b270ee85b9d29b2511aed0e830889a51059c450",
+        "pairs_sha256": "ddeb0394211dc74799e5f1d1b84eee8ab5af167f700a82b93987045d6c7db436",
+        "pages_sha256": "2812e2be6e1d4b5efd4ff704115aeec84b45becc891b96feea2a23561288b28c",
+        "sqlite_sha256": "f6053e2930b97949d7cabca71ae343cadacaf875755de2cd7ff184b064099dda",
+        "validation_issues_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "articles": 113,
+        "pages": 1458,
+        "pairs": 4863,
+        "selection_design": "hard_examples_first",
+        "finding": "Internally locked with zero validation issues, but most markers originate in canonical automatic pages; only provenance-confirmed manual pages can support human case-set claims."
+      },
+      "ordered_region_manual_bundle": {
+        "expected_location": "Text-Fidelity-Project/tools/footnotes/output/manual_gold_bundles/train1_footnote_ordered_gold_v1_20260629_01",
+        "finding": "Missing locally at audit time."
+      }
+    }
+  },
+  "contracts": [
+    {
+      "id": "docx_corpus_identity_and_staging",
+      "state": "emitted",
+      "metric_paths": {
+        "docx_corpus.manifest.input_documents": {
+          "definition": "Number of candidate DOCX paths considered before exclusions.",
+          "unit": "documents"
+        },
+        "docx_corpus.manifest.unique_documents": {
+          "definition": "Number of staged documents after exact file-byte SHA-256 deduplication.",
+          "unit": "documents"
+        },
+        "docx_corpus.manifest.duplicate_aliases": {
+          "definition": "Number of candidate paths whose file-byte SHA-256 duplicates a staged file.",
+          "unit": "paths"
+        },
+        "docx_corpus.manifest.skipped_candidates": {
+          "definition": "Number of candidate paths excluded by configured selection or path rules.",
+          "unit": "paths"
+        },
+        "docx_corpus.manifest.derivative_pruned": {
+          "definition": "Number of paths rejected by filename-token derivative heuristics.",
+          "unit": "paths"
+        },
+        "docx_corpus.manifest.feature_coverage.*": {
+          "definition": "Number of staged documents with a positive static feature count for the named feature.",
+          "unit": "documents"
+        }
+      },
+      "gold_authority": "mike_private_manifest",
+      "gold_creation": "Manual upstream selection plus exact-byte deduplication and filename-token pruning.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:fd341b63304e20d57927ea7d6cf77adb262ef86e93a65d23519e6ff2a2dd9f9d",
+        "sha256:5df8fb59d651eef07cfb14583ff07884837e06b069ff755db64c37333873e501"
+      ],
+      "independence_and_leakage": "No correctness gold is involved. Byte deduplication misses renamed/edited derivatives and same-work versions; filename rules are neither semantic nor exhaustive.",
+      "scorer": "scripts/stage_docx_benchmark_corpus.py",
+      "failure_semantics": "A clean count proves only byte uniqueness under the scanned paths; it does not prove one work, one pstream, or least-edited provenance.",
+      "uncertainty": "No inferential uncertainty is defined.",
+      "interpretation": "Corpus audit descriptor.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "descriptive corpus identity",
+      "required_validation": [
+        "Add immutable work_family_id, pstream_id, source_repository, source_revision, edition_role, and selection_reason.",
+        "Require exactly one row per work_family_id and pstream_id.",
+        "Require edition_role=least_edited_upstream and reject chief, galley, camera-ready, annotated, clean-copy, returned, revised, and derived products.",
+        "Reject both byte duplicates and normalized-content duplicates before scoring."
+      ]
+    },
+    {
+      "id": "docx_corpus_scan",
+      "state": "emitted",
+      "metric_paths": {
+        "docx_corpus.scan.documents": {
+          "definition": "Number of distinct resolved manifest paths processed.",
+          "unit": "documents"
+        },
+        "docx_corpus.scan.documents_parsed": {
+          "definition": "Count of document results with an empty error field.",
+          "unit": "documents"
+        },
+        "docx_corpus.scan.document_errors": {
+          "definition": "Count of document results with a non-empty error field.",
+          "unit": "documents"
+        },
+        "docx_corpus.scan.document_feature_counts.*": {
+          "definition": "Number of manifest documents whose named integer feature is greater than zero; not the number of feature occurrences.",
+          "unit": "documents"
+        },
+        "docx_corpus.scan.footnotes": {
+          "definition": "Number of extracted DOCX footnote cases.",
+          "unit": "footnote cases"
+        },
+        "docx_corpus.scan.unique_footnote_texts": {
+          "definition": "Number of unique SHA-256 fingerprints of whitespace-normalized, case-folded footnote text.",
+          "unit": "unique texts"
+        },
+        "docx_corpus.scan.citations_detected": {
+          "definition": "Sum of citation regex detections over parsed documents.",
+          "unit": "detections"
+        },
+        "docx_corpus.scan.conservative_complete": {
+          "definition": "Number of conservative deterministic predictions with status complete.",
+          "unit": "cases"
+        },
+        "docx_corpus.scan.conservative_coverage": {
+          "definition": "conservative_complete divided by max(1, extracted footnote cases).",
+          "unit": "proportion"
+        },
+        "docx_corpus.scan.conservative_character_failures": {
+          "definition": "Complete conservative predictions whose normalized source core differs from the joined output core; core removes whitespace and semicolons.",
+          "unit": "cases"
+        },
+        "docx_corpus.scan.recall_first_complete": {
+          "definition": "Number of recall-first deterministic predictions with status complete.",
+          "unit": "cases"
+        },
+        "docx_corpus.scan.recall_first_character_failures": {
+          "definition": "Complete recall-first predictions whose normalized source core differs from the joined output core.",
+          "unit": "cases"
+        },
+        "docx_corpus.scan.conservative_reason_counts.*": {
+          "definition": "Frequency of each conservative abstention or decision reason emitted by the deterministic splitter.",
+          "unit": "reason occurrences"
+        },
+        "docx_corpus.scan.elapsed_seconds": {
+          "definition": "Wall-clock duration of the scan call.",
+          "unit": "seconds"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Direct measurement of parser and splitter outputs.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:b240f6650e1149f90d4b1aa871b261d59c8cd2b72d7b1bd17d685e314d83dc6e"
+      ],
+      "independence_and_leakage": "The parser/splitter produces the values being counted. Character neutrality uses a deliberately lossy core and is not semantic correctness.",
+      "scorer": "benchmarks/docx_corpus/benchmark.py scan",
+      "failure_semantics": "Parse errors and character-core differences are failures of the stated invariant; all other counts are observations, not correctness.",
+      "uncertainty": "Elapsed time is a single wall-clock observation; counts are exact for the frozen manifest.",
+      "interpretation": "Operational and corpus diagnostics.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "descriptive scan",
+      "required_validation": [
+        "Verify manifest hash and zero parse errors.",
+        "Report unique text count alongside case count.",
+        "Do not rename coverage or character neutrality as accuracy."
+      ]
+    },
+    {
+      "id": "mike_docx_split_gold_score",
+      "state": "emitted_but_current_gold_empty",
+      "metric_paths": {
+        "docx_corpus.score.accepted_cases": {
+          "definition": "Number of gold rows whose status case-folds exactly to accepted.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.cases": {
+          "definition": "Number of admitted gold rows in the arm denominator.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.attempted": {
+          "definition": "Count with prediction status complete and at least one non-empty normalized part.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.coverage": {
+          "definition": "attempted divided by max(1, cases).",
+          "unit": "proportion"
+        },
+        "docx_corpus.score.arm.strict_exact": {
+          "definition": "Count whose actual parts equal the canonical partition after normalization and whose joined core is character-neutral.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.strict_exact_accuracy": {
+          "definition": "strict_exact divided by max(1, cases).",
+          "unit": "proportion"
+        },
+        "docx_corpus.score.arm.tolerant_exact": {
+          "definition": "Count whose character-neutral actual parts equal any accepted partition after normalization.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.tolerant_exact_accuracy": {
+          "definition": "tolerant_exact divided by max(1, cases).",
+          "unit": "proportion"
+        },
+        "docx_corpus.score.arm.tolerant_precision_when_attempted": {
+          "definition": "tolerant_exact divided by max(1, attempted).",
+          "unit": "proportion"
+        },
+        "docx_corpus.score.arm.outcomes.abstain": {
+          "definition": "Count with no complete, non-empty prediction.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.character_drift": {
+          "definition": "Count attempted where normalized source core differs from joined output core.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.exact": {
+          "definition": "Count matching the canonical accepted partition with character neutrality.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.acceptable_alternative": {
+          "definition": "Count matching a non-canonical accepted partition with character neutrality.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.under_split": {
+          "definition": "Character-neutral attempted count whose part count is below every accepted partition count.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.over_split": {
+          "definition": "Character-neutral attempted count whose part count exceeds every accepted partition count.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.outcomes.boundary_mismatch": {
+          "definition": "Remaining character-neutral attempted count that matches no accepted partition.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.arm.by_tag.*": {
+          "definition": "The same case, attempt, exact, and outcome counts stratified by case tag; a case can contribute to multiple tags.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "mike_split_review",
+      "gold_creation": "Balanced challenge sampling from unique normalized footnote texts; rows require later human partition adjudication.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "sha256:ae799314f3910c9f8a515734c29a9b9c9c4c2a28a86abd5857af2a62be7552a9",
+        "sha256:b240f6650e1149f90d4b1aa871b261d59c8cd2b72d7b1bd17d685e314d83dc6e"
+      ],
+      "independence_and_leakage": "All 80 current rows are provisional and have empty expected partitions. The scorer now enforces human provenance, content uniqueness, one least-edited upstream pstream, and exact prediction coverage, but no current row satisfies the semantic-gold contract.",
+      "scorer": "benchmarks/docx_corpus/benchmark.py score",
+      "failure_semantics": "The scorer correctly refuses a file with zero accepted rows. Missing prediction rows become abstentions.",
+      "uncertainty": "No interval or population inference is valid for the balanced challenge design.",
+      "interpretation": "No current score exists.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Independently adjudicate canonical and acceptable partitions.",
+        "Store reviewer identity class, adjudication timestamp, guideline version, and provenance evidence separate from model output.",
+        "Enforce exact accepted status plus required human provenance.",
+        "Freeze one normalized-content fingerprint per case and one least-edited upstream pstream per work family.",
+        "Require exact gold/prediction ID bijection and non-empty expected parts."
+      ]
+    },
+    {
+      "id": "mike_docx_split_inference",
+      "state": "emitted",
+      "metric_paths": {
+        "docx_corpus.score.arm.strict_exact_95ci": {
+          "definition": "Wilson 95% interval for strict exact successes over cases, emitted only when sampling_design is exactly representative.",
+          "unit": "proportion interval"
+        },
+        "docx_corpus.score.arm.tolerant_exact_95ci": {
+          "definition": "Wilson 95% interval for tolerant exact successes over cases, emitted only when sampling_design is exactly representative.",
+          "unit": "proportion interval"
+        },
+        "docx_corpus.score.comparison.tolerant_wins": {
+          "definition": "Paired cases where an arm is tolerant-exact and the baseline is not.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.comparison.tolerant_losses": {
+          "definition": "Paired cases where the baseline is tolerant-exact and an arm is not.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.comparison.paired_sign_test_p": {
+          "definition": "Two-sided exact sign-test p-value over non-tied tolerant wins and losses, only for representative sampling.",
+          "unit": "probability"
+        },
+        "docx_corpus.score.comparison.tolerant_accuracy_delta": {
+          "definition": "Arm tolerant_exact_accuracy minus baseline tolerant_exact_accuracy on the same admitted cases.",
+          "unit": "proportion points"
+        },
+        "docx_corpus.score.comparison.under_split_delta": {
+          "definition": "Arm under-split count minus baseline under-split count.",
+          "unit": "cases"
+        },
+        "docx_corpus.score.comparison.character_drift_delta": {
+          "definition": "Arm character-drift count minus baseline character-drift count.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "mike_split_review",
+      "gold_creation": "Same as mike_docx_split_gold_score.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "sha256:b240f6650e1149f90d4b1aa871b261d59c8cd2b72d7b1bd17d685e314d83dc6e"
+      ],
+      "independence_and_leakage": "The current challenge sample is deliberately balanced, not representative, and has no accepted rows.",
+      "scorer": "benchmarks/docx_corpus/benchmark.py score",
+      "failure_semantics": "The current scorer nulls intervals and p-values for non-representative designs; deltas remain descriptive.",
+      "uncertainty": "Not estimable for the current gold.",
+      "interpretation": "No inferential claim is available.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Freeze an independently drawn representative sample and inclusion probabilities.",
+        "Complete all gold requirements in mike_docx_split_gold_score.",
+        "Pre-register primary endpoint and comparison before evaluating arms."
+      ]
+    },
+    {
+      "id": "alr_partition_case_set",
+      "state": "emitted_but_current_aggregate_noncompliant",
+      "metric_paths": {
+        "alr.fast_split.total_cases": {
+          "definition": "Number of admitted gold rows evaluated.",
+          "unit": "cases"
+        },
+        "alr.fast_split.exact_count": {
+          "definition": "Count whose normalized output parts equal the canonical expected partition.",
+          "unit": "cases"
+        },
+        "alr.fast_split.strict_exact_accuracy": {
+          "definition": "Canonical exact count divided by admitted cases.",
+          "unit": "proportion"
+        },
+        "alr.fast_split.tolerant_exact_count": {
+          "definition": "Count matching the canonical or an explicitly accepted alternative partition with core character loss/gain neutrality.",
+          "unit": "cases"
+        },
+        "alr.fast_split.tolerant_exact_accuracy": {
+          "definition": "Tolerant exact count divided by admitted cases.",
+          "unit": "proportion"
+        },
+        "alr.fast_split.under_split_count": {
+          "definition": "Count with fewer actual parts than the canonical expected partition.",
+          "unit": "cases"
+        },
+        "alr.fast_split.over_split_count": {
+          "definition": "Count with more actual parts than the canonical expected partition.",
+          "unit": "cases"
+        },
+        "alr.fast_split.boundary_mismatch_count": {
+          "definition": "Count with canonical part count but no exact accepted partition match.",
+          "unit": "cases"
+        },
+        "alr.fast_split.core_char_exact": {
+          "definition": "Count whose normalized joined output core exactly equals the normalized source core in order.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "alr_fast_split_manual_gold",
+      "gold_creation": "A human corrected split/join boundaries in an application-style review artifact; character-changing rows were routed to needs_review.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "sha256:95e8b9b9175499318d3b3a9f8329b5927e8cc8f9730045bd6d92ccb0bdf446c0",
+        "sha256:585e5463d205ddc2328081c71b8f9099103acaac424fc88365c497db488f99bb"
+      ],
+      "independence_and_leakage": "The current loader excludes only needs_review/provisional, so unknown statuses can enter. Accepted does not enforce human provenance. Twenty-five normalized-text duplicate rows alter weighting, and cases were failure-mined.",
+      "scorer": "ALR-Quote-Verifier/dev/benchtools/benchmark_fast_splitter.py",
+      "failure_semantics": "Exact/boundary outcomes are meaningful only after strict status, provenance, content deduplication, and one-pstream validation.",
+      "uncertainty": "No population inference: the case set is failure-selected.",
+      "interpretation": "Potential case-set partition accuracy; current aggregate is not compliant.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Reject every status except exact accepted.",
+        "Require human adjudicator provenance and guideline version.",
+        "Deduplicate normalized text fingerprints before scoring.",
+        "Enforce one least-edited upstream pstream per work family.",
+        "Independently re-review a stratified sample and publish disagreement/adjudication counts.",
+        "Use min/max accepted partition sizes for under/over, not canonical size alone."
+      ]
+    },
+    {
+      "id": "alr_partition_diagnostics",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.fast_split.fuzzy_accuracy": {
+          "definition": "Mean of the best per-position SequenceMatcher ratios against accepted partitions, comparing absent positions with empty strings.",
+          "unit": "mean similarity"
+        },
+        "alr.fast_split.char_neutral_accuracy": {
+          "definition": "Fraction whose normalized joined output has the same character length as the normalized source; content need not match.",
+          "unit": "proportion"
+        },
+        "alr.fast_split.core_loss_gain_neutral": {
+          "definition": "Fraction whose normalized source and output cores have equal character multisets; order is ignored.",
+          "unit": "proportion"
+        },
+        "alr.fast_split.nonempty_field_rates.*": {
+          "definition": "Fraction of output objects where the named field is populated with the expected broad type.",
+          "unit": "proportion"
+        },
+        "alr.fast_split.mean_latency_seconds": {
+          "definition": "Arithmetic mean of per-case elapsed wall time in one benchmark run.",
+          "unit": "seconds per case"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Computed from output shape, string similarity, or timing.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:585e5463d205ddc2328081c71b8f9099103acaac424fc88365c497db488f99bb"
+      ],
+      "independence_and_leakage": "SequenceMatcher is not an adjudicated correctness rule; field presence is not field correctness; length or multiset equality is not exact preservation.",
+      "scorer": "ALR-Quote-Verifier/dev/benchtools/benchmark_fast_splitter.py",
+      "failure_semantics": "Only the literal shape/similarity/invariant is measured.",
+      "uncertainty": "No intervals; latency is not repeated or environment-normalized.",
+      "interpretation": "Diagnostics only.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "descriptive diagnostic",
+      "required_validation": [
+        "Rename char_neutral_accuracy to equal_normalized_length_rate.",
+        "Rename core_loss_gain_neutral to equal_core_character_multiset_rate.",
+        "Do not call field presence or SequenceMatcher similarity accuracy."
+      ]
+    },
+    {
+      "id": "alr_frozen_production_comparisons",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.deterministic.field_agreement_with_current_production.*": {
+          "definition": "Agreement of deterministic output fields with a frozen production/model output on aligned replacement-eligible cases.",
+          "unit": "proportion"
+        },
+        "alr.deterministic.weighted_loss": {
+          "definition": "Configured utility score: 10 times under-splits plus 3 times boundary mismatches plus over-splits.",
+          "unit": "utility-loss points"
+        },
+        "alr.replay.partition_agreement": {
+          "definition": "Exact or tolerant partition equality with frozen production output.",
+          "unit": "proportion"
+        },
+        "alr.replay.field_agreement.*": {
+          "definition": "Field equality with frozen production output.",
+          "unit": "proportion"
+        },
+        "alr.replay.call_savings": {
+          "definition": "Frozen model calls avoided by the replay policy under its eligibility assumptions.",
+          "unit": "calls"
+        },
+        "alr.replay.tokens_avoided.*": {
+          "definition": "Frozen token totals attributed to calls avoided by replay.",
+          "unit": "tokens"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Frozen production outputs are used as comparator, not adjudicated truth.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:efaf0987ae17bbc5745bfbc70a1d7c2e8ab7fb08d1d3364484b5d10a2931e5b5"
+      ],
+      "independence_and_leakage": "The comparator is the system being replaced; inherited errors count as agreement and improvements count as disagreement.",
+      "scorer": "ALR deterministic/reference/high-accuracy replay benchmark tools",
+      "failure_semantics": "Disagreement means only deviation from frozen behavior. Weighted loss is a chosen utility, not error probability.",
+      "uncertainty": "No population inference or live model variability is represented.",
+      "interpretation": "Compatibility and projected-cost descriptors.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "frozen-production agreement",
+      "required_validation": [
+        "Always name the frozen comparator hash.",
+        "Never label agreement, regression, weighted loss, or projected savings as correctness.",
+        "Use an independent gold arm for any accuracy comparison."
+      ]
+    },
+    {
+      "id": "legalpdf_docx_text_reference",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.text.characters": {
+          "definition": "Number of characters in normalized DOCX-reference paragraph text after footnote-marker removal.",
+          "unit": "characters"
+        },
+        "legalpdf.score.text.character_edits": {
+          "definition": "Edit distance from normalized DOCX-reference text to candidate text.",
+          "unit": "character edits"
+        },
+        "legalpdf.score.text.cer": {
+          "definition": "character_edits divided by max(1, reference character count).",
+          "unit": "edits per reference character"
+        },
+        "legalpdf.score.text.words": {
+          "definition": "Whitespace-token count in normalized DOCX-reference text.",
+          "unit": "words"
+        },
+        "legalpdf.score.text.word_edits": {
+          "definition": "Edit distance between DOCX-reference and candidate whitespace-token sequences.",
+          "unit": "word edits"
+        },
+        "legalpdf.score.text.wer": {
+          "definition": "word_edits divided by max(1, reference word count).",
+          "unit": "edits per reference word"
+        }
+      },
+      "gold_authority": "legalpdf_docx_reference_pilot",
+      "gold_creation": "Paragraph text is mechanically extracted from DOCX OOXML, then compared with text parsed from exported/degraded PDF.",
+      "admissible_statuses": [
+        "docx_reference"
+      ],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9",
+        "sha256:c55cfa0913db8c4fa7a1a818ae63644d09800c36c726c92391b7d3f8c5bd0a77"
+      ],
+      "independence_and_leakage": "The reference is independent of PDF OCR but is silver: DOCX extraction and normalization can omit rendered content and cannot adjudicate PDF-only layout.",
+      "scorer": "legalpdf.benchmark.score_docx_gold",
+      "failure_semantics": "Edits mean disagreement with normalized DOCX reference, not necessarily incorrect rendered-PDF recovery.",
+      "uncertainty": "Edit-distance backend can be rapidfuzz, python-Levenshtein, or an approximate difflib fallback and must be reported.",
+      "interpretation": "DOCX-reference agreement only.",
+      "disposition": "VALID_REFERENCE_AGREEMENT",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "DOCX-reference text agreement",
+      "required_validation": [
+        "Pin and report the edit-distance backend.",
+        "Validate DOCX extraction against rendered pages on an independently adjudicated subset before calling CER/WER accuracy.",
+        "Keep each source profile paired and do not treat four derivatives as four independent documents.",
+        "Use one least-edited upstream DOCX pstream per work family."
+      ]
+    },
+    {
+      "id": "legalpdf_paragraph_order",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.order.matched_paragraphs": {
+          "definition": "Count of DOCX paragraphs whose normalized first 12 words equal a candidate paragraph signature.",
+          "unit": "paragraphs"
+        },
+        "legalpdf.score.order.pairwise_order_accuracy": {
+          "definition": "Increasing candidate-position pairs divided by comparable pairs among signature-matched paragraphs.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.order.adjacent_order_recall": {
+          "definition": "Adjacent pairs in the matched list with increasing candidate positions divided by max(0, matched paragraphs minus one).",
+          "unit": "proportion"
+        },
+        "legalpdf.score.order.exact_position_accuracy": {
+          "definition": "Signature-matched paragraphs at the same zero-based index divided by matched paragraphs.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "legalpdf_docx_reference_pilot",
+      "gold_creation": "DOCX paragraph order is used as silver reference.",
+      "admissible_statuses": [
+        "docx_reference"
+      ],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Candidate signatures overwrite collisions; unmatched paragraphs are excluded from accuracy denominators; repeated or short paragraphs can map incorrectly.",
+      "scorer": "legalpdf.benchmark._order_metrics",
+      "failure_semantics": "A high value can coexist with missing, duplicated, or collision-overwritten paragraphs.",
+      "uncertainty": "No collision rate, unmatched penalty, or interval is reported.",
+      "interpretation": "The current order ratios are not valid accuracy metrics.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Replace signature dictionary matching with a one-to-one alignment that preserves duplicates.",
+        "Penalize unmatched gold and candidate paragraphs.",
+        "Freeze independently verified reading-order IDs and report match coverage.",
+        "Test collision, duplicate-paragraph, omission, and insertion cases."
+      ]
+    },
+    {
+      "id": "legalpdf_region_structure",
+      "state": "implemented_but_gold_missing",
+      "metric_paths": {
+        "legalpdf.score.structure.gold_lines": {
+          "definition": "Number of unique line IDs named by gold regions.",
+          "unit": "lines"
+        },
+        "legalpdf.score.structure.candidate_lines": {
+          "definition": "Number of candidate document lines keyed by line ID.",
+          "unit": "lines"
+        },
+        "legalpdf.score.structure.covered_lines": {
+          "definition": "Count of line IDs common to gold and candidate.",
+          "unit": "lines"
+        },
+        "legalpdf.score.structure.line_coverage": {
+          "definition": "covered_lines divided by gold_lines, or one when no gold lines exist.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.region_type_accuracy": {
+          "definition": "Correct region types on common line IDs divided by all gold line IDs.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.region_boundary_precision": {
+          "definition": "Exact common (page, type, ordered line-ID tuple) regions divided by candidate regions.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.region_boundary_recall": {
+          "definition": "Exact common regions divided by gold regions.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.region_boundary_f1": {
+          "definition": "Harmonic mean of exact region boundary precision and recall.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.pairwise_line_order_accuracy": {
+          "definition": "Correctly ordered pairs among candidate-observed gold line IDs divided by comparable observed pairs.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.structure.exact_line_position_accuracy": {
+          "definition": "Equal IDs at zipped gold and observed positions divided by gold ordered line IDs.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "ordered_region_manual_bundle",
+      "gold_creation": "Intended source is a frozen manual page-region and reading-order bundle; that bundle is absent.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "MISSING",
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Current DOCX-generated gold contains no regions. Pairwise order excludes missing lines; line IDs require a stable source-independent identity contract.",
+      "scorer": "legalpdf.benchmark._structure_metrics",
+      "failure_semantics": "No current region score can be produced from the audited pilot gold.",
+      "uncertainty": "Undefined until a sample design and gold exist.",
+      "interpretation": "Proposed metrics without auditable gold.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Create and content-address manual region/type/order gold from rendered pages.",
+        "Require two-pass adjudication for ambiguous region boundaries.",
+        "Define stable line identity independent of the candidate parser.",
+        "Penalize missing and extra lines in order metrics.",
+        "Verify the referenced bundle exists and has zero validation issues."
+      ]
+    },
+    {
+      "id": "legalpdf_footnote_docx_reference",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.footnotes.gold": {
+          "definition": "Number of unique DOCX-reference (enumerated label, occurrence) keys.",
+          "unit": "footnotes"
+        },
+        "legalpdf.score.footnotes.candidate": {
+          "definition": "Number of unique candidate (label, occurrence) keys.",
+          "unit": "footnotes"
+        },
+        "legalpdf.score.footnotes.matched": {
+          "definition": "Size of the intersection of DOCX-reference and candidate (label, occurrence) keys.",
+          "unit": "footnotes"
+        },
+        "legalpdf.score.footnotes.precision": {
+          "definition": "matched keys divided by candidate keys.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.footnotes.recall": {
+          "definition": "matched keys divided by gold keys.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.footnotes.f1": {
+          "definition": "Harmonic mean of key precision and recall.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.footnotes.mean_body_similarity": {
+          "definition": "Mean normalized SequenceMatcher ratio of body text over matched label/occurrence keys.",
+          "unit": "mean similarity"
+        }
+      },
+      "gold_authority": "legalpdf_docx_reference_pilot",
+      "gold_creation": "DOCX OOXML footnotes are enumerated by reference order; occurrence is fixed to one.",
+      "admissible_statuses": [
+        "docx_reference"
+      ],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Matching label/occurrence does not prove the correct marker-body pair; numbering is reconstructed, and body similarity has no adjudicated threshold.",
+      "scorer": "legalpdf.benchmark.score_docx_gold",
+      "failure_semantics": "These are agreement with reconstructed DOCX keys, not independently verified pairing accuracy.",
+      "uncertainty": "No intervals; similarity is heuristic.",
+      "interpretation": "DOCX-reference agreement only.",
+      "disposition": "VALID_REFERENCE_AGREEMENT",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "DOCX-reference footnote agreement",
+      "required_validation": [
+        "Use frozen marker and body IDs with an independently verified pairing relation for accuracy.",
+        "Test duplicate labels, repeated occurrence, missing markers, and swapped bodies.",
+        "Report key match and body correctness separately."
+      ]
+    },
+    {
+      "id": "legalpdf_proposition_reference",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.propositions.mean_sentence_similarity": {
+          "definition": "Mean normalized SequenceMatcher ratio between heuristic DOCX sentence-at-marker text and candidate sentence proposition over matched footnotes.",
+          "unit": "mean similarity"
+        },
+        "legalpdf.score.propositions.mean_passage_similarity": {
+          "definition": "Mean normalized SequenceMatcher ratio between DOCX passage-since-prior-marker text and candidate passage over matched footnotes.",
+          "unit": "mean similarity"
+        }
+      },
+      "gold_authority": "legalpdf_docx_reference_pilot",
+      "gold_creation": "Sentence and passage strings are heuristically sliced from DOCX paragraphs around marker positions.",
+      "admissible_statuses": [
+        "docx_reference"
+      ],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "The reference boundary is produced by the benchmark heuristic, not human proposition pairing gold.",
+      "scorer": "legalpdf.benchmark.extract_docx_gold and score_docx_gold",
+      "failure_semantics": "Similarity measures reference-string agreement only.",
+      "uncertainty": "No accepted threshold or intervals.",
+      "interpretation": "DOCX-heuristic reference agreement.",
+      "disposition": "VALID_REFERENCE_AGREEMENT",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "DOCX-heuristic proposition agreement",
+      "required_validation": [
+        "Create independently adjudicated sentence and passage spans with stable offsets.",
+        "Score span overlap and exact pairing in addition to text similarity.",
+        "Define treatment of multi-paragraph and repeated-marker propositions."
+      ]
+    },
+    {
+      "id": "legalpdf_citation_detection",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.citations.gold": {
+          "definition": "Number of unique citation strings detected by benchmark regexes in DOCX-reference text.",
+          "unit": "citations"
+        },
+        "legalpdf.score.citations.candidate": {
+          "definition": "Number of unique citation strings detected by the same regexes in candidate text and footnotes.",
+          "unit": "citations"
+        },
+        "legalpdf.score.citations.matched": {
+          "definition": "Set intersection size of regex-detected reference and candidate citations.",
+          "unit": "citations"
+        },
+        "legalpdf.score.citations.recall": {
+          "definition": "matched regex strings divided by reference regex strings.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "The same two benchmark regexes generate both the reference and candidate citation sets.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Complete scorer leakage: the detector defines the gold. Precision is absent and duplicate occurrences collapse into a set.",
+      "scorer": "legalpdf.benchmark._citations",
+      "failure_semantics": "A value measures survival of strings recognized by the shared regex, not citation extraction correctness.",
+      "uncertainty": "Undefined against true citation population.",
+      "interpretation": "No valid accuracy metric.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Create independently annotated citation spans and canonical identities.",
+        "Score occurrence-level precision, recall, and F1.",
+        "Include citations outside the current regex grammar and hard negatives."
+      ]
+    },
+    {
+      "id": "legalpdf_application_and_repair",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.score.application_equivalence.toa_text_units": {
+          "definition": "Number of text units returned by the ToA adapter for the candidate document.",
+          "unit": "text units"
+        },
+        "legalpdf.score.codex.calls": {
+          "definition": "Recorded live model call count from document provenance.",
+          "unit": "calls"
+        },
+        "legalpdf.score.codex.tokens.*": {
+          "definition": "Sum of the named token-usage field across repair records.",
+          "unit": "tokens"
+        },
+        "legalpdf.score.codex.repair.scopes": {
+          "definition": "Number of repair records.",
+          "unit": "repair scopes"
+        },
+        "legalpdf.score.codex.repair.applied": {
+          "definition": "Number of repair records with status applied.",
+          "unit": "repair scopes"
+        },
+        "legalpdf.score.codex.repair.failed": {
+          "definition": "Number of repair records whose status is not applied.",
+          "unit": "repair scopes"
+        },
+        "legalpdf.score.codex.repair.attempts": {
+          "definition": "Sum of repair attempt counts.",
+          "unit": "attempts"
+        },
+        "legalpdf.score.codex.repair.retries": {
+          "definition": "Sum of max(0, attempts minus one) across repairs.",
+          "unit": "retries"
+        },
+        "legalpdf.score.codex.repair.schema_valid_scope_rate": {
+          "definition": "Applied repair records divided by repair records; despite the name, this equates applied status with schema validity.",
+          "unit": "proportion"
+        },
+        "legalpdf.score.codex.repair.model_latency_seconds": {
+          "definition": "Sum of repair-record elapsed seconds.",
+          "unit": "seconds"
+        },
+        "legalpdf.score.codex.repair.source_line_conservation": {
+          "definition": "Same-ID, exact-text candidate lines after repair divided by max(baseline line count, repaired line count, one).",
+          "unit": "proportion"
+        },
+        "legalpdf.score.codex.repair.source_line_count_before": {
+          "definition": "Number of line IDs in a separately parsed baseline document.",
+          "unit": "lines"
+        },
+        "legalpdf.score.codex.repair.source_line_count_after": {
+          "definition": "Number of line IDs in the repaired document.",
+          "unit": "lines"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Runtime provenance, local baseline comparison, and adapter output counts.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Baseline and repaired documents share parser identities. ToA unit count does not compare content. Applied status is not semantic validity.",
+      "scorer": "legalpdf.benchmark.score_docx_gold and _repair_metrics",
+      "failure_semantics": "Only call accounting, status accounting, and same-ID text conservation are measured.",
+      "uncertainty": "Latency and token use vary by run; no repetitions or cost schedule are frozen.",
+      "interpretation": "Operational diagnostics and local invariants.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "operational diagnostic",
+      "required_validation": [
+        "Do not call toa_text_units application equivalence.",
+        "Separate schema validation from applied status.",
+        "For conservation accuracy, use immutable source line identities independently extracted from the candidate parser.",
+        "Report repeated latency distributions and frozen model/pricing metadata for cost claims."
+      ]
+    },
+    {
+      "id": "legalpdf_run_resources",
+      "state": "emitted",
+      "metric_paths": {
+        "legalpdf.run.wall_seconds": {
+          "definition": "Wall time for the primary parse and, for codex mode, its baseline parse, stopping before gold scoring.",
+          "unit": "seconds"
+        },
+        "legalpdf.run.peak_rss_bytes": {
+          "definition": "Maximum sampled process RSS during the primary parse at approximately 50 ms intervals.",
+          "unit": "bytes"
+        },
+        "legalpdf.run.errors": {
+          "definition": "Number or records of benchmark cases that raised an exception.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Runtime instrumentation.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:a78cac4906826cbf776d518277081382b57ca43d0703c6f3a0eb99107824b9a9"
+      ],
+      "independence_and_leakage": "Wall-time scope differs by mode; RSS sampling can miss short peaks and excludes child-process memory unless reflected in process RSS.",
+      "scorer": "legalpdf.benchmark.run_manifest",
+      "failure_semantics": "An exception is a benchmark execution failure; timing and memory are observations.",
+      "uncertainty": "Single-run measurements have no variance estimate.",
+      "interpretation": "Operational performance only.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "operational performance",
+      "required_validation": [
+        "Use warmup plus repeated randomized runs.",
+        "Freeze hardware, software, exporter, model, and cache state.",
+        "Use identical timed scopes across arms and report median plus dispersion."
+      ]
+    },
+    {
+      "id": "docx_linking_model_benchmark",
+      "state": "emitted_synthetic_only",
+      "metric_paths": {
+        "legalpdf.docx_linking.total": {
+          "definition": "Number of footnote plans returned by the model and iterated by the scorer.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.strict_exact": {
+          "definition": "Count whose normalized parts equal the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.tolerant_exact": {
+          "definition": "Count whose normalized parts equal any accepted partition; character neutrality is not required by this scorer.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.character_neutral": {
+          "definition": "Count whose source core equals joined output core.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.under_split": {
+          "definition": "Count with fewer parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.over_split": {
+          "definition": "Count with more parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.boundary_mismatch": {
+          "definition": "Count with canonical part count but no accepted partition match.",
+          "unit": "cases"
+        },
+        "legalpdf.docx_linking.wall_seconds": {
+          "definition": "Wall time of one model strategy run.",
+          "unit": "seconds"
+        },
+        "legalpdf.docx_linking.telemetry.*": {
+          "definition": "Runtime model call, token, or strategy telemetry copied from the plan/run.",
+          "unit": "implementation-defined"
+        }
+      },
+      "gold_authority": "legalpdf_docx_linking_synthetic",
+      "gold_creation": "Twelve invented cases with hand-authored expected partitions.",
+      "admissible_statuses": [
+        "synthetic_fixture"
+      ],
+      "version_hashes": [
+        "sha256:5b593d919382c4ff802cf93a3c502a26e647ab8411cd2fa8b847124d9936d0dd",
+        "sha256:85706cf5a84e22166c4d6697bd29e69cdeaf0bd06123129b5857219ac0a86c44"
+      ],
+      "independence_and_leakage": "The deterministic punctuation snap was changed after an observed model failure on the same fixture. The scorer iterates plan rows rather than enforcing exact expected/prediction ID bijection and tolerant exact omits character neutrality.",
+      "scorer": "universal-legal-pdf-engine/dev/benchmark_docx_linking.py",
+      "failure_semantics": "The fixture can detect contract regressions but cannot support comparative or real-world accuracy.",
+      "uncertainty": "Twelve chosen synthetic cases; no sampling inference.",
+      "interpretation": "Synthetic contract test only.",
+      "disposition": "VALID_INVARIANT",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "synthetic contract conformance",
+      "required_validation": [
+        "Require exact expected/prediction ID bijection.",
+        "Require character neutrality for tolerant exact.",
+        "Freeze a new untouched holdout after implementation changes.",
+        "Use accepted human real-document gold for model accuracy.",
+        "Reject all non-accepted statuses rather than excluding only provisional/needs_review."
+      ]
+    },
+    {
+      "id": "alr_supra_linking",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.supra.total": {
+          "definition": "Number of admitted supra candidate rows.",
+          "unit": "cases"
+        },
+        "alr.supra.exact_link_accuracy": {
+          "definition": "Fraction whose predicted link string exactly equals the candidate-gold link string.",
+          "unit": "proportion"
+        },
+        "alr.supra.base_link_accuracy": {
+          "definition": "Fraction whose link target before fragment/anchor equals the candidate-gold base target, with anchor errors tracked separately.",
+          "unit": "proportion"
+        },
+        "alr.supra.isolation_rate": {
+          "definition": "Fraction satisfying the benchmark's text-alignment isolation heuristic, typically similarity at least 0.9.",
+          "unit": "proportion"
+        },
+        "alr.supra.dropped": {
+          "definition": "Count where a candidate-gold link was not produced.",
+          "unit": "cases"
+        },
+        "alr.supra.wrong_target": {
+          "definition": "Count where predicted and candidate-gold base targets differ.",
+          "unit": "cases"
+        },
+        "alr.supra.hallucinated": {
+          "definition": "Count where a predicted link exists but candidate gold has none under benchmark rules.",
+          "unit": "cases"
+        },
+        "alr.supra.anchor_error": {
+          "definition": "Count where base target agrees but fragment/anchor differs.",
+          "unit": "cases"
+        },
+        "alr.supra.missing": {
+          "definition": "Count of benchmark-defined missing expected or predicted link conditions.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "alr_supra_candidates",
+      "gold_creation": "Candidate labels were derived from production/frozen splitter context and origin links, with auto/agent statuses and URL-existence checks.",
+      "admissible_statuses": [
+        "accepted_human_target_and_pinpoint"
+      ],
+      "version_hashes": [
+        "sha256:3e30d7886b3a4c6865e8b9a94bfddf32f860090eb501b7915f10f7989d02ea5f",
+        "sha256:6734d05b6a4477bba394ef57886efc813e7a3aae060cafdf003a4d66f5ce3e6f",
+        "sha256:42edb5526b9b69c53fce23005c1a061eef1348ee49bc3aae03f35b56ef658d87"
+      ],
+      "independence_and_leakage": "No current rows have independently accepted human authority-and-pinpoint truth. URL existence does not prove the cited authority. The rederive path applies only partial link gating, and 513 normalized texts are duplicates.",
+      "scorer": "ALR-Quote-Verifier/dev/supra_bench.py and replay tools",
+      "failure_semantics": "Current outcomes are agreement with weak/self-derived candidates, not link correctness.",
+      "uncertainty": "No valid uncertainty against true targets.",
+      "interpretation": "No current link accuracy metric.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Create occurrence-level human gold for cited authority, target URL, and pinpoint separately.",
+        "Verify target identity from authoritative metadata, not URL existence alone.",
+        "Apply full link-truth gating to every scheme and status.",
+        "Deduplicate normalized footnote text and work-family/pstream sources.",
+        "Blind adjudicators to production and candidate output."
+      ]
+    },
+    {
+      "id": "alr_field_extraction",
+      "state": "proposed_and_partly_emitted",
+      "metric_paths": {
+        "alr.fields.type_accuracy": {
+          "definition": "Proposed fraction of parts with correct adjudicated authority type.",
+          "unit": "proportion"
+        },
+        "alr.fields.authority_identity_accuracy": {
+          "definition": "Proposed fraction of parts mapped to the correct canonical authority identity.",
+          "unit": "proportion"
+        },
+        "alr.fields.pinpoint_accuracy": {
+          "definition": "Proposed fraction of citation occurrences with an exact or adjudicated-equivalent pinpoint.",
+          "unit": "proportion"
+        },
+        "alr.fields.provisional_agreement.*": {
+          "definition": "Current agreement with values in field_gold_provisional.jsonl.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "alr_field_provisional",
+      "gold_creation": "Fields inherit auto/agent values from pipeline outputs; no accepted per-field adjudication exists.",
+      "admissible_statuses": [
+        "accepted_human_field"
+      ],
+      "version_hashes": [
+        "sha256:4a0414f5cf79939d70a533c121376da19ed7a8b4a380a8902639fa15689e7145"
+      ],
+      "independence_and_leakage": "Current source is provisional and self-derived.",
+      "scorer": "ALR benchmark field comparison tools",
+      "failure_semantics": "Agreement with provisional fields is not correctness.",
+      "uncertainty": "Undefined.",
+      "interpretation": "Proposed accuracy metrics lack gold.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Define field-level schemas and equivalence rules.",
+        "Independently adjudicate every scored field with accepted human provenance.",
+        "Record not-applicable and ambiguous separately from missing.",
+        "Freeze canonical authority identity and pinpoint normalization."
+      ]
+    },
+    {
+      "id": "a2aj_anchor_and_ceiling_replays",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.a2aj_anchor.quote_match_score": {
+          "definition": "Heuristic normalized quote-match similarity used for anchor acceptance, commonly with threshold 0.98.",
+          "unit": "similarity"
+        },
+        "alr.a2aj_anchor.coverage": {
+          "definition": "Fraction of audited rows for which the heuristic produced an acceptable anchor.",
+          "unit": "proportion"
+        },
+        "alr.a2aj_anchor.hits": {
+          "definition": "Count of heuristic quote matches meeting its configured threshold.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_anchor.page_references": {
+          "definition": "Count of outputs with a page reference under the audit rules.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_ceiling.status_gained": {
+          "definition": "Count where candidate status rank is above frozen workbook baseline rank.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_ceiling.status_lost": {
+          "definition": "Count where candidate status rank is below frozen workbook baseline rank.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_ceiling.exact_lock": {
+          "definition": "Count whose candidate A2AJ output equals the frozen baseline lock fields.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_ceiling.mutations": {
+          "definition": "Count or categories of candidate changes from frozen baseline values.",
+          "unit": "occurrences"
+        },
+        "alr.a2aj_ceiling.authored_pinpoint_agreement": {
+          "definition": "Agreement of candidate page/paragraph outputs with authored pinpoint text under replay normalization.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Heuristic quote matching and frozen workbook baselines.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:d7eb77eb46c5b4fdeb5d10b14a024422bccca96f4e43d294061069b3b8097ba5",
+        "sha256:6085bc45ad04f18230a46b207764a2ac5c8783cb57dbc61c052ccc8bf0b1c722"
+      ],
+      "independence_and_leakage": "The same heuristic determines hits; baseline workbook values are not adjudicated authority/page truth.",
+      "scorer": "ALR-Quote-Verifier/dev/a2aj_anchor_audit.py and a2aj_ceiling_replay.py",
+      "failure_semantics": "Values describe heuristic availability or baseline change, not correctness.",
+      "uncertainty": "No truth-based uncertainty.",
+      "interpretation": "Diagnostic only; correctness metrics are absent.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "heuristic/baseline diagnostic",
+      "required_validation": [
+        "Create human authority, quote-span, page, paragraph, and pinpoint truth.",
+        "Validate thresholds on a disjoint set.",
+        "Separate retrieval availability from pinpoint correctness."
+      ]
+    },
+    {
+      "id": "a2aj_corpus_availability_and_perf",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.a2aj_corpus.paragraph_medium_availability": {
+          "definition": "Fraction satisfying heuristic paragraph-index availability, quote-span score at least 0.05, and median words at least 12.",
+          "unit": "proportion"
+        },
+        "alr.a2aj_corpus.paragraph_high_availability": {
+          "definition": "Fraction satisfying heuristic paragraph-index availability, quote-span score at least 0.10, and median words at least 20.",
+          "unit": "proportion"
+        },
+        "alr.a2aj_corpus.explicit_page_sequence_availability": {
+          "definition": "Fraction whose structure data contains an explicit page sequence under the audit rule.",
+          "unit": "proportion"
+        },
+        "alr.a2aj_page_marker.marker_count": {
+          "definition": "Count of regex-recognized page markers.",
+          "unit": "markers"
+        },
+        "alr.a2aj_page_marker.consecutive_sequences": {
+          "definition": "Count of regex marker sequences of length at least two.",
+          "unit": "sequences"
+        },
+        "alr.a2aj_page_marker.documents_with_two_marker_sequences": {
+          "definition": "Count of dataset/language/style detail rows with at least two-marker sequences; despite the field name, one document may contribute multiple rows.",
+          "unit": "detail rows"
+        },
+        "alr.a2aj_structure.gained_lost_changed_same": {
+          "definition": "Counts of parser-transition categories comparing current and older heuristics.",
+          "unit": "items"
+        },
+        "alr.a2aj_structure.throughput": {
+          "definition": "Processed structure items or documents divided by elapsed time.",
+          "unit": "items per second"
+        },
+        "alr.a2aj_structure.extrapolated_full_minutes": {
+          "definition": "Measured per-item time extrapolated to a hard-coded corpus size of 328350.",
+          "unit": "minutes"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Regex, heuristic, parser-comparison, and timing audits.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:b0b6a229fdcf04140f0a0e30601b4bc89a900bcc76648d645ea2b8424099b3fb",
+        "sha256:203590d0f6733ad8b2a178d838a6ef07c568cde1208aee8c015dee5fa7e3b953",
+        "sha256:b607b9f6c44643ffd379f394d94c139c8621af2e33308ca7f49f99ce6d463e24",
+        "sha256:31b4801b4e9d1cbac5984227ef7ab4b6446954893fb9f19dbb7818d233927529"
+      ],
+      "independence_and_leakage": "Availability rules are defined by the audited parser/regex; old-vs-new changes have no truth arm.",
+      "scorer": "ALR A2AJ corpus, marker, structure, and performance audits",
+      "failure_semantics": "These metrics describe corpus/parser observability and performance only.",
+      "uncertainty": "No representative sampling or repeated timing.",
+      "interpretation": "Descriptive availability and performance.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "descriptive availability/performance",
+      "required_validation": [
+        "Correct the documents_with_two_marker_sequences label or aggregate by unique document.",
+        "Report corpus revision and denominator for every rate.",
+        "Use independently labelled markers/structure for correctness claims."
+      ]
+    },
+    {
+      "id": "toa_runtime_counts",
+      "state": "emitted",
+      "metric_paths": {
+        "toa.analysis.reviewed_citation_occurrences": {
+          "definition": "Number of citation occurrences examined by ToA analysis.",
+          "unit": "occurrences"
+        },
+        "toa.analysis.canonical_authorities": {
+          "definition": "Number of canonical authority records produced after application normalization/deduplication.",
+          "unit": "authorities"
+        },
+        "toa.analysis.unresolved_references": {
+          "definition": "Number of references left unresolved by the application.",
+          "unit": "references"
+        },
+        "toa.analysis.part_links": {
+          "definition": "Number or mapping of citation parts assigned a link by the application.",
+          "unit": "parts"
+        },
+        "toa.analysis.lookup_status.*": {
+          "definition": "Count of application-defined lookup outcomes.",
+          "unit": "occurrences"
+        },
+        "toa.manifest.placeholder_count": {
+          "definition": "Count of PDF-origin placeholders recorded in the project manifest.",
+          "unit": "placeholders"
+        },
+        "toa.manifest.source_text_length": {
+          "definition": "Character length of stored source text.",
+          "unit": "characters"
+        },
+        "toa.manifest.discrepancy_count": {
+          "definition": "Number of quote/source comparisons below the application's discrepancy threshold.",
+          "unit": "discrepancies"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Direct counts of application outputs.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:2e4df1356ce2cfd3e481a860a5124b8c8ec2c6a496d8ca10760fdd53fa7eaf52"
+      ],
+      "independence_and_leakage": "The application defines the objects being counted.",
+      "scorer": "TableOfAuthoritiesMaker/toa_maker.py and project manifest writers",
+      "failure_semantics": "Unresolved and discrepancy states are workflow outcomes, not adjudicated errors.",
+      "uncertainty": "Counts are exact for a run; no accuracy uncertainty.",
+      "interpretation": "Workflow descriptors.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "ToA workflow diagnostic",
+      "required_validation": [
+        "Report input and software hashes.",
+        "Do not infer recall from reviewed, authority, resolved, or unresolved counts."
+      ]
+    },
+    {
+      "id": "toa_quote_similarity",
+      "state": "emitted",
+      "metric_paths": {
+        "toa.discrepancy.match_score": {
+          "definition": "Maximum SequenceMatcher ratio between normalized alphanumeric quoted words and source windows of target length plus or minus two words.",
+          "unit": "similarity"
+        },
+        "toa.discrepancy.candidate_accepted": {
+          "definition": "Boolean that match_score is at least 0.70.",
+          "unit": "boolean"
+        },
+        "toa.discrepancy.highlighted": {
+          "definition": "Boolean that match_score is at least 0.86.",
+          "unit": "boolean"
+        },
+        "toa.discrepancy.flagged": {
+          "definition": "Boolean that match_score is below 0.995.",
+          "unit": "boolean"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Expected quote text comes from proposition extraction rather than an independently adjudicated source span.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:2e4df1356ce2cfd3e481a860a5124b8c8ec2c6a496d8ca10760fdd53fa7eaf52"
+      ],
+      "independence_and_leakage": "Thresholds and expected strings are application heuristics; match_score is neither probability nor correctness.",
+      "scorer": "TableOfAuthoritiesMaker/toa_maker.py discrepancy matching",
+      "failure_semantics": "Threshold crossings are review-routing signals only.",
+      "uncertainty": "No threshold calibration or confidence intervals.",
+      "interpretation": "No valid accuracy metric.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Create human-labelled quote/source span pairs and hard negatives.",
+        "Tune thresholds on training data and evaluate once on a disjoint holdout.",
+        "Report precision, recall, and calibration by discrepancy type."
+      ]
+    },
+    {
+      "id": "toa_proposed_correctness",
+      "state": "proposed",
+      "metric_paths": {
+        "toa.accuracy.authority_precision": {
+          "definition": "Proposed correctly produced canonical authorities divided by produced authorities.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.authority_recall": {
+          "definition": "Proposed correctly produced canonical authorities divided by all adjudicated authorities.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.occurrence_precision": {
+          "definition": "Proposed correctly extracted citation occurrences divided by produced occurrences.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.occurrence_recall": {
+          "definition": "Proposed correctly extracted citation occurrences divided by adjudicated occurrences.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.link_target": {
+          "definition": "Proposed fraction of linked occurrences with the correct canonical authority target.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.pinpoint": {
+          "definition": "Proposed fraction of occurrences with an adjudicated-equivalent pinpoint.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.pdf_retrieval": {
+          "definition": "Proposed fraction of retrieved PDFs that are the correct authority and version.",
+          "unit": "proportion"
+        },
+        "toa.accuracy.roundtrip_text_conservation": {
+          "definition": "Proposed fraction of immutable source text spans preserved exactly after ToA processing.",
+          "unit": "proportion"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "No frozen accepted ToA benchmark bundle is present.",
+      "admissible_statuses": [
+        "accepted_human"
+      ],
+      "version_hashes": [
+        "MISSING"
+      ],
+      "independence_and_leakage": "Interactive user review exists, but no versioned benchmark labels, reviewer provenance, or independent holdout contract exists.",
+      "scorer": "not implemented as an auditable benchmark",
+      "failure_semantics": "Undefined until matching, equivalence, abstention, and ambiguity rules are frozen.",
+      "uncertainty": "Undefined.",
+      "interpretation": "Proposed metrics without gold.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Freeze occurrence spans, canonical authority IDs, target documents/versions, links, and pinpoints.",
+        "Store human provenance and adjudicate disagreements.",
+        "Define matching for aliases, parallel citations, multiple valid links, and ambiguous pinpoints.",
+        "Freeze immutable source spans independently of application output.",
+        "Use a held-out one-pstream, de-duplicated corpus."
+      ]
+    },
+    {
+      "id": "locked_footnote_pairing_scorecard",
+      "state": "emitted_but_mixed_provenance",
+      "metric_paths": {
+        "footnote_goldset.scorecard.precision": {
+          "definition": "Correct predicted marker-body pairs divided by predicted pairs under the scorecard's identity rules.",
+          "unit": "proportion"
+        },
+        "footnote_goldset.scorecard.recall": {
+          "definition": "Correct predicted marker-body pairs divided by locked gold pairs under the scorecard's identity rules.",
+          "unit": "proportion"
+        },
+        "footnote_goldset.scorecard.f1": {
+          "definition": "Harmonic mean of pairing precision and recall.",
+          "unit": "proportion"
+        },
+        "footnote_goldset.lock.validation_issue_count": {
+          "definition": "Number of structural lock validation issues.",
+          "unit": "issues"
+        },
+        "footnote_goldset.lock.pairs": {
+          "definition": "Number of locked marker-body pairs.",
+          "unit": "pairs"
+        },
+        "footnote_goldset.lock.markers": {
+          "definition": "Number of locked marker records.",
+          "unit": "markers"
+        }
+      },
+      "gold_authority": "locked_footnote_pairing_set",
+      "gold_creation": "A hard-examples-first corpus was materialized from canonical automatic pages plus manual, completion, and visual repairs, then structurally locked.",
+      "admissible_statuses": [
+        "manual_gold_locked_with_verified_provenance"
+      ],
+      "version_hashes": [
+        "sha256:b5cf49e9015f8291d74f9d7628a931c61a1d78886bbbdc0fda1da9bdb7a41ac0",
+        "sha256:ddeb0394211dc74799e5f1d1b84eee8ab5af167f700a82b93987045d6c7db436"
+      ],
+      "independence_and_leakage": "The whole locked set mixes 303 manual_gold_locked pages with 1223 gold_locked pages and sources most markers from canonical automatic pages. Lock validity proves internal consistency, not independent semantic correctness.",
+      "scorer": "Text-Fidelity footnote scorecard and lock validators",
+      "failure_semantics": "Zero validation issues proves schema/lock consistency. Whole-set precision/recall are not human-gold accuracy until provenance-restricted.",
+      "uncertainty": "Hard-examples-first selection supports regression case-set results, not population inference.",
+      "interpretation": "Lock counts are valid invariants; whole-set accuracy is not currently proven.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Score only rows with independently verifiable manual_gold_locked provenance, or independently adjudicate the automatic remainder.",
+        "Confirm exact marker/pair/page ID bijection and zero validation issues.",
+        "Deduplicate source pages and work families and enforce one upstream pstream.",
+        "Publish provenance-stratified metrics and label them hard-example case-set accuracy.",
+        "Never report population confidence intervals for this selection design."
+      ]
+    },
+    {
+      "id": "proposed_end_to_end_gold_metrics",
+      "state": "proposed",
+      "metric_paths": {
+        "document_intelligence.immutable_line_conservation": {
+          "definition": "Proposed exact preservation rate of independently identified immutable source lines.",
+          "unit": "proportion"
+        },
+        "document_intelligence.footnote_marker_body_precision": {
+          "definition": "Proposed precision of marker-to-body pair predictions.",
+          "unit": "proportion"
+        },
+        "document_intelligence.footnote_marker_body_recall": {
+          "definition": "Proposed recall of marker-to-body pair predictions.",
+          "unit": "proportion"
+        },
+        "document_intelligence.footnote_marker_body_f1": {
+          "definition": "Proposed harmonic mean of marker-body precision and recall.",
+          "unit": "proportion"
+        },
+        "document_intelligence.proposition_pairing_accuracy": {
+          "definition": "Proposed fraction of footnotes paired to the correct adjudicated proposition span.",
+          "unit": "proportion"
+        },
+        "document_intelligence.docx_recovery_accuracy": {
+          "definition": "Proposed exact or equivalence-rule correctness of reconstructed DOCX structure/content.",
+          "unit": "proportion"
+        },
+        "document_intelligence.downstream_exact_footnote_lookup": {
+          "definition": "Proposed fraction of reconstructed footnotes that exactly retrieve the intended downstream record.",
+          "unit": "proportion"
+        },
+        "document_intelligence.application_equivalence": {
+          "definition": "Proposed fraction of application-observable outputs equivalent to a frozen expected output under explicit rules.",
+          "unit": "proportion"
+        },
+        "document_intelligence.cost_per_document": {
+          "definition": "Proposed model and compute cost divided by completed documents under a frozen price schedule.",
+          "unit": "currency per document"
+        }
+      },
+      "gold_authority": "ordered_region_manual_bundle",
+      "gold_creation": "Plans call for a manual ordered gold bundle and downstream equivalence fixtures; the ordered bundle is missing and no complete downstream truth bundle exists.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "MISSING"
+      ],
+      "independence_and_leakage": "Current local baselines, DOCX extraction, automatic canonical pages, and application outputs are not independent end-to-end truth.",
+      "scorer": "proposed in document-intelligence and DOCX benchmark plans",
+      "failure_semantics": "Undefined until identities, equivalence, abstentions, and ambiguous cases are specified.",
+      "uncertainty": "Undefined until sample design exists.",
+      "interpretation": "Proposed metrics without complete gold.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Build one versioned gold bundle that joins source work/pstream, rendered pages, lines, regions, markers, bodies, propositions, citations, authorities, links, and pinpoints by immutable IDs.",
+        "Require human provenance and adjudication for semantic labels.",
+        "Keep extraction truth independent from the candidate parser.",
+        "Freeze downstream expected outputs and equivalence rules.",
+        "Use a representative holdout for population claims and a separate challenge set for regression."
+      ]
+    },
+    {
+      "id": "legalpdf_legacy_alr_compatibility",
+      "state": "emitted_but_status_contract_invalid",
+      "metric_paths": {
+        "legalpdf.alr_splitter.accepted_gold_rows": {
+          "definition": "Number of rows admitted after excluding only needs_review and provisional; the field name is stronger than the actual filter.",
+          "unit": "rows"
+        },
+        "legalpdf.alr_splitter.conservative.exact": {
+          "definition": "Admitted rows whose conservative parts equal a canonical or accepted-alternative partition after normalization.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.conservative.under_split": {
+          "definition": "Non-exact conservative rows with fewer parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.conservative.over_split": {
+          "definition": "Non-exact conservative rows with more parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.conservative.boundary_mismatch": {
+          "definition": "Non-exact conservative rows with the canonical part count.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.conservative.abstain": {
+          "definition": "Rows where the conservative splitter status is not deterministic_complete.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.recall_first.exact": {
+          "definition": "Admitted rows whose recall-first parts equal a canonical or accepted-alternative partition after normalization.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.recall_first.under_split": {
+          "definition": "Non-exact recall-first rows with fewer parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.recall_first.over_split": {
+          "definition": "Non-exact recall-first rows with more parts than the canonical partition.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.recall_first.boundary_mismatch": {
+          "definition": "Non-exact recall-first rows with the canonical part count.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.replacement_eligible": {
+          "definition": "Count of deterministic-complete rows with non-empty parts, complete extracted fields, and no supra/ibid token.",
+          "unit": "cases"
+        },
+        "legalpdf.alr_splitter.recall_first_character_failures": {
+          "definition": "Recall-first rows whose source and joined output differ after removing whitespace and semicolons.",
+          "unit": "cases"
+        }
+      },
+      "gold_authority": "alr_fast_split_manual_gold",
+      "gold_creation": "The legacy compatibility runner reads the ALR review product but uses a denylist status filter.",
+      "admissible_statuses": [
+        "accepted"
+      ],
+      "version_hashes": [
+        "sha256:95e8b9b9175499318d3b3a9f8329b5927e8cc8f9730045bd6d92ccb0bdf446c0",
+        "sha256:c0ed32b2fc5ac221e2ac3ad1b5a624df4313532a6e7d63ac231e1ffddac48cfc"
+      ],
+      "independence_and_leakage": "Unknown, auto, agent, rejected, or blank statuses are admitted. Human provenance and normalized-content uniqueness are not checked; under/over uses only canonical count.",
+      "scorer": "universal-legal-pdf-engine/dev/benchmark_alr_splitter.py",
+      "failure_semantics": "Compatibility outcomes cannot be promoted to gold accuracy under the current loader.",
+      "uncertainty": "No representative sampling or interval.",
+      "interpretation": "Current output is an untrusted compatibility diagnostic.",
+      "disposition": "NOT_SCOREABLE",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "NOT SCOREABLE",
+      "required_validation": [
+        "Replace the denylist with exact accepted plus required human provenance.",
+        "Require unique IDs, normalized-content fingerprints, and one upstream pstream per work.",
+        "Require exact gold/prediction coverage.",
+        "Use the min/max accepted partition counts for under/over.",
+        "Require character neutrality for exact outcomes."
+      ]
+    },
+    {
+      "id": "alr_smoke_and_live_operations",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.smoke.documents": {
+          "definition": "Number of input documents processed by the deterministic smoke run.",
+          "unit": "documents"
+        },
+        "alr.smoke.footnotes": {
+          "definition": "Number of extracted footnotes in the smoke run.",
+          "unit": "footnotes"
+        },
+        "alr.smoke.parts": {
+          "definition": "Number of citation parts emitted in the smoke run.",
+          "unit": "parts"
+        },
+        "alr.smoke.reference_parts": {
+          "definition": "Number of emitted parts classified as references by the application.",
+          "unit": "parts"
+        },
+        "alr.smoke.linked_reference_parts": {
+          "definition": "Reference-classified parts with a non-empty link.",
+          "unit": "parts"
+        },
+        "alr.smoke.unlinked_reference_parts": {
+          "definition": "reference_parts minus linked_reference_parts.",
+          "unit": "parts"
+        },
+        "alr.smoke.character_failures": {
+          "definition": "Footnotes whose application-defined source/output core invariant fails.",
+          "unit": "footnotes"
+        },
+        "alr.smoke.reference_method_counts.*": {
+          "definition": "Frequency of application-defined reference resolution methods.",
+          "unit": "parts"
+        },
+        "alr.live_hybrid.split_invocations": {
+          "definition": "Number of calls into the split function, including cache or deterministic outcomes.",
+          "unit": "invocations"
+        },
+        "alr.live_hybrid.live_split_calls": {
+          "definition": "Usage-log records added while executing split calls.",
+          "unit": "calls"
+        },
+        "alr.live_hybrid.disambiguation_invocations": {
+          "definition": "Number of reference-disambiguation function invocations.",
+          "unit": "invocations"
+        },
+        "alr.live_hybrid.live_disambiguation_calls": {
+          "definition": "Usage-log records added during disambiguation calls.",
+          "unit": "calls"
+        },
+        "alr.live_hybrid.pure_reference_replacements": {
+          "definition": "Count where the pure-reference prefilter returned a replacement.",
+          "unit": "replacements"
+        },
+        "alr.live_hybrid.deterministic_tuple_replacements": {
+          "definition": "Count where the deterministic footnote-parts function returned a replacement.",
+          "unit": "replacements"
+        },
+        "alr.live_hybrid.live_calls": {
+          "definition": "Total usage-log records in the run.",
+          "unit": "calls"
+        },
+        "alr.live_hybrid.other_live_calls": {
+          "definition": "live_calls minus live_split_calls and live_disambiguation_calls, floored at zero.",
+          "unit": "calls"
+        },
+        "alr.live_hybrid.input_tokens": {
+          "definition": "Sum of recorded input tokens.",
+          "unit": "tokens"
+        },
+        "alr.live_hybrid.output_tokens": {
+          "definition": "Sum of recorded output tokens.",
+          "unit": "tokens"
+        },
+        "alr.live_hybrid.reasoning_tokens": {
+          "definition": "Sum of recorded reasoning tokens.",
+          "unit": "tokens"
+        },
+        "alr.live_hybrid.cached_input_tokens": {
+          "definition": "Sum of recorded cached-input tokens.",
+          "unit": "tokens"
+        },
+        "alr.live_hybrid.elapsed_s": {
+          "definition": "Wall-clock duration of build_audit_data for one arm.",
+          "unit": "seconds"
+        },
+        "alr.live_hybrid.footnotes": {
+          "definition": "Number of extracted input footnote records.",
+          "unit": "footnotes"
+        },
+        "alr.live_hybrid.parts": {
+          "definition": "Number of emitted citation-part rows.",
+          "unit": "parts"
+        },
+        "alr.live_hybrid.cache_files_before": {
+          "definition": "Count of JSON files in the configured cache directory before the run.",
+          "unit": "files"
+        },
+        "alr.live_hybrid.cache_files_after": {
+          "definition": "Count of JSON files in the configured cache directory after the run.",
+          "unit": "files"
+        },
+        "alr.live_hybrid.reference_methods.*": {
+          "definition": "Frequency of non-empty application reference-resolution method strings.",
+          "unit": "parts"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Direct instrumentation and output counts.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:dc7ee75b68e6d9ffb991efe1bf8c3502bd089873584d0f7dd8ee0509389452a9",
+        "sha256:297a0e8eaf45072107cae2203da6419b9991006dd19c6ce9f7b4fc1fc5e973ef"
+      ],
+      "independence_and_leakage": "The application defines classifications, replacements, methods, and usage records. Linked is not correct; cache-file count is not cache-hit count.",
+      "scorer": "ALR smoke_deterministic_app.py and benchmark_live_hybrid_docx.py",
+      "failure_semantics": "Only crashes and explicit character-invariant violations are failures of a stated contract; all other values are operational observations.",
+      "uncertainty": "One run, no repeated timing or model stochasticity estimate.",
+      "interpretation": "Operational and smoke diagnostics.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "ALR operational diagnostic",
+      "required_validation": [
+        "Pin source, software, model, cache, and environment hashes.",
+        "Do not treat linked, replacement, or method counts as correctness.",
+        "Use repeated runs for latency and token distributions."
+      ]
+    },
+    {
+      "id": "alr_hybrid_replay_deltas",
+      "state": "emitted",
+      "metric_paths": {
+        "alr.hybrid_pair.partition_exact": {
+          "definition": "Footnotes whose normalized part sequences are equal between two replay arms.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.partition_under": {
+          "definition": "Footnotes where the right replay arm has fewer parts than the left arm.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.partition_over": {
+          "definition": "Footnotes where the right replay arm has more parts than the left arm.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.partition_boundary": {
+          "definition": "Footnotes with equal part count but unequal normalized sequences across arms.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.left_character_failures": {
+          "definition": "Left-arm outputs that fail the replay core-character invariant.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.right_character_failures": {
+          "definition": "Right-arm outputs that fail the replay core-character invariant.",
+          "unit": "footnotes"
+        },
+        "alr.hybrid_pair.aligned_parts": {
+          "definition": "Normalized part texts present in both arm dictionaries; duplicate normalized parts can overwrite.",
+          "unit": "parts"
+        },
+        "alr.hybrid_pair.field_equal.*": {
+          "definition": "Count of aligned parts where the named field is exactly equal across arms.",
+          "unit": "parts"
+        },
+        "alr.hybrid_pair.link_outcomes.*": {
+          "definition": "Application-defined link-change outcomes between two replay arms.",
+          "unit": "parts"
+        },
+        "alr.hybrid_pair.full_split_calls_saved": {
+          "definition": "Left full-split fallback count minus right full-split fallback count.",
+          "unit": "calls"
+        },
+        "alr.hybrid_arm.full_split_calls": {
+          "definition": "Number of fallback records in an arm.",
+          "unit": "calls"
+        },
+        "alr.hybrid_arm.history_changed_fallbacks": {
+          "definition": "Fallback records whose generated history differs from the replay's expected history.",
+          "unit": "calls"
+        },
+        "alr.hybrid_arm.history_changed_reference_fallbacks": {
+          "definition": "History-changed fallbacks classified as reference footnotes.",
+          "unit": "calls"
+        },
+        "alr.hybrid_arm.recorded_live_calls_avoided": {
+          "definition": "Frozen usage-log call records attached to deterministically replaced footnotes.",
+          "unit": "calls"
+        },
+        "alr.hybrid_arm.recorded_tokens_avoided.*": {
+          "definition": "Frozen recorded token totals attached to deterministically replaced footnotes.",
+          "unit": "tokens"
+        },
+        "alr.reference_replay.replaced_footnotes": {
+          "definition": "Number of footnotes replaced under the replay policy.",
+          "unit": "footnotes"
+        },
+        "alr.reference_replay.economy_replaced_footnotes": {
+          "definition": "Number of footnotes replaced under the economy replay policy.",
+          "unit": "footnotes"
+        },
+        "alr.reference_replay.paid_fallback_calls": {
+          "definition": "Configured/replayed paid fallback call count; current deterministic replay reports zero.",
+          "unit": "calls"
+        },
+        "alr.reference_replay.material_link_changes": {
+          "definition": "Count of link fields materially changed between replay arms.",
+          "unit": "parts"
+        },
+        "alr.supra_fallback.scores.*": {
+          "definition": "Counts of correct, unresolved, wrong, recovered, and method outcomes versus self-derived supra candidate links for each fallback variant.",
+          "unit": "cases"
+        },
+        "alr.supra_fallback.changed_cases": {
+          "definition": "Number of cases where any fallback variant outcome differs from strict resolver outcome.",
+          "unit": "cases"
+        },
+        "alr.supra_fallback.inferred_short_form_inventory.*": {
+          "definition": "Count of inferred short forms by inference rule.",
+          "unit": "forms"
+        },
+        "alr.supra_fallback.inferred_short_form_collisions.*": {
+          "definition": "Count of normalized inferred short forms associated with multiple base links under the audit rule.",
+          "unit": "forms"
+        }
+      },
+      "gold_authority": "none",
+      "gold_creation": "Paired replay outputs and frozen usage records; supra outcomes additionally compare with weak self-derived candidates.",
+      "admissible_statuses": [],
+      "version_hashes": [
+        "sha256:872db8a5ca34571167836f1bb61e27db070f0346db55643e604487768af72d9c",
+        "sha256:61548e8b678ab62b9bd9286ddcd88cbf325587cf4903f5ae87e4ccd20c0988fe",
+        "sha256:0795548ef7e30530f4cfae38ed5610a7c734e36a7da83ffa4dca63686ccd8c23"
+      ],
+      "independence_and_leakage": "Arm agreement and frozen usage are not truth. Supra correct/wrong labels inherit the non-independent candidate set. Normalized-part dictionaries can overwrite duplicates.",
+      "scorer": "ALR high-accuracy hybrid, deterministic reference replay, and supra fallback tools",
+      "failure_semantics": "Values describe behavior deltas, projected avoided work, or candidate-link agreement.",
+      "uncertainty": "No live-model variance or population sampling.",
+      "interpretation": "Compatibility and projected operational diagnostics; embedded supra correctness labels are NOT SCOREABLE.",
+      "disposition": "DESCRIPTIVE_ONLY",
+      "accuracy_claim_allowed": false,
+      "aggregate_label": "replay diagnostic",
+      "required_validation": [
+        "Do not label cross-arm equality or candidate-link agreement accuracy.",
+        "De-duplicate normalized parts before aligned-field comparisons.",
+        "Confirm avoided-call projections with a randomized live shadow run.",
+        "Use independently adjudicated target/pinpoint gold for supra correctness."
+      ]
+    }
+  ]
+}

@@ -21,6 +21,15 @@ import {
 import {
     getUserModelSettings,
 } from "../lib/userSettings";
+import {
+    DEFAULT_MAIN_MODEL,
+    modelSupportsImageInput,
+    type LlmImage,
+} from "../lib/llm";
+import {
+    imagesForMessage,
+    loadStoredChatImages,
+} from "../lib/chat/imageAttachments";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 
@@ -123,18 +132,42 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         userId,
         db,
     );
+    let imagesByDocumentId: Map<string, LlmImage>;
+    try {
+        imagesByDocumentId = await loadStoredChatImages(
+            messages,
+            docIndex,
+            docStore,
+        );
+    } catch (error) {
+        return void res.status(400).json({
+            detail: safeErrorMessage(error, "Invalid image attachment"),
+        });
+    }
+    const selectedModel = model || DEFAULT_MAIN_MODEL;
+    if (
+        imagesByDocumentId.size &&
+        !modelSupportsImageInput(selectedModel)
+    ) {
+        return void res.status(400).json({
+            detail: `Model "${selectedModel}" does not support image input.`,
+        });
+    }
     const docAvailability = Object.entries(docIndex).map(([doc_id, info]) => ({
         doc_id,
         filename: info.filename,
         folder_path: folderPaths.get(doc_id),
     }));
 
-    const enrichedMessages = await enrichWithPriorEvents(
+    const enrichedMessages = (await enrichWithPriorEvents(
         messages,
         chatId,
         db,
         docIndex,
-    );
+    )).map((message) => ({
+        ...message,
+        images: imagesForMessage(message, imagesByDocumentId),
+    }));
     const messagesForLLM: ChatMessage[] = displayed_doc
         ? enrichedMessages.map((m, i) => {
               if (i !== enrichedMessages.length - 1 || m.role !== "user")

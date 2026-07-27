@@ -510,6 +510,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             }
             return;
         }
+        if (citation.kind === "public_legal") {
+            if (citation.url) {
+                window.open(citation.url, "_blank", "noopener,noreferrer");
+            }
+            return;
+        }
         openTab(
             citation.document_id,
             citation.filename,
@@ -1171,14 +1177,14 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         <div className="flex-1 px-4 py-4 space-y-4">
                             <div className="flex justify-end">
                                 <div className="bg-gray-100 rounded-2xl p-4 w-3/4">
-                                    <div className="h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded w-full" />
+                                    <div className="h-3 animate-pulse rounded bg-gray-200 w-full" />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 {[1, 2, 3].map((i) => (
                                     <div
                                         key={i}
-                                        className={`h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite] rounded ${i === 3 ? "w-4/6" : "w-full"}`}
+                                        className={`h-3 animate-pulse rounded bg-gray-200 ${i === 3 ? "w-4/6" : "w-full"}`}
                                     />
                                 ))}
                             </div>

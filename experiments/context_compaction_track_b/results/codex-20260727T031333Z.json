@@ -1,0 +1,1211 @@
+{
+  "metadata": {
+    "runner": "codex_exec",
+    "codex_version": "codex-cli 0.145.0",
+    "model": "gpt-5.6-terra",
+    "effort": "low",
+    "tail_turns": 8,
+    "timestamp_utc": "2026-07-27T03:13:33.330607+00:00"
+  },
+  "summary": {
+    "full_history": {
+      "successful_runs": 2,
+      "failed_runs": 0,
+      "mean_exact_score": 1.0,
+      "hard_passes": 2
+    },
+    "structured_capsule": {
+      "successful_runs": 2,
+      "failed_runs": 0,
+      "mean_exact_score": 1.0,
+      "hard_passes": 2
+    },
+    "prose_summary": {
+      "successful_runs": 2,
+      "failed_runs": 0,
+      "mean_exact_score": 0.09523809523809523,
+      "hard_passes": 0
+    }
+  },
+  "records": [
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "full_history",
+      "prompt_sha256": "363ddeff7a098f5a2ea24e8640a67548113ef9f597f3362ecb5391416c536e7f",
+      "prompt_chars": 25515,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": "R-02",
+        "active_instruction_text": "Use only authority version D-004 and preserve every limiting qualifier.",
+        "superseded_instruction_ids": [
+          "R-01"
+        ],
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": "paragraph",
+        "locator_value": "62",
+        "quote_exact": "The reviewing court must assess the record as it stood when the decision was made.",
+        "qualifier_exact": "unless the governing statute expressly authorizes fresh evidence.",
+        "source_url": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+        "accepted_edit_ids": [
+          "E-22"
+        ],
+        "rejected_edit_ids": [
+          "E-17",
+          "E-18"
+        ],
+        "tool_receipt_id": "J-204",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 23,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 21,
+        "total": 21,
+        "score": 1.0,
+        "hard_pass": true,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-02",
+            "actual": "R-02"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": "Use only authority version D-004 and preserve every limiting qualifier."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-01"
+            ],
+            "actual": [
+              "R-01"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "paragraph",
+            "actual": "paragraph"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "62",
+            "actual": "62"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": "The reviewing court must assess the record as it stood when the decision was made."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": "unless the governing statute expressly authorizes fresh evidence."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-22"
+            ],
+            "actual": [
+              "E-22"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": [
+              "E-17",
+              "E-18"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-204",
+            "actual": "J-204"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 23,
+            "actual": 23
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": "sha256:cc8f13c9d2d19c4a-ca-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "elapsed_seconds": 12.44,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "structured_capsule",
+      "prompt_sha256": "95a9b510587bc6f641c71e962da35131487d5175732903187e22ff19001e9011",
+      "prompt_chars": 5604,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": "R-02",
+        "active_instruction_text": "Use only authority version D-004 and preserve every limiting qualifier.",
+        "superseded_instruction_ids": [
+          "R-01"
+        ],
+        "authority_document_id": "D-004",
+        "authority_version": "v2",
+        "authority_sha256": "sha256:61f9e9a28b7d5f4d-ca-v2",
+        "locator_kind": "paragraph",
+        "locator_value": "62",
+        "quote_exact": "The reviewing court must assess the record as it stood when the decision was made.",
+        "qualifier_exact": "unless the governing statute expressly authorizes fresh evidence.",
+        "source_url": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+        "accepted_edit_ids": [
+          "E-22"
+        ],
+        "rejected_edit_ids": [
+          "E-17",
+          "E-18"
+        ],
+        "tool_receipt_id": "J-204",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 23,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 21,
+        "total": 21,
+        "score": 1.0,
+        "hard_pass": true,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-02",
+            "actual": "R-02"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": "Use only authority version D-004 and preserve every limiting qualifier."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-01"
+            ],
+            "actual": [
+              "R-01"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "D-004",
+            "actual": "D-004"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": "sha256:61f9e9a28b7d5f4d-ca-v2"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "paragraph",
+            "actual": "paragraph"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "62",
+            "actual": "62"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": "The reviewing court must assess the record as it stood when the decision was made."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": "unless the governing statute expressly authorizes fresh evidence."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-22"
+            ],
+            "actual": [
+              "E-22"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": [
+              "E-17",
+              "E-18"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-204",
+            "actual": "J-204"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 23,
+            "actual": 23
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": "sha256:cc8f13c9d2d19c4a-ca-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "elapsed_seconds": 8.128,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "ca_paragraph_revision",
+      "fixture_sha256": "c6b56a300702b6c7e79eb9cab8787e56e08960576499324c88a0a39921c7ee22",
+      "arm": "prose_summary",
+      "prompt_sha256": "14f2f59535f646a7301c34d48c2ba6fefae913539a33d05b80780d9c0abb7222",
+      "prompt_chars": 4827,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": null,
+        "active_instruction_text": null,
+        "superseded_instruction_ids": null,
+        "authority_document_id": null,
+        "authority_version": "v2",
+        "authority_sha256": null,
+        "locator_kind": null,
+        "locator_value": null,
+        "quote_exact": null,
+        "qualifier_exact": null,
+        "source_url": null,
+        "accepted_edit_ids": null,
+        "rejected_edit_ids": null,
+        "tool_receipt_id": null,
+        "tool_status": "completed",
+        "tool_exit_code": null,
+        "tool_result_count": null,
+        "tool_next_cursor": null,
+        "tool_artifact_sha256": null,
+        "tool_truncated": null,
+        "matter_deadline": "2026-09-14"
+      },
+      "score": {
+        "passed": 2,
+        "total": 21,
+        "score": 0.09523809523809523,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 0,
+            "total": 3,
+            "score": 0.0
+          },
+          "authority_and_version": {
+            "passed": 1,
+            "total": 3,
+            "score": 0.3333333333333333
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 0,
+            "total": 5,
+            "score": 0.0
+          },
+          "multi_turn_edits": {
+            "passed": 0,
+            "total": 2,
+            "score": 0.0
+          },
+          "tool_receipts": {
+            "passed": 0,
+            "total": 7,
+            "score": 0.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": false,
+            "expected": "R-02",
+            "actual": null
+          },
+          "active_instruction_text": {
+            "pass": false,
+            "expected": "Use only authority version D-004 and preserve every limiting qualifier.",
+            "actual": null
+          },
+          "superseded_instruction_ids": {
+            "pass": false,
+            "expected": [
+              "R-01"
+            ],
+            "actual": null
+          },
+          "authority_document_id": {
+            "pass": false,
+            "expected": "D-004",
+            "actual": null
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "v2",
+            "actual": "v2"
+          },
+          "authority_sha256": {
+            "pass": false,
+            "expected": "sha256:61f9e9a28b7d5f4d-ca-v2",
+            "actual": null
+          },
+          "locator_kind": {
+            "pass": false,
+            "expected": "paragraph",
+            "actual": null
+          },
+          "locator_value": {
+            "pass": false,
+            "expected": "62",
+            "actual": null
+          },
+          "quote_exact": {
+            "pass": false,
+            "expected": "The reviewing court must assess the record as it stood when the decision was made.",
+            "actual": null
+          },
+          "qualifier_exact": {
+            "pass": false,
+            "expected": "unless the governing statute expressly authorizes fresh evidence.",
+            "actual": null
+          },
+          "source_url": {
+            "pass": false,
+            "expected": "https://example.invalid/ca/chamberlain#par62:~:text=The%20reviewing%20court,unless%20the%20governing%20statute",
+            "actual": null
+          },
+          "accepted_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-22"
+            ],
+            "actual": null
+          },
+          "rejected_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-17",
+              "E-18"
+            ],
+            "actual": null
+          },
+          "tool_receipt_id": {
+            "pass": false,
+            "expected": "J-204",
+            "actual": null
+          },
+          "tool_status": {
+            "pass": false,
+            "expected": "complete",
+            "actual": "completed"
+          },
+          "tool_exit_code": {
+            "pass": false,
+            "expected": 0,
+            "actual": null
+          },
+          "tool_result_count": {
+            "pass": false,
+            "expected": 23,
+            "actual": null
+          },
+          "tool_next_cursor": {
+            "pass": false,
+            "expected": "NONE",
+            "actual": null
+          },
+          "tool_artifact_sha256": {
+            "pass": false,
+            "expected": "sha256:cc8f13c9d2d19c4a-ca-artifact",
+            "actual": null
+          },
+          "tool_truncated": {
+            "pass": false,
+            "expected": false,
+            "actual": null
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-09-14",
+            "actual": "2026-09-14"
+          }
+        }
+      },
+      "elapsed_seconds": 10.596,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "us_section_revision",
+      "fixture_sha256": "434b45d0a166e6cfc56d06b43d3a20a22e201b69552b500b834a71260d8c0bf3",
+      "arm": "full_history",
+      "prompt_sha256": "c69aae3f79a9d48540434d6c7632d0ad5af4581516d8beef6c89b82f2c48bbcb",
+      "prompt_chars": 25691,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": "R-12",
+        "active_instruction_text": "Quote section 7.3 exactly and state the surviving-payment proviso.",
+        "superseded_instruction_ids": [
+          "R-11"
+        ],
+        "authority_document_id": "K-111",
+        "authority_version": "executed-1",
+        "authority_sha256": "sha256:bd50e76d2e2f41b0-us-final",
+        "locator_kind": "section",
+        "locator_value": "7.3",
+        "quote_exact": "A party may terminate after thirty days' written notice.",
+        "qualifier_exact": "provided that all accrued payment obligations remain enforceable.",
+        "source_url": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued",
+        "accepted_edit_ids": [
+          "E-75",
+          "E-76"
+        ],
+        "rejected_edit_ids": [
+          "E-71",
+          "E-72"
+        ],
+        "tool_receipt_id": "J-882",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 19,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:7449440f0c26059d-us-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-10-19"
+      },
+      "score": {
+        "passed": 21,
+        "total": 21,
+        "score": 1.0,
+        "hard_pass": true,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-12",
+            "actual": "R-12"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Quote section 7.3 exactly and state the surviving-payment proviso.",
+            "actual": "Quote section 7.3 exactly and state the surviving-payment proviso."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-11"
+            ],
+            "actual": [
+              "R-11"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "K-111",
+            "actual": "K-111"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "executed-1",
+            "actual": "executed-1"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:bd50e76d2e2f41b0-us-final",
+            "actual": "sha256:bd50e76d2e2f41b0-us-final"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "section",
+            "actual": "section"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "7.3",
+            "actual": "7.3"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "A party may terminate after thirty days' written notice.",
+            "actual": "A party may terminate after thirty days' written notice."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "provided that all accrued payment obligations remain enforceable.",
+            "actual": "provided that all accrued payment obligations remain enforceable."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued",
+            "actual": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-75",
+              "E-76"
+            ],
+            "actual": [
+              "E-75",
+              "E-76"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-71",
+              "E-72"
+            ],
+            "actual": [
+              "E-71",
+              "E-72"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-882",
+            "actual": "J-882"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 19,
+            "actual": 19
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:7449440f0c26059d-us-artifact",
+            "actual": "sha256:7449440f0c26059d-us-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-10-19",
+            "actual": "2026-10-19"
+          }
+        }
+      },
+      "elapsed_seconds": 11.364,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "us_section_revision",
+      "fixture_sha256": "434b45d0a166e6cfc56d06b43d3a20a22e201b69552b500b834a71260d8c0bf3",
+      "arm": "structured_capsule",
+      "prompt_sha256": "c446ddaafe038c7eb801a8f5a684c444048e4ab57e9baa23a818d3c78bfbb8b4",
+      "prompt_chars": 5620,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": "R-12",
+        "active_instruction_text": "Quote section 7.3 exactly and state the surviving-payment proviso.",
+        "superseded_instruction_ids": [
+          "R-11"
+        ],
+        "authority_document_id": "K-111",
+        "authority_version": "executed-1",
+        "authority_sha256": "sha256:bd50e76d2e2f41b0-us-final",
+        "locator_kind": "section",
+        "locator_value": "7.3",
+        "quote_exact": "A party may terminate after thirty days' written notice.",
+        "qualifier_exact": "provided that all accrued payment obligations remain enforceable.",
+        "source_url": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued",
+        "accepted_edit_ids": [
+          "E-75",
+          "E-76"
+        ],
+        "rejected_edit_ids": [
+          "E-71",
+          "E-72"
+        ],
+        "tool_receipt_id": "J-882",
+        "tool_status": "complete",
+        "tool_exit_code": 0,
+        "tool_result_count": 19,
+        "tool_next_cursor": "NONE",
+        "tool_artifact_sha256": "sha256:7449440f0c26059d-us-artifact",
+        "tool_truncated": false,
+        "matter_deadline": "2026-10-19"
+      },
+      "score": {
+        "passed": 21,
+        "total": 21,
+        "score": 1.0,
+        "hard_pass": true,
+        "groups": {
+          "instruction_retention": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "authority_and_version": {
+            "passed": 3,
+            "total": 3,
+            "score": 1.0
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 5,
+            "total": 5,
+            "score": 1.0
+          },
+          "multi_turn_edits": {
+            "passed": 2,
+            "total": 2,
+            "score": 1.0
+          },
+          "tool_receipts": {
+            "passed": 7,
+            "total": 7,
+            "score": 1.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": true,
+            "expected": "R-12",
+            "actual": "R-12"
+          },
+          "active_instruction_text": {
+            "pass": true,
+            "expected": "Quote section 7.3 exactly and state the surviving-payment proviso.",
+            "actual": "Quote section 7.3 exactly and state the surviving-payment proviso."
+          },
+          "superseded_instruction_ids": {
+            "pass": true,
+            "expected": [
+              "R-11"
+            ],
+            "actual": [
+              "R-11"
+            ]
+          },
+          "authority_document_id": {
+            "pass": true,
+            "expected": "K-111",
+            "actual": "K-111"
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "executed-1",
+            "actual": "executed-1"
+          },
+          "authority_sha256": {
+            "pass": true,
+            "expected": "sha256:bd50e76d2e2f41b0-us-final",
+            "actual": "sha256:bd50e76d2e2f41b0-us-final"
+          },
+          "locator_kind": {
+            "pass": true,
+            "expected": "section",
+            "actual": "section"
+          },
+          "locator_value": {
+            "pass": true,
+            "expected": "7.3",
+            "actual": "7.3"
+          },
+          "quote_exact": {
+            "pass": true,
+            "expected": "A party may terminate after thirty days' written notice.",
+            "actual": "A party may terminate after thirty days' written notice."
+          },
+          "qualifier_exact": {
+            "pass": true,
+            "expected": "provided that all accrued payment obligations remain enforceable.",
+            "actual": "provided that all accrued payment obligations remain enforceable."
+          },
+          "source_url": {
+            "pass": true,
+            "expected": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued",
+            "actual": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued"
+          },
+          "accepted_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-75",
+              "E-76"
+            ],
+            "actual": [
+              "E-75",
+              "E-76"
+            ]
+          },
+          "rejected_edit_ids": {
+            "pass": true,
+            "expected": [
+              "E-71",
+              "E-72"
+            ],
+            "actual": [
+              "E-71",
+              "E-72"
+            ]
+          },
+          "tool_receipt_id": {
+            "pass": true,
+            "expected": "J-882",
+            "actual": "J-882"
+          },
+          "tool_status": {
+            "pass": true,
+            "expected": "complete",
+            "actual": "complete"
+          },
+          "tool_exit_code": {
+            "pass": true,
+            "expected": 0,
+            "actual": 0
+          },
+          "tool_result_count": {
+            "pass": true,
+            "expected": 19,
+            "actual": 19
+          },
+          "tool_next_cursor": {
+            "pass": true,
+            "expected": "NONE",
+            "actual": "NONE"
+          },
+          "tool_artifact_sha256": {
+            "pass": true,
+            "expected": "sha256:7449440f0c26059d-us-artifact",
+            "actual": "sha256:7449440f0c26059d-us-artifact"
+          },
+          "tool_truncated": {
+            "pass": true,
+            "expected": false,
+            "actual": false
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-10-19",
+            "actual": "2026-10-19"
+          }
+        }
+      },
+      "elapsed_seconds": 8.6,
+      "repetition": 1
+    },
+    {
+      "fixture_id": "us_section_revision",
+      "fixture_sha256": "434b45d0a166e6cfc56d06b43d3a20a22e201b69552b500b834a71260d8c0bf3",
+      "arm": "prose_summary",
+      "prompt_sha256": "d243ada04a40912ae4185a396ca53346a8dd0e7d60106abd40b6039711ce6412",
+      "prompt_chars": 4858,
+      "exit_code": 0,
+      "event_lines": 1,
+      "prediction": {
+        "active_instruction_id": null,
+        "active_instruction_text": null,
+        "superseded_instruction_ids": null,
+        "authority_document_id": null,
+        "authority_version": "executed-1",
+        "authority_sha256": null,
+        "locator_kind": null,
+        "locator_value": null,
+        "quote_exact": null,
+        "qualifier_exact": null,
+        "source_url": null,
+        "accepted_edit_ids": null,
+        "rejected_edit_ids": null,
+        "tool_receipt_id": null,
+        "tool_status": null,
+        "tool_exit_code": null,
+        "tool_result_count": null,
+        "tool_next_cursor": null,
+        "tool_artifact_sha256": null,
+        "tool_truncated": null,
+        "matter_deadline": "2026-10-19"
+      },
+      "score": {
+        "passed": 2,
+        "total": 21,
+        "score": 0.09523809523809523,
+        "hard_pass": false,
+        "groups": {
+          "instruction_retention": {
+            "passed": 0,
+            "total": 3,
+            "score": 0.0
+          },
+          "authority_and_version": {
+            "passed": 1,
+            "total": 3,
+            "score": 0.3333333333333333
+          },
+          "pinpoint_quote_qualifier": {
+            "passed": 0,
+            "total": 5,
+            "score": 0.0
+          },
+          "multi_turn_edits": {
+            "passed": 0,
+            "total": 2,
+            "score": 0.0
+          },
+          "tool_receipts": {
+            "passed": 0,
+            "total": 7,
+            "score": 0.0
+          },
+          "long_session_update": {
+            "passed": 1,
+            "total": 1,
+            "score": 1.0
+          }
+        },
+        "fields": {
+          "active_instruction_id": {
+            "pass": false,
+            "expected": "R-12",
+            "actual": null
+          },
+          "active_instruction_text": {
+            "pass": false,
+            "expected": "Quote section 7.3 exactly and state the surviving-payment proviso.",
+            "actual": null
+          },
+          "superseded_instruction_ids": {
+            "pass": false,
+            "expected": [
+              "R-11"
+            ],
+            "actual": null
+          },
+          "authority_document_id": {
+            "pass": false,
+            "expected": "K-111",
+            "actual": null
+          },
+          "authority_version": {
+            "pass": true,
+            "expected": "executed-1",
+            "actual": "executed-1"
+          },
+          "authority_sha256": {
+            "pass": false,
+            "expected": "sha256:bd50e76d2e2f41b0-us-final",
+            "actual": null
+          },
+          "locator_kind": {
+            "pass": false,
+            "expected": "section",
+            "actual": null
+          },
+          "locator_value": {
+            "pass": false,
+            "expected": "7.3",
+            "actual": null
+          },
+          "quote_exact": {
+            "pass": false,
+            "expected": "A party may terminate after thirty days' written notice.",
+            "actual": null
+          },
+          "qualifier_exact": {
+            "pass": false,
+            "expected": "provided that all accrued payment obligations remain enforceable.",
+            "actual": null
+          },
+          "source_url": {
+            "pass": false,
+            "expected": "https://example.invalid/us/redwood#sec7.3:~:text=A%20party%20may%20terminate,provided%20that%20all%20accrued",
+            "actual": null
+          },
+          "accepted_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-75",
+              "E-76"
+            ],
+            "actual": null
+          },
+          "rejected_edit_ids": {
+            "pass": false,
+            "expected": [
+              "E-71",
+              "E-72"
+            ],
+            "actual": null
+          },
+          "tool_receipt_id": {
+            "pass": false,
+            "expected": "J-882",
+            "actual": null
+          },
+          "tool_status": {
+            "pass": false,
+            "expected": "complete",
+            "actual": null
+          },
+          "tool_exit_code": {
+            "pass": false,
+            "expected": 0,
+            "actual": null
+          },
+          "tool_result_count": {
+            "pass": false,
+            "expected": 19,
+            "actual": null
+          },
+          "tool_next_cursor": {
+            "pass": false,
+            "expected": "NONE",
+            "actual": null
+          },
+          "tool_artifact_sha256": {
+            "pass": false,
+            "expected": "sha256:7449440f0c26059d-us-artifact",
+            "actual": null
+          },
+          "tool_truncated": {
+            "pass": false,
+            "expected": false,
+            "actual": null
+          },
+          "matter_deadline": {
+            "pass": true,
+            "expected": "2026-10-19",
+            "actual": "2026-10-19"
+          }
+        }
+      },
+      "elapsed_seconds": 9.878,
+      "repetition": 1
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,8 +14,7 @@ export function legalDataHome(options?: {
   home?: string;
 }) {
   const env = options?.env ?? process.env;
-  const configured =
-    env.OPEN_LEGAL_DATA_HOME?.trim() || env.MIKE_LOCAL_DATA_DIR?.trim();
+  const configured = env.OPEN_LEGAL_DATA_HOME?.trim();
   if (configured) return path.resolve(configured);
 
   const platform = options?.platform ?? process.platform;
@@ -40,4 +40,25 @@ export function legalDataHome(options?: {
 
 export function legalProviderDatabase(provider: string, filename: string) {
   return path.join(legalDataHome(), "providers", provider, filename);
+}
+
+export function legalProviderCache(provider: string) {
+  return path.join(legalDataHome(), "cache", provider);
+}
+
+export function mikeLocalDataHome(options?: {
+  env?: Environment;
+  platform?: NodeJS.Platform;
+  home?: string;
+  cwd?: string;
+}) {
+  const configured = (options?.env ?? process.env).MIKE_LOCAL_DATA_DIR?.trim();
+  if (configured) return path.resolve(configured);
+
+  const shared = path.join(legalDataHome(options), "apps", "mike", "library");
+  const legacy = path.resolve(options?.cwd ?? process.cwd(), ".mike-local");
+  return !existsSync(path.join(shared, "library.json")) &&
+    existsSync(path.join(legacy, "library.json"))
+    ? legacy
+    : shared;
 }

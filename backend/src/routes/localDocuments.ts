@@ -17,6 +17,7 @@ import { contentTypeForDocumentType } from "../lib/documentTypes";
 import { extractTrackedChangeIds } from "../lib/docxTrackedChanges";
 import { buildContentDisposition } from "../lib/storage";
 import { singleFileUpload } from "../lib/upload";
+import { imageValidationError } from "../lib/llm/images";
 
 export const localDocumentsRouter = Router();
 
@@ -52,6 +53,11 @@ localDocumentsRouter.post(
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     if (!req.file) return void res.status(400).json({ detail: "file is required" });
+    const imageError = imageValidationError(
+      req.file.originalname,
+      req.file.buffer,
+    );
+    if (imageError) return void res.status(400).json({ detail: imageError });
     try {
       const document = await createLocalDocument({
         userId: res.locals.userId as string,
@@ -213,6 +219,8 @@ localDocumentsRouter.post(
       typeof req.body?.filename === "string" && req.body.filename.trim()
         ? req.body.filename.trim()
         : req.file.originalname;
+    const imageError = imageValidationError(filename, req.file.buffer);
+    if (imageError) return void res.status(400).json({ detail: imageError });
     try {
       const version = await addLocalVersion({
         userId: res.locals.userId as string,
@@ -286,6 +294,8 @@ localDocumentsRouter.put(
       typeof req.body?.filename === "string" && req.body.filename.trim()
         ? req.body.filename.trim()
         : req.file.originalname;
+    const imageError = imageValidationError(filename, req.file.buffer);
+    if (imageError) return void res.status(400).json({ detail: imageError });
     const version = await replaceLocalVersion({
       userId: res.locals.userId as string,
       documentId: req.params.documentId,
