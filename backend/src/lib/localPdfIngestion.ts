@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { createReadStream } from "node:fs";
+import { createInterface } from "node:readline";
+import { isDeepStrictEqual } from "node:util";
 import {
   access,
   mkdir,
@@ -8,6 +10,7 @@ import {
   readdir,
   rename,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
@@ -17,7 +20,18 @@ export const LOCAL_PDF_PARSER_VERSION = "0.1.0";
 const STATE_SUFFIX = ".legalpdf-state.json";
 const ARTIFACT_SUFFIX = ".legalpdf";
 const STATE_SCHEMA = "mike.pdf_parse.v1";
+const DOCUMENT_SCHEMA = "legalpdf.document.v1";
 const statuses = new Set(["queued", "parsing", "ready", "degraded", "failed"]);
+const publicationArtifacts = [
+  "pages",
+  "paragraphs",
+  "sections",
+  "footnotes",
+  "diagnostics",
+  "repairs",
+  "propositions",
+  "parser_config",
+] as const;
 
 export type LocalPdfParseStatus =
   | "queued"
@@ -79,6 +93,7 @@ const cancelled = new Set<string>();
 const activeControllers = new Map<string, AbortController>();
 const jobs = new Map<string, Promise<void>>();
 const atomicWriteTails = new Map<string, Promise<void>>();
+const validatedPublications = new Map<string, string>();
 // ponytail: one parser at a time protects weak local machines; use a bounded
 // worker pool only if measured queue latency justifies the extra machinery.
 let workTail: Promise<unknown> = Promise.resolve();
@@ -393,11 +408,191 @@ function rekeyOcrState(
   } satisfies LocalPdfParseState;
 }
 
+async function requeueInvalidPublication(
+  sourcePath: string,
+  state: LocalPdfParseState,
+) {
+  const now = new Date().toISOString();
+  const queued = {
+    ...state,
+    job_id: crypto.randomUUID(),
+    status: "queued",
+    queued_at: now,
+    updated_at: now,
+    started_at: undefined,
+    completed_at: undefined,
+    engine_status: undefined,
+    cache_hit: undefined,
+    page_count: undefined,
+    counts: undefined,
+    diagnostic_count: undefined,
+    diagnostic_summary: undefined,
+    error: undefined,
+  } satisfies LocalPdfParseState;
+  validatedPublications.delete(publicationKey(sourcePath, state.cache_key));
+  await writeState(sourcePath, queued);
+  schedule(sourcePath);
+  return queued;
+}
+
 function jsonLines(raw: string) {
   return raw
     .split(/\r?\n/u)
     .filter(Boolean)
     .map((line) => JSON.parse(line) as JsonObject);
+}
+
+function publicationKey(sourcePath: string, cacheKey_: string) {
+  return `${path.resolve(sourcePath)}\u0000${cacheKey_}`;
+}
+
+function publishedArtifactPath(output: string, value: unknown, name: string) {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`PDF parser did not publish ${name} artifacts`);
+  }
+  const resolved = path.resolve(output, value);
+  const relative = path.relative(output, resolved);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`PDF parser published an unsafe ${name} artifact path`);
+  }
+  return resolved;
+}
+
+function objectValue(value: unknown, label: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} is not a JSON object`);
+  }
+  return value as JsonObject;
+}
+
+function jsonObject(raw: string, label: string) {
+  return objectValue(JSON.parse(raw) as unknown, label);
+}
+
+async function validateJsonLines(filePath: string) {
+  const input = createReadStream(filePath, { encoding: "utf8" });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  let count = 0;
+  for await (const line of lines) {
+    if (!line.trim()) continue;
+    jsonObject(line, path.basename(filePath));
+    count += 1;
+  }
+  return count;
+}
+
+async function validatePublishedArtifacts(
+  sourcePath: string,
+  state: LocalPdfParseState,
+) {
+  const key = publicationKey(sourcePath, state.cache_key);
+  try {
+    const output = artifactDirectory(sourcePath, state.cache_key);
+    const manifestPath = path.join(output, "document.json");
+    if (
+      typeof state.artifact_manifest !== "string" ||
+      path.resolve(dataRoot, state.artifact_manifest) !== manifestPath
+    ) {
+      throw new Error("PDF parse state points to a different publication");
+    }
+    const manifestRaw = await readFile(manifestPath, "utf8");
+    const manifest = jsonObject(manifestRaw, "PDF artifact manifest");
+    const engineStatus = String(manifest.status || "");
+    if (
+      manifest.schema_version !== DOCUMENT_SCHEMA ||
+      manifest.source_sha256 !== state.source_sha256 ||
+      manifest.parser_version !== state.parser_version ||
+      !["ready", "degraded", "ocr_required"].includes(engineStatus) ||
+      (state.engine_status !== undefined &&
+        state.engine_status !== engineStatus) ||
+      (state.status === "ready" && engineStatus !== "ready") ||
+      (state.status === "degraded" && engineStatus === "ready")
+    ) {
+      throw new Error("PDF artifact manifest does not match its parse state");
+    }
+    const artifacts = objectValue(manifest.artifacts, "PDF artifact map");
+    const paths = Object.fromEntries(
+      publicationArtifacts.map((name) => [
+        name,
+        publishedArtifactPath(output, artifacts[name], name),
+      ]),
+    ) as Record<(typeof publicationArtifacts)[number], string>;
+    const parserConfigRaw = await readFile(paths.parser_config, "utf8");
+    const persistedConfig = jsonObject(
+      parserConfigRaw,
+      "PDF parser configuration",
+    );
+    if (
+      persistedConfig.parser_version !== state.parser_version ||
+      persistedConfig.parser_config_version !== state.parser_config_version ||
+      persistedConfig.cache_key !== state.cache_key ||
+      persistedConfig.source_sha256 !== state.source_sha256 ||
+      !isDeepStrictEqual(persistedConfig.parser_config, state.parser_config)
+    ) {
+      throw new Error(
+        "PDF parser configuration does not match its parse state",
+      );
+    }
+    const metadata = await Promise.all(
+      publicationArtifacts.map(async (name) => {
+        const details = await stat(paths[name]);
+        if (!details.isFile()) {
+          throw new Error(`PDF ${name} artifact is not a file`);
+        }
+        return `${name}:${details.size}:${details.mtimeMs}`;
+      }),
+    );
+    const signature = sha256(
+      [manifestRaw, parserConfigRaw, ...metadata].join("\u001e"),
+    );
+    if (validatedPublications.get(key) === signature) return true;
+
+    const names = publicationArtifacts.filter(
+      (name) => name !== "parser_config",
+    );
+    const rowCounts = Object.fromEntries(
+      await Promise.all(
+        names.map(async (name) => [name, await validateJsonLines(paths[name])]),
+      ),
+    ) as Record<(typeof names)[number], number>;
+    const expectedCounts = objectValue(manifest.counts, "PDF artifact counts");
+    for (const name of [
+      "pages",
+      "paragraphs",
+      "sections",
+      "footnotes",
+      "diagnostics",
+      "repairs",
+    ] as const) {
+      if (expectedCounts[name] !== rowCounts[name]) {
+        throw new Error(
+          `PDF ${name} artifact count does not match its manifest`,
+        );
+      }
+    }
+    if (
+      manifest.page_count !== rowCounts.pages ||
+      rowCounts.propositions !== rowCounts.footnotes ||
+      (state.page_count !== undefined &&
+        state.page_count !== rowCounts.pages) ||
+      (state.diagnostic_count !== undefined &&
+        state.diagnostic_count !== rowCounts.diagnostics) ||
+      (state.counts !== undefined &&
+        !isDeepStrictEqual(state.counts, expectedCounts))
+    ) {
+      throw new Error("PDF artifact publication is internally inconsistent");
+    }
+    validatedPublications.set(key, signature);
+    return true;
+  } catch {
+    validatedPublications.delete(key);
+    return false;
+  }
 }
 
 async function publishBridgeArtifacts(
@@ -422,11 +617,12 @@ async function publishBridgeArtifacts(
       ? (manifest.artifacts as JsonObject)
       : {};
   const footnotes = jsonLines(
-    await readFile(path.join(output, String(artifacts.footnotes)), "utf8"),
+    await readFile(
+      publishedArtifactPath(output, artifacts.footnotes, "footnote"),
+      "utf8",
+    ),
   );
-  if (typeof artifacts.sections !== "string") {
-    throw new Error("PDF parser did not publish section artifacts");
-  }
+  publishedArtifactPath(output, artifacts.sections, "section");
   const propositions = footnotes.map((footnote) => ({
     pair_id: footnote.pair_id,
     label: footnote.label,
@@ -519,6 +715,8 @@ async function processJob(sourcePath: string) {
     }
     if (cancelled.has(key)) return;
     if (!(await writeState(sourcePath, parsing))) return;
+    validatedPublications.delete(publicationKey(sourcePath, parsing.cache_key));
+    await rm(path.join(output, "document.json"), { force: true });
     const configuredTimeout = Number(process.env.MIKE_PDF_PARSE_TIMEOUT_MS);
     const arguments_ = [
       "parse",
@@ -584,7 +782,7 @@ async function processJob(sourcePath: string) {
           )
         : {};
     if (cancelled.has(key)) return;
-    await writeState(sourcePath, {
+    const completedState = {
       ...parsing,
       status: engineStatus === "ready" ? "ready" : "degraded",
       engine_status: engineStatus,
@@ -598,7 +796,12 @@ async function processJob(sourcePath: string) {
       diagnostic_summary: diagnostics.summary,
       completed_at: completed,
       updated_at: completed,
-    });
+    } satisfies LocalPdfParseState;
+    if (!(await validatePublishedArtifacts(sourcePath, completedState))) {
+      await rm(path.join(output, "document.json"), { force: true });
+      throw new Error("PDF parser published incomplete or corrupt artifacts");
+    }
+    await writeState(sourcePath, completedState);
   } catch (error) {
     if (cancelled.has(key) || controller.signal.aborted) return;
     if (!parsing) {
@@ -707,12 +910,7 @@ export async function queueLocalPdfParse(params: {
     if (
       !params.force &&
       (current.status === "ready" || current.status === "degraded") &&
-      (await exists(
-        path.join(
-          artifactDirectory(params.sourcePath, current.cache_key),
-          "document.json",
-        ),
-      ))
+      (await validatePublishedArtifacts(params.sourcePath, current))
     ) {
       return current;
     }
@@ -724,11 +922,21 @@ export async function queueLocalPdfParse(params: {
   return candidate;
 }
 
-export async function readLocalPdfParseState(sourcePath: string) {
-  const state = await readState(sourcePath);
+export async function readLocalPdfParseState(
+  sourcePath: string,
+  options?: { validatePublication?: boolean },
+) {
+  let state = await readState(sourcePath);
   if (!state) return null;
   let diagnostics: JsonObject[] = [];
-  if (state.status === "ready" || state.status === "degraded") {
+  if (
+    options?.validatePublication !== false &&
+    (state.status === "ready" || state.status === "degraded")
+  ) {
+    if (!(await validatePublishedArtifacts(sourcePath, state))) {
+      state = await requeueInvalidPublication(sourcePath, state);
+      return { ...state, diagnostics };
+    }
     try {
       diagnostics = jsonLines(
         await readFile(
@@ -831,7 +1039,7 @@ export async function resumeLocalPdfParses() {
     try {
       const sourcePath = filePath.slice(0, -STATE_SUFFIX.length);
       const state = await readState(sourcePath);
-      if (!state || !["queued", "parsing"].includes(state.status)) continue;
+      if (!state) continue;
       if (!(await exists(sourcePath))) {
         const now = new Date().toISOString();
         await atomicWrite(
@@ -850,6 +1058,14 @@ export async function resumeLocalPdfParses() {
         );
         continue;
       }
+      if (
+        (state.status === "ready" || state.status === "degraded") &&
+        !(await validatePublishedArtifacts(sourcePath, state))
+      ) {
+        await requeueInvalidPublication(sourcePath, state);
+        continue;
+      }
+      if (!["queued", "parsing"].includes(state.status)) continue;
       if (state.status === "parsing") {
         const now = new Date().toISOString();
         await writeState(sourcePath, {
