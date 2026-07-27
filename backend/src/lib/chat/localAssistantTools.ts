@@ -23,6 +23,7 @@ import {
   rehydrateLocalPdfEvidence,
   type LocalPdfLocatorKind,
 } from "../localPdfLookup";
+import { localPdfArtifactSessionForTurn } from "./localPdfEvidenceState";
 import type {
   NormalizedToolCall,
   NormalizedToolResult,
@@ -347,7 +348,7 @@ function pdfEvidenceError(error: unknown) {
 
 type LocalPdfLookupResult = Awaited<
   ReturnType<typeof lookupLocalPdfStructure>
->;
+> | Awaited<ReturnType<typeof rehydrateLocalPdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
 
 function compactPdfLookup(
@@ -382,7 +383,10 @@ function compactPdfLookup(
     context: { before: lookup.before, after: lookup.after },
     confidence: confidence.length ? Math.min(...confidence) : null,
     link: {
-      href: lookup.link.href,
+      ...(lookup.evidence.page_text_sha256 &&
+      lookup.evidence.page_numbers?.length
+        ? { href: lookup.link.href }
+        : {}),
       page_numbers: lookup.link.page_numbers,
     },
   };
@@ -523,21 +527,28 @@ export async function runLocalAssistantTools(
             error: "Exact structural lookup requires a parsed PDF version",
           });
         }
-        const lookup = await lookupLocalPdfStructure(file.path, {
-          locatorKind: args.locator_kind as LocalPdfLocatorKind,
-          locator: typeof args.locator === "string" ? args.locator : "",
-          endLocator:
-            typeof args.end_locator === "string"
-              ? args.end_locator
-              : undefined,
-          contextBlocks:
-            typeof args.context_blocks === "number"
-              ? args.context_blocks
-              : undefined,
-          page: typeof args.page === "number" ? args.page : undefined,
-          occurrence:
-            typeof args.occurrence === "number" ? args.occurrence : undefined,
-        });
+        const artifactSession = localPdfEvidenceHandles
+          ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, file.path)
+          : undefined;
+        const lookup = await lookupLocalPdfStructure(
+          file.path,
+          {
+            locatorKind: args.locator_kind as LocalPdfLocatorKind,
+            locator: typeof args.locator === "string" ? args.locator : "",
+            endLocator:
+              typeof args.end_locator === "string"
+                ? args.end_locator
+                : undefined,
+            contextBlocks:
+              typeof args.context_blocks === "number"
+                ? args.context_blocks
+                : undefined,
+            page: typeof args.page === "number" ? args.page : undefined,
+            occurrence:
+              typeof args.occurrence === "number" ? args.occurrence : undefined,
+          },
+          { artifactSession },
+        );
         if (lookup.status === "found") {
           localPdfEvidenceHandles?.add(lookup.evidence.handle);
         }
@@ -572,7 +583,14 @@ export async function runLocalAssistantTools(
               error: "PDF Library version not found",
             });
           }
-          const lookup = await rehydrateLocalPdfEvidence(file.path, handle);
+          const artifactSession = localPdfEvidenceHandles
+            ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, file.path)
+            : undefined;
+          const lookup = await rehydrateLocalPdfEvidence(
+            file.path,
+            handle,
+            artifactSession,
+          );
           localPdfEvidenceHandles?.add(handle);
           return result(
             call,

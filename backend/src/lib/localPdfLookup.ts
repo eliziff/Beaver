@@ -84,6 +84,8 @@ export type LocalPdfEvidenceReceipt = {
     context_artifact_ids: string[];
     text_sha256: string;
     payload_sha256: string;
+    page_numbers?: number[];
+    page_text_sha256?: string;
   };
 };
 
@@ -97,6 +99,15 @@ export type LocalPdfLinkEvidence = {
   documentText: string;
   pageScoped: boolean;
   pageNumbers: number[];
+  sources: {
+    key: string;
+    label: string;
+    href: string;
+    blockText: string;
+    documentText: string;
+    pageScoped: boolean;
+    pageNumbers: number[];
+  }[];
   pages: {
     pageNumber: number;
     href: string;
@@ -113,6 +124,27 @@ export type LocalPdfLinkEvidence = {
 
 function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+type EvidenceHandleIdentity = {
+  document_id: string;
+  version_id: string;
+  source_sha256: string;
+  cache_key: string;
+  kind: CanonicalKind;
+  artifact_ids: string[];
+  text_sha256: string;
+  context_artifact_ids: string[];
+  payload_sha256: string;
+};
+
+function evidenceHandle(
+  identity: EvidenceHandleIdentity,
+  pageBinding?: { page_numbers: number[]; page_text_sha256: string },
+) {
+  return `mike-evidence:v1:${sha256(
+    JSON.stringify(pageBinding ? { ...identity, ...pageBinding } : identity),
+  )}`;
 }
 
 function sha256File(filename: string) {
@@ -142,6 +174,18 @@ function evidencePath(handle: string) {
   const digest = handle.match(EVIDENCE_HANDLE)?.[1];
   if (!digest) throw new Error("Invalid PDF evidence handle");
   return path.join(dataRoot, "evidence", "pdf", "v1", `${digest}.json`);
+}
+
+function evidenceViewPath(
+  documentId: string,
+  versionId: string,
+  handle: string,
+) {
+  return `/single-documents/${encodeURIComponent(
+    documentId,
+  )}/evidence-view?version_id=${encodeURIComponent(
+    versionId,
+  )}&evidence=${encodeURIComponent(handle)}`;
 }
 
 async function atomicWriteOnce(filename: string, value: string) {
@@ -175,6 +219,8 @@ function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
   const source = receipt.source;
   const lookup = receipt.lookup;
   const evidence = receipt.evidence;
+  const hasPageNumbers = evidence?.page_numbers !== undefined;
+  const hasPageTextSha256 = evidence?.page_text_sha256 !== undefined;
   if (
     receipt.schema_version !== EVIDENCE_SCHEMA ||
     typeof receipt.handle !== "string" ||
@@ -196,7 +242,14 @@ function evidenceReceipt(value: unknown): LocalPdfEvidenceReceipt {
     !Array.isArray(evidence.context_artifact_ids) ||
     !evidence.context_artifact_ids.every((id) => typeof id === "string") ||
     typeof evidence.text_sha256 !== "string" ||
-    typeof evidence.payload_sha256 !== "string"
+    typeof evidence.payload_sha256 !== "string" ||
+    hasPageNumbers !== hasPageTextSha256 ||
+    (hasPageNumbers &&
+      (!Array.isArray(evidence.page_numbers) ||
+        !evidence.page_numbers.every(
+          (number) => Number.isInteger(number) && number > 0,
+        ) ||
+        typeof evidence.page_text_sha256 !== "string"))
   ) {
     throw new Error("Invalid PDF evidence receipt");
   }
@@ -219,6 +272,13 @@ async function persistEvidenceReceipt(receipt: LocalPdfEvidenceReceipt) {
       existing.source.cache_key !== receipt.source.cache_key ||
       existing.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
       existing.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
+      existing.evidence.page_text_sha256 !==
+        receipt.evidence.page_text_sha256 ||
+      existing.evidence.page_numbers?.length !==
+        receipt.evidence.page_numbers?.length ||
+      existing.evidence.page_numbers?.some(
+        (number, index) => number !== receipt.evidence.page_numbers?.[index],
+      ) ||
       existing.evidence.artifact_ids.length !==
         receipt.evidence.artifact_ids.length ||
       existing.evidence.artifact_ids.some(
@@ -256,6 +316,34 @@ export async function readLocalPdfEvidenceReceipt(handle: string) {
     throw new Error("PDF evidence receipt handle does not match its content");
   }
   return receipt;
+}
+
+function hasPageBinding(
+  receipt: LocalPdfEvidenceReceipt,
+): receipt is LocalPdfEvidenceReceipt & {
+  evidence: {
+    page_numbers: number[];
+    page_text_sha256: string;
+  };
+} {
+  return (
+    Array.isArray(receipt.evidence.page_numbers) &&
+    typeof receipt.evidence.page_text_sha256 === "string"
+  );
+}
+
+function sameStrings(left: string[], right: string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function sameNumbers(left: number[], right: number[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 function jsonLines(raw: string) {
@@ -431,18 +519,67 @@ function pageLines(row: JsonObject) {
     : [];
 }
 
+function joinPageLines(lines: string[]) {
+  const parts: string[] = [];
+  for (const text of lines) {
+    if (
+      parts.length &&
+      parts[parts.length - 1].endsWith("-") &&
+      /^\p{Ll}/u.test(text)
+    ) {
+      parts[parts.length - 1] = parts[parts.length - 1].slice(0, -1);
+    } else if (parts.length) {
+      parts.push(" ");
+    }
+    parts.push(text);
+  }
+  return parts.join("");
+}
+
+type NormalizedPage = {
+  number: number;
+  text: string;
+};
+
+function normalizedPages(rows: JsonObject[]) {
+  return rows
+    .map((row) => ({
+      number: pageNumber(row),
+      text: joinPageLines(pageLines(row)),
+    }))
+    .filter(({ text }) => text)
+    .sort((left, right) => left.number - right.number);
+}
+
+function relevantPages(
+  pages: NormalizedPage[],
+  units: LocalPdfLookupUnit[],
+) {
+  const numbers = new Set(units.flatMap((unit) => unit.page_numbers));
+  return pages.filter(({ number }) => numbers.has(number));
+}
+
+function pageTextSha256(pages: NormalizedPage[]) {
+  return sha256(
+    JSON.stringify(
+      pages.map(({ number, text }) => ({ page_number: number, text })),
+    ),
+  );
+}
+
 function pageText(row: JsonObject) {
   const page = pageNumber(row);
   const lines = pageLines(row);
-  return lines.length ? `[page ${page}]\n${lines.join("\n")}` : "";
+  return lines.length ? `[page ${page}]\n${joinPageLines(lines)}` : "";
 }
 
-async function artifacts(sourcePath: string, kind: CanonicalKind) {
+async function loadArtifactSource(sourcePath: string) {
   const source = within(dataRoot, sourcePath);
   await access(source);
   const state = await readLocalPdfParseState(source);
   if (!state || !["ready", "degraded"].includes(state.status)) {
     return {
+      available: false as const,
       error: state
         ? `Structural PDF parse is ${state.status}`
         : "No structural PDF parse exists",
@@ -481,11 +618,18 @@ async function artifacts(sourcePath: string, kind: CanonicalKind) {
       ? (manifest.artifacts as JsonObject)
       : {};
   const root = path.dirname(manifestPath);
+  const rowLoads = new Map<string, Promise<JsonObject[] | null>>();
   const readRows = async (name: string) => {
-    const file = names[name];
-    return typeof file === "string"
-      ? jsonLines(await readFile(within(root, file), "utf8"))
-      : null;
+    let pending = rowLoads.get(name);
+    if (!pending) {
+      const file = names[name];
+      pending =
+        typeof file === "string"
+          ? readFile(within(root, file), "utf8").then(jsonLines)
+          : Promise.resolve(null);
+      rowLoads.set(name, pending);
+    }
+    return pending;
   };
   const parserConfigFile = names.parser_config;
   if (typeof parserConfigFile !== "string") {
@@ -505,6 +649,47 @@ async function artifacts(sourcePath: string, kind: CanonicalKind) {
       "PDF lookup parser configuration does not match the selected source",
     );
   }
+  return {
+    available: true as const,
+    source,
+    state,
+    manifest,
+    readRows,
+  };
+}
+
+type ArtifactSource = Awaited<ReturnType<typeof loadArtifactSource>>;
+
+export type LocalPdfArtifactSession = {
+  source: string;
+  loaded: Promise<ArtifactSource>;
+  normalizedPages?: NormalizedPage[];
+  pageInfo?: ReturnType<typeof pageMaps>["byIndex"];
+  orderedUnits: Map<CanonicalKind, LocalPdfLookupUnit[]>;
+};
+
+export function createLocalPdfArtifactSession(
+  sourcePath: string,
+): LocalPdfArtifactSession {
+  const source = within(dataRoot, sourcePath);
+  return {
+    source,
+    loaded: loadArtifactSource(source),
+    orderedUnits: new Map(),
+  };
+}
+
+async function artifacts(
+  sourcePath: string,
+  kind: CanonicalKind,
+  session = createLocalPdfArtifactSession(sourcePath),
+) {
+  if (within(dataRoot, sourcePath) !== session.source) {
+    throw new Error("PDF lookup session does not belong to this source");
+  }
+  const loaded = await session.loaded;
+  if (!loaded.available) return loaded;
+  const { state, manifest, readRows } = loaded;
   const rows = await readRows(
     kind === "page"
       ? "pages"
@@ -710,6 +895,7 @@ export async function lookupLocalPdfStructure(
   options?: {
     persistEvidence?: boolean;
     capturePageRows?: (rows: JsonObject[]) => void;
+    artifactSession?: LocalPdfArtifactSession;
   },
 ) {
   const base = baseResult(input);
@@ -736,7 +922,11 @@ export async function lookupLocalPdfStructure(
 
   try {
     const kind = canonicalKind(input.locatorKind);
-    const loaded = await artifacts(sourcePath, kind);
+    const loaded = await artifacts(
+      sourcePath,
+      kind,
+      options?.artifactSession,
+    );
     if ("error" in loaded) {
       return {
         ...base,
@@ -747,7 +937,11 @@ export async function lookupLocalPdfStructure(
     }
     options?.capturePageRows?.(loaded.pages);
     const { state, manifest, rows, pages, paragraphs } = loaded;
-    const pageInfo = pageMaps(pages).byIndex;
+    const pageInfo =
+      options?.artifactSession?.pageInfo ?? pageMaps(pages).byIndex;
+    if (options?.artifactSession) {
+      options.artifactSession.pageInfo = pageInfo;
+    }
     let ordered: LocalPdfLookupUnit[] = [];
     let selected: LocalPdfLookupUnit[] | null = null;
     let selectedStart = -1;
@@ -756,9 +950,11 @@ export async function lookupLocalPdfStructure(
 
     if (kind === "page" || kind === "paragraph") {
       ordered =
-        kind === "page"
+        options?.artifactSession?.orderedUnits.get(kind) ??
+        (kind === "page"
           ? rows.map(pageUnit)
-          : rows.map((row, index) => paragraphUnit(row, index, pageInfo));
+          : rows.map((row, index) => paragraphUnit(row, index, pageInfo)));
+      options?.artifactSession?.orderedUnits.set(kind, ordered);
       const inlineRange = numericRange(kind, input.locator);
       const startNumber = inlineRange?.[0] ?? parseOrdinal(kind, input.locator);
       const endNumber =
@@ -792,7 +988,10 @@ export async function lookupLocalPdfStructure(
           ? range(ordered, selectedStart, selectedEnd)
           : [];
     } else if (kind === "footnote") {
-      ordered = rows.map(footnoteUnit);
+      ordered =
+        options?.artifactSession?.orderedUnits.get(kind) ??
+        rows.map(footnoteUnit);
+      options?.artifactSession?.orderedUnits.set(kind, ordered);
       const startMatches = exactFootnoteMatches(rows, input.locator, input);
       const endMatches = input.endLocator
         ? exactFootnoteMatches(rows, input.endLocator, input)
@@ -852,7 +1051,10 @@ export async function lookupLocalPdfStructure(
           matches: candidates.map(({ row }) => stringValue(row.id)),
         };
       }
-      ordered = sectionUnits(rows, paragraphs, pageInfo);
+      ordered =
+        options?.artifactSession?.orderedUnits.get(kind) ??
+        sectionUnits(rows, paragraphs, pageInfo);
+      options?.artifactSession?.orderedUnits.set(kind, ordered);
       selectedStart = candidates[0]?.index ?? -1;
       selectedEnd = selectedStart;
       selected = selectedStart >= 0 ? [ordered[selectedStart]] : [];
@@ -904,29 +1106,43 @@ export async function lookupLocalPdfStructure(
     const payloadSha256 = sha256(
       JSON.stringify({ units: selected, before, after }),
     );
-    const evidenceHandle = `mike-evidence:v1:${sha256(
-      JSON.stringify({
-        document_id: state.document_id,
-        version_id: state.version_id,
-        source_sha256: state.source_sha256,
-        cache_key: state.cache_key,
-        kind,
-        artifact_ids: artifactIds,
-        text_sha256: textSha256,
-        context_artifact_ids: contextArtifactIds,
-        payload_sha256: payloadSha256,
-      }),
-    )}`;
+    const allEvidenceUnits = [...before, ...selected, ...after];
+    const normalizedPageRows =
+      options?.artifactSession?.normalizedPages ??
+      normalizedPages(loaded.pages);
+    if (options?.artifactSession) {
+      options.artifactSession.normalizedPages = normalizedPageRows;
+    }
+    const boundPages = relevantPages(normalizedPageRows, allEvidenceUnits);
+    const boundPageNumbers = boundPages.map(({ number }) => number);
+    const boundPageTextSha256 = pageTextSha256(boundPages);
+    const handleIdentity = {
+      document_id: state.document_id,
+      version_id: state.version_id,
+      source_sha256: state.source_sha256,
+      cache_key: state.cache_key,
+      kind,
+      artifact_ids: artifactIds,
+      text_sha256: textSha256,
+      context_artifact_ids: contextArtifactIds,
+      payload_sha256: payloadSha256,
+    };
+    const handle = evidenceHandle(handleIdentity, {
+      page_numbers: boundPageNumbers,
+      page_text_sha256: boundPageTextSha256,
+    });
     const pageNumbers = [
       ...new Set(selected.flatMap((unit) => unit.page_numbers)),
     ].sort((left, right) => left - right);
-    const displayPath = `/single-documents/${encodeURIComponent(
+    const viewPath = evidenceViewPath(
       state.document_id,
-    )}/display?version_id=${encodeURIComponent(state.version_id)}`;
+      state.version_id,
+      handle,
+    );
     if (options?.persistEvidence !== false) {
       await persistEvidenceReceipt({
         schema_version: EVIDENCE_SCHEMA,
-        handle: evidenceHandle,
+        handle,
         source: {
           document_id: state.document_id,
           version_id: state.version_id,
@@ -942,6 +1158,8 @@ export async function lookupLocalPdfStructure(
           context_artifact_ids: contextArtifactIds,
           text_sha256: textSha256,
           payload_sha256: payloadSha256,
+          page_numbers: boundPageNumbers,
+          page_text_sha256: boundPageTextSha256,
         },
       });
     }
@@ -965,18 +1183,20 @@ export async function lookupLocalPdfStructure(
         schema_version: manifest.schema_version,
       },
       evidence: {
-        handle: evidenceHandle,
+        handle,
         artifact_ids: artifactIds,
         context_artifact_ids: contextArtifactIds,
         text_sha256: textSha256,
         payload_sha256: payloadSha256,
+        page_numbers: boundPageNumbers,
+        page_text_sha256: boundPageTextSha256,
       },
       link: {
         type: "local-library-pdf",
-        display_path: displayPath,
+        evidence_view_path: viewPath,
         href: pageNumbers[0]
-          ? `${displayPath}#page=${pageNumbers[0]}`
-          : displayPath,
+          ? `${viewPath}#page=${pageNumbers[0]}`
+          : viewPath,
         page_numbers: pageNumbers,
         artifact_ids: artifactIds,
       },
@@ -999,6 +1219,7 @@ export async function lookupLocalPdfStructure(
 async function verifiedLocalPdfEvidence(
   sourcePath: string,
   handle: string,
+  artifactSession?: LocalPdfArtifactSession,
 ) {
   const receipt = await readLocalPdfEvidenceReceipt(handle);
   if (
@@ -1012,6 +1233,7 @@ async function verifiedLocalPdfEvidence(
     capturePageRows: (rows) => {
       pageRows = rows;
     },
+    artifactSession,
   });
   if (
     lookup.status !== "found" &&
@@ -1020,9 +1242,28 @@ async function verifiedLocalPdfEvidence(
   ) {
     throw new Error("PDF evidence source bytes no longer match their version");
   }
+  if (lookup.status !== "found") {
+    throw new Error(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  }
+  const identity = {
+    document_id: lookup.source.document_id,
+    version_id: lookup.source.version_id,
+    source_sha256: lookup.source.source_sha256,
+    cache_key: lookup.source.cache_key,
+    kind: canonicalKind(receipt.lookup.locatorKind),
+    artifact_ids: lookup.evidence.artifact_ids,
+    text_sha256: lookup.evidence.text_sha256,
+    context_artifact_ids: lookup.evidence.context_artifact_ids,
+    payload_sha256: lookup.evidence.payload_sha256,
+  };
+  const pageBound = hasPageBinding(receipt);
+  const expectedHandle = pageBound
+    ? lookup.evidence.handle
+    : evidenceHandle(identity);
   if (
-    lookup.status !== "found" ||
-    lookup.evidence.handle !== handle ||
+    expectedHandle !== handle ||
     lookup.source.document_id !== receipt.source.document_id ||
     lookup.source.version_id !== receipt.source.version_id ||
     lookup.source.source_sha256 !== receipt.source.source_sha256 ||
@@ -1032,83 +1273,241 @@ async function verifiedLocalPdfEvidence(
     lookup.source.cache_key !== receipt.source.cache_key ||
     lookup.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
     lookup.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
-    lookup.evidence.artifact_ids.length !==
-      receipt.evidence.artifact_ids.length ||
-    lookup.evidence.artifact_ids.some(
-      (id, index) => id !== receipt.evidence.artifact_ids[index],
+    !sameStrings(
+      lookup.evidence.artifact_ids,
+      receipt.evidence.artifact_ids,
     ) ||
-    lookup.evidence.context_artifact_ids.length !==
-      receipt.evidence.context_artifact_ids.length ||
-    lookup.evidence.context_artifact_ids.some(
-      (id, index) => id !== receipt.evidence.context_artifact_ids[index],
-    )
+    !sameStrings(
+      lookup.evidence.context_artifact_ids,
+      receipt.evidence.context_artifact_ids,
+    ) ||
+    (pageBound &&
+      (lookup.evidence.page_text_sha256 !==
+        receipt.evidence.page_text_sha256 ||
+        !sameNumbers(
+          lookup.evidence.page_numbers,
+          receipt.evidence.page_numbers,
+        )))
   ) {
     throw new Error(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  return { lookup, pageRows };
+  if (pageBound) return { lookup, pageRows, receipt };
+  const viewPath = evidenceViewPath(
+    lookup.source.document_id,
+    lookup.source.version_id,
+    handle,
+  );
+  return {
+    lookup: {
+      ...lookup,
+      evidence: {
+        ...lookup.evidence,
+        handle,
+        page_numbers: undefined,
+        page_text_sha256: undefined,
+      },
+      link: {
+        ...lookup.link,
+        evidence_view_path: viewPath,
+        href: lookup.link.page_numbers[0]
+          ? `${viewPath}#page=${lookup.link.page_numbers[0]}`
+          : viewPath,
+      },
+    },
+    pageRows,
+    receipt,
+  };
 }
 
 export async function rehydrateLocalPdfEvidence(
   sourcePath: string,
   handle: string,
+  artifactSession?: LocalPdfArtifactSession,
 ) {
-  return (await verifiedLocalPdfEvidence(sourcePath, handle)).lookup;
+  return (
+    await verifiedLocalPdfEvidence(sourcePath, handle, artifactSession)
+  ).lookup;
+}
+
+export async function verifyLocalPdfLinkEvidence(
+  sourcePath: string,
+  handle: string,
+  artifactSession?: LocalPdfArtifactSession,
+) {
+  const verified = await verifiedLocalPdfEvidence(
+    sourcePath,
+    handle,
+    artifactSession,
+  );
+  if (!hasPageBinding(verified.receipt)) {
+    throw new Error(
+      "PDF evidence receipt is not bound to authoritative page text",
+    );
+  }
+  return {
+    documentId: verified.lookup.source.document_id,
+    versionId: verified.lookup.source.version_id,
+  };
+}
+
+function evidenceBlockText(units: LocalPdfLookupUnit[]) {
+  const seenUnits = new Set<string>();
+  const seenText = new Set<string>();
+  return units
+    .filter((unit) => {
+      const key = `${unit.kind}:${unit.id}`;
+      if (seenUnits.has(key)) return false;
+      seenUnits.add(key);
+      return true;
+    })
+    .flatMap((unit) => [
+      unit.text.trim(),
+      unit.proposition?.sentence.trim() ?? "",
+      unit.proposition?.passage_since_prior_note.trim() ?? "",
+    ])
+    .filter((text) => {
+      const key = text.replace(/\s+/gu, " ").toLowerCase();
+      if (!key || seenText.has(key)) return false;
+      seenText.add(key);
+      return true;
+    })
+    .join("\n\n");
+}
+
+function evidenceLabel(units: LocalPdfLookupUnit[], pages: NormalizedPage[]) {
+  if (units.length === 1) return units[0].locator;
+  if (units.length && units.every(({ kind }) => kind === "page")) {
+    return `[pages ${units
+      .flatMap(({ page_numbers }) => page_numbers)
+      .join(", ")}]`;
+  }
+  return units.length
+    ? `${units[0].locator}\u2013${units[units.length - 1].locator}`
+    : pages.length === 1
+      ? `[page ${pages[0].number}]`
+      : `[pages ${pages.map(({ number }) => number).join(", ")}]`;
+}
+
+function evidenceSources(
+  units: LocalPdfLookupUnit[],
+  viewPath: string,
+  documentText: string,
+) {
+  const seen = new Set<string>();
+  return units.flatMap((unit) => {
+    const key = `${unit.kind}:${unit.id}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const pageNumbers = [...new Set(unit.page_numbers)].sort(
+      (left, right) => left - right,
+    );
+    return [{
+      key,
+      label: unit.locator,
+      href: pageNumbers[0]
+        ? `${viewPath}#page=${pageNumbers[0]}`
+        : viewPath,
+      blockText: evidenceBlockText([unit]),
+      documentText,
+      pageScoped: pageNumbers.length === 1,
+      pageNumbers,
+    }];
+  });
+}
+
+function buildLinkEvidence(
+  handle: string,
+  verified: Awaited<ReturnType<typeof verifiedLocalPdfEvidence>>,
+  rows: NormalizedPage[],
+): LocalPdfLinkEvidence {
+  const { lookup, receipt } = verified;
+  if (!hasPageBinding(receipt)) {
+    throw new Error(
+      "PDF evidence receipt is not bound to authoritative page text",
+    );
+  }
+  const byNumber = new Map(rows.map((row) => [row.number, row]));
+  const boundPages = receipt.evidence.page_numbers
+    .map((number) => byNumber.get(number))
+    .filter((page): page is NormalizedPage => Boolean(page));
+  const documentText = boundPages.map(({ text }) => text).join("\n");
+  const viewPath = evidenceViewPath(
+    lookup.source.document_id,
+    lookup.source.version_id,
+    handle,
+  );
+  const pages = boundPages.map(({ number, text }) => {
+    const href = `${viewPath}#page=${number}`;
+    return {
+      pageNumber: number,
+      href,
+      label: `[page ${number}]`,
+      blockText: text,
+      evidence: {
+        url: href,
+        blockText: text,
+        documentText,
+        pageScoped: true as const,
+      },
+    };
+  });
+  if (!pages.length) {
+    throw new Error("PDF evidence has no exact page text for linking");
+  }
+  const selectedPageNumbers = [
+    ...new Set(lookup.link.page_numbers),
+  ].sort((left, right) => left - right);
+  const sources = evidenceSources(
+    [...lookup.before, ...lookup.units, ...lookup.after],
+    viewPath,
+    documentText,
+  );
+  return {
+    handle,
+    documentId: lookup.source.document_id,
+    versionId: lookup.source.version_id,
+    href: selectedPageNumbers[0]
+      ? `${viewPath}#page=${selectedPageNumbers[0]}`
+      : viewPath,
+    label: evidenceLabel(lookup.units, boundPages),
+    blockText: evidenceBlockText(lookup.units),
+    documentText,
+    pageScoped: selectedPageNumbers.length === 1,
+    pageNumbers: selectedPageNumbers,
+    sources,
+    pages,
+  };
+}
+
+export type LocalPdfLinkEvidenceSession = {
+  rehydrate(handle: string): Promise<LocalPdfLinkEvidence>;
+};
+
+export function createLocalPdfLinkEvidenceSession(
+  sourcePath: string,
+  artifactSession = createLocalPdfArtifactSession(sourcePath),
+): LocalPdfLinkEvidenceSession {
+  return {
+    async rehydrate(handle) {
+      const verified = await verifiedLocalPdfEvidence(
+        sourcePath,
+        handle,
+        artifactSession,
+      );
+      const rows =
+        artifactSession.normalizedPages ??
+        normalizedPages(verified.pageRows);
+      artifactSession.normalizedPages = rows;
+      return buildLinkEvidence(handle, verified, rows);
+    },
+  };
 }
 
 export async function rehydrateLocalPdfLinkEvidence(
   sourcePath: string,
   handle: string,
 ): Promise<LocalPdfLinkEvidence> {
-  const { lookup, pageRows } = await verifiedLocalPdfEvidence(
-    sourcePath,
-    handle,
-  );
-
-  const rows = pageRows
-    .map((row) => ({
-      number: pageNumber(row),
-      text: pageLines(row).join(" ").replace(/\s+/gu, " ").trim(),
-    }))
-    .filter(({ text }) => text);
-  const documentText = rows.map(({ text }) => text).join("\n");
-  const pageNumbers = new Set(
-    [...lookup.before, ...lookup.units, ...lookup.after].flatMap(
-      (unit) => unit.page_numbers,
-    ),
-  );
-  const pages = rows
-    .filter(({ number }) => pageNumbers.has(number))
-    .map(({ number, text }) => ({
-      pageNumber: number,
-      href: `${lookup.link.display_path}#page=${number}`,
-      label: `[page ${number}]`,
-      blockText: text,
-      evidence: {
-        url: `${lookup.link.display_path}#page=${number}`,
-        blockText: text,
-        documentText,
-        pageScoped: true as const,
-      },
-    }));
-  if (!pages.length) {
-    throw new Error("PDF evidence has no exact page text for linking");
-  }
-  const selectedPageNumbers = pages.map(({ pageNumber }) => pageNumber);
-  return {
-    handle,
-    documentId: lookup.source.document_id,
-    versionId: lookup.source.version_id,
-    href: pages[0].href,
-    label:
-      pages.length === 1
-        ? pages[0].label
-        : `[pages ${selectedPageNumbers.join(", ")}]`,
-    blockText: pages.map(({ blockText }) => blockText).join("\n"),
-    documentText,
-    pageScoped: pages.length === 1,
-    pageNumbers: selectedPageNumbers,
-    pages,
-  };
+  return createLocalPdfLinkEvidenceSession(sourcePath).rehydrate(handle);
 }

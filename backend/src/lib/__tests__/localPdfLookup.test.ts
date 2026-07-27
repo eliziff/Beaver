@@ -300,7 +300,7 @@ describe("exact local PDF structure lookup", () => {
       units: [
         {
           locator: "[page 1]",
-          text: "[page 1]\nFirst line.\nSecond line.",
+          text: "[page 1]\nFirst line. Second line.",
           page_numbers: [1],
         },
         { locator: "[page 2]", page_numbers: [2], confidence: 0.82 },
@@ -316,8 +316,12 @@ describe("exact local PDF structure lookup", () => {
         artifact_ids: ["page-1", "page-2"],
       },
     });
-    expect(pages.status === "found" && pages.link.href).toContain(
-      `version_id=${versionId}#page=1`,
+    expect(pages.status === "found" && pages.link.href).toBe(
+      pages.status === "found"
+        ? `/single-documents/${documentId}/evidence-view?version_id=${versionId}&evidence=${encodeURIComponent(
+            pages.evidence.handle,
+          )}#page=1`
+        : "",
     );
 
     const repeated = await lookupLocalPdfStructure(built.source, {
@@ -347,6 +351,79 @@ describe("exact local PDF structure lookup", () => {
       before: [{ id: "section_7" }],
       after: [{ id: "section_7__subsection_1" }],
     });
+    if (paragraph.status !== "found") {
+      throw new Error("fixture lookup failed");
+    }
+    const linkedParagraph = await (
+      await import("../localPdfLookup")
+    ).rehydrateLocalPdfLinkEvidence(
+      built.source,
+      paragraph.evidence.handle,
+    );
+    expect(linkedParagraph.sources).toMatchObject([
+      {
+        key: "paragraph:section_7",
+        blockText: "Section 7 General rule",
+      },
+      {
+        key: "paragraph:paragraph-rule",
+        blockText: "The rule applies.",
+      },
+      {
+        key: "paragraph:section_7__subsection_1",
+        blockText: "Subsection 7(1) Exception",
+      },
+    ]);
+  });
+
+  it("binds context pages but navigates and falls back to selected pages", async () => {
+    const built = await fixture();
+    const {
+      lookupLocalPdfStructure,
+      readLocalPdfEvidenceReceipt,
+      rehydrateLocalPdfLinkEvidence,
+    } = await import("../localPdfLookup");
+    const { buildLegalSourcePinpointUrl } =
+      await import("../legalSourceLinks");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "paragraph",
+      locator: "3",
+      contextBlocks: 1,
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    await expect(
+      readLocalPdfEvidenceReceipt(lookup.evidence.handle),
+    ).resolves.toMatchObject({
+      evidence: { page_numbers: [1, 2] },
+    });
+    const linked = await rehydrateLocalPdfLinkEvidence(
+      built.source,
+      lookup.evidence.handle,
+    );
+    const selectedHref =
+      `/single-documents/${documentId}/evidence-view?version_id=${versionId}` +
+      `&evidence=${encodeURIComponent(lookup.evidence.handle)}#page=2`;
+    expect(linked.href).toBe(selectedHref);
+    expect(linked.pageNumbers).toEqual([2]);
+    expect(linked.pageScoped).toBe(true);
+    expect(linked.pages.map(({ pageNumber }) => pageNumber)).toEqual([
+      1, 2,
+    ]);
+    expect(linked.documentText).toContain("Page 2 text.");
+    expect(linked.documentText).not.toContain("Page 3 text.");
+    expect(
+      buildLegalSourcePinpointUrl(
+        {
+          url: linked.href,
+          blockText: linked.blockText,
+          documentText: linked.documentText,
+          pageScoped: linked.pageScoped,
+        },
+        ["not present in the selected unit"],
+      ),
+    ).toBe(selectedHref);
   });
 
   it("pairs notes with propositions and refuses to guess restarted labels", async () => {
@@ -441,6 +518,8 @@ describe("exact local PDF structure lookup", () => {
         context_artifact_ids: ["page-2"],
         text_sha256: lookup.evidence.text_sha256,
         payload_sha256: lookup.evidence.payload_sha256,
+        page_numbers: [1, 2],
+        page_text_sha256: lookup.evidence.page_text_sha256,
       },
     });
     await expect(
@@ -488,6 +567,128 @@ describe("exact local PDF structure lookup", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("binds non-page evidence to the rendered pages used for links", async () => {
+    const built = await fixture();
+    const {
+      lookupLocalPdfStructure,
+      readLocalPdfEvidenceReceipt,
+      rehydrateLocalPdfEvidence,
+    } = await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "footnote",
+      locator: "fn-a",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    await expect(
+      readLocalPdfEvidenceReceipt(lookup.evidence.handle),
+    ).resolves.toMatchObject({
+      evidence: {
+        artifact_ids: ["fn-a"],
+        page_numbers: [1, 2],
+        page_text_sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      },
+    });
+
+    const pages = (await readFile(built.pagesPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const firstPage = pages[0] as {
+      lines: { reading_order: number; text: string }[];
+    };
+    firstPage.lines[0].text = "Unrelated rendered-page drift.";
+    await writeJsonLines(built.pagesPath, pages);
+
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, lookup.evidence.handle),
+    ).rejects.toThrow(
+      "PDF evidence no longer matches the authoritative source artifacts",
+    );
+  });
+
+  it("rehydrates legacy exact units but refuses unbound automatic links", async () => {
+    const built = await fixture();
+    const {
+      lookupLocalPdfStructure,
+      rehydrateLocalPdfEvidence,
+      rehydrateLocalPdfLinkEvidence,
+    } = await import("../localPdfLookup");
+    const lookupInput = {
+      locatorKind: "paragraph" as const,
+      locator: "2",
+    };
+    const lookup = await lookupLocalPdfStructure(
+      built.source,
+      lookupInput,
+      { persistEvidence: false },
+    );
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    const legacyIdentity = {
+      document_id: lookup.source.document_id,
+      version_id: lookup.source.version_id,
+      source_sha256: lookup.source.source_sha256,
+      cache_key: lookup.source.cache_key,
+      kind: "paragraph",
+      artifact_ids: lookup.evidence.artifact_ids,
+      text_sha256: lookup.evidence.text_sha256,
+      context_artifact_ids: lookup.evidence.context_artifact_ids,
+      payload_sha256: lookup.evidence.payload_sha256,
+    };
+    const digest = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(legacyIdentity))
+      .digest("hex");
+    const legacyHandle = `mike-evidence:v1:${digest}`;
+    const receiptPath = path.join(
+      temporaryDirectory!,
+      "evidence",
+      "pdf",
+      "v1",
+      `${digest}.json`,
+    );
+    await mkdir(path.dirname(receiptPath), { recursive: true });
+    await writeFile(
+      receiptPath,
+      JSON.stringify({
+        schema_version: "mike.pdf_evidence.v1",
+        handle: legacyHandle,
+        source: {
+          document_id: lookup.source.document_id,
+          version_id: lookup.source.version_id,
+          source_path: built.state.source_path,
+          source_sha256: lookup.source.source_sha256,
+          parser_version: lookup.source.parser_version,
+          parser_config_version: lookup.source.parser_config_version,
+          cache_key: lookup.source.cache_key,
+        },
+        lookup: lookupInput,
+        evidence: {
+          artifact_ids: lookup.evidence.artifact_ids,
+          context_artifact_ids: lookup.evidence.context_artifact_ids,
+          text_sha256: lookup.evidence.text_sha256,
+          payload_sha256: lookup.evidence.payload_sha256,
+        },
+      }),
+      "utf8",
+    );
+
+    await expect(
+      rehydrateLocalPdfEvidence(built.source, legacyHandle),
+    ).resolves.toMatchObject({
+      status: "found",
+      units: [{ id: "paragraph-rule", text: "The rule applies." }],
+    });
+    await expect(
+      rehydrateLocalPdfLinkEvidence(built.source, legacyHandle),
+    ).rejects.toThrow(
+      "PDF evidence receipt is not bound to authoritative page text",
+    );
+  });
+
   it("rehydrates page-scoped link evidence after restart", async () => {
     const built = await fixture();
     const { lookupLocalPdfStructure } = await import("../localPdfLookup");
@@ -512,14 +713,28 @@ describe("exact local PDF structure lookup", () => {
       handle: lookup.evidence.handle,
       documentId,
       versionId,
-      href: `/single-documents/${documentId}/display?version_id=${versionId}#page=1`,
+      href: `/single-documents/${documentId}/evidence-view?version_id=${versionId}&evidence=${encodeURIComponent(
+        lookup.evidence.handle,
+      )}#page=1`,
       label: "[page 1]",
-      blockText: "First line. Second line.",
+      blockText: "[page 1]\nFirst line. Second line.",
       pageScoped: true,
       pageNumbers: [1],
+      sources: [
+        {
+          key: "page:page-1",
+          label: "[page 1]",
+          blockText: "[page 1]\nFirst line. Second line.",
+          pageScoped: true,
+          pageNumbers: [1],
+        },
+      ],
       pages: [
         {
           pageNumber: 1,
+          href: `/single-documents/${documentId}/evidence-view?version_id=${versionId}&evidence=${encodeURIComponent(
+            lookup.evidence.handle,
+          )}#page=1`,
           label: "[page 1]",
           blockText: "First line. Second line.",
         },
@@ -558,6 +773,126 @@ describe("exact local PDF structure lookup", () => {
     ).rejects.toThrow(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
+  });
+
+  it("uses engine-equivalent soft-hyphen joining for rendered link text", async () => {
+    const built = await fixture();
+    const pages = (await readFile(built.pagesPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    (pages[0] as { lines: { reading_order: number; text: string }[] }).lines =
+      [
+        { reading_order: 1, text: "The inter-" },
+        { reading_order: 2, text: "pretation applies." },
+        { reading_order: 3, text: "Do-" },
+        { reading_order: 4, text: "Not merge." },
+      ];
+    await writeJsonLines(built.pagesPath, pages);
+    const {
+      lookupLocalPdfStructure,
+      rehydrateLocalPdfLinkEvidence,
+    } = await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "1",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    await expect(
+      rehydrateLocalPdfLinkEvidence(
+        built.source,
+        lookup.evidence.handle,
+      ),
+    ).resolves.toMatchObject({
+      blockText: "[page 1]\nThe interpretation applies. Do- Not merge.",
+      sources: [
+        {
+          blockText:
+            "[page 1]\nThe interpretation applies. Do- Not merge.",
+        },
+      ],
+      pages: [
+        {
+          blockText:
+            "The interpretation applies. Do- Not merge.",
+        },
+      ],
+    });
+  });
+
+  it("keeps top-level link matching scoped to exact units, not their whole page", async () => {
+    const built = await fixture();
+    const {
+      lookupLocalPdfStructure,
+      rehydrateLocalPdfLinkEvidence,
+    } = await import("../localPdfLookup");
+    const lookup = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "paragraph",
+      locator: "2",
+    });
+    expect(lookup.status).toBe("found");
+    if (lookup.status !== "found") throw new Error("fixture lookup failed");
+
+    const linked = await rehydrateLocalPdfLinkEvidence(
+      built.source,
+      lookup.evidence.handle,
+    );
+    expect(linked.blockText).toBe("The rule applies.");
+    expect(linked.blockText).not.toContain("First line.");
+    expect(linked.pages[0].blockText).toBe(
+      "First line. Second line.",
+    );
+  });
+
+  it("reuses one source snapshot across lookup rounds and link finalization", async () => {
+    const built = await fixture();
+    const {
+      createLocalPdfArtifactSession,
+      createLocalPdfLinkEvidenceSession,
+      lookupLocalPdfStructure,
+      rehydrateLocalPdfLinkEvidence,
+    } = await import("../localPdfLookup");
+    const artifactSession = createLocalPdfArtifactSession(built.source);
+    const first = await lookupLocalPdfStructure(
+      built.source,
+      {
+        locatorKind: "page",
+        locator: "1",
+      },
+      { artifactSession },
+    );
+    expect(first.status).toBe("found");
+    if (first.status !== "found") throw new Error("fixture lookup failed");
+    await rm(built.pagesPath);
+    const second = await lookupLocalPdfStructure(
+      built.source,
+      {
+        locatorKind: "page",
+        locator: "2",
+      },
+      { artifactSession },
+    );
+    expect(second.status).toBe("found");
+    if (second.status !== "found") throw new Error("fixture lookup failed");
+
+    const session = createLocalPdfLinkEvidenceSession(
+      built.source,
+      artifactSession,
+    );
+    await expect(session.rehydrate(first.evidence.handle)).resolves.toMatchObject(
+      { pageNumbers: [1] },
+    );
+    await expect(
+      session.rehydrate(second.evidence.handle),
+    ).resolves.toMatchObject({ pageNumbers: [2] });
+    await expect(
+      rehydrateLocalPdfLinkEvidence(
+        built.source,
+        second.evidence.handle,
+      ),
+    ).rejects.toThrow();
   });
 
   it("hashes current source bytes before the first exact lookup or receipt", async () => {
@@ -854,7 +1189,7 @@ describe("exact local PDF structure lookup", () => {
   });
 
   it("exposes the same bounded lookup through the assistant tool", async () => {
-    await fixture();
+    const built = await fixture();
     const tools = await import("../chat/localAssistantTools");
     const handles = new Set<string>();
     expect(
@@ -904,6 +1239,10 @@ describe("exact local PDF structure lookup", () => {
     expect(lookupPayload).not.toHaveProperty("source");
     expect(lookupPayload).not.toHaveProperty("evidence");
     expect(handles).toEqual(new Set([lookupPayload.handle]));
+    await Promise.all([
+      rm(built.pagesPath),
+      rm(built.footnotesPath),
+    ]);
     const [rehydrated] = await tools.runLocalAssistantTools(
       "local-user",
       [
@@ -928,6 +1267,16 @@ describe("exact local PDF structure lookup", () => {
       version_id: versionId,
       units: [{ id: "fn-a", text: "First note body." }],
     });
+    const { appendLocalPdfPinpointLinks } = await import(
+      "../chat/localPdfEvidenceState"
+    );
+    await expect(
+      appendLocalPdfPinpointLinks(
+        'The note says "First note body."',
+        "local-user",
+        handles,
+      ),
+    ).resolves.toContain("/evidence-view?");
 
     const [missing] = await tools.runLocalAssistantTools("local-user", [
       {
@@ -945,5 +1294,49 @@ describe("exact local PDF structure lookup", () => {
       ok: false,
       error: "PDF Library version not found",
     });
+  });
+
+  it("does not advertise a viewer link without an exact page mapping", async () => {
+    const built = await fixture();
+    const paragraphsPath = path.join(
+      path.dirname(built.manifestPath),
+      "paragraphs.jsonl",
+    );
+    const paragraphs = (await readFile(paragraphsPath, "utf8"))
+      .trim()
+      .split(/\r?\n/u)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    paragraphs[1].page_index = 999;
+    await writeJsonLines(paragraphsPath, paragraphs);
+    const tools = await import("../chat/localAssistantTools");
+    const handles = new Set<string>();
+
+    const [response] = await tools.runLocalAssistantTools(
+      "local-user",
+      [{
+        id: "lookup-unmapped",
+        name: "library_lookup",
+        input: {
+          document_id: documentId,
+          version_id: versionId,
+          locator_kind: "paragraph",
+          locator: "2",
+        },
+      }],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      handles,
+    );
+    const payload = JSON.parse(response.content);
+
+    expect(payload).toMatchObject({
+      ok: true,
+      handle: expect.stringMatching(/^mike-evidence:v1:/u),
+      link: { page_numbers: [] },
+    });
+    expect(payload.link).not.toHaveProperty("href");
   });
 });

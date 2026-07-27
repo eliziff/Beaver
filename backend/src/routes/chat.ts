@@ -56,6 +56,8 @@ import {
   getAnonymousChat,
   listAnonymousChats,
   updateAnonymousChatTitle,
+  type AnonymousChat,
+  type AnonymousChatMessage,
 } from "../lib/anonymousChatStore";
 import {
   imagesForMessage,
@@ -64,6 +66,7 @@ import {
 } from "../lib/chat/imageAttachments";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import { listLocalDocumentsById } from "../lib/localDocumentStore";
+import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 
 export const chatRouter = Router();
 
@@ -74,6 +77,166 @@ const devLog = (...args: Parameters<typeof console.log>) => {
 };
 
 const TITLE_FALLBACK = "Misc. Query";
+const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
+const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
+const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
+
+type LocalPdfEvidenceRegistryItem = {
+  handle: string;
+  document_id: string;
+  version_id: string;
+};
+
+function registryItem(value: unknown): LocalPdfEvidenceRegistryItem | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const handle = typeof row.handle === "string" ? row.handle.trim() : "";
+  const documentId =
+    typeof row.document_id === "string" ? row.document_id.trim() : "";
+  const versionId =
+    typeof row.version_id === "string" ? row.version_id.trim() : "";
+  if (
+    !LOCAL_PDF_EVIDENCE_HANDLE.test(handle) ||
+    !documentId ||
+    !versionId ||
+    documentId.length > 200 ||
+    versionId.length > 200
+  ) {
+    return null;
+  }
+  return {
+    handle,
+    document_id: documentId,
+    version_id: versionId,
+  };
+}
+
+function priorLocalPdfEvidenceRegistry(
+  chat: AnonymousChat,
+  allowedDocumentIds?: ReadonlySet<string>,
+) {
+  for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
+    const message = chat.messages[index];
+    if (message.role !== "assistant") continue;
+    if (!Array.isArray(message.content)) return [];
+    for (
+      let eventIndex = message.content.length - 1;
+      eventIndex >= 0;
+      eventIndex -= 1
+    ) {
+      const value = message.content[eventIndex];
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const event = value as Record<string, unknown>;
+      if (
+        event.type !== LOCAL_PDF_EVIDENCE_REGISTRY_EVENT ||
+        event.schema_version !== 1
+      ) {
+        continue;
+      }
+      const seen = new Set<string>();
+      return (Array.isArray(event.handles) ? event.handles : [])
+        .map(registryItem)
+        .filter((item): item is LocalPdfEvidenceRegistryItem => {
+          if (
+            !item ||
+            seen.has(item.handle) ||
+            (allowedDocumentIds && !allowedDocumentIds.has(item.document_id))
+          ) {
+            return false;
+          }
+          seen.add(item.handle);
+          return true;
+        })
+        .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
+    }
+    return [];
+  }
+  return [];
+}
+
+async function activeLocalPdfEvidenceRegistry(
+  handles: ReadonlySet<string>,
+  allowedDocumentIds?: ReadonlySet<string>,
+) {
+  const recentHandles = [...handles]
+    .filter((handle) => LOCAL_PDF_EVIDENCE_HANDLE.test(handle))
+    .slice(-MAX_LOCAL_PDF_EVIDENCE_HANDLES);
+  const items = await Promise.all(
+    recentHandles.map(async (handle) => {
+      try {
+        const receipt = await readLocalPdfEvidenceReceipt(handle);
+        if (
+          allowedDocumentIds &&
+          !allowedDocumentIds.has(receipt.source.document_id)
+        ) {
+          return null;
+        }
+        return {
+          handle,
+          document_id: receipt.source.document_id,
+          version_id: receipt.source.version_id,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return items.filter(
+    (item): item is LocalPdfEvidenceRegistryItem => item !== null,
+  );
+}
+
+function mergeLocalPdfEvidenceRegistries(
+  active: LocalPdfEvidenceRegistryItem[],
+  prior: LocalPdfEvidenceRegistryItem[],
+) {
+  const seen = new Set<string>();
+  return [...active, ...prior]
+    .filter((item) => {
+      if (seen.has(item.handle)) return false;
+      seen.add(item.handle);
+      return true;
+    })
+    .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
+}
+
+function localPdfEvidenceRegistryPrompt(
+  registry: LocalPdfEvidenceRegistryItem[],
+) {
+  if (registry.length === 0) return "";
+  const handles = registry
+    .map(
+      (item) =>
+        `- handle=${JSON.stringify(item.handle)} document_id=${JSON.stringify(
+          item.document_id,
+        )} version_id=${JSON.stringify(item.version_id)}`,
+    )
+    .join("\n");
+  return (
+    "DURABLE LOCAL PDF EVIDENCE FROM PRIOR TURNS:\n" +
+    `${handles}\n` +
+    "Call library_evidence with one of these handles only when the current request needs that exact prior material. Do not expose opaque handles to the user.\n\n"
+  );
+}
+
+function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
+  return messages.map((message) => {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      return message;
+    }
+    const content = message.content.filter(
+      (event) =>
+        !event ||
+        typeof event !== "object" ||
+        Array.isArray(event) ||
+        (event as Record<string, unknown>).type !==
+          LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+    );
+    return content.length === message.content.length
+      ? message
+      : { ...message, content };
+  });
+}
 
 function normalizeGeneratedTitle(raw: string): string {
   const title = raw
@@ -217,6 +380,13 @@ export async function streamAnonymousChat(params: {
     return;
   }
   const chat = existingChat ?? createAnonymousChat(userId, projectId);
+  const priorEvidenceRegistry = priorLocalPdfEvidenceRegistry(
+    chat,
+    allowedDocumentIds,
+  );
+  const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
+    priorEvidenceRegistry,
+  );
 
   const lastUser = [...messages].reverse().find((message) => {
     return message.role === "user" && typeof message.content === "string";
@@ -304,6 +474,7 @@ export async function streamAnonymousChat(params: {
             : "The user's local Beaver Library is connected"
         } through library_list, library_lookup, library_evidence, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
         focusPrompt +
+        priorEvidencePrompt +
         COURTLISTENER_SYSTEM_PROMPT +
         "\n\n" +
         PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
@@ -382,9 +553,29 @@ export async function streamAnonymousChat(params: {
     if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
     visibleText = linkedText;
 
-    const assistantEvents = visibleText
+    const assistantEvents: unknown[] = visibleText
       ? [{ type: "content", text: visibleText }]
-      : [{ type: "error", message: "The selected model returned no response." }];
+      : [
+          {
+            type: "error",
+            message: "The selected model returned no response.",
+          },
+        ];
+    const activeEvidenceRegistry = await activeLocalPdfEvidenceRegistry(
+      localPdfEvidenceHandles,
+      allowedDocumentIds,
+    );
+    const nextEvidenceRegistry = mergeLocalPdfEvidenceRegistries(
+      activeEvidenceRegistry,
+      priorEvidenceRegistry,
+    );
+    if (nextEvidenceRegistry.length > 0) {
+      assistantEvents.push({
+        type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+        schema_version: 1,
+        handles: nextEvidenceRegistry,
+      });
+    }
     if (params.askInputsResponse) {
       appendAnonymousAssistantEvents(chat, assistantEvents, citations);
     } else {
@@ -613,7 +804,7 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
     const chat = getAnonymousChat(userId, chatId);
     if (!chat) return void res.status(404).json({ detail: "Chat not found" });
     const { messages, ...chatData } = chat;
-    res.json({ chat: chatData, messages });
+    res.json({ chat: chatData, messages: visibleAnonymousMessages(messages) });
     return;
   }
   const db = createServerSupabase();

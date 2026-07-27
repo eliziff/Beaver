@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
                 source: "/single-documents/:documentId/display",
                 destination: `${apiBase}/single-documents/:documentId/display`,
             },
+            {
+                source: "/single-documents/:documentId/evidence-view",
+                destination: `${apiBase}/single-documents/:documentId/evidence-view`,
+            },
         ];
     },
     skipTrailingSlashRedirect: true,
