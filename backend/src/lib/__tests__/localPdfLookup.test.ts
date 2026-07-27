@@ -291,6 +291,8 @@ async function fixture() {
     manifestPath,
     parserConfigPath: path.join(output, "parser-config.json"),
     pagesPath: path.join(output, "pages.jsonl"),
+    paragraphsPath: path.join(output, "paragraphs.jsonl"),
+    sectionsPath: path.join(output, "sections.jsonl"),
     footnotesPath: path.join(output, "footnotes.jsonl"),
     state,
     manifest,
@@ -1099,6 +1101,235 @@ describe("exact local PDF structure lookup", () => {
       exact: false,
       error: "No exact subclause identifiers exist in this PDF artifact",
     });
+  });
+
+  it("normalizes provider fragments across every exact provision kind", async () => {
+    const built = await fixture();
+    const headings = [
+      {
+        id: "opaque-section",
+        page_index: 4,
+        region_type: "heading",
+        text: "7 General rule",
+        locator_kind: "section",
+        provider_locator: "#sec7",
+      },
+      {
+        id: "opaque-subsection",
+        page_index: 5,
+        region_type: "heading",
+        text: "7(2) Exception",
+        locator_kind: "subsec",
+        locator: "section/7/subsection/2",
+      },
+      {
+        id: "section_7_subsection_2_paragraph_a",
+        page_index: 6,
+        region_type: "heading",
+        text: "7(2)(a) Application",
+      },
+      {
+        id: "sec7__subsec2__para_a__subpara_i",
+        page_index: 7,
+        region_type: "heading",
+        text: "7(2)(a)(i) Detail",
+      },
+      {
+        id: "opaque-clause",
+        page_index: 8,
+        region_type: "heading",
+        text: "Cl. 7(2)(a)(i)(A) Condition",
+      },
+      {
+        id: "opaque-subclause",
+        page_index: 9,
+        region_type: "heading",
+        text: "Subcl. 7(2)(a)(i)(A)(I) Exception",
+      },
+      {
+        id: "schedule-A",
+        page_index: 10,
+        region_type: "heading",
+        text: "Sched. A Forms",
+      },
+      {
+        id: "article_IV",
+        page_index: 11,
+        region_type: "heading",
+        text: "Art. IV Rights",
+      },
+      {
+        id: "section-hyphen",
+        page_index: 12,
+        region_type: "heading",
+        text: "Section 4-1 Hyphenated rule",
+      },
+      {
+        id: "section-parenthetical",
+        page_index: 13,
+        region_type: "heading",
+        text: "Section 4(1) Parenthetical rule",
+      },
+    ];
+    const paragraphs = headings.flatMap((heading) => [
+      heading,
+      {
+        id: `body-${heading.id}`,
+        page_index: heading.page_index,
+        region_type: "body",
+        text: `Body for ${heading.id}.`,
+      },
+    ]);
+    await Promise.all([
+      writeJsonLines(built.paragraphsPath, paragraphs),
+      writeJsonLines(
+        built.sectionsPath,
+        headings.map((heading) => ({
+          ...heading,
+          provenance: "provider-fixture",
+        })),
+      ),
+    ]);
+    const { lookupLocalPdfStructure } = await import("../localPdfLookup");
+    const matrix = [
+      ["section", "#sec7", "opaque-section"],
+      ["subsection", "section/7/subsection/2", "opaque-subsection"],
+      [
+        "provision_paragraph",
+        "sec-7-subsec-2-para-a",
+        "section_7_subsection_2_paragraph_a",
+      ],
+      [
+        "subparagraph",
+        "section_7__subsection_2__paragraph_a__subparagraph_i",
+        "sec7__subsec2__para_a__subpara_i",
+      ],
+      ["clause", "cl. 7(2)(a)(i)(A)", "opaque-clause"],
+      [
+        "subclause",
+        "subcl. 7(2)(a)(i)(A)(I)",
+        "opaque-subclause",
+      ],
+      ["schedule", "schedule A", "schedule-A"],
+      ["article", "article IV", "article_IV"],
+    ] as const;
+    for (const [locatorKind, locator, id] of matrix) {
+      const found = await lookupLocalPdfStructure(built.source, {
+        locatorKind,
+        locator,
+      });
+      expect(found).toMatchObject({
+        status: "found",
+        exact: true,
+        units: [{ id }],
+        link: {
+          href: expect.stringContaining("/evidence-view?"),
+          artifact_ids: [id],
+        },
+      });
+    }
+
+    const neighbors = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "subparagraph",
+      locator: "sec7__subsec2__para_a__subpara_i",
+      contextBlocks: 1,
+    });
+    expect(neighbors).toMatchObject({
+      status: "found",
+      units: [{ id: "sec7__subsec2__para_a__subpara_i" }],
+      before: [{ id: "section_7_subsection_2_paragraph_a" }],
+      after: [{ id: "opaque-clause" }],
+    });
+
+    const sectionAlias = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "section",
+      locator: "section 7",
+    });
+    const providerAlias = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "section",
+      locator: "#sec7",
+    });
+    expect(sectionAlias.status).toBe("found");
+    expect(providerAlias.status).toBe("found");
+    if (sectionAlias.status === "found" && providerAlias.status === "found") {
+      expect(providerAlias.evidence.handle).toBe(
+        sectionAlias.evidence.handle,
+      );
+      expect(providerAlias.evidence.text_sha256).toBe(
+        sectionAlias.evidence.text_sha256,
+      );
+      expect(providerAlias.evidence.payload_sha256).toBe(
+        sectionAlias.evidence.payload_sha256,
+      );
+      expect(providerAlias.link.href).toBe(sectionAlias.link.href);
+    }
+
+    await expect(
+      lookupLocalPdfStructure(built.source, {
+        locatorKind: "section",
+        locator: "sec4-1",
+      }),
+    ).resolves.toMatchObject({
+      status: "found",
+      units: [{ id: "section-hyphen" }],
+    });
+    await expect(
+      lookupLocalPdfStructure(built.source, {
+        locatorKind: "section",
+        locator: "sec4(1)",
+      }),
+    ).resolves.toMatchObject({
+      status: "found",
+      units: [{ id: "section-parenthetical" }],
+    });
+  });
+
+  it("accepts provider page-range and paragraph fragments without changing evidence identity", async () => {
+    const built = await fixture();
+    const { lookupLocalPdfStructure } = await import("../localPdfLookup");
+    const ordinaryPages = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "pages 1-2",
+    });
+    const fragmentPages = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "page",
+      locator: "#page=1-2",
+    });
+    const ordinaryParagraph = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "paragraph",
+      locator: "paragraphs 2-3",
+    });
+    const fragmentParagraph = await lookupLocalPdfStructure(built.source, {
+      locatorKind: "paragraph",
+      locator: "#par2-3",
+    });
+    expect(ordinaryPages.status).toBe("found");
+    expect(fragmentPages.status).toBe("found");
+    expect(ordinaryParagraph.status).toBe("found");
+    expect(fragmentParagraph.status).toBe("found");
+    if (
+      ordinaryPages.status === "found" &&
+      fragmentPages.status === "found" &&
+      ordinaryParagraph.status === "found" &&
+      fragmentParagraph.status === "found"
+    ) {
+      expect(fragmentPages.evidence.handle).toBe(
+        ordinaryPages.evidence.handle,
+      );
+      expect(fragmentPages.evidence.payload_sha256).toBe(
+        ordinaryPages.evidence.payload_sha256,
+      );
+      expect(fragmentPages.link.href).toBe(ordinaryPages.link.href);
+      expect(fragmentParagraph.evidence.handle).toBe(
+        ordinaryParagraph.evidence.handle,
+      );
+      expect(fragmentParagraph.evidence.text_sha256).toBe(
+        ordinaryParagraph.evidence.text_sha256,
+      );
+      expect(fragmentParagraph.link.href).toBe(
+        ordinaryParagraph.link.href,
+      );
+    }
   });
 
   it("enforces range, context, and text bounds", async () => {

@@ -395,11 +395,11 @@ function canonicalKind(kind: LocalPdfLocatorKind): CanonicalKind {
 }
 
 function parseOrdinal(kind: "page" | "paragraph", raw: string) {
-  const value = raw.trim();
+  const value = raw.trim().normalize("NFKC");
   const pattern =
     kind === "page"
-      ? /^(?:\[?\s*(?:pages?|pp?\.?)\s*)?0*(\d{1,6})\s*\]?$/iu
-      : /^(?:(?:paras?\.?|paragraphs?|¶)\s*)?(?:para(?:graph)?[-_]?)?0*(\d{1,6})$/iu;
+      ? /^#?\s*\[?\s*(?:(?:pages?|pp?\.?)[\s:_=-]*)?0*(\d{1,6})\s*\]?$/iu
+      : /^#?\s*(?:(?:paragraphs?|paras?|pars?|¶)\.?\s*)?(?:(?:paragraph|para|par)[\s:_=-]*)?0*(\d{1,6})$/iu;
   const match = value.match(pattern);
   return match ? Number(match[1]) : null;
 }
@@ -407,10 +407,14 @@ function parseOrdinal(kind: "page" | "paragraph", raw: string) {
 function numericRange(kind: "page" | "paragraph", raw: string) {
   const prefix =
     kind === "page"
-      ? /^(?:pages?|pp?\.)\s*/iu
-      : /^(?:paras?\.?|paragraphs?)\s*/iu;
+      ? /^(?:pages?|pp?\.?)[\s:_=-]*/iu
+      : /^(?:paragraphs?|paras?|pars?)\.?[\s:_=-]*/iu;
   const match = raw
     .trim()
+    .normalize("NFKC")
+    .replace(/^#\s*/u, "")
+    .replace(/^\[\s*/u, "")
+    .replace(/\s*\]$/u, "")
     .replace(prefix, "")
     .match(/^(\d{1,6})\s*(?:-|–|—|\.\.|to)\s*(\d{1,6})$/iu);
   return match ? ([Number(match[1]), Number(match[2])] as const) : null;
@@ -425,17 +429,18 @@ function normalizeFootnote(raw: string) {
 }
 
 const PROVISION_PREFIX =
-  /^(?:subsections?|subparagraphs?|subclauses?|sections?|sec(?:tion)?s?|paragraphs?|paras?|clauses?|schedules?|scheds?|articles?|arts?|subs?|ss?|s)\.?(?:[\s:_-]+|(?=\d|\())/iu;
+  /^(?:subsections?|subsecs?|subparagraphs?|subparas?|subclauses?|subcls?|sections?|sec(?:tion)?s?|paragraphs?|paras?|pars?|clauses?|cls?|schedules?|scheds?|articles?|arts?|subs?|ss?|s|§{1,2})\.?(?:[\s:_/=#-]+|(?=\d|\())/iu;
 const ENCODED_PART =
-  /__(?:subsection|paragraph|subparagraph|clause|subclause)[_-]*([A-Za-z0-9]+)(?=__|$)/giu;
+  /(?:__|[_:/-])(?:subsection|subsec|paragraph|para|par|subparagraph|subpara|clause|cl|subclause|subcl)[_:/=-]*([A-Za-z0-9.]+)(?=__|[_:/-]|$)/giu;
 
 function normalizeProvision(raw: string) {
   let value = raw
     .trim()
     .normalize("NFKC")
+    .replace(/^#\s*/u, "")
     .replace(PROVISION_PREFIX, "")
     .replace(ENCODED_PART, "($1)")
-    .replace(/[_-](\d+|[A-Za-z]|[ivxlcdm]+)(?=$|[_-])/giu, "($1)")
+    .replace(/_(\d+|[A-Za-z]|[ivxlcdm]+)(?=$|_)/giu, "($1)")
     .replace(/\s+/gu, "");
   const open = (value.match(/\(/gu) ?? []).length;
   const close = (value.match(/\)/gu) ?? []).length;
@@ -449,28 +454,39 @@ function normalizeProvision(raw: string) {
     : `title:${raw.trim().replace(/\s+/gu, " ").toLocaleLowerCase()}`;
 }
 
+function explicitHeadingKind(value: unknown): LocalPdfLocatorKind | null {
+  const token = stringValue(value)
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z]+/gu, "");
+  if (["section", "sec"].includes(token)) return "section";
+  if (["subsection", "subsec"].includes(token)) return "subsection";
+  if (["provisionparagraph", "paragraph", "para", "par"].includes(token)) {
+    return "provision_paragraph";
+  }
+  if (["subparagraph", "subpara"].includes(token)) return "subparagraph";
+  if (["clause", "cl"].includes(token)) return "clause";
+  if (["subclause", "subcl"].includes(token)) return "subclause";
+  if (["schedule", "sched"].includes(token)) return "schedule";
+  if (["article", "art"].includes(token)) return "article";
+  return null;
+}
+
 function headingKind(row: JsonObject): LocalPdfLocatorKind | null {
   const text = stringValue(row.text).trim();
   const id = stringValue(row.id).trim();
+  const metadataKind = explicitHeadingKind(row.locator_kind);
+  if (metadataKind) return metadataKind;
+  const textKind = text.match(
+    /^(subclause|subcl|clause|cl|subparagraph|subpara|paragraph|para|par|subsection|subsec|section|sec|schedule|sched|article|art)\.?(?:[\s:_/-]|$)/iu,
+  )?.[1];
+  if (textKind) return explicitHeadingKind(textKind);
   const encodedKinds = [
     ...id.matchAll(
-      /__(subclause|clause|subparagraph|paragraph|subsection)(?:[_-]|$)/giu,
+      /(?:^|__|[_:/.-])(subclause|subcl|clause|cl|subparagraph|subpara|paragraph|para|par|subsection|subsec|section|sec|schedule|sched|article|art)(?=[_:/.-]|\d|\(|$)/giu,
     ),
   ];
-  const match = (
-    text.match(
-      /^(subclause|clause|subparagraph|paragraph|subsection|section|schedule|article)(?:[.\s:_-]|$)/iu,
-    )?.[1] ??
-    encodedKinds.at(-1)?.[1] ??
-    id.match(
-      /^(section|sec|subsection|clause|subclause|schedule|article)[_-]/iu,
-    )?.[1]
-  )?.toLocaleLowerCase();
-  return match === "paragraph"
-    ? "provision_paragraph"
-    : match === "sec"
-      ? "section"
-      : ((match as LocalPdfLocatorKind | undefined) ?? null);
+  return explicitHeadingKind(encodedKinds.at(-1)?.[1]);
 }
 
 function sectionAliases(row: JsonObject) {
@@ -478,18 +494,13 @@ function sectionAliases(row: JsonObject) {
   const id = stringValue(row.id).trim();
   const aliases = new Set<string>();
   if (text) aliases.add(normalizeProvision(text));
-  if (
-    /^(?:section|sec|subsection|clause|subclause|schedule|article)[_-]/iu.test(
-      id,
-    ) ||
-    /__(?:subsection|paragraph|subparagraph|clause|subclause)(?:[_-]|$)/iu.test(
-      id,
-    )
-  ) {
-    aliases.add(normalizeProvision(id));
+  if (id) aliases.add(normalizeProvision(id));
+  for (const field of [row.locator, row.provider_locator]) {
+    const locator = stringValue(field).trim();
+    if (locator) aliases.add(normalizeProvision(locator));
   }
   const leading = text.match(
-    /^(?:(?:sections?|sec(?:tion)?s?|subsections?|paragraphs?|subparagraphs?|clauses?|subclauses?|schedules?|articles?)\.?\s+)?((?:\d{1,8}(?:[.-]\d{1,8}){0,4}|[IVXLCDM]+|[A-Z])(?:\s*\([^)]+\))*)\s*(?:[-.:;,\u2013\u2014]\s*|\s+|$)/iu,
+    /^(?:(?:sections?|sec(?:tion)?s?|subsections?|subsecs?|paragraphs?|paras?|subparagraphs?|subparas?|clauses?|cls?|subclauses?|subcls?|schedules?|scheds?|articles?|arts?)\.?\s+)?((?:\d{1,8}(?:[.-]\d{1,8}){0,4}|[IVXLCDM]+|[A-Z])(?:\s*\([^)]+\))*)\s*(?:[-.:;,\u2013\u2014]\s*|\s+|$)/iu,
   )?.[1];
   if (leading) aliases.add(normalizeProvision(leading));
   return aliases;
