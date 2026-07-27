@@ -10,6 +10,8 @@ import {
 import { docxToPdf } from "../convert";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
+import { lintLocalDocxStructure } from "../docxStructuralLint";
+import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   applyTrackedEdits,
@@ -107,11 +109,17 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     function: {
       name: "library_read",
       description:
-        "Read the active version of a document from the local Mike Library. Pass the document_id returned by library_list.",
+        "Read the active version of a document from the local Mike Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
       parameters: {
         type: "object",
         properties: {
           document_id: { type: "string" },
+          mode: {
+            type: "string",
+            enum: ["text", "drafting"],
+            description:
+              "Defaults to text. Drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
+          },
         },
         required: ["document_id"],
       },
@@ -290,6 +298,29 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   {
     type: "function",
     function: {
+      name: "library_lint_docx_structure",
+      description:
+        "Run the deterministic structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, literal numbering gaps and duplicates, and duplicate or unused defined terms. Read-only; returns verified findings with paragraph locations plus a receipt of what was checked and what was abstained from. Call this instead of asking the model to scan a document for these drafting errors.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: {
+            type: "string",
+            description: "DOCX document_id returned by library_list.",
+          },
+          version_id: {
+            type: "string",
+            description:
+              "Optional explicit Library version id. Omit for the active version.",
+          },
+        },
+        required: ["document_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "toa_submit_library_document",
       description:
         "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
@@ -442,6 +473,34 @@ async function extractLocalDocument(userId: string, documentId: string) {
   }
   textCache.set(cacheKey, text);
   return { filename: file.document.filename, text };
+}
+
+async function extractLocalDraftingDocument(
+  userId: string,
+  documentId: string,
+) {
+  const file = await getLocalVersionFile(userId, documentId);
+  if (!file) return null;
+  if (
+    file.document.current_version_id !== file.version.id ||
+    file.fileType.toLowerCase() !== "docx"
+  ) {
+    throw new Error("Drafting mode requires an active DOCX version");
+  }
+  const source = await extractDocxDraftingSource(await readFile(file.path));
+  if (
+    file.version.source_sha256 &&
+    file.version.source_sha256 !== source.source_sha256
+  ) {
+    throw new Error("Library version bytes no longer match their receipt");
+  }
+  return {
+    filename: file.document.filename,
+    document_id: documentId,
+    version_id: file.version.id,
+    version_number: file.version.version_number,
+    ...source,
+  };
 }
 
 function result(
@@ -976,6 +1035,28 @@ export async function runLocalAssistantTools(
         if (!documentId) {
           return result(call, { ok: false, error: "document_id is required" });
         }
+        if (call.name === "library_read" && args.mode === "drafting") {
+          try {
+            const source = await extractLocalDraftingDocument(
+              userId,
+              documentId,
+            );
+            return result(
+              call,
+              source
+                ? { ok: true, ...source }
+                : { ok: false, error: "Document not found" },
+            );
+          } catch (error) {
+            return result(call, {
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Drafting source could not be read",
+            });
+          }
+        }
         const document = await extractLocalDocument(userId, documentId);
         if (!document) {
           return result(call, { ok: false, error: "Document not found" });
@@ -1148,6 +1229,34 @@ export async function runLocalAssistantTools(
               error instanceof Error
                 ? error.message
                 : "DOCX supra cleanup failed",
+          });
+        }
+      }
+
+      if (call.name === "library_lint_docx_structure") {
+        const documentId =
+          typeof args.document_id === "string" ? args.document_id.trim() : "";
+        const versionId =
+          typeof args.version_id === "string" ? args.version_id.trim() : "";
+        if (!documentId) {
+          return result(call, { ok: false, error: "document_id is required" });
+        }
+        try {
+          return result(
+            call,
+            await lintLocalDocxStructure(
+              userId,
+              documentId,
+              versionId || undefined,
+            ),
+          );
+        } catch (error) {
+          return result(call, {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "DOCX structural lint failed",
           });
         }
       }
