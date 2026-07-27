@@ -367,7 +367,12 @@ async function runTurn(
       }
       case "item/reasoning/summaryTextDelta": {
         const delta = String(event.delta ?? "");
-        if (delta) callbacks.onReasoningDelta(delta);
+        if (!delta || !params.enableThinking) return;
+        // Reasoning reaches the caller and is persisted as transcript
+        // events, so it too disqualifies exec replay — a fallback here
+        // would duplicate the thinking block in the saved chat.
+        progress.streamed = true;
+        callbacks.onReasoningDelta(delta);
         return;
       }
       case "item/completed": {
