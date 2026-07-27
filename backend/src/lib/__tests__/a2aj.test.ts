@@ -113,10 +113,69 @@ describe("A2AJ client", () => {
       name: "Nevsun Resources Ltd. v. Araya",
       url: "https://decisions.scc-csc.ca/item/18169",
       text: "abc",
+      truncated: true,
+      total_chars: 6,
     });
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
       "citation=2020+SCC+5",
     );
+  });
+
+  it("reports an untruncated fetch as complete", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [
+            {
+              dataset: "SCC",
+              citation_en: "2020 SCC 6",
+              unofficial_text_en: "abcdef",
+            },
+          ],
+        }),
+      }),
+    );
+
+    await expect(
+      fetchA2AJDocument({ citation: "2020 SCC 6" }),
+    ).resolves.toMatchObject({
+      text: "abcdef",
+      truncated: false,
+      total_chars: 6,
+    });
+  });
+
+  it("signals the default 50,000 character cut instead of slicing silently", async () => {
+    const text = "s".repeat(60_000);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [
+            {
+              dataset: "LEGISLATION-FED",
+              citation_en: "RSC 1985, c C-46",
+              name_en: "Criminal Code",
+              unofficial_text_en: text,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const document = await fetchA2AJDocument({
+      citation: "RSC 1985, c C-46",
+      docType: "laws",
+    });
+
+    expect(document?.text).toHaveLength(50_000);
+    expect(document?.truncated).toBe(true);
+    expect(document?.total_chars).toBe(60_000);
   });
 
   it("maps search metadata without exposing the raw API payload", async () => {

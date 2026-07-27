@@ -1,0 +1,29 @@
+{
+  "provider": "a2aj",
+  "docType": "laws",
+  "dataset": "REGULATIONS-FED",
+  "citation": "CRC, c 870",
+  "alternateCitation": null,
+  "name": "Food and Drug Regulations",
+  "date": "1979-08-15T00:00:00",
+  "url": "https://laws-lois.justice.gc.ca/eng/XML/C.R.C.%2C_c._870.xml",
+  "language": "en",
+  "shape": "regs-federal-alphanumeric-emphasis-sections",
+  "capture": {
+    "endpoint": "/fetch",
+    "params": {
+      "citation": "CRC, c 870",
+      "doc_type": "laws",
+      "output_language": "en"
+    },
+    "capturedAt": "2026-07-27",
+    "fullTextChars": 1442723,
+    "excerptChars": 2595,
+    "excerptCharRange": [
+      126,
+      2721
+    ],
+    "note": "Food and Drug Regulations Part A. Section numbers are alphanumeric and bold ('**A.01.001**'); the live document has 1700 of them and the current engine indexes none."
+  },
+  "text": "## PART A — Administration\n\n### General\n\n**A.01.001** These Regulations may be cited as the Food and Drug Regulations.\n\n**A.01.002** These Regulations, where applicable, prescribe the standards of composition, strength, potency, purity, quality or other property of the article of food or drug to which the standards refer.\n\n**A.01.003** [Repealed, SOR/94-289, s. 1]\n\n### Interpretation\n\n**A.01.010** In these Regulations,\n\n**acceptable method** means a method of analysis or examination designated by the Minister as acceptable for use in the administration of the Act and these Regulations; (**méthode acceptable**)\n\n**Act** means the Food and Drugs Act, except in Parts G and J; (**Loi**)\n\n**common-law partner** has the same meaning as in section 2 of the Criminal Code; (**conjoint de fait**)\n\n**cubic centimetre** and its abbreviation **cc.** shall be deemed to be interchangeable with the term millilitre and its abbreviation ml.; (**centimètre cube**)\n\n**Director**[Repealed, SOR/2018-69, s. 1]\n\n**inner label** means the label on or affixed to an immediate container of a food or drug; (**étiquette intérieure**)\n\n**Lot number** means any combination of letters, figures, or both, by which any food or drug can be traced in manufacture and identified in distribution; (**numéro de lot**)\n\n**manufacturer**[Repealed, SOR/97-12, s. 1]\n\n**manufacturer** or **distributor** means a person, including an association or partnership, who under their own name, or under a trade-, design or word mark, trade name or other name, word or mark controlled by them, sells a food or drug; (**fabricant** or **distributeur**)\n\n**official method** means a method of analysis or examination designated as such by Minister for use in the administration of the Act and these Regulations; (**méthode officielle**)\n\n**outer label** means the label on or affixed to the outside of a package of a food or drug; (**étiquette extérieure**)\n\n**prescription drug** means a drug that is set out in the Prescription Drug List, as amended from time to time, or a drug that is part of a class of drugs that is set out in it; (**drogue sur ordonnance**)\n\n**Prescription Drug List** means the list established by the Minister under section 29.1 of the Act; (**Liste des drogues sur ordonnance**)\n\n**principal display panel** has the same meaning as in the Consumer Packaging and Labelling Regulations; (**espace principal**)\n\n**security package** means a package having a security feature that provides reasonable assurance to consumers that the package has not been opened prior to purchase. (**emballage de sécurité**)"
+}

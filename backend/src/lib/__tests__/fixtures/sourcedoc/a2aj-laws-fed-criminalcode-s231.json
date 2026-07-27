@@ -1,0 +1,29 @@
+{
+  "provider": "a2aj",
+  "docType": "laws",
+  "dataset": "LEGISLATION-FED",
+  "citation": "RSC 1985, c C-46",
+  "alternateCitation": "C-46",
+  "name": "Criminal Code",
+  "date": "1988-12-12T00:00:00",
+  "url": "https://laws-lois.justice.gc.ca/eng/XML/C-46.xml",
+  "language": "en",
+  "shape": "laws-federal-emphasis-sections",
+  "capture": {
+    "endpoint": "/fetch",
+    "params": {
+      "citation": "RSC 1985, c C-46",
+      "doc_type": "laws",
+      "output_language": "en"
+    },
+    "capturedAt": "2026-07-27",
+    "fullTextChars": 2262608,
+    "excerptChars": 3712,
+    "excerptCharRange": [
+      563834,
+      567546
+    ],
+    "note": "Criminal Code s. 231 in full: '**231** (1) Murder is first degree murder...' with subsections (1)-(7), paragraph letters (4)(a)-(c) and BOTH decimal subsections (6.01) and (6.1)."
+  },
+  "text": "**Classification of murder**\n\n**231** (1) Murder is first degree murder or second degree murder.\n\n**Planned and deliberate murder**\n\n(2) Murder is first degree murder when it is planned and deliberate.\n\n**Contracted murder**\n\n(3) Without limiting the generality of subsection (2), murder is planned and deliberate when it is committed pursuant to an arrangement under which money or anything of value passes or is intended to pass from one person to another, or is promised by one person to another, as consideration for that other’s causing or assisting in causing the death of anyone or counselling another person to do any act causing or assisting in causing that death.\n\n**Murder of peace officer, etc.**\n\n(4) Irrespective of whether a murder is planned and deliberate on the part of any person, murder is first degree murder when the victim is\n\n(a) a police officer, police constable, constable, sheriff, deputy sheriff, sheriff’s officer or other person employed for the preservation and maintenance of the public peace, acting in the course of his duties;\n\n(b) a warden, deputy warden, instructor, keeper, jailer, guard or other officer or a permanent employee of a prison, acting in the course of his duties; or\n\n(c) a person working in a prison with the permission of the prison authorities and acting in the course of his work therein.\n\n**Hijacking, sexual assault or kidnapping**\n\n(5) Irrespective of whether a murder is planned and deliberate on the part of any person, murder is first degree murder in respect of a person when the death is caused by that person while committing or attempting to commit an offence under one of the following sections:\n\n(a) section 76 (hijacking an aircraft);\n\n(b) section 271 (sexual assault);\n\n(c) section 272 (sexual assault with a weapon, threats to a third party or causing bodily harm);\n\n(d) section 273 (aggravated sexual assault);\n\n(e) section 279 (kidnapping and forcible confinement); or\n\n(f) section 279.1 (hostage taking).\n\n**Criminal harassment**\n\n(6) Irrespective of whether a murder is planned and deliberate on the part of any person, murder is first degree murder when the death is caused by that person while committing or attempting to commit an offence under section 264 and the person committing that offence intended to cause the person murdered to fear for the safety of the person murdered or the safety of anyone known to the person murdered.\n\n**Murder — terrorist activity**\n\n(6.01) Irrespective of whether a murder is planned and deliberate on the part of a person, murder is first degree murder when the death is caused by that person while committing or attempting to commit an indictable offence under this or any other Act of Parliament if the act or omission constituting the offence also constitutes a terrorist activity.\n\n**Murder — criminal organization**\n\n(6.1) Irrespective of whether a murder is planned and deliberate on the part of a person, murder is first degree murder when\n\n(a) the death is caused by that person for the benefit of, at the direction of or in association with a criminal organization; or\n\n(b) the death is caused by that person while committing or attempting to commit an indictable offence under this or any other Act of Parliament for the benefit of, at the direction of or in association with a criminal organization.\n\n**Intimidation**\n\n(6.2) Irrespective of whether a murder is planned and deliberate on the part of a person, murder is first degree murder when the death is caused by that person while committing or attempting to commit an offence under section 423.1.\n\n**Second degree murder**\n\n(7) All murder that is not first degree murder is second degree murder.\n\n**Murder reduced to manslaughter**"
+}

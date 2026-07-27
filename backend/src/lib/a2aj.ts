@@ -62,6 +62,18 @@ export type A2AJDocument = {
   structure: A2AJStructureSummary;
 };
 
+/**
+ * A document as returned to a caller that asked for bounded text. The old
+ * fetch sliced silently at 50,000 characters, so a caller could reason over a
+ * fragment of the Criminal Code believing it had the whole Act; these two
+ * fields say so. Snake case matches the A2AJ wire vocabulary (`start_char`,
+ * `end_char`) that surrounds them in the tool result.
+ */
+export type A2AJFetchedDocument = A2AJDocument & {
+  truncated: boolean;
+  total_chars: number;
+};
+
 export type A2AJSearchResult = {
   dataset: string;
   citation: string;
@@ -723,7 +735,7 @@ export async function fetchA2AJDocument(args: {
   dataset?: string;
   section?: string;
   maxChars?: number;
-}): Promise<A2AJDocument | null> {
+}): Promise<A2AJFetchedDocument | null> {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
   const language = args.language === "fr" ? "fr" : "en";
@@ -735,13 +747,14 @@ export async function fetchA2AJDocument(args: {
     section: args.section,
   });
   if (!document) return null;
-  if (document.text.length > (args.maxChars ?? 50_000)) {
-    return {
-      ...document,
-      text: document.text.slice(0, args.maxChars ?? 50_000),
-    };
-  }
-  return { ...document };
+  const maxChars = args.maxChars ?? 50_000;
+  const totalChars = document.text.length;
+  return {
+    ...document,
+    text: totalChars > maxChars ? document.text.slice(0, maxChars) : document.text,
+    truncated: totalChars > maxChars,
+    total_chars: totalChars,
+  };
 }
 
 export async function lookupA2AJLocator(args: {
