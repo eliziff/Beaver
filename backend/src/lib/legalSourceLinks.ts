@@ -51,6 +51,26 @@ function asDoc(source: QuoteSource): SourceDoc {
   return typeof source === "string" ? createTextSourceDoc(source) : source;
 }
 
+/**
+ * Compile each distinct rendition in one operation exactly once.
+ *
+ * A DOCX resolve hydrates up to 256 evidence handles off one source version,
+ * and an answer can carry a dozen blocks of one decision. Without this each of
+ * them tokenizes the same document again; with it the whole operation pays for
+ * one token index. Scoped to the operation - it is hoisting, not a cache.
+ */
+export function sharedSourceDocs() {
+  const docs = new Map<string, SourceDoc>();
+  return (source: QuoteSource) => {
+    if (typeof source !== "string") return source;
+    const existing = docs.get(source);
+    if (existing) return existing;
+    const doc = createTextSourceDoc(source);
+    docs.set(source, doc);
+    return doc;
+  };
+}
+
 export type AutomaticLegalSourceLink = {
   key: string;
   label: string;
@@ -814,15 +834,7 @@ export function appendLegalSourcePinpointLinks(
 ) {
   // Blocks of one document share that document's artifact, so its token index
   // is built once for the whole answer rather than once per source.
-  const shared = new Map<string, SourceDoc>();
-  const compiled = (source: QuoteSource) => {
-    if (typeof source !== "string") return source;
-    const existing = shared.get(source);
-    if (existing) return existing;
-    const doc = createTextSourceDoc(source);
-    shared.set(source, doc);
-    return doc;
-  };
+  const compiled = sharedSourceDocs();
   const uniqueSources = [
     ...new Map(sources.map((source) => [source.key, source])).values(),
   ].map((source) => {

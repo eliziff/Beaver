@@ -17,11 +17,8 @@
  */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import {
-  appendLegalSourcePinpointLinks,
-  automaticPinpointQuote,
-  buildLegalSourcePinpointUrl,
-} from "../src/lib/legalSourceLinks";
+import * as links from "../src/lib/legalSourceLinks";
+import type { LegalSourceEvidence } from "../src/lib/legalSourceLinks";
 import { sourceDocBlockText, type SourceDoc } from "../src/lib/sourceDoc";
 import { compileA2AJSourceDoc } from "../src/lib/sourceDocA2AJ";
 
@@ -84,6 +81,49 @@ function largeStatute(repetitions: number) {
   return parts.join("\n\n");
 }
 
+/**
+ * The pre-stage-3 tree has neither entry point, so both are feature-detected:
+ * one script measures both sides of the change instead of two scripts that
+ * cannot be compared. `automaticQuote` below is that tree's implementation,
+ * verbatim; `share` is the identity there, because sharing one compiled
+ * document across the handles of a resolve is precisely what stage 3 added.
+ */
+const api = links as Partial<typeof links>;
+const { appendLegalSourcePinpointLinks, buildLegalSourcePinpointUrl } = links;
+
+function legacyQuoteCandidates(blockText: string) {
+  const text = blockText.trim().replace(/\s+/gu, " ");
+  const candidates: string[] = [];
+  for (const sentence of text.split(/(?<=[.!?])\s+/u)) {
+    const words = sentence.split(/\s+/u);
+    if (words.length >= 5 && words.length <= 32) candidates.push(sentence);
+  }
+  const words = text.split(/\s+/u);
+  for (const length of [12, 8, 16, 24, 32]) {
+    if (words.length < length) continue;
+    for (let start = 0; start <= words.length - length; start += 4) {
+      candidates.push(words.slice(start, start + length).join(" "));
+      if (candidates.length >= 80) break;
+    }
+    if (candidates.length >= 80) break;
+  }
+  if (!candidates.length && words.length >= 2) candidates.push(text);
+  return [...new Set(candidates)];
+}
+
+const automaticQuote =
+  api.automaticPinpointQuote ??
+  ((evidence: LegalSourceEvidence) => {
+    for (const quote of legacyQuoteCandidates(evidence.blockText as string)) {
+      const url = buildLegalSourcePinpointUrl(evidence, [quote]);
+      if (url?.includes(":~:text=")) return quote;
+    }
+    return null;
+  });
+
+const shareDocuments =
+  api.sharedSourceDocs ?? (() => (source: unknown) => source);
+
 function median(values: number[]) {
   const ordered = [...values].sort((left, right) => left - right);
   const middle = Math.floor(ordered.length / 2);
@@ -127,7 +167,7 @@ function cases(): Case[] {
     .filter((block) => !block.label.includes("("))
     .map((block) => sourceDocBlockText(statuteDoc, block))
     .filter((text) => text.split(/\s+/u).length > 40)
-    .slice(0, 8);
+    .slice(0, 64);
 
   for (const [name, doc, blocks] of [
     ["case-41kb", caseDoc, caseBlocks],
@@ -161,10 +201,30 @@ function cases(): Case[] {
       bytes: doc.text.length,
       run: () => {
         for (const blockText of handles) {
-          automaticPinpointQuote({
+          automaticQuote({
             url: "https://example.test/doc",
             blockText,
             documentText: doc.text,
+          });
+        }
+      },
+    });
+
+    // What a DOCX citation actually does: many evidence handles hydrated off
+    // one source version in one resolve (up to 256 of them).
+    const resolveHandles = blocks.slice(0, 64);
+    list.push({
+      name: `A2 resolve/${name}`,
+      unit: "handle",
+      units: resolveHandles.length,
+      bytes: doc.text.length,
+      run: () => {
+        const share = shareDocuments();
+        for (const blockText of resolveHandles) {
+          automaticQuote({
+            url: "https://example.test/doc",
+            blockText,
+            documentText: share(doc.text) as string,
           });
         }
       },

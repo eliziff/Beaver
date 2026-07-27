@@ -10,6 +10,7 @@ import {
   buildLegalSourceMultiPassageUrl,
   buildLegalSourcePinpointUrl,
   formatLegalLocator,
+  sharedSourceDocs,
   type LegalSourceEvidence,
 } from "./legalSourceLinks";
 import { rehydrateProviderPdfReference } from "./providerPdfLibraryBridge";
@@ -187,6 +188,7 @@ async function resolveProviderSource(input: SourceInput) {
   ) {
     throw new Error(`DOCX source "${input.id}" mixes source versions.`);
   }
+  const compiled = sharedSourceDocs();
   const passages = restored.map(({ document, lookup, receipt }, index) => {
     if (lookup.status !== "found" || !lookup.block) {
       throw new Error(`DOCX source "${input.id}" evidence is unavailable.`);
@@ -195,7 +197,7 @@ async function resolveProviderSource(input: SourceInput) {
       url: document.url,
       anchor: lookup.block.anchor,
       blockText: lookup.block.text,
-      documentText: document.text,
+      documentText: compiled(document.text),
     };
     const quote =
       input.quotes[index] ??
@@ -307,11 +309,12 @@ async function resolveLocalSource(
       `DOCX source "${input.id}" spans PDF pages; split it into separate citations.`,
     );
   }
+  const compiled = sharedSourceDocs();
   const passages = links.map((link: LocalPdfLinkEvidence, index) => {
     const evidence: LegalSourceEvidence = {
       url: absoluteLocalUrl(link.href),
       blockText: link.blockText,
-      documentText: link.documentText,
+      documentText: compiled(link.documentText),
       pageScoped: link.pageScoped,
     };
     const quote =
@@ -433,11 +436,12 @@ async function resolveProviderPdfSource(input: SourceInput) {
   if (links[0].pageNumbers[0]) {
     sourceUrl.hash = `page=${links[0].pageNumbers[0]}`;
   }
+  const compiled = sharedSourceDocs();
   const passages = links.map((link, index) => {
     const evidence: LegalSourceEvidence = {
       url: sourceUrl.toString(),
       blockText: link.blockText,
-      documentText: link.documentText,
+      documentText: compiled(link.documentText),
       pageScoped: link.pageScoped,
     };
     const quote =
