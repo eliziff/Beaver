@@ -62,6 +62,31 @@ export function hasEnvApiKey(provider: ApiKeyProvider): boolean {
     return !!envApiKey(provider);
 }
 
+export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
+    const status: ApiKeyStatus = {
+        claude: false,
+        gemini: false,
+        openai: false,
+        deepseek: false,
+        openrouter: false,
+        courtlistener: false,
+        sources: {
+            claude: null,
+            gemini: null,
+            openai: null,
+            deepseek: null,
+            openrouter: null,
+            courtlistener: null,
+        },
+    };
+    for (const provider of PROVIDERS) {
+        if (!hasEnvApiKey(provider)) continue;
+        status[provider] = true;
+        status.sources[provider] = "env";
+    }
+    return status;
+}
+
 function encryptionKey(): Buffer {
     const secret = process.env.USER_API_KEYS_ENCRYPTION_SECRET;
     if (!secret) {
@@ -118,29 +143,7 @@ export async function getUserApiKeyStatus(
     userId: string,
     db: Db = createServerSupabase(),
 ): Promise<ApiKeyStatus> {
-    const status: ApiKeyStatus = {
-        claude: false,
-        gemini: false,
-        openai: false,
-        deepseek: false,
-        openrouter: false,
-        courtlistener: false,
-        sources: {
-            claude: null,
-            gemini: null,
-            openai: null,
-            deepseek: null,
-            openrouter: null,
-            courtlistener: null,
-        },
-    };
-
-    for (const provider of PROVIDERS) {
-        if (hasEnvApiKey(provider)) {
-            status[provider] = true;
-            status.sources[provider] = "env";
-        }
-    }
+    const status = getEnvironmentApiKeyStatus();
 
     const { data, error } = await db
         .from("user_api_keys")

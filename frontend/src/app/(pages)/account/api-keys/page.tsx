@@ -9,6 +9,7 @@ import {
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
 import { isMfaRequiredError } from "@/app/lib/mikeApi";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import {
     accountGlassIconButtonClassName,
     accountGlassInputClassName,
@@ -55,6 +56,54 @@ const OTHER_API_KEY_FIELDS = [
 
 export default function ApiKeysPage() {
     const { profile, updateApiKey } = useUserProfile();
+
+    if (isAnonymousMode) {
+        return (
+            <div>
+                <h2 className="mb-3 text-2xl font-medium font-serif text-gray-900">
+                    API keys
+                </h2>
+                <p className="mb-4 text-sm text-gray-500">
+                    Local mode reads API keys from the server environment.
+                </p>
+                <AccountSection>
+                    {[...MODEL_API_KEY_FIELDS, ...OTHER_API_KEY_FIELDS].map(
+                        (field, index, fields) => {
+                            const configured =
+                                profile?.apiKeys[field.provider].configured;
+                            return (
+                                <div key={field.provider}>
+                                    <div className="flex items-start justify-between gap-4 px-4 py-5">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-700">
+                                                {field.label}
+                                            </p>
+                                            {"description" in field &&
+                                                field.description && (
+                                                    <p className="mt-1 text-sm text-gray-500">
+                                                        {field.description}
+                                                    </p>
+                                                )}
+                                        </div>
+                                        <span className="shrink-0 text-sm text-gray-500">
+                                            {configured === undefined
+                                                ? "Checking..."
+                                                : configured
+                                                  ? "Configured"
+                                                  : "Not configured"}
+                                        </span>
+                                    </div>
+                                    {index < fields.length - 1 && (
+                                        <div className="mx-4 h-px bg-gray-200" />
+                                    )}
+                                </div>
+                            );
+                        },
+                    )}
+                </AccountSection>
+            </div>
+        );
+    }
 
     return (
         <div>

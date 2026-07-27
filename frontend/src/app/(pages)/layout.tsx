@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { isAnonymousMode, requiresAccount } from "@/app/lib/authMode";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { PageChromeContext } from "@/app/contexts/PageChromeContext";
@@ -17,6 +18,7 @@ export default function MikeLayout({
 }) {
     const { isAuthenticated, authLoading } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const [mobileActionsContainer, setMobileActionsContainer] =
         useState<HTMLDivElement | null>(null);
 
@@ -122,7 +124,20 @@ export default function MikeLayout({
                                     />
                                 </div>
                                 <main className="flex h-full w-full flex-1 flex-col overflow-y-auto md:overflow-hidden">
-                                    {children}
+                                    {isAnonymousMode &&
+                                    requiresAccount(pathname) ? (
+                                        <div className="m-auto px-6 text-center">
+                                            <h1 className="text-2xl font-medium font-serif text-gray-900">
+                                                Unavailable in local mode
+                                            </h1>
+                                            <p className="mt-2 text-sm text-gray-500">
+                                                This feature is not available
+                                                locally yet.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        children
+                                    )}
                                 </main>
                             </div>
                         </div>

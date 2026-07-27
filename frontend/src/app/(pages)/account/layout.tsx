@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
 
 interface TabDef {
@@ -53,12 +54,15 @@ export default function AccountLayout({
         return null;
     }
 
+    const tabs = isAnonymousMode
+        ? TABS.filter((tab) => tab.id === "api-keys")
+        : TABS;
     const activeTab =
-        TABS.find(
+        tabs.find(
             (tab) =>
                 pathname === tab.href ||
                 (tab.href !== "/account" && pathname.startsWith(tab.href)),
-        ) ?? TABS[0];
+        ) ?? tabs[0];
 
     return (
         <div className="flex h-full flex-col overflow-y-auto">
@@ -82,14 +86,14 @@ export default function AccountLayout({
                             }
                             className="h-9 w-auto max-w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-800 shadow-sm outline-none focus:border-gray-300 md:hidden"
                         >
-                            {TABS.map((tab) => (
+                            {tabs.map((tab) => (
                                 <option key={tab.id} value={tab.href}>
                                     {tab.label}
                                 </option>
                             ))}
                         </select>
                         <ul className="mb-0 hidden gap-1 md:flex md:flex-col">
-                            {TABS.map((tab) => {
+                            {tabs.map((tab) => {
                                 const active = tab === activeTab;
                                 return (
                                     <li key={tab.id}>

@@ -15,6 +15,7 @@ import {
 } from "../lib/llm";
 import {
     type ApiKeyStatus,
+    getEnvironmentApiKeyStatus,
     getUserApiKeyStatus,
     hasEnvApiKey,
     normalizeApiKeyProvider,
@@ -49,6 +50,19 @@ import { findProfileUserByEmail } from "../lib/userLookup";
 export const userRouter = Router();
 
 const MONTHLY_CREDIT_LIMIT = 999999;
+
+userRouter.use((req, res, next) => {
+    if (!isAnonymousLocalMode()) return next();
+    if (
+        req.method === "GET" &&
+        (req.path === "/profile" || req.path === "/api-keys")
+    ) {
+        return next();
+    }
+    res.status(501).json({
+        detail: "This account feature is unavailable in account-free local mode.",
+    });
+});
 
 type UserProfileRow = {
     display_name: string | null;
@@ -307,23 +321,7 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
 function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
     const reset = new Date();
     reset.setDate(reset.getDate() + 30);
-    const providers: ApiKeyStatus["sources"] = {
-        claude: hasEnvApiKey("claude") ? "env" : null,
-        gemini: hasEnvApiKey("gemini") ? "env" : null,
-        openai: hasEnvApiKey("openai") ? "env" : null,
-        deepseek: hasEnvApiKey("deepseek") ? "env" : null,
-        openrouter: hasEnvApiKey("openrouter") ? "env" : null,
-        courtlistener: hasEnvApiKey("courtlistener") ? "env" : null,
-    };
-    const apiKeyStatus: ApiKeyStatus = {
-        claude: providers.claude === "env",
-        gemini: providers.gemini === "env",
-        openai: providers.openai === "env",
-        deepseek: providers.deepseek === "env",
-        openrouter: providers.openrouter === "env",
-        courtlistener: providers.courtlistener === "env",
-        sources: providers,
-    };
+    const apiKeyStatus = getEnvironmentApiKeyStatus();
     return serializeProfile(
         {
             display_name: null,
@@ -659,6 +657,10 @@ userRouter.patch(
 
 // GET /user/api-keys
 userRouter.get("/api-keys", requireAuth, async (_req, res) => {
+    if (isAnonymousLocalMode()) {
+        res.json(getEnvironmentApiKeyStatus());
+        return;
+    }
     const userId = res.locals.userId as string;
     const db = createServerSupabase();
     const status = await getUserApiKeyStatus(userId, db);

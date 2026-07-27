@@ -12,6 +12,7 @@ import request from "supertest";
 // ---------------------------------------------------------------------------
 const {
     requireMfaIfEnrolled,
+    getEnvironmentApiKeyStatus,
     getUserApiKeyStatus,
     saveUserApiKey,
     hasEnvApiKey,
@@ -25,6 +26,7 @@ const {
     buildUserTabularReviewsExport,
 } = vi.hoisted(() => ({
     requireMfaIfEnrolled: vi.fn(),
+    getEnvironmentApiKeyStatus: vi.fn(),
     getUserApiKeyStatus: vi.fn(),
     saveUserApiKey: vi.fn(),
     hasEnvApiKey: vi.fn(),
@@ -131,6 +133,7 @@ vi.mock("../../middleware/auth", () => ({
 // presence-only booleans. getUserApiKeys must be exported too — lib/userSettings
 // imports it at module load.
 vi.mock("../../lib/userApiKeys", () => ({
+    getEnvironmentApiKeyStatus: () => getEnvironmentApiKeyStatus(),
     getUserApiKeyStatus: (...args: unknown[]) => getUserApiKeyStatus(...args),
     saveUserApiKey: (...args: unknown[]) => saveUserApiKey(...args),
     hasEnvApiKey: (...args: unknown[]) => hasEnvApiKey(...args),
@@ -205,6 +208,7 @@ describe("user.routes", () => {
             (_req: unknown, _res: unknown, next: () => void) => next(),
         );
         getUserApiKeyStatus.mockResolvedValue(STATUS);
+        getEnvironmentApiKeyStatus.mockReturnValue(STATUS);
         saveUserApiKey.mockResolvedValue(undefined);
         hasEnvApiKey.mockReturnValue(false);
         normalizeApiKeyProvider.mockImplementation((v: string) =>
@@ -293,6 +297,45 @@ describe("user.routes", () => {
                 "u1",
                 expect.anything(),
             );
+        });
+
+        it("keeps cloud-only user routes safe in local mode", async () => {
+            const previous = {
+                authMode: process.env.AUTH_MODE,
+                nodeEnv: process.env.NODE_ENV,
+                supabaseUrl: process.env.SUPABASE_URL,
+                supabaseKey: process.env.SUPABASE_SECRET_KEY,
+            };
+            process.env.NODE_ENV = "development";
+            process.env.AUTH_MODE = "anonymous";
+            delete process.env.SUPABASE_URL;
+            delete process.env.SUPABASE_SECRET_KEY;
+            try {
+                const status = await request(app)
+                    .get("/user/api-keys")
+                    .set(...AUTH);
+                const connectors = await request(app)
+                    .get("/user/mcp-connectors")
+                    .set(...AUTH);
+                const health = await request(app).get("/health");
+
+                expect(status.status).toBe(200);
+                expect(status.body).toEqual(STATUS);
+                expect(getUserApiKeyStatus).not.toHaveBeenCalled();
+                expect(connectors.status).toBe(501);
+                expect(connectors.body.detail).toContain("account-free");
+                expect(health.status).toBe(200);
+            } finally {
+                for (const [name, value] of Object.entries({
+                    AUTH_MODE: previous.authMode,
+                    NODE_ENV: previous.nodeEnv,
+                    SUPABASE_URL: previous.supabaseUrl,
+                    SUPABASE_SECRET_KEY: previous.supabaseKey,
+                })) {
+                    if (value === undefined) delete process.env[name];
+                    else process.env[name] = value;
+                }
+            }
         });
     });
 
