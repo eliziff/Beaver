@@ -2,6 +2,8 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "CommonJS",
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "moduleResolution": "node",
     "ignoreDeprecations": "5.0",
     "outDir": "./dist",
