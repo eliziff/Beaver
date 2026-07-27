@@ -34,6 +34,10 @@ import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import { parseChatMessages, streamAnonymousChat } from "./chat";
+import {
+    parseAnonymousCurrentTurn,
+    parseExpectedTranscriptVersion,
+} from "../lib/chat/anonymousCurrentTurn";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -58,26 +62,44 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         attached_documents,
         ask_inputs_response,
         reasoning_effort,
+        current_turn,
+        expected_version,
     } =
         req.body as {
-            messages: ChatMessage[];
+            messages?: ChatMessage[];
             chat_id?: string;
             model?: string;
             reasoning_effort?: string;
             displayed_doc?: { filename: string; document_id: string };
             attached_documents?: { filename: string; document_id: string }[];
             ask_inputs_response?: unknown;
+            current_turn?: unknown;
+            expected_version?: unknown;
         };
     const askInputsResponse = parseAskInputsResponsePayload(
         ask_inputs_response,
     );
 
     if (isAnonymousLocalMode()) {
-        const parsedMessages = parseChatMessages(messages);
-        if (!parsedMessages.ok) {
+        if (messages !== undefined) {
             return void res
                 .status(400)
-                .json({ detail: parsedMessages.detail });
+                .json({
+                    detail: "Account-free local chat accepts current_turn, not browser-supplied history",
+                });
+        }
+        const parsedTurn = parseAnonymousCurrentTurn(current_turn);
+        if (!parsedTurn.ok) {
+            return void res
+                .status(400)
+                .json({ detail: parsedTurn.detail });
+        }
+        const parsedVersion =
+            parseExpectedTranscriptVersion(expected_version);
+        if (!parsedVersion.ok) {
+            return void res
+                .status(400)
+                .json({ detail: parsedVersion.detail });
         }
         if (
             chat_id !== undefined &&
@@ -87,33 +109,54 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
                 .status(400)
                 .json({ detail: "chat_id must be a non-empty string" });
         }
-        await streamAnonymousChat({
-            res,
-            userId,
-            chatId: chat_id?.trim() || null,
-            messages: parsedMessages.messages,
-            model:
-                typeof model === "string" ? model.trim() || undefined : undefined,
-            reasoningEffort:
-                typeof reasoning_effort === "string"
-                    ? reasoning_effort.trim().slice(0, 32) || undefined
+        try {
+            await streamAnonymousChat({
+                res,
+                userId,
+                chatId: chat_id?.trim() || null,
+                currentTurn: parsedTurn.turn,
+                expectedVersion: parsedVersion.version,
+                model:
+                    typeof model === "string"
+                        ? model.trim() || undefined
+                        : undefined,
+                reasoningEffort:
+                    typeof reasoning_effort === "string"
+                        ? reasoning_effort.trim().slice(0, 32) || undefined
+                        : undefined,
+                projectId,
+                projectIdProvided: true,
+                displayedDocument:
+                    displayed_doc &&
+                    typeof displayed_doc === "object" &&
+                    !Array.isArray(displayed_doc)
+                        ? displayed_doc
+                        : undefined,
+                attachedDocuments: Array.isArray(attached_documents)
+                    ? attached_documents
                     : undefined,
-            projectId,
-            projectIdProvided: true,
-            displayedDocument:
-                displayed_doc &&
-                typeof displayed_doc === "object" &&
-                !Array.isArray(displayed_doc)
-                    ? displayed_doc
-                    : undefined,
-            attachedDocuments: Array.isArray(attached_documents)
-                ? attached_documents
-                : undefined,
-            askInputsResponse,
-        });
+            });
+        } catch (error) {
+            console.error(
+                "[project-chat/anonymous] preflight",
+                safeErrorLog(error),
+            );
+            if (!res.headersSent) {
+                res.status(500).json({ detail: "Local chat failed" });
+            } else {
+                res.end();
+            }
+        }
         return;
     }
 
+    const parsedMessages = parseChatMessages(messages);
+    if (!parsedMessages.ok) {
+        return void res
+            .status(400)
+            .json({ detail: parsedMessages.detail });
+    }
+    const cloudMessages = parsedMessages.messages;
     const db = createServerSupabase();
 
     // Verify the user has access to the project (owner or shared member).
@@ -154,7 +197,9 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         chatTitle = newChat.title;
     }
 
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const lastUser = [...cloudMessages].reverse().find(
+        (m) => m.role === "user",
+    );
     if (askInputsResponse) {
         await appendAskInputsResponseToLastAssistantMessage(
             db,
@@ -179,7 +224,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     let imagesByDocumentId: Map<string, LlmImage>;
     try {
         imagesByDocumentId = await loadStoredChatImages(
-            messages,
+            cloudMessages,
             docIndex,
             docStore,
         );
@@ -204,7 +249,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
     }));
 
     const enrichedMessages = (await enrichWithPriorEvents(
-        messages,
+        cloudMessages,
         chatId,
         db,
         docIndex,

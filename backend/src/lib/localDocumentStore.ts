@@ -37,6 +37,13 @@ type LocalVersion = {
   id: string;
   versionNumber: number;
   source: "upload" | "user_upload";
+  provenance?: {
+    schemaVersion: 1;
+    actor: "assistant";
+    action: "created" | "revised";
+    parentVersionId?: string;
+    changeCount?: number;
+  };
   createdAt: string;
   filename: string;
   fileType: string;
@@ -219,6 +226,15 @@ export function localDocumentResponse(document: LocalDocument) {
     status: "ready",
     current_version_id: document.currentVersionId,
     active_version_number: version.versionNumber,
+    version_provenance: version.provenance
+      ? {
+          schema_version: version.provenance.schemaVersion,
+          actor: version.provenance.actor,
+          action: version.provenance.action,
+          parent_version_id: version.provenance.parentVersionId,
+          change_count: version.provenance.changeCount,
+        }
+      : undefined,
     latest_version_number: Math.max(...document.versions.map((item) => item.versionNumber)),
     created_at: document.createdAt,
     updated_at: document.updatedAt,
@@ -248,6 +264,15 @@ export function localVersionResponse(version: LocalVersion) {
     size_bytes: version.sizeBytes,
     page_count: version.pageCount,
     source_sha256: version.sourceSha256,
+    provenance: version.provenance
+      ? {
+          schema_version: version.provenance.schemaVersion,
+          actor: version.provenance.actor,
+          action: version.provenance.action,
+          parent_version_id: version.provenance.parentVersionId,
+          change_count: version.provenance.changeCount,
+        }
+      : undefined,
     deleted_at: null,
     deleted_by: null,
   };
@@ -287,6 +312,7 @@ export async function createLocalDocument(params: {
   kind: LocalLibraryKind;
   filename: string;
   bytes: Buffer;
+  provenance?: LocalVersion["provenance"];
 }) {
   const saved = await mutateStore(async (store) => {
     const now = new Date().toISOString();
@@ -302,6 +328,7 @@ export async function createLocalDocument(params: {
       id: versionId,
       versionNumber: 1,
       source: "upload",
+      provenance: params.provenance,
       createdAt: now,
       filename: params.filename.slice(0, 200),
       fileType: files.suffix,
@@ -404,12 +431,20 @@ export async function addLocalVersion(params: {
   documentId: string;
   filename: string;
   bytes: Buffer;
+  expectedVersionId?: string;
+  provenance?: LocalVersion["provenance"];
 }) {
   const saved = await mutateStore(async (store) => {
     const document = store.documents.find(
       (item) => item.id === params.documentId && item.userId === params.userId,
     );
-    if (!document) return null;
+    if (
+      !document ||
+      (params.expectedVersionId &&
+        document.currentVersionId !== params.expectedVersionId)
+    ) {
+      return null;
+    }
     const versionId = crypto.randomUUID();
     const files = await writeVersionFiles(
       document.id,
@@ -422,6 +457,7 @@ export async function addLocalVersion(params: {
       versionNumber:
         Math.max(...document.versions.map((item) => item.versionNumber)) + 1,
       source: "user_upload",
+      provenance: params.provenance,
       createdAt: new Date().toISOString(),
       filename: params.filename.slice(0, 200),
       fileType: files.suffix,
@@ -494,6 +530,7 @@ export async function replaceLocalVersion(params: {
     version.storagePath = files.relativeSource;
     version.pdfStoragePath = files.relativePdf;
     version.sourceSha256 = files.sourceSha256;
+    delete version.provenance;
     document.updatedAt = version.createdAt;
     const nextPaths = new Set(
       [version.storagePath, version.pdfStoragePath].filter(

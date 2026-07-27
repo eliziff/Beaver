@@ -16,6 +16,9 @@ import {
   runLLMStream,
   stripTransientAssistantEvents,
   parseAskInputsResponsePayload,
+  normalizeAskInputsEvent,
+  type AskInputResponseItem,
+  type AskInputsEvent,
   type AskInputsResponseRequest,
   type ChatMessage,
 } from "../lib/chat";
@@ -51,14 +54,22 @@ import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
 import {
   appendAnonymousAssistantEvents,
   appendAnonymousMessage,
+  AnonymousChatVersionConflictError,
   createAnonymousChat,
   deleteAnonymousChat,
   getAnonymousChat,
   listAnonymousChats,
   updateAnonymousChatTitle,
+  resetAnonymousAssistantEvents,
   type AnonymousChat,
   type AnonymousChatMessage,
 } from "../lib/anonymousChatStore";
+import {
+  parseAnonymousCurrentTurn,
+  parseExpectedTranscriptVersion,
+  type AnonymousCurrentTurn,
+} from "../lib/chat/anonymousCurrentTurn";
+import { projectAnonymousTranscript } from "../lib/chat/anonymousTranscript";
 import {
   imagesForMessage,
   loadLocalChatImages,
@@ -67,6 +78,12 @@ import {
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import { listLocalDocumentsById } from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
+import {
+  anonymousTurnInProgress,
+  anonymousTurnWasDeleted,
+  beginAnonymousTurn,
+  finishAnonymousTurn,
+} from "../lib/anonymousChatTurns";
 
 export const chatRouter = Router();
 
@@ -78,9 +95,17 @@ const devLog = (...args: Parameters<typeof console.log>) => {
 
 const TITLE_FALLBACK = "Misc. Query";
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
+const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
+const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
 const MAX_LOCAL_PDF_EVIDENCE_HANDLES = 20;
 const LOCAL_PDF_EVIDENCE_HANDLE = /^mike-evidence:v1:[0-9a-f]{64}$/u;
-
+const LOCAL_MUTATION_TOOL_NAMES = new Set([
+  "library_create_docx",
+  "library_revise_docx",
+  "library_link_docx_citations",
+  "library_fix_docx_supras",
+  "toa_submit_library_document",
+]);
 type LocalPdfEvidenceRegistryItem = {
   handle: string;
   document_id: string;
@@ -220,21 +245,389 @@ function localPdfEvidenceRegistryPrompt(
 }
 
 function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
-  return messages.map((message) => {
+  return messages.flatMap((storedMessage) => {
+    const { turn_id: turnId, ...message } = storedMessage;
     if (message.role !== "assistant" || !Array.isArray(message.content)) {
-      return message;
+      return [message];
     }
     const content = message.content.filter(
       (event) =>
         !event ||
         typeof event !== "object" ||
         Array.isArray(event) ||
-        (event as Record<string, unknown>).type !==
-          LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+        ((event as Record<string, unknown>).type !==
+          LOCAL_PDF_EVIDENCE_REGISTRY_EVENT &&
+          (event as Record<string, unknown>).type !==
+            LOCAL_MUTATION_COMMITTED_EVENT &&
+          (event as Record<string, unknown>).type !==
+            LOCAL_TURN_COMPLETED_EVENT),
     );
-    return content.length === message.content.length
-      ? message
-      : { ...message, content };
+    if (turnId && content.length === 0) return [];
+    return [{ ...message, content }];
+  });
+}
+
+function anonymousTurnDocumentIds(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const ids = value.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const id = (item as Record<string, unknown>).document_id;
+    return typeof id === "string" && id.trim() ? id.trim() : null;
+  });
+  return ids.every((id): id is string => id !== null) ? ids : null;
+}
+
+function sameAnonymousNormalTurn(
+  stored: AnonymousChatMessage,
+  content: string,
+  files: { document_id: string }[],
+  workflow: ChatMessage["workflow"],
+) {
+  const storedDocumentIds = anonymousTurnDocumentIds(stored.files);
+  if (
+    stored.content !== content ||
+    !storedDocumentIds ||
+    JSON.stringify(storedDocumentIds) !==
+      JSON.stringify(files.map((file) => file.document_id))
+  ) {
+    return false;
+  }
+  const storedWorkflow =
+    stored.workflow &&
+    typeof stored.workflow === "object" &&
+    !Array.isArray(stored.workflow)
+      ? (stored.workflow as Record<string, unknown>)
+      : undefined;
+  return (
+    (storedWorkflow?.id ?? undefined) === workflow?.id &&
+    (storedWorkflow?.title ?? undefined) === workflow?.title
+  );
+}
+
+type AnonymousNormalTurnState = {
+  user: AnonymousChatMessage;
+  assistant?: AnonymousChatMessage;
+  completed: boolean;
+  mutationCommitted: boolean;
+};
+
+function anonymousNormalTurnState(
+  chat: AnonymousChat,
+  turnId: string,
+): AnonymousNormalTurnState | null {
+  const user = chat.messages.find(
+    (message) => message.role === "user" && message.turn_id === turnId,
+  );
+  if (!user) return null;
+  const assistant = [...chat.messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" && message.turn_id === turnId,
+    );
+  const events = Array.isArray(assistant?.content)
+    ? assistant.content
+    : [];
+  return {
+    user,
+    assistant,
+    completed: events.some(
+      (event) =>
+        !!event &&
+        typeof event === "object" &&
+        !Array.isArray(event) &&
+        (event as Record<string, unknown>).type ===
+          LOCAL_TURN_COMPLETED_EVENT,
+    ),
+    mutationCommitted: events.some(
+      (event) =>
+        !!event &&
+        typeof event === "object" &&
+        !Array.isArray(event) &&
+        (event as Record<string, unknown>).type ===
+          LOCAL_MUTATION_COMMITTED_EVENT,
+    ),
+  };
+}
+
+function appendAnonymousNormalTurnEvents(
+  chat: AnonymousChat,
+  turnId: string,
+  events: unknown[],
+  citations?: unknown[],
+) {
+  const state = anonymousNormalTurnState(chat, turnId);
+  if (!state) throw new Error("Anonymous turn receipt is missing");
+  if (state.assistant) {
+    if (
+      !appendAnonymousAssistantEvents(
+        chat,
+        events,
+        citations,
+        undefined,
+        turnId,
+      )
+    ) {
+      throw new Error("Anonymous turn response receipt is missing");
+    }
+    return;
+  }
+  appendAnonymousMessage(chat, {
+    turn_id: turnId,
+    role: "assistant",
+    content: events,
+    citations,
+  });
+}
+
+function storedAskInputsResponse(
+  event: Record<string, unknown>,
+): AskInputsResponseRequest | null {
+  const parsed = parseAskInputsResponsePayload(event);
+  if (!parsed || !Array.isArray(event.responses)) return null;
+  const rawById = new Map(
+    event.responses.flatMap((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      const row = value as Record<string, unknown>;
+      return typeof row.id === "string"
+        ? [[row.id.trim().slice(0, 80), row] as const]
+        : [];
+    }),
+  );
+  for (const item of parsed.responses) {
+    if (item.kind !== "documents") continue;
+    const rawDocuments = rawById.get(item.id)?.documents;
+    if (!Array.isArray(rawDocuments)) continue;
+    item.documents = rawDocuments.flatMap((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      const row = value as Record<string, unknown>;
+      const documentId =
+        typeof row.document_id === "string" ? row.document_id.trim() : "";
+      const filename =
+        typeof row.filename === "string" ? row.filename.trim() : "";
+      return documentId && filename
+        ? [{ document_id: documentId, filename }]
+        : [];
+    });
+  }
+  return parsed;
+}
+
+type PendingAnonymousAskInputs = {
+  event: AskInputsEvent;
+  retryResponse?: AskInputsResponseRequest;
+  mutationCommitted?: boolean;
+};
+
+function pendingAnonymousAskInputs(
+  chat: AnonymousChat,
+): PendingAnonymousAskInputs | null {
+  const assistant = [...chat.messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  if (!assistant || !Array.isArray(assistant.content)) return null;
+  let ask: AskInputsEvent | null = null;
+  let response: AskInputsResponseRequest | null = null;
+  let responseFailed = false;
+  let mutationCommitted = false;
+  for (const value of assistant.content) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const event = value as Record<string, unknown>;
+    if (event.type === "ask_inputs") {
+      const normalized = normalizeAskInputsEvent(event);
+      ask = normalized.items.length ? normalized : null;
+      response = null;
+      responseFailed = false;
+      mutationCommitted = false;
+      continue;
+    }
+    if (event.type === "ask_inputs_response" && ask) {
+      response = storedAskInputsResponse(event);
+      responseFailed = false;
+      mutationCommitted = false;
+      continue;
+    }
+    if (!response) continue;
+    if (event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
+      mutationCommitted = true;
+      continue;
+    }
+    if (event.type === "error") {
+      responseFailed = true;
+      continue;
+    }
+    if (event.type === "content" && typeof event.text === "string") {
+      responseFailed =
+        event.text.trim().toLowerCase() === "cancelled by user.";
+    }
+  }
+  if (!ask || (response && !responseFailed)) return null;
+  return {
+    event: ask,
+    ...(response ? { retryResponse: response } : {}),
+    ...(mutationCommitted ? { mutationCommitted: true } : {}),
+  };
+}
+
+type CanonicalAskInputsResponse =
+  | { ok: true; response: AskInputsResponseRequest; content: string }
+  | { ok: false; detail: string };
+
+function canonicalAnonymousAskInputsResponse(
+  pending: AskInputsEvent,
+  response: AskInputsResponseRequest,
+  files: { filename: string; document_id: string }[],
+): CanonicalAskInputsResponse {
+  if (response.responses.length !== pending.items.length) {
+    return {
+      ok: false,
+      detail: "Response does not match the pending assistant questions",
+    };
+  }
+  const responsesById = new Map<string, AskInputResponseItem>();
+  for (const item of response.responses) {
+    if (responsesById.has(item.id)) {
+      return {
+        ok: false,
+        detail: "Response contains a duplicate assistant question",
+      };
+    }
+    responsesById.set(item.id, item);
+  }
+  const availableDocuments = new Map(
+    files.map((file) => [file.document_id, file] as const),
+  );
+  const canonical: AskInputResponseItem[] = [];
+  for (const item of pending.items) {
+    const submitted = responsesById.get(item.id);
+    if (!submitted || submitted.kind !== item.kind) {
+      return {
+        ok: false,
+        detail: "Response does not match the pending assistant questions",
+      };
+    }
+    if (item.kind === "choice" && submitted.kind === "choice") {
+      if (submitted.question.trim() !== item.question) {
+        return {
+          ok: false,
+          detail: "Response question does not match the assistant question",
+        };
+      }
+      if (submitted.skipped) {
+        canonical.push({
+          id: item.id,
+          kind: "choice",
+          question: item.question,
+          skipped: true,
+        });
+        continue;
+      }
+      const answer = submitted.answer?.trim() ?? "";
+      const knownAnswer = item.options.some(
+        (option) => option.value === answer,
+      );
+      if (!answer || (!knownAnswer && !item.allow_other)) {
+        return {
+          ok: false,
+          detail: "Response choice is not available for this question",
+        };
+      }
+      canonical.push({
+        id: item.id,
+        kind: "choice",
+        question: item.question,
+        answer,
+      });
+      continue;
+    }
+    if (item.kind === "documents" && submitted.kind === "documents") {
+      if (submitted.skipped) {
+        canonical.push({
+          id: item.id,
+          kind: "documents",
+          filenames: [],
+          documents: [],
+          skipped: true,
+        });
+        continue;
+      }
+      const submittedDocuments = submitted.documents ?? [];
+      const seenDocumentIds = new Set<string>();
+      const documents = submittedDocuments.flatMap((document) => {
+        const canonicalDocument = availableDocuments.get(document.document_id);
+        if (
+          !canonicalDocument ||
+          seenDocumentIds.has(canonicalDocument.document_id)
+        ) {
+          return [];
+        }
+        seenDocumentIds.add(canonicalDocument.document_id);
+        return [canonicalDocument];
+      });
+      if (
+        documents.length === 0 ||
+        documents.length !== submittedDocuments.length
+      ) {
+        return {
+          ok: false,
+          detail: "Response documents are not attached to this turn",
+        };
+      }
+      canonical.push({
+        id: item.id,
+        kind: "documents",
+        filenames: documents.map((document) => document.filename),
+        documents,
+      });
+    }
+  }
+  const lines = canonical.map((item, index) => {
+    if (item.kind === "choice") {
+      return item.skipped
+        ? `${index + 1}. Skipped: ${item.question}`
+        : `${index + 1}. ${item.question}\n${item.answer ?? ""}`;
+    }
+    return item.skipped
+      ? `${index + 1}. Skipped document request.`
+      : `${index + 1}. Documents attached: ${item.filenames.join(", ")}`;
+  });
+  return {
+    ok: true,
+    response: { responses: canonical },
+    content: `Responses to Beaver's questions:\n${lines.join("\n\n")}`,
+  };
+}
+
+function sameAskInputsResponse(
+  left: AskInputsResponseRequest,
+  right: AskInputsResponseRequest,
+) {
+  if (left.responses.length !== right.responses.length) return false;
+  return left.responses.every((item, index) => {
+    const other = right.responses[index];
+    if (
+      !other ||
+      item.id !== other.id ||
+      item.kind !== other.kind ||
+      Boolean(item.skipped) !== Boolean(other.skipped)
+    ) {
+      return false;
+    }
+    if (item.kind === "choice" && other.kind === "choice") {
+      return (
+        item.question === other.question &&
+        (item.answer ?? "") === (other.answer ?? "")
+      );
+    }
+    if (item.kind === "documents" && other.kind === "documents") {
+      const identities = (value: typeof item) =>
+        value.documents?.length
+          ? value.documents.map((document) => document.document_id).sort()
+          : [...value.filenames].sort();
+      return JSON.stringify(identities(item)) === JSON.stringify(identities(other));
+    }
+    return false;
   });
 }
 
@@ -262,21 +655,28 @@ export async function streamAnonymousChat(params: {
   res: import("express").Response;
   userId: string;
   chatId: string | null;
-  messages: ChatMessage[];
+  currentTurn: AnonymousCurrentTurn;
+  expectedVersion: number;
   model?: string;
   reasoningEffort?: string;
   projectId?: string | null;
   projectIdProvided?: boolean;
   displayedDocument?: { filename: string; document_id: string };
   attachedDocuments?: { filename: string; document_id: string }[];
-  askInputsResponse?: AskInputsResponseRequest | null;
 }) {
-  const { res, userId, messages } = params;
+  const { res, userId } = params;
   const existingChat = params.chatId
     ? getAnonymousChat(userId, params.chatId)
     : null;
   if (params.chatId && !existingChat) {
     res.status(404).json({ detail: "Chat not found" });
+    return;
+  }
+  if (!existingChat && params.expectedVersion !== 0) {
+    res.status(409).json({
+      code: "chat_version_conflict",
+      current_version: 0,
+    });
     return;
   }
   if (
@@ -356,10 +756,68 @@ export async function streamAnonymousChat(params: {
   const focusPrompt = focusLines.length
     ? `CURRENT MATTER FOCUS:\n${focusLines.join("\n")}\n\n`
     : "";
+  const turnFiles =
+    params.currentTurn.kind === "message"
+      ? params.currentTurn.message.files
+      : params.currentTurn.files;
+  const turnDocumentIds = [
+    ...new Set(
+      (turnFiles ?? []).flatMap((file) =>
+        file.document_id ? [file.document_id] : [],
+      ),
+    ),
+  ];
+  if (
+    allowedDocumentIds &&
+    turnDocumentIds.some((documentId) => !allowedDocumentIds.has(documentId))
+  ) {
+    res.status(400).json({ detail: "Attached document is not in this matter" });
+    return;
+  }
+  const turnDocuments = turnDocumentIds.length
+    ? await listLocalDocumentsById(userId, turnDocumentIds)
+    : [];
+  if (turnDocuments.length !== turnDocumentIds.length) {
+    res.status(400).json({ detail: "Attached document is unavailable" });
+    return;
+  }
+  const turnDocumentById = new Map(
+    turnDocuments.map((document) => [document.id, document] as const),
+  );
+  const canonicalTurnFiles = turnDocumentIds.map((documentId) => ({
+    filename: turnDocumentById.get(documentId)!.filename,
+    document_id: documentId,
+  }));
+  const currentProviderMessage: ChatMessage =
+    params.currentTurn.kind === "message"
+      ? {
+          ...params.currentTurn.message,
+          files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
+        }
+      : {
+          role: "user",
+          content: params.currentTurn.content,
+          files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
+        };
+  const withinMatter = (message: ChatMessage): ChatMessage => ({
+    ...message,
+    files: message.files?.filter(
+      (file) =>
+        !file.document_id ||
+        !allowedDocumentIds ||
+        allowedDocumentIds.has(file.document_id),
+    ),
+  });
+  const proposedMessages = [
+    ...projectAnonymousTranscript(existingChat?.messages ?? []).map(
+      withinMatter,
+    ),
+    currentProviderMessage,
+  ];
   let imagesByDocumentId: Map<string, LlmImage>;
   try {
     imagesByDocumentId = await loadLocalChatImages(
-      messages,
+      proposedMessages,
       userId,
       allowedDocumentIds,
     );
@@ -388,35 +846,175 @@ export async function streamAnonymousChat(params: {
     priorEvidenceRegistry,
   );
 
+  if (anonymousTurnInProgress(chat.id)) {
+    res.status(409).json({
+      code: "chat_turn_in_progress",
+      current_version: chat.transcript_version,
+    });
+    return;
+  }
+  const normalTurnId =
+    params.currentTurn.kind === "message"
+      ? params.currentTurn.turnId
+      : undefined;
+  let retryingNormalTurn = false;
+  try {
+    if (params.currentTurn.kind === "ask_inputs_response") {
+      const pending = pendingAnonymousAskInputs(chat);
+      if (!pending) {
+        res.status(400).json({
+          detail: "No assistant question is available for this response",
+        });
+        return;
+      }
+      const canonicalResponse = canonicalAnonymousAskInputsResponse(
+        pending.event,
+        params.currentTurn.response,
+        canonicalTurnFiles,
+      );
+      if (!canonicalResponse.ok) {
+        res.status(400).json({ detail: canonicalResponse.detail });
+        return;
+      }
+      if (pending.retryResponse) {
+        if (
+          !sameAskInputsResponse(
+            pending.retryResponse,
+            canonicalResponse.response,
+          )
+        ) {
+          res.status(400).json({
+            detail: "Retry the same response to the assistant questions",
+          });
+          return;
+        }
+        if (pending.mutationCommitted) {
+          res.status(409).json({
+            code: "chat_retry_blocked_after_mutation",
+            current_version: chat.transcript_version,
+            detail:
+              "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.",
+          });
+          return;
+        }
+        if (chat.transcript_version !== params.expectedVersion) {
+          throw new AnonymousChatVersionConflictError(
+            chat.transcript_version,
+          );
+        }
+      } else {
+        const appended = appendAnonymousAssistantEvents(
+          chat,
+          [
+            {
+              type: "ask_inputs_response",
+              content: canonicalResponse.content,
+              files: canonicalTurnFiles,
+              responses: canonicalResponse.response.responses,
+            },
+          ],
+          undefined,
+          params.expectedVersion,
+        );
+        if (!appended) {
+          res.status(400).json({
+            detail: "No assistant question is available for this response",
+          });
+          return;
+        }
+      }
+    } else {
+      const priorTurn = normalTurnId
+        ? anonymousNormalTurnState(chat, normalTurnId)
+        : null;
+      if (priorTurn) {
+        if (
+          !sameAnonymousNormalTurn(
+            priorTurn.user,
+            params.currentTurn.message.content,
+            canonicalTurnFiles,
+            params.currentTurn.message.workflow,
+          )
+        ) {
+          res.status(400).json({
+            detail: "turn_id was already used for a different message",
+          });
+          return;
+        }
+        if (priorTurn.completed) {
+          res.status(409).json({
+            code: "chat_turn_already_completed",
+            current_version: chat.transcript_version,
+          });
+          return;
+        }
+        if (priorTurn.mutationCommitted) {
+          res.status(409).json({
+            code: "chat_retry_blocked_after_mutation",
+            current_version: chat.transcript_version,
+            detail:
+              "The prior response changed local data before it stopped. Review that result before sending a new instruction.",
+          });
+          return;
+        }
+        if (chat.transcript_version !== params.expectedVersion) {
+          throw new AnonymousChatVersionConflictError(
+            chat.transcript_version,
+          );
+        }
+        const lastUser = [...chat.messages]
+          .reverse()
+          .find((message) => message.role === "user");
+        if (lastUser?.id !== priorTurn.user.id) {
+          res.status(409).json({
+            code: "chat_version_conflict",
+            current_version: chat.transcript_version,
+          });
+          return;
+        }
+        if (
+          priorTurn.assistant &&
+          !resetAnonymousAssistantEvents(chat, normalTurnId!)
+        ) {
+          throw new Error("Anonymous turn response receipt is missing");
+        }
+        retryingNormalTurn = true;
+      }
+      if (!retryingNormalTurn) {
+        appendAnonymousMessage(
+          chat,
+          {
+            turn_id: normalTurnId,
+            role: "user",
+            content: params.currentTurn.message.content,
+            files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
+            workflow: params.currentTurn.message.workflow,
+          },
+          params.expectedVersion,
+        );
+      }
+    }
+  } catch (error) {
+    if (error instanceof AnonymousChatVersionConflictError) {
+      res.status(409).json({
+        code: "chat_version_conflict",
+        current_version: error.currentVersion,
+      });
+      return;
+    }
+    throw error;
+  }
+  const messages = projectAnonymousTranscript(
+    retryingNormalTurn && normalTurnId
+      ? chat.messages.filter(
+          (message) =>
+            message.role !== "assistant" || message.turn_id !== normalTurnId,
+        )
+      : chat.messages,
+  ).map(withinMatter);
   const lastUser = [...messages].reverse().find((message) => {
     return message.role === "user" && typeof message.content === "string";
   });
-  const askInputsContext = params.askInputsResponse
-    ? `\n\n[User responses to requested inputs]\n${params.askInputsResponse.responses
-        .map((response) => {
-          if (response.skipped) return `- ${response.id}: skipped`;
-          if (response.kind === "choice") {
-            return `- ${response.question}: ${response.answer ?? ""}`;
-          }
-          return `- ${response.id}: ${response.filenames.join(", ") || "none"}`;
-        })
-        .join("\n")}`
-    : "";
-  if (params.askInputsResponse) {
-    appendAnonymousAssistantEvents(chat, [
-      {
-        type: "ask_inputs_response",
-        responses: params.askInputsResponse.responses,
-      },
-    ]);
-  } else if (lastUser) {
-    appendAnonymousMessage(chat, {
-      role: "user",
-      content: lastUser.content,
-      files: lastUser.files ?? null,
-      workflow: lastUser.workflow ?? null,
-    });
-  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -425,6 +1023,10 @@ export async function streamAnonymousChat(params: {
   res.flushHeaders();
 
   const streamAbort = new AbortController();
+  if (!beginAnonymousTurn(chat.id, streamAbort)) {
+    res.end();
+    return;
+  }
   let streamFinished = false;
   res.on("close", () => {
     if (!streamFinished) streamAbort.abort();
@@ -441,6 +1043,9 @@ export async function streamAnonymousChat(params: {
   };
   const publicLegalState = createPublicLegalSourceState();
   const localPdfEvidenceHandles = new Set<string>();
+  let pendingAskInputs: AskInputsEvent | null = null;
+  let askInputsFinalized = false;
+  let localMutationCommitted = false;
   const streamVisible = (delta: string) => {
     if (!delta || citationsOpen) return;
     const combined = visibleTail + delta;
@@ -463,8 +1068,87 @@ export async function streamAnonymousChat(params: {
       sseWrite(res, { type: "content_delta", text: visible });
     }
   };
+  const acceptPendingAskInputs = (event: AskInputsEvent) => {
+    if (pendingAskInputs || event.items.length === 0) return;
+    pendingAskInputs = event;
+    rawText = "";
+    visibleText = "";
+    visibleTail = "";
+    citationsOpen = false;
+    if (!res.destroyed) sseWrite(res, { type: "content_reset" });
+  };
+  const finalizePendingAskInputs = async () => {
+    const event = pendingAskInputs;
+    if (!event || askInputsFinalized) return Boolean(event);
+    if (!citationsOpen && visibleTail) {
+      visibleText += visibleTail;
+      if (!res.destroyed) {
+        sseWrite(res, { type: "content_delta", text: visibleTail });
+      }
+      visibleTail = "";
+    }
+    const assistantEvents: unknown[] = visibleText
+      ? [{ type: "content", text: visibleText }]
+      : [];
+    assistantEvents.push(event);
+    const activeEvidenceRegistry = await activeLocalPdfEvidenceRegistry(
+      localPdfEvidenceHandles,
+      allowedDocumentIds,
+    );
+    const nextEvidenceRegistry = mergeLocalPdfEvidenceRegistries(
+      activeEvidenceRegistry,
+      priorEvidenceRegistry,
+    );
+    if (nextEvidenceRegistry.length > 0) {
+      assistantEvents.push({
+        type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+        schema_version: 1,
+        handles: nextEvidenceRegistry,
+      });
+    }
+    if (anonymousTurnWasDeleted(chat.id)) {
+      askInputsFinalized = true;
+      return true;
+    }
+    if (params.currentTurn.kind === "ask_inputs_response") {
+      appendAnonymousAssistantEvents(chat, assistantEvents);
+    } else if (normalTurnId) {
+      appendAnonymousNormalTurnEvents(chat, normalTurnId, [
+        ...assistantEvents,
+        { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
+      ]);
+    } else {
+      appendAnonymousMessage(chat, {
+        role: "assistant",
+        content: assistantEvents,
+      });
+    }
+    if (!chat.title && lastUser?.content) {
+      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
+    }
+    askInputsFinalized = true;
+    if (!res.destroyed) {
+      sseWrite(res, event);
+      sseWrite(res, {
+        type: "transcript_version",
+        transcriptVersion: chat.transcript_version,
+      });
+      sseWrite(res, { type: "content_done" });
+      sseWrite(res, {
+        type: "citations",
+        status: "final",
+        citations: [],
+      });
+      res.write("data: [DONE]\n\n");
+    }
+    return true;
+  };
   try {
-    sseWrite(res, { type: "chat_id", chatId: chat.id });
+    sseWrite(res, {
+      type: "chat_id",
+      chatId: chat.id,
+      transcriptVersion: chat.transcript_version,
+    });
     await streamChatWithTools({
       model: selectedModel,
       systemPrompt:
@@ -472,7 +1156,8 @@ export async function streamAnonymousChat(params: {
           projectId
             ? "The current Beaver matter is connected through its attached Library documents"
             : "The user's local Beaver Library is connected"
-        } through library_list, library_lookup, library_evidence, library_read, library_find, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+        } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, and library_fix_docx_supras. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate one with library_evidence instead of repeating or guessing the lookup. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically.\n\n` +
+        "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
         focusPrompt +
         priorEvidencePrompt +
         COURTLISTENER_SYSTEM_PROMPT +
@@ -480,18 +1165,72 @@ export async function streamAnonymousChat(params: {
         PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT,
       messages: messages.map((message) => ({
         role: message.role === "assistant" ? "assistant" : "user",
-        content:
-          message === lastUser && askInputsContext
-            ? `${message.content ?? ""}${askInputsContext}`
-            : message.content ?? "",
+        content: message.content ?? "",
         images: imagesForMessage(message, imagesByDocumentId),
       })),
       enableThinking: true,
       reasoningEffort: params.reasoningEffort,
       abortSignal: streamAbort.signal,
       tools: LOCAL_ASSISTANT_TOOLS,
-      runTools: (calls) =>
-        runLocalAssistantTools(
+      runTools: async (calls) => {
+        if (!pendingAskInputs) {
+          const askCall = calls.find((call) => call.name === "ask_inputs");
+          if (askCall) {
+            const normalized = normalizeAskInputsEvent(askCall.input);
+            if (normalized.items.length && !localMutationCommitted) {
+              acceptPendingAskInputs(normalized);
+            } else if (normalized.items.length) {
+              const otherCalls = calls.filter(
+                (call) => call.name !== "ask_inputs",
+              );
+              const otherResults = otherCalls.length
+                ? await runLocalAssistantTools(
+                    userId,
+                    otherCalls,
+                    a2ajLookups,
+                    a2ajDocuments,
+                    courtlistenerState,
+                    publicLegalState,
+                    allowedDocumentIds,
+                    localPdfEvidenceHandles,
+                    projectId,
+                  )
+                : [];
+              return calls.map((call) =>
+                call.name === "ask_inputs"
+                  ? {
+                      tool_use_id: call.id,
+                      content: JSON.stringify({
+                        ok: false,
+                        error:
+                          "ask_inputs must be called before document or workflow changes in a turn",
+                      }),
+                    }
+                  : (otherResults.find(
+                      (result) => result.tool_use_id === call.id,
+                    ) ?? {
+                      tool_use_id: call.id,
+                      content: JSON.stringify({
+                        ok: false,
+                        error: "Tool result is unavailable",
+                      }),
+                    }),
+              );
+            }
+          }
+        }
+        if (pendingAskInputs) {
+          const results = calls.map((call) => ({
+            tool_use_id: call.id,
+            content: JSON.stringify({
+              ok: true,
+              status: "waiting_for_user",
+            }),
+          }));
+          streamAbort.abort();
+          return results;
+        }
+        const results = await runLocalAssistantTools(
           userId,
           calls,
           a2ajLookups,
@@ -500,21 +1239,64 @@ export async function streamAnonymousChat(params: {
           publicLegalState,
           allowedDocumentIds,
           localPdfEvidenceHandles,
-        ),
+          projectId,
+        );
+        const mutationWasAlreadyCommitted = localMutationCommitted;
+        for (const call of calls) {
+          if (!LOCAL_MUTATION_TOOL_NAMES.has(call.name)) continue;
+          const toolResult = results.find(
+            (result) => result.tool_use_id === call.id,
+          );
+          try {
+            const parsed = JSON.parse(toolResult?.content ?? "{}") as {
+              ok?: unknown;
+            };
+            if (parsed.ok === true) localMutationCommitted = true;
+          } catch {
+            // A mutation is only considered committed on an explicit receipt.
+          }
+        }
+        if (
+          !mutationWasAlreadyCommitted &&
+          localMutationCommitted &&
+          !anonymousTurnWasDeleted(chat.id)
+        ) {
+          const mutationEvent = {
+            type: LOCAL_MUTATION_COMMITTED_EVENT,
+            schema_version: 1,
+          };
+          if (params.currentTurn.kind === "ask_inputs_response") {
+            appendAnonymousAssistantEvents(chat, [mutationEvent]);
+          } else if (normalTurnId) {
+            appendAnonymousNormalTurnEvents(chat, normalTurnId, [
+              mutationEvent,
+            ]);
+          }
+        }
+        return results;
+      },
       callbacks: {
         onContentDelta: (text: string) => {
+          if (pendingAskInputs) return;
           rawText += text;
           streamVisible(text);
         },
-        onReasoningDelta: (text: string) =>
-          sseWrite(res, { type: "reasoning_delta", text }),
-        onReasoningBlockEnd: () =>
-          sseWrite(res, { type: "reasoning_block_end" }),
-        onToolCallStart: (call) =>
+        onReasoningDelta: (text: string) => {
+          if (!pendingAskInputs) {
+            sseWrite(res, { type: "reasoning_delta", text });
+          }
+        },
+        onReasoningBlockEnd: () => {
+          if (!pendingAskInputs) {
+            sseWrite(res, { type: "reasoning_block_end" });
+          }
+        },
+        onToolCallStart: (call) => {
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
-          }),
+          });
+        },
       },
     });
 
@@ -523,6 +1305,7 @@ export async function streamAnonymousChat(params: {
       sseWrite(res, { type: "content_delta", text: visibleTail });
       visibleTail = "";
     }
+    if (await finalizePendingAskInputs()) return;
     const citations = parseCitations(rawText).map((citation) =>
       createCitation(
         citation,
@@ -576,8 +1359,19 @@ export async function streamAnonymousChat(params: {
         handles: nextEvidenceRegistry,
       });
     }
-    if (params.askInputsResponse) {
+    if (anonymousTurnWasDeleted(chat.id)) return;
+    if (params.currentTurn.kind === "ask_inputs_response") {
       appendAnonymousAssistantEvents(chat, assistantEvents, citations);
+    } else if (normalTurnId) {
+      appendAnonymousNormalTurnEvents(
+        chat,
+        normalTurnId,
+        [
+          ...assistantEvents,
+          { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
+        ],
+        citations,
+      );
     } else {
       appendAnonymousMessage(chat, {
         role: "assistant",
@@ -588,6 +1382,10 @@ export async function streamAnonymousChat(params: {
     if (!chat.title && lastUser?.content) {
       updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
     }
+    sseWrite(res, {
+      type: "transcript_version",
+      transcriptVersion: chat.transcript_version,
+    });
     sseWrite(res, { type: "content_done" });
     sseWrite(res, {
       type: "citations",
@@ -596,15 +1394,74 @@ export async function streamAnonymousChat(params: {
     });
     res.write("data: [DONE]\n\n");
   } catch (error) {
+    if (pendingAskInputs) {
+      try {
+        if (await finalizePendingAskInputs()) return;
+      } catch (persistError) {
+        console.error(
+          "[chat/anonymous] failed to persist requested inputs",
+          safeErrorLog(persistError),
+        );
+      }
+    }
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
-    if (!res.headersSent) {
+    const visiblePartial =
+      visibleText + (!citationsOpen ? visibleTail : "");
+    if (
+      !anonymousTurnWasDeleted(chat.id) &&
+      !streamAbort.signal.aborted &&
+      !citationsOpen &&
+      visibleTail
+    ) {
+      sseWrite(res, { type: "content_delta", text: visibleTail });
+    }
+    if (!anonymousTurnWasDeleted(chat.id)) {
+      try {
+        const partialEvents = visiblePartial
+          ? [{ type: "content", text: visiblePartial }]
+          : [];
+        const errorEvents = isAbortError(error)
+          ? [
+              ...partialEvents,
+              { type: "content", text: "Cancelled by user." },
+            ]
+          : [...partialEvents, { type: "error", message }];
+        if (params.currentTurn.kind === "ask_inputs_response") {
+          appendAnonymousAssistantEvents(chat, errorEvents);
+        } else if (normalTurnId) {
+          appendAnonymousNormalTurnEvents(chat, normalTurnId, errorEvents);
+        } else {
+          appendAnonymousMessage(chat, {
+            role: "assistant",
+            content: errorEvents,
+          });
+        }
+      } catch (persistError) {
+        console.error(
+          "[chat/anonymous] failed to persist model error",
+          safeErrorLog(persistError),
+        );
+      }
+    }
+    if (anonymousTurnWasDeleted(chat.id)) {
+      // Deletion is authoritative; do not recreate or write to the chat.
+    } else if (!res.headersSent) {
       res.status(502).json({ detail: message });
     } else if (!streamAbort.signal.aborted) {
-      sseWrite(res, { type: "error", message });
+      sseWrite(res, {
+        type: "error",
+        message,
+        ...(localMutationCommitted ? { retryable: false } : {}),
+      });
+      sseWrite(res, {
+        type: "transcript_version",
+        transcriptVersion: chat.transcript_version,
+      });
       res.write("data: [DONE]\n\n");
     }
   } finally {
+    finishAnonymousTurn(chat.id);
     streamFinished = true;
     res.end();
   }
@@ -1031,10 +1888,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? (req.body as Record<string, unknown>)
       : {};
-  const parsedMessages = parseChatMessages(body.messages);
-  if (!parsedMessages.ok) {
-    return void res.status(400).json({ detail: parsedMessages.detail });
-  }
   const parsedChatId = parseOptionalChatId(body.chat_id);
   if (!parsedChatId.ok) {
     return void res.status(400).json({ detail: parsedChatId.detail });
@@ -1047,11 +1900,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
   if (!parsedModel.ok) {
     return void res.status(400).json({ detail: parsedModel.detail });
   }
-  const askInputsResponse = parseAskInputsResponsePayload(
-    body.ask_inputs_response,
-  );
-
-  const messages = parsedMessages.messages;
   const chat_id = parsedChatId.chatId;
   const project_id = parsedProjectId.projectId;
   const model = parsedModel.model;
@@ -1061,19 +1909,53 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       : undefined;
 
   if (isAnonymousLocalMode()) {
-    await streamAnonymousChat({
-      res,
-      userId: res.locals.userId as string,
-      chatId: chat_id,
-      messages,
-      model,
-      reasoningEffort,
-      projectId: project_id,
-      projectIdProvided: parsedProjectId.provided,
-      askInputsResponse,
-    });
+    if (body.messages !== undefined) {
+      return void res.status(400).json({
+        detail:
+          "Account-free local chat accepts current_turn, not browser-supplied history",
+      });
+    }
+    const parsedTurn = parseAnonymousCurrentTurn(body.current_turn);
+    if (!parsedTurn.ok) {
+      return void res.status(400).json({ detail: parsedTurn.detail });
+    }
+    const parsedVersion = parseExpectedTranscriptVersion(
+      body.expected_version,
+    );
+    if (!parsedVersion.ok) {
+      return void res.status(400).json({ detail: parsedVersion.detail });
+    }
+    try {
+      await streamAnonymousChat({
+        res,
+        userId: res.locals.userId as string,
+        chatId: chat_id,
+        currentTurn: parsedTurn.turn,
+        expectedVersion: parsedVersion.version,
+        model,
+        reasoningEffort,
+        projectId: project_id,
+        projectIdProvided: parsedProjectId.provided,
+      });
+    } catch (error) {
+      console.error("[chat/anonymous] preflight", safeErrorLog(error));
+      if (!res.headersSent) {
+        res.status(500).json({ detail: "Local chat failed" });
+      } else {
+        res.end();
+      }
+    }
     return;
   }
+
+  const parsedMessages = parseChatMessages(body.messages);
+  if (!parsedMessages.ok) {
+    return void res.status(400).json({ detail: parsedMessages.detail });
+  }
+  const messages = parsedMessages.messages;
+  const askInputsResponse = parseAskInputsResponsePayload(
+    body.ask_inputs_response,
+  );
 
   devLog("[chat/stream] incoming request", {
     userId,

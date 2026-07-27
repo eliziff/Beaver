@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  getChat,
   streamChat,
   streamProjectChat,
 } from "@/app/lib/mikeApi";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 import type {
@@ -19,6 +21,20 @@ interface UseAssistantChatOptions {
   chatId?: string;
   projectId?: string;
 }
+
+export type AssistantTurnOptions = {
+  displayedDoc?: { filename: string; documentId: string } | null;
+  turnId?: string;
+  askInputsResponse?: Extract<
+    AssistantEvent,
+    { type: "ask_inputs_response" }
+  >;
+};
+
+export type RejectedAssistantTurn = {
+  message: Message;
+  options?: AssistantTurnOptions;
+};
 
 function readableStreamError(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -94,8 +110,21 @@ export function useAssistantChat({
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [isLoadingCitations, setIsLoadingCitations] = useState(false);
   const [chatId, setChatId] = useState<string | undefined>(initialChatId);
+  const [rejectedTurn, setRejectedTurn] =
+    useState<RejectedAssistantTurn | null>(null);
+  const transcriptVersionRef = useRef(0);
+  const transcriptPollGenerationRef = useRef(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const clearRejectedTurn = useCallback(() => setRejectedTurn(null), []);
+
+  useEffect(
+    () => () => {
+      transcriptPollGenerationRef.current += 1;
+    },
+    [],
+  );
 
   const eventsRef = useRef<AssistantEvent[]>([]);
   const pendingEventsSnapshotRef = useRef<AssistantEvent[] | null>(null);
@@ -247,6 +276,22 @@ export function useAssistantChat({
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
   };
 
+  const resetStreamingNarrative = () => {
+    flushPendingEventsSnapshot();
+    const snapshot = eventsRef.current.filter(
+      (event) =>
+        event.type !== "content" &&
+        event.type !== "reasoning" &&
+        !isStreamingPlaceholder(event),
+    );
+    eventsRef.current = snapshot;
+    updateLatestAssistantMessage((message) => ({
+      ...message,
+      content: "",
+      events: snapshot,
+    }));
+  };
+
   const pushThinkingPlaceholder = () => {
     const events = eventsRef.current;
     const last = events[events.length - 1];
@@ -295,18 +340,48 @@ export function useAssistantChat({
     return true;
   };
 
+  const pollForCompletedAnonymousTurn = (
+    targetChatId: string,
+    baselineVersion: number,
+  ) => {
+    const generation = ++transcriptPollGenerationRef.current;
+    void (async () => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        if (generation !== transcriptPollGenerationRef.current) return;
+        try {
+          const latest = await getChat(targetChatId);
+          const latestVersion =
+            latest.chat.transcript_version ?? baselineVersion;
+          const last = latest.messages[latest.messages.length - 1];
+          if (
+            latestVersion > baselineVersion &&
+            last?.role === "assistant"
+          ) {
+            transcriptVersionRef.current = latestVersion;
+            setMessages(latest.messages);
+            void loadChats();
+            return;
+          }
+        } catch {
+          // The next bounded poll may recover a transient local read.
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+      }
+    })();
+  };
+
   const handleChat = async (
     message: Message,
-    opts?: {
-      displayedDoc?: { filename: string; documentId: string } | null;
-      askInputsResponse?: Extract<
-        AssistantEvent,
-        { type: "ask_inputs_response" }
-      >;
-    },
+    opts?: AssistantTurnOptions,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
 
+    const turnOptions =
+      isAnonymousMode && !opts?.askInputsResponse
+        ? { ...opts, turnId: opts?.turnId ?? crypto.randomUUID() }
+        : opts;
+    transcriptPollGenerationRef.current += 1;
+    setRejectedTurn(null);
     flushPendingEventsSnapshot();
     setIsResponseLoading(true);
 
@@ -319,7 +394,7 @@ export function useAssistantChat({
     const apiMessagesForTurn: Message[] = isMessageAlreadyAdded
       ? messages
       : [...messages, message];
-    const askInputsResponseEvent = opts?.askInputsResponse ?? null;
+    const askInputsResponseEvent = turnOptions?.askInputsResponse ?? null;
     const optimisticResponseEvent = askInputsResponseEvent;
     const userInputThinkingEvent = optimisticResponseEvent
       ? ({
@@ -380,7 +455,7 @@ export function useAssistantChat({
 
       const model = message.model;
 
-      const displayedDoc = opts?.displayedDoc ?? null;
+      const displayedDoc = turnOptions?.displayedDoc ?? null;
 
       // Pull the user's attachments from the just-submitted message.
       // These are the files dragged into / picked from the chat input
@@ -393,11 +468,30 @@ export function useAssistantChat({
         filename: f.filename,
         document_id: f.document_id as string,
       }));
+      const currentTurn = turnOptions?.askInputsResponse
+        ? {
+            kind: "ask_inputs_response" as const,
+            content: message.content,
+            files: message.files,
+            responses: turnOptions.askInputsResponse.responses,
+          }
+        : {
+            kind: "message" as const,
+            turn_id: turnOptions?.turnId,
+            content: message.content,
+            files: message.files,
+            workflow: message.workflow,
+          };
 
       const response = await (projectId
         ? streamProjectChat({
             projectId,
-            messages: apiMessages,
+            ...(isAnonymousMode
+              ? {
+                  current_turn: currentTurn,
+                  expected_version: transcriptVersionRef.current,
+                }
+              : { messages: apiMessages }),
             chat_id: chatId,
             model,
             reasoning_effort: message.reasoningEffort,
@@ -409,19 +503,91 @@ export function useAssistantChat({
               : undefined,
             attached_documents:
               attachedDocs.length > 0 ? attachedDocs : undefined,
-            ask_inputs_response: opts?.askInputsResponse,
+            ask_inputs_response: isAnonymousMode
+              ? undefined
+              : turnOptions?.askInputsResponse,
             signal: controller.signal,
           })
         : streamChat({
-            messages: apiMessages,
+            ...(isAnonymousMode
+              ? {
+                  current_turn: currentTurn,
+                  expected_version: transcriptVersionRef.current,
+                }
+              : { messages: apiMessages }),
             chat_id: chatId,
             model,
             reasoning_effort: message.reasoningEffort,
-            ask_inputs_response: opts?.askInputsResponse,
+            ask_inputs_response: isAnonymousMode
+              ? undefined
+              : turnOptions?.askInputsResponse,
             signal: controller.signal,
           }));
 
       if (!response.ok) {
+        if (isAnonymousMode && response.status === 409 && chatId) {
+          const conflict = (await response.json().catch(() => ({}))) as {
+            code?: unknown;
+            current_version?: unknown;
+            detail?: unknown;
+          };
+          const retryBlocked =
+            conflict.code === "chat_retry_blocked_after_mutation";
+          const turnAlreadyCompleted =
+            conflict.code === "chat_turn_already_completed";
+          if (!retryBlocked && !turnAlreadyCompleted) {
+            setRejectedTurn({
+              message: { ...message },
+              options: turnOptions,
+            });
+          }
+          const latest = await getChat(chatId);
+          const currentVersion = Number.isSafeInteger(
+            conflict.current_version,
+          )
+            ? (conflict.current_version as number)
+            : (latest.chat.transcript_version ??
+              transcriptVersionRef.current);
+          transcriptVersionRef.current =
+            latest.chat.transcript_version ?? currentVersion;
+          const reloaded = [...latest.messages];
+          if (turnAlreadyCompleted) {
+            setRejectedTurn(null);
+            setMessages(reloaded);
+            setIsResponseLoading(false);
+            setIsLoadingCitations(false);
+            await loadChats();
+            return null;
+          }
+          const last = reloaded[reloaded.length - 1];
+          const conflictMessage =
+            retryBlocked
+              ? typeof conflict.detail === "string"
+                ? conflict.detail
+                : "The prior response changed local data before it stopped. Review that result before continuing."
+              : conflict.code === "chat_turn_in_progress"
+              ? "Another response is still running. Your draft has been restored and this chat will refresh when that response finishes."
+              : "This conversation changed in another window. Review the latest messages; your draft has been restored.";
+          if (last?.role === "assistant") {
+            reloaded[reloaded.length - 1] = {
+              ...last,
+              error: conflictMessage,
+            };
+          } else {
+            reloaded.push({
+              role: "assistant",
+              content: "",
+              error: conflictMessage,
+            });
+          }
+          setMessages(reloaded);
+          if (conflict.code === "chat_turn_in_progress") {
+            pollForCompletedAnonymousTurn(chatId, currentVersion);
+          }
+          setIsResponseLoading(false);
+          setIsLoadingCitations(false);
+          return null;
+        }
         const errText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errText}`);
       }
@@ -431,6 +597,8 @@ export function useAssistantChat({
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let sawDone = false;
+      let sawFinalTranscriptVersion = !isAnonymousMode;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -450,7 +618,10 @@ export function useAssistantChat({
           if (!trimmed || !trimmed.startsWith("data:")) continue;
 
           const dataStr = trimmed.slice(5).trim();
-          if (dataStr === "[DONE]") continue;
+          if (dataStr === "[DONE]") {
+            sawDone = true;
+            continue;
+          }
 
           try {
             const data = JSON.parse(dataStr);
@@ -459,6 +630,18 @@ export function useAssistantChat({
               streamedChatId = data.chatId;
               setChatId(data.chatId);
               setCurrentChatId(data.chatId);
+              if (Number.isSafeInteger(data.transcriptVersion)) {
+                transcriptVersionRef.current = data.transcriptVersion;
+              }
+              continue;
+            }
+
+            if (
+              data.type === "transcript_version" &&
+              Number.isSafeInteger(data.transcriptVersion)
+            ) {
+              transcriptVersionRef.current = data.transcriptVersion;
+              sawFinalTranscriptVersion = true;
               continue;
             }
 
@@ -468,19 +651,28 @@ export function useAssistantChat({
             }
 
             if (data.type === "error") {
-              const message = readableStreamError(data.message);
+              const streamErrorMessage = readableStreamError(data.message);
+              if (
+                data.retryable !== false &&
+                streamErrorMessage !== "Cancelled by user."
+              ) {
+                setRejectedTurn({
+                  message: { ...message },
+                  options: turnOptions,
+                });
+              }
               clearStreamingPlaceholders();
               finalizeStreamingContent();
               finalizeStreamingReasoning();
               eventsRef.current = [
                 ...eventsRef.current,
-                { type: "error", message },
+                { type: "error", message: streamErrorMessage },
               ];
               const snapshot = [...eventsRef.current];
               updateLatestAssistantMessage((assistantMessage) => ({
                 ...assistantMessage,
                 events: snapshot,
-                error: message,
+                error: streamErrorMessage,
               }));
               setIsResponseLoading(false);
               setIsLoadingCitations(false);
@@ -523,6 +715,11 @@ export function useAssistantChat({
                 eventsRef.current = nextEvents;
                 scheduleEventsSnapshot();
               }
+              continue;
+            }
+
+            if (data.type === "content_reset") {
+              resetStreamingNarrative();
               continue;
             }
 
@@ -1233,6 +1430,9 @@ export function useAssistantChat({
 
         if (done) break;
       }
+      if (!sawDone || !sawFinalTranscriptVersion) {
+        throw new Error("Chat stream ended before completion.");
+      }
 
       flushPendingEventsSnapshot();
       finalizeStreamingReasoning();
@@ -1303,7 +1503,15 @@ export function useAssistantChat({
             },
           ];
         });
+        const interruptedChatId = streamedChatId || chatId;
+        if (isAnonymousMode && interruptedChatId) {
+          pollForCompletedAnonymousTurn(
+            interruptedChatId,
+            transcriptVersionRef.current,
+          );
+        }
       } else {
+        setRejectedTurn({ message: { ...message }, options: turnOptions });
         finalizeStreamingContent();
         const errorMessage =
           error instanceof Error && error.message
@@ -1343,17 +1551,27 @@ export function useAssistantChat({
     }
   };
 
+  const retryRejectedTurn = async () => {
+    const pending = rejectedTurn;
+    if (!pending) return null;
+    setRejectedTurn(null);
+    return handleChat(pending.message, pending.options);
+  };
+
   const handleNewChat = async (
     message: Message,
     projectId?: string,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
 
+    transcriptPollGenerationRef.current += 1;
+    setRejectedTurn(null);
     setMessages([message]);
     setNewChatMessages([message]);
 
     const newChatId = await saveChat(projectId);
     if (newChatId) {
+      transcriptVersionRef.current = 0;
       setChatId(newChatId);
       setCurrentChatId(newChatId);
     }
@@ -1369,6 +1587,14 @@ export function useAssistantChat({
     handleChat,
     handleNewChat,
     setMessages,
+    rejectedTurn,
+    clearRejectedTurn,
+    retryRejectedTurn,
+    setTranscriptVersion: (version: number) => {
+      if (Number.isSafeInteger(version) && version >= 0) {
+        transcriptVersionRef.current = version;
+      }
+    },
     cancel,
     chatId,
   };

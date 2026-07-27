@@ -128,6 +128,7 @@ export interface Chat {
   id: string;
   project_id: string | null;
   user_id: string;
+  transcript_version?: number;
   creator_display_name?: string | null;
   title: string | null;
   created_at: string;
@@ -206,6 +207,7 @@ export type AssistantEvent =
             id: string;
             kind: "documents";
             filenames: string[];
+            documents?: { document_id: string; filename: string }[];
             skipped?: boolean;
           }
       )[];

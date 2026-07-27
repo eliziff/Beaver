@@ -1,5 +1,6 @@
 import path from "node:path";
 import os from "node:os";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
 import {
@@ -115,7 +116,11 @@ describe("account-free matter routes", () => {
     const streamed = await request(app)
       .post("/chat")
       .send({
-        messages: [{ role: "user", content: "Quote the retrieved rule." }],
+        expected_version: 0,
+        current_turn: {
+          kind: "message",
+          content: "Quote the retrieved rule.",
+        },
       });
 
     expect(streamed.status).toBe(200);
@@ -201,7 +206,8 @@ describe("account-free matter routes", () => {
       .post(`/projects/${firstMatter.body.id}/chat`)
       .send({
         chat_id: createdChat.body.id,
-        messages: [{ role: "user", content: "Read this matter." }],
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Read this matter." },
       });
     expect(streamed.status).toBe(200);
     expect(streamedContent(streamed.text)).toBe("Scoped answer");
@@ -215,7 +221,11 @@ describe("account-free matter routes", () => {
       .post(`/projects/${firstMatter.body.id}/chat`)
       .send({
         chat_id: createdChat.body.id,
-        messages: [{ role: "user", content: "Use the unrelated file." }],
+        expected_version: 2,
+        current_turn: {
+          kind: "message",
+          content: "Use the unrelated file.",
+        },
         attached_documents: [
           { filename: "unrelated.xlsx", document_id: unrelated.body.id },
         ],
@@ -223,15 +233,56 @@ describe("account-free matter routes", () => {
     expect(unavailableFocus.status).toBe(400);
     expect(unavailableFocus.body.detail).toMatch(/not in this matter/u);
 
+    const chatStore = await import("../../lib/anonymousChatStore");
+    chatStore.appendAnonymousAssistantEvents(
+      chatStore.getAnonymousChat(
+        "00000000-0000-0000-0000-000000000001",
+        createdChat.body.id,
+      )!,
+      [
+        {
+          type: "ask_inputs",
+          items: [
+            {
+              id: "documents",
+              kind: "documents",
+              document_types: ["Record"],
+            },
+          ],
+        },
+      ],
+      undefined,
+      2,
+    );
+
     const continued = await request(app)
       .post(`/projects/${firstMatter.body.id}/chat`)
       .send({
         chat_id: createdChat.body.id,
-        messages: [
-          { role: "user", content: "Read this matter." },
-          { role: "assistant", content: "Scoped answer" },
-          { role: "user", content: "Continue with my selections." },
-        ],
+        expected_version: 3,
+        current_turn: {
+          kind: "ask_inputs_response",
+          content: "Continue with my selections.",
+          files: [
+            {
+              filename: "spoofed-current-turn-name.xlsx",
+              document_id: source.body.id,
+            },
+          ],
+          responses: [
+            {
+              id: "documents",
+              kind: "documents",
+              filenames: ["appeal-record.xlsx"],
+              documents: [
+                {
+                  document_id: source.body.id,
+                  filename: "spoofed-response-name.xlsx",
+                },
+              ],
+            },
+          ],
+        },
         displayed_doc: {
           filename: "spoofed-display-name.xlsx",
           document_id: source.body.id,
@@ -242,15 +293,6 @@ describe("account-free matter routes", () => {
             document_id: source.body.id,
           },
         ],
-        ask_inputs_response: {
-          responses: [
-            {
-              id: "documents",
-              kind: "documents",
-              filenames: ["appeal-record.xlsx"],
-            },
-          ],
-        },
       });
     expect(continued.status).toBe(200);
     const focusedInput = mocks.modelInputs.at(-1)!;
@@ -261,11 +303,9 @@ describe("account-free matter routes", () => {
       'User-attached documents for this turn:\n- "appeal-record.xlsx"',
     );
     expect(focusedInput.systemPrompt).not.toContain("spoofed");
-    expect(focusedInput.messages.at(-1)?.content).toContain(
-      "Continue with my selections.",
-    );
-    expect(focusedInput.messages.at(-1)?.content).toContain(
-      "documents: appeal-record.xlsx",
+    expect(focusedInput.messages.at(-1)?.content).toBe(
+      "[User responses to requested inputs]\n" +
+        `- Documents requested for Record: appeal-record.xlsx (document_id: ${source.body.id})`,
     );
 
     const continuedChat = await request(app).get(
@@ -278,22 +318,31 @@ describe("account-free matter routes", () => {
       continuedChat.body.messages[1].content.map(
         (event: { type: string }) => event.type,
       ),
-    ).toEqual(["content", "ask_inputs_response", "content"]);
+    ).toEqual([
+      "content",
+      "ask_inputs",
+      "ask_inputs_response",
+      "content",
+    ]);
 
     const wrongMatter = await request(app)
       .post(`/projects/${secondMatter.body.id}/chat`)
       .send({
         chat_id: createdChat.body.id,
-        messages: [{ role: "user", content: "Cross the boundary." }],
+        expected_version: 5,
+        current_turn: { kind: "message", content: "Cross the boundary." },
       });
     expect(wrongMatter.status).toBe(400);
     expect(wrongMatter.body.detail).toMatch(/does not match/u);
 
     const malformed = await request(app)
       .post(`/projects/${firstMatter.body.id}/chat`)
-      .send({ messages: [{ role: 7, content: "Invalid" }] });
+      .send({
+        expected_version: 5,
+        current_turn: { kind: "message", content: 7 },
+      });
     expect(malformed.status).toBe(400);
-    expect(malformed.body.detail).toBe("message.role must be a string");
+    expect(malformed.body.detail).toBe("current_turn.content is required");
 
     closeKnowledgeStore?.();
     closeKnowledgeStore = null;
@@ -332,6 +381,70 @@ describe("account-free matter routes", () => {
       expect(response.status).toBe(400);
     }
     expect((await request(app).get("/projects")).body).toEqual([]);
+    expect(mocks.supabaseCalls).toBe(0);
+  });
+
+  it("detaches a document from one matter without deleting the Library file", async () => {
+    const app = await loadApp();
+    const firstMatter = await request(app)
+      .post("/projects")
+      .send({ name: "Appeal" });
+    const secondMatter = await request(app)
+      .post("/projects")
+      .send({ name: "Separate matter" });
+    const source = await request(app)
+      .post("/library/files/documents")
+      .attach("file", Buffer.from("record"), "appeal-record.xlsx");
+
+    expect(
+      (
+        await request(app).post(
+          `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(app).post(
+          `/projects/${secondMatter.body.id}/documents/${source.body.id}`,
+        )
+      ).status,
+    ).toBe(200);
+
+    const detached = await request(app).delete(
+      `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
+    );
+
+    expect(detached.status).toBe(204);
+    expect(
+      (
+        await request(app).get(`/projects/${firstMatter.body.id}`)
+      ).body.documents,
+    ).toEqual([]);
+    expect(
+      (
+        await request(app).get(`/projects/${secondMatter.body.id}`)
+      ).body.documents.map((row: { id: string }) => row.id),
+    ).toEqual([source.body.id]);
+    expect(
+      (await request(app).get("/library/files")).body.documents.map(
+        (row: { id: string }) => row.id,
+      ),
+    ).toEqual([source.body.id]);
+    expect(
+      (
+        await request(app).delete(
+          `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(app).delete(
+          `/projects/${randomUUID()}/documents/${source.body.id}`,
+        )
+      ).status,
+    ).toBe(404);
     expect(mocks.supabaseCalls).toBe(0);
   });
 

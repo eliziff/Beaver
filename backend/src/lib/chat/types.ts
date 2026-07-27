@@ -131,6 +131,7 @@ export type AskInputResponseItem =
       id: string;
       kind: "documents";
       filenames: string[];
+      documents?: { document_id: string; filename: string }[];
       skipped?: boolean;
     };
 

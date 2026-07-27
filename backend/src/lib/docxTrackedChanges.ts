@@ -960,6 +960,13 @@ export async function applyTrackedEdits(
             originalFind,
             replace,
         );
+        if (!deleted && !inserted) {
+            errors.push({
+                index: editIdx,
+                reason: "Replacement does not change the matched text.",
+            });
+            continue;
+        }
         const minStart = findStart + leadingEq;
         const minEnd = minStart + deleted.length;
         void findEnd;

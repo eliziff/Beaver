@@ -98,6 +98,7 @@ const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
 ];
 
 interface DocTableOperations {
+    removeDocument?: (documentId: string) => Promise<void>;
     uploadDocument: (file: File) => Promise<Document>;
     refreshCollection: () => Promise<void>;
     createFolder: (
@@ -140,6 +141,7 @@ interface DocTableProps {
     onSelectionActionsChange?: (actions: DocTableSelectionActions | null) => void;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     enableHeaderFilters?: boolean;
+    documentRemovalMode?: "delete" | "detach";
 }
 
 function apiErrorDetail(error: unknown): string | null {
@@ -273,6 +275,7 @@ export function DocTable({
     onSelectionActionsChange,
     onOwnerOnlyAction,
     enableHeaderFilters = false,
+    documentRemovalMode = "delete",
 }: DocTableProps) {
     const [addDocsOpen, setAddDocsOpen] = useState(false);
     const { user } = useAuth();
@@ -295,6 +298,8 @@ export function DocTable({
         () => onOwnerOnlyAction ?? (() => {}),
         [onOwnerOnlyAction],
     );
+    const detachesDocument = documentRemovalMode === "detach";
+    const removeDocument = operations.removeDocument ?? deleteDocument;
 
     useEffect(() => {
         loadingRef.current = loading;
@@ -596,6 +601,11 @@ export function DocTable({
     const [pendingDeleteStatus, setPendingDeleteStatus] = useState<
         "idle" | "deleting" | "deleted"
     >("idle");
+    const [pendingDeleteSelection, setPendingDeleteSelection] = useState<
+        Document[] | null
+    >(null);
+    const [pendingDeleteSelectionStatus, setPendingDeleteSelectionStatus] =
+        useState<"idle" | "deleting" | "deleted">("idle");
     const [pendingDeleteFolder, setPendingDeleteFolder] = useState<{
         folder: DocTableFolder;
         folderIds: string[];
@@ -965,12 +975,16 @@ export function DocTable({
         // Backend only lets the doc creator delete. Warn the requester
         // instead of letting the request 404 silently.
         if (doc && user?.id && doc.user_id && doc.user_id !== user.id) {
-            setOwnerOnlyAction("delete this document");
+            setOwnerOnlyAction(
+                detachesDocument
+                    ? "remove this document from the project"
+                    : "delete this document",
+            );
             return;
         }
         setDeletingDocIds((prev) => new Set([...prev, docId]));
         try {
-            await deleteDocument(docId);
+            await removeDocument(docId);
             setDocuments((prev) => prev.filter((d) => d.id !== docId));
         } finally {
             setDeletingDocIds((prev) => {
@@ -983,15 +997,11 @@ export function DocTable({
 
     function requestRemoveDoc(doc: Document) {
         if (doc && user?.id && doc.user_id && doc.user_id !== user.id) {
-            setOwnerOnlyAction("delete this document");
-            return;
-        }
-        const versionCount =
-            versionsByDocId.get(doc.id)?.versions.length ??
-            currentVersionNumber(doc) ??
-            1;
-        if (versionCount <= 1) {
-            void handleRemoveDoc(doc.id);
+            setOwnerOnlyAction(
+                detachesDocument
+                    ? "remove this document from the project"
+                    : "delete this document",
+            );
             return;
         }
         setPendingDeleteStatus("idle");
@@ -1012,6 +1022,11 @@ export function DocTable({
         } catch (err) {
             console.error("delete document failed", err);
             setPendingDeleteStatus("idle");
+            setCollectionActionWarning(
+                detachesDocument
+                    ? "The document could not be removed from this project. Please try again."
+                    : "The document could not be deleted. Please try again.",
+            );
         }
     }
 
@@ -1714,6 +1729,11 @@ export function DocTable({
                                                                 doc,
                                                             )
                                                         }
+                                                        deleteLabel={
+                                                            detachesDocument
+                                                                ? "Remove from project"
+                                                                : "Delete"
+                                                        }
                                                         deleteDisabled={isSharedDocument(
                                                             doc,
                                                         )}
@@ -1959,8 +1979,8 @@ export function DocTable({
         );
     }, [docs, operations, selectedDocIds, setDocuments]);
 
-    const handleDeleteSelectedDocs = useCallback(async () => {
-        const ids = [...selectedDocIds];
+    const handleDeleteSelectedDocs = useCallback(async (documentIds?: string[]) => {
+        const ids = documentIds ?? [...selectedDocIds];
         const owned = ids.filter((id) => {
             const doc = documents.find((candidate) => candidate.id === id);
             return !doc || !doc.user_id || !user?.id || doc.user_id === user.id;
@@ -1968,7 +1988,7 @@ export function DocTable({
         const blocked = ids.length - owned.length;
         setSelectedDocIds([]);
         const results = await Promise.allSettled(
-            owned.map((id) => deleteDocument(id)),
+            owned.map((id) => removeDocument(id)),
         );
         const deletedIds = owned.filter(
             (_, index) => results[index].status === "fulfilled",
@@ -1991,20 +2011,59 @@ export function DocTable({
         }
         if (failedCount > 0) {
             setCollectionActionWarning(
-                `${failedCount} ${failedCount === 1 ? "document" : "documents"} could not be deleted. Please try again.`,
+                `${failedCount} ${failedCount === 1 ? "document" : "documents"} could not be ${
+                    detachesDocument
+                        ? "removed from this project"
+                        : "deleted"
+                }. Please try again.`,
             );
         }
         if (blocked > 0) {
             setOwnerOnlyAction(
-                `delete ${blocked} of the selected documents — only the document creator can delete a document`,
+                detachesDocument
+                    ? `remove ${blocked} of the selected documents — only the document creator can remove a document from this project`
+                    : `delete ${blocked} of the selected documents — only the document creator can delete a document`,
             );
         }
     }, [
+        detachesDocument,
         documents,
+        removeDocument,
         selectedDocIds,
         setDocuments,
         setOwnerOnlyAction,
         user?.id,
+    ]);
+
+    const requestDeleteSelectedDocs = useCallback(async () => {
+        const pending = selectedDocIds
+            .map((id) => documents.find((document) => document.id === id))
+            .filter((document): document is Document => !!document);
+        if (!pending.length) return;
+        setPendingDeleteSelection(pending);
+        setPendingDeleteSelectionStatus("idle");
+    }, [documents, selectedDocIds]);
+
+    const confirmDeleteSelectedDocs = useCallback(async () => {
+        if (
+            !pendingDeleteSelection ||
+            pendingDeleteSelectionStatus === "deleting"
+        ) {
+            return;
+        }
+        setPendingDeleteSelectionStatus("deleting");
+        await handleDeleteSelectedDocs(
+            pendingDeleteSelection.map((document) => document.id),
+        );
+        setPendingDeleteSelectionStatus("deleted");
+        window.setTimeout(() => {
+            setPendingDeleteSelection(null);
+            setPendingDeleteSelectionStatus("idle");
+        }, 650);
+    }, [
+        handleDeleteSelectedDocs,
+        pendingDeleteSelection,
+        pendingDeleteSelectionStatus,
     ]);
 
     const sidePanelDoc = viewingDoc
@@ -2180,13 +2239,13 @@ export function DocTable({
             ),
             onDownload: handleDownloadSelectedDocs,
             onRemoveFromFolder: handleRemoveSelectedFromFolder,
-            onDelete: handleDeleteSelectedDocs,
+            onDelete: requestDeleteSelectedDocs,
         };
     }, [
         docs,
-        handleDeleteSelectedDocs,
         handleDownloadSelectedDocs,
         handleRemoveSelectedFromFolder,
+        requestDeleteSelectedDocs,
         selectedDocIds,
     ]);
 
@@ -2224,22 +2283,62 @@ export function DocTable({
         </div>
     ) : undefined;
     const pendingDeleteDocVersionCount = pendingDeleteDoc
-        ? (versionsByDocId.get(pendingDeleteDoc.id)?.versions.length ??
-          currentVersionNumber(pendingDeleteDoc) ??
-          1)
-        : 0;
+        ? versionsByDocId
+              .get(pendingDeleteDoc.id)
+              ?.versions.filter((version) => version.deleted_at == null).length
+        : undefined;
     const pendingDeleteDocMessage = pendingDeleteDoc ? (
         <div className="space-y-2">
-            <p>
-                <span className="font-medium text-gray-950">
-                    {pendingDeleteDoc.filename}
-                </span>{" "}
-                has {pendingDeleteDocVersionCount}{" "}
-                {pendingDeleteDocVersionCount === 1 ? "version" : "versions"}.
-                Deleting this document will delete all of its versions.
-            </p>
+            {detachesDocument ? (
+                <p>
+                    Remove{" "}
+                    <span className="font-medium text-gray-950">
+                        {pendingDeleteDoc.filename}
+                    </span>{" "}
+                    from this project? The Library file and its links in other
+                    projects will be kept.
+                </p>
+            ) : (
+                <p>
+                    {pendingDeleteDocVersionCount ? (
+                        <>
+                            <span className="font-medium text-gray-950">
+                                {pendingDeleteDoc.filename}
+                            </span>{" "}
+                            has {pendingDeleteDocVersionCount}{" "}
+                            {pendingDeleteDocVersionCount === 1
+                                ? "version"
+                                : "versions"}
+                            . Deleting this document will delete all of its
+                            versions.
+                        </>
+                    ) : (
+                        <>
+                            Delete{" "}
+                            <span className="font-medium text-gray-950">
+                                {pendingDeleteDoc.filename}
+                            </span>
+                            ? This will delete the document and all of its
+                            versions.
+                        </>
+                    )}
+                </p>
+            )}
         </div>
     ) : undefined;
+    const pendingDeleteSelectionMessage = pendingDeleteSelection
+        ? detachesDocument
+            ? `Remove ${pendingDeleteSelection.length} selected ${
+                  pendingDeleteSelection.length === 1
+                      ? "document"
+                      : "documents"
+              } from this project? The Library files and their links in other projects will be kept.`
+            : `Permanently delete ${pendingDeleteSelection.length} selected ${
+                  pendingDeleteSelection.length === 1
+                      ? "document and all of its versions"
+                      : "documents and all of their versions"
+              }?`
+        : undefined;
     const pendingDeleteFolderMessage = pendingDeleteFolder ? (
         <div className="space-y-2">
             <p>
@@ -2330,10 +2429,38 @@ export function DocTable({
                 }}
             />
             <ConfirmPopup
+                open={!!pendingDeleteSelection}
+                title={
+                    detachesDocument
+                        ? "Remove from project?"
+                        : "Delete documents?"
+                }
+                message={pendingDeleteSelectionMessage}
+                confirmLabel={detachesDocument ? "Remove" : "Delete"}
+                confirmStatus={
+                    pendingDeleteSelectionStatus === "deleting"
+                        ? "loading"
+                        : pendingDeleteSelectionStatus === "deleted"
+                          ? "complete"
+                          : "idle"
+                }
+                cancelLabel="Cancel"
+                onCancel={() => {
+                    if (pendingDeleteSelectionStatus === "deleting") return;
+                    setPendingDeleteSelection(null);
+                    setPendingDeleteSelectionStatus("idle");
+                }}
+                onConfirm={() => void confirmDeleteSelectedDocs()}
+            />
+            <ConfirmPopup
                 open={!!pendingDeleteDoc}
-                title="Delete document?"
+                title={
+                    detachesDocument
+                        ? "Remove from project?"
+                        : "Delete document?"
+                }
                 message={pendingDeleteDocMessage}
-                confirmLabel="Delete"
+                confirmLabel={detachesDocument ? "Remove" : "Delete"}
                 confirmStatus={
                     pendingDeleteStatus === "deleting"
                         ? "loading"
@@ -2896,6 +3023,11 @@ export function DocTable({
                                                                                     doc,
                                                                                 )
                                                                             }
+                                                                            deleteLabel={
+                                                                                detachesDocument
+                                                                                    ? "Remove from project"
+                                                                                    : "Delete"
+                                                                            }
                                                                             deleteDisabled={isSharedDocument(
                                                                                 doc,
                                                                             )}
@@ -3059,6 +3191,11 @@ export function DocTable({
                                                     onDelete={() =>
                                                         requestRemoveDoc(menuDoc)
                                                     }
+                                                    deleteLabel={
+                                                        detachesDocument
+                                                            ? "Remove from project"
+                                                            : "Delete"
+                                                    }
                                                     deleteDisabled={isSharedDocument(
                                                         menuDoc,
                                                     )}
@@ -3178,6 +3315,7 @@ export function DocTable({
                 onDelete={async (doc) => {
                     await handleRemoveDoc(doc.id);
                 }}
+                documentRemovalMode={documentRemovalMode}
             />
 
         </div>

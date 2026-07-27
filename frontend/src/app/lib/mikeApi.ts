@@ -1140,6 +1140,19 @@ export async function addDocumentToProject(
   );
 }
 
+export async function removeProjectDocument(
+  projectId: string,
+  documentId: string,
+): Promise<void> {
+  if (!isAnonymousMode) {
+    await deleteDocument(documentId);
+    return;
+  }
+  await apiRequest(`/projects/${projectId}/documents/${documentId}`, {
+    method: "DELETE",
+  });
+}
+
 export interface DocumentVersion {
   id: string;
   version_number: number | null;
@@ -1417,13 +1430,38 @@ export async function getCourtlistenerOpinions(
   return result.opinions;
 }
 
+type StreamCurrentTurn =
+  | {
+      kind: "message";
+      turn_id?: string;
+      content: string;
+      files?: { filename: string; document_id?: string }[];
+      workflow?: { id: string; title: string };
+    }
+  | {
+      kind: "ask_inputs_response";
+      content: string;
+      files?: { filename: string; document_id?: string }[];
+      responses: {
+        id: string;
+        kind: "choice" | "documents";
+        question?: string;
+        answer?: string;
+        filenames?: string[];
+        documents?: { document_id: string; filename: string }[];
+        skipped?: boolean;
+      }[];
+    };
+
 export async function streamChat(payload: {
-  messages: {
+  messages?: {
     role: string;
     content: string;
     files?: { filename: string; document_id?: string }[];
     workflow?: { id: string; title: string };
   }[];
+  current_turn?: StreamCurrentTurn;
+  expected_version?: number;
   chat_id?: string;
   project_id?: string;
   model?: string;
@@ -1470,7 +1508,9 @@ type StreamChatMessage = {
 
 export async function streamProjectChat(payload: {
   projectId: string;
-  messages: StreamChatMessage[];
+  messages?: StreamChatMessage[];
+  current_turn?: StreamCurrentTurn;
+  expected_version?: number;
   chat_id?: string;
   model?: string;
   reasoning_effort?: string;

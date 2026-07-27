@@ -18,8 +18,10 @@ import {
     moveSubfolderToFolder,
     renameProjectDocument,
     renameProjectFolder,
+    removeProjectDocument,
     uploadProjectDocument,
 } from "@/app/lib/mikeApi";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import type { Document } from "@/app/components/shared/types";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import {
@@ -91,6 +93,8 @@ export function ProjectDocumentsView({ projectId }: Props) {
     }, [projectId, setFolders, setProject]);
     const operations = useMemo(
         () => ({
+            removeDocument: (documentId: string) =>
+                removeProjectDocument(projectId, documentId),
             uploadDocument: (file: File) =>
                 uploadProjectDocument(projectId, file),
             refreshCollection,
@@ -162,7 +166,7 @@ export function ProjectDocumentsView({ projectId }: Props) {
                                 }}
                                 className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
                             >
-                                Delete
+                                {isAnonymousMode ? "Remove" : "Delete"}
                             </button>
                         </div>
                     )}
@@ -224,6 +228,9 @@ export function ProjectDocumentsView({ projectId }: Props) {
                     ) : null
                 }
                 onOwnerOnlyAction={setOwnerOnlyAction}
+                documentRemovalMode={
+                    isAnonymousMode ? "detach" : "delete"
+                }
             />
         </>
     );

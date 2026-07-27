@@ -36,6 +36,7 @@ import { PeopleModal } from "@/app/components/modals/PeopleModal";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import {
     ProjectPageHeader,
@@ -477,7 +478,11 @@ export function ProjectWorkspaceProvider({
                 <ConfirmPopup
                     open={deleteProjectConfirmOpen}
                     title="Delete project?"
-                    message="This will permanently delete the project and its related documents, chats, and tabular reviews."
+                    message={
+                        isAnonymousMode
+                            ? "This will delete the project and its chats. Library files and their links in other projects will be kept."
+                            : "This will permanently delete the project and its related documents, chats, and tabular reviews."
+                    }
                     confirmLabel="Delete"
                     confirmStatus={
                         deleteProjectStatus === "deleting"

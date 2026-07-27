@@ -1,7 +1,12 @@
 import { app } from "./app";
 import { resumeLocalPdfParses } from "./lib/localPdfIngestion";
+import { isAnonymousLocalMode } from "./lib/localMode";
+import { acquireAnonymousRuntimeLock } from "./lib/anonymousRuntimeLock";
 
 const PORT = process.env.PORT ?? 3001;
+const releaseRuntimeLock = isAnonymousLocalMode()
+  ? acquireAnonymousRuntimeLock()
+  : () => undefined;
 
 void resumeLocalPdfParses().catch((error) => {
   console.error(
@@ -10,6 +15,7 @@ void resumeLocalPdfParses().catch((error) => {
   );
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Mike backend running on port ${PORT}`);
 });
+server.on("close", releaseRuntimeLock);

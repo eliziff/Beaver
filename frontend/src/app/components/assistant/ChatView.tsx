@@ -21,6 +21,8 @@ import type {
 } from "../shared/types";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 
 interface Props {
     chatId?: string | null;
@@ -37,6 +39,9 @@ interface Props {
         },
     ) => Promise<string | null>;
     cancel: () => void;
+    rejectedTurn?: RejectedAssistantTurn | null;
+    onRejectedTurnRestored?: () => void;
+    onRetryRejectedTurn?: () => void;
 }
 
 const ASSISTANT_PANEL_TRANSITION_MS = 500;
@@ -58,6 +63,9 @@ export function ChatView({
     isResponseLoading,
     handleChat,
     cancel,
+    rejectedTurn,
+    onRejectedTurnRestored,
+    onRetryRejectedTurn,
 }: Props) {
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -875,6 +883,12 @@ export function ChatView({
                                     onSubmit={handleChat}
                                     onCancel={cancel}
                                     isLoading={isResponseLoading}
+                                    restoreDraft={
+                                        rejectedTurn?.options
+                                            ?.askInputsResponse
+                                            ? null
+                                            : rejectedTurn?.message
+                                    }
                                 />
                             )}
                         </div>
@@ -913,6 +927,36 @@ export function ChatView({
                     />
                 </div>
             )}
+            <WarningPopup
+                open={!!rejectedTurn}
+                title={
+                    rejectedTurn?.options?.askInputsResponse
+                        ? "Inputs not sent"
+                        : "Response interrupted"
+                }
+                message={
+                    rejectedTurn?.options?.askInputsResponse
+                        ? "Your selections were kept. Retry them after reviewing the latest response."
+                        : "Retry the original request, or dismiss this notice to edit the restored draft."
+                }
+                onClose={() => onRejectedTurnRestored?.()}
+                primaryAction={
+                    onRetryRejectedTurn
+                        ? {
+                              label: "Retry",
+                              onClick: () => {
+                                  if (
+                                      !rejectedTurn?.options
+                                          ?.askInputsResponse
+                                  ) {
+                                      chatInputRef.current?.clearDraft();
+                                  }
+                                  onRetryRejectedTurn();
+                              },
+                          }
+                        : undefined
+                }
+            />
         </div>
     );
 }

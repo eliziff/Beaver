@@ -1,6 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { parseCodexEventLine } from "../codex";
-import { startCodexToolBridge } from "../codexToolBridge";
+import {
+  startCodexToolBridge,
+  type CodexToolBridge,
+} from "../codexToolBridge";
+
+const bridgeTool = (name: string) => ({
+  type: "function" as const,
+  function: {
+    name,
+    description: name,
+    parameters: { type: "object" },
+  },
+});
+
+async function callBridgeTool(
+  bridge: CodexToolBridge,
+  id: number,
+  name: string,
+) {
+  const response = await fetch(bridge.url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${bridge.token}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method: "tools/call",
+      params: { name, arguments: {} },
+    }),
+  });
+  return response.text();
+}
 
 describe("parseCodexEventLine", () => {
   it("extracts the completed agent message", () => {
@@ -251,6 +285,128 @@ describe("parseCodexEventLine", () => {
       });
       expect(await unknown.text()).toContain("Unknown Mike tool");
     } finally {
+      await bridge.close();
+    }
+  });
+
+  it("serializes concurrent MCP dispatches", async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const firstReleased = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstStarted!: () => void;
+    const firstStarting = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const bridge = await startCodexToolBridge({
+      tools: ["mutate", "ask_inputs"].map(bridgeTool),
+      runTools: async ([call]) => {
+        order.push(`${call.name}:start`);
+        if (call.name === "mutate") {
+          firstStarted();
+          await firstReleased;
+        }
+        order.push(`${call.name}:end`);
+        return [{ tool_use_id: call.id, content: "ok" }];
+      },
+    });
+
+    try {
+      const mutation = callBridgeTool(bridge, 1, "mutate");
+      await firstStarting;
+      const ask = callBridgeTool(bridge, 2, "ask_inputs");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(order).toEqual(["mutate:start"]);
+
+      releaseFirst();
+      await Promise.all([mutation, ask]);
+      expect(order).toEqual([
+        "mutate:start",
+        "mutate:end",
+        "ask_inputs:start",
+        "ask_inputs:end",
+      ]);
+    } finally {
+      releaseFirst();
+      await bridge.close();
+    }
+  });
+
+  it("waits for an in-flight dispatch before closing", async () => {
+    let releaseDispatch!: () => void;
+    const dispatchReleased = new Promise<void>((resolve) => {
+      releaseDispatch = resolve;
+    });
+    let dispatchStarted!: () => void;
+    const dispatchStarting = new Promise<void>((resolve) => {
+      dispatchStarted = resolve;
+    });
+    const bridge = await startCodexToolBridge({
+      tools: [bridgeTool("mutate")],
+      runTools: async ([call]) => {
+        dispatchStarted();
+        await dispatchReleased;
+        return [{ tool_use_id: call.id, content: "ok" }];
+      },
+    });
+    let closeSettled = false;
+    let closing: Promise<void> | undefined;
+
+    try {
+      const call = callBridgeTool(bridge, 1, "mutate").catch(() => "");
+      await dispatchStarting;
+      closing = bridge.close().then(() => {
+        closeSettled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(closeSettled).toBe(false);
+
+      releaseDispatch();
+      await Promise.all([closing, call]);
+      expect(closeSettled).toBe(true);
+    } finally {
+      releaseDispatch();
+      await (closing ?? bridge.close());
+    }
+  });
+
+  it("does not dispatch queued calls after cancellation", async () => {
+    const controller = new AbortController();
+    const calls: string[] = [];
+    let releaseAsk!: () => void;
+    const askReleased = new Promise<void>((resolve) => {
+      releaseAsk = resolve;
+    });
+    let askStarted!: () => void;
+    const askStarting = new Promise<void>((resolve) => {
+      askStarted = resolve;
+    });
+    const bridge = await startCodexToolBridge({
+      tools: ["ask_inputs", "mutate"].map(bridgeTool),
+      abortSignal: controller.signal,
+      runTools: async ([call]) => {
+        calls.push(call.name);
+        if (call.name === "ask_inputs") {
+          controller.abort();
+          askStarted();
+          await askReleased;
+        }
+        return [{ tool_use_id: call.id, content: "ok" }];
+      },
+    });
+
+    try {
+      const ask = callBridgeTool(bridge, 1, "ask_inputs");
+      await askStarting;
+      const mutation = callBridgeTool(bridge, 2, "mutate");
+      releaseAsk();
+      const bodies = await Promise.all([ask, mutation]);
+
+      expect(calls).toEqual(["ask_inputs"]);
+      expect(bodies[1]).toContain("Mike tool dispatch was cancelled.");
+    } finally {
+      releaseAsk();
       await bridge.close();
     }
   });

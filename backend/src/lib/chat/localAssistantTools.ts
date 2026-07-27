@@ -9,13 +9,24 @@ import {
 import { docxToPdf } from "../convert";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
-import { extractDocxBodyText } from "../docxTrackedChanges";
+import {
+  applyTrackedEdits,
+  extractDocxBodyText,
+  type EditInput,
+} from "../docxTrackedChanges";
 import {
   isPresentationDocumentType,
   isSpreadsheetDocumentType,
   isWordDocumentType,
 } from "../documentTypes";
-import { getLocalVersionFile, listLocalLibrary } from "../localDocumentStore";
+import {
+  addLocalVersion,
+  createLocalDocument,
+  deleteLocalDocument,
+  getLocalVersionFile,
+  listLocalLibrary,
+} from "../localDocumentStore";
+import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
   lookupLocalPdfStructure,
@@ -43,7 +54,12 @@ import {
   executePublicLegalSourceTool,
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
-import { extractPdfText, findTextMatches } from "./tools/documentOps";
+import {
+  extractPdfText,
+  findTextMatches,
+  renderDocx,
+} from "./tools/documentOps";
+import { TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
   type LocalCourtlistenerState,
@@ -266,8 +282,66 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   },
 ];
 
+const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
+  TOOLS as OpenAIToolSchema[]
+).flatMap((tool) => {
+  if (tool.function.name === "generate_docx") {
+    return [
+      {
+        ...tool,
+        function: {
+          ...tool.function,
+          name: "library_create_docx",
+          description:
+            "Create a Word (.docx) document as a durable new item in the local Library. When this chat belongs to a matter, the document is attached to that matter automatically.",
+        },
+      },
+    ];
+  }
+  if (tool.function.name === "edit_document") {
+    const sharedProperties = tool.function.parameters.properties as Record<
+      string,
+      unknown
+    >;
+    return [
+      {
+        ...tool,
+        function: {
+          ...tool.function,
+          name: "library_revise_docx",
+          description:
+            "Create a new immutable version of an existing local Library DOCX using precise tracked substitutions. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
+          parameters: {
+            type: "object",
+            properties: {
+              document_id: {
+                type: "string",
+                description: "Exact document_id returned by library_list.",
+              },
+              version_id: {
+                type: "string",
+                description:
+                  "Exact active version_id returned by library_list or a prior document receipt.",
+              },
+              edits: sharedProperties.edits,
+            },
+            required: ["document_id", "version_id", "edits"],
+          },
+        },
+      },
+    ];
+  }
+  return [];
+});
+
+const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
+  (tool) => tool.function.name === "ask_inputs",
+);
+
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
+  ...LOCAL_ASK_INPUTS_TOOLS,
   ...LOCAL_LIBRARY_TOOLS,
+  ...LOCAL_DOCX_TOOLS,
   ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
   ...(A2AJ_TOOLS as OpenAIToolSchema[]),
   ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
@@ -399,8 +473,9 @@ export async function runLocalAssistantTools(
   a2ajDocuments?: A2AJDocument[],
   courtlistenerState?: LocalCourtlistenerState,
   publicLegalState?: PublicLegalSourceState,
-  allowedDocumentIds?: ReadonlySet<string>,
+  allowedDocumentIds?: Set<string>,
   localPdfEvidenceHandles?: Set<string>,
+  matterId?: string | null,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   return Promise.all(
@@ -431,6 +506,205 @@ export async function runLocalAssistantTools(
           error: "Document is not attached to this matter",
         });
       }
+      if (call.name === "library_create_docx") {
+        const title = typeof args.title === "string" ? args.title.trim() : "";
+        const sections = Array.isArray(args.sections) ? args.sections : [];
+        if (
+          !title ||
+          !sections.length ||
+          sections.length > 200 ||
+          JSON.stringify(sections).length > 1_000_000
+        ) {
+          return result(call, {
+            ok: false,
+            error: "DOCX title or sections are invalid",
+          });
+        }
+        try {
+          const rendered = await renderDocx(title, sections, {
+            landscape: args.landscape === true,
+          });
+          if ("error" in rendered) {
+            return result(call, { ok: false, error: "DOCX creation failed" });
+          }
+          const document = await createLocalDocument({
+            userId,
+            kind: "file",
+            filename: rendered.filename,
+            bytes: rendered.bytes,
+            provenance: {
+              schemaVersion: 1,
+              actor: "assistant",
+              action: "created",
+            },
+          });
+          if (matterId) {
+            try {
+              if (
+                !legalKnowledgeGraphStore().attachMatterDocument(
+                  userId,
+                  matterId,
+                  document.id,
+                )
+              ) {
+                await deleteLocalDocument(userId, document.id);
+                return result(call, {
+                  ok: false,
+                  error: "Matter not found",
+                });
+              }
+            } catch {
+              await deleteLocalDocument(userId, document.id).catch(
+                () => undefined,
+              );
+              return result(call, {
+                ok: false,
+                error: "Could not attach document to matter",
+              });
+            }
+          }
+          allowedDocumentIds?.add(document.id);
+          return result(call, {
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "created",
+            document_id: document.id,
+            version_id: document.current_version_id,
+            version_number: document.active_version_number,
+            filename: document.filename,
+            file_type: document.file_type,
+            source_sha256: document.source_sha256,
+            attached_to_matter: Boolean(matterId),
+          });
+        } catch {
+          return result(call, { ok: false, error: "DOCX creation failed" });
+        }
+      }
+
+      if (call.name === "library_revise_docx") {
+        const versionId =
+          typeof args.version_id === "string" ? args.version_id.trim() : "";
+        const rawEdits = Array.isArray(args.edits) ? args.edits : [];
+        if (!documentId || !versionId || !rawEdits.length) {
+          return result(call, {
+            ok: false,
+            error: "document_id, version_id, and edits are required",
+          });
+        }
+        if (
+          rawEdits.length > 100 ||
+          rawEdits.some(
+            (edit) =>
+              !edit ||
+              typeof edit !== "object" ||
+              typeof (edit as Record<string, unknown>).find !== "string" ||
+              typeof (edit as Record<string, unknown>).replace !== "string" ||
+              typeof (edit as Record<string, unknown>).context_before !==
+                "string" ||
+              typeof (edit as Record<string, unknown>).context_after !==
+                "string" ||
+              ((edit as Record<string, unknown>).find as string).length >
+                100_000 ||
+              ((edit as Record<string, unknown>).replace as string).length >
+                100_000 ||
+              ((edit as Record<string, unknown>).context_before as string)
+                .length > 100_000 ||
+              ((edit as Record<string, unknown>).context_after as string)
+                .length > 100_000,
+          )
+        ) {
+          return result(call, { ok: false, error: "edits are invalid" });
+        }
+        try {
+          const file = await getLocalVersionFile(userId, documentId, versionId);
+          if (!file) {
+            return result(call, {
+              ok: false,
+              error: "DOCX Library version not found",
+            });
+          }
+          if (file.document.current_version_id !== versionId) {
+            return result(call, {
+              ok: false,
+              error: "version_id is not the active version",
+            });
+          }
+          if (file.fileType.toLowerCase() !== "docx") {
+            return result(call, {
+              ok: false,
+              error: "Revision requires a DOCX Library version",
+            });
+          }
+          const edits: EditInput[] = rawEdits
+            .map((raw) => {
+              const edit = raw as Record<string, unknown>;
+              return {
+                find: edit.find as string,
+                replace: edit.replace as string,
+                context_before: edit.context_before as string,
+                context_after: edit.context_after as string,
+                reason:
+                  typeof edit.reason === "string" ? edit.reason : undefined,
+              };
+            })
+            .filter((edit) => edit.find !== edit.replace);
+          if (!edits.length) {
+            return result(call, {
+              ok: false,
+              error: "No revision was saved",
+              edit_errors: ["Every requested edit was a no-op"],
+            });
+          }
+          const edited = await applyTrackedEdits(
+            await readFile(file.path),
+            edits,
+            { author: "Beaver" },
+          );
+          if (edited.errors.length || !edited.changes.length) {
+            return result(call, {
+              ok: false,
+              error: "No revision was saved",
+              edit_errors: edited.errors,
+            });
+          }
+          const version = await addLocalVersion({
+            userId,
+            documentId,
+            filename: file.version.filename,
+            bytes: edited.bytes,
+            expectedVersionId: versionId,
+            provenance: {
+              schemaVersion: 1,
+              actor: "assistant",
+              action: "revised",
+              parentVersionId: versionId,
+              changeCount: edited.changes.length,
+            },
+          });
+          if (!version) {
+            return result(call, {
+              ok: false,
+              error: "version_id is no longer active",
+            });
+          }
+          return result(call, {
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "revised",
+            document_id: documentId,
+            parent_version_id: versionId,
+            version_id: version.id,
+            version_number: version.version_number,
+            filename: version.filename,
+            file_type: version.file_type,
+            source_sha256: version.source_sha256,
+            change_count: edited.changes.length,
+          });
+        } catch {
+          return result(call, { ok: false, error: "DOCX revision failed" });
+        }
+      }
+
       if (call.name === "library_list") {
         const kind =
           args.kind === "file" || args.kind === "template" ? args.kind : "all";
@@ -458,6 +732,9 @@ export async function runLocalAssistantTools(
             filename: document.filename,
             file_type: document.file_type,
             kind: document.library_kind,
+            version_id: document.current_version_id,
+            version_number: document.active_version_number,
+            version_provenance: document.version_provenance,
             updated_at: document.updated_at,
           }));
         return result(call, { ok: true, documents });
