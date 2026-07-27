@@ -19,7 +19,7 @@ import {
 import { abortError } from "./abort";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { codexModelSlug } from "./models";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { createLlmTrace } from "./rawStreamLog";
 import type {
   NormalizedLlmUsage,
   StreamChatParams,
@@ -295,7 +295,7 @@ async function runTurn(
     params.reasoningEffort?.trim() ||
     (params.enableThinking ? "max" : undefined);
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
-  const recorder = createRawLlmStreamRecorder({
+  const trace = createLlmTrace({
     provider: "codex-app-server",
     model: params.model,
   });
@@ -342,18 +342,7 @@ async function runTurn(
     }
     const event = notification.params;
     if (typeof event.threadId === "string" && event.threadId !== threadId) return;
-    recorder?.record({
-      iteration: 0,
-      label: notification.method,
-      payload: event,
-    });
-    logRawLlmStream({
-      provider: "codex-app-server",
-      model: params.model,
-      iteration: 0,
-      label: notification.method,
-      payload: event,
-    });
+    trace.record({ iteration: 0, label: notification.method, payload: event });
     switch (notification.method) {
       case "item/agentMessage/delta": {
         const delta = String(event.delta ?? "");
@@ -516,7 +505,7 @@ async function runTurn(
     server.listeners.delete(listener);
     endReasoning();
     await bridge?.close();
-    await recorder?.flush(fullText ? "completed" : "error");
+    await trace.flush(fullText ? "completed" : "error");
     if (threadId && server.alive()) {
       // Release the loaded thread so a long-lived server does not accumulate
       // conversations; persisted threads still resume from disk by id.

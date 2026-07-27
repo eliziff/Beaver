@@ -1,4 +1,5 @@
 import { abortError, throwIfAborted } from "./abort";
+import { requireApiKey } from "./apiKeys";
 import type {
   LlmMessage,
   NormalizedToolCall,
@@ -7,7 +8,7 @@ import type {
   StreamChatParams,
   StreamChatResult,
 } from "./types";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { createLlmTrace } from "./rawStreamLog";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_OUTPUT_TOKENS = 16384;
@@ -73,13 +74,7 @@ export type ResponsesAdapterConfig = {
 };
 
 function apiKey(override?: string | null): string {
-  const key = override?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
-  if (!key) {
-    throw new Error(
-      "OpenAI API key is not configured. Set OPENAI_API_KEY or add a user OpenAI key.",
-    );
-  }
-  return key;
+  return requireApiKey(override, ["OPENAI_API_KEY"], "OpenAI");
 }
 
 function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
@@ -246,10 +241,7 @@ export async function streamResponsesApi(
   let previousResponseId: string | undefined;
   let fullText = "";
   let needsCourtlistenerCitationReminder = false;
-  const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: config.provider,
-    model,
-  });
+  const trace = createLlmTrace({ provider: config.provider, model });
 
   try {
     for (let iter = 0; iter < maxIter; iter++) {
@@ -291,36 +283,12 @@ export async function streamResponsesApi(
         const { done, value } = await reader.read();
         if (done) break;
 
-        const decoded = decoder.decode(value, { stream: true });
-        logRawLlmStream({
-          provider: config.provider,
-          model,
-          iteration: iter,
-          label: "sse_chunk",
-          payload: decoded,
-        });
-        rawStreamRecorder?.record({
-          iteration: iter,
-          label: "sse_chunk",
-          payload: decoded,
-        });
-        buffer += decoded;
+        buffer += decoder.decode(value, { stream: true });
         const extracted = extractSseJson(buffer);
         buffer = extracted.rest;
 
         for (const event of extracted.events as ResponseStreamEvent[]) {
-          logRawLlmStream({
-            provider: config.provider,
-            model,
-            iteration: iter,
-            label: "sse_event",
-            payload: event,
-          });
-          rawStreamRecorder?.record({
-            iteration: iter,
-            label: "sse_event",
-            payload: event,
-          });
+          trace.record({ iteration: iter, label: "sse_event", payload: event });
 
           const failureMessage = openAIStreamFailureMessage(event);
           if (failureMessage) {
@@ -396,10 +364,10 @@ export async function streamResponsesApi(
         : [...input, ...outputItems, ...resultItems];
     }
 
-    await rawStreamRecorder?.flush("completed");
+    await trace.flush("completed");
     return { fullText };
   } catch (error) {
-    await rawStreamRecorder?.flush("error", error);
+    await trace.flush("error", error);
     throw error;
   }
 }

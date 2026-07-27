@@ -5,7 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { abortError, throwIfAborted } from "./abort";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
-import { createRawLlmStreamRecorder, logRawLlmStream } from "./rawStreamLog";
+import { createLlmTrace } from "./rawStreamLog";
 import type {
   NormalizedLlmUsage,
   NormalizedToolCall,
@@ -295,10 +295,7 @@ async function runCodex(params: {
   let streamError: unknown;
   const reasoningByItemId = new Map<string, string>();
   let streamStatus: "completed" | "error" = "error";
-  const rawStreamRecorder = createRawLlmStreamRecorder({
-    provider: "codex",
-    model: params.model,
-  });
+  const trace = createLlmTrace({ provider: "codex", model: params.model });
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
 
   if (params.tools?.length && params.runTools) {
@@ -366,7 +363,7 @@ async function runCodex(params: {
     }) as ChildProcessWithoutNullStreams;
   } catch (error) {
     await bridge?.close();
-    await rawStreamRecorder?.flush("error", error);
+    await trace.flush("error", error);
     throw error;
   }
   let childError: Error | null = null;
@@ -396,18 +393,7 @@ async function runCodex(params: {
     for await (const line of output) {
       throwIfAborted(params.abortSignal);
       const rawLine = String(line);
-      logRawLlmStream({
-        provider: "codex",
-        model: params.model,
-        iteration: 0,
-        label: "jsonl_line",
-        payload: rawLine,
-      });
-      rawStreamRecorder?.record({
-        iteration: 0,
-        label: "jsonl_line",
-        payload: rawLine,
-      });
+      trace.record({ iteration: 0, label: "jsonl_line", payload: rawLine });
       const parsed = parseCodexEventLine(rawLine);
       if (parsed.error) eventError = parsed.error;
       if (parsed.usage) usage = parsed.usage;
@@ -476,7 +462,7 @@ async function runCodex(params: {
     params.abortSignal?.removeEventListener("abort", abort);
     await bridge?.close();
     endReasoning();
-    await rawStreamRecorder?.flush(streamStatus, streamError);
+    await trace.flush(streamStatus, streamError);
   }
 }
 
