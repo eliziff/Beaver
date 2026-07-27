@@ -26,8 +26,11 @@ If `OpenLegalData`, `TableOfAuthoritiesMaker`, or
 ```powershell
 Copy-Item backend\.env.example backend\.env
 Copy-Item frontend\.env.local.example frontend\.env.local
-npm install --prefix backend
-npm install --prefix frontend
+npm ci
+npm ci --prefix backend
+npm ci --prefix frontend
+python -m venv universal-legal-pdf-engine\.venv
+.\universal-legal-pdf-engine\.venv\Scripts\python -m pip install -e .\universal-legal-pdf-engine
 ```
 
 Keep `AUTH_MODE=anonymous` and `NEXT_PUBLIC_AUTH_MODE=anonymous` for local use.

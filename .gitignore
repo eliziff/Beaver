@@ -20,6 +20,9 @@ coverage
 __pycache__/
 *.py[cod]
 
+# Keep the already-reviewed compaction evidence; ignore new timestamped runs.
+experiments/context_compaction_track_b/results/*.json
+
 # User-supplied benchmark documents and derived local manifests can contain
 # privileged or otherwise non-redistributable material.  Keep the harness in
 # git, but never commit the private corpus.
