@@ -102,13 +102,141 @@ export async function renderDocx(
       LevelSuffix,
       PageOrientation,
       PageBreak,
+      ImportedXmlComponent,
     } = await import("docx");
 
     const FONT = "Times New Roman";
     const SIZE = 22; // 11pt in half-points
+    const CONTENT_CONTROL_MARKER_RE = /\{\{([a-z][a-z0-9_.-]{0,63})\}\}/gu;
 
     type DocChild = InstanceType<typeof Paragraph> | InstanceType<typeof Table>;
+    type ContentControl = {
+      tag: string;
+      label: string;
+      value: string;
+      kind: "field" | "clause";
+    };
     const children: DocChild[] = [];
+    const contentControlId = (seed: string) => {
+      let hash = 2166136261;
+      for (let index = 0; index < seed.length; index += 1) {
+        hash = Math.imul(hash ^ seed.charCodeAt(index), 16777619);
+      }
+      return hash >>> 1 || 1;
+    };
+    const normalizeContentControls = (raw: unknown): ContentControl[] => {
+      if (raw === undefined) return [];
+      if (!Array.isArray(raw) || raw.length > 50) {
+        throw new Error("A section may define at most 50 content controls.");
+      }
+      const controls = raw.map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new Error("Content controls must be objects.");
+        }
+        const record = item as Record<string, unknown>;
+        const tag = typeof record.tag === "string" ? record.tag.trim() : "";
+        if (!/^[a-z][a-z0-9_.-]{0,63}$/u.test(tag)) {
+          throw new Error(
+            "Content-control tags must be stable lowercase identifiers.",
+          );
+        }
+        const label =
+          typeof record.label === "string" && record.label.trim()
+            ? record.label.trim().slice(0, 80)
+            : tag;
+        const value =
+          typeof record.value === "string" && record.value.trim()
+            ? record.value.trim()
+            : `[${label}]`;
+        if (value.length > 20_000) {
+          throw new Error("Content-control values are too long.");
+        }
+        return {
+          tag,
+          label,
+          value,
+          kind: record.kind === "clause" ? "clause" : "field",
+        } satisfies ContentControl;
+      });
+      if (new Set(controls.map(({ tag }) => tag)).size !== controls.length) {
+        throw new Error("Content-control tags must be unique per section.");
+      }
+      return controls;
+    };
+    const textRun = (text: string) =>
+      new TextRun({ text, font: FONT, size: SIZE });
+    const importedElement = (
+      name: string,
+      attributes?: Record<string, string>,
+      nested: (InstanceType<typeof ImportedXmlComponent> | string)[] = [],
+    ) => {
+      const element = new ImportedXmlComponent(name, attributes);
+      for (const child of nested) element.push(child);
+      return element;
+    };
+    const controlledTextRuns = (
+      text: string,
+      controls: ContentControl[],
+      usedTags: Set<string>,
+      seed: string,
+    ): InstanceType<typeof TextRun>[] => {
+      if (!text.includes("{{") && !text.includes("}}")) return [textRun(text)];
+      const unmatchedMarkers = text.replace(CONTENT_CONTROL_MARKER_RE, "");
+      if (
+        unmatchedMarkers.includes("{{") ||
+        unmatchedMarkers.includes("}}")
+      ) {
+        throw new Error(
+          "Content-control markers must use {{lowercase_tag}} syntax.",
+        );
+      }
+      const byTag = new Map(controls.map((control) => [control.tag, control]));
+      const runs: InstanceType<typeof TextRun>[] = [];
+      let cursor = 0;
+      let occurrence = 0;
+      for (const match of text.matchAll(CONTENT_CONTROL_MARKER_RE)) {
+        const tag = match[1];
+        const control = byTag.get(tag);
+        if (!control) {
+          throw new Error(`Content control "${tag}" is not defined.`);
+        }
+        if (match.index > cursor) {
+          runs.push(textRun(text.slice(cursor, match.index)));
+        }
+        const id = contentControlId(`${seed}:${tag}:${occurrence}`);
+        const properties = importedElement("w:sdtPr", undefined, [
+          importedElement("w:alias", { "w:val": control.label }),
+          importedElement("w:tag", { "w:val": control.tag }),
+          importedElement("w:id", { "w:val": String(id) }),
+          ...(control.kind === "field" ? [importedElement("w:text")] : []),
+        ]);
+        const runProperties = importedElement("w:rPr", undefined, [
+          importedElement("w:rFonts", {
+            "w:ascii": FONT,
+            "w:hAnsi": FONT,
+            "w:cs": FONT,
+          }),
+          importedElement("w:sz", { "w:val": String(SIZE) }),
+          importedElement("w:szCs", { "w:val": String(SIZE) }),
+        ]);
+        const value = importedElement("w:t", { "xml:space": "preserve" }, [
+          control.value,
+        ]);
+        runs.push(
+          importedElement("w:sdt", undefined, [
+            properties,
+            importedElement("w:sdtContent", undefined, [
+              importedElement("w:r", undefined, [runProperties, value]),
+            ]),
+          ]) as unknown as InstanceType<typeof TextRun>,
+        );
+        usedTags.add(tag);
+        cursor = match.index + match[0].length;
+        occurrence += 1;
+      }
+      if (cursor < text.length) runs.push(textRun(text.slice(cursor)));
+      return runs.length ? runs : [textRun(text)];
+    };
     children.push(
       new Paragraph({
         heading: HeadingLevel.TITLE,
@@ -314,8 +442,11 @@ export async function renderDocx(
         level?: number;
         pageBreak?: boolean;
         table?: { headers: string[]; rows: string[][] };
+        contentControls?: unknown;
       }[]
     ).entries()) {
+      const contentControls = normalizeContentControls(section.contentControls);
+      const usedControlTags = new Set<string>();
       if (section.pageBreak) {
         children.push(new Paragraph({ children: [new PageBreak()] }));
       }
@@ -426,7 +557,7 @@ export async function renderDocx(
           normalizeHeadingText(section.heading).includes("signature")
             ? true
             : looksLikeSignatureBlock(section.content);
-        for (const line of section.content.split("\n")) {
+        for (const [lineIndex, line] of section.content.split("\n").entries()) {
           const trimmed = line.trim();
           if (!trimmed) continue;
           const bulletMatch = trimmed.match(/^[-•*]\s+(.+)/);
@@ -458,16 +589,23 @@ export async function renderDocx(
                   ? undefined
                   : legalNumbering(inferredLevel),
               spacing: { after: 120 },
-              children: [
-                new TextRun({
-                  text,
-                  font: FONT,
-                  size: SIZE,
-                }),
-              ],
+              children: controlledTextRuns(
+                text,
+                contentControls,
+                usedControlTags,
+                `${sectionIndex}:${lineIndex}`,
+              ),
             }),
           );
         }
+      }
+      const unusedControls = contentControls.filter(
+        ({ tag }) => !usedControlTags.has(tag),
+      );
+      if (unusedControls.length) {
+        throw new Error(
+          `Content control "${unusedControls[0].tag}" has no matching {{${unusedControls[0].tag}}} marker.`,
+        );
       }
     }
 
