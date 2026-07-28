@@ -118,9 +118,12 @@ Extend `backend/src/lib/docxTrackedChanges.ts`:
   Word comment (comments part created/extended, content-types + rels
   registered, `commentRangeStart/End` + `commentReference` spanning the
   revision). Existing comments preserved; IDs continue from max.
-- Genre contract: with `annotate: true`, every edit MUST have a non-empty
-  `reason` — the tool rejects rationale-less markup instead of silently
-  producing one. A clean draft cannot be a valid output of this path.
+- Genre by construction comes from the PATH, not from policing: a markup
+  produced through the revise pipeline is tracked changes by definition — a
+  clean draft cannot come out of it. Whether every edit should also carry a
+  rationale is measured, not mandated: unreasoned edits apply without a
+  comment and the receipt counts them (`edits_without_reason`), so
+  rationale-coverage becomes an A/B variable on markup tasks.
 - `library_revise_docx` gains the `annotate` parameter, and its receipt
   auto-runs `lintLocalDocxStructure` on the new version, returning findings
   (broken xrefs, numbering gaps, defined-term defects) so the model gets
@@ -155,3 +158,64 @@ Component 1 is Ledger+Grounding for enumerable anchors, Component 2 is the
 context layer that makes Draft small and Audit's re-reads pinpoint, and
 Component 3 is the deliverable envelope that makes genre a build-time
 property. The LLM keeps judgment; it loses bookkeeping.
+
+## Mid-build addendum (2026-07-28 — the one permitted update)
+
+**Reuse map, as discovered (adapt-don't-rewrite):** Component 2 compiles
+into the existing `SourceDoc` plane (labels speak the A2AJ compiler dialect,
+`sec8.01(a)`; lookup/slice/quote machinery unchanged). Defined-term
+collection, `romanToInt`, and the external-reference guard are
+`docxStructuralLint`'s own collectors, now exported. `evalValidators.
+checkDocxStructure` is the redline verifier (no new python probes).
+`benchmarks/beaver_can` (CAN-CITE/RETRIEVAL/CONTEXT dev tasks) is the other
+session's live work — untouched; the Canadian slices below should feed it
+later. ALR-Quote-Verifier (public build) is the grounding-gate reference:
+clean-text↔raw offset index maps, editorial-initial span tolerance
+("[T]he"), sentence-bound context windows, verified text-fragment
+directives. Its ToA/Books-of-Authorities adaptations own citation-unit
+splitting; the anchor `cite` class shares conventions via test vectors, not
+imports.
+
+**Text-Fidelity transfer:** the enumeration resolver is a faithful TS port
+of `parse_heading_ladder`'s counter-stack (strict increment across all
+readings → open at value 1 → restart/jump-forward → mid-counter open →
+violation), so (h)→(i) disambiguation emerges from pass order; restarts get
+`@n` occurrence suffixes; diagnostics are exposed on the skeleton.
+Cross-engine sharing with the universal-legal-pdf-engine is by CONTRACT,
+not code: one label dialect, one action taxonomy, shared JSON test vectors.
+Page furniture, page-number witnesses, separator bands, and table geometry
+remain the extraction layer's job — the skeleton consumes clean text.
+
+**Grammar deltas beyond the original spec (each evidence-driven):** `cite`
+anchor class (Canadian neutral + US reporter forms); Canadian statute
+series (R.S.C./S.O./C.C.S.M. …) and `SOR/SI` instruments (the inventory's
+headline silent-failure gap); currency-tagged money (`$` is
+jurisdiction-neutral `dlr`) with attached suffixes ($20.0M/$2.25MM/$500K)
+and comma/magnitude-guarded range inheritance; named-Code references
+(Criminal Code); §-section trailing-dot normalization.
+
+**Generalization assets (three subagent deliverables, all outside the
+repo at `Desktop/legal-generalization-corpus/`):** (1) 31-document,
+11-genre EDGAR/eCFR/Justice-Laws/court corpus with measured structure
+notes — key traps: 1990s instruments with NO article tier, word-form
+articles ("Article One"), Canadian "5 (1)" section form, ¶-numbered
+complaints, `<ol>`-materialized numbering; (2) CUAD v1 (13,823 byte-exact
+spans; typed-containment recall for date/duration/money anchors), MAUD
+(business- vs calendar-day discipline), US public-law USLM XML (8,870
+`@identifier` nodes — structure gold; 5,105 resolved citation refs); (3)
+Canadian slices: A2AJ native-structure gold (2,848 statute labels, 8 NSCA
+decisions with validated paragraph spines; four encoded traps incl.
+map-order ≠ doc-order), 60-form anchor inventory, per-artifact rights
+registry (NSCA is the open decisions source; Canadian Semantic LegalBench
+still license-less → blocked; no CanLII scraping).
+
+**Measurement battery (supersedes the original section):** retro anchor
+coverage on pilot-b-01/-03 (done — see commit 9367619 for numbers); CUAD
+typed-containment recall; USLM identifier-chain node P/R with enumerator
+normalization; Canadian structure gold scored on `labels_doc_order` and
+decision `labels_spine` (quoted-judgment ¶s are false positives); full
+corpus structural sweep producing a measured fix-list; OCR-degradation
+curve (seeded character-confusion injector over gold docs, label recall vs
+corruption rate) — structure salvage on the hardest inputs is the proofing
+ground. Rule of engagement: no grammar change without a corpus/gold
+measurement that motivates it, and each fix cites its evidence.
