@@ -387,7 +387,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
             annotate: {
               type: "boolean",
               description:
-                "Markup mode: render each edit's reason as an anchored Word comment on its tracked change, so the rationale is visible in the deliverable. Every edit must then carry a non-empty reason — rationale-free markup is rejected, and the new version is auto-checked by the structural lint.",
+                "Markup mode: render each edit's reason as an anchored Word comment on its tracked change, so the rationale is visible in the deliverable. Edits without a reason get no comment and are counted in the receipt; the new version is auto-checked by the structural lint.",
             },
           },
           required: ["document_id", "version_id", "edits"],
@@ -1035,17 +1035,6 @@ export async function runLocalAssistantTools(
             });
           }
           const annotate = args.annotate === true;
-          if (annotate) {
-            const missingReason = edits.findIndex(
-              (edit) => !edit.reason?.trim(),
-            );
-            if (missingReason >= 0) {
-              return fail(
-                call,
-                `annotate requires a non-empty reason on every edit; edit ${missingReason} has none. A markup without rationale is a clean draft.`,
-              );
-            }
-          }
           const edited = await applyTrackedEdits(
             await readFile(file.path),
             edits,
@@ -1111,6 +1100,9 @@ export async function runLocalAssistantTools(
             source_sha256: version.source_sha256,
             change_count: edited.changes.length,
             comment_count: edited.comments,
+            edits_without_reason: annotate
+              ? edits.filter((edit) => !edit.reason?.trim()).length
+              : undefined,
             structural_lint: lint
               ? {
                   finding_count: lint.findings.length,
