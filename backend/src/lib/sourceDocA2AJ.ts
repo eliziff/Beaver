@@ -728,7 +728,17 @@ function flatSectionBlocks(text: string, name: string | null | undefined) {
   return blocks;
 }
 
-function caseBlocks(input: CompileInput): SourceDocBlock[] {
+/**
+ * The prose case spine (paragraphs, reporter pages), shared with the
+ * native-markup compiler as the heuristic fallback for whatever a provider's
+ * markup does not label.
+ */
+export function a2ajCaseBlocks(input: {
+  text: string;
+  citation?: string | null;
+  alternateCitation?: string | null;
+  dataset?: string | null;
+}): SourceDocBlock[] {
   return [
     ...paragraphBlocks(input.text),
     ...pageBlocks(
@@ -775,7 +785,7 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
     return createSourceDoc({
       ...identity,
       text: input.text,
-      blocks: caseBlocks(input),
+      blocks: a2ajCaseBlocks(input),
     });
   }
 

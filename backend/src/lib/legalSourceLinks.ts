@@ -727,10 +727,9 @@ function courtlistenerNativeAnchor(
 ) {
   const structure = getCourtlistenerOpinionStructure(opinion.source);
   if (!structure) return null;
-  const compiled = createTextSourceDoc(structure.text);
   const matches = structure.blocks
     .filter(({ anchor, origin }) => Boolean(anchor) && origin === "native")
-    .filter((block) => sourceDocContainsQuote(compiled, quote, block))
+    .filter((block) => sourceDocContainsQuote(structure, quote, block))
     .sort((left, right) => left.end - left.start - (right.end - right.start));
   if (!matches.length) return null;
   const smallest = matches[0].end - matches[0].start;

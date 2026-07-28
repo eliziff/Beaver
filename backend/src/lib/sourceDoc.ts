@@ -343,7 +343,25 @@ export function lookupSourceDoc(
   locator: string,
   contextBlocks = 0,
 ): SourceDocLookup {
-  const requestedLabel = normalizeSourceDocLocator(kind, locator);
+  return lookupSourceDocLabel(
+    doc,
+    kind,
+    normalizeSourceDocLocator(kind, locator),
+    contextBlocks,
+  );
+}
+
+/**
+ * The lookup engine behind lookupSourceDoc, for callers whose locator grammar
+ * is wider than the shared one (provider-native labels, titles): they resolve
+ * `requestedLabel` themselves and share everything after normalization.
+ */
+export function lookupSourceDocLabel(
+  doc: SourceDoc,
+  kind: SourceDocLocatorKind,
+  requestedLabel: string,
+  contextBlocks = 0,
+): SourceDocLookup {
   const available = sourceDocBlocksOfKind(doc, kind);
   if (!requestedLabel || !available.length) {
     return {

@@ -143,10 +143,14 @@ async function queueCourtlistenerPdfFallback(
   caseRecord: LocalCourtlistenerCase,
   userId?: string,
 ) {
-  const needsFallback = caseRecord.opinions.some((opinion) => {
-    const source = getCourtlistenerOpinionStructure(opinion)?.source;
-    return source !== "native" && source !== "hybrid";
-  });
+  // A PDF fallback is only worth importing when no opinion carries
+  // provider-native structure.
+  const needsFallback = caseRecord.opinions.some(
+    (opinion) =>
+      !getCourtlistenerOpinionStructure(opinion)?.blocks.some(
+        ({ origin }) => origin === "native",
+      ),
+  );
   if (!userId || !caseRecord.pdfUrl || !needsFallback) return null;
   try {
     return await queueProviderPdfAttachment({

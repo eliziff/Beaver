@@ -42,9 +42,7 @@ beforeEach(() => {
   queueProviderPdfAttachment.mockResolvedValue(fallback);
   getCourtlistenerCases.mockReset();
   getCourtlistenerOpinionStructure.mockReset();
-  getCourtlistenerOpinionStructure.mockReturnValue({
-    source: "flat_text",
-  });
+  getCourtlistenerOpinionStructure.mockReturnValue({ blocks: [] });
   lookupProviderPdfReference.mockReset();
   rehydrateProviderPdfReference.mockReset();
 });
@@ -289,12 +287,15 @@ describe("provider PDF consumers", () => {
     );
 
     queueProviderPdfAttachment.mockClear();
-    getCourtlistenerOpinionStructure.mockReturnValue({ source: "native" });
+    getCourtlistenerOpinionStructure.mockReturnValue({
+      blocks: [{ origin: "native" }],
+    });
     await runLocalCourtlistenerTool(call, state, "local-user");
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
 
     getCourtlistenerOpinionStructure.mockImplementation((candidate) => ({
-      source: (candidate as { id?: number }).id === 8 ? "native" : "flat_text",
+      blocks:
+        (candidate as { id?: number }).id === 8 ? [{ origin: "native" }] : [],
     }));
     getCourtlistenerCases.mockResolvedValue({
       cases: [
@@ -312,7 +313,7 @@ describe("provider PDF consumers", () => {
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
 
     queueProviderPdfAttachment.mockClear();
-    getCourtlistenerOpinionStructure.mockReturnValue({ source: "flat_text" });
+    getCourtlistenerOpinionStructure.mockReturnValue({ blocks: [] });
     getCourtlistenerCases.mockResolvedValue({
       cases: [
         {
