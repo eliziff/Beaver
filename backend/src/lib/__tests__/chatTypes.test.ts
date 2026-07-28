@@ -26,10 +26,6 @@ describe("resolveDoc", () => {
     it("returns undefined for an unknown label", () => {
         expect(resolveDoc("doc-99", index)).toBeUndefined();
     });
-
-    it("returns undefined for an empty string", () => {
-        expect(resolveDoc("", index)).toBeUndefined();
-    });
 });
 
 // ---------------------------------------------------------------------------

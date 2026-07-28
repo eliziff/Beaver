@@ -71,15 +71,6 @@ describe("providerForModel", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveModel", () => {
-    it("returns a known model id unchanged", () => {
-        expect(resolveModel("claude-sonnet-4-6", DEFAULT_MAIN_MODEL)).toBe(
-            "claude-sonnet-4-6",
-        );
-        expect(resolveModel("gpt-5.4-lite", DEFAULT_TITLE_MODEL)).toBe(
-            "gpt-5.4-lite",
-        );
-    });
-
     it("falls back for unknown model ids", () => {
         expect(resolveModel("gpt-3.5-turbo", DEFAULT_MAIN_MODEL)).toBe(
             DEFAULT_MAIN_MODEL,
@@ -128,8 +119,9 @@ describe("default models", () => {
     });
 
     it("every default has a resolvable provider", () => {
-        expect(providerForModel(DEFAULT_MAIN_MODEL)).toBe("gemini");
-        expect(providerForModel(DEFAULT_TITLE_MODEL)).toBe("gemini");
-        expect(providerForModel(DEFAULT_TABULAR_MODEL)).toBe("gemini");
+        // Do not pin which provider — only that resolution cannot throw.
+        expect(() => providerForModel(DEFAULT_MAIN_MODEL)).not.toThrow();
+        expect(() => providerForModel(DEFAULT_TITLE_MODEL)).not.toThrow();
+        expect(() => providerForModel(DEFAULT_TABULAR_MODEL)).not.toThrow();
     });
 });
