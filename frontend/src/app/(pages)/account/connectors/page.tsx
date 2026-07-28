@@ -18,6 +18,7 @@ import {
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
 import {
+    API_BASE,
     type McpConnectorSummary,
     BeaverApiError,
     createMcpConnector,
@@ -71,7 +72,7 @@ type McpOAuthPopupMessage = {
 };
 
 const mcpOAuthMessageOrigin = new URL(
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001",
+    API_BASE,
 ).origin;
 
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
