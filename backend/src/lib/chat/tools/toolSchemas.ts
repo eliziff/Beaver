@@ -463,3 +463,127 @@ export const TOOLS = [
     },
   },
 ];
+
+export const TEXT_OPS_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "library_apply_text_ops",
+      description:
+        "Apply deterministic mechanical text operations to a local Library DOCX as native tracked changes: change case, find/replace, sentence spacing, quote/dash/ellipsis normalization, whitespace cleanup, and a flag-only spelling review. The server resolves the scope against the pinned version and executes the transform itself - NEVER retype, quote back, or re-supply document text for these transforms, and never use library_revise_docx for them. Returns a new version with per-change Accept/Reject cards plus per-op replacement counts and skipped-site notes for anything left unchanged. check_spelling only reports; corrections happen through explicit replace_text calls.",
+      parameters: {
+        type: "object",
+        properties: {
+          document_id: {
+            type: "string",
+            description: "Exact document_id returned by library_list.",
+          },
+          version_id: {
+            type: "string",
+            description:
+              "Optional exact Library version id. Omit for the active version; a non-active version fails without changing the document.",
+          },
+          ops: {
+            type: "array",
+            minItems: 1,
+            maxItems: 20,
+            description:
+              "Operations applied in order. All scopes are resolved once against the pinned version's text before any change; two ops may not touch the same characters.",
+            items: {
+              type: "object",
+              properties: {
+                op: {
+                  type: "string",
+                  enum: [
+                    "uppercase",
+                    "lowercase",
+                    "sentence_case",
+                    "capitalize_each_word",
+                    "toggle_case",
+                    "title_case",
+                    "replace_text",
+                    "sentence_spacing",
+                    "check_spelling",
+                    "straighten_quotes",
+                    "curl_quotes",
+                    "collapse_double_spaces",
+                    "normalize_dashes",
+                    "normalize_ellipses",
+                    "nonbreaking_section_refs",
+                    "remove_trailing_whitespace",
+                  ],
+                  description:
+                    "Case ops mirror Word's Change Case menu plus conventional title_case (small words lowercased unless first/last, acronyms preserved). replace_text is Word-style find/replace over the scope. check_spelling NEVER changes text: it reports possible misspellings (Canadian English dictionary) with context and suggestions; to correct one, make a follow-up call using replace_text with that exact word.",
+                },
+                scope: {
+                  type: "object",
+                  description:
+                    "Where the op applies. whole_document; find_text (that exact text, every occurrence unless occurrence is given); or range (from the start of from_text through the end of to_text).",
+                  properties: {
+                    kind: {
+                      type: "string",
+                      enum: ["whole_document", "find_text", "range"],
+                    },
+                    text: {
+                      type: "string",
+                      description:
+                        "find_text only: exact text copied from the document.",
+                    },
+                    occurrence: {
+                      type: "integer",
+                      minimum: 1,
+                      description:
+                        "find_text only: 1-based occurrence. Omit to scope every occurrence.",
+                    },
+                    from_text: {
+                      type: "string",
+                      description: "range only: exact text where the scope starts.",
+                    },
+                    to_text: {
+                      type: "string",
+                      description:
+                        "range only: exact text where the scope ends (first occurrence after from_text).",
+                    },
+                  },
+                  required: ["kind"],
+                },
+                find: {
+                  type: "string",
+                  description: "replace_text only: literal text to find.",
+                },
+                replace: {
+                  type: "string",
+                  description:
+                    "replace_text only: replacement text. Empty string deletes the match.",
+                },
+                match_case: {
+                  type: "boolean",
+                  description:
+                    "replace_text only: exact-case matching. Defaults to false, like Word.",
+                },
+                whole_word: {
+                  type: "boolean",
+                  description:
+                    "replace_text only: match whole words only. Defaults to false.",
+                },
+                occurrence: {
+                  type: "integer",
+                  minimum: 1,
+                  description:
+                    "replace_text only: replace just the Nth match within the scope. Omit to replace every match.",
+                },
+                style: {
+                  type: "string",
+                  description:
+                    'sentence_spacing: "one" or "two" spaces after sentence-ending punctuation. normalize_ellipses: "character" (... becomes the single … character, default) or "periods" (the reverse).',
+                },
+              },
+              required: ["op", "scope"],
+            },
+          },
+        },
+        required: ["document_id", "ops"],
+      },
+    },
+  },
+];
