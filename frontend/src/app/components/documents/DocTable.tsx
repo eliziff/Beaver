@@ -2125,8 +2125,6 @@ export function DocTable({
             label="Sort by name"
             value={nameSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
-            align="right"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("name", direction)}
         />
@@ -2136,7 +2134,6 @@ export function DocTable({
             label="Filter by file type"
             value={typeFilter}
             allLabel="All Types"
-            widthClassName="w-40"
             options={typeOptions}
             onChange={handleTypeFilterChange}
         />
@@ -2146,7 +2143,6 @@ export function DocTable({
             label="Sort by size"
             value={sizeSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("size", direction)}
         />
@@ -2156,7 +2152,6 @@ export function DocTable({
             label="Sort by version"
             value={versionSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("version", direction)}
         />
@@ -2166,7 +2161,6 @@ export function DocTable({
             label="Sort by created date"
             value={createdSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("created", direction)}
         />
@@ -2176,7 +2170,6 @@ export function DocTable({
             label="Sort by updated date"
             value={updatedSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("updated", direction)}
         />

@@ -279,8 +279,6 @@ export function WorkflowList() {
             label="Sort by name"
             value={nameSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
-            align="right"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("name", direction)}
         />
@@ -290,7 +288,6 @@ export function WorkflowList() {
             label="Sort by type"
             value={typeSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("type", direction)}
         />
@@ -316,7 +313,6 @@ export function WorkflowList() {
             searchable
             value={jurisdictionFilter}
             allLabel="All Jurisdictions"
-            widthClassName="w-48"
             options={jurisdictions.map((jurisdiction) => ({
                 value: jurisdiction,
                 label: jurisdiction,
@@ -331,7 +327,6 @@ export function WorkflowList() {
             searchable
             value={languageFilter}
             allLabel="All Languages"
-            widthClassName="w-44"
             options={languages.map((language) => ({
                 value: language,
                 label: language,
@@ -353,7 +348,6 @@ export function WorkflowList() {
             label="Filter by source"
             value={sourceFilter}
             allLabel="All Sources"
-            widthClassName="w-44"
             options={sourceOptions}
             onChange={handleSourceFilterChange}
         />
