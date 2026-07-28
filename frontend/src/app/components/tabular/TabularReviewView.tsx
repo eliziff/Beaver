@@ -6,7 +6,6 @@ import {
     Plus,
     Loader2,
     Play,
-    ChevronDown,
     MessageSquare,
     MessageSquareX,
     Users,
@@ -61,6 +60,7 @@ import { useSidebar } from "@/app/contexts/SidebarContext";
 import { PageHeader } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 
 interface Props {
@@ -106,7 +106,6 @@ export function TRView({ reviewId, projectId }: Props) {
         } | undefined
     >(undefined);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
-    const [actionsOpen, setActionsOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [dragOverReviewFiles, setDragOverReviewFiles] = useState(false);
     const [uploadingDroppedFilenames, setUploadingDroppedFilenames] = useState<
@@ -126,7 +125,6 @@ export function TRView({ reviewId, projectId }: Props) {
     } | null>(null);
     const [apiKeyModalProvider, setApiKeyModalProvider] =
         useState<ModelProvider | null>(null);
-    const actionsRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<TRTableHandle>(null);
     const router = useRouter();
     const { profile } = useUserProfile();
@@ -145,20 +143,6 @@ export function TRView({ reviewId, projectId }: Props) {
         const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
         window.history.replaceState(null, "", newUrl);
     }, [chatOpen, selectedChatId]);
-
-    useEffect(() => {
-        if (!actionsOpen) return;
-        function handleClickOutside(e: MouseEvent) {
-            if (
-                actionsRef.current &&
-                !actionsRef.current.contains(e.target as Node)
-            )
-                setActionsOpen(false);
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
-    }, [actionsOpen]);
 
     useEffect(() => {
         const fetches: Promise<unknown>[] = [
@@ -538,7 +522,6 @@ export function TRView({ reviewId, projectId }: Props) {
             prev.filter((c) => !idsToDelete.includes(c.document_id)),
         );
         setSelectedDocIds([]);
-        setActionsOpen(false);
         try {
             await updateTabularReview(reviewId, {
                 document_ids: remaining.map((d) => d.id),
@@ -562,7 +545,6 @@ export function TRView({ reviewId, projectId }: Props) {
             ),
         );
         setSelectedDocIds([]);
-        setActionsOpen(false);
         await clearTabularCells(reviewId, docIds);
     }
 
@@ -873,60 +855,40 @@ export function TRView({ reviewId, projectId }: Props) {
                             actions={
                                 <div className="flex items-center gap-1.5">
                                     {loading ? (
-                                        <div className="h-3 w-24 rounded bg-gray-100" />
-                                    ) : null}
-                                    {!loading && selectedDocIds.length > 0 && (
-                                        <>
-                                            {/* Desktop: compact Actions menu */}
-                                            <div
-                                                ref={actionsRef}
-                                                className="relative max-md:hidden"
-                                            >
-                                                <TabPillButton
-                                                    onClick={() =>
-                                                        setActionsOpen(
-                                                            (v) => !v,
-                                                        )
-                                                    }
-                                                >
-                                                    Actions
-                                                    <ChevronDown className="h-3.5 w-3.5" />
-                                                </TabPillButton>
-                                                {actionsOpen && (
-                                                    <div className="absolute top-full right-0 mt-1 w-36 rounded-lg border border-gray-100 bg-white shadow-lg z-50 overflow-hidden">
-                                                        <button
-                                                            onClick={
-                                                                handleClearResults
-                                                            }
-                                                            className="w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                                                        >
-                                                            Clear results
-                                                        </button>
-                                                        <button
-                                                            onClick={
-                                                                handleDeleteDocuments
-                                                            }
-                                                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 transition-colors"
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* Mobile (toolbar dropdown): flattened entries */}
-                                            <TabPillButton
-                                                onClick={handleClearResults}
-                                                className="md:hidden"
-                                            >
-                                                Clear results
-                                            </TabPillButton>
-                                            <TabPillButton
-                                                onClick={handleDeleteDocuments}
-                                                className="md:hidden text-red-600"
-                                            >
-                                                Delete
-                                            </TabPillButton>
-                                        </>
+                                        <div className="h-8 w-24 rounded-md bg-gray-100" />
+                                    ) : (
+                                        <NativeActionSelect
+                                            label="Selected document actions"
+                                            items={[
+                                                {
+                                                    label: "Clear results",
+                                                    onSelect:
+                                                        handleClearResults,
+                                                    disabled:
+                                                        selectedDocIds.length ===
+                                                        0,
+                                                },
+                                                {
+                                                    label: "Delete",
+                                                    onSelect:
+                                                        handleDeleteDocuments,
+                                                    disabled:
+                                                        selectedDocIds.length ===
+                                                        0,
+                                                },
+                                            ]}
+                                            className={`w-24 ${
+                                                selectedDocIds.length === 0
+                                                    ? "invisible"
+                                                    : ""
+                                            }`}
+                                            triggerClassName="h-8 w-24 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
+                                        >
+                                            Actions
+                                            <span aria-hidden="true">
+                                                &#9662;
+                                            </span>
+                                        </NativeActionSelect>
                                     )}
                                     {!loading && (
                                         <TabPillButton
