@@ -46,7 +46,13 @@ export async function streamChatWithTools(
                 ).streamOpenRouter(measuredParams)
               : provider === "codex"
                 ? await streamCodex(measuredParams)
-                : await (await import("./gemini")).streamGemini(measuredParams);
+                : provider === "codex-api"
+                  ? await (await import("./codexApi")).streamCodexApi(
+                      measuredParams,
+                    )
+                  : await (
+                      await import("./gemini")
+                    ).streamGemini(measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
       params,
@@ -108,5 +114,13 @@ export async function completeText(params: {
     return (await import("./openrouter")).completeOpenRouterText(params);
   if (provider === "codex")
     return (await import("./codex")).completeCodexText(params);
+  if (provider === "codex-api") {
+    const result = await (await import("./codexApi")).streamCodexApi({
+      model: params.model,
+      systemPrompt: params.systemPrompt ?? "",
+      messages: [{ role: "user", content: params.user }],
+    });
+    return result.fullText;
+  }
   return (await import("./gemini")).completeGeminiText(params);
 }
