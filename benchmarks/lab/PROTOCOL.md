@@ -79,9 +79,11 @@ Scale-up only after pilot results are reviewed.
    delivered Markdown instead of the four required .docx and burned ~10
    turns on shell diagnostics. The container passed the same operations
    when probed minutes later; smoke's Arm A ran the identical pattern
-   successfully. Treated as our-infra fault (Docker adaptation), not a
-   reference-harness deficiency: Arm A task 01 is rerun at the pilot tail
-   (pilot-a-01r) and both scores reported.
+   successfully. Ruled our-infra fault (Docker-on-Windows adaptation), not a
+   reference-harness deficiency: pilot-a-01's 0/95 is VOID for arm
+   comparison and recorded as an incident only. A clean rerun (pilot-a-01r)
+   supplies Arm A's task-01 number if run; the pilot was paused after
+   task 03 before the rerun.
 
 ## Fairness audit (pre-pilot, 2026-07-28)
 
