@@ -163,7 +163,7 @@ describe("runEval isolation, traces, and report", () => {
     });
     const report = readReport(reportPath);
     expect(report.task_id).toBe("CAN-RETRIEVAL-001");
-    expect(report.scoring_version).toBe("beaver-can-arm-scoring-2");
+    expect(report.scoring_version).toBe("beaver-can-arm-scoring-3");
     for (const arm of report.arms) {
       expect(arm.criteria.packet_sources_only?.pass).toBe(true);
       expect(arm.criteria.required_authorities?.pass).toBe(true);
@@ -372,6 +372,31 @@ describe("scoring bindings", () => {
         cited_via: "SRC-002",
       },
     ]);
+  });
+
+  it("counts an authority cited by citation string, not just packet id", () => {
+    const loaded = syntheticLoaded();
+    loaded.sources.push({
+      source_id: "SRC-001",
+      kind: "a2aj_fixture",
+      role: "authority",
+      citation: "R. v. Latimer, 2001 SCC 1",
+      text: "",
+      doc: null,
+    });
+    const byFullCitation = scoreBeaverCanOutput(
+      loaded,
+      "MEMORANDUM OF LAW\nSee R v Latimer, 2001 SCC 1, at para 24.",
+    );
+    expect(byFullCitation.criteria.required_authorities?.pass).toBe(true);
+    const byNeutralCitation = scoreBeaverCanOutput(
+      loaded,
+      "MEMORANDUM OF LAW\nLatimer (2001 SCC 1) governs.",
+    );
+    expect(byNeutralCitation.criteria.required_authorities?.pass).toBe(true);
+    expect(
+      byNeutralCitation.criteria.packet_sources_only?.evidence.cited_source_ids,
+    ).toEqual(["SRC-001"]);
   });
 
   it("finds a surviving required quotation via exact or normalized match", () => {
