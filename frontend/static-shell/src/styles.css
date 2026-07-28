@@ -1,0 +1,35 @@
+:root { font: 16px/1.45 system-ui, sans-serif; color: #171717; background: #f4f4f2; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, textarea, input { font: inherit; }
+button { cursor: pointer; }
+.shell { min-height: 100vh; }
+.topbar { height: 64px; display: flex; align-items: center; gap: 24px; padding: 0 28px; background: #fff; border-bottom: 1px solid #d5d5d0; }
+.brand { border: 0; background: none; color: #171717; font-weight: 750; font-size: 1.15rem; padding: 8px 0; }
+.brand-mark { color: #d52b1e; margin-right: 7px; }
+nav { display: flex; gap: 4px; }
+.nav-link { border: 0; background: none; color: #4b4b47; padding: 9px 13px; border-radius: 5px; }
+.nav-link:hover, .nav-link.active { background: #fbe9e7; color: #9f2017; }
+.mode { margin-left: auto; color: #555; font-size: .85rem; }
+.content { max-width: 1040px; margin: 0 auto; padding: 52px 28px 80px; }
+.workspace { display: grid; gap: 28px; }
+.hero { max-width: 720px; }
+.eyebrow { color: #a72219; font-size: .78rem; font-weight: 750; letter-spacing: .08em; margin: 0 0 8px; text-transform: uppercase; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.06; margin-bottom: 12px; }
+h2 { font-size: 1.1rem; margin: 0; }
+.muted, .empty, .status { color: #666; }
+.prompt { display: grid; gap: 10px; margin-top: 28px; }
+textarea { width: 100%; resize: vertical; border: 1px solid #a8a8a2; border-radius: 6px; padding: 14px; background: #fff; min-height: 92px; }
+textarea:focus { outline: 3px solid #f4bbb5; border-color: #a72219; }
+.primary, .upload { width: fit-content; border: 0; border-radius: 5px; background: #d52b1e; color: #fff; padding: 10px 16px; font-weight: 700; }
+.primary:hover, .upload:hover { background: #a72219; }
+.panel { background: #fff; border: 1px solid #d5d5d0; border-radius: 7px; overflow: hidden; }
+.panel-heading, .row { min-height: 52px; display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
+.panel-heading { justify-content: space-between; border-bottom: 1px solid #d5d5d0; }
+.panel-heading span, .row span { margin-left: auto; color: #666; font-size: .88rem; }
+.row + .row { border-top: 1px solid #e4e4df; }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.upload input { display: none; }
+.error { color: #8f1d15; background: #fff1ef; border: 1px solid #e1a19a; padding: 12px 14px; border-radius: 5px; }
+@media (max-width: 640px) { .topbar { padding: 0 16px; gap: 12px; } .nav-link { padding: 8px 7px; } .content { padding: 32px 16px 64px; } .mode { display: none; } }
