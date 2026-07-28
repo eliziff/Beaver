@@ -13,10 +13,15 @@ export function decodeXmlText(value: string): string {
     .replace(/&gt;/gu, ">")
     .replace(/&quot;/gu, '"')
     .replace(/&apos;/gu, "'")
-    .replace(/&#(\d+);/gu, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/gu, (_, code) =>
-      String.fromCodePoint(Number.parseInt(code, 16)),
-    )
+    .replace(/&#(\d+);/gu, (match, code) => {
+      const value = Number(code);
+      // Out-of-range code points would throw; keep the raw entity instead.
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
+    })
+    .replace(/&#x([0-9a-fA-F]+);/gu, (match, code) => {
+      const value = Number.parseInt(code, 16);
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
+    })
     .replace(/&amp;/gu, "&");
 }
 

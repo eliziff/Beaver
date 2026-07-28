@@ -92,12 +92,15 @@ function decodeEntities(value: string) {
     .replace(/&gt;/giu, ">")
     .replace(/&quot;/giu, '"')
     .replace(/&apos;|&#39;/giu, "'")
-    .replace(/&#(\d+);/gu, (_match, code) =>
-      String.fromCodePoint(Number.parseInt(code, 10)),
-    )
-    .replace(/&#x([0-9a-f]+);/giu, (_match, code) =>
-      String.fromCodePoint(Number.parseInt(code, 16)),
-    );
+    .replace(/&#(\d+);/gu, (match, code) => {
+      const value = Number.parseInt(code, 10);
+      // Out-of-range code points would throw; keep the raw entity instead.
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
+    })
+    .replace(/&#x([0-9a-f]+);/giu, (match, code) => {
+      const value = Number.parseInt(code, 16);
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
+    });
 }
 
 function attribute(attrs: string, name: string) {
