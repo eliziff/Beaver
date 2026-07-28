@@ -28,6 +28,7 @@ vi.mock("../lib/llm", () => ({
 }));
 vi.mock("../lib/chat/localAssistantTools", () => ({
   LOCAL_ASSISTANT_TOOLS: [],
+  RESEARCH_TOOLS_DISABLED: false,
   runLocalAssistantTools: mocks.runLocalAssistantTools,
   extractLocalDocument: async () => null,
 }));

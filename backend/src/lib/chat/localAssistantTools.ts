@@ -341,15 +341,28 @@ const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
   (schema) => schema.function.name === "ask_inputs",
 );
 
+/**
+ * MIKE_DISABLE_RESEARCH_TOOLS=1 removes the online legal-research tools
+ * (CourtListener, A2AJ, public legal sources) and their system-prompt
+ * sections from the local assistant — for sealed-environment runs where
+ * the matter documents must be the only information source.
+ */
+export const RESEARCH_TOOLS_DISABLED =
+  process.env.MIKE_DISABLE_RESEARCH_TOOLS === "1";
+
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...LOCAL_ASK_INPUTS_TOOLS,
   ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS,
   ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
-  ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
-  ...(A2AJ_TOOLS as OpenAIToolSchema[]),
-  ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
+  ...(RESEARCH_TOOLS_DISABLED
+    ? []
+    : [
+        ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
+        ...(A2AJ_TOOLS as OpenAIToolSchema[]),
+        ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
+      ]),
 ];
 
 const trimmed = (value: unknown) =>
