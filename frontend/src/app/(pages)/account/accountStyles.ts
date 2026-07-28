@@ -10,16 +10,8 @@ export const accountGlassInputClassName = cn(
 export const accountGlassSectionClassName =
     "overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm";
 
-export const accountGlassButtonClassName = cn(
-    "rounded-lg border border-transparent bg-transparent px-3 text-gray-700 shadow-none transition-colors hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200",
-    "disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100",
-);
-
 export const accountGlassPrimaryButtonClassName =
     "rounded-lg border border-transparent bg-transparent px-3 text-gray-900 shadow-none transition-colors hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-45";
-
-export const accountGlassDangerButtonClassName =
-    "rounded-lg border border-transparent bg-transparent px-3 text-red-600 shadow-none transition-colors hover:bg-red-50 hover:text-red-700 active:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45";
 
 export const accountGlassDangerOutlineButtonClassName =
     "rounded-lg border border-transparent bg-transparent px-3 text-red-600 shadow-none transition-colors hover:bg-red-50 hover:text-red-700 active:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45";

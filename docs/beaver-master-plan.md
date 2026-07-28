@@ -162,6 +162,7 @@ Recorded strict wins on the same Windows/i3-1315U machine:
 | Same prefetch removal on Authorities | Same frontend method | 1,486,012 decoded JS bytes; 1,476 ms FCP; 1,978 ms long tasks | 721,758 bytes; 996 ms; 905 ms |
 | Defer cloud-only MFA SDK and remove duplicate Tabular UI | `npm run build --prefix frontend`; `.next` route-manifest decoded JS + CSS | Projects 1,146,769 B; Authorities 1,089,077 B; Tabular detail 1,474,644 B | 934,566 B (`-18.5%`); 876,473 B (`-19.5%`); 1,256,484 B (`-14.8%`) |
 | Share MCP/MFA fields and remove dead frontend API declarations | `npm run build --prefix frontend`; all `.next` chunks; full Vitest | 7,870,663 JS B; 135,316 CSS B | 7,864,904 JS B (`-5,759`); 135,251 CSS B (`-65`); primary-route JS unchanged; 312 fewer production lines; 174/174 tests |
+| Delete remaining no-caller frontend helpers | Same build/chunk method; full Vitest | 7,864,904 JS B; 135,251 CSS B | 7,864,658 JS B (`-246`); 135,110 CSS B (`-141`); 113 fewer production lines; 168/168 tests |
 
 The Assistant and workflow-modal lazy-load experiments were reverted after
 6×-CPU interaction tests regressed fast send by about 307 ms and modal open by

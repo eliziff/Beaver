@@ -85,10 +85,6 @@ export function useProjectWorkspace() {
     return value;
 }
 
-export function useProjectWorkspaceOptional() {
-    return useContext(ProjectWorkspaceContext);
-}
-
 function activeSectionFromSegments(
     segments: string[],
 ): ProjectWorkspaceSection {
