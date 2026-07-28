@@ -1,0 +1,12 @@
+{
+  "provider": "govuk-et",
+  "caseNumber": "2200123/2023",
+  "title": "L Kogut v The British Library: 2200123/2023",
+  "url": "https://www.gov.uk/employment-tribunal-decisions/l-kogut-v-the-british-library-2200123-slash-2023",
+  "capture": {
+    "capturedAt": "2026-07-27",
+    "endpoint": "https://www.gov.uk/api/content/employment-tribunal-decisions/l-kogut-v-the-british-library-2200123-slash-2023",
+    "note": "Text assembled exactly as fetchGovUkEtCase does (title, description, hidden content)."
+  },
+  "text": "L Kogut v The British Library: 2200123/2023\n\nEmployment Tribunal decision."
+}

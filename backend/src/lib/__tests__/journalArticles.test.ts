@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   utimesSync,
@@ -334,6 +336,165 @@ describe("local journal articles", () => {
     utimesSync(source, future, future);
 
     expect(fetchJournalArticle("7")).not.toBe(first);
+  });
+
+  it("keeps the journalStructure engine's recorded behavior byte-identical", () => {
+    // `journal-alr-13` is a REAL article captured from the journals provider
+    // database on 2026-07-27; `legacy-structure.json` freezes the deleted
+    // legalSourceStructure-based engine's output over it (the legacy-spine
+    // methodology). Do not regenerate the recording.
+    const fixtureDir = path.join(__dirname, "fixtures", "nativemarkup");
+    const captured = JSON.parse(
+      readFileSync(path.join(fixtureDir, "journal-alr-13.json"), "utf8"),
+    ) as {
+      row: Record<string, unknown>;
+      pageRows: Array<{ page_label: string; pdf_page: number }>;
+    };
+    const recording = (
+      JSON.parse(
+        readFileSync(path.join(fixtureDir, "legacy-structure.json"), "utf8"),
+      ) as Record<
+        string,
+        {
+          status: string;
+          source: string;
+          counts: Record<string, number>;
+          textSha256: string;
+          blocks: Array<
+            [string, string, number, number, string | null, string | null]
+          >;
+          lookups: Array<{
+            kind: "paragraph" | "page" | "section" | "footnote";
+            locator: string;
+            status: string;
+            requestedLabel: string;
+            matches: string[];
+            block: string | null;
+            anchor: string | null;
+            before: string[];
+            after: string[];
+            payloadSha256: string;
+          }>;
+        }
+      >
+    )["journal-alr-13"];
+    const sha256 = (value: string) =>
+      createHash("sha256").update(value).digest("hex");
+
+    const filename = path.join(directory, "captured.db");
+    const database = new DatabaseSync(filename);
+    database.exec(`
+      CREATE TABLE articles (
+        article_id INTEGER PRIMARY KEY, dataset TEXT NOT NULL, citation_en TEXT,
+        name_en TEXT NOT NULL, authors TEXT, document_date_en TEXT, volume TEXT,
+        first_page TEXT, url_en TEXT, abstract TEXT, journal_name TEXT,
+        journal_abbrev TEXT, galley_url TEXT, upstream_license TEXT, text TEXT
+      );
+      CREATE TABLE article_pages (
+        article_id INTEGER NOT NULL, page_order INTEGER NOT NULL,
+        page_label TEXT NOT NULL, pdf_page INTEGER NOT NULL
+      );
+      CREATE TABLE export_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    `);
+    const row = captured.row;
+    database
+      .prepare(
+        `INSERT INTO articles (
+          article_id, dataset, citation_en, name_en, authors, document_date_en,
+          volume, first_page, url_en, abstract, journal_name, journal_abbrev,
+          galley_url, upstream_license, text
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        ...([
+          "article_id",
+          "dataset",
+          "citation_en",
+          "name_en",
+          "authors",
+          "document_date_en",
+          "volume",
+          "first_page",
+          "url_en",
+          "abstract",
+          "journal_name",
+          "journal_abbrev",
+          "galley_url",
+          "upstream_license",
+          "text",
+        ].map((column) => (row[column] ?? null) as string | number | null)),
+      );
+    const insertPage = database.prepare(
+      "INSERT INTO article_pages VALUES (13, ?, ?, ?)",
+    );
+    captured.pageRows.forEach((page, index) => {
+      insertPage.run(index + 1, page.page_label, page.pdf_page);
+    });
+    database.close();
+    closeJournalDatabases();
+    process.env.MIKE_PUBLIC_ENDPOINT_DB = filename;
+
+    const article = fetchJournalArticle("13")!;
+    expect(sha256(article.text)).toBe(recording.textSha256);
+    expect(article.structure.status).toBe(recording.status);
+    expect(
+      article.structure.blocks.map((block) => [
+        block.kind,
+        block.label,
+        block.start,
+        block.end,
+        block.anchor ?? null,
+        block.parentLabel ?? null,
+      ]),
+    ).toEqual(recording.blocks);
+    // The recording hashed the legacy payload shape, whose provider_locator
+    // fell back to the label for journal blocks (only native markup ever set
+    // one; journal page anchors were carried in `anchor` alone). Journals
+    // never reach the TNA receipt path, so this defaulting is recording-only.
+    const payload = (lookup: ReturnType<typeof lookupJournalArticle>) => {
+      const block = (value: (typeof lookup)["block"]) =>
+        value
+          ? {
+              kind: value.kind,
+              label: value.label,
+              start: value.start,
+              end: value.end,
+              anchor: value.anchor ?? null,
+              locator_kind: value.kind,
+              provider_locator: value.label,
+              origin: value.origin,
+              parent_label: value.parentLabel ?? null,
+              text: value.text,
+            }
+          : null;
+      return {
+        requested_label: lookup.requestedLabel,
+        matches: lookup.matches,
+        block: block(lookup.block),
+        before: lookup.before.map(block),
+        after: lookup.after.map(block),
+      };
+    };
+    for (const before of recording.lookups) {
+      const after = lookupJournalArticle(
+        article,
+        before.kind,
+        before.locator,
+        2,
+      );
+      expect(`${before.locator}:${after.status}`).toBe(
+        `${before.locator}:${before.status}`,
+      );
+      expect(after.requestedLabel).toBe(before.requestedLabel);
+      expect(after.matches).toEqual(before.matches);
+      expect(after.block?.label ?? null).toBe(before.block);
+      expect(after.block?.anchor ?? null).toBe(before.anchor);
+      expect(after.before.map(({ label }) => label)).toEqual(before.before);
+      expect(after.after.map(({ label }) => label)).toEqual(before.after);
+      expect(sha256(JSON.stringify(payload(after)))).toBe(
+        before.payloadSha256,
+      );
+    }
   });
 });
 

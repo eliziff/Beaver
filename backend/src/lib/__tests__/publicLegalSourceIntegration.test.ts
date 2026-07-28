@@ -271,10 +271,10 @@ describe("public legal source tool integration", () => {
 
     expect(first.block).toMatchObject({
       label: "sec2(1)",
-      locator_kind: "section",
+      kind: "section",
       origin: "native",
     });
-    expect(first.block).not.toHaveProperty("provider_locator");
+    expect(first.block).not.toHaveProperty("anchor");
     expect(receipt).toMatchObject({
       handle,
       source: {

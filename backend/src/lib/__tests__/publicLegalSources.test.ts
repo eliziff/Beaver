@@ -150,7 +150,7 @@ describe("public legal sources", () => {
       filename: "judgment.pdf",
       pageCount: 9,
     });
-    expect(document.structure.counts.page).toBe(0);
+    expect(document.structure.ranges.page.count).toBe(0);
     expect(paragraph).toMatchObject({
       status: "found",
       block: { origin: "heuristic" },
@@ -222,7 +222,7 @@ describe("public legal sources", () => {
         pageCount: 7,
       }),
     ]);
-    expect(document.structure.counts.page).toBe(0);
+    expect(document.structure.ranges.page.count).toBe(0);
     await expect(
       searchGovInfoCase("United States case 1:22-cv-00930"),
     ).resolves.toBeNull();

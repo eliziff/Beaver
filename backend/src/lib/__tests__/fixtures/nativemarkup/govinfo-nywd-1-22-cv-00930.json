@@ -1,0 +1,12 @@
+{
+  "provider": "govinfo",
+  "packageId": "USCOURTS-nywd-1_22-cv-00930",
+  "title": "Mugabo v. Wagner, et al",
+  "url": "https://www.govinfo.gov/app/details/USCOURTS-nywd-1_22-cv-00930",
+  "capture": {
+    "capturedAt": "2026-07-27",
+    "endpoint": "https://api.govinfo.gov/packages/USCOURTS-nywd-1_22-cv-00930/summary",
+    "note": "Text assembled exactly as fetchGovInfoCase does."
+  },
+  "text": "Mugabo v. Wagner, et al\n1:22-cv-00930\n2024-04-15"
+}

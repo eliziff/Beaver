@@ -1,11 +1,10 @@
 import { downloadFile, listFiles } from "./storage";
 import { createServerSupabase } from "./supabase";
+import type { SourceDoc, SourceDocLocatorKind } from "./sourceDoc";
 import {
-  buildLegalSourceStructure,
-  lookupLegalSourceStructure,
-  type LegalLocatorKind,
-  type LegalSourceStructure,
-} from "./legalSourceStructure";
+  compileNativeMarkupSourceDoc,
+  lookupLegalSourceDoc,
+} from "./sourceDocNativeMarkup";
 import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
@@ -23,7 +22,7 @@ const COURTLISTENER_R2_OPINIONS_PREFIX = "courtlistener/opinions/by-cluster";
 type JsonRecord = Record<string, unknown>;
 type ServerSupabase = ReturnType<typeof createServerSupabase>;
 const opinionDocumentTexts = new WeakMap<object, string>();
-const opinionStructures = new WeakMap<object, LegalSourceStructure>();
+const opinionStructures = new WeakMap<object, SourceDoc>();
 const isDev = process.env.NODE_ENV !== "production";
 const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
@@ -175,7 +174,7 @@ function compactCluster(raw: unknown) {
 }
 
 function attachOpinionStructure(
-  compacted: object,
+  compacted: { opinionId: number | null; url: string | null },
   text: string | null,
   markup: string | null,
 ) {
@@ -183,11 +182,12 @@ function attachOpinionStructure(
   opinionDocumentTexts.set(compacted, text);
   opinionStructures.set(
     compacted,
-    buildLegalSourceStructure({
+    compileNativeMarkupSourceDoc({
       provider: "courtlistener",
+      id: compacted.opinionId === null ? "" : String(compacted.opinionId),
+      url: compacted.url,
       text,
       markup,
-      docType: "cases",
     }),
   );
 }
@@ -228,13 +228,13 @@ export function getCourtlistenerOpinionStructure(opinion: object) {
 
 export function lookupCourtlistenerOpinionLocator(
   opinion: object,
-  kind: LegalLocatorKind,
+  kind: SourceDocLocatorKind,
   locator: string,
   contextBlocks = 0,
 ) {
   const structure = opinionStructures.get(opinion);
   return structure
-    ? lookupLegalSourceStructure(structure, kind, locator, contextBlocks)
+    ? lookupLegalSourceDoc(structure, kind, locator, contextBlocks)
     : null;
 }
 

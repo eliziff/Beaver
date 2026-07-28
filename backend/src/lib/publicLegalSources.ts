@@ -3,13 +3,15 @@ import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { legalProviderCache, mikeLocalDataHome } from "./legalDataPath";
+import type {
+  SourceDoc,
+  SourceDocLocatorKind,
+  SourceDocLookup,
+} from "./sourceDoc";
 import {
-  buildLegalSourceStructure,
-  lookupLegalSourceStructure,
-  type LegalLocatorKind,
-  type LegalSourceStructure,
-  type LegalStructureLookup,
-} from "./legalSourceStructure";
+  compileNativeMarkupSourceDoc,
+  lookupLegalSourceDoc,
+} from "./sourceDocNativeMarkup";
 import type { JournalArticleSearchResult } from "./journalArticles";
 import { sha256 } from "./hash";
 
@@ -64,7 +66,7 @@ export type PublicLegalDocument = {
   title: string | null;
   url: string;
   text: string;
-  structure: LegalSourceStructure;
+  structure: SourceDoc;
   attachments: PublicLegalAttachment[];
   sourceVersion?: {
     format: "tna-akn-xml";
@@ -74,7 +76,7 @@ export type PublicLegalDocument = {
   };
 };
 
-export type PublicLegalLookup = LegalStructureLookup & {
+export type PublicLegalLookup = SourceDocLookup & {
   provider: PublicLegalDocument["provider"];
   url: string;
   anchor: string | null;
@@ -96,7 +98,7 @@ export type PublicLegalEvidenceReceipt = {
     format: "tna-akn-xml";
   };
   lookup: {
-    locator_kind: LegalLocatorKind;
+    locator_kind: SourceDocLocatorKind;
     locator: string;
     provider_locator: string;
     context_blocks: number;
@@ -178,8 +180,10 @@ function lookupPayload(lookup: PublicLegalLookup) {
           start: value.start,
           end: value.end,
           anchor: value.anchor ?? null,
-          locator_kind: value.locator_kind ?? value.kind,
-          provider_locator: value.provider_locator ?? value.label,
+          // Receipt payload field names and defaulting are frozen: their
+          // JSON is sha256'd into persisted payload_sha256 values.
+          locator_kind: value.kind,
+          provider_locator: value.anchor ?? value.label,
           origin: value.origin,
           parent_label: value.parentLabel ?? null,
           text: value.text,
@@ -294,12 +298,9 @@ export async function persistPublicLegalEvidence(
       format: sourceVersion.format,
     },
     lookup: {
-      locator_kind: lookup.block.locator_kind ?? lookup.block.kind,
+      locator_kind: lookup.block.kind,
       locator: lookup.block.label,
-      provider_locator:
-        lookup.block.provider_locator ??
-        lookup.block.anchor ??
-        lookup.block.label,
+      provider_locator: lookup.block.anchor ?? lookup.block.label,
       context_blocks: context,
     },
     evidence: {
@@ -339,13 +340,13 @@ export async function rehydratePublicLegalEvidence(handle: string) {
   if (sha256(body) !== receipt.source.source_sha256) {
     throw new Error("Provider source snapshot failed integrity verification");
   }
-  const structure = buildLegalSourceStructure({
+  const structure = compileNativeMarkupSourceDoc({
     provider: "tna",
+    id: receipt.source.identifier,
+    url: receipt.source.canonical_url,
     text: "",
     markup: body,
-    docType: "cases",
     citation: receipt.source.identifier,
-    name: receipt.source.title,
   });
   const document: PublicLegalDocument = {
     provider: "tna",
@@ -374,9 +375,8 @@ export async function rehydratePublicLegalEvidence(handle: string) {
     );
   }
   if (
-    (lookup.block.provider_locator ??
-      lookup.block.anchor ??
-      lookup.block.label) !== receipt.lookup.provider_locator
+    (lookup.block.anchor ?? lookup.block.label) !==
+    receipt.lookup.provider_locator
   ) {
     throw new Error("Provider evidence locator changed in its source snapshot");
   }
@@ -571,13 +571,13 @@ export async function fetchTnaCase(
     xmlUrl,
     "application/akn+xml, application/xml, text/xml",
   );
-  const structure = buildLegalSourceStructure({
+  const structure = compileNativeMarkupSourceDoc({
     provider: "tna",
+    id: result.citation,
+    url,
     text: "",
     markup: xml,
-    docType: "cases",
     citation: result.citation,
-    name: result.title,
   });
   const sourceSha256 = sha256(xml);
   return {
@@ -715,11 +715,11 @@ export async function fetchGovUkEtCase(
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n\n");
-  const structure = buildLegalSourceStructure({
+  const structure = compileNativeMarkupSourceDoc({
     provider: "govuk-et",
+    id: result.caseNumber,
+    url: publicUrl,
     text,
-    docType: "cases",
-    name: title,
   });
   return {
     provider: "govuk-et",
@@ -826,11 +826,11 @@ export async function fetchGovInfoCase(
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n");
-  const structure = buildLegalSourceStructure({
+  const structure = compileNativeMarkupSourceDoc({
     provider: "govinfo",
+    id: result.packageId,
+    url: `${GOVINFO_WEB}/app/details/${result.packageId}`,
     text,
-    docType: "cases",
-    name: title,
   });
   return {
     provider: "govinfo",
@@ -845,11 +845,11 @@ export async function fetchGovInfoCase(
 
 export function lookupPublicLegalSource(
   document: PublicLegalDocument,
-  kind: LegalLocatorKind,
+  kind: SourceDocLocatorKind,
   locator: string,
   contextBlocks = 0,
 ): PublicLegalLookup {
-  const lookup = lookupLegalSourceStructure(
+  const lookup = lookupLegalSourceDoc(
     document.structure,
     kind,
     locator,
