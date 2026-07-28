@@ -167,6 +167,7 @@ Recorded strict wins on the same Windows/i3-1315U machine:
 | Delete the one-caller Tabular workflow wrapper | Same build/chunk method; full Vitest | 7,859,667 JS B; Tabular detail 1,164,368 JS B; 50,112 production lines | 7,859,357 JS B (`-310`); Tabular detail 1,164,058 B (`-310`); 50,082 lines (`-30`, 99 below OG Mike); 173/173 tests |
 | Remove Tabular model/effort prop relay | Same build/chunk method; focused payload assertion; full Vitest | 7,859,357 JS B; Tabular detail 1,164,058 JS B; 50,082 production lines | 7,859,235 JS B (`-122`); Tabular detail 1,163,936 B (`-122`); 50,069 lines (`-13`, 112 below OG Mike); 173/173 tests |
 | Replace five drag state machines and the one-item Workflow Actions menu | Exact frontend build/chunk method; live pointer drags at 1440; 390/320 overflow QA; full Vitest | 7,859,881 JS B; 136,486 CSS B; 50,065 production lines | 7,858,373 JS B (`-1,508`); 136,017 CSS B (`-469`); 49,901 lines (`-164`, 280 below OG Mike); three exact `+80 px` live drags; 175/175 tests |
+| Replace three selected-item popovers with fixed native controls | Exact frontend build/chunk method; 1440/390/320 geometry and Escape QA; full Vitest | 7,858,373 JS B; 136,017 CSS B; 49,901 production lines | 7,856,163 JS B; 136,037 CSS B (`-2,190` combined); 49,803 lines (`-98`); zero toolbar movement or overflow; 176/176 tests |
 
 The Assistant and workflow-modal lazy-load experiments were reverted after
 6×-CPU interaction tests regressed fast send by about 307 ms and modal open by
