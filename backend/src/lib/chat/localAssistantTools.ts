@@ -6,6 +6,7 @@ import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
+import { draftingLint } from "../legalDraftingLint";
 import { consolidateAmendment } from "../legalAmendOps";
 import { computeDeadline } from "../legalDeadlines";
 import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
@@ -410,6 +411,23 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         },
       },
       required: ["document_ids"],
+    },
+  ),
+  tool(
+    "library_drafting_lint",
+    "Deterministic modal-force and ambiguous-syntax lint over a Library document: 'may not' prohibition ambiguity, 'and/or', stacked-modal typos, and mixed shall/must obligation registers, each with exact spans, bounded excerpts, severity, and autofix eligibility, plus a document modal profile. The linter DETECTS; whether a flagged span is genuinely defective is judged over the excerpt alone — never rescan the document for these patterns yourself.",
+    {
+      type: "object",
+      properties: {
+        document_id: DOCUMENT_ID_PROPERTY,
+        max_findings: {
+          type: "integer",
+          minimum: 1,
+          maximum: 200,
+          description: "Cap on returned findings. Defaults to 50.",
+        },
+      },
+      required: ["document_id"],
     },
   ),
   tool(
@@ -1661,6 +1679,29 @@ export async function runLocalAssistantTools(
           });
         } catch (error) {
           return fail(call, errorText(error, "Term drift report failed"));
+        }
+      }
+
+      if (call.name === "library_drafting_lint") {
+        if (!documentId) return fail(call, "document_id is required");
+        if (allowedDocumentIds && !allowedDocumentIds.has(documentId)) {
+          return fail(call, "Document is not attached to this matter");
+        }
+        try {
+          const document = await extractLocalDocument(userId, documentId);
+          if (!document) return fail(call, "Document not found");
+          const report = draftingLint(document.text);
+          const cap = clampInt(args.max_findings, 1, 200, 50);
+          return result(call, {
+            ok: true,
+            filename: document.filename,
+            counts: report.counts,
+            modal_profile: report.modalProfile,
+            findings: report.findings.slice(0, cap),
+            findings_truncated: report.findings.length > cap,
+          });
+        } catch (error) {
+          return fail(call, errorText(error, "Drafting lint failed"));
         }
       }
 
