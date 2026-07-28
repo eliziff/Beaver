@@ -3,7 +3,7 @@
 import type { ComponentProps } from "react";
 import { DocxView } from "./DocxView";
 import { PdfView } from "./PdfView";
-import { SpreadsheetView, type HighlightCell } from "./SpreadsheetView";
+import { SpreadsheetView } from "./SpreadsheetView";
 
 export type DocumentViewerKind = "docx" | "pdf" | "spreadsheet";
 
