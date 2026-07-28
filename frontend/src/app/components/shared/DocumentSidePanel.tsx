@@ -44,7 +44,7 @@ import { formatBytes } from "@/app/components/projects/ProjectPageParts";
 import {
     filenameExtensionChangeWarning,
     hasFilenameExtensionChange,
-} from "@/app/lib/documentUploadValidation";
+} from "@/app/lib/documentFilename";
 
 const MIN_DOC_COLUMN_WIDTH = 420;
 const DEFAULT_DOC_COLUMN_WIDTH = 620;
