@@ -23,6 +23,7 @@
 - [Book of Authorities ordering](book-of-authorities-ordering-research.md)
 - [Citators and a defensible Canadian good-law service](citator-good-law-research.md)
 - [Session compaction and context efficiency](session-compaction-and-context-efficiency.md)
+- [Lean runtime and context execution plan](beaver-lean-runtime-and-context-plan.md)
 - [Context compaction research — Track A](context-compaction-research-track-a.md)
 - [Context compaction research — Track B](context-compaction-research-track-b.md)
 - [Context compaction research synthesis](context-compaction-research-synthesis.md)
