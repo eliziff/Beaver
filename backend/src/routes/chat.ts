@@ -39,6 +39,7 @@ import {
   extractLocalDocument,
   runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
+import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
@@ -68,7 +69,10 @@ import {
   createAnonymousChat,
   deleteAnonymousChat,
   getAnonymousChat,
+  listDeletedAnonymousChats,
   listAnonymousChats,
+  permanentlyDeleteAnonymousChat,
+  restoreAnonymousChat,
   updateAnonymousChatProject,
   updateAnonymousChatTitle,
   resetAnonymousAssistantEvents,
@@ -94,6 +98,7 @@ import {
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 import {
   abortChatTurn,
+  abortChatTurnForDeletion,
   beginChatTurn,
   chatTurnInProgress,
   chatTurnWasDeleted,
@@ -111,6 +116,7 @@ export const chatRouter = Router();
 type Db = ReturnType<typeof createServerSupabase>;
 
 const TITLE_FALLBACK = "Misc. Query";
+const CHAT_RECYCLING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
@@ -1259,16 +1265,26 @@ export async function streamAnonymousChat(params: {
         (candidate) => candidate.tool_use_id === call.id,
       );
       const event = localDocumentMutationEvent(call.name, toolResult?.content);
-      if (!event) continue;
-      turnDocumentEvents.push(event);
-      sseWrite(res, {
-        type:
-          event.type === "doc_created"
-            ? "doc_created_start"
-            : "doc_edited_start",
-        filename: event.filename,
-      });
-      sseWrite(res, event);
+      if (event) {
+        turnDocumentEvents.push(event);
+        sseWrite(res, {
+          type:
+            event.type === "doc_created"
+              ? "doc_created_start"
+              : "doc_edited_start",
+          filename: event.filename,
+        });
+        sseWrite(res, event);
+      }
+      const automation = localAutomationEvent(
+        call.name,
+        toolResult?.content,
+        call.id,
+      );
+      if (automation) {
+        turnDocumentEvents.push(automation);
+        sseWrite(res, automation);
+      }
     }
     return results;
   };
@@ -1635,6 +1651,7 @@ async function getAccessibleChat(
     .from("chats")
     .select("*")
     .eq("id", chatId)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error || !chat) return null;
 
@@ -1664,6 +1681,18 @@ function parseListLimit(raw: unknown, fallback: number | null) {
   return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : fallback;
 }
 
+async function purgeExpiredCloudChats(db: Db, userId: string) {
+  const cutoff = new Date(
+    Date.now() - CHAT_RECYCLING_RETENTION_MS,
+  ).toISOString();
+  return db
+    .from("chats")
+    .delete()
+    .eq("user_id", userId)
+    .not("deleted_at", "is", null)
+    .lte("deleted_at", cutoff);
+}
+
 chatRouter.get("/", requireAuth, async (req, res) => {
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
@@ -1690,6 +1719,32 @@ chatRouter.get("/", requireAuth, async (req, res) => {
     console.error("[chat/list] failed to load chats", error);
     res.status(500).json({ detail: "Failed to load chats" });
   }
+});
+
+chatRouter.get("/recycling-bin", requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+  if (isAnonymousLocalMode()) {
+    res.json(
+      listDeletedAnonymousChats(userId).map(
+        ({ messages: _messages, ...chat }) => chat,
+      ),
+    );
+    return;
+  }
+
+  const db = createServerSupabase();
+  const purge = await purgeExpiredCloudChats(db, userId);
+  if (purge.error) {
+    return void res.status(500).json({ detail: purge.error.message });
+  }
+  const { data, error } = await db
+    .from("chats")
+    .select("id, project_id, user_id, title, created_at, deleted_at")
+    .eq("user_id", userId)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) return void res.status(500).json({ detail: error.message });
+  res.json(data ?? []);
 });
 
 chatRouter.post("/create", requireAuth, async (req, res) => {
@@ -1990,6 +2045,7 @@ chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
     .update(updates)
     .eq("id", chatId)
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .select("id, title, project_id")
     .single();
 
@@ -2009,13 +2065,72 @@ chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
     return;
   }
   const db = createServerSupabase();
-  const { error } = await db
+  const { data, error } = await db
+    .from("chats")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", chatId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return void res.status(500).json({ detail: error.message });
+  if (!data) return void res.status(404).json({ detail: "Chat not found" });
+  abortChatTurnForDeletion(chatId);
+  res.status(204).send();
+});
+
+chatRouter.post("/:chatId/restore", requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const { chatId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!restoreAnonymousChat(userId, chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+    res.status(204).send();
+    return;
+  }
+
+  const db = createServerSupabase();
+  const purge = await purgeExpiredCloudChats(db, userId);
+  if (purge.error) {
+    return void res.status(500).json({ detail: purge.error.message });
+  }
+  const { data, error } = await db
+    .from("chats")
+    .update({ deleted_at: null })
+    .eq("id", chatId)
+    .eq("user_id", userId)
+    .not("deleted_at", "is", null)
+    .select("id")
+    .maybeSingle();
+  if (error) return void res.status(500).json({ detail: error.message });
+  if (!data) return void res.status(404).json({ detail: "Chat not found" });
+  res.status(204).send();
+});
+
+chatRouter.delete("/:chatId/permanent", requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const { chatId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (!permanentlyDeleteAnonymousChat(userId, chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+    res.status(204).send();
+    return;
+  }
+
+  const db = createServerSupabase();
+  const { data, error } = await db
     .from("chats")
     .delete()
     .eq("id", chatId)
-    .eq("user_id", userId);
-
+    .eq("user_id", userId)
+    .not("deleted_at", "is", null)
+    .select("id")
+    .maybeSingle();
   if (error) return void res.status(500).json({ detail: error.message });
+  if (!data) return void res.status(404).json({ detail: "Chat not found" });
   res.status(204).send();
 });
 
@@ -2050,7 +2165,11 @@ chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
     });
     const title = normalizeGeneratedTitle(titleText);
 
-    await db.from("chats").update({ title }).eq("id", chatId);
+    await db
+      .from("chats")
+      .update({ title })
+      .eq("id", chatId)
+      .is("deleted_at", null);
 
     res.json({ title });
   } catch (err) {
@@ -2208,6 +2327,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     events: Parameters<typeof appendAssistantEventsToLastAssistantMessage>[2],
     citations: unknown[],
   ) => {
+    if (chatTurnWasDeleted(turnChatId)) return null;
     if (askInputsResponse) {
       await appendAssistantEventsToLastAssistantMessage(
         db,
@@ -2331,7 +2451,8 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       await db
         .from("chats")
         .update({ title: lastUser.content.slice(0, 120) })
-        .eq("id", chatId);
+        .eq("id", chatId)
+        .is("deleted_at", null);
     }
   } catch (err) {
     if (isAbortError(err)) {
