@@ -121,6 +121,7 @@ const PROVIDER_PDF_SOURCE_REFERENCE =
 const LOCAL_MUTATION_TOOL_NAMES = new Set([
   "library_create_docx",
   "library_revise_docx",
+  "library_apply_text_ops",
   "library_link_docx_citations",
   "library_fix_docx_supras",
   "toa_submit_library_document",
@@ -169,7 +170,11 @@ function localDocumentMutationEvent(
   content: string | undefined,
 ): Record<string, unknown> | null {
   if (
-    !["library_create_docx", "library_revise_docx"].includes(toolName) ||
+    ![
+      "library_create_docx",
+      "library_revise_docx",
+      "library_apply_text_ops",
+    ].includes(toolName) ||
     !content
   ) {
     return null;
@@ -199,7 +204,7 @@ function localDocumentMutationEvent(
       };
     }
     if (
-      toolName !== "library_revise_docx" ||
+      !["library_revise_docx", "library_apply_text_ops"].includes(toolName) ||
       value.action !== "revised" ||
       !Array.isArray(value.annotations)
     ) {
@@ -924,7 +929,7 @@ export async function streamAnonymousChat(params: {
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
         : "The user's local Beaver Library is connected"
-    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
+    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_apply_text_ops, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. For mechanical transforms — changing case, find-and-replace, spelling review, sentence spacing, or quote/dash/ellipsis/whitespace normalization — call library_apply_text_ops with an op and scope instead; the server executes the transform deterministically, so never retype, quote back, or pass the affected text through library_revise_docx for these. Its check_spelling op only flags possible misspellings; correct one with an explicit replace_text op. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
     "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
     "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
     focusPrompt +

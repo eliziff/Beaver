@@ -74,11 +74,17 @@ import {
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
 import {
+  applyTextOpsToDocx,
+  type TextOpRequest,
+  type TextOpScope,
+} from "../docxTextOps";
+import { TEXT_OP_NAMES } from "../textOps";
+import {
   extractPdfText,
   findTextMatches,
   renderMarkdownDocx,
 } from "./tools/documentOps";
-import { TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
+import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
   type LocalCourtlistenerState,
@@ -353,6 +359,7 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...LOCAL_ASK_INPUTS_TOOLS,
   ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS,
+  ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
   ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
   ...(A2AJ_TOOLS as OpenAIToolSchema[]),
@@ -618,6 +625,80 @@ function invalidReviseEdit(raw: unknown) {
     (key) =>
       typeof edit[key] !== "string" || (edit[key] as string).length > 100_000,
   );
+}
+
+const TEXT_OP_STRING_LIMIT = 5000;
+
+/** Parse and bound-check the raw ops array; returns an error string on any
+ *  malformed op so the model gets a correctable message. */
+function parseTextOpRequests(raw: unknown): TextOpRequest[] | string {
+  if (!Array.isArray(raw) || !raw.length || raw.length > 20) {
+    return "ops must be an array of 1 to 20 operations";
+  }
+  const boundedString = (value: unknown) =>
+    typeof value === "string" && value.length <= TEXT_OP_STRING_LIMIT;
+  const requests: TextOpRequest[] = [];
+  for (const [index, item] of raw.entries()) {
+    const at = `ops[${index}]`;
+    if (!item || typeof item !== "object") return `${at} must be an object`;
+    const op = item as Record<string, unknown>;
+    if (typeof op.op !== "string" || !TEXT_OP_NAMES.includes(op.op)) {
+      return `${at}.op must be one of: ${TEXT_OP_NAMES.join(", ")}`;
+    }
+    const rawScope = op.scope as Record<string, unknown> | undefined;
+    if (!rawScope || typeof rawScope !== "object") {
+      return `${at}.scope is required`;
+    }
+    let scope: TextOpScope;
+    if (rawScope.kind === "whole_document") {
+      scope = { kind: "whole_document" };
+    } else if (rawScope.kind === "find_text") {
+      if (!boundedString(rawScope.text) || !(rawScope.text as string).trim()) {
+        return `${at}.scope.text is required for find_text`;
+      }
+      scope = {
+        kind: "find_text",
+        text: rawScope.text as string,
+        ...(typeof rawScope.occurrence === "number"
+          ? { occurrence: Math.trunc(rawScope.occurrence) }
+          : {}),
+      };
+    } else if (rawScope.kind === "range") {
+      if (
+        !boundedString(rawScope.from_text) ||
+        !(rawScope.from_text as string).trim() ||
+        !boundedString(rawScope.to_text) ||
+        !(rawScope.to_text as string).trim()
+      ) {
+        return `${at}.scope.from_text and to_text are required for range`;
+      }
+      scope = {
+        kind: "range",
+        from_text: rawScope.from_text as string,
+        to_text: rawScope.to_text as string,
+      };
+    } else {
+      return `${at}.scope.kind must be whole_document, find_text, or range`;
+    }
+    if (op.op === "replace_text" && !boundedString(op.find)) {
+      return `${at}.find is required for replace_text`;
+    }
+    requests.push({
+      op: op.op,
+      scope,
+      ...(boundedString(op.find) ? { find: op.find as string } : {}),
+      ...(boundedString(op.replace) ? { replace: op.replace as string } : {}),
+      ...(typeof op.match_case === "boolean" ? { match_case: op.match_case } : {}),
+      ...(typeof op.whole_word === "boolean" ? { whole_word: op.whole_word } : {}),
+      ...(typeof op.occurrence === "number"
+        ? { occurrence: Math.trunc(op.occurrence) }
+        : {}),
+      ...(typeof op.style === "string" && op.style.length <= 20
+        ? { style: op.style }
+        : {}),
+    });
+  }
+  return requests;
 }
 
 const DOCX_WORKFLOWS: Record<
@@ -979,6 +1060,138 @@ export async function runLocalAssistantTools(
           });
         } catch {
           return fail(call, "DOCX revision failed");
+        }
+      }
+
+      if (call.name === "library_apply_text_ops") {
+        const versionId = trimmed(args.version_id);
+        if (!documentId) return fail(call, "document_id is required");
+        const requests = parseTextOpRequests(args.ops);
+        if (typeof requests === "string") return fail(call, requests);
+        try {
+          const file = await getLocalVersionFile(
+            userId,
+            documentId,
+            versionId || undefined,
+          );
+          if (!file) return fail(call, "DOCX Library version not found");
+          if (file.document.current_version_id !== file.version.id) {
+            return fail(call, "version_id is not the active version");
+          }
+          if (file.fileType.toLowerCase() !== "docx") {
+            return fail(call, "Text operations require a DOCX Library version");
+          }
+          const applied = await applyTextOpsToDocx(
+            await readFile(file.path),
+            requests,
+          );
+          const opReports = applied.reports.map((report) => ({
+            op: report.op,
+            replacements: report.replacements,
+            unchanged_sites: report.notes,
+          }));
+          if (!applied.replacementCount) {
+            // Valid outcome, not an error: report-only ops (check_spelling)
+            // and transforms that found nothing to change land here.
+            return result(call, {
+              ok: true,
+              action: "no_changes",
+              document_id: documentId,
+              version_id: file.version.id,
+              change_count: 0,
+              ops: opReports,
+              next_required_action:
+                "No tracked changes were created and no new version was saved. Report the per-op notes (flagged spellings, skipped sites) to the user; to correct a flagged word, call this tool again with replace_text scoped to that exact text.",
+            });
+          }
+          if (!applied.edits.length) {
+            return result(call, {
+              ok: false,
+              error: "No revision was saved",
+              ops: opReports,
+              ...(applied.editErrors.length
+                ? { edit_errors: applied.editErrors }
+                : {}),
+            });
+          }
+          const reason = requests
+            .map((request) => request.op)
+            .join(", ")
+            .slice(0, 100);
+          const trackedEdits: LocalTrackedEdit[] = applied.edits.map(
+            (edit) => ({
+              id: crypto.randomUUID(),
+              changeId: edit.changeId,
+              delWId: edit.delWId,
+              insWId: edit.insWId,
+              deletedText: edit.deletedText,
+              insertedText: edit.insertedText,
+              contextBefore: edit.contextBefore,
+              contextAfter: edit.contextAfter,
+              reason,
+              status: "pending",
+            }),
+          );
+          const version = await addLocalVersion({
+            userId,
+            documentId,
+            filename: file.version.filename,
+            bytes: applied.bytes,
+            expectedVersionId: file.version.id,
+            provenance: {
+              schemaVersion: 1,
+              actor: "assistant",
+              action: "revised",
+              parentVersionId: file.version.id,
+              changeCount: trackedEdits.length,
+              trackedEdits,
+            },
+          });
+          if (!version) return fail(call, "version_id is no longer active");
+          const downloadUrl =
+            `/single-documents/${encodeURIComponent(documentId)}/file` +
+            `?version_id=${encodeURIComponent(version.id)}`;
+          return result(call, {
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "revised",
+            document_id: documentId,
+            parent_version_id: file.version.id,
+            version_id: version.id,
+            version_number: version.version_number,
+            filename: version.filename,
+            file_type: version.file_type,
+            source_sha256: version.source_sha256,
+            change_count: trackedEdits.length,
+            download_url: downloadUrl,
+            ops: opReports,
+            ...(applied.editErrors.length
+              ? { edit_errors: applied.editErrors }
+              : {}),
+            annotations: trackedEdits.map((edit) => ({
+              kind: "edit",
+              edit_id: edit.id,
+              document_id: documentId,
+              version_id: version.id,
+              version_number: version.version_number,
+              change_id: edit.changeId,
+              del_w_id: edit.delWId,
+              ins_w_id: edit.insWId,
+              deleted_text: edit.deletedText,
+              inserted_text: edit.insertedText,
+              context_before: edit.contextBefore,
+              context_after: edit.contextAfter,
+              reason: edit.reason,
+              status: edit.status,
+            })),
+            next_required_action:
+              "The tracked-edit card is shown automatically. Briefly confirm what was changed and mention any unchanged_sites; do not repeat a document URL or paste the transformed text.",
+          });
+        } catch (error) {
+          return fail(
+            call,
+            errorText(error, "Deterministic text operations failed"),
+          );
         }
       }
 
