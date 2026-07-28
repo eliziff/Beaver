@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Modal } from "./Modal";
@@ -106,20 +106,7 @@ function SearchableModalSelect({
     ariaLabel?: string;
 }) {
     const [open, setOpen] = useState(false);
-    const [query, setQuery] = useState("");
     const selected = options.find((option) => option.value === value);
-    const filtered = useMemo(() => {
-        const needle = query.trim().toLowerCase();
-        return needle
-            ? options.filter((option) =>
-                  option.label.toLowerCase().includes(needle),
-              )
-            : options;
-    }, [options, query]);
-    const close = () => {
-        setOpen(false);
-        setQuery("");
-    };
 
     return (
         <>
@@ -140,71 +127,115 @@ function SearchableModalSelect({
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
             </button>
-            <Modal
+            <SearchableChoiceModal
                 open={open}
-                onClose={close}
-                breadcrumbs={["Choose option"]}
-                size="sm"
-                className="!h-[min(20rem,calc(100dvh-2rem))]"
-            >
-                <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
-                    <Search
-                        aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-gray-500"
-                    />
-                    <span className="sr-only">Search options</span>
-                    <input
-                        type="search"
-                        autoFocus
-                        value={query}
-                        onChange={(event) => setQuery(event.currentTarget.value)}
-                        onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                                event.preventDefault();
-                                close();
-                            } else if (event.key === "Enter" && filtered[0]) {
-                                event.preventDefault();
-                                onChange(filtered[0].value);
-                                close();
-                            }
-                        }}
-                        placeholder="Search options"
-                        className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
-                    />
-                </label>
-                <div
-                    role="listbox"
-                    className="min-h-0 flex-1 overflow-y-auto py-1"
-                >
-                    {filtered.map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            role="option"
-                            aria-selected={option.value === value}
-                            onClick={() => {
-                                onChange(option.value);
-                                close();
-                            }}
-                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
-                        >
-                            <Check
-                                aria-hidden="true"
-                                className={cn(
-                                    "h-4 w-4 shrink-0 text-red-700",
-                                    option.value !== value && "invisible",
-                                )}
-                            />
-                            <span className="truncate">{option.label}</span>
-                        </button>
-                    ))}
-                    {!filtered.length && (
-                        <p className="px-3 py-6 text-center text-sm text-gray-600">
-                            No matching options
-                        </p>
-                    )}
-                </div>
-            </Modal>
+                onClose={() => setOpen(false)}
+                title={ariaLabel ?? "Choose option"}
+                value={value}
+                options={options}
+                onChange={(next) => {
+                    if (next !== null) onChange(next);
+                }}
+            />
         </>
+    );
+}
+
+export type SearchableChoice = {
+    value: string | null;
+    label: string;
+};
+
+export function SearchableChoiceModal({
+    open,
+    onClose,
+    title,
+    value,
+    options,
+    onChange,
+}: {
+    open: boolean;
+    onClose: () => void;
+    title: string;
+    value: string | null;
+    options: readonly SearchableChoice[];
+    onChange: (value: string | null) => void;
+}) {
+    const [query, setQuery] = useState("");
+    const needle = query.trim().toLowerCase();
+    const visible = needle
+        ? options.filter((option) =>
+              option.label.toLowerCase().includes(needle),
+          )
+        : options;
+    const close = () => {
+        setQuery("");
+        onClose();
+    };
+    const choose = (next: string | null) => {
+        onChange(next);
+        close();
+    };
+
+    return (
+        <Modal
+            open={open}
+            onClose={close}
+            breadcrumbs={[title]}
+            size="sm"
+            className="!h-[min(20rem,calc(100dvh-2rem))]"
+        >
+            <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
+                <Search
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-gray-500"
+                />
+                <span className="sr-only">Search options</span>
+                <input
+                    type="search"
+                    autoFocus
+                    value={query}
+                    onChange={(event) => setQuery(event.currentTarget.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" && visible[0]) {
+                            event.preventDefault();
+                            choose(visible[0].value);
+                        }
+                    }}
+                    placeholder="Search options"
+                    className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
+                />
+            </label>
+            <div
+                role="listbox"
+                aria-label={title}
+                className="min-h-0 flex-1 overflow-y-auto py-1"
+            >
+                {visible.map((option, index) => (
+                    <button
+                        key={option.value ?? index}
+                        type="button"
+                        role="option"
+                        aria-selected={option.value === value}
+                        onClick={() => choose(option.value)}
+                        className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
+                    >
+                        <Check
+                            aria-hidden="true"
+                            className={cn(
+                                "h-4 w-4 shrink-0 text-red-700",
+                                option.value !== value && "invisible",
+                            )}
+                        />
+                        <span className="truncate">{option.label}</span>
+                    </button>
+                ))}
+                {!visible.length && (
+                    <p className="px-3 py-6 text-center text-sm text-gray-600">
+                        No matching options
+                    </p>
+                )}
+            </div>
+        </Modal>
     );
 }
