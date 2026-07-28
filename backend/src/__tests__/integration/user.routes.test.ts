@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+import { createSupabaseStub, type SupabaseResult } from "../helpers/supabaseStub";
 
 // ---------------------------------------------------------------------------
 // Hoisted mock fns we reconfigure per-test. These cover the three security
@@ -46,11 +47,9 @@ const {
 // seed `supabaseState.tables.user_profiles`; terminal query ops resolve to the
 // per-table result and auth.admin methods are stubbed where routes call them.
 // ---------------------------------------------------------------------------
-type QueryResult = { data: unknown; error: unknown };
-
 let supabaseState: {
-    tables: Record<string, QueryResult>;
-    adminGetUserById: QueryResult;
+    tables: Record<string, SupabaseResult>;
+    adminGetUserById: SupabaseResult;
     adminDeleteUser: { error: unknown };
 };
 
@@ -66,44 +65,12 @@ function resetSupabaseState() {
 }
 resetSupabaseState();
 
-function resultForTable(table: string): QueryResult {
-    return supabaseState.tables[table] ?? { data: null, error: null };
-}
-
-function makeQuery(table: string) {
-    const q: Record<string, unknown> = {};
-    const chain = [
-        "select", "update", "delete", "upsert", "insert",
-        "eq", "neq", "in", "is", "or", "not", "lt", "gt", "gte", "lte",
-        "filter", "order", "limit", "range", "contains",
-    ];
-    for (const m of chain) q[m] = vi.fn(() => q);
-    q.single = vi.fn(() => Promise.resolve(resultForTable(table)));
-    q.maybeSingle = vi.fn(() => Promise.resolve(resultForTable(table)));
-    q.then = (
-        resolve: (v: unknown) => unknown,
-        reject?: (e: unknown) => unknown,
-    ) => Promise.resolve(resultForTable(table)).then(resolve, reject);
-    return q;
-}
-
 function mockSupabase() {
-    return {
-        from: vi.fn((table: string) => makeQuery(table)),
-        rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: { id: "u1" } }, error: null }),
-            admin: {
-                getUserById: vi.fn(() =>
-                    Promise.resolve(supabaseState.adminGetUserById),
-                ),
-                deleteUser: vi.fn(() =>
-                    Promise.resolve(supabaseState.adminDeleteUser),
-                ),
-            },
-        },
-    };
+    return createSupabaseStub({
+        result: (table) => supabaseState.tables[table] ?? { data: null, error: null },
+        adminGetUserById: () => supabaseState.adminGetUserById,
+        adminDeleteUser: () => supabaseState.adminDeleteUser,
+    });
 }
 
 vi.mock("../../lib/supabase", () => ({

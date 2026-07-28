@@ -1,30 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import request from "supertest";
-
-function mockSupabase() {
-    const result = { data: null, error: null };
-    const q: Record<string, unknown> = {};
-    const chain = [
-        "select", "insert", "update", "delete", "upsert",
-        "eq", "neq", "in", "is", "or", "not", "lt", "order", "limit",
-    ];
-    for (const m of chain) q[m] = vi.fn(() => q);
-    q.single = vi.fn(() => Promise.resolve(result));
-    q.maybeSingle = vi.fn(() => Promise.resolve(result));
-    q.then = (resolve: (v: unknown) => unknown) =>
-        Promise.resolve(result).then(resolve);
-    return {
-        from: vi.fn(() => q),
-        rpc: vi.fn(() => Promise.resolve(result)),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: { id: "u1" } }, error: null }),
-        },
-    };
-}
+import { createSupabaseStub } from "../helpers/supabaseStub";
 
 vi.mock("../../lib/supabase", () => ({
-    createServerSupabase: vi.fn(() => mockSupabase()),
+    createServerSupabase: vi.fn(() => createSupabaseStub()),
 }));
 
 vi.mock("../../middleware/auth", () => ({
