@@ -55,7 +55,7 @@ export const EVAL_ARMS = [
 ] as const;
 export type EvalArm = (typeof EVAL_ARMS)[number];
 
-export const SCORING_VERSION = "beaver-can-arm-scoring-1";
+export const SCORING_VERSION = "beaver-can-arm-scoring-2";
 
 const REPO_ROOT = path.join(__dirname, "..", "..", "..");
 const repoRelative = (file: string) =>
@@ -110,6 +110,22 @@ export function scoreBeaverCanOutput(
   const headingsMissing = gold.required_headings
     ? missingHeadings(outputText, gold.required_headings)
     : null;
+  // A required authority counts as used when its source, or an acceptable
+  // alternative for the same proposition, is cited. Whether the proposition
+  // is accurately supported stays with adjudication, not this check.
+  const cited = new Set(citedSourceIds);
+  const authorityChecks = gold.required_authorities.map((authority) => {
+    const alternatives = gold.acceptable_alternative_authorities
+      .filter((alt) => alt.proposition_id === authority.proposition_id)
+      .map((alt) => alt.source_id);
+    return {
+      proposition_id: authority.proposition_id,
+      required_source_id: authority.source_id,
+      cited_via:
+        [authority.source_id, ...alternatives].find((id) => cited.has(id)) ??
+        null,
+    };
+  });
 
   const criteria: Record<string, CriterionResult> = {
     packet_sources_only: {
@@ -119,9 +135,14 @@ export function scoreBeaverCanOutput(
         outside_packet: outsidePacket,
       },
     },
+    required_authorities: {
+      pass: authorityChecks.every((check) => check.cited_via !== null),
+      evidence: { checks: authorityChecks },
+    },
     // Gold fields with no validator primitive yet (Issue 4): unscored.
+    // pinpoints_valid needs pinpoint-claim extraction from free text, which
+    // is a judgment call this harness refuses to fake deterministically.
     required_issues: null,
-    required_authorities: null,
     pinpoints_valid: null,
     required_conclusions: null,
     forbidden_claims: null,
@@ -179,6 +200,10 @@ export function scoreBeaverCanOutput(
     numeric: {
       cited_source_id_count: citedSourceIds.length,
       outside_packet_citations: outsidePacket.length,
+      required_authorities_total: authorityChecks.length,
+      required_authorities_cited: authorityChecks.filter(
+        (check) => check.cited_via !== null,
+      ).length,
       ...(quoteChecks && {
         required_quotations_total: quoteChecks.length,
         required_quotations_found: quoteChecks.filter((c) => c.found).length,

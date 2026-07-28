@@ -163,11 +163,12 @@ describe("runEval isolation, traces, and report", () => {
     });
     const report = readReport(reportPath);
     expect(report.task_id).toBe("CAN-RETRIEVAL-001");
-    expect(report.scoring_version).toBe("beaver-can-arm-scoring-1");
+    expect(report.scoring_version).toBe("beaver-can-arm-scoring-2");
     for (const arm of report.arms) {
       expect(arm.criteria.packet_sources_only?.pass).toBe(true);
+      expect(arm.criteria.required_authorities?.pass).toBe(true);
       // Unscored gold fields are explicit nulls, never faked.
-      expect(arm.criteria.required_authorities).toBeNull();
+      expect(arm.criteria.pinpoints_valid).toBeNull();
       expect(arm.all_pass).toBeNull();
       expect(arm.fatal_errors.outside_source_packet).toBe(false);
       expect(arm.fatal_errors.fabricated_authority).toBeNull();
@@ -342,6 +343,35 @@ describe("scoring bindings", () => {
     expect(present.criteria.required_headings?.pass).toBe(true);
     // Unscored gold fields keep all_pass null even when every binding passes.
     expect(present.all_pass).toBeNull();
+  });
+
+  it("requires each authority's source or an acceptable alternative to be cited", () => {
+    const loaded = syntheticLoaded();
+    loaded.task.source_ids.push("SRC-002");
+    loaded.gold.acceptable_alternative_authorities.push({
+      source_id: "SRC-002",
+      proposition_id: "PROP-01",
+    });
+
+    const uncited = scoreBeaverCanOutput(loaded, "MEMORANDUM OF LAW\nNothing cited.");
+    expect(uncited.criteria.required_authorities?.pass).toBe(false);
+    expect(uncited.all_pass).toBe(false);
+    expect(uncited.numeric.required_authorities_cited).toBe(0);
+
+    const viaAlternative = scoreBeaverCanOutput(
+      loaded,
+      "MEMORANDUM OF LAW\nAs SRC-002 holds.",
+    );
+    expect(viaAlternative.criteria.required_authorities?.pass).toBe(true);
+    expect(
+      viaAlternative.criteria.required_authorities?.evidence.checks,
+    ).toEqual([
+      {
+        proposition_id: "PROP-01",
+        required_source_id: "SRC-001",
+        cited_via: "SRC-002",
+      },
+    ]);
   });
 
   it("finds a surviving required quotation via exact or normalized match", () => {
