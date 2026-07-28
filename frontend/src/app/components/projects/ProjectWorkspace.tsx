@@ -55,13 +55,11 @@ type ProjectWorkspaceValue = {
     setSearch: (search: string) => void;
     projectChats: Chat[] | null;
     setProjectChats: React.Dispatch<React.SetStateAction<Chat[] | null>>;
-    projectChatsLoading: boolean;
     ensureProjectChats: () => Promise<Chat[]>;
     projectReviews: TabularReview[] | null;
     setProjectReviews: React.Dispatch<
         React.SetStateAction<TabularReview[] | null>
     >;
-    projectReviewsLoading: boolean;
     ensureProjectReviews: () => Promise<TabularReview[]>;
     prefetchProjectSections: () => void;
     creatingChat: boolean;
@@ -116,8 +114,6 @@ export function ProjectWorkspaceProvider({
     const [projectReviews, setProjectReviews] = useState<
         TabularReview[] | null
     >(null);
-    const [projectChatsLoading, setProjectChatsLoading] = useState(false);
-    const [projectReviewsLoading, setProjectReviewsLoading] = useState(false);
     const [peopleModalOpen, setPeopleModalOpen] = useState(false);
     const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
@@ -147,8 +143,6 @@ export function ProjectWorkspaceProvider({
     useEffect(() => {
         setProjectChats(null);
         setProjectReviews(null);
-        setProjectChatsLoading(false);
-        setProjectReviewsLoading(false);
         projectChatsPromiseRef.current = null;
         projectReviewsPromiseRef.current = null;
     }, [projectId]);
@@ -202,7 +196,6 @@ export function ProjectWorkspaceProvider({
         if (projectChats) return Promise.resolve(projectChats);
         if (projectChatsPromiseRef.current) return projectChatsPromiseRef.current;
 
-        setProjectChatsLoading(true);
         const promise = listProjectChats(projectId)
             .then((loaded) => {
                 setProjectChats(loaded);
@@ -215,7 +208,6 @@ export function ProjectWorkspaceProvider({
             })
             .finally(() => {
                 projectChatsPromiseRef.current = null;
-                setProjectChatsLoading(false);
             });
         projectChatsPromiseRef.current = promise;
         return promise;
@@ -226,7 +218,6 @@ export function ProjectWorkspaceProvider({
         if (projectReviewsPromiseRef.current)
             return projectReviewsPromiseRef.current;
 
-        setProjectReviewsLoading(true);
         const promise = listTabularReviews(projectId)
             .then((loaded) => {
                 setProjectReviews(loaded);
@@ -239,7 +230,6 @@ export function ProjectWorkspaceProvider({
             })
             .finally(() => {
                 projectReviewsPromiseRef.current = null;
-                setProjectReviewsLoading(false);
             });
         projectReviewsPromiseRef.current = promise;
         return promise;
@@ -374,11 +364,9 @@ export function ProjectWorkspaceProvider({
             setSearch,
             projectChats,
             setProjectChats,
-            projectChatsLoading,
             ensureProjectChats,
             projectReviews,
             setProjectReviews,
-            projectReviewsLoading,
             ensureProjectReviews,
             prefetchProjectSections,
             creatingChat,
@@ -397,10 +385,8 @@ export function ProjectWorkspaceProvider({
             search,
             setSearch,
             projectChats,
-            projectChatsLoading,
             ensureProjectChats,
             projectReviews,
-            projectReviewsLoading,
             ensureProjectReviews,
             prefetchProjectSections,
             creatingChat,
