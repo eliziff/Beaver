@@ -1,8 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { isServerSupabaseConfigured } from "./localMode";
 
-export { isServerSupabaseConfigured } from "./localMode";
-
 /**
  * Server-side Supabase client using the service role key.
  * Bypasses RLS — only use in API routes after verifying the user.
