@@ -224,6 +224,15 @@ export function extractLabel(
     const label = exact(candidate);
     if (label !== null) return label;
   }
+  // Chat models often bold their verdict ("Supportive? **Yes.**") inside a
+  // longer analysis that mentions other labels in passing; bolded spans are
+  // an explicit answer marker, honoured only when unambiguous.
+  const bolded = new Set(
+    [...generation.matchAll(/\*\*([^*\n]+)\*\*/gu)]
+      .map((match) => exact(match[1]))
+      .filter((label): label is string => label !== null),
+  );
+  if (bolded.size === 1) return [...bolded][0];
   const padded = ` ${normalizeLegalBench(generation)} `;
   const present = labels.filter((_, index) =>
     padded.includes(` ${normalizedLabels[index]} `),
