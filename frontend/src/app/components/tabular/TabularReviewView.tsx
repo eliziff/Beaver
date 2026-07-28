@@ -25,6 +25,7 @@ import {
     updateTabularReview,
     uploadReviewDocument,
 } from "@/app/lib/beaverApi";
+import { readSseData } from "@/app/lib/sse";
 import type {
     ColumnConfig,
     Document,
@@ -385,39 +386,25 @@ export function TRView({ reviewId, projectId }: Props) {
                 ),
             );
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() ?? "";
-
-                for (const line of lines) {
-                    if (!line.startsWith("data:")) continue;
-                    const dataStr = line.slice(5).trim();
-                    if (dataStr === "[DONE]") break;
-                    try {
-                        const data = JSON.parse(dataStr);
-                        if (data.type === "cell_update") {
-                            setCells((prev) =>
-                                prev.map((c) =>
-                                    c.document_id === data.document_id &&
-                                    c.column_index === data.column_index
-                                        ? {
-                                              ...c,
-                                              content: data.content,
-                                              status: data.status,
-                                          }
-                                        : c,
-                                ),
-                            );
-                        }
-                    } catch {}
-                }
+            for await (const dataStr of readSseData(response.body)) {
+                if (dataStr === "[DONE]") continue;
+                try {
+                    const data = JSON.parse(dataStr);
+                    if (data.type === "cell_update") {
+                        setCells((prev) =>
+                            prev.map((c) =>
+                                c.document_id === data.document_id &&
+                                c.column_index === data.column_index
+                                    ? {
+                                          ...c,
+                                          content: data.content,
+                                          status: data.status,
+                                      }
+                                    : c,
+                            ),
+                        );
+                    }
+                } catch {}
             }
         } catch (err) {
             console.error("Generation failed", err);

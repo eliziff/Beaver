@@ -29,6 +29,7 @@ import {
     type TRChat,
     type TRCitationAnnotation,
 } from "@/app/lib/beaverApi";
+import { readSseData } from "@/app/lib/sse";
 import type { AssistantEvent } from "../shared/types";
 import {
     ModelToggle,
@@ -869,24 +870,11 @@ export function TRChatPanel({
             );
             if (!response.body) throw new Error("No response body");
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
+            for await (const dataStr of readSseData(response.body)) {
+                if (dataStr === "[DONE]") continue;
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() ?? "";
-
-                for (const line of lines) {
-                    if (!line.startsWith("data:")) continue;
-                    const dataStr = line.slice(5).trim();
-                    if (dataStr === "[DONE]") continue;
-
-                    try {
-                        const data = JSON.parse(dataStr);
+                try {
+                    const data = JSON.parse(dataStr);
 
                         if (data.type === "chat_id") {
                             const newId = data.chatId as string;
@@ -1370,9 +1358,8 @@ export function TRChatPanel({
                             });
                             continue;
                         }
-                    } catch {
-                        /* skip malformed */
-                    }
+                } catch {
+                    /* skip malformed */
                 }
             }
 

@@ -1,14 +1,13 @@
 "use client";
 
 import {
-    useMemo,
     useRef,
     useState,
     type HTMLAttributes,
     type ReactNode,
     type RefObject,
 } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -16,7 +15,7 @@ import {
     APP_SURFACE_HOVER_CLASS,
     LIQUID_TABLE_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
-import { Modal } from "@/app/components/modals/Modal";
+import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 
 export const TABLE_SCROLL_CLOSE_EVENT = "mike:table-scroll-close";
@@ -120,23 +119,7 @@ function SearchableTableFilter<T extends string>({
     onChange: (value: T | null) => void;
 }) {
     const [open, setOpen] = useState(false);
-    const [query, setQuery] = useState("");
-    const items = useMemo(
-        () => [{ value: null, label: allLabel }, ...options],
-        [allLabel, options],
-    );
-    const visible = useMemo(() => {
-        const needle = query.trim().toLowerCase();
-        return needle
-            ? items.filter((item) =>
-                  item.label.toLowerCase().includes(needle),
-              )
-            : items;
-    }, [items, query]);
-    const close = () => {
-        setOpen(false);
-        setQuery("");
-    };
+    const items = [{ value: null, label: allLabel }, ...options];
 
     return (
         <>
@@ -157,57 +140,14 @@ function SearchableTableFilter<T extends string>({
             >
                 <ChevronDown className="h-4 w-4" />
             </button>
-            <Modal
+            <SearchableChoiceModal
                 open={open}
-                onClose={close}
-                breadcrumbs={[label]}
-                size="sm"
-                className="!h-[min(20rem,calc(100dvh-2rem))]"
-            >
-                <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
-                    <Search
-                        aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-gray-500"
-                    />
-                    <span className="sr-only">Search options</span>
-                    <input
-                        type="search"
-                        autoFocus
-                        value={query}
-                        onChange={(event) => setQuery(event.currentTarget.value)}
-                        placeholder="Search options"
-                        className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
-                    />
-                </label>
-                <div
-                    role="listbox"
-                    aria-label={label}
-                    className="min-h-0 flex-1 overflow-y-auto py-1"
-                >
-                    {visible.map((item) => (
-                        <button
-                            key={item.value ?? "__all__"}
-                            type="button"
-                            role="option"
-                            aria-selected={item.value === value}
-                            onClick={() => {
-                                onChange(item.value);
-                                close();
-                            }}
-                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
-                        >
-                            <Check
-                                aria-hidden="true"
-                                className={cn(
-                                    "h-4 w-4 shrink-0 text-red-700",
-                                    item.value !== value && "invisible",
-                                )}
-                            />
-                            <span className="truncate">{item.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </Modal>
+                onClose={() => setOpen(false)}
+                title={label}
+                value={value}
+                options={items}
+                onChange={(next) => onChange(next as T | null)}
+            />
         </>
     );
 }

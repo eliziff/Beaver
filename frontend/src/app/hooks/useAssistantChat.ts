@@ -21,6 +21,7 @@ import {
   parseCourtlistenerCaseSearches,
   parseCourtlistenerEventCases,
 } from "@/app/lib/assistantEvents";
+import { readSseData } from "@/app/lib/sse";
 import {
   readSelectedModel,
   readSelectedReasoningEffort,
@@ -615,39 +616,18 @@ export function useAssistantChat({
         throw new Error(`HTTP ${response.status}: ${errText}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
+      if (!response.body) throw new Error("No response body");
       let sawDone = false;
       let sawFinalTranscriptVersion = !isAnonymousMode;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          // Flush any bytes still held by TextDecoder. A response is allowed
-          // to close without a final newline, so the remaining buffer must be
-          // parsed as the last SSE record instead of being discarded.
-          buffer += decoder.decode();
-        } else {
-          buffer += decoder.decode(value, { stream: true });
+      for await (const dataStr of readSseData(response.body)) {
+        if (dataStr === "[DONE]") {
+          sawDone = true;
+          continue;
         }
-        const lines = buffer.split("\n");
-        buffer = done ? "" : lines.pop() || "";
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith("data:")) continue;
-
-          const dataStr = trimmed.slice(5).trim();
-          if (dataStr === "[DONE]") {
-            sawDone = true;
-            continue;
-          }
-
-          try {
-            const data = JSON.parse(dataStr);
+        try {
+          const data = JSON.parse(dataStr);
 
             if (data.type === "chat_id") {
               streamedChatId = data.chatId;
@@ -1436,16 +1416,13 @@ export function useAssistantChat({
               }));
               continue;
             }
-          } catch (e) {
-            console.warn(
-              "[useAssistantChat] failed to parse SSE line:",
-              trimmed,
-              e,
-            );
-          }
+        } catch (e) {
+          console.warn(
+            "[useAssistantChat] failed to parse SSE data:",
+            dataStr,
+            e,
+          );
         }
-
-        if (done) break;
       }
       if (!sawDone || !sawFinalTranscriptVersion) {
         throw new Error("Chat stream ended before completion.");
