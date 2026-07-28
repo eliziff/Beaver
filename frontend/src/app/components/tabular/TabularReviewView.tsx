@@ -35,7 +35,6 @@ import type {
     Workflow,
 } from "../shared/types";
 import { AddColumnModal } from "./AddColumnModal";
-import { TRWorkflowModal } from "./TRWorkflowModal";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { PeopleModal } from "../modals/PeopleModal";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
@@ -62,6 +61,7 @@ import { useSidebar } from "@/app/contexts/SidebarContext";
 import { PageHeader } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 
 interface Props {
     reviewId: string;
@@ -1176,13 +1176,14 @@ export function TRView({ reviewId, projectId }: Props) {
                 }
             />
 
-            <TRWorkflowModal
+            <WorkflowPickerModal
                 open={workflowModalOpen}
                 onClose={() => {
                     if (applyingWorkflow) return;
                     setWorkflowModalOpen(false);
                 }}
-                onApply={handleApplyWorkflow}
+                onSelect={handleApplyWorkflow}
+                workflowType="tabular"
                 breadcrumbs={[
                     ...(project
                         ? [
@@ -1197,7 +1198,13 @@ export function TRView({ reviewId, projectId }: Props) {
                     review?.title || "Untitled Review",
                     "Add workflow",
                 ]}
-                applying={applyingWorkflow}
+                primaryLabel="Apply"
+                selectingLabel="Applying..."
+                selecting={applyingWorkflow}
+                closeOnSelect={false}
+                disabledWorkflow={(workflow) =>
+                    !workflow.columns_config?.length
+                }
             />
 
             <ConfirmPopup
