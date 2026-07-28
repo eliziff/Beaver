@@ -1,11 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/app/components/shared/types";
 import { ProjectsOverview } from "./ProjectsOverview";
 
-const { listProjects, push } = vi.hoisted(() => ({
+const { deleteProject, listProjects, push } = vi.hoisted(() => ({
+    deleteProject: vi.fn<(id: string) => Promise<void>>(),
     listProjects: vi.fn<() => Promise<Project[]>>(),
     push: vi.fn(),
 }));
@@ -41,7 +42,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/lib/beaverApi", () => ({
     listProjects,
     updateProject: vi.fn(),
-    deleteProject: vi.fn(),
+    deleteProject,
 }));
 
 vi.mock("./NewProjectModal", () => ({
@@ -82,6 +83,7 @@ vi.mock("@/app/components/shared/RowActions", () => ({
 describe("ProjectsOverview", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        deleteProject.mockResolvedValue(undefined);
         listProjects.mockResolvedValue([]);
         Object.defineProperty(window, "matchMedia", {
             configurable: true,
@@ -127,6 +129,30 @@ describe("ProjectsOverview", () => {
         expect(
             screen.getByRole("combobox", { name: "Sort by created date" }),
         ).toBeInTheDocument();
+    });
+
+    it("keeps the action slot mounted and deletes through the native picker", async () => {
+        listProjects.mockResolvedValue([createdProject]);
+        const { container } = render(<ProjectsOverview />);
+        const slot = container.querySelector<HTMLSpanElement>(
+            "span.inline-flex.h-8.w-28",
+        );
+
+        expect(slot).not.toBeNull();
+        await screen.findByText(createdProject.name);
+        fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+        expect(container.querySelector("span.inline-flex.h-8.w-28")).toBe(slot);
+        const actions = screen.getByRole("combobox", { name: "Actions" });
+        expect(slot?.querySelector('[aria-hidden="true"]')).toHaveTextContent(
+            "▾",
+        );
+
+        fireEvent.change(actions, { target: { value: "0" } });
+
+        await waitFor(() =>
+            expect(deleteProject).toHaveBeenCalledWith(createdProject.id),
+        );
     });
 
     it("displays the API creation timestamp without replacing it", async () => {

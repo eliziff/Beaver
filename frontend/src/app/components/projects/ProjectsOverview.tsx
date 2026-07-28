@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     listProjects,
@@ -37,7 +36,7 @@ import {
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 
 function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -95,10 +94,8 @@ export function ProjectsOverview() {
         direction: TableSortDirection;
     } | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [actionsOpen, setActionsOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    const actionsRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const { user, isAuthenticated, authLoading } = useAuth();
 
@@ -141,18 +138,6 @@ export function ProjectsOverview() {
             cancelled = true;
         };
     }, [authLoading, isAuthenticated, user?.id]);
-
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (
-                actionsRef.current &&
-                !actionsRef.current.contains(e.target as Node)
-            )
-                setActionsOpen(false);
-        }
-        if (actionsOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [actionsOpen]);
 
     const q = search.toLowerCase();
     const practices = useMemo(
@@ -283,7 +268,6 @@ export function ProjectsOverview() {
 
     function clearSelection() {
         setSelectedIds([]);
-        setActionsOpen(false);
     }
 
     function handlePracticeFilterChange(value: string | null) {
@@ -429,10 +413,6 @@ export function ProjectsOverview() {
 
     async function handleDeleteSelected() {
         const ids = [...selectedIds];
-        setActionsOpen(false);
-        // Only the project owner can delete; the per-row delete is hidden
-        // for shared projects but the bulk action can still pick them up
-        // if a user toggled them across filters. Filter and warn.
         const owned = ids.filter((id) => {
             const p = projects.find((pp) => pp.id === id);
             return !p || (p.is_owner ?? p.user_id === user?.id);
@@ -448,27 +428,26 @@ export function ProjectsOverview() {
         }
     }
 
-    const toolbarActions =
-        selectedIds.length > 0 ? (
-            <div ref={actionsRef} className="relative">
-                <TabPillButton
-                    onClick={() => setActionsOpen((v) => !v)}
+    const toolbarActions = (
+        <span className="inline-flex h-8 w-28">
+            {selectedIds.length > 0 && (
+                <NativeActionSelect
+                    label="Actions"
+                    items={[
+                        {
+                            label: "Delete",
+                            onSelect: () => void handleDeleteSelected(),
+                        },
+                    ]}
+                    className="w-full"
+                    triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100 hover:text-gray-950"
                 >
                     Actions
-                    <ChevronDown className="h-3.5 w-3.5" />
-                </TabPillButton>
-                {actionsOpen && (
-                    <div className="absolute top-full right-0 z-50 mt-1 w-36 overflow-hidden rounded-lg border border-gray-300 bg-white">
-                        <button
-                            onClick={handleDeleteSelected}
-                            className="w-full px-3 py-2 text-left text-sm text-red-700 transition-colors hover:bg-red-50"
-                        >
-                            Delete
-                        </button>
-                    </div>
-                )}
-            </div>
-        ) : undefined;
+                    <span aria-hidden="true">&#9662;</span>
+                </NativeActionSelect>
+            )}
+        </span>
+    );
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
