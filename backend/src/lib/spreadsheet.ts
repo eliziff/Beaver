@@ -1,6 +1,14 @@
-import * as XLSX from "xlsx";
+import type * as XLSX from "xlsx";
 
 /** Render workbooks as trimmed, cell-addressed Markdown using Excel display values. */
+
+// SheetJS is ~1 MB of parser loaded from a pinned CDN tarball; keep it out of
+// the boot graph and off every request that never touches a spreadsheet.
+type XlsxModule = typeof import("xlsx");
+let xlsxModule: Promise<XlsxModule> | null = null;
+function loadXlsx(): Promise<XlsxModule> {
+  return (xlsxModule ??= import("xlsx"));
+}
 
 function cellDisplayText(cell: XLSX.CellObject | undefined): string {
   if (!cell) return "";
@@ -13,15 +21,19 @@ function sanitizeCellText(value: string): string {
   return value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
 }
 
-function renderSheet(sheetName: string, ws: XLSX.WorkSheet): string | null {
+function renderSheet(
+  { utils }: XlsxModule,
+  sheetName: string,
+  ws: XLSX.WorkSheet,
+): string | null {
   const ref = ws["!ref"];
   if (!ref) return null;
-  const range = XLSX.utils.decode_range(ref);
+  const range = utils.decode_range(ref);
 
   // Only merge anchors carry values; tag their full range for exact citations.
   const mergeAnchors = new Map<string, string>();
   for (const m of ws["!merges"] ?? []) {
-    mergeAnchors.set(XLSX.utils.encode_cell(m.s), XLSX.utils.encode_range(m));
+    mergeAnchors.set(utils.encode_cell(m.s), utils.encode_range(m));
   }
 
   // Omit empty rows and trailing columns from model context.
@@ -32,7 +44,7 @@ function renderSheet(sheetName: string, ws: XLSX.WorkSheet): string | null {
     const cells: string[] = [];
     let rowHasContent = false;
     for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
+      const addr = utils.encode_cell({ r, c });
       let text = sanitizeCellText(cellDisplayText(ws[addr]));
       const mergeRange = mergeAnchors.get(addr);
       if (mergeRange) {
@@ -53,7 +65,7 @@ function renderSheet(sheetName: string, ws: XLSX.WorkSheet): string | null {
 
   const colLetters: string[] = [];
   for (let c = 0; c <= lastNonEmptyCol; c++) {
-    colLetters.push(XLSX.utils.encode_col(range.s.c + c));
+    colLetters.push(utils.encode_col(range.s.c + c));
   }
 
   const headerRow = `| Row | ${colLetters.join(" | ")} |`;
@@ -69,13 +81,14 @@ function renderSheet(sheetName: string, ws: XLSX.WorkSheet): string | null {
   return lines.join("\n");
 }
 
-export function spreadsheetToLLMText(buffer: Buffer): string {
-  const wb = XLSX.read(buffer, { type: "buffer" });
+export async function spreadsheetToLLMText(buffer: Buffer): Promise<string> {
+  const xlsx = await loadXlsx();
+  const wb = xlsx.read(buffer, { type: "buffer" });
   const sheets: string[] = [];
   for (const sheetName of wb.SheetNames) {
     const ws = wb.Sheets[sheetName];
     if (!ws) continue;
-    const rendered = renderSheet(sheetName, ws);
+    const rendered = renderSheet(xlsx, sheetName, ws);
     if (rendered) sheets.push(rendered);
   }
   return sheets.join("\n\n").trim();
