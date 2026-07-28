@@ -62,22 +62,38 @@ describe("TableOfAuthoritiesHost", () => {
     vi.useRealTimers();
   });
 
-  it("emits the local frame before the launch handshake", async () => {
+  it("mounts one launcher-owned frame after the launch handshake", async () => {
+    let resolveLaunch!: (value: {
+      ok: true;
+      url: string;
+      reused: true;
+    }) => void;
+    vi.mocked(launchTableOfAuthorities).mockReturnValue(
+      new Promise((resolve) => {
+        resolveLaunch = resolve;
+      }),
+    );
+
     const first = render(<TableOfAuthoritiesHost active enabled />);
-    const firstFrame = screen.getByTitle("Table of Authorities");
+    expect(screen.queryByTitle("Table of Authorities")).not.toBeInTheDocument();
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+
+    resolveLaunch({
+      ok: true,
+      url: "http://127.0.0.1:8765/",
+      reused: true,
+    });
+    const firstFrame = await screen.findByTitle("Table of Authorities");
     const firstUrl = new URL(firstFrame.getAttribute("src")!);
     expect(firstUrl.searchParams.get("mode")).toBe("mike");
     expect(firstUrl.searchParams.has("session")).toBe(false);
-    expect(firstUrl.searchParams.get("attempt")).toBe("");
+    expect(firstUrl.searchParams.get("attempt")).not.toBe("");
     expect(firstUrl.searchParams.has("job")).toBe(false);
-    await waitFor(() =>
-      expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1),
-    );
 
-    first.unmount();
-    render(<TableOfAuthoritiesHost active enabled />);
+    first.rerender(<TableOfAuthoritiesHost active enabled />);
     const secondFrame = screen.getByTitle("Table of Authorities");
     expect(secondFrame.getAttribute("src")).toBe(firstFrame.getAttribute("src"));
+    expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
   });
 
   it("forwards only a valid explicitly requested durable job", async () => {
@@ -87,7 +103,7 @@ describe("TableOfAuthoritiesHost", () => {
 
     render(<TableOfAuthoritiesHost active enabled />);
 
-    const frame = screen.getByTitle("Table of Authorities");
+    const frame = await screen.findByTitle("Table of Authorities");
     await waitFor(() =>
       expect(
         new URL(frame.getAttribute("src")!).searchParams.get("job"),
@@ -108,7 +124,7 @@ describe("TableOfAuthoritiesHost", () => {
 
     render(<TableOfAuthoritiesHost active enabled />);
 
-    const frame = screen.getByTitle("Table of Authorities");
+    const frame = await screen.findByTitle("Table of Authorities");
     await waitFor(() =>
       expect(
         new URL(frame.getAttribute("src")!).searchParams.get("project"),
@@ -116,15 +132,13 @@ describe("TableOfAuthoritiesHost", () => {
     );
   });
 
-  it("shows the local embedded surface on the first render", async () => {
+  it("keeps the fixed first frame until the embedded surface is ready", async () => {
     render(<TableOfAuthoritiesHost active enabled />);
 
-    const frame = screen.getByTitle("Table of Authorities");
-    expect(frame).toHaveAttribute("tabindex", "0");
-    expect(frame).not.toHaveClass("invisible");
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+    const frame = await screen.findByTitle("Table of Authorities");
+    expect(frame).toHaveAttribute("tabindex", "-1");
+    expect(frame).toHaveClass("invisible");
 
     fireEvent.load(frame);
     signal(frame, "mike:table-of-authorities-ready");
@@ -199,15 +213,13 @@ describe("TableOfAuthoritiesHost", () => {
 
     expect(source).not.toContain("session=");
     expect(source).toContain("attempt=");
-    expect(frame).not.toHaveClass("invisible");
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
+    expect(frame).toHaveClass("invisible");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
 
     view.rerender(<TableOfAuthoritiesHost active enabled />);
 
     expect(frame).toHaveAttribute("src", source);
-    expect(frame).not.toHaveClass("invisible");
+    expect(frame).toHaveClass("invisible");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
 
     signal(frame, "mike:table-of-authorities-ready");

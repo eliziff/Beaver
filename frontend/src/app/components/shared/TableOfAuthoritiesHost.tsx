@@ -18,16 +18,6 @@ const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const localFrameUrl = (() => {
-  if (!isAnonymousMode) return null;
-  const url = new URL(
-    process.env.NEXT_PUBLIC_TABLE_OF_AUTHORITIES_URL ??
-      "http://127.0.0.1:8765",
-  );
-  url.searchParams.set("mode", "mike");
-  url.searchParams.set("attempt", "");
-  return url.toString();
-})();
 const warmedService =
   typeof window !== "undefined" && isAnonymousMode
     ? launchTableOfAuthorities()
@@ -99,6 +89,41 @@ function AuthoritiesShell({
   );
 }
 
+function AuthoritiesFirstFrame() {
+  return (
+    <div
+      data-testid="authorities-neutral-cover"
+      aria-hidden="true"
+      className="absolute inset-0 overflow-hidden bg-[#f3f4f6] font-sans text-[17px] text-[#111827]"
+    >
+      <div className="flex h-[45px] items-center gap-[.45rem] px-6 max-[480px]:grid max-[480px]:h-[43px] max-[480px]:grid-cols-[1.25fr_repeat(3,minmax(0,1fr))] max-[480px]:gap-1 max-[480px]:px-4">
+        {["Automatic", "Manual", "History", "Settings"].map((label, index) => (
+          <span
+            key={label}
+            className={`flex h-[36px] basis-[104px] items-center justify-center rounded-[8px] border px-[.7rem] py-[.35rem] text-[.875rem] font-medium [line-height:normal] max-[480px]:h-[35px] max-[480px]:min-w-0 max-[480px]:px-[.05rem] ${
+              index
+                ? "border-[#d1d5db] bg-white"
+                : "border-[#d52b1e] bg-[#d52b1e] text-white"
+            }`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      <div className="absolute inset-x-0 bottom-0 top-[45px] overflow-y-auto p-6 [scrollbar-gutter:stable] max-[480px]:top-[43px] max-[480px]:p-4">
+        <div className="flex max-w-[760px] items-center justify-between gap-4 rounded-[10px] border border-[#d1d5db] bg-white p-4 max-[480px]:p-3">
+          <strong className="font-semibold leading-[22px]">
+            Start with a Word document.
+          </strong>
+          <span className="flex h-[40px] items-center rounded-[8px] border border-[#111827] bg-[#111827] px-[.8rem] py-2 text-[.875rem] font-medium text-white [line-height:normal]">
+            Create
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TableOfAuthoritiesHost({
   active,
   enabled,
@@ -107,17 +132,13 @@ export function TableOfAuthoritiesHost({
     job: "",
     project: "",
   });
-  const [url, setUrl] = useState<string | null>(localFrameUrl);
-  const [frameReady, setFrameReady] = useState(Boolean(localFrameUrl));
-  const [frameScope, setFrameScope] = useState(
-    localFrameUrl ? ":" : "",
-  );
+  const [url, setUrl] = useState<string | null>(null);
+  const [frameReady, setFrameReady] = useState(false);
+  const [frameScope, setFrameScope] = useState("");
   const [error, setError] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const urlRef = useRef(localFrameUrl ?? "");
-  const expectedOriginRef = useRef(
-    localFrameUrl ? new URL(localFrameUrl).origin : "",
-  );
+  const urlRef = useRef("");
+  const expectedOriginRef = useRef("");
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
   const serviceRef = useRef(warmedService);
@@ -151,10 +172,15 @@ export function TableOfAuthoritiesHost({
   );
 
   const pingFrame = useCallback(() => {
-    if (!frameRef.current?.contentWindow || !expectedOriginRef.current) return;
-    frameRef.current.contentWindow.postMessage(
+    const target = frameRef.current?.contentWindow;
+    const expectedOrigin = expectedOriginRef.current;
+    if (!target || !expectedOrigin) return;
+    try {
+      if (target.location.origin !== expectedOrigin) return;
+    } catch {}
+    target.postMessage(
       { type: "mike:table-of-authorities-probe" },
-      expectedOriginRef.current,
+      expectedOrigin,
     );
   }, []);
 
@@ -294,10 +320,7 @@ export function TableOfAuthoritiesHost({
           />
         )}
         {!frameCurrent && !visibleError ? (
-          <div
-            data-testid="authorities-neutral-cover"
-            className="absolute inset-0 bg-[#f3f4f6]"
-          />
+          <AuthoritiesFirstFrame />
         ) : !frameCurrent && visibleError ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white p-8">
             <div className="max-w-lg text-center">
