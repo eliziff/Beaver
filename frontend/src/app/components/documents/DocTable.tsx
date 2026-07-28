@@ -38,6 +38,7 @@ import type {
 } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
@@ -53,7 +54,6 @@ import {
 } from "@/app/lib/documentUploadValidation";
 import {
     DOC_NAME_COL_W,
-    DocIcon,
     treeNameCellStyle,
 } from "@/app/components/projects/ProjectPageParts";
 import { formatBytes, formatDate } from "@/app/lib/utils";
@@ -1372,8 +1372,9 @@ export function DocTable({
                     <div className="flex items-center">
                         <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
                         <span className="mr-2 shrink-0">
-                            <DocIcon
+                            <FileTypeIcon
                                 fileType={fileType ?? filename}
+                                className="h-4 w-4"
                                 muted
                             />
                         </span>
@@ -1585,10 +1586,11 @@ export function DocTable({
                                                         {isError ? (
                                                             <AlertCircle className="h-4 w-4 text-red-500" />
                                                         ) : (
-                                                            <DocIcon
+                                                            <FileTypeIcon
                                                                 fileType={
                                                                     doc.file_type
                                                                 }
+                                                                className="h-4 w-4"
                                                             />
                                                         )}
                                                     </span>
