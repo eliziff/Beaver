@@ -15,7 +15,6 @@ import {
 export interface PageHeaderBreadcrumb {
     label?: ReactNode;
     onClick?: () => void;
-    cursor?: "text";
     loading?: boolean;
     skeletonClassName?: string;
     title?: string;
@@ -333,22 +332,12 @@ function BreadcrumbItem({
             )}
         />
     ) : (
-        <>
-            <span
-                className={cn(
-                    "truncate",
-                    item.cursor === "text" && "cursor-text",
-                )}
-            >
-                {item.label}
-            </span>
-        </>
+        <span className="truncate">{item.label}</span>
     );
 
     const className = cn(
         "min-w-0 truncate transition-colors",
         current && "w-full",
-        item.cursor === "text" && "cursor-text",
         current
             ? "text-gray-900"
             : item.onClick
