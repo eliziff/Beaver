@@ -104,3 +104,29 @@ to improve a build number.
   `subrepos.lock.json`, then commit the root gitlink.
 - Keep benchmark claims fail-closed: provisional, automatic, duplicated, or
   derivative labels are not human gold.
+
+## Session-learned working notes (2026-07-28)
+
+- The full A2AJ bulk corpus (4.8 GB parquet: cases by court, laws by
+  jurisdiction, `laws/lookup.duckdb`) lives at
+  `%LOCALAPPDATA%\ALR Quote Verifier\a2aj_corpus`. Check it (and
+  `Desktop/legal-generalization-corpus`) before any network fetch of
+  Canadian legal text. A2AJ mirrors consolidations, so spent amending
+  acts read "[Amendments]" — amendment prose only exists on the Justice
+  Laws Annual Statutes pages.
+- Deterministic legal-text modules (`legalTextAnchors`, `legalTextSkeleton`,
+  `legalAmendOps`, `legalDeadlines`, `legalTermDrift`, `legalDraftingLint`):
+  no grammar change without a corpus/gold measurement (USLM gold, CUAD,
+  structure-gold, or a real-instrument probe). Refusal beats guessing:
+  scoped/ambiguous inputs get typed refusals, never best-effort applies.
+- LAB harness (`Desktop/harvey-labs`): set `LAB_SANDBOX_ENGINE=docker`
+  (default is podman and fails with WinError 2). `backend/.env`
+  ANTHROPIC_API_KEY is a non-working stub (401) — flat-rate surfaces
+  (codex CLI route, headless `claude -p`) are the sanctioned model paths.
+- Windows shell traps: `grep -oP` dies on locale (use `sed -n
+  's/^KEY=//p'`); vitest output may contain NULs (`| tr -d '\0'`);
+  `PYTHONIOENCODING=utf-8` for cp1252 consoles; python can't open
+  `/c/...` paths (use `C:/...`).
+- Git: pathspec-only staging (never `git add -A`; concurrent sessions
+  share this tree). Pushing as eliziff requires `env -u GITHUB_TOKEN`
+  (the env PAT is AlbertaLawReview and 403s).
