@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getChat,
+  stopChat,
   streamChat,
   streamProjectChat,
 } from "@/app/lib/beaverApi";
@@ -12,6 +13,7 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 import type {
   AssistantEvent,
+  AutomationToolName,
   Citation,
   Message,
 } from "@/app/components/shared/types";
@@ -47,6 +49,67 @@ export type RejectedAssistantTurn = {
 function readableStreamError(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   return "Sorry, something went wrong.";
+}
+
+const AUTOMATION_TOOLS = new Set<AutomationToolName>([
+  "toa_submit_library_document",
+  "toa_job_status",
+  "library_fix_docx_supras",
+  "library_link_docx_citations",
+]);
+
+export function parseAutomationRunEvent(
+  data: Record<string, unknown>,
+): Extract<AssistantEvent, { type: "automation_run" }> | null {
+  const tool = data.tool as AutomationToolName;
+  if (!AUTOMATION_TOOLS.has(tool)) return null;
+  const string = (value: unknown) =>
+    typeof value === "string" && value.trim() ? value.trim() : undefined;
+  const counts = Array.isArray(data.counts)
+    ? data.counts.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        const label = string(row.label);
+        return label && typeof row.value === "number"
+          ? [{ label, value: row.value }]
+          : [];
+      })
+    : undefined;
+  const outputs = Array.isArray(data.outputs)
+    ? data.outputs.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        const name = string(row.name);
+        return name
+          ? [{ name, ...(string(row.url) ? { url: string(row.url) } : {}) }]
+          : [];
+      })
+    : undefined;
+  return {
+    type: "automation_run",
+    id: string(data.id) ?? `${tool}:${string(data.job_id) ?? "run"}`,
+    tool,
+    status: string(data.status) ?? "unknown",
+    stage: string(data.stage) ?? "Automation",
+    ...(typeof data.progress === "number"
+      ? { progress: data.progress }
+      : {}),
+    ...(string(data.message) ? { message: string(data.message) } : {}),
+    ...(counts?.length ? { counts } : {}),
+    ...(string(data.error) ? { error: string(data.error) } : {}),
+    ...(outputs?.length ? { outputs } : {}),
+    ...(string(data.app_url) ? { app_url: string(data.app_url) } : {}),
+    ...(string(data.job_id) ? { job_id: string(data.job_id) } : {}),
+    ...(string(data.document_id)
+      ? { document_id: string(data.document_id) }
+      : {}),
+    ...(string(data.version_id)
+      ? { version_id: string(data.version_id) }
+      : {}),
+    ...(typeof data.version_number === "number"
+      ? { version_number: data.version_number }
+      : {}),
+  };
 }
 
 export function useAssistantChat({
@@ -151,19 +214,27 @@ export function useAssistantChat({
    */
   const finalizeStreamingContent = () => {
     const events = eventsRef.current;
-    const last = events[events.length - 1];
-    if (last?.type === "content" && last.isStreaming) {
-      flushPendingEventsSnapshot();
-      eventsRef.current = [
-        ...events.slice(0, -1),
-        { type: "content", text: last.text },
-      ];
-      const snapshot = [...eventsRef.current];
-      updateLatestAssistantMessage((message) => ({
-        ...message,
-        events: snapshot,
-      }));
+    let contentIndex = -1;
+    for (let index = events.length - 1; index >= 0; index--) {
+      const event = events[index];
+      if (event.type === "content" && event.isStreaming) {
+        contentIndex = index;
+        break;
+      }
     }
+    if (contentIndex < 0) return;
+    flushPendingEventsSnapshot();
+    const content = events[contentIndex] as Extract<
+      AssistantEvent,
+      { type: "content" }
+    >;
+    const next = [...events];
+    next[contentIndex] = { type: "content", text: content.text };
+    eventsRef.current = next;
+    updateLatestAssistantMessage((message) => ({
+      ...message,
+      events: next,
+    }));
   };
 
   // If the model transitions from reasoning into content/tool without a
@@ -211,13 +282,14 @@ export function useAssistantChat({
 
   const cancel = () => {
     if (abortControllerRef.current) {
+      if (chatId) void stopChat(chatId).catch(() => undefined);
       abortControllerRef.current.abort();
       flushPendingEventsSnapshot();
       const snapshot = cancelStreamingEvents(eventsRef.current);
       eventsRef.current = snapshot;
       updateLatestAssistantMessage((message) => ({
         ...message,
-        events: cancelStreamingEvents(message.events ?? snapshot),
+        events: snapshot,
       }));
       setIsResponseLoading(false);
       setIsLoadingCitations(false);
@@ -265,7 +337,6 @@ export function useAssistantChat({
 
   const pushEvent = (event: AssistantEvent) => {
     flushPendingEventsSnapshot();
-    finalizeStreamingContent();
     finalizeStreamingReasoning();
     const next = eventsRef.current.filter((e) => !isStreamingPlaceholder(e));
     eventsRef.current = [...next, event];
@@ -641,13 +712,18 @@ export function useAssistantChat({
               clearStreamingPlaceholders();
               finalizeStreamingReasoning();
 
-              // Ensure a streaming content event exists. If
-              // the last event isn't already a streaming
-              // content block, start a fresh one so interleaved
-              // tool/reasoning events split content naturally.
+              // Activity renders separately, so keep one answer block even
+              // when a tool notification races a text delta.
               const events = eventsRef.current;
-              const lastEvent = events[events.length - 1];
-              if (lastEvent?.type !== "content" || !lastEvent.isStreaming) {
+              let contentIndex = -1;
+              for (let index = events.length - 1; index >= 0; index--) {
+                const event = events[index];
+                if (event.type === "content" && event.isStreaming) {
+                  contentIndex = index;
+                  break;
+                }
+              }
+              if (contentIndex < 0) {
                 eventsRef.current = [
                   ...events,
                   {
@@ -659,14 +735,48 @@ export function useAssistantChat({
                 scheduleEventsSnapshot();
               } else {
                 const nextEvents = [...events];
-                nextEvents[nextEvents.length - 1] = {
+                const content = events[contentIndex] as Extract<
+                  AssistantEvent,
+                  { type: "content" }
+                >;
+                nextEvents[contentIndex] = {
                   type: "content" as const,
-                  text: `${lastEvent.text}${text}`,
+                  text: `${content.text}${text}`,
                   isStreaming: true,
                 };
                 eventsRef.current = nextEvents;
                 scheduleEventsSnapshot();
               }
+              continue;
+            }
+
+            if (data.type === "content_final") {
+              flushPendingEventsSnapshot();
+              const text = typeof data.text === "string" ? data.text : "";
+              const current = eventsRef.current.filter(
+                (event) => !isStreamingPlaceholder(event),
+              );
+              const firstContent = current.findIndex(
+                (event) => event.type === "content",
+              );
+              const next: AssistantEvent[] = current.filter(
+                (event) => event.type !== "content",
+              );
+              if (text) {
+                next.splice(
+                  firstContent < 0
+                    ? next.length
+                    : Math.min(firstContent, next.length),
+                  0,
+                  { type: "content", text },
+                );
+              }
+              eventsRef.current = next;
+              updateLatestAssistantMessage((message) => ({
+                ...message,
+                content: text,
+                events: next,
+              }));
               continue;
             }
 
@@ -692,7 +802,6 @@ export function useAssistantChat({
                 // New reasoning block — finalize any in-flight
                 // content event first so the next content_delta
                 // starts a fresh block at the correct position.
-                finalizeStreamingContent();
                 clearStreamingPlaceholders();
                 events = eventsRef.current;
                 eventsRef.current = [
@@ -736,6 +845,12 @@ export function useAssistantChat({
                 name: (data.name as string) ?? "",
                 isStreaming: true,
               });
+              continue;
+            }
+
+            if (data.type === "automation_run") {
+              const event = parseAutomationRunEvent(data);
+              if (event) pushEvent(event);
               continue;
             }
 
@@ -1376,7 +1491,8 @@ export function useAssistantChat({
       if (error instanceof Error && error.name === "AbortError") {
         finalizeStreamingContent();
         finalizeStreamingReasoning();
-        eventsRef.current = appendCancellationEvent(eventsRef.current);
+        const cancelledEvents = appendCancellationEvent(eventsRef.current);
+        eventsRef.current = cancelledEvents;
         setMessages((prev) => {
           const assistantIndex = [...prev]
             .map((message, index) => ({ message, index }))
@@ -1384,14 +1500,10 @@ export function useAssistantChat({
             .find(({ message }) => message.role === "assistant")?.index;
           if (assistantIndex !== undefined) {
             const assistantMessage = prev[assistantIndex];
-            const events = appendCancellationEvent(
-              assistantMessage.events ?? eventsRef.current,
-            );
-            eventsRef.current = events;
             const updated = [...prev];
             updated[assistantIndex] = {
               ...assistantMessage,
-              events,
+              events: cancelledEvents,
             };
             return updated;
           }

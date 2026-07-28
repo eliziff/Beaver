@@ -10,8 +10,8 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
-import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextarea } from "../modals/ModalTextarea";
+import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 import { workflowDetailPath } from "./workflowRoutes";
 
@@ -155,12 +155,6 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
 
     const selectedProject = projects.find((p) => p.id === selectedProjectId);
     const projectDocs = selectedProject?.documents ?? [];
-    const projectOptions = projects.map((project) => ({
-        value: project.id,
-        label:
-            project.name +
-            (project.cm_number ? ` (#${project.cm_number})` : ""),
-    }));
     const location = inProject ? "project" : "workspace";
     const locationOptions =
         wf.metadata.type === "assistant"
@@ -294,25 +288,18 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
 
                         {inProject && (
                             <div>
-                                <ModalFieldLabel htmlFor="workflow-project">
+                                <ModalFieldLabel as="p">
                                     Project
                                 </ModalFieldLabel>
-                                <ModalSelect
-                                    id="workflow-project"
-                                    value={selectedProjectId ?? ""}
-                                    options={projectOptions}
+                                <ProjectChoiceList
+                                    projects={projects}
+                                    value={selectedProjectId}
                                     onChange={(value) => {
-                                        setSelectedProjectId(value || null);
+                                        setSelectedProjectId(value);
                                         setSelectedDocuments([]);
                                     }}
-                                    placeholder={
-                                        dirLoading
-                                            ? "Loading projects..."
-                                            : projects.length
-                                            ? "Select project..."
-                                            : "No projects found"
-                                    }
-                                    disabled={dirLoading || projects.length === 0}
+                                    loading={dirLoading}
+                                    disabled={dirLoading}
                                 />
                             </div>
                         )}

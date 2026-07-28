@@ -1107,6 +1107,12 @@ export type DeterministicDocxActionResult = {
   strategy?: string | null;
 };
 
+export function inspectLibraryDocumentAutomation(documentId: string) {
+  return apiRequest<{ supra_references: boolean }>(
+    `/library/files/documents/${encodeURIComponent(documentId)}/automation`,
+  );
+}
+
 export function fixLibraryDocxSupras(documentId: string) {
   return apiRequest<DeterministicDocxActionResult>(
     `/library/files/documents/${encodeURIComponent(documentId)}/actions/fix-supras`,
@@ -1131,12 +1137,13 @@ export type TableOfAuthoritiesJob = {
   has_review: boolean;
   split_fallback: "off" | "auto";
   files: { name: string; size: number; url: string }[];
-  open_path: string;
+  app_url: string;
 };
 
 export function submitLibraryDocumentToAuthorities(
   documentId: string,
   splitFallback: "off" | "auto" = "auto",
+  projectId?: string | null,
 ) {
   return apiRequest<TableOfAuthoritiesJob>("/table-of-authorities/jobs", {
     method: "POST",
@@ -1144,6 +1151,7 @@ export function submitLibraryDocumentToAuthorities(
     body: JSON.stringify({
       document_id: documentId,
       split_fallback: splitFallback,
+      project_id: projectId || undefined,
     }),
   });
 }
@@ -1407,8 +1415,37 @@ export async function renameChat(chatId: string, title: string): Promise<void> {
   });
 }
 
+export async function updateChatProject(
+  chatId: string,
+  projectId: string | null,
+): Promise<{ id: string; title: string | null; project_id: string | null }> {
+  return apiRequest(`/chat/${chatId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+}
+
 export async function deleteChat(chatId: string): Promise<void> {
   await apiRequest(`/chat/${chatId}`, { method: "DELETE" });
+}
+
+export async function listDeletedChats(): Promise<Chat[]> {
+  return apiRequest<Chat[]>("/chat/recycling-bin");
+}
+
+export async function restoreChat(chatId: string): Promise<void> {
+  await apiRequest(`/chat/${chatId}/restore`, { method: "POST" });
+}
+
+export async function permanentlyDeleteChat(chatId: string): Promise<void> {
+  await apiRequest(`/chat/${chatId}/permanent`, { method: "DELETE" });
+}
+
+export async function stopChat(chatId: string): Promise<{ stopped: boolean }> {
+  return apiRequest<{ stopped: boolean }>(`/chat/${chatId}/stop`, {
+    method: "POST",
+  });
 }
 
 export async function generateChatTitle(
@@ -1667,11 +1704,16 @@ export async function deleteTabularReview(reviewId: string): Promise<void> {
 
 export async function streamTabularGeneration(
   reviewId: string,
+  options?: { model?: string; reasoningEffort?: string },
 ): Promise<Response> {
   const authHeaders = await getAuthHeader();
   return fetch(`${API_BASE}/tabular-review/${reviewId}/generate`, {
     method: "POST",
-    headers: { ...authHeaders },
+    headers: { "Content-Type": "application/json", ...authHeaders },
+    body: JSON.stringify({
+      model: options?.model,
+      reasoning_effort: options?.reasoningEffort,
+    }),
   });
 }
 
@@ -1680,7 +1722,12 @@ export async function streamTabularChat(
   messages: { role: string; content: string }[],
   chat_id?: string | null,
   signal?: AbortSignal,
-  context?: { reviewTitle?: string | null; projectName?: string | null },
+  context?: {
+    reviewTitle?: string | null;
+    projectName?: string | null;
+    model?: string;
+    reasoningEffort?: string;
+  },
 ): Promise<Response> {
   const authHeaders = await getAuthHeader();
   return fetch(`${API_BASE}/tabular-review/${reviewId}/chat`, {
@@ -1691,6 +1738,8 @@ export async function streamTabularChat(
       chat_id: chat_id ?? undefined,
       review_title: context?.reviewTitle ?? undefined,
       project_name: context?.projectName ?? undefined,
+      model: context?.model,
+      reasoning_effort: context?.reasoningEffort,
     }),
     signal: signal ?? undefined,
   });
@@ -1792,6 +1841,7 @@ export async function regenerateTabularCell(
   reviewId: string,
   documentId: string,
   columnIndex: number,
+  options?: { model?: string; reasoningEffort?: string },
 ): Promise<{
   summary: string;
   flag: "green" | "grey" | "yellow" | "red";
@@ -1803,6 +1853,8 @@ export async function regenerateTabularCell(
     body: JSON.stringify({
       document_id: documentId,
       column_index: columnIndex,
+      model: options?.model,
+      reasoning_effort: options?.reasoningEffort,
     }),
   });
 }

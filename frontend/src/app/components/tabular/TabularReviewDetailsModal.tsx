@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
-import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
+import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import type { Project, TabularReview } from "../shared/types";
 
 interface TabularReviewDetailsModalProps {
@@ -48,18 +48,6 @@ export function TabularReviewDetailsModal({
 
     const trimmedTitle = titleDraft.trim();
     const nextProjectId = underProject ? selectedProjectId : null;
-    const projectOptions = useMemo(
-        () =>
-            projects.length
-                ? projects.map((project) => ({
-                      value: project.id,
-                      label:
-                          project.name +
-                          (project.cm_number ? ` (#${project.cm_number})` : ""),
-                  }))
-                : [{ value: "", label: "No projects found" }],
-        [projects],
-    );
     const hasChanges = useMemo(() => {
         if (!review) return false;
         return (
@@ -183,16 +171,14 @@ export function TabularReviewDetailsModal({
                         </button>
 
                         {underProject && (
-                            <ModalSelect
-                                id="tabular-review-details-project"
-                                value={selectedProjectId}
-                                options={projectOptions}
+                            <ProjectChoiceList
+                                projects={projects}
+                                value={selectedProjectId || null}
                                 onChange={(value) => {
                                     setSelectedProjectId(value);
                                     setSaved(false);
                                     setError(null);
                                 }}
-                                placeholder="Select project..."
                                 disabled={
                                     !canEdit || saving || projects.length === 0
                                 }

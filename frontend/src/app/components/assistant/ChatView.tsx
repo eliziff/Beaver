@@ -10,12 +10,16 @@ import {
 import { ArrowDown } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
+import { automationRunKey } from "@/app/components/documents/AutomationRun";
 import { ChatInput } from "./ChatInput";
 import type { ChatInputHandle } from "./ChatInput";
 import { AskInputPopup } from "./AskInputPopup";
 import {
     AssistantSidePanel,
     type AssistantSidePanelTab,
+    type CitationTab,
+    type DocumentTab,
+    type EditTab,
 } from "./AssistantSidePanel";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import type {
@@ -28,6 +32,7 @@ import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 
 interface Props {
     chatId?: string | null;
@@ -47,6 +52,8 @@ interface Props {
     rejectedTurn?: RejectedAssistantTurn | null;
     onRejectedTurnRestored?: () => void;
     onRetryRejectedTurn?: () => void;
+    projectName?: string | null;
+    onProjectClick?: () => void;
 }
 
 const MOBILE_BREAKPOINT_PX = 768;
@@ -70,6 +77,8 @@ export function ChatView({
     rejectedTurn,
     onRejectedTurnRestored,
     onRetryRejectedTurn,
+    projectName,
+    onProjectClick,
 }: Props) {
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -134,10 +143,15 @@ export function ChatView({
         (tab: AssistantSidePanelTab) => {
             setTabs((prev) => {
                 const idx = prev.findIndex((t) => {
-                    if (tab.kind === "case" || tab.kind === "legal") {
+                    if (
+                        tab.kind === "case" ||
+                        tab.kind === "legal" ||
+                        tab.kind === "automation"
+                    ) {
                         return t.kind === tab.kind && t.id === tab.id;
                     }
                     return (
+                        t.kind !== "automation" &&
                         t.kind !== "case" &&
                         t.kind !== "legal" &&
                         t.documentId === tab.documentId
@@ -149,8 +163,10 @@ export function ChatView({
                     copy[idx] =
                         tab.kind === "case" ||
                         tab.kind === "legal" ||
+                        tab.kind === "automation" ||
                         existing.kind === "case" ||
-                        existing.kind === "legal"
+                        existing.kind === "legal" ||
+                        existing.kind === "automation"
                             ? tab
                             : {
                                   ...tab,
@@ -320,6 +336,67 @@ export function ChatView({
         [upsertTab],
     );
 
+    const mergedAutomationRun = useCallback(
+        (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
+            const key = automationRunKey(run);
+            let merged = run;
+            for (const message of messages) {
+                for (const event of message.events ?? []) {
+                    if (
+                        event.type === "automation_run" &&
+                        automationRunKey(event) === key
+                    ) {
+                        merged = { ...merged, ...event };
+                    }
+                }
+            }
+            return merged;
+        },
+        [messages],
+    );
+
+    const openAutomation = useCallback(
+        (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
+            const merged = mergedAutomationRun(run);
+            upsertTab({
+                kind: "automation",
+                id: `automation:${automationRunKey(merged)}`,
+                run: merged,
+            });
+        },
+        [mergedAutomationRun, upsertTab],
+    );
+
+    useEffect(() => {
+        const latest = new Map<
+            string,
+            Extract<AssistantEvent, { type: "automation_run" }>
+        >();
+        for (const message of messages) {
+            for (const event of message.events ?? []) {
+                if (event.type === "automation_run") {
+                    const key = `automation:${automationRunKey(event)}`;
+                    latest.set(key, {
+                        ...(latest.get(key) ?? {}),
+                        ...event,
+                    });
+                }
+            }
+        }
+        if (!latest.size) return;
+        setTabs((current) => {
+            let changed = false;
+            const next = current.map((tab) => {
+                if (tab.kind !== "automation") return tab;
+                const run = latest.get(tab.id);
+                if (!run || run === tab.run) return tab;
+                changed = true;
+                return { ...tab, run };
+            });
+            return changed ? next : current;
+        });
+    }, [messages]);
+
     const [resolvedEditStatuses, setResolvedEditStatuses] = useState<
         Record<string, "accepted" | "rejected">
     >({});
@@ -405,6 +482,7 @@ export function ChatView({
                 const idx = prev.findIndex((t) => t.id === tabId);
                 if (idx < 0) return prev;
                 if (
+                    prev[idx].kind === "automation" ||
                     prev[idx].kind === "case" ||
                     prev[idx].kind === "legal"
                 ) {
@@ -428,6 +506,7 @@ export function ChatView({
             // Surface the warning on every tab tied to this document.
             setTabs((prev) =>
                 prev.map((t) =>
+                    t.kind !== "automation" &&
                     t.kind !== "case" &&
                     t.kind !== "legal" &&
                     t.documentId === args.documentId
@@ -575,6 +654,32 @@ export function ChatView({
         rawActiveInput && !hiddenAskInputKeys.has(rawActiveInput.key)
             ? rawActiveInput
             : null;
+    const activeDocument = tabs.find(
+        (tab): tab is DocumentTab | CitationTab | EditTab =>
+            tab.id === activeTabId &&
+            tab.kind !== "case" &&
+            tab.kind !== "legal",
+    );
+    const submitMessage = (message: Message) => {
+        if (
+            !activeDocument ||
+            message.files?.some(
+                (file) => file.document_id === activeDocument.documentId,
+            )
+        ) {
+            return handleChat(message);
+        }
+        return handleChat({
+            ...message,
+            files: [
+                ...(message.files ?? []),
+                {
+                    filename: activeDocument.filename,
+                    document_id: activeDocument.documentId,
+                },
+            ],
+        });
+    };
 
     const messagesBottomPadding = DEFAULT_ASSISTANT_BOTTOM_PADDING;
     const lastUserIndex = messages.findLastIndex(
@@ -587,6 +692,26 @@ export function ChatView({
     return (
         <div className="h-full w-full flex relative">
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
+                {onProjectClick && (
+                    <div className="flex h-9 shrink-0 items-center justify-center border-b border-gray-100 px-4">
+                        <button
+                            type="button"
+                            onClick={onProjectClick}
+                            disabled={isResponseLoading}
+                            aria-label={
+                                projectName
+                                    ? `Change project: ${projectName}`
+                                    : "Add chat to project"
+                            }
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">
+                                {projectName ?? "Add to project"}
+                            </span>
+                        </button>
+                    </div>
+                )}
                 <div
                     ref={messagesContainerRef}
                     className="flex-1 w-full overflow-y-auto"
@@ -634,6 +759,7 @@ export function ChatView({
                                                 })
                                             }
                                             onCaseClick={openCase}
+                                            onAutomationClick={openAutomation}
                                             minHeight={
                                                 i === lastAssistantIndex
                                                     ? minHeight
@@ -690,45 +816,58 @@ export function ChatView({
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
                     <div
                         ref={measuredInputRef}
-                        className="mx-auto w-full max-w-4xl px-4 md:px-6"
+                        className="relative mx-auto w-full max-w-4xl px-4 md:px-6"
                     >
-                        {activeInput ? (
-                            <AskInputPopup
-                                key={activeInput.key}
-                                event={activeInput.event}
-                                onSubmit={(response, content, files) => {
-                                    setHiddenAskInputKeys((prev) => {
-                                        const next = new Set(prev);
-                                        next.add(activeInput.key);
-                                        return next;
-                                    });
-                                    void handleChat(
-                                        { role: "user", content, files },
-                                        { askInputsResponse: response },
-                                    );
-                                }}
-                                onDismiss={() => {
-                                    setHiddenAskInputKeys((prev) => {
-                                        const next = new Set(prev);
-                                        next.add(activeInput.key);
-                                        return next;
-                                    });
-                                    cancel();
-                                }}
-                            />
-                        ) : (
-                            <ChatInput
-                                ref={chatInputRef}
-                                onSubmit={handleChat}
-                                onCancel={cancel}
-                                isLoading={isResponseLoading}
-                                restoreDraft={
-                                    rejectedTurn?.options?.askInputsResponse
-                                        ? null
-                                        : rejectedTurn?.message
-                                }
-                            />
+                        {activeInput && (
+                            <div
+                                data-ask-input-dock
+                                className="absolute inset-x-4 bottom-[calc(100%+0.5rem)] md:inset-x-6"
+                            >
+                                <AskInputPopup
+                                    key={activeInput.key}
+                                    event={activeInput.event}
+                                    onSubmit={(response, content, files) => {
+                                        setHiddenAskInputKeys((prev) => {
+                                            const next = new Set(prev);
+                                            next.add(activeInput.key);
+                                            return next;
+                                        });
+                                        void handleChat(
+                                            { role: "user", content, files },
+                                            { askInputsResponse: response },
+                                        );
+                                    }}
+                                    onDismiss={() => {
+                                        setHiddenAskInputKeys((prev) => {
+                                            const next = new Set(prev);
+                                            next.add(activeInput.key);
+                                            return next;
+                                        });
+                                        cancel();
+                                    }}
+                                />
+                            </div>
                         )}
+                        <ChatInput
+                            ref={chatInputRef}
+                            onSubmit={submitMessage}
+                            onCancel={() => {
+                                if (activeInput) {
+                                    setHiddenAskInputKeys((prev) => {
+                                        const next = new Set(prev);
+                                        next.add(activeInput.key);
+                                        return next;
+                                    });
+                                }
+                                cancel();
+                            }}
+                            isLoading={isResponseLoading || !!activeInput}
+                            restoreDraft={
+                                rejectedTurn?.options?.askInputsResponse
+                                    ? null
+                                    : rejectedTurn?.message
+                            }
+                        />
                     </div>
                 </div>
             </div>

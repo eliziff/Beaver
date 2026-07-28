@@ -44,6 +44,9 @@ const sizeClassName: Record<ModalSize, string> = {
     xl: "max-w-4xl",
 };
 
+const FOCUSABLE =
+    'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])';
+
 export function Modal({
     open,
     onClose,
@@ -80,9 +83,7 @@ export function Modal({
                 ? document.activeElement
                 : null;
         layerRef.current
-            ?.querySelector<HTMLElement>(
-                '[aria-label="Close"], button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
-            )
+            ?.querySelector<HTMLElement>(`[aria-label="Close"], ${FOCUSABLE}`)
             ?.focus();
         return () => {
             if (restoreFocus?.isConnected) restoreFocus.focus();
@@ -104,6 +105,36 @@ export function Modal({
                 !open && "hidden",
             )}
             onClick={onClose}
+            onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onClose();
+                    return;
+                }
+                if (event.key !== "Tab") return;
+                const focusable = [
+                    ...(layerRef.current?.querySelectorAll<HTMLElement>(
+                        FOCUSABLE,
+                    ) ?? []),
+                ].filter((element) => !element.hidden);
+                if (focusable.length === 0) {
+                    event.preventDefault();
+                    return;
+                }
+                const current = focusable.indexOf(
+                    document.activeElement as HTMLElement,
+                );
+                if (
+                    (event.shiftKey && current <= 0) ||
+                    (!event.shiftKey && current === focusable.length - 1)
+                ) {
+                    event.preventDefault();
+                    focusable[
+                        event.shiftKey ? focusable.length - 1 : 0
+                    ]?.focus();
+                }
+            }}
         >
             <div
                 role="dialog"
@@ -119,7 +150,7 @@ export function Modal({
                 onClick={(e) => e.stopPropagation()}
             >
                 {hasHeader && (
-                    <div className="flex items-center justify-between gap-3 p-4 pl-5">
+                    <div className="flex shrink-0 items-center justify-between gap-3 p-4 pl-5">
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                             <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs leading-none text-gray-400">
                                 {breadcrumbs?.map((segment, index) => (
@@ -159,17 +190,16 @@ export function Modal({
                         </button>
                     </div>
                 )}
-                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col px-5">
+                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5">
                     {children}
                 </div>
                 {hasFooter && (
                     <div
                         className={cn(
-                            "flex flex-wrap items-center gap-3 p-3",
+                            "flex shrink-0 flex-wrap items-center gap-3 border-t border-gray-200 bg-white p-3",
                             secondaryAction
                                 ? "justify-between"
                                 : "justify-end",
-                            "border-t border-gray-200",
                         )}
                     >
                         {secondaryAction && (

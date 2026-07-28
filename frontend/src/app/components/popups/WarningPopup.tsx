@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AlertCircle, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
@@ -34,6 +34,22 @@ export function WarningPopup({
     secondaryAction,
     className,
 }: WarningPopupProps) {
+    const popupRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const restoreFocus =
+            document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+        popupRef.current
+            ?.querySelector<HTMLElement>("button:not(:disabled)")
+            ?.focus();
+        return () => {
+            if (restoreFocus?.isConnected) restoreFocus.focus();
+        };
+    }, [open]);
+
     if (!open) return null;
 
     const warningIcon = icon ?? (
@@ -43,10 +59,20 @@ export function WarningPopup({
     return createPortal(
         <div className="pointer-events-none fixed left-1/2 top-5 z-[220] w-[min(92vw,520px)] -translate-x-1/2 px-4">
             <div
+                ref={popupRef}
+                role="alertdialog"
+                aria-modal="true"
                 className={cn(
                     "pointer-events-auto flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs shadow-sm",
                     className,
                 )}
+                onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onClose();
+                    }
+                }}
             >
                 <div className="min-w-0 flex-1 self-center text-red-600">
                     {title && (

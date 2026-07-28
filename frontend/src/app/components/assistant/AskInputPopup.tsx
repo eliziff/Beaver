@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import {
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    X,
+} from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import type { AssistantEvent, Document } from "../shared/types";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -40,6 +45,7 @@ export function AskInputPopup({
     const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set());
     const [submitted, setSubmitted] = useState(false);
     const [dismissed, setDismissed] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(true);
     const [docSelectorTarget, setDocSelectorTarget] = useState<{
         inputId: string;
         typeIndex: number;
@@ -261,70 +267,94 @@ export function AskInputPopup({
 
     const activeItem =
         event.items.find((item) => item.id === activeInputId) ?? event.items[0];
+    const activeIndex = Math.max(
+        0,
+        event.items.findIndex((item) => item.id === activeItem?.id),
+    );
+    const activeLabel =
+        activeItem?.kind === "documents" ? "Documents" : "Question";
 
     return (
         <>
             <div
                 data-shortcut-layer
                 data-shortcut-open={!submitted ? "true" : "false"}
-                className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-gray-300 bg-white pb-4 font-serif"
+                data-ask-input-panel
+                className={`mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-300 bg-white font-serif ${
+                    isExpanded ? "h-[min(16rem,45dvh)]" : "h-10"
+                }`}
             >
-                <div className="flex min-h-12 min-w-0 items-center justify-between gap-2 px-4 py-2">
-                    <div className="flex min-w-0 items-center">
-                        <div className="text-sm text-gray-500">
-                            {submitted ? (
-                                "Inputs sent"
-                            ) : (
-                                <div className="flex flex-wrap gap-x-1.5 gap-y-1">
-                                    {event.items.map((item) => {
-                                        const isActive =
-                                            item.id === activeItem?.id;
-                                        const isResolved = itemResolved(item);
-                                        const label =
-                                            item.kind === "choice"
-                                                ? "Question"
-                                                : "Documents";
-                                        return (
-                                            <TabPillButton
-                                                key={item.id}
-                                                active={isActive}
-                                                disabled={submitted}
-                                                onClick={() =>
-                                                    setActiveInputId(item.id)
-                                                }
-                                                className="h-8 px-3 font-sans text-xs"
-                                            >
-                                                {isResolved ? (
-                                                    <Check className="h-3 w-3" />
-                                                ) : (
-                                                    <span className="h-2.5 w-2.5 rounded-full border border-current opacity-70" />
-                                                )}
-                                                {label}
-                                            </TabPillButton>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+                    <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() => setIsExpanded((expanded) => !expanded)}
+                        className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left font-sans text-sm text-gray-800 hover:bg-gray-100"
+                    >
+                        <ChevronDown
+                            className={`h-3.5 w-3.5 shrink-0 ${
+                                isExpanded ? "" : "-rotate-90"
+                            }`}
+                        />
+                        <span className="min-w-0 truncate">
+                            {submitted
+                                ? "Inputs sent"
+                                : `${activeLabel} ${activeIndex + 1} of ${event.items.length}`}
+                        </span>
+                    </button>
+                    {isExpanded && event.items.length > 1 && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setActiveInputId(
+                                        event.items[activeIndex - 1]?.id ??
+                                            activeInputId,
+                                    )
+                                }
+                                disabled={activeIndex === 0}
+                                aria-label="Previous input"
+                                className="flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setActiveInputId(
+                                        event.items[activeIndex + 1]?.id ??
+                                            activeInputId,
+                                    )
+                                }
+                                disabled={
+                                    activeIndex === event.items.length - 1
+                                }
+                                aria-label="Next input"
+                                className="flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </>
+                    )}
                     {!submitted && (
-                        <TabPillButton
+                        <button
                             data-shortcut-close
                             type="button"
                             onClick={dismiss}
                             aria-label="Dismiss"
-                            className="h-8 w-8 shrink-0 px-0"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100"
                         >
-                            <X className="h-3 w-3" />
-                        </TabPillButton>
+                            <X className="h-4 w-4" />
+                        </button>
                     )}
                 </div>
 
-                <div className="px-4">
+                {isExpanded && (
+                <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 px-3 pb-3">
                     {activeItem && (
                         <div
                             data-ask-input-body
-                            className="mt-2 flex h-72 min-h-0 flex-col"
+                            className="flex min-h-0 flex-1 flex-col pt-3"
                         >
                             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                                 <div className="flex items-start justify-between gap-2">
@@ -461,6 +491,7 @@ export function AskInputPopup({
                         </div>
                     )}
                 </div>
+                )}
             </div>
 
             <AddDocumentsModal

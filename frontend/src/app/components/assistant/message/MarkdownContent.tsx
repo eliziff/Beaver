@@ -246,12 +246,19 @@ export function MarkdownContent({
                                     </span>
                                 );
                             }
+                            const isBeaverAppHref = /^\/(?!\/)/.test(href);
                             return (
                                 <a
                                     href={href}
                                     className="text-blue-600 hover:text-blue-700 underline"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    target={
+                                        isBeaverAppHref ? undefined : "_blank"
+                                    }
+                                    rel={
+                                        isBeaverAppHref
+                                            ? undefined
+                                            : "noopener noreferrer"
+                                    }
                                     {...anchorProps}
                                 >
                                     {children}

@@ -1,4 +1,10 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import {
+    cleanup,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     parseAsync: vi.fn(),
     renderDocument: vi.fn(),
     useFetchDocxBytes: vi.fn(),
+    withBrokenImage: false,
     withTrackedChanges: false,
 }));
 
@@ -22,7 +29,19 @@ vi.mock("@/app/lib/beaverApi", () => ({
     getAuthHeader: mocks.getAuthHeader,
 }));
 
-import { DocxView } from "./DocxView";
+vi.mock("./PdfView", () => ({
+    PdfView: ({ onUnavailable }: { onUnavailable?: () => void }) => (
+        <button data-testid="pdf-rendition" onClick={onUnavailable}>
+            PDF rendition
+        </button>
+    ),
+}));
+
+import {
+    DocxView,
+    fitDocxPages,
+    quietBrokenDocxImages,
+} from "./DocxView";
 
 class ResizeObserverMock {
     observe() {}
@@ -31,6 +50,7 @@ class ResizeObserverMock {
 
 describe("DocxView", () => {
     beforeEach(() => {
+        mocks.withBrokenImage = false;
         mocks.withTrackedChanges = false;
         vi.stubGlobal("ResizeObserver", ResizeObserverMock);
         vi.stubGlobal(
@@ -65,6 +85,16 @@ describe("DocxView", () => {
                     if (index === 0 && mocks.withTrackedChanges) {
                         page.appendChild(document.createElement("ins"));
                     }
+                    if (index === 0 && mocks.withBrokenImage) {
+                        const frame = document.createElement("span");
+                        const image = document.createElement("img");
+                        Object.defineProperties(image, {
+                            complete: { configurable: true, value: true },
+                            naturalWidth: { configurable: true, value: 0 },
+                        });
+                        frame.appendChild(image);
+                        page.appendChild(frame);
+                    }
                     wrapper.appendChild(page);
                 }
                 container.appendChild(wrapper);
@@ -88,7 +118,12 @@ describe("DocxView", () => {
 
         expect(mocks.renderDocument).toHaveBeenCalledOnce();
         expect(mocks.renderDocument.mock.calls[0][3]).toMatchObject({
+            breakPages: true,
             ignoreLastRenderedPageBreak: false,
+            renderHeaders: true,
+            renderFooters: true,
+            renderFootnotes: true,
+            renderEndnotes: true,
             renderChanges: true,
         });
         const pages = container.querySelectorAll("section.docx");
@@ -145,5 +180,100 @@ describe("DocxView", () => {
         // The same bytes are parsed once and re-rendered from cache.
         expect(mocks.parseAsync).toHaveBeenCalledOnce();
         expect(mocks.renderDocument).toHaveBeenCalledTimes(2);
+    });
+
+    it("fits the widest page content without stretching smaller pages", () => {
+        const viewport = document.createElement("div");
+        viewport.style.padding = "0 20px";
+        Object.defineProperty(viewport, "clientWidth", {
+            configurable: true,
+            value: 500,
+        });
+        const container = document.createElement("div");
+        container.innerHTML =
+            '<div class="docx-wrapper"><section class="docx"></section></div>';
+        const page = container.querySelector<HTMLElement>("section.docx")!;
+        Object.defineProperties(page, {
+            offsetWidth: { configurable: true, value: 800 },
+            scrollWidth: { configurable: true, value: 1000 },
+        });
+
+        fitDocxPages(container, viewport);
+
+        expect(page.dataset.docxNaturalWidth).toBe("1000");
+        expect(Number(page.style.zoom)).toBeCloseTo(0.46);
+    });
+
+    it("keeps failed vector media quiet without collapsing its layout box", () => {
+        const container = document.createElement("div");
+        container.innerHTML =
+            '<span style="width:100px;height:40px"><img style="width:100px;height:40px"></span>';
+        const image = container.querySelector("img")!;
+        Object.defineProperties(image, {
+            complete: { configurable: true, value: false },
+            naturalWidth: { configurable: true, value: 0 },
+        });
+
+        const onUnsupported = vi.fn();
+        quietBrokenDocxImages(container, onUnsupported);
+        image.dispatchEvent(new Event("error"));
+
+        expect(image).toHaveClass("docx-media-unavailable");
+        expect(image.parentElement).toHaveAttribute(
+            "aria-label",
+            "Embedded image unavailable in this browser",
+        );
+        expect(image.parentElement).toHaveStyle({
+            width: "100px",
+            height: "40px",
+        });
+        expect(onUnsupported).toHaveBeenCalledOnce();
+    });
+
+    it("uses an exact PDF rendition when browser Word preview cannot decode media", async () => {
+        mocks.withBrokenImage = true;
+
+        render(<DocxView documentId="vector-doc" versionId="v1" />);
+
+        await waitFor(() =>
+            expect(screen.getByTestId("pdf-rendition")).toBeInTheDocument(),
+        );
+    });
+
+    it("falls back to HTML and states the limitation when no rendition exists", async () => {
+        mocks.withBrokenImage = true;
+
+        const { container } = render(
+            <DocxView documentId="no-rendition-doc" versionId="v1" />,
+        );
+        const rendition = await screen.findByTestId("pdf-rendition");
+        fireEvent.click(rendition);
+
+        await waitFor(() =>
+            expect(container.querySelector("section.docx")).not.toBeNull(),
+        );
+        expect(
+            screen.getByText(
+                "An embedded vector image is unavailable in this browser preview.",
+            ),
+        ).toBeInTheDocument();
+        expect(screen.queryByTestId("pdf-rendition")).not.toBeInTheDocument();
+    });
+
+    it("keeps tracked-edit mode on the interactive HTML renderer", async () => {
+        mocks.withBrokenImage = true;
+        const onReady = vi.fn();
+
+        const { container } = render(
+            <DocxView
+                documentId="tracked-vector-doc"
+                highlightEdit={{ key: "edit-1" }}
+                onReady={onReady}
+            />,
+        );
+
+        await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+        expect(container.querySelector("section.docx")).not.toBeNull();
+        expect(screen.queryByTestId("pdf-rendition")).not.toBeInTheDocument();
     });
 });

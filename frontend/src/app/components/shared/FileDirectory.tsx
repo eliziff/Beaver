@@ -1,24 +1,27 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import {
-    Check,
-    Loader2,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { Document, LibraryFolder } from "./types";
 import { FileTypeIcon } from "./FileTypeIcon";
-import { ProjectSvgIcon, SubfolderSvgIcon } from "./FolderSvgIcon";
+import { FolderSvgIcon } from "./FolderSvgIcon";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { SkeletonLine } from "./TablePrimitive";
 import { useDirectoryData, type DirectoryTab } from "./useDirectoryData";
+import {
+    CheckboxControl,
+    CheckboxInput,
+} from "@/app/components/ui/checkbox";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 
 const DIRECTORY_GRID_CLASS =
-    "grid grid-cols-[14px_14px_minmax(0,1fr)_48px_84px_64px] items-center gap-2";
+    "grid grid-cols-[36px_18px_minmax(0,1fr)_48px_84px_64px] items-center gap-2";
+const DIRECTORY_FOLDER_CONTENT_CLASS =
+    "col-span-5 grid min-w-0 grid-cols-[18px_minmax(0,1fr)_48px_84px_64px] items-center gap-2";
 
 const DIRECTORY_TABS: { value: DirectoryTab; label: string }[] = [
     { value: "files", label: "Files" },
@@ -289,28 +292,24 @@ export function FileDirectory({
         return 4 + depth * 20;
     }
 
-    function renderDocumentRow(doc: Document, depth = 0) {
+    function renderDocumentRow(doc: Document, paddingLeft = 8) {
         const selected = selectedIds.has(doc.id);
         return (
-            <button
-                type="button"
+            <label
                 key={doc.id}
-                onClick={() => toggle(doc)}
-                style={{ paddingLeft: indentedRowPadding(depth) }}
-                className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-colors text-left  ${
+                style={{ paddingLeft }}
+                className={`min-h-10 w-full cursor-pointer rounded-md ${DIRECTORY_GRID_CLASS} pr-2 text-left text-xs ${
                     selected
                         ? APP_SURFACE_ACTIVE_CLASS
                         : APP_SURFACE_HOVER_CLASS
                 }`}
             >
-                <span
-                    className={`shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center ${
-                        selected
-                            ? "bg-gray-900 border-gray-900"
-                            : "border-gray-300"
-                    }`}
-                >
-                    {selected && <Check className="h-2.5 w-2.5 text-white" />}
+                <span className="flex min-h-9 min-w-9 items-center justify-center">
+                    <CheckboxInput
+                        checked={selected}
+                        aria-label={`Select ${doc.filename}`}
+                        onChange={() => toggle(doc)}
+                    />
                 </span>
                 <DocFileIcon fileType={doc.file_type} />
                 <span
@@ -325,7 +324,7 @@ export function FileDirectory({
                     created={formatDate(doc.created_at)}
                     size={formatBytes(doc.size_bytes)}
                 />
-            </button>
+            </label>
         );
     }
 
@@ -346,49 +345,43 @@ export function FileDirectory({
             const isExpanded = !!q || expandedLibraryFolders.has(folder.id);
             return (
                 <div key={folder.id}>
-                    <button
-                        type="button"
-                        onClick={() => toggleLibraryFolder(folder.id)}
+                    <div
                         style={{ paddingLeft: indentedRowPadding(depth) }}
-                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pr-2 text-xs transition-colors text-left ${APP_SURFACE_HOVER_CLASS}`}
+                        className={`min-h-10 w-full rounded-md ${DIRECTORY_GRID_CLASS} pr-2 text-left text-xs ${APP_SURFACE_HOVER_CLASS}`}
                     >
-                        <span
-                            role="checkbox"
+                        <CheckboxControl
+                            ref={(input) => {
+                                if (input) input.indeterminate = someSelected;
+                            }}
+                            checked={allSelected}
                             aria-checked={someSelected ? "mixed" : allSelected}
                             aria-label={`Select all files in ${folder.name}`}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                toggleDocuments(docsInFolder);
-                            }}
-                            className={`shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center ${
-                                allSelected || someSelected
-                                    ? "bg-gray-900 border-gray-900"
-                                    : docsInFolder.length === 0
-                                      ? "border-gray-200 bg-gray-50"
-                                      : "border-gray-300"
-                            }`}
-                        >
-                            {allSelected && (
-                                <Check className="h-2.5 w-2.5 text-white" />
-                            )}
-                            {someSelected && <span className="h-px w-2 bg-white" />}
-                        </span>
-                        <SubfolderSvgIcon
-                            open={isExpanded}
-                            className="h-3.5 w-3.5 shrink-0"
+                            disabled={docsInFolder.length === 0}
+                            onChange={() => toggleDocuments(docsInFolder)}
                         />
-                        <span className="min-w-0 truncate font-medium text-gray-700">
-                            {folder.name}
-                        </span>
-                        <span className="truncate text-gray-400">-</span>
-                        <span className="truncate text-gray-400">
-                            {formatDate(folder.created_at) ?? "--"}
-                        </span>
-                        <span className="truncate text-right text-gray-400">
-                            {docsInFolder.length}{" "}
-                            {docsInFolder.length === 1 ? "file" : "files"}
-                        </span>
-                    </button>
+                        <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            onClick={() => toggleLibraryFolder(folder.id)}
+                            className={`${DIRECTORY_FOLDER_CONTENT_CLASS} rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600`}
+                        >
+                            <FolderSvgIcon
+                                open={isExpanded}
+                                className="h-[18px] w-[18px] shrink-0"
+                            />
+                            <span className="min-w-0 truncate font-medium text-gray-700">
+                                {folder.name}
+                            </span>
+                            <span className="truncate text-gray-400">-</span>
+                            <span className="truncate text-gray-400">
+                                {formatDate(folder.created_at) ?? "--"}
+                            </span>
+                            <span className="truncate text-right text-gray-400">
+                                {docsInFolder.length}{" "}
+                                {docsInFolder.length === 1 ? "file" : "files"}
+                            </span>
+                        </button>
+                    </div>
                     {isExpanded && (
                         <div>
                             {renderLibraryFolderRows(
@@ -398,7 +391,10 @@ export function FileDirectory({
                                 depth + 1,
                             )}
                             {folderDocuments(docs, folder.id).map((doc) =>
-                                renderDocumentRow(doc, depth + 1),
+                                renderDocumentRow(
+                                    doc,
+                                    indentedRowPadding(depth + 1),
+                                ),
                             )}
                             {docsInFolder.length === 0 && (
                                 <p
@@ -442,10 +438,12 @@ export function FileDirectory({
                         {[60, 45, 75, 55, 40].map((w, i) => (
                             <div
                                 key={i}
-                                className={`${DIRECTORY_GRID_CLASS} rounded-md px-2 py-2`}
+                                className={`${DIRECTORY_GRID_CLASS} min-h-10 rounded-md px-2`}
                             >
-                                <div className="h-3.5 w-3.5 rounded border border-gray-200 shrink-0" />
-                                <div className="h-3.5 w-3.5 rounded bg-gray-100 shrink-0" />
+                                <div className="flex min-h-9 min-w-9 items-center justify-center">
+                                    <div className="h-[18px] w-[18px] shrink-0 rounded border border-gray-200" />
+                                </div>
+                                <div className="h-[18px] w-[18px] shrink-0 rounded bg-gray-100" />
                                 <div
                                     className="h-3 rounded bg-gray-100"
                                     style={{ width: `${w}%` }}
@@ -484,9 +482,7 @@ export function FileDirectory({
                     />
                 )}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                    <p className="text-center text-sm text-gray-400 py-8">
-                        No documents yet
-                    </p>
+                    <DirectoryEmpty>No documents yet</DirectoryEmpty>
                 </div>
             </div>
         );
@@ -524,10 +520,12 @@ export function FileDirectory({
                             {visibleUploadingFilenames.map((filename) => (
                                 <div
                                     key={`uploading-${filename}`}
-                                    className={`w-full ${DIRECTORY_GRID_CLASS} py-2 pl-2 pr-2 text-xs text-left`}
+                                    className={`min-h-10 w-full ${DIRECTORY_GRID_CLASS} pl-2 pr-2 text-left text-xs`}
                                 >
-                                    <span className="shrink-0 h-3.5 w-3.5 rounded border border-gray-300" />
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 shrink-0" />
+                                    <span className="flex min-h-9 min-w-9 items-center justify-center">
+                                        <span className="h-[18px] w-[18px] rounded border border-gray-300" />
+                                    </span>
+                                    <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin text-gray-400" />
                                     <span className="flex-1 truncate text-gray-400">
                                         {filename}
                                     </span>
@@ -552,9 +550,7 @@ export function FileDirectory({
                                 visibleStandaloneDocs.length === 0 &&
                                 directoryFileFolders.length === 0 &&
                                 visibleUploadingFilenames.length === 0 && (
-                                    <p className="text-center text-sm text-gray-400 py-8">
-                                        No documents yet
-                                    </p>
+                                    <DirectoryEmpty>No documents yet</DirectoryEmpty>
                                 )}
                         </>
                     )}
@@ -574,9 +570,7 @@ export function FileDirectory({
                             {!q &&
                                 visibleTemplateDocs.length === 0 &&
                                 directoryTemplateFolders.length === 0 && (
-                                    <p className="text-center text-sm text-gray-400 py-8">
-                                        No templates yet
-                                    </p>
+                                    <DirectoryEmpty>No templates yet</DirectoryEmpty>
                                 )}
                         </>
                     )}
@@ -598,67 +592,64 @@ export function FileDirectory({
                                 ) && !allProjectDocsSelected;
                             return (
                                 <div key={project.id}>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            toggleFolder(project.id)
-                                        }
-                                        className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} px-2 py-2 text-xs transition-colors text-left ${APP_SURFACE_HOVER_CLASS}`}
+                                    <div
+                                        className={`min-h-10 w-full rounded-md ${DIRECTORY_GRID_CLASS} px-2 text-left text-xs ${APP_SURFACE_HOVER_CLASS}`}
                                     >
-                                        <span
-                                            role="checkbox"
+                                        <CheckboxControl
+                                            ref={(input) => {
+                                                if (input) {
+                                                    input.indeterminate =
+                                                        someProjectDocsSelected;
+                                                }
+                                            }}
+                                            checked={allProjectDocsSelected}
                                             aria-checked={
                                                 someProjectDocsSelected
                                                     ? "mixed"
                                                     : allProjectDocsSelected
                                             }
                                             aria-label={`Select all files in ${project.name}`}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleDocuments(docs);
-                                            }}
-                                            className={`shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center ${
-                                                allProjectDocsSelected ||
-                                                someProjectDocsSelected
-                                                    ? "bg-gray-900 border-gray-900"
-                                                    : docs.length === 0
-                                                      ? "border-gray-200 bg-gray-50"
-                                                      : "border-gray-300"
-                                            }`}
-                                        >
-                                            {allProjectDocsSelected && (
-                                                <Check className="h-2.5 w-2.5 text-white" />
-                                            )}
-                                            {someProjectDocsSelected && (
-                                                <span className="h-px w-2 bg-white" />
-                                            )}
-                                        </span>
-                                        <ProjectSvgIcon
-                                            open={isExpanded}
-                                            className="h-3.5 w-3.5 shrink-0"
+                                            disabled={docs.length === 0}
+                                            onChange={() =>
+                                                toggleDocuments(docs)
+                                            }
                                         />
-                                        <span className="min-w-0 truncate font-medium text-gray-700">
-                                            {project.name}
-                                            {project.cm_number && (
-                                                <span className="ml-1 font-normal text-gray-400">
-                                                    (#{project.cm_number})
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span className="truncate text-gray-400">
-                                            -
-                                        </span>
-                                        <span className="truncate text-gray-400">
-                                            {formatDate(project.created_at) ??
-                                                "--"}
-                                        </span>
-                                        <span className="truncate text-right text-gray-400">
-                                            {docs.length}{" "}
-                                            {docs.length === 1
-                                                ? "file"
-                                                : "files"}
-                                        </span>
-                                    </button>
+                                        <button
+                                            type="button"
+                                            aria-expanded={isExpanded}
+                                            onClick={() =>
+                                                toggleFolder(project.id)
+                                            }
+                                            className={`${DIRECTORY_FOLDER_CONTENT_CLASS} rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600`}
+                                        >
+                                            <FolderSvgIcon
+                                                open={isExpanded}
+                                                className="h-[18px] w-[18px] shrink-0"
+                                            />
+                                            <span className="min-w-0 truncate font-medium text-gray-700">
+                                                {project.name}
+                                                {project.cm_number && (
+                                                    <span className="ml-1 font-normal text-gray-400">
+                                                        (#{project.cm_number})
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="truncate text-gray-400">
+                                                -
+                                            </span>
+                                            <span className="truncate text-gray-400">
+                                                {formatDate(
+                                                    project.created_at,
+                                                ) ?? "--"}
+                                            </span>
+                                            <span className="truncate text-right text-gray-400">
+                                                {docs.length}{" "}
+                                                {docs.length === 1
+                                                    ? "file"
+                                                    : "files"}
+                                            </span>
+                                        </button>
+                                    </div>
                                     {isExpanded && (
                                         <div>
                                             {docs.length === 0 ? (
@@ -666,61 +657,9 @@ export function FileDirectory({
                                                     Empty
                                                 </p>
                                             ) : (
-                                                docs.map((doc) => {
-                                                    const selected =
-                                                        selectedIds.has(doc.id);
-                                                    return (
-                                                        <button
-                                                            type="button"
-                                                            key={doc.id}
-                                                            onClick={() =>
-                                                                toggle(doc)
-                                                            }
-                                                            className={`w-full rounded-md ${DIRECTORY_GRID_CLASS} py-2 pl-7 pr-2 text-xs transition-colors text-left  ${
-                                                                selected
-                                                                    ? APP_SURFACE_ACTIVE_CLASS
-                                                                    : APP_SURFACE_HOVER_CLASS
-                                                            }`}
-                                                        >
-                                                            <span
-                                                                className={`shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center ${
-                                                                    selected
-                                                                        ? "bg-gray-900 border-gray-900"
-                                                                        : "border-gray-300"
-                                                                }`}
-                                                            >
-                                                                {selected && (
-                                                                    <Check className="h-2.5 w-2.5 text-white" />
-                                                                )}
-                                                            </span>
-                                                            <DocFileIcon
-                                                                fileType={
-                                                                    doc.file_type
-                                                                }
-                                                            />
-                                                            <span
-                                                                className={`min-w-0 truncate ${
-                                                                    selected
-                                                                        ? "text-gray-900"
-                                                                        : "text-gray-700"
-                                                                }`}
-                                                            >
-                                                                {doc.filename}
-                                                            </span>
-                                                            <FileDirectoryMetaCells
-                                                                version={versionLabel(
-                                                                    doc,
-                                                                )}
-                                                                created={formatDate(
-                                                                    doc.created_at,
-                                                                )}
-                                                                size={formatBytes(
-                                                                    doc.size_bytes,
-                                                                )}
-                                                            />
-                                                        </button>
-                                                    );
-                                                })
+                                                docs.map((doc) =>
+                                                    renderDocumentRow(doc, 28),
+                                                )
                                             )}
                                         </div>
                                     )}
@@ -730,13 +669,20 @@ export function FileDirectory({
                     {activeTab === "projects" &&
                         !q &&
                         visibleDirectoryProjects.length === 0 && (
-                            <p className="text-center text-sm text-gray-400 py-8">
-                                No projects yet
-                            </p>
+                            <DirectoryEmpty>No projects yet</DirectoryEmpty>
                         )}
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function DirectoryEmpty({ children }: { children: ReactNode }) {
+    return (
+        <div className="flex flex-col items-center py-8 text-center text-sm text-gray-400">
+            <FolderSvgIcon className="mb-2 h-6 w-6" />
+            {children}
         </div>
     );
 }

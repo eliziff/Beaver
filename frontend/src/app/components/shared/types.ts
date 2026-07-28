@@ -151,6 +151,7 @@ export interface Chat {
   creator_display_name?: string | null;
   title: string | null;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export interface EditAnnotation {
@@ -171,6 +172,30 @@ export interface EditAnnotation {
   reason?: string;
   status: "pending" | "accepted" | "rejected";
 }
+
+export type AutomationToolName =
+  | "toa_submit_library_document"
+  | "toa_job_status"
+  | "library_fix_docx_supras"
+  | "library_link_docx_citations";
+
+export type AutomationRunEvent = {
+  type: "automation_run";
+  id: string;
+  tool: AutomationToolName;
+  status: string;
+  stage: string;
+  progress?: number;
+  message?: string;
+  counts?: { label: string; value: number }[];
+  error?: string;
+  outputs?: { name: string; url?: string }[];
+  app_url?: string;
+  job_id?: string;
+  document_id?: string;
+  version_id?: string;
+  version_number?: number | null;
+};
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
@@ -356,6 +381,7 @@ export type AssistantEvent =
         }[];
       };
     }
+  | AutomationRunEvent
   | { type: "content"; text: string; isStreaming?: boolean };
 
 export type CaseCitationQuote = {

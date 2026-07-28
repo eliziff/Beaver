@@ -45,6 +45,10 @@ import { HeaderActionsMenu } from "../shared/HeaderActionsMenu";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import {
+    useSelectedModel,
+    useSelectedReasoningEffort,
+} from "@/app/hooks/useSelectedModel";
+import {
     getModelProvider,
     isModelAvailable,
     type ModelProvider,
@@ -125,7 +129,8 @@ export function TRView({ reviewId, projectId }: Props) {
     const router = useRouter();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
-    const tabularModel = profile?.tabularModel ?? "gemini-3-flash-preview";
+    const [tabularModel] = useSelectedModel();
+    const [reasoningEffort] = useSelectedReasoningEffort();
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -281,6 +286,10 @@ export function TRView({ reviewId, projectId }: Props) {
                 reviewId,
                 docId,
                 colIndex,
+                {
+                    model: tabularModel,
+                    reasoningEffort,
+                },
             );
             setCells((prev) =>
                 prev.map((c) =>
@@ -323,7 +332,10 @@ export function TRView({ reviewId, projectId }: Props) {
         setGenerating(true);
 
         try {
-            const response = await streamTabularGeneration(reviewId);
+            const response = await streamTabularGeneration(reviewId, {
+                model: tabularModel,
+                reasoningEffort,
+            });
             if (!response.ok) {
                 const payload = await response.json().catch(() => null);
                 const provider =

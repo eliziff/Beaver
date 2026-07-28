@@ -9,6 +9,7 @@ import { FORMAT_OPTIONS } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TABLE_SCROLL_CLOSE_EVENT } from "../shared/TablePrimitive";
+import { ModalSelect } from "../modals/ModalSelect";
 
 const FIELD_CLASS =
     "border border-gray-200 bg-white shadow-sm";
@@ -269,23 +270,22 @@ export function TREditColumnMenu({
                         <label className="text-xs font-medium text-gray-800">
                             Format
                         </label>
-                        <select
+                        <ModalSelect
+                            id={`${menuId}-format`}
                             value={format}
-                            onChange={(event) => {
+                            onChange={(value) => {
                                 setFormat(
-                                    event.currentTarget.value as ColumnFormat,
+                                    value as ColumnFormat,
                                 );
                                 setTags([]);
                                 setTagInput("");
                             }}
-                            className={`mt-1 w-full rounded-lg px-2 py-1 text-xs text-gray-700 ${FIELD_CLASS}`}
-                        >
-                            {FORMAT_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
+                            options={FORMAT_OPTIONS.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                            }))}
+                            className={`mt-1 !h-8 w-full rounded-lg px-2 py-1 text-xs text-gray-700 ${FIELD_CLASS}`}
+                        />
                     </div>
 
                     {/* Tag input */}

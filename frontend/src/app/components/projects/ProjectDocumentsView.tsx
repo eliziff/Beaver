@@ -9,7 +9,8 @@ import {
     useRef,
     useState,
 } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     createProjectFolder,
     deleteProjectFolder,
@@ -176,7 +177,7 @@ export function ProjectDocumentsView({ projectId }: Props) {
                 onClick={createFolderAction ?? undefined}
                 disabled={!createFolderAction || projectLoading}
             >
-                <Plus className="h-3.5 w-3.5" />
+                <FolderSvgIcon className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Folder</span>
             </TabPillButton>
         </div>

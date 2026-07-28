@@ -4,9 +4,7 @@ import {
     type ButtonHTMLAttributes,
     type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import { ChevronLeft, Loader2, Plus, Search } from "lucide-react";
-import { usePageChrome } from "@/app/contexts/PageChromeContext";
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -78,7 +76,6 @@ export function PageHeader({
     breadcrumbs,
     loading = false,
 }: PageHeaderProps) {
-    const { mobileActionsContainer } = usePageChrome();
     const headerContent = breadcrumbs?.length ? (
         <PageHeaderBreadcrumbs items={breadcrumbs} />
     ) : (
@@ -92,7 +89,7 @@ export function PageHeader({
     return (
         <div
             className={cn(
-                "flex min-w-0 items-center justify-between gap-4",
+                "flex min-w-0 flex-wrap items-center justify-between gap-4",
                 "mx-4 md:mx-6",
                 "min-h-[76px] pb-4 pt-5.5",
                 shrink && "shrink-0",
@@ -100,24 +97,13 @@ export function PageHeader({
         >
             {headerContent}
             {hasActions && (
-                <div className="hidden shrink-0 items-center gap-3 md:flex">
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 md:flex-none">
                     <PageHeaderActions
                         actions={actionItems}
                         actionsDisabled={actionsDisabled}
                     />
                 </div>
             )}
-            {hasActions &&
-                mobileActionsContainer &&
-                createPortal(
-                    <div className="flex min-w-0 items-center justify-end gap-3 overflow-visible py-2 -my-2">
-                        <PageHeaderActions
-                            actions={actionItems}
-                            actionsDisabled={actionsDisabled}
-                        />
-                    </div>,
-                    mobileActionsContainer,
-                )}
         </div>
     );
 }
@@ -130,7 +116,7 @@ function PageHeaderActions({
     actionsDisabled: boolean;
 }) {
     return (
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
             {actions.map((action, index) => (
                 <PageHeaderActionRenderer
                     key={index}

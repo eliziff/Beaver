@@ -36,7 +36,7 @@ import type {
     LibraryFolder,
 } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
-import { SubfolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
@@ -49,28 +49,29 @@ import {
 import {
     DOC_NAME_COL_W,
     DocIcon,
-    DocVersionHistory,
     formatBytes,
     formatDate,
     treeNameCellStyle,
 } from "@/app/components/projects/ProjectPageParts";
 import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
-import { LibrarySkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_GROUP_HOVER_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import {
-    TABLE_CHECKBOX_CLASS,
     TableFilters,
     TableHeaderCell,
     TableHeaderRow,
     TableScrollArea,
+    TableSelectionPlaceholder,
     TableStickyCell,
     type TableFilterOption,
     type TableSortDirection,
 } from "@/app/components/shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
+import { pillButtonClassName } from "@/app/components/ui/pill-button";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 export interface DocTableSelectionActions {
@@ -88,6 +89,13 @@ const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
 ];
+const DOCUMENT_ROW_CLASS =
+    "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2";
+const DOCUMENT_TYPE_COLUMN = "hidden w-20 shrink-0 sm:block";
+const DOCUMENT_SIZE_COLUMN = "hidden w-24 shrink-0 md:block";
+const DOCUMENT_VERSION_COLUMN = "w-20 shrink-0";
+const DOCUMENT_CREATED_COLUMN = "hidden w-32 shrink-0 lg:block";
+const DOCUMENT_UPDATED_COLUMN = "hidden w-32 shrink-0 xl:block";
 
 interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>;
@@ -134,6 +142,7 @@ interface DocTableProps {
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     enableHeaderFilters?: boolean;
     documentRemovalMode?: "delete" | "detach";
+    selectionFirst?: boolean;
 }
 
 function apiErrorDetail(error: unknown): string | null {
@@ -180,28 +189,28 @@ function ProjectTableLoadingHeader({
     stickyCellBg: string;
 }) {
     return (
-        <TableHeaderRow className={`${stickyCellBg} pr-8 md:pr-8`}>
+        <TableHeaderRow className={`${stickyCellBg} !min-w-0 w-full pr-2`}>
             <TableStickyCell
                 header
                 widthClassName={DOC_NAME_COL_W}
                 bgClassName={stickyCellBg}
             >
-                <div className="mr-4 h-2.5 w-2.5 rounded bg-gray-100" />
+                <TableSelectionPlaceholder />
                 <span className="mr-1">Name</span>
             </TableStickyCell>
-            <TableHeaderCell className="ml-auto flex w-20 items-center gap-1">
+            <TableHeaderCell className="ml-auto hidden w-20 items-center gap-1 sm:flex">
                 <span>Type</span>
             </TableHeaderCell>
-            <TableHeaderCell className="flex w-24 items-center gap-1">
+            <TableHeaderCell className="hidden w-24 items-center gap-1 md:flex">
                 <span>Size</span>
             </TableHeaderCell>
             <TableHeaderCell className="flex w-20 items-center gap-1">
                 <span>Version</span>
             </TableHeaderCell>
-            <TableHeaderCell className="flex w-32 items-center gap-1">
+            <TableHeaderCell className="hidden w-32 items-center gap-1 lg:flex">
                 <span>Created</span>
             </TableHeaderCell>
-            <TableHeaderCell className="flex w-32 items-center gap-1">
+            <TableHeaderCell className="hidden w-32 items-center gap-1 xl:flex">
                 <span>Updated</span>
             </TableHeaderCell>
             <TableHeaderCell className="w-8" />
@@ -215,13 +224,13 @@ function ProjectTableLoading({ stickyCellBg }: { stickyCellBg: string }) {
             {[1, 2, 3, 4, 5].map((i) => (
                 <div
                     key={i}
-                    className="flex h-10 min-w-max items-center pr-8"
+                    className={DOCUMENT_ROW_CLASS}
                 >
                     <div
                         className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${stickyCellBg} py-2 pl-4 pr-2`}
                     >
                         <div className="flex items-center">
-                            <div className="mr-4 h-2.5 w-2.5 shrink-0 rounded bg-gray-100" />
+                            <TableSelectionPlaceholder />
                             <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
                             <div
                                 className="h-3.5 rounded bg-gray-100"
@@ -229,19 +238,19 @@ function ProjectTableLoading({ stickyCellBg }: { stickyCellBg: string }) {
                             />
                         </div>
                     </div>
-                    <div className="ml-auto w-20 shrink-0">
+                    <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto`}>
                         <div className="h-3 w-8 rounded bg-gray-100" />
                     </div>
-                    <div className="w-24 shrink-0">
+                    <div className={DOCUMENT_SIZE_COLUMN}>
                         <div className="h-3 w-12 rounded bg-gray-100" />
                     </div>
-                    <div className="w-20 shrink-0">
+                    <div className={DOCUMENT_VERSION_COLUMN}>
                         <div className="h-3 w-5 rounded bg-gray-100" />
                     </div>
-                    <div className="w-32 shrink-0">
+                    <div className={DOCUMENT_CREATED_COLUMN}>
                         <div className="h-3 w-16 rounded bg-gray-100" />
                     </div>
-                    <div className="w-32 shrink-0">
+                    <div className={DOCUMENT_UPDATED_COLUMN}>
                         <div className="h-3 w-16 rounded bg-gray-100" />
                     </div>
                     <div className="w-8 shrink-0" />
@@ -268,6 +277,7 @@ export function DocTable({
     onOwnerOnlyAction,
     enableHeaderFilters = false,
     documentRemovalMode = "delete",
+    selectionFirst = false,
 }: DocTableProps) {
     const [addDocsOpen, setAddDocsOpen] = useState(false);
     const { user } = useAuth();
@@ -312,13 +322,6 @@ export function DocTable({
         return () => onAddDocumentsActionChange?.(null);
     }, [onAddDocumentsActionChange, openAddDocuments]);
 
-    // Version-history expansion (per-doc). versionsByDocId caches fetched
-    // versions so toggling closed + open again doesn't refetch. loadingIds
-    // drives the inline spinner in the version cell while a fetch is in
-    // flight.
-    const [expandedVersionDocIds, setExpandedVersionDocIds] = useState<
-        Set<string>
-    >(() => new Set());
     const [versionsByDocId, setVersionsByDocId] = useState<
         Map<
             string,
@@ -329,14 +332,8 @@ export function DocTable({
         Set<string>
     >(() => new Set());
 
-    const loadDocumentVersions = async (
-        docId: string,
-        options: { expand?: boolean; force?: boolean } = {},
-    ) => {
-        if (options.expand) {
-            setExpandedVersionDocIds((prev) => new Set([...prev, docId]));
-        }
-        if (!options.force && versionsByDocId.has(docId)) return;
+    const loadDocumentVersions = async (docId: string) => {
+        if (versionsByDocId.has(docId)) return;
         setLoadingVersionDocIds((prev) => new Set([...prev, docId]));
         try {
             const res = await listDocumentVersions(docId);
@@ -357,20 +354,6 @@ export function DocTable({
                 return next;
             });
         }
-    };
-
-    const toggleVersions = async (docId: string) => {
-        const already = expandedVersionDocIds.has(docId);
-        if (already) {
-            setExpandedVersionDocIds((prev) => {
-                const next = new Set(prev);
-                next.delete(docId);
-                return next;
-            });
-            return;
-        }
-        // Opening — expand immediately so the user sees a loading state.
-        await loadDocumentVersions(docId, { expand: true });
     };
 
     async function downloadDocVersion(
@@ -763,11 +746,6 @@ export function DocTable({
             setSelectedDocIds((prev) =>
                 prev.filter((id) => !deletedDocIds.has(id)),
             );
-            setExpandedVersionDocIds((prev) => {
-                const next = new Set(prev);
-                for (const id of pending.documentIds) next.delete(id);
-                return next;
-            });
             setVersionsByDocId((prev) => {
                 const next = new Map(prev);
                 for (const id of pending.documentIds) next.delete(id);
@@ -801,11 +779,6 @@ export function DocTable({
     function removeDocumentFromLocalState(docId: string) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
         setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
-        setExpandedVersionDocIds((prev) => {
-            const next = new Set(prev);
-            next.delete(docId);
-            return next;
-        });
         setVersionsByDocId((prev) => {
             const next = new Map(prev);
             next.delete(docId);
@@ -830,7 +803,6 @@ export function DocTable({
         snapshot: {
             index: number;
             selected: boolean;
-            versionsOpen: boolean;
             versions?: DocumentVersion[];
             currentVersionId?: string | null;
             loadingVersions: boolean;
@@ -853,9 +825,6 @@ export function DocTable({
             setSelectedDocIds((prev) =>
                 prev.includes(doc.id) ? prev : [...prev, doc.id],
             );
-        }
-        if (snapshot.versionsOpen) {
-            setExpandedVersionDocIds((prev) => new Set([...prev, doc.id]));
         }
         const versions = snapshot.versions;
         if (versions) {
@@ -1136,7 +1105,6 @@ export function DocTable({
         const sourceSnapshot = {
             index: sourceIndex >= 0 ? sourceIndex : 0,
             selected: selectedDocIds.includes(sourceDoc.id),
-            versionsOpen: expandedVersionDocIds.has(sourceDoc.id),
             versions: versionsByDocId.get(sourceDoc.id)?.versions,
             currentVersionId: versionsByDocId.get(sourceDoc.id)
                 ?.currentVersionId,
@@ -1280,7 +1248,7 @@ export function DocTable({
         return (
             <div
                 ref={newFolderInputRef}
-                className="group flex h-10 min-w-max items-center pr-8"
+                className={DOCUMENT_ROW_CLASS}
                 key={`new-folder-${parentId ?? "root"}`}
             >
                 <div
@@ -1291,7 +1259,7 @@ export function DocTable({
                         <span className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
                             <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
                         </span>
-                        <SubfolderSvgIcon className="mr-2 h-4 w-4 shrink-0" />
+                        <FolderSvgIcon className="mr-2 h-4 w-4 shrink-0" />
                         <input
                             autoFocus
                             className="flex-1 min-w-0 text-sm text-gray-800 bg-transparent outline-none border-b border-gray-300"
@@ -1310,11 +1278,11 @@ export function DocTable({
                         />
                     </div>
                 </div>
-                <div className="ml-auto w-20 shrink-0" />
-                <div className="w-24 shrink-0" />
-                <div className="w-20 shrink-0" />
-                <div className="w-32 shrink-0" />
-                <div className="w-32 shrink-0" />
+                <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto`} />
+                <div className={DOCUMENT_SIZE_COLUMN} />
+                <div className={DOCUMENT_VERSION_COLUMN} />
+                <div className={DOCUMENT_CREATED_COLUMN} />
+                <div className={DOCUMENT_UPDATED_COLUMN} />
                 <div className="w-8 shrink-0" />
             </div>
         );
@@ -1336,7 +1304,7 @@ export function DocTable({
         return (
             <div
                 key={key}
-                className="group flex h-10 min-w-max items-center pr-8"
+                className={DOCUMENT_ROW_CLASS}
             >
                 <div
                     className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${stickyCellBg} py-2 pl-4 pr-2`}
@@ -1355,18 +1323,18 @@ export function DocTable({
                         </span>
                     </div>
                 </div>
-                <div className="ml-auto w-20 shrink-0 text-xs text-gray-300 uppercase truncate">
+                <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto text-xs text-gray-300 uppercase truncate`}>
                     {fileType ??
                         (filename.includes(".")
                             ? filename.split(".").pop()
                             : "file")}
                 </div>
-                <div className="w-24 shrink-0 text-sm text-gray-300">
+                <div className={`${DOCUMENT_SIZE_COLUMN} text-sm text-gray-300`}>
                     {statusLabel}
                 </div>
-                <div className="w-20 shrink-0 text-sm text-gray-300">—</div>
-                <div className="w-32 shrink-0 text-sm text-gray-300">—</div>
-                <div className="w-32 shrink-0 text-sm text-gray-300">—</div>
+                <div className={`${DOCUMENT_VERSION_COLUMN} text-sm text-gray-300`}>—</div>
+                <div className={`${DOCUMENT_CREATED_COLUMN} text-sm text-gray-300`}>—</div>
+                <div className={`${DOCUMENT_UPDATED_COLUMN} text-sm text-gray-300`}>—</div>
                 <div className="w-8 shrink-0" />
             </div>
         );
@@ -1381,6 +1349,19 @@ export function DocTable({
                 depth,
                 statusLabel: "Uploading",
             }),
+        );
+    }
+
+    function openDocument(doc: Document) {
+        setViewingDocVersion(null);
+        setViewingDoc(doc);
+    }
+
+    function toggleDocumentSelection(docId: string) {
+        setSelectedDocIds((prev) =>
+            prev.includes(docId)
+                ? prev.filter((id) => id !== docId)
+                : [...prev, docId],
         );
     }
 
@@ -1418,7 +1399,6 @@ export function DocTable({
                     const isProcessing =
                         doc.status === "pending" || doc.status === "processing";
                     const isError = doc.status === "error";
-                    const isVersionsOpen = expandedVersionDocIds.has(doc.id);
                     const versionNumber = currentVersionNumber(doc);
                     const hasVersions =
                         typeof versionNumber === "number" && versionNumber > 1;
@@ -1466,56 +1446,89 @@ export function DocTable({
                                     handleDocumentVersionDrop(e, doc)
                                 }
                                 onClick={() => {
-                                    setViewingDocVersion(null);
-                                    setViewingDoc(doc);
+                                    if (selectionFirst) {
+                                        setSelectedDocIds([doc.id]);
+                                    } else {
+                                        openDocument(doc);
+                                    }
                                 }}
-                                className={`group flex h-10 min-w-max items-center pr-8 cursor-pointer transition-colors ${isVersionDragOver ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
+                                onDoubleClick={
+                                    selectionFirst
+                                        ? (event) => {
+                                              if (
+                                                  event.target instanceof Element &&
+                                                  event.target.closest(
+                                                      "button, input, select, textarea",
+                                                  )
+                                              ) {
+                                                  return;
+                                              }
+                                              setSelectedDocIds([doc.id]);
+                                              openDocument(doc);
+                                          }
+                                        : undefined
+                                }
+                                onKeyDown={
+                                    selectionFirst
+                                        ? (event) => {
+                                              if (
+                                                  event.target !==
+                                                  event.currentTarget
+                                              ) {
+                                                  return;
+                                              }
+                                              if (event.key === "Enter") {
+                                                  event.preventDefault();
+                                                  setSelectedDocIds([doc.id]);
+                                                  openDocument(doc);
+                                              } else if (event.key === " ") {
+                                                  event.preventDefault();
+                                                  toggleDocumentSelection(
+                                                      doc.id,
+                                                  );
+                                              }
+                                          }
+                                        : undefined
+                                }
+                                tabIndex={selectionFirst ? 0 : undefined}
+                                role={selectionFirst ? "row" : undefined}
+                                aria-selected={
+                                    selectionFirst ? isSelected : undefined
+                                }
+                                className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
                             >
                                 {(() => {
                                     const rowBg = isVersionDragOver
-                                        ? "bg-blue-50"
+                                        ? "bg-red-50"
                                         : isSelected
                                           ? APP_SURFACE_ACTIVE_CLASS
                                           : stickyCellBg;
                                     return (
                                         <>
                                             <div
-                                                className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${rowBg} py-2 pl-4 pr-2 transition-colors ${isVersionDragOver || isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                                className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${rowBg} py-2 pl-4 pr-2 ${isVersionDragOver || isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                                                 style={treeNameCellStyle(depth)}
                                             >
                                                 <div className="flex items-center">
                                                     {isProcessing ||
                                                     isUploadingVersion ? (
-                                                        <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
+                                                        <span className="-ml-2 mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center">
+                                                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                                                        </span>
                                                     ) : (
-                                                        <input
-                                                            type="checkbox"
+                                                        <CheckboxControl
                                                             checked={selectedDocIds.includes(
                                                                 doc.id,
                                                             )}
                                                             onChange={() =>
-                                                                setSelectedDocIds(
-                                                                    (prev) =>
-                                                                        prev.includes(
-                                                                            doc.id,
-                                                                        )
-                                                                            ? prev.filter(
-                                                                                  (
-                                                                                      x,
-                                                                                  ) =>
-                                                                                      x !==
-                                                                                      doc.id,
-                                                                              )
-                                                                            : [
-                                                                                  ...prev,
-                                                                                  doc.id,
-                                                                              ],
+                                                                toggleDocumentSelection(
+                                                                    doc.id,
                                                                 )
                                                             }
                                                             onClick={(e) =>
                                                                 e.stopPropagation()
                                                             }
-                                                            className="mr-4 h-2.5 w-2.5 shrink-0 rounded border-gray-200 cursor-pointer accent-black"
+                                                            className="-ml-2 mr-1"
                                                         />
                                                     )}
                                                     <span className="mr-2 shrink-0">
@@ -1579,20 +1592,55 @@ export function DocTable({
                                                             }
                                                         />
                                                     ) : (
-                                                        <span className="text-sm text-gray-800 truncate">
+                                                        <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
                                                             {docName}
                                                         </span>
                                                     )}
+                                                    {selectionFirst && (
+                                                        <button
+                                                            type="button"
+                                                            aria-label={`View ${docName}`}
+                                                            title={`View ${docName}`}
+                                                            disabled={
+                                                                renamingDocumentId ===
+                                                                doc.id
+                                                            }
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                setSelectedDocIds(
+                                                                    [doc.id],
+                                                                );
+                                                                openDocument(
+                                                                    doc,
+                                                                );
+                                                            }}
+                                                            className={pillButtonClassName(
+                                                                "black",
+                                                                "sm",
+                                                                "ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible",
+                                                            )}
+                                                        >
+                                                            View
+                                                        </button>
+                                                    )}
+                                                    <DocumentAutomation
+                                                        document={doc}
+                                                        onDocumentChanged={async () => {
+                                                            await refreshDocumentVersionState(
+                                                                doc.id,
+                                                            );
+                                                        }}
+                                                    />
                                                 </div>
                                             </div>
-                                            <div className="ml-auto w-20 shrink-0 text-xs text-gray-500 uppercase truncate">
+                                            <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto text-xs text-gray-500 uppercase truncate`}>
                                                 {doc.file_type ?? (
                                                     <span className="text-gray-300">
                                                         —
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="w-24 shrink-0 text-sm text-gray-500 truncate">
+                                            <div className={`${DOCUMENT_SIZE_COLUMN} text-sm text-gray-500 truncate`}>
                                                 {doc.size_bytes != null ? (
                                                     formatBytes(doc.size_bytes)
                                                 ) : (
@@ -1602,28 +1650,22 @@ export function DocTable({
                                                 )}
                                             </div>
                                             <div
-                                                className="w-20 shrink-0 text-sm text-gray-500 flex items-center gap-1"
+                                                className={`${DOCUMENT_VERSION_COLUMN} text-sm text-gray-500 flex items-center gap-1`}
                                                 onClick={(e) =>
                                                     e.stopPropagation()
                                                 }
                                             >
                                                 {hasVersions ? (
                                                     <button
+                                                        type="button"
                                                         onClick={() =>
-                                                            void toggleVersions(
-                                                                doc.id,
-                                                            )
+                                                            openDocument(doc)
                                                         }
-                                                        className={`flex items-center gap-1 rounded px-1 py-0.5 transition-colors ${APP_SURFACE_HOVER_CLASS}`}
+                                                        className={`flex h-8 min-w-8 items-center justify-center rounded-md px-2 ${APP_SURFACE_HOVER_CLASS}`}
+                                                        title="Open version history"
+                                                        aria-label={`Open version history for ${docName}`}
                                                     >
-                                                        <span>
-                                                            {versionNumber}
-                                                        </span>
-                                                        {isVersionsOpen ? (
-                                                            <ChevronDown className="h-3 w-3 text-gray-400" />
-                                                        ) : (
-                                                            <ChevronRight className="h-3 w-3 text-gray-400" />
-                                                        )}
+                                                        {versionNumber}
                                                     </button>
                                                 ) : (
                                                     <span className="text-gray-300 pl-1">
@@ -1631,7 +1673,7 @@ export function DocTable({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="w-32 shrink-0 text-sm text-gray-500 truncate">
+                                            <div className={`${DOCUMENT_CREATED_COLUMN} text-sm text-gray-500 truncate`}>
                                                 {doc.created_at ? (
                                                     formatDate(doc.created_at)
                                                 ) : (
@@ -1640,7 +1682,7 @@ export function DocTable({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="w-32 shrink-0 text-sm text-gray-500 truncate">
+                                            <div className={`${DOCUMENT_UPDATED_COLUMN} text-sm text-gray-500 truncate`}>
                                                 {doc.updated_at ? (
                                                     formatDate(doc.updated_at)
                                                 ) : (
@@ -1663,15 +1705,6 @@ export function DocTable({
                                                         renameLabel="Rename document"
                                                         onDownload={() =>
                                                             downloadDoc(doc.id)
-                                                        }
-                                                        onShowAllVersions={
-                                                            hasVersions &&
-                                                            !isVersionsOpen
-                                                                ? () =>
-                                                                      void toggleVersions(
-                                                                          doc.id,
-                                                                      )
-                                                                : undefined
                                                         }
                                                         onUploadNewVersion={() =>
                                                             void handleUploadNewVersion(
@@ -1706,43 +1739,6 @@ export function DocTable({
                                     );
                                 })()}
                             </div>
-                            {isVersionsOpen && (
-                                <DocVersionHistory
-                                    docId={doc.id}
-                                    filename={docName}
-                                    activeVersionNumber={versionNumber}
-                                    loading={loadingVersionDocIds.has(doc.id)}
-                                    versions={
-                                        versionsByDocId.get(doc.id)?.versions ??
-                                        []
-                                    }
-                                    currentVersionId={
-                                        versionsByDocId.get(doc.id)
-                                            ?.currentVersionId ?? null
-                                    }
-                                    depth={depth}
-                                    onDownloadVersion={downloadDocVersion}
-                                    onOpenVersion={(versionId, label) => {
-                                        setViewingDocVersion({
-                                            id: versionId,
-                                            label,
-                                        });
-                                        setViewingDoc(doc);
-                                    }}
-                                    onRenameVersion={(versionId, filename) =>
-                                        handleRenameVersion(
-                                            doc.id,
-                                            versionId,
-                                            filename,
-                                        )
-                                    }
-                                    onExtensionChangeBlocked={(filename) =>
-                                        setDocumentRenameWarning(
-                                            extensionChangeWarning(filename),
-                                        )
-                                    }
-                                />
-                            )}
                         </div>
                     );
                 })}
@@ -1791,10 +1787,10 @@ export function DocTable({
                                     );
                                 }}
                                 onClick={() => toggleFolder(folder.id)}
-                                className={`group flex h-10 min-w-max items-center pr-8 ${APP_SURFACE_HOVER_CLASS} cursor-pointer transition-colors ${isRenaming ? "" : "select-none"} ${dragOverFolderId === folder.id ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : ""}`}
+                                className={`${DOCUMENT_ROW_CLASS} ${APP_SURFACE_HOVER_CLASS} cursor-pointer ${isRenaming ? "" : "select-none"} ${dragOverFolderId === folder.id ? "bg-red-50 ring-1 ring-inset ring-red-200" : ""}`}
                             >
                                 <div
-                                    className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} py-2 pl-4 pr-2 ${dragOverFolderId === folder.id ? "bg-blue-50" : stickyCellBg} transition-colors ${dragOverFolderId === folder.id ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                    className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} py-2 pl-4 pr-2 ${dragOverFolderId === folder.id ? "bg-red-50" : stickyCellBg} ${dragOverFolderId === folder.id ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                                     style={treeNameCellStyle(depth)}
                                 >
                                     <div className="flex items-center">
@@ -1805,7 +1801,7 @@ export function DocTable({
                                                 <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
                                             )}
                                         </span>
-                                        <SubfolderSvgIcon
+                                        <FolderSvgIcon
                                             open={isExpanded}
                                             className="mr-2 h-4 w-4 shrink-0"
                                         />
@@ -1849,19 +1845,19 @@ export function DocTable({
                                         )}
                                     </div>
                                 </div>
-                                <div className="ml-auto w-20 shrink-0 text-xs text-gray-300">
+                                <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto text-xs text-gray-300`}>
                                     —
                                 </div>
-                                <div className="w-24 shrink-0 text-sm text-gray-300">
+                                <div className={`${DOCUMENT_SIZE_COLUMN} text-sm text-gray-300`}>
                                     —
                                 </div>
-                                <div className="w-20 shrink-0 text-sm text-gray-300">
+                                <div className={`${DOCUMENT_VERSION_COLUMN} text-sm text-gray-300`}>
                                     —
                                 </div>
-                                <div className="w-32 shrink-0 text-sm text-gray-300">
+                                <div className={`${DOCUMENT_CREATED_COLUMN} text-sm text-gray-300`}>
                                     —
                                 </div>
-                                <div className="w-32 shrink-0 text-sm text-gray-300">
+                                <div className={`${DOCUMENT_UPDATED_COLUMN} text-sm text-gray-300`}>
                                     —
                                 </div>
                                 <div
@@ -1953,11 +1949,6 @@ export function DocTable({
             prev.filter((doc) => !deletedIds.includes(doc.id)),
         );
         if (deletedIds.length > 0) {
-            setExpandedVersionDocIds((prev) => {
-                const next = new Set(prev);
-                for (const id of deletedIds) next.delete(id);
-                return next;
-            });
             setVersionsByDocId((prev) => {
                 const next = new Map(prev);
                 for (const id of deletedIds) next.delete(id);
@@ -2461,15 +2452,14 @@ export function DocTable({
                         />
                     ) : (
                         <TableHeaderRow
-                            className={`${stickyCellBg} pr-8 md:pr-8`}
+                            className={`${stickyCellBg} !min-w-0 w-full pr-2`}
                         >
                             <TableStickyCell
                                 header
                                 widthClassName={DOC_NAME_COL_W}
                                 bgClassName={stickyCellBg}
                             >
-                                <input
-                                    type="checkbox"
+                                <CheckboxControl
                                     checked={allDocsSelected}
                                     ref={(el) => {
                                         if (el)
@@ -2484,16 +2474,16 @@ export function DocTable({
                                                 filteredDocs.map((d) => d.id),
                                             );
                                     }}
-                                    className={TABLE_CHECKBOX_CLASS}
+                                    className="-ml-2 mr-1"
                                 />
                                 <span className="mr-1">Name</span>
                                 {nameFilterButton}
                             </TableStickyCell>
-                            <TableHeaderCell className="ml-auto flex w-20 items-center gap-1">
+                            <TableHeaderCell className="ml-auto hidden w-20 items-center gap-1 sm:flex">
                                 <span>Type</span>
                                 {typeFilterButton}
                             </TableHeaderCell>
-                            <TableHeaderCell className="flex w-24 items-center gap-1">
+                            <TableHeaderCell className="hidden w-24 items-center gap-1 md:flex">
                                 <span>Size</span>
                                 {sizeFilterButton}
                             </TableHeaderCell>
@@ -2501,11 +2491,11 @@ export function DocTable({
                                 <span>Version</span>
                                 {versionFilterButton}
                             </TableHeaderCell>
-                            <TableHeaderCell className="flex w-32 items-center gap-1">
+                            <TableHeaderCell className="hidden w-32 items-center gap-1 lg:flex">
                                 <span>Created</span>
                                 {createdFilterButton}
                             </TableHeaderCell>
-                            <TableHeaderCell className="flex w-32 items-center gap-1">
+                            <TableHeaderCell className="hidden w-32 items-center gap-1 xl:flex">
                                 <span>Updated</span>
                                 {updatedFilterButton}
                             </TableHeaderCell>
@@ -2556,7 +2546,7 @@ export function DocTable({
                                     <div className="absolute inset-0 border-2 border-blue-400 pointer-events-none z-[80]" />
                                 )}
                                 {dragOverFileRoot && (
-                                    <div className="absolute inset-0 z-[90] border-2 border-blue-400 bg-blue-50/40 pointer-events-none" />
+                                    <div className="pointer-events-none absolute inset-0 z-[90] border-2 border-red-500 bg-red-50/40" />
                                 )}
 
                                 {/* Empty state */}
@@ -2567,7 +2557,7 @@ export function DocTable({
                                         onClick={openAddDocuments}
                                         className="flex-1 flex cursor-pointer flex-col items-center justify-center py-24 text-center"
                                     >
-                                        <LibrarySkeuoIcon className="mb-3 h-8 w-8" />
+                                        <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
                                         <p className="text-sm text-gray-400">
                                             {emptyDropLabel}
                                         </p>

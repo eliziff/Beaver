@@ -1,7 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { Modal } from "../modals/Modal";
+import { CheckboxInput } from "../ui/checkbox";
 import { QUICK_ACTIONS, type QuickActionId } from "./quickActionsPreferences";
 
 interface QuickActionsModalProps {
@@ -45,34 +45,25 @@ export function QuickActionsModal({
                     {QUICK_ACTIONS.map((action) => {
                         const checked = visibleActions[action.id];
                         return (
-                            <button
+                            <label
                                 key={action.id}
-                                type="button"
-                                role="checkbox"
-                                aria-checked={checked}
-                                onClick={() =>
-                                    onVisibleActionsChange((prev) => ({
-                                        ...prev,
-                                        [action.id]: !checked,
-                                    }))
-                                }
-                                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_112px] items-center rounded-lg px-2 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                                className="grid min-h-10 w-full cursor-pointer grid-cols-[minmax(0,1fr)_112px] items-center rounded-lg px-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                             >
                                 <span className="min-w-0 truncate">
                                     {action.label}
                                 </span>
-                                <span
-                                    className={`ml-auto flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                                        checked
-                                            ? "bg-gray-900 border-gray-900"
-                                            : "border-gray-300"
-                                    }`}
-                                >
-                                    {checked && (
-                                        <Check className="h-2.5 w-2.5 text-white" />
-                                    )}
-                                </span>
-                            </button>
+                                <CheckboxInput
+                                    checked={checked}
+                                    aria-label={`Show ${action.label}`}
+                                    onChange={() =>
+                                    onVisibleActionsChange((prev) => ({
+                                        ...prev,
+                                        [action.id]: !checked,
+                                    }))
+                                    }
+                                    className="ml-auto"
+                                />
+                            </label>
                         );
                     })}
                 </div>
