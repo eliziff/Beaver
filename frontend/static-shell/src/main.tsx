@@ -6,8 +6,12 @@ import "./styles.css";
 type Route = "assistant" | "library" | "authorities";
 
 function currentRoute(): Route {
-  const value = window.location.pathname.split("/").filter(Boolean)[0];
+  const value = window.location.pathname.split("/").find((segment) => ["assistant", "library", "authorities"].includes(segment));
   return value === "library" || value === "authorities" ? value : "assistant";
+}
+
+function routePath(route: Route) {
+  return window.location.pathname.startsWith("/static-shell") ? `/static-shell/${route}` : `/${route}`;
 }
 
 function Shell({ route, navigate }: { route: Route; navigate: (route: Route) => void }) {
@@ -22,7 +26,7 @@ function Shell({ route, navigate }: { route: Route; navigate: (route: Route) => 
             <button
               className={`nav-link ${route === item ? "active" : ""}`}
               key={item}
-              onClick={() => navigate(item)}
+            onClick={() => navigate(item)}
             >
               {item === "authorities" ? "Authorities" : item[0].toUpperCase() + item.slice(1)}
             </button>
@@ -102,16 +106,28 @@ function Assistant() {
 function Library() {
   const [library, setLibrary] = useState<LibraryCollection | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => api.library("files").then(setLibrary).catch(() => setError("The local Library is unavailable."));
   useEffect(() => {
-    api.library("files").then(setLibrary).catch(() => setError("The local Library is unavailable."));
+    void load();
   }, []);
+  async function upload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try { await api.upload("files", file); await load(); }
+    catch { setError("The file could not be imported."); }
+    finally { setBusy(false); }
+  }
   return (
     <section className="workspace">
-      <div className="section-heading"><div><p className="eyebrow">Library</p><h1>Files</h1></div><label className="upload">Upload<input type="file" /></label></div>
+      <div className="section-heading"><div><p className="eyebrow">Library</p><h1>Files</h1></div><label className={`upload ${busy ? "disabled" : ""}`}>{busy ? "Importing…" : "Upload"}<input disabled={busy} onChange={upload} type="file" /></label></div>
       {error && <p className="error">{error}</p>}
       <section className="panel list" aria-live="polite">
         {!library && !error && <p className="empty">Loading files…</p>}
-        {library?.documents.length ? library.documents.map((doc) => <div className="row" key={doc.id}><strong>{doc.filename || "Untitled document"}</strong><span>{doc.file_type || "File"}</span></div>) : library && <p className="empty">No files yet.</p>}
+        {library?.documents.length ? library.documents.map((doc) => <div className="row" key={doc.id}><strong>{doc.filename || "Untitled document"}</strong><span>{doc.file_type || "File"}</span><button className="row-action" type="button">View</button></div>) : library && <p className="empty">No files yet.</p>}
       </section>
     </section>
   );
@@ -123,7 +139,7 @@ function Placeholder({ title }: { title: string }) {
 
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute);
-  const navigate = (next: Route) => { history.pushState({}, "", `/${next}`); setRoute(next); };
+  const navigate = (next: Route) => { history.pushState({}, "", routePath(next)); setRoute(next); };
   return <Shell route={route} navigate={navigate} />;
 }
 
