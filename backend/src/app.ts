@@ -9,8 +9,6 @@ import { workflowsRouter } from "./routes/workflows";
 import { localUserRouter } from "./routes/localUser";
 import { caseLawRouter } from "./routes/caseLaw";
 import { codexRouter } from "./routes/codex";
-import { localDocumentsRouter } from "./routes/localDocuments";
-import { localLibraryRouter } from "./routes/localLibrary";
 import { legalLibraryRouter } from "./routes/legalLibrary";
 import { legalKnowledgeRouter } from "./routes/legalKnowledge";
 import { tableOfAuthoritiesRouter } from "./routes/tableOfAuthorities";
@@ -174,17 +172,25 @@ app.use(express.json({ limit: "50mb" }));
 
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
-app.use("/single-documents", localDocumentsRouter);
 app.use(
   "/single-documents",
-  lazyRouter(() => import("./routes/documents").then((mod) => mod.documentsRouter)),
+  lazyRouter(() =>
+    isAnonymousLocalMode()
+      ? import("./routes/localDocuments").then(
+          (mod) => mod.localDocumentsRouter,
+        )
+      : import("./routes/documents").then((mod) => mod.documentsRouter),
+  ),
 );
 app.use("/library/legal", legalLibraryRouter);
 app.use("/legal-knowledge", legalKnowledgeRouter);
-app.use("/library", localLibraryRouter);
 app.use(
   "/library",
-  lazyRouter(() => import("./routes/library").then((mod) => mod.libraryRouter)),
+  lazyRouter(() =>
+    isAnonymousLocalMode()
+      ? import("./routes/localLibrary").then((mod) => mod.localLibraryRouter)
+      : import("./routes/library").then((mod) => mod.libraryRouter),
+  ),
 );
 app.use(
   "/tabular-review",
