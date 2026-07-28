@@ -105,14 +105,28 @@ describe("ProjectsOverview", () => {
         expect(
             await screen.findByRole("searchbox", { name: "Search projects" }),
         ).toBeVisible();
-        expect(
-            screen.getAllByRole("button", { name: "Create project +" }),
-        ).toHaveLength(1);
+        const [createButton] = screen.getAllByRole("button", {
+            name: "Create project +",
+        });
+        expect(createButton.querySelector("svg.lucide-folder")).not.toBeNull();
         expect(await screen.findByText("No projects")).toBeVisible();
+        expect(container.querySelectorAll("svg.lucide-folder")).toHaveLength(2);
+        expect(screen.queryByText(/Upload documents into projects/u)).not.toBeInTheDocument();
+    });
+
+    it("keeps table controls mounted while rows load", () => {
+        listProjects.mockReturnValue(new Promise(() => {}));
+        render(<ProjectsOverview />);
+
         expect(
-            screen.queryByText(/Upload documents into projects/u),
-        ).not.toBeInTheDocument();
-        expect(container.querySelector("svg.lucide-folder")).not.toBeNull();
+            screen.getByRole("combobox", { name: "Sort by project name" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Filter by owner" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("combobox", { name: "Sort by created date" }),
+        ).toBeInTheDocument();
     });
 
     it("displays the API creation timestamp without replacing it", async () => {

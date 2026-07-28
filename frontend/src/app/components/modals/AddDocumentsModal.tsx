@@ -27,6 +27,7 @@ interface Props {
     initialSelectedDocuments?: Document[];
     /** Documents uploaded outside the modal while it is mounted. */
     externalUploadedDocuments?: Document[];
+    primaryLabel?: string;
     /** Keep the modal mounted (hidden) while closed so the loaded
      * directory listing survives close/reopen cycles. */
     keepMounted?: boolean;
@@ -41,6 +42,7 @@ export function AddDocumentsModal({
     projectId,
     initialSelectedDocuments,
     externalUploadedDocuments,
+    primaryLabel = "Confirm",
     keepMounted = false,
 }: Props) {
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
@@ -208,7 +210,7 @@ export function AddDocumentsModal({
                 disabled: uploading,
             }}
             primaryAction={{
-                label: uploading ? "Saving…" : "Confirm",
+                label: uploading ? "Saving…" : primaryLabel,
                 onClick: handleConfirm,
                 disabled: selectedDocuments.length === 0 || uploading,
             }}

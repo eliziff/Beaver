@@ -5,12 +5,20 @@ import { Check, Copy } from "lucide-react";
 import type { AssistantEvent, Citation, EditAnnotation } from "../shared/types";
 import { EditCard } from "./EditCard";
 import { PreResponseWrapper } from "./PreResponseWrapper";
-import { ResponseStatus, type StatusState } from "./message/ResponseStatus";
-import { eventErrorMessage, toolCallLabel } from "./message/eventUtils";
+import {
+    activityLabel,
+    dedupeActivityEntries,
+    eventErrorMessage,
+    toolCallLabel,
+} from "./message/eventUtils";
 import { preprocessCitations, internalCaseHref } from "./message/citationUtils";
 import { MarkdownContent } from "./message/MarkdownContent";
 import { CitationsBlock, buildCitationAppendix } from "./message/CitationSources";
 import { EditCardsSection } from "./message/EditCardsSection";
+import {
+    AutomationRunButton,
+    automationRunKey,
+} from "@/app/components/documents/AutomationRun";
 import {
     AskInputsBlock,
     CourtListenerBlock,
@@ -36,6 +44,9 @@ interface Props {
     onOpenCitationSource?: (citation: Citation) => void;
     onCaseClick?: (
         citation: Extract<AssistantEvent, { type: "case_citation" }>,
+    ) => void;
+    onAutomationClick?: (
+        run: Extract<AssistantEvent, { type: "automation_run" }>,
     ) => void;
     minHeight?: string;
     onWorkflowClick?: (workflowId: string) => void;
@@ -105,6 +116,7 @@ export function AssistantMessage({
     onCitationClick,
     onOpenCitationSource,
     onCaseClick,
+    onAutomationClick,
     minHeight = "0px",
     onWorkflowClick,
     onEditViewClick,
@@ -141,6 +153,7 @@ export function AssistantMessage({
     };
 
     const eventErrorMessages = (events ?? [])
+        .filter((event) => event.type !== "automation_run")
         .map(eventErrorMessage)
         .filter((message): message is string => !!message);
     const topLevelErrorMessage =
@@ -150,21 +163,17 @@ export function AssistantMessage({
                 | Extract<AssistantEvent, { type: "error" }>
                 | undefined
         )?.message ??
+        (isError ? "Response failed." : null) ??
         null;
     const effectiveErrorMessage =
         topLevelErrorMessage ?? eventErrorMessages[0] ?? null;
-    const hasError = isError || !!effectiveErrorMessage;
-    const status: StatusState = hasError
-        ? "error"
-        : isStreaming
-          ? "active"
-          : null;
 
     const isRenderableEvent = (event: AssistantEvent) =>
         event.type !== "error" &&
         event.type !== "ask_inputs_response" &&
         event.type !== "case_citation" &&
-        event.type !== "case_opinions";
+        event.type !== "case_opinions" &&
+        event.type !== "doc_download";
 
     const lastContentIdx = events
         ? events.reduce(
@@ -265,47 +274,48 @@ export function AssistantMessage({
         }
     };
 
-    // Walk events in chronological order and group consecutive non-content
-    // events into their own PreResponseWrapper. Content events render
-    // between wrappers, so reasoning/tool chatter that arrives after the
-    // model has already streamed some prose gets its own wrapper.
-    type EventGroup =
-        | { kind: "pre"; events: AssistantEvent[]; indices: number[] }
-        | {
-              kind: "content";
-              event: Extract<AssistantEvent, { type: "content" }>;
-              index: number;
-          };
-
-    const groups: EventGroup[] = [];
-    if (events) {
-        let current: Extract<EventGroup, { kind: "pre" }> | null = null;
-        events.forEach((e, i) => {
-            if (!isRenderableEvent(e)) return;
-            if (e.type === "content") {
-                if (current) {
-                    groups.push(current);
-                    current = null;
-                }
-                groups.push({ kind: "content", event: e, index: i });
-            } else {
-                if (!current)
-                    current = { kind: "pre", events: [], indices: [] };
-                current.events.push(e);
-                current.indices.push(i);
-            }
-        });
-        if (current) groups.push(current);
-    }
-
-    const hasContentAfter = (groupIdx: number): boolean => {
-        for (let i = groupIdx + 1; i < groups.length; i++) {
-            const g = groups[i];
-            if (g.kind === "content" && g.event.text.length > 0) return true;
+    // Keep one stable Activity disclosure for the whole turn. Content can be
+    // interleaved in the event stream, but splitting around it created a new
+    // one-step accordion every time the model resumed work.
+    const rawActivityEntries: { event: AssistantEvent; index: number }[] = [];
+    const automationByRun = new Map<
+        string,
+        {
+            event: Extract<AssistantEvent, { type: "automation_run" }>;
+            index: number;
         }
-        return false;
-    };
-
+    >();
+    const contentEntries: {
+        event: Extract<AssistantEvent, { type: "content" }>;
+        index: number;
+    }[] = [];
+    events?.forEach((event, index) => {
+        if (!isRenderableEvent(event)) return;
+        if (event.type === "automation_run") {
+            const key = automationRunKey(event);
+            const previous = automationByRun.get(key);
+            automationByRun.set(key, {
+                event: previous
+                    ? { ...previous.event, ...event }
+                    : event,
+                index,
+            });
+            rawActivityEntries.push({ event, index });
+        } else if (event.type === "content") {
+            contentEntries.push({ event, index });
+        } else if (event.type !== "reasoning" || event.text.trim()) {
+            rawActivityEntries.push({ event, index });
+        }
+    });
+    const activityEntries = dedupeActivityEntries(rawActivityEntries).filter(
+        ({ event }) => event.type !== "automation_run",
+    );
+    const automationEntries = [...automationByRun.values()];
+    const activityEvents = activityEntries.map(({ event }) => event);
+    const latestActivityLabel = [...activityEvents]
+        .reverse()
+        .map(activityLabel)
+        .find((label): label is string => !!label);
     const askInputsResponseFor = (askInputsIdx: number) => {
         if (!events) return undefined;
         for (let i = askInputsIdx + 1; i < events.length; i++) {
@@ -316,11 +326,15 @@ export function AssistantMessage({
         return undefined;
     };
 
-    const hasPendingAskInput = (group: Extract<EventGroup, { kind: "pre" }>) =>
-        group.events.some(
-            (event, index) =>
-                event.type === "ask_inputs" &&
-                !askInputsResponseFor(group.indices[index]),
+    const hasPendingAskInput = activityEntries.some(
+        ({ event, index }) =>
+            event.type === "ask_inputs" && !askInputsResponseFor(index),
+    );
+    const activityIsStreaming =
+        isStreaming ||
+        hasPendingAskInput ||
+        activityEvents.some(
+            (event) => "isStreaming" in event && !!event.isStreaming,
         );
 
     const renderEvent = (
@@ -370,7 +384,7 @@ export function AssistantMessage({
         if (event.type === "mcp_tool_call") {
             const isError = event.status === "error";
             const label = event.connector_name
-                ? `${event.connector_name}: ${event.tool_name}`
+                ? `${event.connector_name}: ${toolCallLabel(event.tool_name)}`
                 : toolCallLabel(event.openai_tool_name);
             return (
                 <EventBlock
@@ -695,65 +709,50 @@ export function AssistantMessage({
 
     return (
         <div style={{ minHeight }}>
-            <ResponseStatus status={status} />
-            <div className="w-full font-inter relative mt-2">
+            <div className="relative mt-2 w-full font-inter">
                 {events && events.length > 0 ? (
                     <div className="flex flex-col gap-4">
-                        {groups.map((g, gIdx) => {
-                            if (g.kind === "content") {
-                                const isLastContent =
-                                    g.index === lastContentIdx;
-                                return (
-                                    <div key={`c-${g.index}`}>
-                                        <MarkdownContent
-                                            text={processedTexts[g.index]}
-                                            inlineCitationTargets={
-                                                inlineCitationTargets
-                                            }
-                                            caseCitations={caseCitations}
-                                            caseOpinions={caseOpinions}
-                                            onCitationClick={onCitationClick}
-                                            onCaseClick={onCaseClick}
-                                            divRef={
-                                                isLastContent
-                                                    ? contentDivRef
-                                                    : undefined
-                                            }
-                                        />
-                                    </div>
-                                );
-                            }
-                            const subsequentContent = hasContentAfter(gIdx);
-                            const pendingAskInput = hasPendingAskInput(g);
-                            const wrapperIsStreaming =
-                                g.events.some(
-                                    (event) =>
-                                        "isStreaming" in event &&
-                                        !!event.isStreaming,
-                                ) || pendingAskInput;
-                            return (
-                                <PreResponseWrapper
-                                    key={`p-${g.indices[0]}`}
-                                    stepCount={g.events.length}
-                                    shouldMinimize={
-                                        pendingAskInput
-                                            ? false
-                                            : subsequentContent
+                        {activityEntries.length > 0 && (
+                            <PreResponseWrapper
+                                isStreaming={activityIsStreaming}
+                                label={latestActivityLabel ?? "Thinking"}
+                            >
+                                {activityEntries.map(({ event, index }, i) =>
+                                    renderEvent(
+                                        event,
+                                        i,
+                                        activityEvents,
+                                        index,
+                                    ),
+                                )}
+                            </PreResponseWrapper>
+                        )}
+                        {automationEntries.map(({ event }) => (
+                            <AutomationRunButton
+                                key={automationRunKey(event)}
+                                run={event}
+                                onOpen={onAutomationClick ?? (() => undefined)}
+                            />
+                        ))}
+                        {contentEntries.map(({ index }) => (
+                            <div key={`c-${index}`}>
+                                <MarkdownContent
+                                    text={processedTexts[index]}
+                                    inlineCitationTargets={
+                                        inlineCitationTargets
                                     }
-                                    isStreaming={wrapperIsStreaming}
-                                    forceOpen={pendingAskInput}
-                                >
-                                    {g.events.map((event, i) =>
-                                        renderEvent(
-                                            event,
-                                            i,
-                                            g.events,
-                                            g.indices[i],
-                                        ),
-                                    )}
-                                </PreResponseWrapper>
-                            );
-                        })}
+                                    caseCitations={caseCitations}
+                                    caseOpinions={caseOpinions}
+                                    onCitationClick={onCitationClick}
+                                    onCaseClick={onCaseClick}
+                                    divRef={
+                                        index === lastContentIdx
+                                            ? contentDivRef
+                                            : undefined
+                                    }
+                                />
+                            </div>
+                        ))}
                         {!isStreaming &&
                             (() => {
                                 const editedEvents = events.filter(
@@ -850,6 +849,11 @@ export function AssistantMessage({
                             })()}
                     </div>
                 ) : null}
+                {isStreaming &&
+                    activityEntries.length === 0 &&
+                    automationEntries.length === 0 && (
+                    <PreResponseWrapper isStreaming label="Thinking" />
+                )}
 
                 {topLevelErrorMessage && (
                     <p className="mt-2 text-base font-serif leading-7 text-red-700">

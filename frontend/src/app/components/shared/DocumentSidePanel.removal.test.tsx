@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import type { DocumentVersion } from "@/app/lib/beaverApi";
@@ -43,10 +43,12 @@ const version3: DocumentVersion = {
 function renderPanel({
   versions,
   onDelete = vi.fn(async () => {}),
+  onSelectVersion = vi.fn(),
   documentRemovalMode = "delete",
 }: {
   versions: DocumentVersion[];
   onDelete?: (doc: Document) => Promise<void>;
+  onSelectVersion?: (versionId: string, label: string) => void;
   documentRemovalMode?: "delete" | "detach";
 }) {
   render(
@@ -56,7 +58,7 @@ function renderPanel({
       versionsLoading={false}
       onClose={vi.fn()}
       onLoadVersions={vi.fn()}
-      onSelectVersion={vi.fn()}
+      onSelectVersion={onSelectVersion}
       onDownloadDocument={vi.fn()}
       onDownloadVersion={vi.fn()}
       onRenameVersion={vi.fn()}
@@ -70,6 +72,49 @@ function renderPanel({
 }
 
 describe("DocumentSidePanel document removal", () => {
+  it("bounds and searches long version histories with keyboard navigation", async () => {
+    const versions = Array.from({ length: 1000 }, (_, index) => {
+      const number = index + 1;
+      return {
+        ...version3,
+        id: `version-${number}`,
+        version_number: number,
+        filename: `Brief revision ${number}.pdf`,
+      };
+    });
+    const onSelectVersion = vi.fn();
+    renderPanel({ versions, onSelectVersion });
+
+    const list = await screen.findByRole("list", {
+      name: "Document versions",
+    });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(40);
+
+    const options = within(list).getAllByRole("listitem");
+    options[0].focus();
+    fireEvent.keyDown(options[0], { key: "ArrowDown" });
+    expect(options[1]).toHaveFocus();
+    fireEvent.keyDown(options[1], { key: "Enter" });
+    expect(onSelectVersion).toHaveBeenCalledWith(
+      "version-999",
+      "Brief revision 999.pdf",
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search versions" }), {
+      target: { value: "Brief revision 237.pdf" },
+    });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(
+      within(list).getByText("Brief revision 237.pdf"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search versions" }), {
+      target: { value: "" },
+    });
+    fireEvent.click(within(list).getByRole("button", { name: "Show more" }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(80);
+  });
+
   it("counts the surviving version rows instead of the version number", async () => {
     renderPanel({ versions: [version3] });
 

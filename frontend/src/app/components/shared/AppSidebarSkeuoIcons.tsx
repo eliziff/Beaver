@@ -22,10 +22,6 @@ export function ChatSkeuoIcon(props: IconProps) {
     return <AppSymbol symbol={"✦\uFE0E"} {...props} />;
 }
 
-export function FolderSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol="⊞" {...props} />;
-}
-
 export function LibrarySkeuoIcon(props: IconProps) {
     return <AppSymbol symbol="▤" {...props} />;
 }

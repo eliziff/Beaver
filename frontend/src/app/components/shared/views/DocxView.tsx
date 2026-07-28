@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
@@ -11,6 +11,7 @@ import {
 } from "./highlightDocxQuote";
 import { linkDocxNotes, tagDocxNotes, type DocxNoteModel } from "./docxNotes";
 import type { CitationQuote } from "../types";
+import { PdfView } from "./PdfView";
 
 interface Props {
     documentId: string;
@@ -83,10 +84,62 @@ interface Props {
  * boundaries Word actually recorded; the rest are already on by default.
  */
 export const DOCX_RENDER_OPTIONS = {
+    breakPages: true,
     ignoreLastRenderedPageBreak: false,
+    renderHeaders: true,
+    renderFooters: true,
+    renderFootnotes: true,
+    renderEndnotes: true,
     renderChanges: true,
     experimental: true,
 } satisfies Partial<DocxPreviewOptions>;
+
+export function fitDocxPages(
+    container: HTMLElement,
+    viewport: HTMLElement,
+): void {
+    const pages = Array.from(
+        container.querySelectorAll<HTMLElement>(
+            ".docx-wrapper > section.docx",
+        ),
+    );
+    if (pages.length === 0) return;
+
+    const styles = window.getComputedStyle(viewport);
+    const available =
+        viewport.clientWidth -
+        (parseFloat(styles.paddingLeft) || 0) -
+        (parseFloat(styles.paddingRight) || 0);
+    if (available <= 0) return;
+
+    for (const page of pages) {
+        let width = Number(page.dataset.docxNaturalWidth);
+        if (!Number.isFinite(width) || width <= 0) {
+            page.style.zoom = "1";
+            width = Math.max(page.offsetWidth, page.scrollWidth);
+            if (width > 0) page.dataset.docxNaturalWidth = String(width);
+        }
+        if (width > 0) page.style.zoom = String(Math.min(1, available / width));
+    }
+}
+
+export function quietBrokenDocxImages(
+    container: HTMLElement,
+    onUnsupported?: () => void,
+): void {
+    for (const image of container.querySelectorAll<HTMLImageElement>("img")) {
+        const quiet = () => {
+            image.classList.add("docx-media-unavailable");
+            image.closest<HTMLElement>("span")?.setAttribute(
+                "aria-label",
+                "Embedded image unavailable in this browser",
+            );
+            onUnsupported?.();
+        };
+        if (image.complete && image.naturalWidth === 0) quiet();
+        else image.addEventListener("error", quiet, { once: true });
+    }
+}
 
 /**
  * Parse once per distinct byte buffer. `useFetchDocxBytes` hands back the
@@ -287,6 +340,16 @@ export function DocxView({
     initialScrollTopRef.current = initialScrollTop ?? null;
     const onScrollChangeRef = useRef(onScrollChange);
     onScrollChangeRef.current = onScrollChange;
+    const unavailableRenditionsRef = useRef(new Set<string>());
+    const [pdfRenditionKey, setPdfRenditionKey] = useState<string | null>(null);
+    const [unsupportedMediaKey, setUnsupportedMediaKey] = useState<
+        string | null
+    >(null);
+    const renditionKey = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
+    const showPdfRendition =
+        !highlightEdit &&
+        pdfRenditionKey === renditionKey &&
+        !unavailableRenditionsRef.current.has(renditionKey);
 
     // Stable key for the quote list so the re-highlight effect re-fires
     // only when the actual text/order of quotes changes.
@@ -349,47 +412,7 @@ export function DocxView({
         const containerEl = containerRef.current;
         const scrollEl = scrollRef.current;
         if (!containerEl || !scrollEl) return;
-        const wrapper = containerEl.querySelector<HTMLElement>(".docx-wrapper");
-        if (!wrapper) return;
-        const sections = Array.from(
-            wrapper.querySelectorAll<HTMLElement>("section.docx"),
-        );
-        if (sections.length === 0) return;
-        // Page widths do not change after a render. Cache each natural width
-        // on its section so panel resizes do not repeatedly force layout for
-        // every page in a long document.
-        const naturalWidths = sections.map((section) => {
-            const cached = Number(section.dataset.docxNaturalWidth);
-            if (Number.isFinite(cached) && cached > 0) return cached;
-            section.style.zoom = "1";
-            return 0;
-        });
-        naturalWidths.forEach((width, index) => {
-            if (width > 0) return;
-            const measured = sections[index].offsetWidth;
-            naturalWidths[index] = measured;
-            if (measured > 0) {
-                sections[index].dataset.docxNaturalWidth = String(measured);
-            }
-        });
-        // Use the scroll container's content box (clientWidth - padding)
-        // as the available width.
-        const styles = window.getComputedStyle(scrollEl);
-        const padX =
-            (parseFloat(styles.paddingLeft) || 0) +
-            (parseFloat(styles.paddingRight) || 0);
-        const available = scrollEl.clientWidth - padX;
-        if (available <= 0) return;
-        // Scale each page independently against its own natural width so
-        // landscape/custom-size pages still fit without distorting the
-        // page dividers.
-        sections.forEach((s, index) => {
-            const w = naturalWidths[index];
-            if (!w) return;
-            const scale = Math.min(1, available / w);
-            const nextZoom = String(scale);
-            if (s.style.zoom !== nextZoom) s.style.zoom = nextZoom;
-        });
+        fitDocxPages(containerEl, scrollEl);
     };
 
     // Observe the scroll container (which tracks the side panel's width)
@@ -410,7 +433,7 @@ export function DocxView({
             if (raf) cancelAnimationFrame(raf);
             ro.disconnect();
         };
-    }, []);
+    }, [showPdfRendition]);
 
     useEffect(() => {
         let cancelled = false;
@@ -437,6 +460,15 @@ export function DocxView({
                 );
                 if (cancelled) return;
                 linkDocxNotes(containerEl);
+                quietBrokenDocxImages(containerEl, () => {
+                    if (
+                        cancelled ||
+                        highlightEditRef.current ||
+                        unavailableRenditionsRef.current.has(renditionKey)
+                    )
+                        return;
+                    setPdfRenditionKey(renditionKey);
+                });
                 // Make the first painted frame correctly sized. Documents
                 // without tracked changes now avoid the metadata request
                 // below entirely.
@@ -495,7 +527,7 @@ export function DocxView({
         // documentId/versionId intentionally follow `bytes`: adding them
         // would briefly render the previous document under a new identity
         // while the replacement bytes are loading.
-    }, [bytes]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [bytes, showPdfRendition]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Re-scroll/highlight if the target edit changes without a re-render
     // (e.g. same doc, different edit clicked).
@@ -538,23 +570,47 @@ export function DocxView({
         };
         el.addEventListener("scroll", onScroll, { passive: true });
         return () => el.removeEventListener("scroll", onScroll);
-    }, []);
+    }, [showPdfRendition]);
+
+    if (showPdfRendition) {
+        return (
+            <PdfView
+                doc={{ document_id: documentId, version_id: versionId }}
+                quotes={quotes}
+                quoteFocusKey={quoteFocusKey}
+                rounded={rounded}
+                onUnavailable={() => {
+                    unavailableRenditionsRef.current.add(renditionKey);
+                    setPdfRenditionKey(null);
+                    setUnsupportedMediaKey(renditionKey);
+                }}
+            />
+        );
+    }
+
+    const displayedWarning =
+        warning ??
+        (unsupportedMediaKey === renditionKey
+            ? "An embedded vector image is unavailable in this browser preview."
+            : null);
 
     return (
         <div
             className={`relative flex flex-col flex-1 overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
         >
-            {warning && (
+            {displayedWarning && (
                 <div className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 shadow-sm">
-                    <span>{warning}</span>
-                    <button
-                        type="button"
-                        onClick={() => onWarningDismiss?.()}
-                        className="text-amber-600 hover:text-amber-900"
-                        aria-label="Dismiss warning"
-                    >
-                        ×
-                    </button>
+                    <span>{displayedWarning}</span>
+                    {warning && (
+                        <button
+                            type="button"
+                            onClick={() => onWarningDismiss?.()}
+                            className="text-amber-600 hover:text-amber-900"
+                            aria-label="Dismiss warning"
+                        >
+                            {"\u00d7"}
+                        </button>
+                    )}
                 </div>
             )}
             <div

@@ -22,8 +22,17 @@ export function NativeActionSelect({
     className?: string;
     triggerClassName?: string;
 }) {
+    if (process.env.NODE_ENV !== "production" && items.length > 8) {
+        throw new Error(
+            "NativeActionSelect only supports fixed lists of eight items or fewer.",
+        );
+    }
+
     return (
-        <span className={cn("relative inline-flex", className)} title={label}>
+        <span
+            className={cn("relative inline-flex shrink-0", className)}
+            title={label}
+        >
             <select
                 aria-label={label}
                 defaultValue=""

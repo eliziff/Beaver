@@ -165,6 +165,78 @@ describe("DOCX notes", () => {
         }
     });
 
+    it("keeps every note reachable when a page has more than four", async () => {
+        const source = new Document({
+            footnotes: {
+                1: { children: [new Paragraph("Footnote one")] },
+                2: { children: [new Paragraph("Footnote two")] },
+                3: { children: [new Paragraph("Footnote three")] },
+                4: { children: [new Paragraph("Footnote four")] },
+                5: { children: [new Paragraph("Footnote five")] },
+                6: { children: [new Paragraph("Footnote six")] },
+                7: { children: [new Paragraph("Footnote seven")] },
+                8: { children: [new Paragraph("Footnote eight")] },
+                9: { children: [new Paragraph("Footnote nine")] },
+            },
+            sections: [
+                {
+                    children: [
+                        new Paragraph({
+                            children: [
+                                new TextRun("Dense first page"),
+                                ...Array.from(
+                                    { length: 8 },
+                                    (_, index) =>
+                                        new FootnoteReferenceRun(index + 1),
+                                ),
+                                new TextRun({
+                                    children: [
+                                        new LastRenderedPageBreak(),
+                                        "Second page",
+                                    ],
+                                }),
+                                new FootnoteReferenceRun(9),
+                            ],
+                        }),
+                    ],
+                },
+            ],
+        });
+        const container = await renderFixture(
+            await Packer.toArrayBuffer(source),
+        );
+
+        const pages = container.querySelectorAll("section.docx");
+        expect(pages).toHaveLength(2);
+        expect(pages[0].querySelectorAll(".docx-notes > li")).toHaveLength(8);
+        expect(pages[1].querySelectorAll(".docx-notes > li")).toHaveLength(1);
+        expect(refNumbers(container)).toEqual([
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+        ]);
+        for (let number = 1; number <= 9; number++) {
+            const reference = container.querySelector<HTMLAnchorElement>(
+                `#docx-noteref-f-${number}`,
+            );
+            const note = container.querySelector<HTMLLIElement>(
+                `#docx-note-f-${number}`,
+            );
+            expect(reference?.getAttribute("href")).toBe(
+                `#docx-note-f-${number}`,
+            );
+            expect(note?.querySelector("a")?.getAttribute("href")).toBe(
+                `#docx-noteref-f-${number}`,
+            );
+        }
+    });
+
     it("does not auto-number a reference with a custom mark", async () => {
         // `w:customMarkFollows` means the reference prints a symbol supplied
         // by the author (in the run right after it) instead of an auto

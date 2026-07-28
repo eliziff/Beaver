@@ -10,6 +10,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
 import { Modal } from "../modals/Modal";
+import { ModalSelect } from "../modals/ModalSelect";
 
 type MfaFactor = {
     id: string;
@@ -143,20 +144,20 @@ export function MfaVerificationPopup({
                 ) : (
                     <div className="space-y-4">
                         {factors.length > 1 && (
-                            <select
+                            <ModalSelect
+                                id="mfa-popup-factor"
                                 value={selectedFactorId}
-                                onChange={(event) =>
-                                    setSelectedFactorId(event.target.value)
-                                }
-                                className="h-9 w-full rounded-lg bg-gray-100 px-3 text-sm text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-gray-300/45"
-                            >
-                                {factors.map((factor) => (
-                                    <option key={factor.id} value={factor.id}>
-                                        {factor.friendly_name ||
-                                            "Authenticator app"}
-                                    </option>
-                                ))}
-                            </select>
+                                onChange={setSelectedFactorId}
+                                searchable
+                                ariaLabel="Authenticator"
+                                options={factors.map((factor) => ({
+                                    value: factor.id,
+                                    label:
+                                        factor.friendly_name ||
+                                        "Authenticator app",
+                                }))}
+                                className="!h-9 rounded-lg bg-gray-100"
+                            />
                         )}
                         <VerificationCodeInput
                             value={code}

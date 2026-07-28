@@ -36,20 +36,18 @@ async function ensureSidebarOpen(page: Page) {
  * Anthropic models as available. The default model, however, is
  * "gemini-3-flash-preview" (ModelToggle.DEFAULT_MODEL_ID), for which no key is
  * configured in CI; ChatInput.handleSubmit (ChatInput.tsx:116-119) then refuses
- * to send. ModelToggle now exposes native provider and model selects.
+ * to send. ModelToggle exposes one grouped model picker.
  */
-const CLAUDE_MODEL_ID = "claude-sonnet-4-6";
+const CLAUDE_MODEL_LABEL = "Claude Sonnet 4.6";
 
 async function selectClaudeModel(page: Page) {
-    const provider = page
-        .getByRole("combobox", { name: /^Model provider:/ })
-        .first();
-    await expect(provider).toBeVisible({ timeout: 10_000 });
-    await provider.selectOption("Anthropic");
-
     const model = page.getByRole("combobox", { name: /^Model:/ }).first();
-    await model.selectOption(CLAUDE_MODEL_ID);
-    await expect(model).toHaveValue(CLAUDE_MODEL_ID);
+    await expect(model).toBeVisible({ timeout: 10_000 });
+    await model.click();
+    await page
+        .getByRole("option", { name: CLAUDE_MODEL_LABEL, exact: true })
+        .click();
+    await expect(model).toHaveAccessibleName(`Model: ${CLAUDE_MODEL_LABEL}`);
 }
 
 /* ─── Test 1: cold-load existing chat ───────────────────────────────────────── */

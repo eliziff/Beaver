@@ -1,78 +1,64 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 
 export function PreResponseWrapper({
     children,
-    stepCount,
-    shouldMinimize,
     isStreaming,
     compact = false,
-    forceOpen = false,
+    label,
 }: {
-    children: React.ReactNode;
-    stepCount: number;
-    shouldMinimize: boolean;
+    children?: React.ReactNode;
     isStreaming: boolean;
-    /** Tighter typography + child gap for narrow side panels (e.g. TR chat). */
     compact?: boolean;
-    forceOpen?: boolean;
+    label: string;
 }) {
-    const [userToggled, setUserToggled] = useState(false);
-    const [isOpen, setIsOpen] = useState(!shouldMinimize);
-    // Once content has streamed in (shouldMinimize=true even once), stay
-    // minimized even if a later render briefly evaluates shouldMinimize=false.
-    // Without this latch, the wrapper visibly pops open when isStreaming
-    // flips off at the end of the response.
-    const hasMinimizedRef = useRef(shouldMinimize);
-
-    useEffect(() => {
-        if (forceOpen) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- streaming open/minimize latch (see comment above)
-            setIsOpen(true);
-            return;
-        }
-        if (shouldMinimize) hasMinimizedRef.current = true;
-        if (userToggled) return;
-        setIsOpen(!shouldMinimize && !hasMinimizedRef.current);
-    }, [forceOpen, shouldMinimize, userToggled]);
-
-    const stepWord = `step${stepCount === 1 ? "" : "s"}`;
-    const label = isStreaming
-        ? "Working"
-        : `Completed in ${stepCount} ${stepWord}`;
+    const [isOpen, setIsOpen] = useState(false);
+    const canExpand = children !== undefined;
+    const visibleLabel = isOpen ? "Activity" : label;
 
     const buttonTextClass = compact ? "text-xs" : "text-sm";
     const childrenGapClass = compact ? "gap-2.5" : "gap-4";
+    const rowClass = `flex h-9 max-w-full items-center gap-2 rounded-md px-1 font-serif text-gray-600 ${buttonTextClass}`;
+    const rowContent = (
+        <>
+            {isStreaming && (
+                <span aria-hidden="true" className="shrink-0">
+                    <ThinkingSpinner size={14} />
+                </span>
+            )}
+            <span className="min-w-0 truncate">{visibleLabel}</span>
+        </>
+    );
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
-            <button
-                type="button"
-                onClick={() => {
-                    setUserToggled(true);
-                    setIsOpen((v) => !v);
-                }}
-                className={`w-full flex items-center justify-between font-serif text-gray-500 hover:text-gray-700 transition-colors ${buttonTextClass}`}
-            >
-                <span className="flex items-baseline min-w-0">
-                    <span className="truncate">{label}</span>
-                    {isStreaming && (
-                        <span className="inline-flex ml-1 shrink-0 items-baseline">
-                            <span className="mr-0.5 h-0.5 w-0.5 rounded-full bg-gray-400" />
-                            <span className="mr-0.5 h-0.5 w-0.5 rounded-full bg-gray-400" />
-                            <span className="h-0.5 w-0.5 rounded-full bg-gray-400" />
-                        </span>
-                    )}
-                </span>
-                <ChevronDown
-                    size={12}
-                    className={`relative top-px shrink-0 ml-2 ${isOpen ? "" : "-rotate-90"}`}
-                />
-            </button>
-            {isOpen && (
-                <div className={`mt-3 flex flex-col ${childrenGapClass}`}>
+        <div className="min-w-0">
+            {canExpand ? (
+                <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-label={visibleLabel}
+                    onClick={() => setIsOpen((open) => !open)}
+                    className={`${rowClass} hover:text-gray-900`}
+                >
+                    {rowContent}
+                    <ChevronDown
+                        size={12}
+                        className={`shrink-0 ${isOpen ? "" : "-rotate-90"}`}
+                    />
+                </button>
+            ) : (
+                <div role="status" aria-label={label} className={rowClass}>
+                    {rowContent}
+                </div>
+            )}
+            {canExpand && isOpen && (
+                <div
+                    role="list"
+                    className={`ml-2 mt-1 flex flex-col border-l border-gray-200 pb-1 pl-3 ${childrenGapClass}`}
+                >
                     {children}
                 </div>
             )}

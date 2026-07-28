@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { SiteLogo } from "@/app/components/site-logo";
@@ -12,6 +12,7 @@ import {
     VerificationCodeInput,
 } from "@/app/components/popups/MfaVerificationPopup";
 import { markMfaVerifiedForGate } from "@/app/components/shared/MfaLoginGate";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
 type MfaFactor = {
     id: string;
@@ -23,6 +24,20 @@ const authGlassCardClassName =
     "rounded-2xl border border-gray-200 bg-white px-8 py-8 shadow-sm";
 
 export default function VerifyMfaPage() {
+    return (
+        <Suspense
+            fallback={
+                <MfaPageFrame>
+                    <div className="h-48" aria-label="Loading verification" />
+                </MfaPageFrame>
+            }
+        >
+            <VerifyMfaContent />
+        </Suspense>
+    );
+}
+
+function VerifyMfaContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, authLoading, signOut } = useAuth();
@@ -118,11 +133,7 @@ export default function VerifyMfaPage() {
     }
 
     return (
-        <div className="relative flex min-h-dvh items-start justify-center bg-gray-50/80 px-6 pb-10 pt-32 md:pt-40">
-            <div className="absolute left-1/2 top-4 -translate-x-1/2 md:top-8">
-                <SiteLogo size="lg" asLink />
-            </div>
-            <div className={`w-full max-w-md ${authGlassCardClassName}`}>
+        <MfaPageFrame>
                 <div className="mb-8 space-y-2">
                     <h1 className="text-2xl font-serif">
                         Verify your identity
@@ -147,23 +158,20 @@ export default function VerifyMfaPage() {
                     ) : (
                         <>
                             {factors.length > 1 && (
-                                <select
+                                <ModalSelect
+                                    id="mfa-factor"
                                     value={selectedFactorId}
-                                    onChange={(event) =>
-                                        setSelectedFactorId(event.target.value)
-                                    }
-                                    className="h-9 w-full rounded-lg border border-transparent bg-gray-100 px-3 text-sm text-gray-900 shadow-none outline-none focus-visible:border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-300/45"
-                                >
-                                    {factors.map((factor) => (
-                                        <option
-                                            key={factor.id}
-                                            value={factor.id}
-                                        >
-                                            {factor.friendly_name ||
-                                                "Authenticator app"}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={setSelectedFactorId}
+                                    searchable
+                                    ariaLabel="Authenticator"
+                                    options={factors.map((factor) => ({
+                                        value: factor.id,
+                                        label:
+                                            factor.friendly_name ||
+                                            "Authenticator app",
+                                    }))}
+                                    className="!h-9 rounded-lg border-transparent bg-gray-100"
+                                />
                             )}
                             <VerificationCodeInput
                                 value={code}
@@ -205,6 +213,18 @@ export default function VerifyMfaPage() {
                         </PillButton>
                     </div>
                 </div>
+        </MfaPageFrame>
+    );
+}
+
+function MfaPageFrame({ children }: { children: ReactNode }) {
+    return (
+        <div className="relative flex min-h-dvh items-start justify-center bg-gray-50/80 px-6 pb-10 pt-32 md:pt-40">
+            <div className="absolute left-1/2 top-4 -translate-x-1/2 md:top-8">
+                <SiteLogo size="lg" asLink />
+            </div>
+            <div className={`w-full max-w-md ${authGlassCardClassName}`}>
+                {children}
             </div>
         </div>
     );

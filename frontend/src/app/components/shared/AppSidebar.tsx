@@ -1,32 +1,34 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { PanelLeft, User, ChevronsUpDown, KeyRound } from "lucide-react";
-import { useAuth } from "@/app/contexts/AuthContext";
-import { isAnonymousMode } from "@/app/lib/authMode";
-import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { useEffect, useMemo, useState } from "react";
+import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
-  FolderSkeuoIcon,
   LibrarySkeuoIcon,
   TableOfAuthoritiesSkeuoIcon,
   TabularReviewSkeuoIcon,
   WorkflowSkeuoIcon,
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { cn } from "@/app/lib/utils";
 import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
+import { RecyclingBinModal } from "@/app/components/assistant/RecyclingBinModal";
+import { AppSettingsModal } from "@/app/components/settings/AppSettingsModal";
+import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+import { updateChatProject } from "@/app/lib/beaverApi";
+import type { Chat } from "@/app/components/shared/types";
 
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
-  { href: "/projects", label: "Projects", icon: FolderSkeuoIcon },
+  { href: "/projects", label: "Projects", icon: FolderSvgIcon },
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
   {
     href: "/table-of-authorities",
@@ -47,11 +49,13 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
-  const { user } = useAuth();
-  const { profile } = useUserProfile();
-  const { chats, hasMoreChats, loadMoreChats, setCurrentChatId } =
+  const [recyclingOpen, setRecyclingOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
+  const { chats, hasMoreChats, loadMoreChats, loadChats, setCurrentChatId } =
     useChatHistoryContext();
   const pathname = usePathname();
+  const router = useRouter();
   const routeChatId = useMemo(() => {
     if (pathname.startsWith("/assistant/chat/")) {
       return pathname.split("/").pop() ?? null;
@@ -71,16 +75,27 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
     setCurrentChatId(routeChatId);
   }, [routeChatId, setCurrentChatId]);
 
-  if (!user) return null;
+  async function moveChatToProject(projectId: string | null) {
+    const chat = chatProjectTarget;
+    if (!chat) return;
+    await updateChatProject(chat.id, projectId);
+    const refresh = loadChats();
+    if (routeChatId === chat.id) {
+      router.replace(
+        projectId
+          ? `/projects/${projectId}/assistant/chat/${chat.id}`
+          : `/assistant/chat/${chat.id}`,
+      );
+    }
+    await refresh;
+  }
 
   return (
     <>
-      {/* Mobile: tapping outside the expanded sidebar closes it. The
-                sidebar (z-[99]) sits above this scrim (z-[98]); md+ is
-                unaffected since the sidebar is part of the layout there. */}
+      {/* Compact layouts use an overlay so the page keeps its working width. */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-[98] bg-gray-300/20 md:hidden"
+          className="fixed inset-0 z-[98] bg-gray-950/30 lg:hidden"
           onClick={onToggle}
           aria-hidden="true"
         />
@@ -88,18 +103,17 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
       <aside
         className={cn(
           mobileOpen
-            ? "max-md:h-[calc(100dvh-1rem)] max-md:w-64"
-            : "max-md:hidden",
-          "md:h-[calc(100dvh-1.5rem)] md:w-64",
-          "my-2 ml-2 mr-0 md:my-3 md:ml-3 md:mr-0 rounded-2xl border border-gray-200 bg-app-surface overflow-visible",
-          "flex flex-col absolute md:relative z-[99]",
+            ? "max-lg:h-[calc(100dvh-1rem)] max-lg:w-64"
+            : "max-lg:hidden",
+          "lg:h-[calc(100dvh-1.5rem)] lg:w-64",
+          "my-2 ml-2 mr-0 lg:my-3 lg:ml-3 lg:mr-0 rounded-2xl border border-gray-300 bg-app-surface overflow-visible",
+          "flex flex-col absolute lg:relative z-[99] [contain:paint]",
         )}
       >
         <div className="flex items-center justify-between px-2.5 py-3">
           <div className="px-2">
             <Link
               href="/assistant"
-              prefetch={false}
               className="flex items-center gap-1.5 hover:opacity-80"
               onClick={mobileOpen ? onToggle : undefined}
             >
@@ -110,7 +124,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
           <button
             onClick={onToggle}
             className={cn(
-              "flex h-9 w-9 items-center p-2.5 md:hidden",
+              "flex h-9 w-9 items-center p-2.5 lg:hidden",
               "rounded-md",
               APP_SURFACE_HOVER_CLASS,
             )}
@@ -122,16 +136,13 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
         </div>
 
         <nav aria-label="Primary" className="shrink-0 pb-2">
-          {NAV_ITEMS.filter(
-            ({ href }) => !isAnonymousMode || href !== "/workflows",
-          ).map(({ href, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
               pathname === href || pathname.startsWith(`${href}/`);
             return (
               <div key={href} className="px-2.5 py-0.5">
                 <Link
                   href={href}
-                  prefetch={false}
                   onClick={mobileOpen ? onToggle : undefined}
                   title={label}
                   aria-current={isActive ? "page" : undefined}
@@ -195,6 +206,10 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
                         isActive={routeChatId === chat.id}
                         href={`/assistant/chat/${chat.id}`}
                         onNavigate={mobileOpen ? onToggle : undefined}
+                        onMoveToProject={() => {
+                          setChatProjectTarget(chat);
+                          if (mobileOpen) onToggle();
+                        }}
                       />
                     ))}
                   </div>
@@ -215,87 +230,57 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
                 </>
               )}
             </div>
+            <div className="shrink-0 px-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setRecyclingOpen(true);
+                  if (mobileOpen) onToggle();
+                }}
+                className={cn(
+                  "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm font-medium text-gray-700",
+                  APP_SURFACE_HOVER_CLASS,
+                )}
+              >
+                <Trash2 className="h-4 w-4 shrink-0" />
+                Recycling bin
+              </button>
+            </div>
           </section>
         )}
 
         <div className="mt-auto p-1">
-          {isAnonymousMode ? (
-            <Link
-              href="/account/api-keys"
-              prefetch={false}
-              onClick={mobileOpen ? onToggle : undefined}
-              title="API keys"
-              aria-current={
-                pathname === "/account/api-keys" ? "page" : undefined
-              }
-              className={cn(
-                "flex w-full items-center gap-3 rounded-xl border-t border-gray-300 px-3 py-3 text-sm text-gray-700",
-                pathname === "/account/api-keys"
-                  ? APP_SURFACE_ACTIVE_CLASS
-                  : APP_SURFACE_HOVER_CLASS,
-              )}
-            >
-              <KeyRound className="h-4 w-4 shrink-0" />
-              <span>API keys</span>
-            </Link>
-          ) : (
-            <details className="group relative">
-              <summary
-                className={cn(
-                  "flex w-full cursor-pointer list-none items-center rounded-xl border-t border-gray-300 px-2.5 py-3 [&::-webkit-details-marker]:hidden",
-                  pathname === "/account"
-                    ? APP_SURFACE_ACTIVE_CLASS
-                    : `${APP_SURFACE_HOVER_CLASS} group-open:bg-app-surface-active`,
-                )}
-                title={user.email}
-                aria-label="Account menu"
-              >
-                <div className="h-6.5 w-6.5 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
-                  {(profile?.displayName || user.email)
-                    .charAt(0)
-                    .toUpperCase()}
-                </div>
-                <div
-                  className="flex min-w-0 flex-1 items-center justify-between gap-2 pl-3 text-left"
-                >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <div className="text-sm font-medium leading-none text-gray-900">
-                      {profile
-                        ? profile.displayName || user.email.split("@")[0]
-                        : ""}
-                    </div>
-                    <div className="text-[12px] leading-none text-gray-500">
-                      {profile ? profile.tier || "Free" : ""}
-                    </div>
-                  </div>
-                  <ChevronsUpDown
-                    aria-hidden="true"
-                    className="h-4 w-4 flex-shrink-0 text-gray-500"
-                  />
-                </div>
-              </summary>
-
-              <div className="absolute bottom-full left-0 z-50 mb-1 w-56 whitespace-nowrap rounded-xl border border-gray-300 bg-white p-1">
-                <Link
-                  href="/account"
-                  prefetch={false}
-                  onClick={(event) => {
-                    event.currentTarget
-                      .closest("details")
-                      ?.removeAttribute("open");
-                    if (mobileOpen) onToggle();
-                  }}
-                  aria-current={pathname === "/account" ? "page" : undefined}
-                  className="flex w-full items-center gap-2 rounded-md px-4 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
-                >
-                  <User className="h-4 w-4" />
-                  Account Settings
-                </Link>
-              </div>
-            </details>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsOpen(true);
+              if (mobileOpen) onToggle();
+            }}
+            className={cn(
+              "flex h-11 w-full items-center gap-3 rounded-xl border-t border-gray-300 px-3 text-sm font-medium text-gray-700",
+              APP_SURFACE_HOVER_CLASS,
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            Settings
+          </button>
         </div>
       </aside>
+      <SelectAssistantProjectModal
+        open={!!chatProjectTarget}
+        onClose={() => setChatProjectTarget(null)}
+        currentProjectId={chatProjectTarget?.project_id}
+        onSelectProject={moveChatToProject}
+      />
+      <RecyclingBinModal
+        open={recyclingOpen}
+        onClose={() => setRecyclingOpen(false)}
+        onRestored={loadChats}
+      />
+      <AppSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </>
   );
 }

@@ -4,7 +4,6 @@ export const isAnonymousMode =
 export function requiresAccount(pathname: string): boolean {
     const segments = pathname.split("/");
     return (
-        segments[1] === "workflows" ||
-        (segments[1] === "account" && pathname !== "/account/api-keys")
+        segments[1] === "account" && pathname !== "/account/api-keys"
     );
 }

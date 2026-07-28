@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
@@ -12,6 +12,7 @@ import {
 import type { Chat } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -56,9 +57,7 @@ export default function ProjectAssistantPage({ params }: Props) {
     use(params);
     const workspace = useProjectWorkspace();
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { user } = useAuth();
-    const previewEmptyStates = searchParams.get("emptyStates") === "1";
     const {
         ensureProjectChats,
         projectChats,
@@ -71,9 +70,10 @@ export default function ProjectAssistantPage({ params }: Props) {
     const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
     const [renameChatValue, setRenameChatValue] = useState("");
     const [actionsOpen, setActionsOpen] = useState(false);
+    const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+    const [deleteBusy, setDeleteBusy] = useState(false);
     const chats = useMemo(() => projectChats ?? [], [projectChats]);
-    const visibleChats = previewEmptyStates ? [] : chats;
-    const loading = projectChats === null && !previewEmptyStates;
+    const loading = projectChats === null;
 
     useEffect(() => {
         void ensureProjectChats();
@@ -81,8 +81,8 @@ export default function ProjectAssistantPage({ params }: Props) {
 
     const q = search.toLowerCase();
     const filteredChats = q
-        ? visibleChats.filter((c) => (c.title ?? "").toLowerCase().includes(q))
-        : visibleChats;
+        ? chats.filter((c) => (c.title ?? "").toLowerCase().includes(q))
+        : chats;
     const allChatsSelected =
         filteredChats.length > 0 &&
         filteredChats.every((c) => selectedChatIds.includes(c.id));
@@ -102,16 +102,15 @@ export default function ProjectAssistantPage({ params }: Props) {
         );
     }
 
-    async function handleDeleteChatRow(chat: Chat) {
+    function handleDeleteChatRow(chat: Chat) {
         if (user?.id && chat.user_id !== user.id) {
             setOwnerOnlyAction("delete this chat");
             return;
         }
-        await deleteChat(chat.id);
-        setProjectChats((prev) => (prev ?? []).filter((c) => c.id !== chat.id));
+        setPendingDeleteIds([chat.id]);
     }
 
-    const handleDeleteSelectedChats = useCallback(async () => {
+    function handleDeleteSelectedChats() {
         const ids = [...selectedChatIds];
         setActionsOpen(false);
         const owned = ids.filter((id) => {
@@ -119,17 +118,30 @@ export default function ProjectAssistantPage({ params }: Props) {
             return !chat || chat.user_id === user?.id;
         });
         const blocked = ids.length - owned.length;
-        setSelectedChatIds([]);
-        await Promise.all(owned.map((id) => deleteChat(id).catch(() => {})));
-        setProjectChats((prev) =>
-            (prev ?? []).filter((chat) => !owned.includes(chat.id)),
-        );
         if (blocked > 0) {
             setOwnerOnlyAction(
                 `delete ${blocked} of the selected chats - only the chat creator can delete a chat`,
             );
         }
-    }, [chats, selectedChatIds, setOwnerOnlyAction, setProjectChats, user?.id]);
+        if (owned.length > 0) setPendingDeleteIds(owned);
+    }
+
+    async function confirmDeleteChats() {
+        const ids = [...pendingDeleteIds];
+        setDeleteBusy(true);
+        try {
+            await Promise.all(ids.map((id) => deleteChat(id)));
+            setProjectChats((prev) =>
+                (prev ?? []).filter((chat) => !ids.includes(chat.id)),
+            );
+            setSelectedChatIds((selected) =>
+                selected.filter((id) => !ids.includes(id)),
+            );
+            setPendingDeleteIds([]);
+        } finally {
+            setDeleteBusy(false);
+        }
+    }
 
     return (
         <>
@@ -139,12 +151,12 @@ export default function ProjectAssistantPage({ params }: Props) {
                         selectedCount={selectedChatIds.length}
                         open={actionsOpen}
                         onOpenChange={setActionsOpen}
-                        onDelete={() => void handleDeleteSelectedChats()}
+                        onDelete={handleDeleteSelectedChats}
                     />
                 ) : undefined}
             />
             <ProjectAssistantTable
-                chats={visibleChats}
+                chats={chats}
                 filteredChats={filteredChats}
                 selectedChatIds={selectedChatIds}
                 allChatsSelected={allChatsSelected}
@@ -165,6 +177,13 @@ export default function ProjectAssistantPage({ params }: Props) {
                 setSelectedChatIds={setSelectedChatIds}
                 setRenamingChatId={setRenamingChatId}
                 setRenameChatValue={setRenameChatValue}
+            />
+            <ChatDeleteWarning
+                open={pendingDeleteIds.length > 0}
+                count={pendingDeleteIds.length}
+                busy={deleteBusy}
+                onCancel={() => setPendingDeleteIds([])}
+                onConfirm={() => void confirmDeleteChats()}
             />
         </>
     );

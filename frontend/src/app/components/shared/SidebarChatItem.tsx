@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Pencil, Trash2, Check, X } from "lucide-react";
+import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
+import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import type { Chat } from "@/app/components/shared/types";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { cn } from "@/app/lib/utils";
@@ -20,6 +21,7 @@ interface Props {
     href: string;
     onNavigate?: () => void;
     projectName?: string;
+    onMoveToProject?: () => void;
 }
 
 export function SidebarChatItem({
@@ -28,12 +30,15 @@ export function SidebarChatItem({
     href,
     onNavigate,
     projectName,
+    onMoveToProject,
 }: Props) {
     const { renameChat, deleteChat } = useChatHistoryContext();
     const { user } = useAuth();
     const [isRenaming, setIsRenaming] = useState(false);
     const [editTitle, setEditTitle] = useState(chat.title ?? "");
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const editInputRef = useRef<HTMLInputElement>(null);
     // Sidebar can show collaborator chats from projects the user owns;
     // rename/delete are still creator-only on the backend, so guard here.
@@ -57,10 +62,10 @@ export function SidebarChatItem({
     return (
         <div
             className={cn(
-                "group relative flex h-8 w-full items-center rounded-md",
+                "group relative flex h-8 w-full items-center rounded-md pr-1",
                 isActive
-                    ? `${APP_SURFACE_ACTIVE_CLASS} pr-1`
-                    : `pr-3 ${APP_SURFACE_HOVER_CLASS} hover:pr-1`,
+                    ? APP_SURFACE_ACTIVE_CLASS
+                    : APP_SURFACE_HOVER_CLASS,
             )}
         >
             {isRenaming ? (
@@ -103,10 +108,10 @@ export function SidebarChatItem({
                         onClick={onNavigate}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
-                            "min-w-0 flex-1 truncate py-1 pl-2 text-left text-xs",
+                            "min-w-0 flex-1 truncate py-1 pl-2 pr-1 text-left text-xs",
                             isActive
-                                ? "pr-3 text-gray-900"
-                                : "pr-0 text-gray-700 group-hover:pr-3",
+                                ? "text-gray-900"
+                                : "text-gray-700",
                         )}
                         title={projectName ? `${projectName}: ${chat.title ?? "Untitled chat"}` : (chat.title ?? "Untitled chat")}
                     >
@@ -117,12 +122,29 @@ export function SidebarChatItem({
                     </Link>
 
                     <div
-                        className={`flex shrink-0 items-center ${
+                        className={`flex shrink-0 items-center ${onMoveToProject ? "w-[72px]" : "w-12"} ${
                             isActive
                                 ? "opacity-100"
                                 : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
                         }`}
                     >
+                        {onMoveToProject && (
+                            <button
+                                type="button"
+                                aria-label={`Move ${chat.title ?? "chat"} to project`}
+                                title="Move to project"
+                                onClick={() => {
+                                    if (!isChatOwner) {
+                                        setOwnerOnlyAction("move this chat");
+                                        return;
+                                    }
+                                    onMoveToProject();
+                                }}
+                                className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                            >
+                                <FolderInput className="h-3 w-3" />
+                            </button>
+                        )}
                         <button
                             type="button"
                             aria-label={`Rename ${chat.title ?? "chat"}`}
@@ -148,7 +170,7 @@ export function SidebarChatItem({
                                     setOwnerOnlyAction("delete this chat");
                                     return;
                                 }
-                                void deleteChat(chat.id);
+                                setConfirmDeleteOpen(true);
                             }}
                             className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700"
                         >
@@ -161,6 +183,18 @@ export function SidebarChatItem({
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}
                 onClose={() => setOwnerOnlyAction(null)}
+            />
+            <ChatDeleteWarning
+                open={confirmDeleteOpen}
+                busy={isDeleting}
+                onCancel={() => setConfirmDeleteOpen(false)}
+                onConfirm={() => {
+                    setIsDeleting(true);
+                    void deleteChat(chat.id).finally(() => {
+                        setIsDeleting(false);
+                        setConfirmDeleteOpen(false);
+                    });
+                }}
             />
         </div>
     );

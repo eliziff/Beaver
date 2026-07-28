@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
 
+.overflow-y-auto,
+.overflow-auto {
+    scrollbar-gutter: stable;
+}
+
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -151,6 +156,11 @@
 
     button {
         cursor: pointer;
+    }
+
+    select {
+        @apply box-border h-9 w-full min-w-0 max-w-full;
+        font: inherit;
     }
 }
 
@@ -445,6 +455,14 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.docx-view-container section.docx img {
+    object-fit: contain;
+}
+
+.docx-view-container section.docx img.docx-media-unavailable {
+    visibility: hidden;
+}
+
 /* Footnote/endnote area (see docxNotes.ts). The list markers docx-preview
    would otherwise draw restart at 1 on every rendered page; our own labels
    run continuously, so the browser's are suppressed. The short rule above
@@ -453,6 +471,8 @@
     list-style: none;
     margin: 1.5em 0 0;
     padding: 0;
+    max-height: none;
+    overflow: visible;
 }
 
 .docx-view-container .docx-notes::before {
@@ -502,5 +522,16 @@
     100% {
         background-color: rgba(59, 130, 246, 0);
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
     }
 }

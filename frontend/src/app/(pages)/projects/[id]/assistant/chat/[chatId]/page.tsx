@@ -28,6 +28,7 @@ import {
     moveDocumentToFolder,
     moveSubfolderToFolder,
     removeProjectDocument,
+    updateChatProject,
 } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
@@ -37,6 +38,11 @@ import { AssistantMessage } from "@/app/components/assistant/AssistantMessage";
 import { ChatInput } from "@/app/components/assistant/ChatInput";
 import type { ChatInputHandle } from "@/app/components/assistant/ChatInput";
 import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
+import {
+    AutomationRunPanel,
+    automationRunKey,
+} from "@/app/components/documents/AutomationRun";
 import { PdfView } from "@/app/components/shared/views/PdfView";
 import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
@@ -47,8 +53,11 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import type {
+    AutomationRunEvent,
     CitationQuote,
     Citation,
     Document,
@@ -168,6 +177,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const [chatLoaded, setChatLoaded] = useState(false);
     const [creatingChat, setCreatingChat] = useState(false);
     const [deletingChat, setDeletingChat] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [projectModalOpen, setProjectModalOpen] = useState(false);
 
     // Panel widths
     const [explorerWidth, setExplorerWidth] = useState(EXPLORER_DEFAULT);
@@ -182,6 +193,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     // Tabs
     const [tabs, setTabs] = useState<DocTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
+    const [automationRun, setAutomationRun] =
+        useState<AutomationRunEvent | null>(null);
     const [activeQuotes, setActiveQuotes] = useState<CitationQuote[] | null>(
         null,
     );
@@ -221,6 +234,24 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         retryRejectedTurn,
         cancel,
     } = useAssistantChat({ initialMessages, chatId, projectId });
+    const mergeAutomationRun = useCallback(
+        (run: AutomationRunEvent) => {
+            const key = automationRunKey(run);
+            let merged = run;
+            for (const message of messages) {
+                for (const event of message.events ?? []) {
+                    if (
+                        event.type === "automation_run" &&
+                        automationRunKey(event) === key
+                    ) {
+                        merged = { ...merged, ...event };
+                    }
+                }
+            }
+            return merged;
+        },
+        [messages],
+    );
     const pendingInitialUserMessageRef = useRef<Message | null>(
         initialMessages.length === 1 && initialMessages[0].role === "user"
             ? initialMessages[0]
@@ -230,6 +261,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const hasLoaded = useRef(false);
     const hasAutoSent = useRef(false);
     const hasInitialScrolled = useRef(false);
+
+    useEffect(() => {
+        if (!automationRun) return;
+        const latest = mergeAutomationRun(automationRun);
+        if (latest.id !== automationRun.id) setAutomationRun(latest);
+    }, [automationRun, mergeAutomationRun]);
 
     useEffect(() => {
         setSidebarOpen(false);
@@ -412,6 +449,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             ];
         });
         setActiveTabId(docId);
+        setAutomationRun(null);
         setActiveQuotes(quotes && quotes.length ? quotes : null);
         setSelectedDocId(docId);
     }
@@ -432,6 +470,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
 
     function switchTab(docId: string) {
         setActiveTabId(docId);
+        setAutomationRun(null);
         setActiveQuotes(null);
         setSelectedDocId(docId);
     }
@@ -451,7 +490,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     );
 
     const handleDocClick = (doc: Document) => {
-        openTab(doc.id, doc.filename);
+        openTab(
+            doc.id,
+            doc.filename,
+            undefined,
+            doc.current_version_id ?? null,
+        );
     };
 
     const handleCitationClick = (citation: Citation) => {
@@ -558,14 +602,19 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         }
     }
 
-    async function handleDeleteChat() {
+    function handleDeleteChat() {
         if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
             setOwnerOnlyAction("delete this chat");
             return;
         }
+        setDeleteConfirmOpen(true);
+    }
+
+    async function confirmDeleteChat() {
         setDeletingChat(true);
         try {
             await deleteChat(chatId);
+            setDeleteConfirmOpen(false);
             router.push(`/projects/${projectId}/assistant`);
         } finally {
             setDeletingChat(false);
@@ -746,6 +795,15 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         setChatWidth((w) => Math.max(CHAT_MIN, w - dx));
     }, []);
 
+    async function changeProject(nextProjectId: string | null) {
+        await updateChatProject(chatId, nextProjectId);
+        router.replace(
+            nextProjectId
+                ? `/projects/${nextProjectId}/assistant/chat/${chatId}`
+                : `/assistant/chat/${chatId}`,
+        );
+    }
+
     return (
         <div className="flex flex-col h-full">
             {/* Page header */}
@@ -781,6 +839,35 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 ]}
                 actions={[
                     {
+                        type: "custom",
+                        render: (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (
+                                        chatOwnerId &&
+                                        user?.id &&
+                                        chatOwnerId !== user.id
+                                    ) {
+                                        setOwnerOnlyAction(
+                                            "change this chat's project",
+                                        );
+                                        return;
+                                    }
+                                    setProjectModalOpen(true);
+                                }}
+                                disabled={isResponseLoading}
+                                aria-label={`Change project: ${project?.name ?? "current project"}`}
+                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">
+                                    {project?.name ?? "Project"}
+                                </span>
+                            </button>
+                        ),
+                    },
+                    {
                         type: "new",
                         onClick: handleNewChat,
                         loading: creatingChat,
@@ -789,23 +876,26 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     {
                         type: "custom",
                         render: (
-                            <HeaderActionsMenu
-                                items={[
-                                    {
-                                        label: "Rename",
-                                        onSelect: () =>
-                                            void handleRenameChat(),
-                                    },
-                                    {
-                                        label: deletingChat
-                                            ? "Deleting..."
-                                            : "Delete",
-                                        onSelect: () =>
-                                            void handleDeleteChat(),
-                                        disabled: deletingChat,
-                                    },
-                                ]}
-                            />
+                            <button
+                                type="button"
+                                onClick={() => void handleRenameChat()}
+                                className="inline-flex h-8 items-center rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:bg-gray-50"
+                            >
+                                Rename
+                            </button>
+                        ),
+                    },
+                    {
+                        type: "custom",
+                        render: (
+                            <button
+                                type="button"
+                                onClick={() => void handleDeleteChat()}
+                                disabled={deletingChat}
+                                className="inline-flex h-8 items-center rounded-md border border-red-300 bg-white px-3 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {deletingChat ? "Deleting..." : "Delete"}
+                            </button>
                         ),
                     },
                 ]}
@@ -919,7 +1009,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     </div>
                                 )}
                                 <ProjectExplorer
-                                    projectName={project?.name}
                                     documents={project?.documents ?? []}
                                     folders={project?.folders ?? []}
                                     selectedDocId={selectedDocId}
@@ -959,13 +1048,16 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 <div className="flex-1 flex flex-col min-w-0 border-r border-gray-200">
                     {/* Tab bar */}
                     <div className="flex max-h-32 min-w-0 shrink-0 flex-wrap items-stretch overflow-y-auto border-b border-gray-200">
-                        {tabs.length === 0 ? (
+                        {tabs.length === 0 && !automationRun ? (
                             <span className="px-4 self-center text-xs text-gray-700">
                                 Document Viewer
                             </span>
                         ) : (
-                            tabs.map((tab) => {
-                                const isActive = tab.documentId === activeTabId;
+                            <>
+                            {tabs.map((tab) => {
+                                const isActive =
+                                    !automationRun &&
+                                    tab.documentId === activeTabId;
                                 const ext = tab.filename
                                     .split(".")
                                     .pop()
@@ -1020,6 +1112,36 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                                 V{versionNumber}
                                             </span>
                                         )}
+                                        {isActive && (
+                                            <span
+                                                className="ml-auto shrink-0"
+                                                onClick={(event) =>
+                                                    event.stopPropagation()
+                                                }
+                                            >
+                                                <DocumentAutomation
+                                                    document={{
+                                                        id: tab.documentId,
+                                                        filename: tab.filename,
+                                                        project_id: projectId,
+                                                    }}
+                                                    onDocumentChanged={(
+                                                        result,
+                                                    ) =>
+                                                        patchTab(
+                                                            tab.documentId,
+                                                            {
+                                                                versionId:
+                                                                    result.version_id,
+                                                                refetchKey:
+                                                                    (tab.refetchKey ??
+                                                                        0) + 1,
+                                                            },
+                                                        )
+                                                    }
+                                                />
+                                            </span>
+                                        )}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -1032,11 +1154,31 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                         </button>
                                     </div>
                                 );
-                            })
+                            })}
+                            {automationRun && (
+                                <div className="flex min-h-10 min-w-0 basis-56 flex-1 items-center gap-2 border-r border-gray-300 bg-gray-100 px-3">
+                                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-950">
+                                        Automation
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAutomationRun(null)}
+                                        aria-label="Close Automation"
+                                        className="text-gray-600 hover:text-gray-950"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            )}
+                            </>
                         )}
                     </div>
                     <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                        {activeTab ? (
+                        {automationRun ? (
+                            <div className="h-full overflow-y-auto bg-white">
+                                <AutomationRunPanel run={automationRun} />
+                            </div>
+                        ) : activeTab ? (
                             isDocxFilename(activeTab.filename) ? (
                                 <DocxView
                                     key={activeTab.documentId}
@@ -1079,7 +1221,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                             ) : (
                                 <PdfView
                                     key={activeTab.documentId}
-                                    doc={{ document_id: activeTab.documentId }}
+                                    doc={{
+                                        document_id: activeTab.documentId,
+                                        version_id: activeTab.versionId,
+                                    }}
                                     quotes={activeQuotes ?? undefined}
                                     rounded={false}
                                 />
@@ -1185,6 +1330,11 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                             onCitationClick={
                                                 handleCitationClick
                                             }
+                                            onAutomationClick={(run) =>
+                                                setAutomationRun(
+                                                    mergeAutomationRun(run),
+                                                )
+                                            }
                                             minHeight={
                                                 i === lastAssistantIdx
                                                     ? minHeight
@@ -1270,6 +1420,18 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         void retryRejectedTurn();
                     },
                 }}
+            />
+            <ChatDeleteWarning
+                open={deleteConfirmOpen}
+                busy={deletingChat}
+                onCancel={() => setDeleteConfirmOpen(false)}
+                onConfirm={() => void confirmDeleteChat()}
+            />
+            <SelectAssistantProjectModal
+                open={projectModalOpen}
+                onClose={() => setProjectModalOpen(false)}
+                currentProjectId={projectId}
+                onSelectProject={changeProject}
             />
         </div>
     );

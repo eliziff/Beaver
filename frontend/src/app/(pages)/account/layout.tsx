@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
@@ -42,15 +41,7 @@ export default function AccountLayout({
         }
     }, [isAuthenticated, authLoading, router]);
 
-    if (authLoading) {
-        return (
-            <div className="h-dvh flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
-        );
-    }
-
-    if (!isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
         return null;
     }
 
@@ -117,7 +108,18 @@ export default function AccountLayout({
                         </ul>
                     </nav>
 
-                    <div className="min-w-0 outline-none">{children}</div>
+                    <div
+                        className="min-w-0 outline-none"
+                        aria-busy={authLoading || undefined}
+                    >
+                        {authLoading ? (
+                            <p className="py-8 text-sm text-gray-500">
+                                Loading settings…
+                            </p>
+                        ) : (
+                            children
+                        )}
+                    </div>
                 </div>
             </main>
         </div>

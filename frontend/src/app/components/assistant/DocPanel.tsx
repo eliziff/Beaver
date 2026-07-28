@@ -13,6 +13,7 @@ import {
     type CitationQuoteHeaderItem,
 } from "./CitationQuotesHeader";
 import { TrackedChangeHeader } from "./TrackedChangeHeader";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import {
     cleanCitationQuoteText,
     expandCitationToEntries,
@@ -41,7 +42,6 @@ export type DocPanelMode =
     | {
           kind: "edit";
           edit: EditAnnotation;
-          changeNumber?: number;
           /**
            * True while an accept/reject request for this exact edit is in
            * flight. Scoped per-edit (not per-document) so sibling edits on
@@ -107,13 +107,13 @@ export function DocPanel({
     // only lives in DocxView, which is fine because edits are DOCX-only.
     const useDocxView = isDocxFilename(filename);
     const useSheetView = isSpreadsheetFilename(filename);
+    const [actionVersionId, setActionVersionId] = useState(versionId);
     const citationQuoteId =
         mode.kind === "citation" ? `document:${mode.citation.ref}:0` : null;
     const [activeCitationQuoteId, setActiveCitationQuoteId] = useState<
         string | null
     >(citationQuoteId);
     const [quoteFocusKey, setQuoteFocusKey] = useState(0);
-    const [editFocusKey, setEditFocusKey] = useState(0);
 
     const quotes: CitationQuote[] | undefined = useMemo(() => {
         if (mode.kind !== "citation") return undefined;
@@ -130,7 +130,7 @@ export function DocPanel({
             quote: selectedQuote.quote,
             quotes: [selectedQuote],
         });
-    }, [activeCitationQuoteId, citationQuoteId, mode]);
+    }, [activeCitationQuoteId, mode]);
 
     // Cell locator(s) for the selected quote, used to highlight the cited cell
     // when the document is a spreadsheet.
@@ -150,6 +150,10 @@ export function DocPanel({
         setActiveCitationQuoteId(citationQuoteId);
     }, [citationQuoteId]);
 
+    useEffect(() => {
+        setActionVersionId(versionId);
+    }, [versionId]);
+
     const handleCitationQuoteSelect = useCallback(
         (quoteId: string) => {
             const shouldSelect = activeCitationQuoteId !== quoteId;
@@ -162,23 +166,26 @@ export function DocPanel({
     const highlightEdit = useMemo(() => {
         if (mode.kind !== "edit") return null;
         return {
-            key: `${mode.edit.edit_id}:${editFocusKey}`,
+            key: mode.edit.edit_id,
             inserted_text: mode.edit.inserted_text,
             deleted_text: mode.edit.deleted_text,
             ins_w_id: mode.edit.ins_w_id ?? null,
             del_w_id: mode.edit.del_w_id ?? null,
         };
-    }, [editFocusKey, mode]);
+    }, [mode]);
 
     return (
         <div className="flex h-full flex-col">
-            <DocumentTitleRow
-                documentId={documentId}
-                filename={filename}
-                versionId={versionId}
-                versionNumber={versionNumber}
-                isReloading={isReloading}
-            />
+            {mode.kind !== "edit" && (
+                <DocumentTitleRow
+                    documentId={documentId}
+                    filename={filename}
+                    versionId={actionVersionId}
+                    versionNumber={versionNumber}
+                    isReloading={isReloading}
+                    onDocumentChanged={setActionVersionId}
+                />
+            )}
 
             {mode.kind === "citation" && (
                 <RelevantQuoteSection
@@ -192,12 +199,10 @@ export function DocPanel({
             {mode.kind === "edit" && (
                 <TrackedChangeHeader
                     edit={mode.edit}
-                    changeNumber={mode.changeNumber}
                     isEditReloading={mode.isEditReloading}
                     onResolveStart={mode.onResolveStart}
                     onResolved={mode.onResolved}
                     onError={mode.onError}
-                    onHighlight={() => setEditFocusKey((current) => current + 1)}
                 />
             )}
 
@@ -205,7 +210,7 @@ export function DocPanel({
                 {useDocxView ? (
                     <DocxView
                         documentId={documentId}
-                        versionId={versionId ?? undefined}
+                        versionId={actionVersionId ?? undefined}
                         quotes={quotes}
                         quoteFocusKey={quoteFocusKey}
                         highlightEdit={highlightEdit}
@@ -217,14 +222,14 @@ export function DocPanel({
                 ) : useSheetView ? (
                     <SpreadsheetView
                         documentId={documentId}
-                        versionId={versionId}
+                        versionId={actionVersionId}
                         highlightCells={highlightCells}
                     />
                 ) : (
                     <PdfView
                         doc={{
                             document_id: documentId,
-                            version_id: versionId,
+                            version_id: actionVersionId,
                         }}
                         quotes={quotes}
                         quoteFocusKey={quoteFocusKey}
@@ -245,12 +250,14 @@ function DocumentTitleRow({
     versionId,
     versionNumber,
     isReloading,
+    onDocumentChanged,
 }: {
     documentId: string;
     filename: string;
     versionId: string | null;
     versionNumber: number | null;
     isReloading: boolean;
+    onDocumentChanged: (versionId: string) => void;
 }) {
     return (
         <div className="flex items-start gap-3 px-3 pt-4 pb-3">
@@ -268,6 +275,14 @@ function DocumentTitleRow({
                         </span>
                     )}
                 </div>
+            </div>
+            <div className="shrink-0">
+                <DocumentAutomation
+                    document={{ id: documentId, filename }}
+                    onDocumentChanged={(result) =>
+                        onDocumentChanged(result.version_id)
+                    }
+                />
             </div>
             <div className="shrink-0">
                 <DownloadButton

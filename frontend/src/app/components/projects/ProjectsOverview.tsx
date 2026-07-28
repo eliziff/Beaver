@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, Folder } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     listProjects,
     updateProject,
@@ -17,7 +18,6 @@ import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
-    TABLE_CHECKBOX_CLASS,
     SkeletonDot,
     SkeletonLine,
     TableBody,
@@ -33,6 +33,7 @@ import {
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
@@ -87,14 +88,7 @@ export function ProjectsOverview() {
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const actionsRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { user, isAuthenticated, authLoading } = useAuth();
-    const previewEmptyStates = searchParams.get("emptyStates") === "1";
-    const effectiveLoading = loading && !previewEmptyStates;
-    const visibleProjects = useMemo(
-        () => (previewEmptyStates ? [] : projects),
-        [previewEmptyStates, projects],
-    );
 
     useEffect(() => {
         let cancelled = false;
@@ -153,35 +147,35 @@ export function ProjectsOverview() {
         () =>
             Array.from(
                 new Set(
-                    visibleProjects
+                    projects
                         .map((project) => project.practice?.trim())
                         .filter((practice): practice is string => !!practice),
                 ),
             ).sort((a, b) => a.localeCompare(b)),
-        [visibleProjects],
+        [projects],
     );
     const ownerOptions = useMemo(
         () =>
             Array.from(
                 new Set(
-                    visibleProjects.map((project) =>
+                    projects.map((project) =>
                         getProjectOwnerLabel(project, user?.id),
                     ),
                 ),
             )
                 .sort((a, b) => a.localeCompare(b))
                 .map((owner) => ({ value: owner, label: owner })),
-        [visibleProjects, user?.id],
+        [projects, user?.id],
     );
     const filtered = useMemo(() => {
         const rows = (
             activeFilter === "all"
-                ? visibleProjects
+                ? projects
                 : activeFilter === "mine"
-                  ? visibleProjects.filter(
+                  ? projects.filter(
                         (p) => p.is_owner ?? p.user_id === user?.id,
                     )
-                  : visibleProjects.filter(
+                  : projects.filter(
                         (p) => !(p.is_owner ?? p.user_id === user?.id),
                     )
         )
@@ -252,7 +246,7 @@ export function ProjectsOverview() {
         q,
         sort,
         user?.id,
-        visibleProjects,
+        projects,
     ]);
 
     const allSelected =
@@ -335,6 +329,7 @@ export function ProjectsOverview() {
     const practiceFilterButton = (
         <TableFilters
             label="Filter by practice"
+            searchable
             value={practiceFilter}
             allLabel="All Practices"
             options={practices.map((practice) => ({
@@ -347,6 +342,7 @@ export function ProjectsOverview() {
     const ownerFilterButton = (
         <TableFilters
             label="Filter by owner"
+            searchable
             value={ownerFilter}
             allLabel="All Owners"
             widthClassName="w-44"
@@ -497,6 +493,7 @@ export function ProjectsOverview() {
                             disabled={loading}
                             className="h-9 shrink-0 shadow-none"
                         >
+                            <FolderSvgIcon className="h-4 w-4" />
                             Create project +
                         </PillButton>
                     </div>
@@ -518,69 +515,68 @@ export function ProjectsOverview() {
                 header={
                     <TableHeaderRow className="bg-white">
                         <TableStickyCell header className="bg-white">
-                            {effectiveLoading ? (
-                                <SkeletonDot className="mr-4" />
+                            {loading ? (
+                                <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
                             ) : (
-                                <input
-                                    type="checkbox"
+                                <CheckboxControl
                                     checked={allSelected}
                                     ref={(el) => {
                                         if (el) el.indeterminate = someSelected;
                                     }}
                                     onChange={toggleAll}
-                                    className={TABLE_CHECKBOX_CLASS}
+                                    className="-ml-2 mr-1"
                                 />
                             )}
                             <span className="mr-1">Name</span>
-                            {!loading && nameFilterButton}
+                            {nameFilterButton}
                         </TableStickyCell>
                         <TableHeaderCell className="ml-auto w-32">
                             <div className="flex items-center gap-1">
                                 <span>CM</span>
-                                {!loading && cmFilterButton}
+                                {cmFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-36">
                             <div className="flex items-center gap-1">
                                 <span>Practice</span>
-                                {!loading && practiceFilterButton}
+                                {practiceFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-32">
                             <div className="flex items-center gap-1">
                                 <span>Owner</span>
-                                {!loading && ownerFilterButton}
+                                {ownerFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-24">
                             <div className="flex items-center gap-1">
                                 <span>Files</span>
-                                {!loading && filesFilterButton}
+                                {filesFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-24">
                             <div className="flex items-center gap-1">
                                 <span>Chats</span>
-                                {!loading && chatsFilterButton}
+                                {chatsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-36">
                             <div className="flex items-center gap-1">
                                 <span>Tabular Reviews</span>
-                                {!loading && reviewsFilterButton}
+                                {reviewsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-32">
                             <div className="flex items-center gap-1">
                                 <span>Created</span>
-                                {!loading && createdFilterButton}
+                                {createdFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-8" />
                     </TableHeaderRow>
                 }
             >
-                {effectiveLoading ? (
+                {loading ? (
                     <TableBody>
                         {[1, 2, 3].map((i) => (
                             <TableRow
@@ -623,8 +619,7 @@ export function ProjectsOverview() {
                     </TableBody>
                 ) : loadError ? (
                     <TableEmptyState className="items-center text-center">
-                        <Folder
-                            aria-hidden="true"
+                        <FolderSvgIcon
                             className="mb-3 h-8 w-8 text-gray-700"
                         />
                         <p className="text-sm font-medium text-red-700">
@@ -633,8 +628,7 @@ export function ProjectsOverview() {
                     </TableEmptyState>
                 ) : filtered.length === 0 ? (
                     <TableEmptyState className="items-center text-center">
-                        <Folder
-                            aria-hidden="true"
+                        <FolderSvgIcon
                             className="mb-3 h-8 w-8 text-gray-700"
                         />
                         <p className="text-sm font-medium text-gray-700">
@@ -664,8 +658,7 @@ export function ProjectsOverview() {
                                     }
                                     bgClassName="bg-white"
                                 >
-                                    <Folder
-                                        aria-hidden="true"
+                                    <FolderSvgIcon
                                         className="mr-2 h-5 w-5 shrink-0 text-gray-700"
                                     />
                                     <span className="min-w-0 flex-1 truncate text-base font-medium text-gray-900">

@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle } from "lucide-react";
-import { isModelAvailable } from "@/app/lib/modelAvailability";
 import {
     getCodexModelCatalog,
     type ApiKeyState,
     type CodexModelCatalog,
     type CodexModelDescriptor,
 } from "@/app/lib/beaverApi";
-
-export interface ModelOption {
-    id: string;
-    label: string;
-    group: "Anthropic" | "Google" | "OpenAI" | "DeepSeek" | "Meta" | "Codex";
-}
+import { ModelPicker, type ModelOption } from "./ModelPicker";
+export type { ModelOption } from "./ModelPicker";
 
 export const MODELS: ModelOption[] = [
     { id: "claude-fable-5", label: "Claude Fable 5", group: "Anthropic" },
@@ -60,13 +54,6 @@ export const DEFAULT_MODEL_ID =
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
-const GROUP_ORDER: ModelOption["group"][] = [
-    "Anthropic",
-    "Google",
-    "DeepSeek",
-    "Meta",
-    "Codex",
-];
 const CODEX_CATALOG_STORAGE_KEY = "mike.codexModelCatalog.v1";
 let pendingCatalogRequest: Promise<CodexModelCatalog> | null = null;
 
@@ -237,81 +224,25 @@ export function ModelToggle({
         selected?.label ?? fallbackCodexLabel(value) ?? "Model";
     const selectedGroup =
         selected?.group ?? (value.startsWith("codex:") ? "Codex" : MODELS[0].group);
-    const groups = GROUP_ORDER.filter(
-        (group) =>
-            group === selectedGroup ||
-            allModels.some((model) => model.group === group),
-    );
-    const groupModels = allModels.filter(
-        (model) => model.group === selectedGroup,
-    );
-    const visibleModels = groupModels.some((model) => model.id === value)
-        ? groupModels
+    const visibleModels = allModels.some((model) => model.id === value)
+        ? allModels
         : [
               {
                   id: value,
                   label: selectedLabel,
                   group: selectedGroup,
               },
-              ...groupModels,
+              ...allModels,
           ];
-    const selectedAvailable = apiKeys
-        ? isModelAvailable(value, apiKeys)
-        : true;
 
     return (
-        <span className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
-            {!selectedAvailable && (
-                <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
-            )}
-            <select
-                value={selectedGroup}
-                onChange={(event) => {
-                    const models = allModels.filter(
-                        (model) => model.group === event.currentTarget.value,
-                    );
-                    const next =
-                        models.find(
-                            (model) =>
-                                !apiKeys ||
-                                isModelAvailable(model.id, apiKeys),
-                        ) ?? models[0];
-                    if (next) onChange(next.id);
-                }}
-                title="Choose model provider"
-                aria-label={`Model provider: ${selectedGroup}`}
-                className="h-8 w-24 cursor-pointer rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700"
-            >
-                {groups.map((group) => (
-                    <option key={group} value={group}>
-                        {group}
-                    </option>
-                ))}
-            </select>
-            <select
-                value={value}
-                onChange={(event) => onChange(event.currentTarget.value)}
-                title={
-                    !selectedAvailable
-                        ? "API key missing for selected model"
-                        : selectedLabel
-                }
-                aria-label={`Model: ${selectedLabel}`}
-                className="h-8 min-w-0 flex-1 cursor-pointer rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 sm:w-44 sm:flex-none"
-            >
-                {visibleModels.map((model) => {
-                    const available = apiKeys
-                        ? isModelAvailable(model.id, apiKeys)
-                        : true;
-                    return (
-                        <option key={model.id} value={model.id}>
-                            {model.label}
-                            {available ? "" : " (API key missing)"}
-                        </option>
-                    );
-                })}
-            </select>
-        </span>
+        <ModelPicker
+            value={value}
+            models={visibleModels}
+            onChange={onChange}
+            apiKeys={apiKeys}
+            className="sm:w-56"
+        />
     );
 }
 
@@ -358,33 +289,38 @@ export function ReasoningEffortToggle({
         }
     }, [onChange, selectedEffort, supported, value]);
 
-    if (!supported) {
-        return model.startsWith("codex:") && !catalog ? (
-            <div
-                aria-hidden="true"
-                className="reasoning-effort-toggle h-8 shrink-0"
-            />
-        ) : null;
-    }
-
     return (
         <label className="reasoning-effort-toggle flex h-8 shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2">
             <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-500">
                 Effort
             </span>
-            <select
-                value={selectedEffort}
-                onChange={(event) => onChange(event.currentTarget.value)}
-                title="Choose reasoning effort"
-                aria-label={`Reasoning effort: ${selectedEffort}`}
-                className="min-w-0 cursor-pointer bg-white text-sm capitalize text-gray-700"
-            >
-                {efforts.map((level) => (
-                    <option key={level.effort} value={level.effort}>
-                        {level.effort}
+            {supported ? (
+                <select
+                    value={selectedEffort}
+                    onChange={(event) => onChange(event.currentTarget.value)}
+                    title="Choose reasoning effort"
+                    aria-label={`Reasoning effort: ${selectedEffort}`}
+                    className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"
+                >
+                    {efforts.map((level) => (
+                        <option key={level.effort} value={level.effort}>
+                            {level.effort}
+                        </option>
+                    ))}
+                </select>
+            ) : (
+                <select
+                    aria-label="Reasoning effort unavailable"
+                    disabled
+                    className="h-full min-w-0 flex-1 bg-white text-sm text-gray-500"
+                >
+                    <option>
+                        {model.startsWith("codex:") && !catalog
+                            ? "Loading"
+                            : "Automatic"}
                     </option>
-                ))}
-            </select>
+                </select>
+            )}
         </label>
     );
 }

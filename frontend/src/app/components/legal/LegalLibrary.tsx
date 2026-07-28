@@ -26,6 +26,7 @@ import {
 } from "@/app/lib/beaverApi";
 import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import { LegalSourceViewer } from "./LegalSourceViewer";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
 function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
     return tab === "files" ? "/library" : `/library/${tab}`;
@@ -207,7 +208,7 @@ export function LegalLibraryPage() {
                 onChange={(tab) => router.push(libraryRoute(tab))}
             />
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:[scrollbar-gutter:stable]">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                 <div className="mx-auto max-w-5xl space-y-6">
                     <form
                         onSubmit={runSearch}
@@ -228,7 +229,7 @@ export function LegalLibraryPage() {
                                     setDataset("");
                                 }}
                                 aria-label="Legal source type"
-                                className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand"
+                                className="h-10 w-40 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand"
                             >
                                 <option value="cases">Cases</option>
                                 <option value="laws">Legislation</option>
@@ -269,23 +270,32 @@ export function LegalLibraryPage() {
                         </div>
                         {docType !== "articles" ? (
                             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                <label
+                                    htmlFor="legal-jurisdiction"
+                                    className="min-w-0 text-xs font-medium text-gray-600"
+                                >
                                     Jurisdiction
-                                    <select
+                                    <ModalSelect
+                                        id="legal-jurisdiction"
                                         value={jurisdiction}
-                                        onChange={(event) => {
-                                            setJurisdiction(event.target.value);
+                                        onChange={(value) => {
+                                            setJurisdiction(value);
                                             setDataset("");
                                         }}
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
-                                    >
-                                        <option value="">All jurisdictions</option>
-                                        {jurisdictions.map(([code, name]) => (
-                                            <option key={code} value={code}>
-                                                {name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        options={[
+                                            {
+                                                value: "",
+                                                label: "All jurisdictions",
+                                            },
+                                            ...jurisdictions.map(
+                                                ([code, name]) => ({
+                                                    value: code,
+                                                    label: name,
+                                                }),
+                                            ),
+                                        ]}
+                                        className="mt-1 !h-9 px-2 font-normal"
+                                    />
                                 </label>
                                 <label className="min-w-0 text-xs font-medium text-gray-600">
                                     Source type
@@ -317,31 +327,32 @@ export function LegalLibraryPage() {
                                         )}
                                     </select>
                                 </label>
-                                <label className="min-w-0 text-xs font-medium text-gray-600 lg:col-span-2">
+                                <label
+                                    htmlFor="legal-dataset"
+                                    className="min-w-0 text-xs font-medium text-gray-600 lg:col-span-2"
+                                >
                                     {docType === "cases"
                                         ? "Court or tribunal"
                                         : "Collection"}
-                                    <select
+                                    <ModalSelect
+                                        id="legal-dataset"
                                         value={dataset}
-                                        onChange={(event) =>
-                                            setDataset(event.target.value)
-                                        }
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
-                                    >
-                                        <option value="">
-                                            {docType === "cases"
-                                                ? "All courts and tribunals"
-                                                : "All statutes and regulations"}
-                                        </option>
-                                        {availableSources.map((item) => (
-                                            <option
-                                                key={item.dataset}
-                                                value={item.dataset}
-                                            >
-                                                {item.description}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={setDataset}
+                                        options={[
+                                            {
+                                                value: "",
+                                                label:
+                                                    docType === "cases"
+                                                        ? "All courts and tribunals"
+                                                        : "All statutes and regulations",
+                                            },
+                                            ...availableSources.map((item) => ({
+                                                value: item.dataset,
+                                                label: item.description,
+                                            })),
+                                        ]}
+                                        className="mt-1 !h-9 px-2 font-normal"
+                                    />
                                 </label>
                                 <label className="min-w-0 text-xs font-medium text-gray-600">
                                     From

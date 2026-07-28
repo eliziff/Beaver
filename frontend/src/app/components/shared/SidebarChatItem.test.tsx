@@ -32,6 +32,7 @@ const chat = {
 describe("SidebarChatItem inline actions", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.deleteChat.mockResolvedValue(undefined);
     });
 
     it("renames a chat without opening a dropdown framework", async () => {
@@ -66,7 +67,7 @@ describe("SidebarChatItem inline actions", () => {
         );
     });
 
-    it("deletes a chat directly", () => {
+    it("warns before moving a chat to the Recycling bin", async () => {
         render(
             <SidebarChatItem
                 chat={chat}
@@ -79,6 +80,52 @@ describe("SidebarChatItem inline actions", () => {
             screen.getByRole("button", { name: "Delete Lease review" }),
         );
 
-        expect(mocks.deleteChat).toHaveBeenCalledWith("chat-1");
+        expect(mocks.deleteChat).not.toHaveBeenCalled();
+        expect(screen.getByRole("alertdialog")).toHaveTextContent(
+            "Move chat to Recycling bin?",
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Move" }));
+        await waitFor(() =>
+            expect(mocks.deleteChat).toHaveBeenCalledWith("chat-1"),
+        );
+    });
+
+    it("opens the shared project chooser from a stable inline action", () => {
+        const onMoveToProject = vi.fn();
+        render(
+            <SidebarChatItem
+                chat={chat}
+                isActive
+                href="/assistant/chat/chat-1"
+                onMoveToProject={onMoveToProject}
+            />,
+        );
+
+        const move = screen.getByRole("button", {
+            name: "Move Lease review to project",
+        });
+        expect(move.parentElement).toHaveClass("w-[72px]");
+        fireEvent.click(move);
+        expect(onMoveToProject).toHaveBeenCalledOnce();
+    });
+
+    it("cancels the delete warning with Escape", async () => {
+        render(
+            <SidebarChatItem
+                chat={chat}
+                isActive
+                href="/assistant/chat/chat-1"
+            />,
+        );
+        const trigger = screen.getByRole("button", {
+            name: "Delete Lease review",
+        });
+        trigger.focus();
+        fireEvent.click(trigger);
+        fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+
+        expect(mocks.deleteChat).not.toHaveBeenCalled();
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+        await waitFor(() => expect(trigger).toHaveFocus());
     });
 });
