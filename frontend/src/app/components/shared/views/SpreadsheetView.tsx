@@ -269,13 +269,9 @@ export function SpreadsheetView({
     }, []);
 
     // Stable key so the highlight effect only re-runs when the target changes.
-    const highlightKey = useMemo(
-        () =>
-            (highlightCells ?? [])
-                .map((h) => `${h.sheet ?? ""}!${h.cell ?? ""}`)
-                .join("|"),
-        [highlightCells],
-    );
+    const highlightKey = (highlightCells ?? [])
+        .map((h) => `${h.sheet ?? ""}!${h.cell ?? ""}`)
+        .join("|");
 
     // Parse the workbook with Luckyexcel, which converts the .xlsx to
     // Fortune-sheet data while preserving styling (fills, fonts, borders,

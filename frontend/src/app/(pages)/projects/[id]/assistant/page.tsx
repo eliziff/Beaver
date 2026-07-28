@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
@@ -35,7 +35,7 @@ export default function ProjectAssistantPage({ params }: Props) {
     const [renameChatValue, setRenameChatValue] = useState("");
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
     const [deleteBusy, setDeleteBusy] = useState(false);
-    const chats = useMemo(() => projectChats ?? [], [projectChats]);
+    const chats = projectChats ?? [];
     const loading = projectChats === null;
 
     useEffect(() => {

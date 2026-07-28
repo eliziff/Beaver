@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import type { CitationQuote } from "../types";
@@ -62,11 +62,8 @@ export function PdfView({
         onUnavailableRef.current = onUnavailable;
     }, [onUnavailable]);
 
-    const quoteList: QuoteEntry[] = useMemo(() => {
-        return (
-            quotes?.map((q) => ({ page: q.page, quote: q.quote })) ?? []
-        );
-    }, [quotes]);
+    const quoteList: QuoteEntry[] =
+        quotes?.map((q) => ({ page: q.page, quote: q.quote })) ?? [];
 
     // Stable string key so effects can depend on quote-list identity
     const quoteKey = quoteList
