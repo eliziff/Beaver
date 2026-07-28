@@ -49,6 +49,7 @@ import {
     listLocalDocumentsById,
 } from "../lib/localDocumentStore";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
+import { appUrl } from "../lib/appRoutes";
 import {
     localTabularStore,
     type LocalTabularColumn,
@@ -1608,6 +1609,11 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     ).sort((a, b) => a.index - b.index);
 
     const tabularStore: TabularCellStore = {
+        app_url: appUrl({
+            kind: "tabular-review",
+            id: reviewId,
+            projectId: review.project_id,
+        }),
         columns: sortedColumns,
         documents: docs,
         cells: new Map(

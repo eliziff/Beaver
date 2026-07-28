@@ -43,6 +43,11 @@ describe("local assistant tools", () => {
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_revise_docx",
+      )?.function.description,
+    ).toContain("instead of replying with proposed or suggested changes");
+    expect(
+      LOCAL_ASSISTANT_TOOLS.find(
+        (tool) => tool.function.name === "library_revise_docx",
       )?.function.parameters.required,
     ).toEqual(["document_id", "version_id", "edits"]);
     expect(
@@ -52,11 +57,27 @@ describe("local assistant tools", () => {
     ).toContain("before asking the model");
     expect(names).toContain("toa_submit_library_document");
     expect(names).toContain("toa_job_status");
+    expect(names).toContain("list_workflows");
+    expect(names).toContain("read_workflow");
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "toa_submit_library_document",
       )?.function.parameters.properties,
     ).not.toHaveProperty("path");
+  });
+
+  it("reads system workflow instructions in account-free mode", async () => {
+    const tools = await import("../chat/localAssistantTools");
+    const [response] = await tools.runLocalAssistantTools("local-user", [
+      {
+        id: "workflow",
+        name: "read_workflow",
+        input: { workflow_id: "builtin-extract-key-terms" },
+      },
+    ]);
+
+    expect(response.content).toContain("# Extract Key Terms");
+    expect(response.content).toContain("uploaded documents");
   });
 
   it("creates and immutably revises a matter DOCX across reloads", async () => {
@@ -145,7 +166,9 @@ describe("local assistant tools", () => {
         version_id: created.version_id,
       });
       expect(draftingRead.source_sha256).toBe(created.source_sha256);
-      expect(draftingRead.html).toContain("<h1>Background</h1>");
+      expect(draftingRead.html).toMatch(
+        /<h1>(?:<strong>)?Background(?:<\/strong>)?<\/h1>/u,
+      );
       expect(draftingRead.html).toContain("footnote");
 
       const [revisedResponse] = await tools.runLocalAssistantTools(
@@ -186,6 +209,8 @@ describe("local assistant tools", () => {
         version_number: 2,
         change_count: 1,
       });
+      expect(revised.app_url).toContain("/library");
+      expect(revised.next_required_action).toContain("exact app_url");
       expect(revised.version_id).not.toBe(created.version_id);
       expect(revised.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
 
@@ -545,7 +570,7 @@ describe("local assistant tools", () => {
       has_review: false,
       split_fallback: "auto",
       files: [],
-      open_path: `/table-of-authorities?job=${jobId}`,
+      app_url: `/table-of-authorities?job=${jobId}`,
     });
     vi.doMock("../tableOfAuthorities", () => ({
       submitTableOfAuthoritiesDocument: submit,
@@ -584,7 +609,7 @@ describe("local assistant tools", () => {
       version_id: document.current_version_id,
       job: {
         id: jobId,
-        open_path: `/table-of-authorities?job=${jobId}`,
+        app_url: `/table-of-authorities?job=${jobId}`,
       },
     });
   });
