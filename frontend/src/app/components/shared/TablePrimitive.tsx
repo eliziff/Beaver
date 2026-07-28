@@ -28,6 +28,8 @@ export function closeTablePopups() {
 export const TABLE_STICKY_CELL_BG = "bg-app-surface";
 export const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
+export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
+    "w-[190px] sm:w-[260px] md:w-[300px] xl:w-[320px] 2xl:w-[332px] shrink-0";
 type DivProps = HTMLAttributes<HTMLDivElement>;
 
 export type TableFilterOption<T extends string> = {
@@ -160,7 +162,7 @@ function SearchableTableFilter<T extends string>({
                 onClose={close}
                 breadcrumbs={[label]}
                 size="sm"
-                className="!h-[min(20rem,calc(100dvh-2rem))] max-w-[calc(100vw-2rem)]"
+                className="!h-[min(20rem,calc(100dvh-2rem))]"
             >
                 <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
                     <Search
@@ -427,7 +429,10 @@ export function TablePrimaryCell({
 export function TableHeaderCell({ children, className, ...props }: DivProps) {
     return (
         <div
-            className={cn("flex shrink-0 items-center text-left", className)}
+            className={cn(
+                "flex shrink-0 items-center px-2 text-left",
+                className,
+            )}
             {...props}
         >
             {children}
@@ -438,7 +443,10 @@ export function TableHeaderCell({ children, className, ...props }: DivProps) {
 export function TableCell({ children, className, ...props }: DivProps) {
     return (
         <div
-            className={cn("shrink-0 truncate text-sm text-gray-700", className)}
+            className={cn(
+                "shrink-0 truncate px-2 text-sm text-gray-700",
+                className,
+            )}
             {...props}
         >
             {children}

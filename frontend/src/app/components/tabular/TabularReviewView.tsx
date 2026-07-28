@@ -80,6 +80,8 @@ export function TRView({ reviewId, projectId }: Props) {
     const [savingColumn, setSavingColumn] = useState(false);
     const [savingColumnsConfig, setSavingColumnsConfig] = useState(false);
     const [addColOpen, setAddColOpen] = useState(false);
+    const [editingColumn, setEditingColumn] =
+        useState<ColumnConfig | null>(null);
     const [addDocsOpen, setAddDocsOpen] = useState(false);
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
@@ -996,9 +998,11 @@ export function TRView({ reviewId, projectId }: Props) {
                                         citationRef,
                                     });
                                 }}
-                                onUpdateColumn={handleUpdateColumn}
-                                onDeleteColumn={handleDeleteColumn}
-                                onAddColumn={() => setAddColOpen(true)}
+                                onEditColumn={setEditingColumn}
+                                onAddColumn={() => {
+                                    setEditingColumn(null);
+                                    setAddColOpen(true);
+                                }}
                                 onAddDocuments={() => setAddDocsOpen(true)}
                             />
                         </div>
@@ -1070,10 +1074,20 @@ export function TRView({ reviewId, projectId }: Props) {
                 })()}
 
             <AddColumnModal
-                open={addColOpen}
+                open={addColOpen || !!editingColumn}
                 existingCount={columns.length}
-                onClose={() => setAddColOpen(false)}
+                editingColumn={editingColumn ?? undefined}
+                onClose={() => {
+                    setAddColOpen(false);
+                    setEditingColumn(null);
+                }}
                 onAdd={handleAddColumn}
+                onSave={handleUpdateColumn}
+                onDelete={
+                    editingColumn
+                        ? () => handleDeleteColumn(editingColumn.index)
+                        : undefined
+                }
             />
 
             {project ? (

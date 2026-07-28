@@ -1,13 +1,12 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import {
     deleteTabularReview,
     updateTabularReview,
 } from "@/app/lib/beaverApi";
-import { ProjectReviewsTable } from "@/app/components/projects/ProjectReviewsTable";
+import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import {
     ProjectSectionToolbar,
@@ -59,7 +58,6 @@ function SelectedReviewActions({
 export default function ProjectTabularReviewsPage({ params }: Props) {
     use(params);
     const workspace = useProjectWorkspace();
-    const router = useRouter();
     const { user } = useAuth();
     const {
         ensureProjectReviews,
@@ -89,13 +87,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
               (r.title ?? "").toLowerCase().includes(q),
           )
         : reviews;
-    const allReviewsSelected =
-        filteredReviews.length > 0 &&
-        filteredReviews.every((r) => selectedReviewIds.includes(r.id));
-    const someReviewsSelected =
-        !allReviewsSelected &&
-        filteredReviews.some((r) => selectedReviewIds.includes(r.id));
-
     function handleOpenDetails(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
             setOwnerOnlyAction("edit tabular review details");
@@ -143,7 +134,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         setActionsOpen(false);
         const owned = ids.filter((id) => {
             const review = reviews.find((r) => r.id === id);
-            return !review || review.user_id === user?.id;
+            return !review || !user?.id || review.user_id === user?.id;
         });
         const blocked = ids.length - owned.length;
         setSelectedReviewIds([]);
@@ -178,25 +169,19 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
                     />
                 ) : undefined}
             />
-            <ProjectReviewsTable
-                docs={docs}
+            <TabularReviewsTable
                 reviews={reviews}
                 filteredReviews={filteredReviews}
                 selectedReviewIds={selectedReviewIds}
-                allReviewsSelected={allReviewsSelected}
-                someReviewsSelected={someReviewsSelected}
                 creatingReview={workspace.creatingReview}
-                currentUserId={user?.id}
+                createDisabled={docs.length === 0}
                 loading={loading}
                 onCreateReview={workspace.openNewReview}
-                onOpenReview={(reviewId) =>
-                    router.push(
-                        `/projects/${projectId}/tabular-reviews/${reviewId}`,
-                    )
+                reviewHref={(review) =>
+                    `/projects/${projectId}/tabular-reviews/${review.id}`
                 }
                 onOpenDetails={handleOpenDetails}
                 onDeleteReview={handleDeleteReviewRow}
-                onOwnerOnlyAction={setOwnerOnlyAction}
                 setSelectedReviewIds={setSelectedReviewIds}
             />
             <TabularReviewDetailsModal

@@ -8,7 +8,6 @@ import {
     type KeyboardEvent,
 } from "react";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/app/lib/supabase";
 import { Modal } from "../modals/Modal";
 import { ModalSelect } from "../modals/ModalSelect";
 
@@ -19,6 +18,7 @@ type MfaFactor = {
 };
 
 export async function needsMfaVerification() {
+    const { supabase } = await import("@/app/lib/supabase");
     const { data, error } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (error) throw error;
@@ -60,6 +60,7 @@ export function MfaVerificationPopup({
             setLoading(true);
             setError(null);
             setCode("");
+            const { supabase } = await import("@/app/lib/supabase");
             const { data, error: listError } =
                 await supabase.auth.mfa.listFactors();
             if (cancelled) return;
@@ -86,6 +87,7 @@ export function MfaVerificationPopup({
 
         setVerifying(true);
         setError(null);
+        const { supabase } = await import("@/app/lib/supabase");
         const { error: verifyError } =
             await supabase.auth.mfa.challengeAndVerify({
                 factorId: selectedFactorId,
