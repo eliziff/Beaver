@@ -31,15 +31,12 @@ import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
 import { asyncRoute } from "../lib/asyncRoute";
-import { normalizeDocumentFilename } from "../lib/normalize";
+import {
+  normalizeDocumentFilename,
+  normalizeLibraryKind as libraryKind,
+} from "../lib/normalize";
 
 export const localLibraryRouter = Router();
-
-function libraryKind(value: unknown): LocalLibraryKind | null {
-  if (value === "file" || value === "files") return "file";
-  if (value === "template" || value === "templates") return "template";
-  return null;
-}
 
 localLibraryRouter.use((_req, _res, next) => {
   if (!isAnonymousLocalMode()) return next("router");
