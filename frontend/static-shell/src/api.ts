@@ -6,9 +6,12 @@ declare global {
   }
 }
 
+const viteEnv = import.meta as ImportMeta & {
+  env?: Record<string, string | undefined>;
+};
 const apiBase =
   window.__BEAVER_CONFIG__?.apiBase ||
-  import.meta.env.VITE_API_BASE_URL ||
+  viteEnv.env?.VITE_API_BASE_URL ||
   "http://localhost:3001";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
