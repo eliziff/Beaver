@@ -43,7 +43,7 @@ const REVIEW_COLUMN = {
     documents: "hidden w-28 xl:flex",
     project: "hidden w-40 lg:flex",
     created: "hidden w-32 xl:flex",
-    actions: "w-8",
+    actions: "w-7 sm:w-8",
 } as const;
 
 function formatDate(iso: string) {

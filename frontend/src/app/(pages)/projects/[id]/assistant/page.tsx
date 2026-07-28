@@ -46,13 +46,6 @@ export default function ProjectAssistantPage({ params }: Props) {
     const filteredChats = q
         ? chats.filter((c) => (c.title ?? "").toLowerCase().includes(q))
         : chats;
-    const allChatsSelected =
-        filteredChats.length > 0 &&
-        filteredChats.every((c) => selectedChatIds.includes(c.id));
-    const someChatsSelected =
-        !allChatsSelected &&
-        filteredChats.some((c) => selectedChatIds.includes(c.id));
-
     async function submitChatRename(chatId: string) {
         const trimmed = renameChatValue.trim();
         setRenamingChatId(null);
@@ -124,8 +117,6 @@ export default function ProjectAssistantPage({ params }: Props) {
                 chats={chats}
                 filteredChats={filteredChats}
                 selectedChatIds={selectedChatIds}
-                allChatsSelected={allChatsSelected}
-                someChatsSelected={someChatsSelected}
                 renamingChatId={renamingChatId}
                 renameChatValue={renameChatValue}
                 currentUserId={user?.id}
