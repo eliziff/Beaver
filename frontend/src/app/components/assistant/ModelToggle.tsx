@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-    getCodexModelCatalog,
     type ApiKeyState,
     type CodexModelCatalog,
-    type CodexModelDescriptor,
 } from "@/app/lib/beaverApi";
+import {
+    getSessionCodexModelCatalog,
+    preloadCodexModelCatalog,
+} from "@/app/lib/codexModelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 export type { ModelOption } from "./ModelPicker";
 
@@ -54,126 +56,22 @@ export const DEFAULT_MODEL_ID =
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
-const CODEX_CATALOG_STORAGE_KEY = "mike.codexModelCatalog.v1";
-let pendingCatalogRequest: Promise<CodexModelCatalog> | null = null;
-
-function normalizedDisplayName(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function canonicalSlug(value: string): string {
-    return value.trim().replace(/^codex:/i, "").toLowerCase();
-}
-
-function preferCatalogModel(
-    candidate: CodexModelDescriptor,
-    current: CodexModelDescriptor,
-): boolean {
-    const candidateIsCanonical = candidate.slug.startsWith("gpt-");
-    const currentIsCanonical = current.slug.startsWith("gpt-");
-    return candidateIsCanonical && !currentIsCanonical;
-}
-
-export function normalizeCodexCatalog(
-    catalog: CodexModelCatalog,
-): CodexModelCatalog {
-    const models: CodexModelDescriptor[] = [];
-    const slugIndexes = new Map<string, number>();
-    const displayIndexes = new Map<string, number>();
-
-    for (const raw of catalog.models) {
-        const slug = canonicalSlug(raw.slug);
-        if (!slug) continue;
-        const displayName = raw.displayName.trim() || slug;
-        const model = {
-            ...raw,
-            slug,
-            displayName,
-            supportedReasoningLevels: raw.supportedReasoningLevels.filter(
-                (level, index, levels) =>
-                    !!level.effort.trim() &&
-                    levels.findIndex(
-                        (candidate) =>
-                            candidate.effort.trim().toLowerCase() ===
-                            level.effort.trim().toLowerCase(),
-                    ) === index,
-            ),
-        };
-        const slugIndex = slugIndexes.get(slug);
-        if (slugIndex !== undefined) continue;
-
-        const displayKey = normalizedDisplayName(displayName);
-        const displayIndex = displayIndexes.get(displayKey);
-        if (displayIndex !== undefined) {
-            const current = models[displayIndex];
-            if (!preferCatalogModel(model, current)) continue;
-            slugIndexes.delete(current.slug);
-            models[displayIndex] = model;
-            slugIndexes.set(slug, displayIndex);
-            continue;
-        }
-
-        const nextIndex = models.length;
-        models.push(model);
-        slugIndexes.set(slug, nextIndex);
-        displayIndexes.set(displayKey, nextIndex);
-    }
-    return { ...catalog, models };
-}
-
-function readCachedCatalog(): CodexModelCatalog | null {
-    if (typeof window === "undefined") return null;
-    try {
-        const value = JSON.parse(
-            window.localStorage.getItem(CODEX_CATALOG_STORAGE_KEY) ?? "null",
-        ) as { catalog?: CodexModelCatalog } | null;
-        return value?.catalog ? normalizeCodexCatalog(value.catalog) : null;
-    } catch {
-        return null;
-    }
-}
-
-function cacheCatalog(catalog: CodexModelCatalog): void {
-    if (typeof window === "undefined" || catalog.models.length === 0) return;
-    try {
-        window.localStorage.setItem(
-            CODEX_CATALOG_STORAGE_KEY,
-            JSON.stringify({ savedAt: Date.now(), catalog }),
-        );
-    } catch {
-        // A full or disabled browser cache should not disable model picking.
-    }
-}
-
-function requestCodexCatalog(): Promise<CodexModelCatalog> {
-    pendingCatalogRequest ??= getCodexModelCatalog()
-        .then(normalizeCodexCatalog)
-        .finally(() => {
-            pendingCatalogRequest = null;
-        });
-    return pendingCatalogRequest;
-}
-
 function useCodexCatalog(): CodexModelCatalog | null {
-    const [catalog, setCatalog] = useState<CodexModelCatalog | null>(null);
+    const [catalog, setCatalog] = useState(getSessionCodexModelCatalog);
 
     useEffect(() => {
         let cancelled = false;
-        const cached = readCachedCatalog();
+        const request = preloadCodexModelCatalog();
+        const cached = getSessionCodexModelCatalog();
         if (cached) {
             queueMicrotask(() => {
                 if (!cancelled) setCatalog(cached);
             });
         }
 
-        void requestCodexCatalog()
+        void request
             .then((next) => {
-                if (cancelled || next.models.length === 0) return;
-                cacheCatalog(next);
-                setCatalog(next);
-            })
-            .catch(() => {
-                // Keep the last good catalog when the CLI/backend is offline.
+                if (!cancelled) setCatalog(next);
             });
         return () => {
             cancelled = true;
@@ -210,13 +108,13 @@ export function ModelToggle({
 }: Props) {
     const codexCatalog = useCodexCatalog();
     const allModels = useMemo(() => {
-        const dynamicModels: ModelOption[] = (codexCatalog?.models ?? []).map(
-            (model) => ({
+        const dynamicModels: ModelOption[] = (codexCatalog?.models ?? [])
+            .filter((model) => model.supportedInApi !== false)
+            .map((model) => ({
                 id: `codex:${model.slug}`,
                 label: model.displayName,
                 group: "Codex",
-            }),
-        );
+            }));
         return [...dynamicModels, ...MODELS];
     }, [codexCatalog]);
     const selected = allModels.find((m) => m.id === value);
@@ -259,7 +157,9 @@ export function ReasoningEffortToggle({
 }: ReasoningEffortToggleProps) {
     const catalog = useCodexCatalog();
     const selectedModel = catalog?.models.find(
-        (item) => `codex:${item.slug}` === model,
+        (item) =>
+            item.supportedInApi !== false &&
+            `codex:${item.slug}` === model,
     );
     const efforts = model.startsWith("deepseek-")
         ? [{ effort: "high" }, { effort: "max" }]

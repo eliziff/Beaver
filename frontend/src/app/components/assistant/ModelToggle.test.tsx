@@ -7,6 +7,7 @@ import {
     type ApiKeyState,
     type CodexModelCatalog,
 } from "@/app/lib/beaverApi";
+import { resetCodexModelCatalogSession } from "@/app/lib/codexModelCatalog";
 import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 
 vi.mock("@/app/lib/beaverApi", () => ({
@@ -45,6 +46,7 @@ function luna(overrides: Partial<CodexModelCatalog["models"][number]> = {}) {
 
 beforeEach(() => {
     window.localStorage.clear();
+    resetCodexModelCatalogSession();
     getCatalogMock.mockReset();
 });
 
@@ -95,15 +97,56 @@ describe("ModelToggle", () => {
         expect(initial).toHaveTextContent("GPT 5.6 Terra");
     });
 
-    it("shows each canonical model once and never exposes generic Codex local", async () => {
+    it("shares one catalog request across controls and remounts", async () => {
+        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        getCatalogMock.mockReturnValue(
+            new Promise((resolve) => {
+                resolveCatalog = resolve;
+            }),
+        );
+        const first = render(
+            <>
+                <ModelToggle
+                    value="codex:gpt-5.6-luna"
+                    onChange={vi.fn()}
+                />
+                <ReasoningEffortToggle
+                    model="codex:gpt-5.6-luna"
+                    value="medium"
+                    onChange={vi.fn()}
+                />
+            </>,
+        );
+
+        await waitFor(() => expect(getCatalogMock).toHaveBeenCalledTimes(1));
+        resolveCatalog(catalog([luna()]));
+        await screen.findByRole("combobox", {
+            name: "Reasoning effort: medium",
+        });
+        first.unmount();
+
+        render(
+            <ReasoningEffortToggle
+                model="codex:gpt-5.6-luna"
+                value="medium"
+                onChange={vi.fn()}
+            />,
+        );
+        screen.getByRole("combobox", {
+            name: "Reasoning effort: medium",
+        });
+        expect(getCatalogMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows only API-supported catalog models", async () => {
         getCatalogMock.mockResolvedValue(
             catalog([
-                luna({
-                    slug: "codex-auto-review",
-                    displayName: "GPT-5.6-Luna",
-                }),
                 luna(),
-                luna({ slug: "GPT-5.6-LUNA" }),
+                luna({
+                    slug: "gpt-5.3-codex-spark",
+                    displayName: "GPT-5.3-Codex-Spark",
+                    supportedInApi: false,
+                }),
             ]),
         );
 
@@ -123,6 +166,11 @@ describe("ModelToggle", () => {
         expect(
             within(menu).getAllByRole("option", { name: "GPT-5.6-Luna" }),
         ).toHaveLength(1);
+        expect(
+            within(menu).queryByRole("option", {
+                name: "GPT-5.3-Codex-Spark",
+            }),
+        ).not.toBeInTheDocument();
         for (const group of [
             "Anthropic",
             "Google",
