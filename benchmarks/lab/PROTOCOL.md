@@ -70,8 +70,18 @@ Scale-up only after pilot results are reviewed.
    defaults to 0.0.
 3. Docker instead of podman for the sandbox.
 4. LAB's LLM deliverable-filename matcher (Anthropic API, fires only when
-   filenames don't match) is left keyless → degrades to no-match; both arms
-   must name deliverables exactly as task.json specifies.
+   filenames don't match) now falls back to headless Claude Code with the
+   same model (harvey-labs commit 7fd4f418). Discovered mid-pilot: keyless
+   it errored to no-match and zeroed pilot-a-01 (95 criteria auto-failed,
+   no judge calls) after Arm A shipped .md fallbacks named memo.md etc.
+5. Pilot incident (task 01, pilot-a-01): the sandbox document-generation
+   runtime (docker exec → python-docx) failed transiently mid-run; Arm A
+   delivered Markdown instead of the four required .docx and burned ~10
+   turns on shell diagnostics. The container passed the same operations
+   when probed minutes later; smoke's Arm A ran the identical pattern
+   successfully. Treated as our-infra fault (Docker adaptation), not a
+   reference-harness deficiency: Arm A task 01 is rerun at the pilot tail
+   (pilot-a-01r) and both scores reported.
 
 ## Fairness audit (pre-pilot, 2026-07-28)
 
