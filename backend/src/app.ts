@@ -8,7 +8,6 @@ import { projectsRouter } from "./routes/projects";
 import { tabularRouter } from "./routes/tabular";
 import { workflowsRouter } from "./routes/workflows";
 import { localUserRouter } from "./routes/localUser";
-import { downloadsRouter } from "./routes/downloads";
 import { caseLawRouter } from "./routes/caseLaw";
 import { codexRouter } from "./routes/codex";
 import { localDocumentsRouter } from "./routes/localDocuments";
@@ -202,7 +201,10 @@ app.use(
       next,
     ),
 );
-app.use("/download", downloadsRouter);
+app.use(
+  "/download",
+  lazyRouter(() => import("./routes/downloads").then((mod) => mod.downloadsRouter)),
+);
 app.use("/case-law", caseLawRouter);
 app.use("/codex", codexRouter);
 app.use("/table-of-authorities", tableOfAuthoritiesRouter);
