@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "required_issues": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^ISSUE-\\d{2}$"
+      }
+    },
+    "required_authorities": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^SRC-\\d{3}$"
+          },
+          "proposition_id": {
+            "type": "string",
+            "pattern": "^PROP-\\d{2}$"
+          },
+          "acceptable_pinpoints": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\d+[\\d.()a-z]*$"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "source_id",
+          "proposition_id",
+          "acceptable_pinpoints"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "acceptable_alternative_authorities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^SRC-\\d{3}$"
+          },
+          "proposition_id": {
+            "type": "string",
+            "pattern": "^PROP-\\d{2}$"
+          }
+        },
+        "required": [
+          "source_id",
+          "proposition_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required_conclusions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^CONCLUSION-\\d{2}$"
+          },
+          "acceptable": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "qualified_yes",
+                "no",
+                "qualified_no"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "acceptable"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "forbidden_claims": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^CLAIM-\\d{2}$"
+      }
+    },
+    "required_quotations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^SRC-\\d{3}$"
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 20
+          },
+          "acceptable_pinpoints": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\d+[\\d.()a-z]*$"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "source_id",
+          "quote",
+          "acceptable_pinpoints"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "seeded_identifiers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 8
+      }
+    },
+    "required_headings": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "definitions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(ISSUE|PROP|CONCLUSION|CLAIM)-\\d{2}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "required_issues",
+    "required_authorities",
+    "acceptable_alternative_authorities",
+    "required_conclusions",
+    "forbidden_claims",
+    "definitions"
+  ],
+  "additionalProperties": false
+}
