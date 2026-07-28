@@ -9,6 +9,7 @@ import {
 import { isAnonymousLocalMode } from "../lib/localMode";
 import { findMissingUserEmails } from "../lib/userLookup";
 import { normalizeOptionalString } from "../lib/normalize";
+import { asyncRoute } from "../lib/asyncRoute";
 
 export const workflowsRouter = Router();
 
@@ -106,14 +107,6 @@ type WorkflowAccess =
       isOwner: boolean;
     }
   | null;
-
-type AsyncRoute = (req: Request, res: Response) => Promise<unknown>;
-
-function asyncRoute(handler: AsyncRoute) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    void handler(req, res).catch(next);
-  };
-}
 
 workflowsRouter.use((req, res, next) => {
   if (!isAnonymousLocalMode() || req.method === "GET") {

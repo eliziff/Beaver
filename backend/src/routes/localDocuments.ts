@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { Router, type NextFunction, type Request, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
@@ -23,16 +23,9 @@ import {
   rehydrateLocalPdfLinkEvidence,
   verifyLocalPdfLinkEvidence,
 } from "../lib/localPdfLookup";
+import { asyncRoute } from "../lib/asyncRoute";
 
 export const localDocumentsRouter = Router();
-
-function asyncRoute(
-  handler: (req: Request, res: Response) => Promise<void>,
-) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    void handler(req, res).catch(next);
-  };
-}
 
 function requestedVersionId(req: Request) {
   return typeof req.query.version_id === "string" ? req.query.version_id : null;

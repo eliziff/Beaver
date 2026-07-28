@@ -1,9 +1,4 @@
-import {
-  Router,
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
+import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
@@ -35,14 +30,9 @@ import {
 import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
+import { asyncRoute } from "../lib/asyncRoute";
 
 export const localLibraryRouter = Router();
-
-function asyncRoute(handler: (req: Request, res: Response) => Promise<void>) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    void handler(req, res).catch(next);
-  };
-}
 
 function libraryKind(value: unknown): LocalLibraryKind | null {
   if (value === "file" || value === "files") return "file";
