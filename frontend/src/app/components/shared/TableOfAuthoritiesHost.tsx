@@ -26,6 +26,7 @@ void warmedService?.catch(() => {});
 
 interface TableOfAuthoritiesHostProps {
   active: boolean;
+  pending?: boolean;
   enabled: boolean;
 }
 
@@ -126,6 +127,7 @@ function AuthoritiesFirstFrame() {
 
 export function TableOfAuthoritiesHost({
   active,
+  pending = false,
   enabled,
 }: TableOfAuthoritiesHostProps) {
   const [scope, setScope] = useState<AuthoritiesScope>({
@@ -142,6 +144,10 @@ export function TableOfAuthoritiesHost({
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
   const serviceRef = useRef(warmedService);
+  const visible = active || pending;
+  const targetJob = pending ? "" : scope.job;
+  const targetProject = pending ? "" : scope.project;
+  const scopeSignature = `${targetJob}:${targetProject}`;
 
   const onScopeChange = useCallback((next: AuthoritiesScope) => {
     setScope((current) =>
@@ -238,14 +244,21 @@ export function TableOfAuthoritiesHost({
     serviceRef.current
       .then((service) => {
         if (!live) return;
-        const signature = `${scope.job}:${scope.project}`;
         const serviceUrl = new URL(service.url);
         const currentOrigin = urlRef.current
           ? new URL(urlRef.current).origin
           : "";
         if (
+          pending &&
+          !active &&
           urlRef.current &&
-          frameScope === signature &&
+          frameScope !== scopeSignature
+        ) {
+          return;
+        }
+        if (
+          urlRef.current &&
+          frameScope === scopeSignature &&
           currentOrigin === serviceUrl.origin
         ) {
           pingFrame();
@@ -254,11 +267,11 @@ export function TableOfAuthoritiesHost({
         const attempt = crypto.randomUUID();
         serviceUrl.searchParams.set("mode", "mike");
         serviceUrl.searchParams.set("attempt", attempt);
-        if (scope.job) serviceUrl.searchParams.set("job", scope.job);
-        if (scope.project) {
-          serviceUrl.searchParams.set("project", scope.project);
+        if (targetJob) serviceUrl.searchParams.set("job", targetJob);
+        if (targetProject) {
+          serviceUrl.searchParams.set("project", targetProject);
         }
-        setFrameScope(signature);
+        setFrameScope(scopeSignature);
         urlRef.current = serviceUrl.toString();
         expectedOriginRef.current = serviceUrl.origin;
         attemptRef.current = attempt;
@@ -270,7 +283,7 @@ export function TableOfAuthoritiesHost({
       .catch((reason: unknown) => {
         if (!live) return;
         clearWatchdog();
-        setFrameScope(`${scope.job}:${scope.project}`);
+        setFrameScope(scopeSignature);
         setFrameReady(false);
         setError(
           reason instanceof Error
@@ -286,12 +299,14 @@ export function TableOfAuthoritiesHost({
     enabled,
     frameScope,
     pingFrame,
-    scope.job,
-    scope.project,
+    active,
+    pending,
+    scopeSignature,
     startWatchdog,
+    targetJob,
+    targetProject,
   ]);
 
-  const scopeSignature = `${scope.job}:${scope.project}`;
   const frameCurrent =
     frameReady && frameScope === scopeSignature;
   const visibleError =
@@ -303,16 +318,16 @@ export function TableOfAuthoritiesHost({
         <ScopeReader active={active} onChange={onScopeChange} />
       </Suspense>
       <AuthoritiesShell
-        active={active}
-        busy={active && !frameCurrent && !visibleError}
+        active={visible}
+        busy={visible && !frameCurrent && !visibleError}
       >
         {url && (
           <iframe
             ref={frameRef}
             src={url}
             title="Table of Authorities"
-            aria-hidden={!active || !frameCurrent}
-            tabIndex={active && frameCurrent ? 0 : -1}
+            aria-hidden={!visible || !frameCurrent}
+            tabIndex={visible && frameCurrent ? 0 : -1}
             onLoad={pingFrame}
             className={`absolute inset-0 h-full w-full border-0 bg-[#f3f4f6] ${
               frameCurrent ? "" : "invisible"
