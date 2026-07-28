@@ -25,6 +25,15 @@ describe("createVisibleStreamSplitter", () => {
     expect(h.opened()).toBe(0);
   });
 
+  it("is character-exact across mid-word and Markdown chunk boundaries", () => {
+    const h = harness();
+    const expected =
+      "I’ll fix typo**graphical** errors.\n\n- First\n- Second";
+    for (const character of expected) h.splitter.push(character);
+
+    expect(h.visible.join("") + h.splitter.takeTail()).toBe(expected);
+  });
+
   it("splits visible from hidden when the marker arrives in one chunk", () => {
     const h = harness();
     h.splitter.push(`Answer.${CITATIONS_OPEN_TAG}[{"ref":1}]`);

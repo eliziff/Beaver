@@ -12,6 +12,7 @@ import {
   listLocalVersions,
   renameLocalVersion,
   replaceLocalVersion,
+  resolveLocalTrackedEdit,
 } from "../lib/localDocumentStore";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import { extractTrackedChangeIds } from "../lib/docxTrackedChanges";
@@ -486,4 +487,53 @@ localDocumentsRouter.get(
     if (file.fileType !== "docx") return void res.json({ ids: [] });
     res.json({ ids: await extractTrackedChangeIds(await readFile(file.path)) });
   }),
+);
+
+async function handleTrackedEditResolution(
+  req: Request,
+  res: Response,
+  mode: "accept" | "reject",
+) {
+  const result = await resolveLocalTrackedEdit({
+    userId: res.locals.userId as string,
+    documentId: req.params.documentId,
+    editId: req.params.editId,
+    mode,
+  });
+  if (result.status === "missing") {
+    return void res.status(404).json({ detail: "Tracked edit not found" });
+  }
+  if (result.status === "conflict") {
+    return void res
+      .status(409)
+      .json({ detail: `Tracked edit is already ${result.edit.status}` });
+  }
+  if (result.status === "invalid") {
+    return void res
+      .status(409)
+      .json({ detail: "Tracked edit no longer matches this document version" });
+  }
+  const downloadUrl =
+    `/single-documents/${encodeURIComponent(req.params.documentId)}/file` +
+    `?version_id=${encodeURIComponent(result.version.id)}` +
+    `&rev=${encodeURIComponent(result.version.source_sha256 ?? "")}`;
+  res.json({
+    ok: true,
+    status: result.edit.status,
+    version_id: result.version.id,
+    version_number: result.version.version_number,
+    download_url: downloadUrl,
+  });
+}
+
+localDocumentsRouter.post(
+  "/:documentId/edits/:editId/accept",
+  requireAuth,
+  asyncRoute((req, res) => handleTrackedEditResolution(req, res, "accept")),
+);
+
+localDocumentsRouter.post(
+  "/:documentId/edits/:editId/reject",
+  requireAuth,
+  asyncRoute((req, res) => handleTrackedEditResolution(req, res, "reject")),
 );

@@ -134,6 +134,13 @@ describe("local assistant tools", () => {
         attached_to_matter: true,
       });
       expect(created.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
+      expect(created.download_url).toBe(
+        `/single-documents/${created.document_id}/file?version_id=${created.version_id}`,
+      );
+      expect(created.app_url).toBeUndefined();
+      expect(created.next_required_action).toContain(
+        "document card is shown automatically",
+      );
       expect(allowedDocumentIds).toContain(created.document_id);
       expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([
         created.document_id,
@@ -209,8 +216,28 @@ describe("local assistant tools", () => {
         version_number: 2,
         change_count: 1,
       });
-      expect(revised.app_url).toContain("/library");
-      expect(revised.next_required_action).toContain("exact app_url");
+      expect(revised.app_url).toBeUndefined();
+      expect(revised.download_url).toBe(
+        `/single-documents/${created.document_id}/file?version_id=${revised.version_id}`,
+      );
+      expect(revised.annotations).toMatchObject([
+        {
+          kind: "edit",
+          document_id: created.document_id,
+          version_id: revised.version_id,
+          version_number: 2,
+          deleted_text: "Original",
+          inserted_text: "Revised",
+          reason: "Update the draft.",
+          status: "pending",
+        },
+      ]);
+      expect(revised.annotations[0].edit_id).toMatch(
+        /^[0-9a-f-]{36}$/u,
+      );
+      expect(revised.next_required_action).toContain(
+        "tracked-edit card is shown automatically",
+      );
       expect(revised.version_id).not.toBe(created.version_id);
       expect(revised.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
 
@@ -426,6 +453,16 @@ describe("local assistant tools", () => {
         sourceRegistrySha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         evidenceBindings: [],
       });
+      expect(
+        durableStore.documents[0].versions[1].provenance.trackedEdits,
+      ).toMatchObject([
+        {
+          id: revised.annotations[0].edit_id,
+          deletedText: "Original",
+          insertedText: "Revised",
+          status: "pending",
+        },
+      ]);
       expect(
         await trackedChanges.extractDocxBodyText(
           await readFile(original!.path),

@@ -31,6 +31,7 @@ import {
   deleteLocalDocument,
   getLocalVersionFile,
   listLocalLibrary,
+  type LocalTrackedEdit,
 } from "../localDocumentStore";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
 import { deriveOriginalPdfCandidates } from "../legalSourcePresentation";
@@ -321,7 +322,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
     return [
       tool(
         "library_revise_docx",
-        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes and return its new artifact app_url. Use this for action requests instead of replying with proposed or suggested changes in prose. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Beaver shows the resulting document card automatically. Use this for action requests instead of replying with proposed or suggested changes in prose. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
         {
           type: "object",
           properties: {
@@ -392,7 +393,7 @@ const arrayBuffer = (bytes: Buffer): ArrayBuffer =>
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
 
-async function extractLocalDocument(userId: string, documentId: string) {
+export async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
   if (!file) return null;
   const cacheKey = `${documentId}:${file.version.id}:${file.version.created_at}`;
@@ -838,6 +839,9 @@ export async function runLocalAssistantTools(
             }
           }
           allowedDocumentIds?.add(document.id);
+          const downloadUrl =
+            `/single-documents/${encodeURIComponent(document.id)}/file` +
+            `?version_id=${encodeURIComponent(document.current_version_id)}`;
           return result(call, {
             ok: true,
             receipt: "mike-document:v1",
@@ -849,11 +853,9 @@ export async function runLocalAssistantTools(
             file_type: document.file_type,
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
-            app_url: appUrl({
-              kind: "library-document",
-              libraryKind: "file",
-              projectId: matterId,
-            }),
+            download_url: downloadUrl,
+            next_required_action:
+              "The document card is shown automatically. Briefly confirm completion; do not repeat a document URL or paste the draft into chat.",
           });
         } catch {
           return fail(call, "DOCX creation failed");
@@ -910,6 +912,20 @@ export async function runLocalAssistantTools(
               edit_errors: edited.errors,
             });
           }
+          const trackedEdits: LocalTrackedEdit[] = edited.changes.map(
+            (change) => ({
+              id: crypto.randomUUID(),
+              changeId: change.id,
+              delWId: change.delId,
+              insWId: change.insId,
+              deletedText: change.deletedText,
+              insertedText: change.insertedText,
+              contextBefore: change.contextBefore,
+              contextAfter: change.contextAfter,
+              reason: change.reason,
+              status: "pending",
+            }),
+          );
           const version = await addLocalVersion({
             userId,
             documentId,
@@ -922,9 +938,13 @@ export async function runLocalAssistantTools(
               action: "revised",
               parentVersionId: versionId,
               changeCount: edited.changes.length,
+              trackedEdits,
             },
           });
           if (!version) return fail(call, "version_id is no longer active");
+          const downloadUrl =
+            `/single-documents/${encodeURIComponent(documentId)}/file` +
+            `?version_id=${encodeURIComponent(version.id)}`;
           return result(call, {
             ok: true,
             receipt: "mike-document:v1",
@@ -937,13 +957,25 @@ export async function runLocalAssistantTools(
             file_type: version.file_type,
             source_sha256: version.source_sha256,
             change_count: edited.changes.length,
-            app_url: appUrl({
-              kind: "library-document",
-              libraryKind: file.document.library_kind,
-              projectId: matterId,
-            }),
+            download_url: downloadUrl,
+            annotations: trackedEdits.map((edit) => ({
+              kind: "edit",
+              edit_id: edit.id,
+              document_id: documentId,
+              version_id: version.id,
+              version_number: version.version_number,
+              change_id: edit.changeId,
+              del_w_id: edit.delWId,
+              ins_w_id: edit.insWId,
+              deleted_text: edit.deletedText,
+              inserted_text: edit.insertedText,
+              context_before: edit.contextBefore,
+              context_after: edit.contextAfter,
+              reason: edit.reason,
+              status: edit.status,
+            })),
             next_required_action:
-              "Return the exact app_url as the edited-document link; do not substitute a prose change list.",
+              "The tracked-edit card is shown automatically. Briefly confirm completion; do not repeat a document URL or substitute a prose change list.",
           });
         } catch {
           return fail(call, "DOCX revision failed");

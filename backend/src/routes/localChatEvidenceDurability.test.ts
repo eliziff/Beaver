@@ -29,6 +29,7 @@ vi.mock("../lib/llm", () => ({
 vi.mock("../lib/chat/localAssistantTools", () => ({
   LOCAL_ASSISTANT_TOOLS: [],
   runLocalAssistantTools: mocks.runLocalAssistantTools,
+  extractLocalDocument: async () => null,
 }));
 vi.mock("../lib/chat/localPdfEvidenceState", () => ({
   appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
@@ -201,16 +202,13 @@ describe("anonymous chat PDF evidence durability", () => {
       "[Workflow: Extract Key Terms (id: builtin-extract-key-terms)]",
     );
     expect(mocks.systemPrompts[0]).toContain(
-      "Never ask the user to choose between PDF, DOCX, or text views.",
-    );
-    expect(mocks.systemPrompts[0]).toContain(
       "then call library_revise_docx",
     );
     expect(mocks.systemPrompts[0]).toContain(
       "Do not substitute a prose list of proposed or suggested changes",
     );
     expect(mocks.systemPrompts[0]).toContain(
-      "return its exact app_url as the edited-document link",
+      "shows created and edited document cards automatically",
     );
   });
 
@@ -1490,6 +1488,181 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(replay.body.code).toBe("chat_retry_blocked_after_mutation");
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(mocks.runLocalAssistantTools).toHaveBeenCalledTimes(1);
+  });
+
+  it("streams and persists the original Mike created-document event", async () => {
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "created",
+            document_id: DOCUMENT_ID,
+            version_id: VERSION_ID,
+            version_number: 1,
+            filename: "Draft.docx",
+            download_url:
+              `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
+          }),
+        })),
+    );
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      await params.runTools?.([
+        {
+          id: "create-doc",
+          name: "library_create_docx",
+          input: { title: "Draft", markdown: "# Draft" },
+        },
+      ]);
+      params.callbacks?.onContentDelta?.("The Word draft is ready.");
+      return { fullText: "The Word draft is ready." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: { kind: "message", content: "Create the draft." },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('"type":"doc_created_start"');
+    expect(response.text).toContain('"type":"doc_created"');
+    const persisted = loaded.store
+      .getAnonymousChat(USER_ID, created.body.id)!
+      .messages.filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        Array.isArray(message.content) ? message.content : [],
+      ) as Record<string, unknown>[];
+    expect(persisted).toContainEqual({
+      type: "doc_created",
+      filename: "Draft.docx",
+      document_id: DOCUMENT_ID,
+      version_id: VERSION_ID,
+      version_number: 1,
+      download_url:
+        `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
+    });
+  });
+
+  it("streams and persists the original Mike redline event contract", async () => {
+    const annotation = {
+      kind: "edit",
+      edit_id: "60000000-0000-4000-8000-000000000001",
+      document_id: DOCUMENT_ID,
+      version_id: VERSION_ID,
+      version_number: 2,
+      change_id: "7",
+      del_w_id: "8",
+      ins_w_id: "9",
+      deleted_text: "Original",
+      inserted_text: "Revised",
+      context_before: "",
+      context_after: " provision.",
+      status: "pending",
+    };
+    mocks.runLocalAssistantTools.mockImplementation(
+      async (_userId: unknown, calls: { id: string }[]) =>
+        calls.map((call) => ({
+          tool_use_id: call.id,
+          content: JSON.stringify({
+            ok: true,
+            receipt: "mike-document:v1",
+            action: "revised",
+            document_id: DOCUMENT_ID,
+            version_id: VERSION_ID,
+            version_number: 2,
+            filename: "Draft.docx",
+            download_url:
+              `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
+            annotations: [annotation],
+          }),
+        })),
+    );
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      const call = {
+        id: "revise-doc",
+        name: "library_revise_docx",
+        input: {
+          document_id: DOCUMENT_ID,
+          version_id: VERSION_ID,
+          edits: [],
+        },
+      };
+      params.callbacks?.onToolCallStart?.(call);
+      await params.runTools?.([call]);
+      params.callbacks?.onContentDelta?.("The tracked revision is ready.");
+      return { fullText: "The tracked revision is ready." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        content: "Revise the draft.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('"type":"doc_edited_start"');
+    expect(response.text).toContain('"type":"doc_edited"');
+    const chat = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
+    const persisted = chat.messages
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        Array.isArray(message.content) ? message.content : [],
+      ) as Record<string, unknown>[];
+    expect(persisted).toContainEqual({
+      type: "doc_edited",
+      filename: "Draft.docx",
+      document_id: DOCUMENT_ID,
+      version_id: VERSION_ID,
+      version_number: 2,
+      download_url:
+        `/single-documents/${DOCUMENT_ID}/file?version_id=${VERSION_ID}`,
+      annotations: [annotation],
+    });
+  });
+
+  it("joins provider message blocks without splitting words or sentences", async () => {
+    const expected =
+      "I’ll fix clear typographical errors. I found the editable copy.";
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      params.callbacks?.onContentDelta?.(
+        "I’ll fix clear typographic",
+      );
+      params.callbacks?.onContentBlockEnd?.();
+      params.callbacks?.onContentDelta?.("al errors.");
+      params.callbacks?.onContentBlockEnd?.();
+      params.callbacks?.onContentDelta?.("I found the editable copy.");
+      return { fullText: expected };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const response = await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: {
+        kind: "message",
+        content: "Fix the document.",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain(
+      JSON.stringify({ type: "content_final", text: expected }),
+    );
+    const assistant = loaded.store
+      .getAnonymousChat(USER_ID, created.body.id)!
+      .messages.find((message) => message.role === "assistant");
+    expect(assistant?.content).toContainEqual({
+      type: "content",
+      text: expected,
+    });
   });
 
   it("does not pause Codex after a mutation has already committed", async () => {

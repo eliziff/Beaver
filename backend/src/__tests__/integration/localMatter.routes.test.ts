@@ -320,11 +320,18 @@ describe("account-free matter routes", () => {
       'User-attached documents for this turn:\n- "appeal-record.xlsx"',
     );
     expect(focusedInput.systemPrompt).not.toContain("spoofed");
-    expect(focusedInput.messages.at(-1)?.content).toBe(
+    const lastContent = focusedInput.messages.at(-1)?.content ?? "";
+    expect(lastContent).toContain(
       "[The user attached the following document(s) to this message:\n" +
-        `- appeal-record.xlsx (document_id: ${source.body.id})]\n\n` +
-        "[User responses to requested inputs]\n" +
+        `- appeal-record.xlsx (document_id: ${source.body.id})]`,
+    );
+    expect(lastContent).toContain(
+      "[User responses to requested inputs]\n" +
         `- Documents requested for Record: appeal-record.xlsx (document_id: ${source.body.id})`,
+    );
+    // Attached means provided: the turn itself carries the extracted text.
+    expect(lastContent).toContain(
+      `[Attached document "appeal-record.xlsx" (document_id: ${source.body.id}) full text:`,
     );
 
     const continuedChat = await request(app).get(
