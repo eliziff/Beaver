@@ -16,6 +16,7 @@ import {
     TableRow,
     TableScrollArea,
     TableSelectionPlaceholder,
+    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
@@ -57,8 +58,6 @@ export function ProjectAssistantTable({
     chats: Chat[];
     filteredChats: Chat[];
     selectedChatIds: string[];
-    allChatsSelected: boolean;
-    someChatsSelected: boolean;
     renamingChatId: string | null;
     renameChatValue: string;
     currentUserId?: string | null;
@@ -173,7 +172,10 @@ export function ProjectAssistantTable({
         <TableScrollArea
             header={
                 <TableHeaderRow className="pr-8 md:pr-8">
-                    <TableStickyCell header>
+                    <TableStickyCell
+                        header
+                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                    >
                         {loading ? (
                             <TableSelectionPlaceholder />
                         ) : (
@@ -197,20 +199,24 @@ export function ProjectAssistantTable({
                         )}
                         <span className="mr-1">Chats</span>
                         {nameFilterButton}
+                        <span className="flex sm:hidden">
+                            {creatorFilterButton}
+                            {createdFilterButton}
+                        </span>
                     </TableStickyCell>
-                    <TableHeaderCell className="ml-auto w-32">
+                    <TableHeaderCell className="ml-auto hidden w-28 sm:flex md:w-32">
                         <div className="flex items-center gap-1">
                             <span>Creator</span>
                             {creatorFilterButton}
                         </div>
                     </TableHeaderCell>
-                    <TableHeaderCell className="w-32">
+                    <TableHeaderCell className="hidden w-28 sm:flex md:w-32">
                         <div className="flex items-center gap-1">
                             <span>Created</span>
                             {createdFilterButton}
                         </div>
                     </TableHeaderCell>
-                    <TableHeaderCell className="w-8" />
+                    <TableHeaderCell className="w-7 sm:w-8" />
                 </TableHeaderRow>
             }
         >
@@ -249,6 +255,9 @@ export function ProjectAssistantTable({
                             className="pr-8 md:pr-8"
                         >
                             <TablePrimaryCell
+                                widthClassName={
+                                    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS
+                                }
                                 selected={selectedChatIds.includes(chat.id)}
                                 onSelectionChange={() =>
                                     setSelectedChatIds((prev) =>
@@ -266,14 +275,14 @@ export function ProjectAssistantTable({
                                 }
                                 onEditCancel={() => setRenamingChatId(null)}
                             />
-                            <TableCell className="ml-auto w-32">
+                            <TableCell className="ml-auto hidden w-28 sm:block md:w-32">
                                 {creatorLabel(chat, currentUserId)}
                             </TableCell>
-                            <TableCell className="w-32">
+                            <TableCell className="hidden w-28 sm:block md:w-32">
                                 {formatDate(chat.created_at)}
                             </TableCell>
                             <div
-                                className="w-8 shrink-0 flex justify-end"
+                                className="flex w-7 shrink-0 justify-end sm:w-8"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <RowActions
@@ -312,7 +321,10 @@ function ProjectAssistantLoadingRows() {
                     interactive={false}
                     className="pr-8 md:pr-8"
                 >
-                    <TableStickyCell hover={false}>
+                    <TableStickyCell
+                        hover={false}
+                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                    >
                         <div className="flex min-w-0 items-center">
                             <TableSelectionPlaceholder />
                             <SkeletonLine
@@ -320,13 +332,13 @@ function ProjectAssistantLoadingRows() {
                             />
                         </div>
                     </TableStickyCell>
-                    <TableCell className="ml-auto w-32">
+                    <TableCell className="ml-auto hidden w-28 sm:block md:w-32">
                         <SkeletonLine className="w-16" />
                     </TableCell>
-                    <TableCell className="w-32">
+                    <TableCell className="hidden w-28 sm:block md:w-32">
                         <SkeletonLine className="w-16" />
                     </TableCell>
-                    <TableCell className="w-8" />
+                    <TableCell className="w-7 sm:w-8" />
                 </TableRow>
             ))}
         </TableBody>
