@@ -42,6 +42,9 @@ export interface AnchorHit {
   index: number;
 }
 
+// English + French (accented and OCR-stripped forms): Canadian federal
+// instruments are equally authentic in both languages, so the same date
+// must normalize to the same key from either version.
 const MONTHS: Record<string, number> = {
   january: 1,
   february: 2,
@@ -55,6 +58,21 @@ const MONTHS: Record<string, number> = {
   october: 10,
   november: 11,
   december: 12,
+  janvier: 1,
+  février: 2,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  août: 8,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  décembre: 12,
+  decembre: 12,
 };
 const MONTH_ALTERNATION = Object.keys(MONTHS)
   .map((name) => name[0].toUpperCase() + name.slice(1))
@@ -72,6 +90,17 @@ const MULTIPLIERS: Record<string, number> = {
 };
 
 const numeric = (digits: string) => Number(digits.replace(/,/gu, ""));
+
+/**
+ * English "1,500.25" and French "1 500,25" / "0,5" both appear in Canadian
+ * legal text. A comma followed by exactly three digits is a thousands
+ * separator; a comma followed by one or two digits is a French decimal.
+ */
+function flexibleNumber(digits: string): number {
+  const cleaned = digits.replace(/\s/gu, "");
+  if (/^\d+,\d{1,2}$/u.test(cleaned)) return Number(cleaned.replace(",", "."));
+  return numeric(cleaned);
+}
 
 /** Round to cents so 1.523 * 1e6 cannot leave float dust in a key. */
 const cents = (value: number) => Math.round(value * 100) / 100;
@@ -102,6 +131,44 @@ const CURRENCIES: Record<string, string> = {
   euros: "eur",
   "pounds sterling": "gbp",
 };
+// French money: the sign TRAILS the amount and groups are spaced
+// ("2 250 000 $", "2,5 millions de dollars"), so the English grammar
+// cannot see these at all. Group separators may be NBSP/narrow NBSP.
+const FR_MONEY_TRAILING_RE =
+  /(?<![\d,.])(\d{1,3}(?:[\s  ]\d{3})+|\d+)(?:,(\d{1,2}))?[\s  ]?\$(?![\w])/gu;
+const FR_MONEY_WORDS_RE =
+  /\b(\d+(?:,\d+)?)[\s  ]?(mille|millions?|milliards?)\s?d(?:e\s|['’]\s?)(dollars|euros)\b/giu;
+const FR_MULTIPLIERS: Record<string, number> = {
+  mille: 1e3,
+  million: 1e6,
+  millions: 1e6,
+  milliard: 1e9,
+  milliards: 1e9,
+};
+
+function pushFrenchMoney(text: string, hits: AnchorHit[]) {
+  for (const match of text.matchAll(FR_MONEY_TRAILING_RE)) {
+    const whole = match[1].replace(/[\s  ]/gu, "");
+    const value = Number(`${whole}.${match[2] ?? "0"}`);
+    hits.push({
+      cls: "money",
+      raw: match[0],
+      norm: `money:dlr:${cents(value)}`,
+      index: match.index ?? 0,
+    });
+  }
+  for (const match of text.matchAll(FR_MONEY_WORDS_RE)) {
+    const base = Number(match[1].replace(",", "."));
+    const value = base * FR_MULTIPLIERS[match[2].toLowerCase()];
+    const currency = match[3].toLowerCase() === "euros" ? "eur" : "dlr";
+    hits.push({
+      cls: "money",
+      raw: match[0],
+      norm: `money:${currency}:${cents(value)}`,
+      index: match.index ?? 0,
+    });
+  }
+}
 const PERCENT_RE = /(\d[\d,]*(?:\.\d+)?)\s?(?:%|percent\b|per cent\b)/giu;
 const PERCENT_WORDS_RE =
   /\b([A-Za-z][A-Za-z\s\-]{2,50}?)\s?(?:percent|per cent)\b/giu;
@@ -113,7 +180,7 @@ const DATE_TEXTUAL_RE = new RegExp(
   "giu",
 );
 const DATE_DAY_FIRST_RE = new RegExp(
-  String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(${MONTH_ALTERNATION}),?\s+(\d{4})\b`,
+  String.raw`\b(\d{1,2})(?:st|nd|rd|th|er|re)?\s+(?:of\s+)?(${MONTH_ALTERNATION}),?\s+(\d{4})\b`,
   "giu",
 );
 // Recital style: "the 15th day of March, 2027" (CUAD-measured gap: ordinal
@@ -123,10 +190,17 @@ const DATE_DAY_OF_RE = new RegExp(
   "giu",
 );
 const DATE_NUMERIC_RE = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/gu;
-const DURATION_RE =
-  /\b(\d{1,4})\s(business\s+days?|calendar\s+days?|trading\s+days?|days?|weeks?|months?|years?|fiscal\s+quarters?|quarters?)\b/giu;
-const DURATION_PAREN_RE =
-  /\((\d{1,4})\)\s(business\s+days?|calendar\s+days?|trading\s+days?|days?|weeks?|months?|years?|fiscal\s+quarters?|quarters?)\b/giu;
+const DURATION_UNITS =
+  "business\\s+days?|calendar\\s+days?|trading\\s+days?|days?|weeks?|months?|years?|fiscal\\s+quarters?|quarters?" +
+  "|jours?\\s+ouvrables?|jours?\\s+francs?|jours?|semaines?|mois|ann[ée]es?|ans?";
+const DURATION_RE = new RegExp(
+  String.raw`\b(\d{1,4})\s(${DURATION_UNITS})\b`,
+  "giu",
+);
+const DURATION_PAREN_RE = new RegExp(
+  String.raw`\((\d{1,4})\)\s(${DURATION_UNITS})\b`,
+  "giu",
+);
 const STATUTE_REPORTER_RE =
   /\b(\d{1,3})\s+((?:[A-Z][A-Za-z.]{0,10}\s+){1,4})§{1,2}\s?(\d[\w.\-]*(?:\([^)\s]{1,6}\)){0,4})/gu;
 const STATUTE_NAMED_ACT_RE =
@@ -145,9 +219,33 @@ const CA_SERIES_PATTERN = CA_STATUTE_SERIES.map(
   (series) => `${series.split("").join("\\.?")}\\.?`,
 ).join("|");
 const STATUTE_CANADIAN_RE = new RegExp(
-  String.raw`\b(${CA_SERIES_PATTERN})\s+(?:(\d{4}),?\s+)?c\.\s?([A-Za-z0-9.\-]+)` +
+  String.raw`\b(${CA_SERIES_PATTERN}),?\s+(?:\(?(\d{4})\)?,?\s+)?c\.\s?([A-Za-z0-9.\-]+)` +
     String.raw`(?:,\s*Sched(?:ule)?\.?\s*([A-Za-z0-9]+))?` +
     String.raw`(?:,\s*ss?\.\s*(\d[\w().]*))?`,
+  "gu",
+);
+// French statute series, normalized to the SAME keys as their English
+// twins so bilingual concordance can match them: "L.R.C. (1985), ch.
+// C-46, art. 231" ≡ "R.S.C. 1985, c. C-46, s. 231". CQLR/RLRQ are one
+// consolidation with two language names.
+const FR_STATUTE_SERIES: Record<string, string> = {
+  CPLM: "ccsm",
+  RLRQ: "cqlr",
+  CQLR: "cqlr",
+  LRC: "rsc",
+  LRO: "rso",
+  LRM: "rsm",
+  LC: "sc",
+  LO: "so",
+  LM: "sm",
+};
+const FR_SERIES_PATTERN = Object.keys(FR_STATUTE_SERIES)
+  .map((series) => `${series.split("").join("\\.?")}\\.?`)
+  .join("|");
+const STATUTE_CANADIAN_FR_RE = new RegExp(
+  String.raw`\b(${FR_SERIES_PATTERN}),?\s+(?:\(?(\d{4})\)?,?\s+)?ch?\.\s?([A-Za-z0-9.\-]+)` +
+    String.raw`(?:,\s*ann(?:exe)?\.?\s*([A-Za-z0-9]+))?` +
+    String.raw`(?:,\s*(?:art|par)\.\s*(\d[\w().]*))?`,
   "gu",
 );
 // Canadian federal delegated instruments: "SOR/2005-407", "SI/2004-121",
@@ -155,17 +253,58 @@ const STATUTE_CANADIAN_RE = new RegExp(
 // a hyphenated pair that a US-shaped grammar reads as a fraction or date,
 // so it fails silently without its own production (generalization-corpus
 // anchor-forms inventory, 2026-07-28).
-const STATUTE_INSTRUMENT_RE = /\b(SOR|SI)\/(\d{2}|\d{4})-(\d{1,5})\b/gu;
+// DORS/TR are the French register names for SOR/SI — same instrument,
+// same normalized key.
+const STATUTE_INSTRUMENT_RE = /\b(SOR|SI|DORS|TR)\/(\d{2}|\d{4})-(\d{1,5})\b/gu;
+const INSTRUMENT_REGISTERS: Record<string, string> = {
+  sor: "sor",
+  si: "si",
+  dors: "sor",
+  tr: "si",
+};
 // Neutral Canadian case citations ("2015 SCC 5") and the common US reporter
 // forms ("372 U.S. 335", "550 F. Supp. 2d 191"): dropped citations are a
 // real omission class in legal drafting, and both grammars are regex-clean.
 const CITE_NEUTRAL_RE =
-  /\b((?:19|20)\d{2})\s+(SCC|FCA|FC|TCC|ONCA|ONSC|ONCJ|BCCA|BCSC|ABCA|ABQB|ABKB|SKCA|SKQB|SKKB|MBCA|MBQB|MBKB|NSCA|NSSC|NBCA|NBQB|NBKB|QCCA|QCCS|QCCQ|PECA|PESC|NLCA|NLSC|YKCA|YKSC|NWTCA|NWTSC|NUCA|NUCJ)\s+(\d{1,5})\b/gu;
+  /\b((?:19|20)\d{2})\s+(CSC|CAF|CFPI|CF|SCC|FCA|FC|TCC|CCI|ONCA|ONSC|ONCJ|BCCA|BCSC|ABCA|ABQB|ABKB|SKCA|SKQB|SKKB|MBCA|MBQB|MBKB|NSCA|NSSC|NBCA|NBQB|NBKB|QCCA|QCCS|QCCQ|PECA|PESC|NLCA|NLSC|YKCA|YKSC|NWTCA|NWTSC|NUCA|NUCJ)\s+(\d{1,5})\b/gu;
+// French neutral-citation court codes map onto their English twins: the
+// SAME decision is "2015 CSC 5" in French and "2015 SCC 5" in English.
+const FR_COURTS: Record<string, string> = {
+  csc: "scc",
+  caf: "fca",
+  cf: "fc",
+  cfpi: "fc",
+  cci: "tcc",
+};
 const CITE_US_REPORTER_RE =
   /\b(\d{1,4})\s+(U\.?S\.?|S\.\s?Ct\.|F\.\s?(?:2d|3d|4th)|F\.\s?Supp\.(?:\s?(?:2d|3d))?|L\.\s?Ed\.(?:\s?2d)?)\s+(\d{1,5})\b/gu;
 
-const durationUnit = (unit: string) =>
-  unit.toLowerCase().replace(/\s+/gu, "_").replace(/s$/u, "");
+// French units normalize to the ENGLISH unit tokens so "trente (30)
+// jours" and "thirty (30) days" share a key. "jours francs" is the
+// French drafting term for clear days. Mapped before the plural strip
+// ("mois" must not become "moi").
+const FR_DURATION_UNITS: Record<string, string> = {
+  jour: "day",
+  jours: "day",
+  jour_ouvrable: "business_day",
+  jours_ouvrables: "business_day",
+  jour_franc: "clear_day",
+  jours_francs: "clear_day",
+  semaine: "week",
+  semaines: "week",
+  mois: "month",
+  an: "year",
+  ans: "year",
+  année: "year",
+  années: "year",
+  annee: "year",
+  annees: "year",
+};
+
+const durationUnit = (unit: string) => {
+  const key = unit.toLowerCase().replace(/\s+/gu, "_");
+  return FR_DURATION_UNITS[key] ?? key.replace(/s$/u, "");
+};
 
 function pushMoneyMatches(text: string, hits: AnchorHit[]) {
   type Pending = {
@@ -220,11 +359,26 @@ function pushMoneyMatches(text: string, hits: AnchorHit[]) {
 export function extractAnchors(text: string): AnchorHit[] {
   const hits: AnchorHit[] = [];
   pushMoneyMatches(text, hits);
+  pushFrenchMoney(text, hits);
+  for (const match of text.matchAll(STATUTE_CANADIAN_FR_RE)) {
+    const series =
+      FR_STATUTE_SERIES[match[1].replace(/\./gu, "").toUpperCase()] ??
+      match[1].replace(/\./gu, "").toLowerCase();
+    const parts = [`stat:${series}${match[2] ?? ""}`, `c${match[3].toLowerCase()}`];
+    if (match[4]) parts.push(`sched${match[4].toLowerCase()}`);
+    if (match[5]) parts.push(`s${match[5].toLowerCase()}`);
+    hits.push({
+      cls: "statute",
+      raw: match[0].trim(),
+      norm: parts.join(":"),
+      index: match.index ?? 0,
+    });
+  }
   for (const match of text.matchAll(PERCENT_RE)) {
     hits.push({
       cls: "percent",
       raw: match[0],
-      norm: `pct:${numeric(match[1])}`,
+      norm: `pct:${flexibleNumber(match[1])}`,
       index: match.index ?? 0,
     });
   }
@@ -342,15 +496,16 @@ export function extractAnchors(text: string): AnchorHit[] {
     hits.push({
       cls: "statute",
       raw: match[0],
-      norm: `stat:${match[1].toLowerCase()}:${year}-${Number(match[3])}`,
+      norm: `stat:${INSTRUMENT_REGISTERS[match[1].toLowerCase()]}:${year}-${Number(match[3])}`,
       index: match.index ?? 0,
     });
   }
   for (const match of text.matchAll(CITE_NEUTRAL_RE)) {
+    const court = match[2].toLowerCase();
     hits.push({
       cls: "cite",
       raw: match[0],
-      norm: `cite:${match[1]}${match[2].toLowerCase()}${match[3]}`,
+      norm: `cite:${match[1]}${FR_COURTS[court] ?? court}${match[3]}`,
       index: match.index ?? 0,
     });
   }
@@ -638,4 +793,65 @@ export function anchorCoverage(
     source_documents: sources.map((document) => document.name),
     draft_documents: drafts.map((document) => document.name),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Bilingual concordance                                               */
+/* ------------------------------------------------------------------ */
+
+export interface BilingualConcordanceReport {
+  classes: Record<
+    AnchorClass,
+    {
+      matched: number;
+      english_only: AnchorRow[];
+      french_only: AnchorRow[];
+      truncated: boolean;
+    }
+  >;
+  /** distinct anchors found in exactly one language version */
+  discordant: number;
+  /** distinct anchors checked across both versions */
+  checked: number;
+}
+
+/**
+ * Concordance gate for equally-authentic bilingual instruments (federal
+ * statutes, QC/NB/ON bilingual enactments, bilingual contracts): every
+ * value-bearing anchor — money, dates, durations, percentages, statute
+ * refs, citations — must appear in BOTH language versions, because the
+ * French productions normalize to the same keys ("2 250 000 $" ≡
+ * "$2,250,000", "L.R.C. (1985), ch. C-46, art. 231" ≡ "R.S.C. 1985,
+ * c. C-46, s. 231", "2015 CSC 5" ≡ "2015 SCC 5"). An anchor present in
+ * one version only is drafting or translation drift — the raw material
+ * of shared-meaning-rule litigation — surfaced deterministically.
+ */
+export function bilingualConcordance(
+  english: AnchorDocument,
+  french: AnchorDocument,
+  options?: { maxRowsPerClass?: number },
+): BilingualConcordanceReport {
+  const report = anchorCoverage([english], [french], options);
+  let discordant = 0;
+  let checked = 0;
+  const classes = Object.fromEntries(
+    Object.entries(report.classes).map(([cls, coverage]) => {
+      discordant += coverage.source_only.length + coverage.draft_only.length;
+      checked +=
+        coverage.matched +
+        coverage.source_only.length +
+        coverage.draft_only.length;
+      return [
+        cls,
+        {
+          matched: coverage.matched,
+          english_only: coverage.source_only,
+          french_only: coverage.draft_only,
+          truncated:
+            coverage.source_only_truncated || coverage.draft_only_truncated,
+        },
+      ];
+    }),
+  ) as BilingualConcordanceReport["classes"];
+  return { classes, discordant, checked };
 }
