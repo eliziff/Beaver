@@ -11,8 +11,11 @@
  * Deviations, recorded in beaver-receipts.json per run:
  *  - Documents outside ALLOWED_DOCUMENT_TYPES (e.g. .eml) are wrapped as
  *    .docx before upload — content unchanged, Beaver has no ingester for them.
- *  - Deliverables are Beaver's answer text exported to the required filename
- *    (.docx via the docx package, .md/.txt verbatim); tasks needing
+ *  - Deliverables prefer documents Beaver authored itself via its
+ *    library_create_docx tool (harvested from doc_created SSE events and
+ *    downloaded through the real /single-documents API); when the turn
+ *    creates none, the answer text is exported to the required filename
+ *    (.docx via the docx package, .md/.txt verbatim). Tasks needing
  *    spreadsheet/slide deliverables are out of scope for this arm.
  *  - Token counts are context-manifest estimates (bytes/4), not API usage —
  *    the chat SSE stream does not report usage.
@@ -69,6 +72,14 @@ const toolCalls = (events: SseEvent[]) =>
   events
     .filter((event) => event.type === "tool_call_start")
     .map((event) => String(event.name ?? ""));
+
+const docsCreated = (events: SseEvent[]) =>
+  events
+    .filter((event) => event.type === "doc_created" && event.download_url)
+    .map((event) => ({
+      filename: String(event.filename ?? ""),
+      downloadUrl: String(event.download_url),
+    }));
 
 async function main() {
   const task = argument("task");
@@ -189,6 +200,7 @@ async function main() {
   const events = sseEvents(streamed.text);
   const answer = visibleText(events);
   const calls = toolCalls(events);
+  const created = docsCreated(events);
   if (!answer.trim()) throw new Error("empty assistant answer");
   const wallClock = (Date.now() - started) / 1000;
 
@@ -196,10 +208,41 @@ async function main() {
   const outputDir = path.join(runDir, "output");
   mkdirSync(outputDir, { recursive: true });
 
+  // Prefer documents Beaver authored itself: exact filename match, then a
+  // same-extension 1:1 pairing (a user renaming on export), then the answer
+  // text as last resort.
+  const unclaimed = [...created];
+  const deliverableSources: Record<string, string> = {};
   for (const name of deliverables) {
+    const extension = path.extname(name).toLowerCase();
+    const exact = unclaimed.findIndex((doc) => doc.filename === name);
+    const sameExt = unclaimed.filter(
+      (doc) => path.extname(doc.filename).toLowerCase() === extension,
+    );
+    const pick =
+      exact >= 0 ? exact : sameExt.length === 1 ? unclaimed.indexOf(sameExt[0]) : -1;
     const target = path.join(outputDir, name);
-    if (/\.docx$/iu.test(name)) writeFileSync(target, await textToDocx(answer));
-    else writeFileSync(target, answer, "utf8");
+    if (pick >= 0) {
+      const doc = unclaimed.splice(pick, 1)[0];
+      const download = await request(app)
+        .get(doc.downloadUrl)
+        .buffer(true)
+        .parse((res, callback) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          res.on("end", () => callback(null, Buffer.concat(chunks)));
+        });
+      if (download.status !== 200)
+        throw new Error(`download ${doc.filename}: ${download.status}`);
+      writeFileSync(target, download.body as Buffer);
+      deliverableSources[name] = `library:${doc.filename}`;
+    } else if (/\.docx$/iu.test(name)) {
+      writeFileSync(target, await textToDocx(answer));
+      deliverableSources[name] = "answer_text";
+    } else {
+      writeFileSync(target, answer, "utf8");
+      deliverableSources[name] = "answer_text";
+    }
   }
 
   // Token estimates from the context-manifest receipts (ceil(bytes/4); no
@@ -274,9 +317,10 @@ async function main() {
         tool_calls: calls,
         wrapped_uploads: wrappedUploads,
         deliverables,
+        docs_created: created.map((doc) => doc.filename),
+        deliverable_sources: deliverableSources,
         deviations: {
           uploads_wrapped_as_docx: wrappedUploads,
-          deliverables_exported_from_answer_text: true,
           tokens_estimated: true,
         },
       },
