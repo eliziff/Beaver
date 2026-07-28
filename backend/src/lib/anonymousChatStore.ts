@@ -32,6 +32,7 @@ export type AnonymousChat = {
   title: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
   transcript_version: number;
   messages: AnonymousChatMessage[];
 };
@@ -60,16 +61,24 @@ const chatSchema = z
     title: z.string().nullable(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
+    deleted_at: z.string().datetime().nullable(),
     transcript_version: z.number().int().nonnegative(),
     messages: z.array(messageSchema),
   })
   .strict();
-const storedChatSchema = z
-  .object({ version: z.literal(2), chat: chatSchema })
-  .strict();
+const storedChatSchema = z.union([
+  z.object({ version: z.literal(3), chat: chatSchema }).strict(),
+  z
+    .object({
+      version: z.literal(2),
+      chat: chatSchema.omit({ deleted_at: true }),
+    })
+    .strict(),
+]);
 
 const chatDirectory = path.join(legalDataHome(), "apps", "mike", "chats");
 const chats = new Map<string, AnonymousChat>();
+const deletedChatRetentionMs = 30 * 24 * 60 * 60 * 1000;
 
 function chatPath(chatId: string) {
   return path.join(chatDirectory, `${chatId}.json`);
@@ -87,7 +96,11 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
   try {
     const raw = JSON.parse(readFileSync(chatPath(chatId), "utf8"));
     const parsed = storedChatSchema.safeParse(raw);
-    const chat = parsed.success ? parsed.data.chat : null;
+    const chat = parsed.success
+      ? parsed.data.version === 2
+        ? { ...parsed.data.chat, deleted_at: null }
+        : parsed.data.chat
+      : null;
     if (
       !chat ||
       chat.id !== chatId ||
@@ -98,6 +111,13 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
     }
     const hydrated = chat as AnonymousChat;
     chats.set(hydrated.id, hydrated);
+    if (parsed.success && parsed.data.version === 2) {
+      try {
+        writeChat(hydrated);
+      } catch {
+        // The readable v2 file remains canonical if its best-effort upgrade fails.
+      }
+    }
     return hydrated;
   } catch {
     return null;
@@ -105,7 +125,7 @@ function readChat(userId: string, chatId: string): AnonymousChat | null {
 }
 
 function writeChat(chat: AnonymousChat) {
-  const parsed = storedChatSchema.safeParse({ version: 2, chat });
+  const parsed = storedChatSchema.safeParse({ version: 3, chat });
   if (!parsed.success) throw new Error("Invalid anonymous chat");
 
   mkdirSync(chatDirectory, { recursive: true });
@@ -114,7 +134,7 @@ function writeChat(chat: AnonymousChat) {
     `.${chat.id}.${process.pid}.${randomUUID()}.tmp`,
   );
   try {
-    writeFileSync(temporaryPath, JSON.stringify({ version: 2, chat }), {
+    writeFileSync(temporaryPath, JSON.stringify({ version: 3, chat }), {
       encoding: "utf8",
       flag: "wx",
     });
@@ -145,6 +165,7 @@ export function createAnonymousChat(
     title: null,
     created_at: now,
     updated_at: now,
+    deleted_at: null,
     transcript_version: 0,
     messages: [],
   };
@@ -153,6 +174,10 @@ export function createAnonymousChat(
 }
 
 export function listAnonymousChats(userId: string): AnonymousChat[] {
+  return listChatsByDeletion(userId, false);
+}
+
+function listStoredChats(userId: string): AnonymousChat[] {
   if (!validId(userId)) return [];
   let chatIds: string[];
   try {
@@ -165,13 +190,40 @@ export function listAnonymousChats(userId: string): AnonymousChat[] {
   }
   return chatIds
     .map((chatId) => readChat(userId, chatId))
-    .filter((chat): chat is AnonymousChat => chat !== null)
-    .sort(
-      (a, b) =>
-        b.updated_at.localeCompare(a.updated_at) ||
+    .filter((chat): chat is AnonymousChat => chat !== null);
+}
+
+function removeChat(chat: AnonymousChat) {
+  abortChatTurnForDeletion(chat.id);
+  rmSync(chatPath(chat.id), { force: true });
+  deleteAnonymousProviderSessions(chat.id);
+  chats.delete(chat.id);
+}
+
+function deletedChatExpired(chat: AnonymousChat, now: Date) {
+  return (
+    chat.deleted_at !== null &&
+    now.getTime() - Date.parse(chat.deleted_at) >= deletedChatRetentionMs
+  );
+}
+
+function listChatsByDeletion(userId: string, deleted: boolean) {
+  const now = new Date();
+  const result: AnonymousChat[] = [];
+  for (const chat of listStoredChats(userId)) {
+    if (deletedChatExpired(chat, now)) {
+      removeChat(chat);
+    } else if ((chat.deleted_at !== null) === deleted) {
+      result.push(chat);
+    }
+  }
+  return result.sort((a, b) =>
+    deleted
+      ? b.deleted_at!.localeCompare(a.deleted_at!) || a.id.localeCompare(b.id)
+      : b.updated_at.localeCompare(a.updated_at) ||
         b.created_at.localeCompare(a.created_at) ||
         a.id.localeCompare(b.id),
-    );
+  );
 }
 
 export function listAnonymousProjectChats(
@@ -188,7 +240,30 @@ export function getAnonymousChat(
   userId: string,
   chatId: string,
 ): AnonymousChat | null {
-  return readChat(userId, chatId);
+  const chat = readChat(userId, chatId);
+  if (!chat) return null;
+  if (deletedChatExpired(chat, new Date())) {
+    removeChat(chat);
+    return null;
+  }
+  return chat.deleted_at === null ? chat : null;
+}
+
+export function listDeletedAnonymousChats(userId: string): AnonymousChat[] {
+  return listChatsByDeletion(userId, true);
+}
+
+export function getDeletedAnonymousChat(
+  userId: string,
+  chatId: string,
+): AnonymousChat | null {
+  const chat = readChat(userId, chatId);
+  if (!chat || chat.deleted_at === null) return null;
+  if (deletedChatExpired(chat, new Date())) {
+    removeChat(chat);
+    return null;
+  }
+  return chat;
 }
 
 export function appendAnonymousMessage(
@@ -306,11 +381,19 @@ export class AnonymousChatVersionConflictError extends Error {
   }
 }
 
+export class AnonymousChatDeletedError extends Error {
+  constructor() {
+    super("Anonymous chat is in the recycling bin");
+    this.name = "AnonymousChatDeletedError";
+  }
+}
+
 function assertTranscriptVersion(
   chat: AnonymousChat,
   expectedVersion: number | undefined,
 ) {
   const current = chats.get(chat.id) ?? chat;
+  if (current.deleted_at !== null) throw new AnonymousChatDeletedError();
   if (
     expectedVersion !== undefined &&
     current.transcript_version !== expectedVersion
@@ -321,7 +404,7 @@ function assertTranscriptVersion(
 }
 
 export function updateAnonymousChatTitle(chat: AnonymousChat, title: string) {
-  const current = chats.get(chat.id) ?? chat;
+  const current = assertTranscriptVersion(chat, undefined);
   const next = {
     ...current,
     title,
@@ -339,7 +422,7 @@ export function updateAnonymousChatProject(
   if (projectId !== null && !validId(projectId)) {
     throw new Error("Invalid anonymous chat project ID");
   }
-  const current = chats.get(chat.id) ?? chat;
+  const current = assertTranscriptVersion(chat, undefined);
   const next = {
     ...current,
     project_id: projectId,
@@ -351,23 +434,56 @@ export function updateAnonymousChatProject(
 }
 
 export function deleteAnonymousChat(userId: string, chatId: string): boolean {
-  const chat = getAnonymousChat(userId, chatId);
-  if (!chat) return false;
+  const chat = readChat(userId, chatId);
+  if (!chat || chat.deleted_at !== null) return false;
   abortChatTurnForDeletion(chat.id);
-  rmSync(chatPath(chat.id), { force: true });
-  deleteAnonymousProviderSessions(chat.id);
-  chats.delete(chat.id);
+  const next = { ...chat, deleted_at: new Date().toISOString() };
+  writeChat(next);
+  Object.assign(chat, next);
   return true;
+}
+
+export function restoreAnonymousChat(userId: string, chatId: string): boolean {
+  const chat = readChat(userId, chatId);
+  if (!chat || chat.deleted_at === null) return false;
+  if (deletedChatExpired(chat, new Date())) {
+    removeChat(chat);
+    return false;
+  }
+  const next = { ...chat, deleted_at: null };
+  writeChat(next);
+  Object.assign(chat, next);
+  return true;
+}
+
+export function permanentlyDeleteAnonymousChat(
+  userId: string,
+  chatId: string,
+): boolean {
+  const chat = readChat(userId, chatId);
+  if (!chat || chat.deleted_at === null) return false;
+  removeChat(chat);
+  return true;
+}
+
+export function purgeExpiredAnonymousChats(
+  userId: string,
+  now = new Date(),
+): number {
+  let purged = 0;
+  for (const chat of listStoredChats(userId)) {
+    if (!deletedChatExpired(chat, now)) continue;
+    removeChat(chat);
+    purged += 1;
+  }
+  return purged;
 }
 
 export function deleteAnonymousProjectChats(
   userId: string,
   projectId: string,
 ) {
-  for (const chat of listAnonymousProjectChats(userId, projectId)) {
-    abortChatTurnForDeletion(chat.id);
-    rmSync(chatPath(chat.id), { force: true });
-    deleteAnonymousProviderSessions(chat.id);
-    chats.delete(chat.id);
+  for (const chat of listStoredChats(userId)) {
+    if (chat.project_id === projectId) removeChat(chat);
   }
 }

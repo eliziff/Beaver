@@ -36,6 +36,7 @@ import {
 import { providerForModel } from "../lib/llm/models";
 import {
   LOCAL_ASSISTANT_TOOLS,
+  extractLocalDocument,
   runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
 import {
@@ -86,7 +87,10 @@ import {
   loadStoredChatImages,
 } from "../lib/chat/imageAttachments";
 import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
-import { listLocalDocumentsById } from "../lib/localDocumentStore";
+import {
+  listLocalDocumentsById,
+  localTrackedEditStatuses,
+} from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 import {
   abortChatTurn,
@@ -141,6 +145,82 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 
 const trimmedString = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+function contentBoundarySeparator(before: string, after: string) {
+  if (!before || !after || /\s$/u.test(before) || /^\s/u.test(after)) {
+    return "";
+  }
+  const previous = before.at(-1) ?? "";
+  const next = after[0] ?? "";
+  if (/^[,.;:!?)}\]]$/u.test(next) || /^[-/\\'’–—]$/u.test(previous)) {
+    return "";
+  }
+  if (
+    /[\p{L}\p{N}]$/u.test(previous) &&
+    /^[\p{Ll}\p{M}]/u.test(next)
+  ) {
+    return "";
+  }
+  return " ";
+}
+
+function localDocumentMutationEvent(
+  toolName: string,
+  content: string | undefined,
+): Record<string, unknown> | null {
+  if (
+    !["library_create_docx", "library_revise_docx"].includes(toolName) ||
+    !content
+  ) {
+    return null;
+  }
+  try {
+    const value = asRecord(JSON.parse(content));
+    if (
+      value?.ok !== true ||
+      !trimmedString(value.filename) ||
+      !trimmedString(value.document_id) ||
+      !trimmedString(value.version_id) ||
+      !trimmedString(value.download_url)
+    ) {
+      return null;
+    }
+    if (toolName === "library_create_docx" && value.action === "created") {
+      return {
+        type: "doc_created",
+        filename: trimmedString(value.filename),
+        document_id: trimmedString(value.document_id),
+        version_id: trimmedString(value.version_id),
+        version_number:
+          typeof value.version_number === "number"
+            ? value.version_number
+            : null,
+        download_url: trimmedString(value.download_url),
+      };
+    }
+    if (
+      toolName !== "library_revise_docx" ||
+      value.action !== "revised" ||
+      !Array.isArray(value.annotations)
+    ) {
+      return null;
+    }
+    return {
+      type: "doc_edited",
+      filename: trimmedString(value.filename),
+      document_id: trimmedString(value.document_id),
+      version_id: trimmedString(value.version_id),
+      version_number:
+        typeof value.version_number === "number"
+          ? value.version_number
+          : null,
+      download_url: trimmedString(value.download_url),
+      annotations: value.annotations,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function providerRegistryItem(
   item: LocalPdfEvidenceRegistryItem,
@@ -765,6 +845,32 @@ export async function streamAnonymousChat(params: {
     filename: turnDocumentById.get(documentId)!.filename,
     document_id: documentId,
   }));
+  // Attached means provided: inline each attachment's extracted text into the
+  // turn so the model reads it directly instead of round-tripping a tool call
+  // (or asking which representation to use). Oversized documents keep the
+  // pointer plus their true size; the Library tools still serve those.
+  const INLINE_ATTACHMENT_CHARS = 20_000;
+  const INLINE_ATTACHMENT_TOTAL_CHARS = 60_000;
+  let inlineBudget = INLINE_ATTACHMENT_TOTAL_CHARS;
+  const attachedDocumentBlocks: string[] = [];
+  for (const file of canonicalTurnFiles) {
+    const extracted = await extractLocalDocument(
+      userId,
+      file.document_id,
+    ).catch(() => null);
+    const text = extracted?.text?.trim() ?? "";
+    if (text && text.length <= Math.min(INLINE_ATTACHMENT_CHARS, inlineBudget)) {
+      inlineBudget -= text.length;
+      attachedDocumentBlocks.push(
+        `[Attached document "${file.filename}" (document_id: ${file.document_id}) full text:\n${text}]`,
+      );
+    } else if (text) {
+      attachedDocumentBlocks.push(
+        `[Attached document "${file.filename}" (document_id: ${file.document_id}) is ${text.length} characters, beyond the inline limit; its text is available through the Library tools.]`,
+      );
+    }
+  }
+  const attachedDocumentContext = attachedDocumentBlocks.join("\n\n");
   const currentProviderMessage: ChatMessage =
     params.currentTurn.kind === "message"
       ? {
@@ -818,8 +924,8 @@ export async function streamAnonymousChat(params: {
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
         : "The user's local Beaver Library is connected"
-    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a revision succeeded without its tool receipt, and return its exact app_url as the edited-document link. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
-    "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it. A selected Library document is already provided by document_id: use the Library tools and infer its available representation. Never ask the user to choose between PDF, DOCX, or text views.\n\n" +
+    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
+    "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
     "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
     focusPrompt +
     priorEvidencePrompt +
@@ -1022,6 +1128,7 @@ export async function streamAnonymousChat(params: {
 
   let rawText = "";
   let visibleText = "";
+  let contentBoundaryPending = false;
   const splitter = createVisibleStreamSplitter({
     onVisible: (visible) => {
       visibleText += visible;
@@ -1038,6 +1145,7 @@ export async function streamAnonymousChat(params: {
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
+  const turnDocumentEvents: Record<string, unknown>[] = [];
   // Flushes the splitter's held-back tail into visibleText; sseWrite
   // already no-ops on a destroyed/ended response.
   const flushTail = (emit = true) => {
@@ -1045,6 +1153,23 @@ export async function streamAnonymousChat(params: {
     if (!tail) return;
     visibleText += tail;
     if (emit) sseWrite(res, { type: "content_delta", text: tail });
+  };
+  const queueContentBoundary = () => {
+    flushTail();
+    if (visibleText) contentBoundaryPending = true;
+  };
+  const appendProviderContent = (text: string) => {
+    if (!text) return;
+    if (contentBoundaryPending) {
+      contentBoundaryPending = false;
+      const separator = contentBoundarySeparator(rawText, text);
+      if (separator) {
+        rawText += separator;
+        splitter.push(separator);
+      }
+    }
+    rawText += text;
+    splitter.push(text);
   };
   const withEvidenceRegistry = async (events: unknown[]) => {
     const registry = mergeLocalPdfEvidenceRegistries(
@@ -1110,8 +1235,10 @@ export async function streamAnonymousChat(params: {
     tool_use_id: id,
     content: JSON.stringify(payload),
   });
-  const runTurnTools = (calls: Parameters<typeof runLocalAssistantTools>[1]) =>
-    runLocalAssistantTools(
+  const runTurnTools = async (
+    calls: Parameters<typeof runLocalAssistantTools>[1],
+  ) => {
+    const results = await runLocalAssistantTools(
       userId,
       calls,
       a2ajLookups,
@@ -1122,11 +1249,30 @@ export async function streamAnonymousChat(params: {
       localPdfEvidenceHandles,
       projectId,
     );
+    for (const call of calls) {
+      const toolResult = results.find(
+        (candidate) => candidate.tool_use_id === call.id,
+      );
+      const event = localDocumentMutationEvent(call.name, toolResult?.content);
+      if (!event) continue;
+      turnDocumentEvents.push(event);
+      sseWrite(res, {
+        type:
+          event.type === "doc_created"
+            ? "doc_created_start"
+            : "doc_edited_start",
+        filename: event.filename,
+      });
+      sseWrite(res, event);
+    }
+    return results;
+  };
   const acceptPendingAskInputs = (event: AskInputsEvent) => {
     if (pendingAskInputs || event.items.length === 0) return;
     pendingAskInputs = event;
     rawText = "";
     visibleText = "";
+    contentBoundaryPending = false;
     splitter.reset();
     sseWrite(res, { type: "content_reset" });
   };
@@ -1137,6 +1283,7 @@ export async function streamAnonymousChat(params: {
     flushTail();
     const assistantEvents = await withEvidenceRegistry([
       ...(visibleText ? [{ type: "content", text: visibleText }] : []),
+      ...turnDocumentEvents,
       event,
     ]);
     if (chatTurnWasDeleted(chat.id)) {
@@ -1146,6 +1293,7 @@ export async function streamAnonymousChat(params: {
     persistTurnEvents(assistantEvents, { complete: true });
     maybeSetTitle();
     askInputsFinalized = true;
+    sseWrite(res, { type: "content_final", text: visibleText });
     sseWrite(res, event);
     sseFinishTurn([]);
     return true;
@@ -1162,9 +1310,12 @@ export async function streamAnonymousChat(params: {
       model: selectedModel,
       systemPrompt: continuationId ? "" : systemPrompt,
       messages: (continuationId ? messages.slice(-1) : messages).map(
-        (message) => ({
+        (message, index, list) => ({
           role: message.role === "assistant" ? "assistant" : "user",
-          content: formatChatMessageContent(message),
+          content:
+            index === list.length - 1 && attachedDocumentContext
+              ? `${formatChatMessageContent(message)}\n\n${attachedDocumentContext}`
+              : formatChatMessageContent(message),
           images: imagesForMessage(message, imagesByDocumentId),
         }),
       ),
@@ -1248,8 +1399,10 @@ export async function streamAnonymousChat(params: {
         onContentDelta: (text: string) => {
           if (pendingAskInputs) return;
           if (text) providerActivity = true;
-          rawText += text;
-          splitter.push(text);
+          appendProviderContent(text);
+        },
+        onContentBlockEnd: () => {
+          if (!pendingAskInputs) queueContentBoundary();
         },
         onReasoningDelta: (text: string) => {
           if (text) providerActivity = true;
@@ -1264,6 +1417,7 @@ export async function streamAnonymousChat(params: {
         },
         onToolCallStart: (call) => {
           providerActivity = true;
+          if (!isCodex && !pendingAskInputs) queueContentBoundary();
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
@@ -1315,8 +1469,10 @@ export async function streamAnonymousChat(params: {
     const linkDelta = linkedText.slice(visibleText.trimEnd().length);
     if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
     visibleText = linkedText;
+    sseWrite(res, { type: "content_final", text: visibleText });
 
     const assistantEvents = await withEvidenceRegistry([
+      ...turnDocumentEvents,
       visibleText
         ? { type: "content", text: visibleText }
         : {
@@ -1376,9 +1532,10 @@ export async function streamAnonymousChat(params: {
       return;
     }
     try {
-      const partialEvents = visibleText
-        ? [{ type: "content", text: visibleText }]
-        : [];
+      const partialEvents = [
+        ...turnDocumentEvents,
+        ...(visibleText ? [{ type: "content", text: visibleText }] : []),
+      ];
       persistTurnEvents(
         isAbortError(error)
           ? [...partialEvents, { type: "content", text: "Cancelled by user." }]
@@ -1576,7 +1733,11 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
     const chat = getAnonymousChat(userId, chatId);
     if (!chat) return void res.status(404).json({ detail: "Chat not found" });
     const { messages, ...chatData } = chat;
-    res.json({ chat: chatData, messages: visibleAnonymousMessages(messages) });
+    const visible = visibleAnonymousMessages(messages);
+    res.json({
+      chat: chatData,
+      messages: await hydrateLocalEditStatuses(visible, userId),
+    });
     return;
   }
   const db = createServerSupabase();
@@ -1617,6 +1778,74 @@ chatRouter.post("/:chatId/stop", requireAuth, async (req, res) => {
 // produced the edit (always "pending"). If the user later accepts or rejects,
 // `document_edits.status` is updated but the stored event is not. On chat load
 // we merge the current DB status in so EditCards render with the real state.
+function patchStoredEditEvents(
+  messages: Record<string, unknown>[],
+  statusById: ReadonlyMap<string, "pending" | "accepted" | "rejected">,
+  versionNumberById: ReadonlyMap<string, number | null>,
+) {
+  const withVersionNumber = (row: Record<string, unknown>) =>
+    typeof row.version_id === "string" &&
+    versionNumberById.has(row.version_id)
+      ? {
+          ...row,
+          version_number: versionNumberById.get(row.version_id) ?? null,
+        }
+      : row;
+  const patchAnnList = (list: unknown): unknown => {
+    if (!Array.isArray(list)) return list;
+    return (list as Record<string, unknown>[]).map((annotation) =>
+      withVersionNumber(
+        typeof annotation?.edit_id === "string" &&
+          statusById.has(annotation.edit_id)
+          ? {
+              ...annotation,
+              status: statusById.get(annotation.edit_id),
+            }
+          : annotation,
+      ),
+    );
+  };
+  return messages.map((message) => {
+    if (!Array.isArray(message.content)) return message;
+    return {
+      ...message,
+      content: (message.content as Record<string, unknown>[]).map((event) =>
+        event?.type === "doc_edited"
+          ? withVersionNumber({
+              ...event,
+              annotations: patchAnnList(event.annotations),
+            })
+          : event,
+      ),
+    };
+  });
+}
+
+async function hydrateLocalEditStatuses(
+  messages: Record<string, unknown>[],
+  userId: string,
+) {
+  const documentIds = new Set<string>();
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const event of message.content as Record<string, unknown>[]) {
+      if (
+        event?.type === "doc_edited" &&
+        typeof event.document_id === "string"
+      ) {
+        documentIds.add(event.document_id);
+      }
+    }
+  }
+  if (!documentIds.size) return messages;
+  const rows = await localTrackedEditStatuses(userId, documentIds);
+  return patchStoredEditEvents(
+    messages,
+    new Map(rows.map((row) => [row.editId, row.status])),
+    new Map(rows.map((row) => [row.versionId, row.versionNumber])),
+  );
+}
+
 async function hydrateEditStatuses(
   messages: Record<string, unknown>[],
   db: ReturnType<typeof createServerSupabase>,
@@ -1670,37 +1899,7 @@ async function hydrateEditStatuses(
     }
   }
 
-  const withVersionNumber = (row: Record<string, unknown>) =>
-    typeof row.version_id === "string" && versionNumberById.has(row.version_id)
-      ? {
-          ...row,
-          version_number: versionNumberById.get(row.version_id) ?? null,
-        }
-      : row;
-  const patchAnnList = (list: unknown): unknown => {
-    if (!Array.isArray(list)) return list;
-    return (list as Record<string, unknown>[]).map((a) =>
-      withVersionNumber(
-        typeof a?.edit_id === "string" && statusById.has(a.edit_id)
-          ? { ...a, status: statusById.get(a.edit_id) }
-          : a,
-      ),
-    );
-  };
-  return messages.map((m) => {
-    const next: Record<string, unknown> = { ...m };
-    if (Array.isArray(m.content)) {
-      next.content = (m.content as Record<string, unknown>[]).map((ev) =>
-        ev?.type === "doc_edited"
-          ? withVersionNumber({
-              ...ev,
-              annotations: patchAnnList(ev.annotations),
-            })
-          : ev,
-      );
-    }
-    return next;
-  });
+  return patchStoredEditEvents(messages, statusById, versionNumberById);
 }
 
 chatRouter.patch("/:chatId", requireAuth, async (req, res) => {

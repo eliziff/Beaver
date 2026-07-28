@@ -222,6 +222,7 @@ export function codexStreamCallbacks(params: {
         endReasoning();
         params.callbacks?.onContentDelta?.(text);
       },
+      onContentBlockEnd: () => params.callbacks?.onContentBlockEnd?.(),
       onReasoningDelta: (text: string) => {
         if (!params.enableThinking) return;
         reasoningOpen = true;
@@ -422,6 +423,7 @@ async function runCodex(params: {
       if (parsed.text) {
         fullText += parsed.text;
         callbacks.onContentDelta(parsed.text);
+        callbacks.onContentBlockEnd?.();
       }
     }
 
