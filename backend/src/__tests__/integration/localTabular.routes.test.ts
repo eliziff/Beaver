@@ -244,4 +244,35 @@ describe("account-free tabular reviews", () => {
     ).toBe(204);
     expect(mocks.supabaseCalls).toBe(0);
   });
+
+  it("streams chat locally with the shared model selection", async () => {
+    mocks.streamChatWithTools.mockImplementationOnce(async (params) => {
+      expect(params.model).toBe("codex:gpt-5.6-terra");
+      expect(params.reasoningEffort).toBe("high");
+      params.callbacks?.onContentDelta?.("Local answer");
+      return { fullText: "Local answer" };
+    });
+    const app = await loadApp();
+    const created = await request(app)
+      .post("/tabular-review")
+      .send({
+        title: "Local review",
+        document_ids: [],
+        columns_config: [],
+      });
+
+    const response = await request(app)
+      .post(`/tabular-review/${created.body.id}/chat`)
+      .send({
+        messages: [{ role: "user", content: "Summarize the review" }],
+        model: "codex:gpt-5.6-terra",
+        reasoning_effort: "high",
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('"type":"content_delta"');
+    expect(response.text).toContain("Local answer");
+    expect(response.text).toContain("data: [DONE]");
+    expect(mocks.supabaseCalls).toBe(0);
+  });
 });

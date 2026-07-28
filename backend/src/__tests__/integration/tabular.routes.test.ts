@@ -664,10 +664,14 @@ describe("tabular.routes", () => {
             const res = await request(app)
                 .post("/tabular-review/r1/chat")
                 .set(...AUTH)
-                .send({ messages: [{ role: "user", content: "hello" }] });
+                .send({
+                    messages: [{ role: "user", content: "hello" }],
+                    model: "deepseek-v4-pro",
+                });
 
             expect(res.status).toBe(422);
             expect(res.body.code).toBe("missing_api_key");
+            expect(res.body.provider).toBe("deepseek");
         });
     });
 
