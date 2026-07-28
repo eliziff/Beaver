@@ -1212,7 +1212,7 @@ async function loadProjectFolder(
   return (data as { id: string; parent_folder_id: string | null } | null) ?? null;
 }
 
-export async function handleDocumentUpload(
+async function handleDocumentUpload(
   req: import("express").Request,
   res: import("express").Response,
   userId: string,

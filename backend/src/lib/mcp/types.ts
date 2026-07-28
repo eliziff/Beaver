@@ -3,8 +3,8 @@ import { createServerSupabase } from "../supabase";
 
 export type Db = ReturnType<typeof createServerSupabase>;
 
-export type McpTransport = "streamable_http";
-export type McpAuthType = "none" | "bearer" | "oauth";
+type McpTransport = "streamable_http";
+type McpAuthType = "none" | "bearer" | "oauth";
 export type McpConnectorAuthConfig = {
     bearerToken?: string;
     headers?: Record<string, string>;
