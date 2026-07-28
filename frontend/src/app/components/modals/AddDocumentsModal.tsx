@@ -24,6 +24,9 @@ interface Props {
     breadcrumb: string[];
     initialTab?: DirectoryTab;
     projectId?: string;
+    documents?: Document[];
+    showTabs?: boolean;
+    accept?: string;
     initialSelectedDocuments?: Document[];
     /** Documents uploaded outside the modal while it is mounted. */
     externalUploadedDocuments?: Document[];
@@ -40,6 +43,9 @@ export function AddDocumentsModal({
     breadcrumb,
     initialTab = "files",
     projectId,
+    documents,
+    showTabs = true,
+    accept = SUPPORTED_DOCUMENT_ACCEPT,
     initialSelectedDocuments,
     externalUploadedDocuments,
     primaryLabel = "Confirm",
@@ -56,7 +62,6 @@ export function AddDocumentsModal({
     const [hasOpened, setHasOpened] = useState(open);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const wasOpenRef = useRef(false);
-
     useEffect(() => {
         if (open) setHasOpened(true);
     }, [open]);
@@ -218,7 +223,7 @@ export function AddDocumentsModal({
             <input
                 ref={fileInputRef}
                 type="file"
-                accept={SUPPORTED_DOCUMENT_ACCEPT}
+                accept={accept}
                 multiple
                 className="hidden"
                 onChange={handleUpload}
@@ -241,11 +246,15 @@ export function AddDocumentsModal({
 
             <div className="flex min-h-0 flex-1 flex-col">
                 <FileDirectory
-                    documents={extraUploadedDocs}
+                    documents={
+                        documents
+                            ? [...extraUploadedDocs, ...documents]
+                            : extraUploadedDocs
+                    }
                     selectedDocuments={selectedDocuments}
                     onChange={setSelectedDocuments}
                     uploadingFilenames={uploadingFilenames}
-                    showTabs
+                    showTabs={showTabs}
                     initialTab={initialTab}
                     excludeProjectId={projectId}
                 />

@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import {
@@ -34,6 +34,13 @@ const document: Document = {
   created_at: "2026-07-27T00:00:00.000Z",
   active_version_number: 3,
 };
+const secondDocument: Document = {
+  ...document,
+  id: "document-2",
+  filename: "Memo.pdf",
+  storage_path: "memo.pdf",
+  pdf_storage_path: "memo.pdf",
+};
 
 function chooseAction(label: string) {
   const select = screen.getByRole("combobox", { name: "More actions" });
@@ -50,6 +57,7 @@ function Harness({
   initialDocuments = [document],
   initialFolders = [],
   search = "",
+  onOwnerOnlyAction,
 }: {
   removeDocument: (documentId: string) => Promise<void>;
   onActions?: (actions: DocTableSelectionActions | null) => void;
@@ -57,6 +65,7 @@ function Harness({
   initialDocuments?: Document[];
   initialFolders?: DocTableFolder[];
   search?: string;
+  onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
 }) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [folders, setFolders] =
@@ -82,9 +91,15 @@ function Harness({
         renameDocument: vi.fn(),
       }}
       onSelectionActionsChange={onActions}
+      onOwnerOnlyAction={onOwnerOnlyAction}
       documentRemovalMode={documentRemovalMode}
     />
   );
+}
+
+function selectDocument(filename: string) {
+  const row = screen.getByText(filename).closest("[data-document-row]");
+  fireEvent.click(within(row as HTMLElement).getByRole("checkbox"));
 }
 
 describe("DocTable document removal", () => {
@@ -185,6 +200,67 @@ describe("DocTable document removal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/could not be deleted/u)).not.toBeInTheDocument();
+  });
+
+  it("keeps failed selected documents after a partial removal", async () => {
+    const removeDocument = vi.fn(async (documentId: string) => {
+      if (documentId === secondDocument.id) throw new Error("offline");
+    });
+    let actions: DocTableSelectionActions | null = null;
+    render(
+      <Harness
+        removeDocument={removeDocument}
+        initialDocuments={[document, secondDocument]}
+        onActions={(next) => {
+          actions = next;
+        }}
+      />,
+    );
+
+    selectDocument(document.filename);
+    selectDocument(secondDocument.filename);
+    await waitFor(() => expect(actions?.selectedCount).toBe(2));
+    await act(async () => {
+      await actions!.onDelete();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(removeDocument).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(document.filename)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(secondDocument.filename)).toBeInTheDocument();
+  });
+
+  it("does not remove a selected document owned by another user", async () => {
+    const removeDocument = vi.fn(async () => {});
+    const onOwnerOnlyAction = vi.fn();
+    let actions: DocTableSelectionActions | null = null;
+    render(
+      <Harness
+        removeDocument={removeDocument}
+        initialDocuments={[{ ...document, user_id: "other-user" }]}
+        onActions={(next) => {
+          actions = next;
+        }}
+        onOwnerOnlyAction={onOwnerOnlyAction}
+      />,
+    );
+
+    selectDocument(document.filename);
+    await waitFor(() => expect(actions).not.toBeNull());
+    await act(async () => {
+      await actions!.onDelete();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() =>
+      expect(onOwnerOnlyAction).toHaveBeenCalledWith(
+        "remove 1 of the selected documents — only the document creator can remove a document from this project",
+      ),
+    );
+    expect(removeDocument).not.toHaveBeenCalled();
+    expect(screen.getByText(document.filename)).toBeInTheDocument();
   });
 
   it("renders nested search results through the normal document row", () => {

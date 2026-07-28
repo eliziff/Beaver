@@ -690,6 +690,19 @@ export function TRChatPanel({
         return e.type === "thinking" && !!e.isStreaming;
     }
 
+    function updateLatestAssistantMessage(
+        updater: (message: TRMessage) => TRMessage,
+    ) {
+        setMessages((prev) => {
+            const lastIndex = prev.length - 1;
+            const last = prev[lastIndex];
+            if (last?.role !== "assistant") return prev;
+            const updated = [...prev];
+            updated[lastIndex] = updater(last);
+            return updated;
+        });
+    }
+
     function finishStreamingEvents() {
         const before = eventsRef.current;
         let changed = false;
@@ -707,14 +720,10 @@ export function TRChatPanel({
         if (!changed) return;
         eventsRef.current = after;
         const snapshot = [...after];
-        setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last?.role === "assistant") {
-                updated[updated.length - 1] = { ...last, events: snapshot };
-            }
-            return updated;
-        });
+        updateLatestAssistantMessage((message) => ({
+            ...message,
+            events: snapshot,
+        }));
     }
 
     function pushThinkingPlaceholder() {
@@ -727,14 +736,10 @@ export function TRChatPanel({
             { type: "thinking" as const, isStreaming: true },
         ];
         const snapshot = [...eventsRef.current];
-        setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last?.role === "assistant") {
-                updated[updated.length - 1] = { ...last, events: snapshot };
-            }
-            return updated;
-        });
+        updateLatestAssistantMessage((message) => ({
+            ...message,
+            events: snapshot,
+        }));
     }
 
     function pushEvent(event: AssistantEvent) {
@@ -745,14 +750,10 @@ export function TRChatPanel({
         }
         eventsRef.current = [...next, event];
         const snapshot = [...eventsRef.current];
-        setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last?.role === "assistant") {
-                updated[updated.length - 1] = { ...last, events: snapshot };
-            }
-            return updated;
-        });
+        updateLatestAssistantMessage((message) => ({
+            ...message,
+            events: snapshot,
+        }));
     }
 
     function updateMatchingEvent(
@@ -766,14 +767,10 @@ export function TRChatPanel({
         newEvents[idx] = updater(events[idx]);
         eventsRef.current = newEvents;
         const snapshot = [...newEvents];
-        setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last?.role === "assistant") {
-                updated[updated.length - 1] = { ...last, events: snapshot };
-            }
-            return updated;
-        });
+        updateLatestAssistantMessage((message) => ({
+            ...message,
+            events: snapshot,
+        }));
         return true;
     }
 
@@ -943,17 +940,10 @@ export function TRChatPanel({
                                 ];
                             }
                             const snapshot = [...eventsRef.current];
-                            setMessages((prev) => {
-                                const updated = [...prev];
-                                const last = updated[updated.length - 1];
-                                if (last?.role === "assistant") {
-                                    updated[updated.length - 1] = {
-                                        ...last,
-                                        events: snapshot,
-                                    };
-                                }
-                                return updated;
-                            });
+                            updateLatestAssistantMessage((message) => ({
+                                ...message,
+                                events: snapshot,
+                            }));
                             continue;
                         }
 
@@ -973,17 +963,10 @@ export function TRChatPanel({
                                 ];
                             }
                             const snapshot = [...eventsRef.current];
-                            setMessages((prev) => {
-                                const updated = [...prev];
-                                const last = updated[updated.length - 1];
-                                if (last?.role === "assistant") {
-                                    updated[updated.length - 1] = {
-                                        ...last,
-                                        events: snapshot,
-                                    };
-                                }
-                                return updated;
-                            });
+                            updateLatestAssistantMessage((message) => ({
+                                ...message,
+                                events: snapshot,
+                            }));
                             pushThinkingPlaceholder();
                             continue;
                         }
@@ -1345,17 +1328,10 @@ export function TRChatPanel({
                             finishStreamingEvents();
                             const incoming = (data.citations ??
                                 []) as TRCitationAnnotation[];
-                            setMessages((prev) => {
-                                const updated = [...prev];
-                                const last = updated[updated.length - 1];
-                                if (last?.role === "assistant") {
-                                    updated[updated.length - 1] = {
-                                        ...last,
-                                        annotations: incoming,
-                                    };
-                                }
-                                return updated;
-                            });
+                            updateLatestAssistantMessage((message) => ({
+                                ...message,
+                                annotations: incoming,
+                            }));
                             continue;
                         }
                 } catch {
@@ -1364,51 +1340,33 @@ export function TRChatPanel({
             }
 
             finishStreamingEvents();
-            setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                    updated[updated.length - 1] = {
-                        ...last,
-                        isStreaming: false,
-                    };
-                }
-                return updated;
-            });
+            updateLatestAssistantMessage((message) => ({
+                ...message,
+                isStreaming: false,
+            }));
         } catch (err: unknown) {
             const isAbort = err instanceof Error && err.name === "AbortError";
             finishStreamingEvents();
-            setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                    const hasContent = (last.events ?? []).some(
-                        (e) =>
-                            e.type === "content" &&
-                            (e as { type: "content"; text: string }).text,
-                    );
-                    if (!hasContent) {
-                        updated[updated.length - 1] = {
-                            ...last,
-                            isStreaming: false,
-                            events: [
-                                ...(last.events ?? []),
-                                {
-                                    type: "content" as const,
-                                    text: isAbort
-                                        ? ""
-                                        : "An error occurred. Please try again.",
-                                },
-                            ],
-                        };
-                    } else {
-                        updated[updated.length - 1] = {
-                            ...last,
-                            isStreaming: false,
-                        };
-                    }
-                }
-                return updated;
+            updateLatestAssistantMessage((last) => {
+                const hasContent = (last.events ?? []).some(
+                    (event) =>
+                        event.type === "content" &&
+                        (event as { type: "content"; text: string }).text,
+                );
+                if (hasContent) return { ...last, isStreaming: false };
+                return {
+                    ...last,
+                    isStreaming: false,
+                    events: [
+                        ...(last.events ?? []),
+                        {
+                            type: "content" as const,
+                            text: isAbort
+                                ? ""
+                                : "An error occurred. Please try again.",
+                        },
+                    ],
+                };
             });
         } finally {
             setIsLoading(false);
