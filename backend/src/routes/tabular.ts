@@ -1068,7 +1068,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
         res.flushHeaders();
         const write = (value: unknown) =>
             res.write(`data: ${JSON.stringify(value)}\n\n`);
-        const writeCell = (
+        const writeCell = async (
             documentId: string,
             columnIndex: number,
             content: CellResult | null,
@@ -1099,43 +1099,17 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
 
         try {
             for (const documentId of detail.review.document_ids) {
-                const document = await localDocumentMarkdown(
-                    userId,
-                    documentId,
-                );
+                const document = await localDocumentMarkdown(userId, documentId);
                 if (!document) continue;
-                const pendingColumns = columns.filter((column) => {
-                    const cell = cellByKey.get(
-                        `${documentId}:${column.index}`,
-                    );
-                    return cell?.status !== "done" || !cell.content;
-                });
-                if (pendingColumns.length === 0) continue;
-                for (const column of pendingColumns) {
-                    writeCell(
-                        documentId,
-                        column.index,
-                        null,
-                        "generating",
-                    );
-                }
-                const received = new Set<number>();
-                await queryTabularAllColumns(
+                await generateTabularDocument(
+                    { id: documentId, ...document },
+                    columns,
+                    cellByKey,
                     selectedModel,
-                    document.filename,
-                    document.markdown,
-                    pendingColumns,
-                    async (columnIndex, result) => {
-                        received.add(columnIndex);
-                        writeCell(documentId, columnIndex, result, "done");
-                    },
                     api_keys,
                     reasoningEffort,
+                    writeCell,
                 );
-                for (const column of pendingColumns) {
-                    if (received.has(column.index)) continue;
-                    writeCell(documentId, column.index, null, "error");
-                }
             }
             res.write("data: [DONE]\n\n");
         } catch (error) {
@@ -1240,6 +1214,49 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
 
     const write = (line: string) => res.write(line);
 
+    const writeCell = async (
+        documentId: string,
+        columnIndex: number,
+        content: CellResult | null,
+        status: "generating" | "done" | "error",
+    ) => {
+        const event = `data: ${JSON.stringify({
+            type: "cell_update",
+            document_id: documentId,
+            column_index: columnIndex,
+            content,
+            status,
+        })}\n\n`;
+        const existingCell = cellMap.get(`${documentId}:${columnIndex}`);
+        if (status === "generating") {
+            write(event);
+            if (existingCell) {
+                await db
+                    .from("tabular_cells")
+                    .update({ status, content: null })
+                    .eq("id", existingCell.id);
+            } else {
+                await db.from("tabular_cells").insert({
+                    review_id: reviewId,
+                    document_id: documentId,
+                    column_index: columnIndex,
+                    status,
+                });
+            }
+            return;
+        }
+        await db
+            .from("tabular_cells")
+            .update({
+                ...(content ? { content: JSON.stringify(content) } : {}),
+                status,
+            })
+            .eq("review_id", reviewId)
+            .eq("document_id", documentId)
+            .eq("column_index", columnIndex);
+        write(event);
+    };
+
     try {
         await Promise.all(
             docs.map(async (doc) => {
@@ -1271,77 +1288,20 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                     }
                 }
 
-                const columnsToProcess = columns.filter((col) => {
-                    const cell = cellMap.get(`${docId}:${col.index}`);
-                    return !(cell?.status === "done" && cell?.content);
-                });
-                if (columnsToProcess.length === 0) return;
-
-                for (const col of columnsToProcess) {
-                    write(
-                        `data: ${JSON.stringify({ type: "cell_update", document_id: docId, column_index: col.index, content: null, status: "generating" })}\n\n`,
-                    );
-                    const existingCell = cellMap.get(`${docId}:${col.index}`);
-                    if (existingCell) {
-                        await db
-                            .from("tabular_cells")
-                            .update({ status: "generating", content: null })
-                            .eq("id", existingCell.id);
-                    } else {
-                        await db.from("tabular_cells").insert({
-                            review_id: reviewId,
-                            document_id: docId,
-                            column_index: col.index,
-                            status: "generating",
-                        });
-                    }
-                }
-
-                const receivedColumns = new Set<number>();
-                try {
-                    await queryTabularAllColumns(
-                        selectedModel,
-                        filename,
-                        markdown,
-                        columnsToProcess,
-                        async (columnIndex, result) => {
-                            receivedColumns.add(columnIndex);
-                            await db
-                                .from("tabular_cells")
-                                .update({
-                                    content: JSON.stringify(result),
-                                    status: "done",
-                                })
-                                .eq("review_id", reviewId)
-                                .eq("document_id", docId)
-                                .eq("column_index", columnIndex);
-                            write(
-                                `data: ${JSON.stringify({ type: "cell_update", document_id: docId, column_index: columnIndex, content: result, status: "done" })}\n\n`,
-                            );
-                        },
-                        api_keys,
-                        reasoningEffort,
-                    );
-                } catch (err) {
-                    console.error(
-                        `[tabular/generate] queryTabularAllColumns error doc=${docId}`,
-                        safeErrorLog(err),
-                    );
-                }
-
-                for (const col of columnsToProcess) {
-                    if (!receivedColumns.has(col.index)) {
-                        await db
-                            .from("tabular_cells")
-                            .update({ status: "error" })
-                            .eq("review_id", reviewId)
-                            .eq("document_id", docId)
-                            .eq("column_index", col.index);
-                        write(
-                            `data: ${JSON.stringify({ type: "cell_update", document_id: docId, column_index: col.index, content: null, status: "error" })}\n\n`,
-                        );
-                    }
-                }
+                await generateTabularDocument(
+                    { id: docId, filename, markdown },
+                    columns,
+                    cellMap,
+                    selectedModel,
+                    api_keys,
+                    reasoningEffort,
+                    writeCell,
+                    (error, documentId) =>
+                        console.error(
+                            `[tabular/generate] queryTabularAllColumns error doc=${documentId}`,
+                            safeErrorLog(error),
+                        ),
+                );
             }),
         );
 
@@ -2224,6 +2184,56 @@ type Column = {
     format?: string;
     tags?: string[];
 };
+
+async function generateTabularDocument(
+    document: { id: string; filename: string; markdown: string },
+    columns: Column[],
+    existingCells: Map<string, { status?: unknown; content?: unknown }>,
+    model: string,
+    apiKeys: UserApiKeys,
+    reasoningEffort: string | undefined,
+    writeCell: (
+        documentId: string,
+        columnIndex: number,
+        content: CellResult | null,
+        status: "generating" | "done" | "error",
+    ) => Promise<void> | void,
+    onQueryError?: (error: unknown, documentId: string) => void,
+) {
+    const pendingColumns = columns.filter((column) => {
+        const cell = existingCells.get(`${document.id}:${column.index}`);
+        return cell?.status !== "done" || !cell.content;
+    });
+    if (pendingColumns.length === 0) return;
+
+    for (const column of pendingColumns) {
+        await writeCell(document.id, column.index, null, "generating");
+    }
+
+    const received = new Set<number>();
+    try {
+        await queryTabularAllColumns(
+            model,
+            document.filename,
+            document.markdown,
+            pendingColumns,
+            async (columnIndex, result) => {
+                received.add(columnIndex);
+                await writeCell(document.id, columnIndex, result, "done");
+            },
+            apiKeys,
+            reasoningEffort,
+        );
+    } catch (error) {
+        if (onQueryError) onQueryError(error, document.id);
+        else throw error;
+    }
+
+    for (const column of pendingColumns) {
+        if (received.has(column.index)) continue;
+        await writeCell(document.id, column.index, null, "error");
+    }
+}
 
 async function queryTabularAllColumns(
     model: string,
