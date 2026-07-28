@@ -131,6 +131,16 @@ describe("extractAnchors: currencies and Canadian forms", () => {
     expect(norms("C.C.S.M. c. F158", "statute")).toEqual(["stat:ccsm:cf158"]);
   });
 
+  it("extracts Canadian federal instrument citations across year widths", () => {
+    expect(norms("under SOR/2005-407 and SI/2004-121", "statute")).toEqual([
+      "stat:sor:2005-407",
+      "stat:si:2004-121",
+    ]);
+    expect(norms("the IRPR, SOR/83-593, as amended", "statute")).toEqual([
+      "stat:sor:1983-593",
+    ]);
+  });
+
   it("extracts named-Code references", () => {
     expect(norms("section 231 of the Criminal Code", "statute")).toEqual([
       "stat:criminalcode:s231",
