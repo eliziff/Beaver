@@ -2,7 +2,6 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
@@ -16,41 +15,6 @@ import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning"
 
 interface Props {
     params: Promise<{ id: string }>;
-}
-
-function SelectedChatActions({
-    selectedCount,
-    open,
-    onOpenChange,
-    onDelete,
-}: {
-    selectedCount: number;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onDelete: () => void;
-}) {
-    if (selectedCount === 0) return null;
-
-    return (
-        <div className="relative">
-            <TabPillButton
-                onClick={() => onOpenChange(!open)}
-            >
-                Actions
-                <ChevronDown className="h-3.5 w-3.5" />
-            </TabPillButton>
-            {open && (
-                <div className="absolute right-0 top-full z-[120] mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <button
-                        onClick={onDelete}
-                        className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
-                    >
-                        Delete
-                    </button>
-                </div>
-            )}
-        </div>
-    );
 }
 
 export default function ProjectAssistantPage({ params }: Props) {
@@ -69,7 +33,6 @@ export default function ProjectAssistantPage({ params }: Props) {
     const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
     const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
     const [renameChatValue, setRenameChatValue] = useState("");
-    const [actionsOpen, setActionsOpen] = useState(false);
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
     const [deleteBusy, setDeleteBusy] = useState(false);
     const chats = useMemo(() => projectChats ?? [], [projectChats]);
@@ -112,7 +75,6 @@ export default function ProjectAssistantPage({ params }: Props) {
 
     function handleDeleteSelectedChats() {
         const ids = [...selectedChatIds];
-        setActionsOpen(false);
         const owned = ids.filter((id) => {
             const chat = chats.find((c) => c.id === id);
             return !chat || chat.user_id === user?.id;
@@ -146,14 +108,17 @@ export default function ProjectAssistantPage({ params }: Props) {
     return (
         <>
             <ProjectSectionToolbar
-                actions={selectedChatIds.length > 0 ? (
-                    <SelectedChatActions
-                        selectedCount={selectedChatIds.length}
-                        open={actionsOpen}
-                        onOpenChange={setActionsOpen}
-                        onDelete={handleDeleteSelectedChats}
-                    />
-                ) : undefined}
+                actions={
+                    <TabPillButton
+                        onClick={handleDeleteSelectedChats}
+                        disabled={selectedChatIds.length === 0}
+                        className={`w-28 text-red-700 ${
+                            selectedChatIds.length === 0 ? "invisible" : ""
+                        }`}
+                    >
+                        Delete selected
+                    </TabPillButton>
+                }
             />
             <ProjectAssistantTable
                 chats={chats}
