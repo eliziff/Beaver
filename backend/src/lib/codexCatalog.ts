@@ -78,6 +78,13 @@ export function normalizeCodexCatalog(value: unknown): CodexModelCatalog {
               : null;
           })
           .filter((level): level is CodexReasoningLevel => !!level)
+          .filter(
+            (level, index, all) =>
+              all.findIndex(
+                (item) =>
+                  item.effort.toLowerCase() === level.effort.toLowerCase(),
+              ) === index,
+          )
       : [];
     const model: CodexCatalogModel = {
       slug,
