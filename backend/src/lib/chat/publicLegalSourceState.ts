@@ -8,11 +8,12 @@ import {
   buildLegalSourcePinpointUrl,
   formatLegalLocator,
 } from "../legalSourceLinks";
-import type { LegalLocatorKind } from "../legalSourceStructure";
 import {
   createTextSourceDoc,
   sourceDocContainsQuote,
+  type SourceDocLocatorKind,
 } from "../sourceDoc";
+import { summarizeLegalSourceDoc } from "../sourceDocNativeMarkup";
 import {
   fetchGovInfoCase,
   fetchGovUkEtCase,
@@ -127,9 +128,7 @@ async function documentFor(
 function safeBlock(
   block: PublicLegalLookup["block"] | PublicLegalLookup["before"][number],
 ) {
-  return block
-    ? { ...block, anchor: undefined, provider_locator: undefined }
-    : block;
+  return block ? { ...block, anchor: undefined } : block;
 }
 
 function pdfAttachments(document: PublicLegalDocument) {
@@ -160,7 +159,7 @@ async function pdfFallbacksFor(document: PublicLegalDocument, userId?: string) {
   if (
     !userId ||
     !pdfProvider(provider) ||
-    document.structure.source !== "flat_text"
+    summarizeLegalSourceDoc(document.structure).source !== "flat_text"
   ) {
     return [];
   }
@@ -171,7 +170,7 @@ async function pdfFallbacksFor(document: PublicLegalDocument, userId?: string) {
           const queued = await queueProviderPdfAttachment({
             provider,
             identity: document.identity,
-            structureSource: document.structure.source,
+            structureSource: "flat_text",
             url: attachment.url,
             canonicalUrl: document.url,
             filename: attachment.filename,
@@ -205,11 +204,7 @@ function safeDocument(
     title: document.title,
     text: document.text.slice(0, maxChars),
     truncated: document.text.length > maxChars,
-    structure: {
-      status: document.structure.status,
-      source: document.structure.source,
-      counts: document.structure.counts,
-    },
+    structure: summarizeLegalSourceDoc(document.structure),
     attachments: document.attachments.map((attachment) => ({
       title: attachment.title,
       content_type: attachment.contentType,
@@ -227,11 +222,12 @@ function safeDocument(
 function safeLookup(
   document: PublicLegalDocument,
   lookup: PublicLegalLookup,
-  kind: LegalLocatorKind,
+  kind: SourceDocLocatorKind,
   locator: string,
   pdfFallbacks: ProviderPdfQueueResult[],
   receipt: PublicLegalEvidenceReceipt | null,
 ) {
+  const summary = summarizeLegalSourceDoc(document.structure);
   return {
     ok: lookup.status === "found",
     source: "Public legal source",
@@ -244,10 +240,7 @@ function safeLookup(
     block: safeBlock(lookup.block),
     before: lookup.before.map(safeBlock),
     after: lookup.after.map(safeBlock),
-    structure: {
-      source: document.structure.source,
-      counts: document.structure.counts,
-    },
+    structure: { source: summary.source, counts: summary.counts },
     ...(receipt
       ? {
           evidence: {
@@ -374,7 +367,7 @@ export async function executePublicLegalSourceTool(
       return safeDocument(document, pdfFallbacks);
     }
 
-    const kind: LegalLocatorKind =
+    const kind: SourceDocLocatorKind =
       args.locator_type === "footnote"
         ? "footnote"
         : args.locator_type === "page"

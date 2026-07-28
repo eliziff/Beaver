@@ -1,54 +1,31 @@
 import {
+  createSourceDoc,
+  lookupSourceDocLabel,
   normalizeSourceDocLocator,
+  type SourceDoc,
   type SourceDocBlock,
   type SourceDocLocatorKind,
+  type SourceDocLookup,
+  type SourceDocProvider,
 } from "./sourceDoc";
-import { compileA2AJSourceDoc } from "./sourceDocA2AJ";
+import { a2ajCaseBlocks } from "./sourceDocA2AJ";
 
 /**
- * Native provider markup (Akoma Ntoso eIds, CourtListener/TNA paragraph ids,
- * page-number elements) rendered to one text with its block index, falling
- * back to the A2AJ compiler's prose spine for whatever the markup does not
- * label. Providers move onto their own SourceDoc compilers in P1.1a stage 4.
+ * Native provider markup (Akoma Ntoso eIds, CourtListener paragraph ids and
+ * page-number elements) compiled to one SourceDoc: the markup is rendered to
+ * text exactly once, natively-labelled blocks keep their provider anchors, and
+ * the A2AJ prose case spine fills in whatever the markup does not label.
+ *
+ * Parity with the legalSourceStructure engine this replaced is frozen in
+ * fixtures/nativemarkup/legacy-structure.json: the rendered text, every block
+ * boundary and every lookup payload hash must match that recording
+ * byte-for-byte, because TNA evidence receipts persist sha256 hashes over
+ * both the block text and the lookup payload.
  */
-
-export type LegalSourceProvider =
-  | "a2aj"
-  | "canlii"
-  | "courtlistener"
-  | "govinfo"
-  | "govuk-et"
-  | "journal"
-  | "scc"
-  | "tna";
-
-export type LegalLocatorKind = SourceDocLocatorKind;
-
-export type LegalStructureBlock = SourceDocBlock & {
-  locator_kind?: LegalLocatorKind;
-  provider_locator?: string;
-};
-
-export type LegalSourceStructure = {
-  status: "usable" | "unavailable";
-  source: "native" | "hybrid" | "flat_text" | "section_map";
-  text: string;
-  blocks: LegalStructureBlock[];
-  counts: Record<LegalLocatorKind, number>;
-};
-
-export type LegalStructureLookup = {
-  status: "found" | "not_found" | "unavailable" | "ambiguous";
-  requestedLabel: string;
-  matches: string[];
-  block: (LegalStructureBlock & { text: string }) | null;
-  before: Array<LegalStructureBlock & { text: string }>;
-  after: Array<LegalStructureBlock & { text: string }>;
-};
 
 type PendingBlock = {
   tag: string;
-  kind: LegalLocatorKind;
+  kind: SourceDocLocatorKind;
   label: string;
   start: number;
   anchor?: string;
@@ -84,6 +61,12 @@ const BREAK_TAGS = new Set([
   "tr",
 ]);
 
+/**
+ * This decoder's output is sha256'd into TNA evidence receipts (via the
+ * rendered text), and it deliberately DISAGREES with
+ * legalSourcePresentation's decodeHtmlEntities on `&#160;` (space here, NBSP
+ * there). Do not merge the two or change either's output.
+ */
 function decodeEntities(value: string) {
   return value
     .replace(/&nbsp;|&#160;/giu, " ")
@@ -126,7 +109,7 @@ function cleanSectionId(raw: string) {
 }
 
 function nativeIdentity(
-  provider: LegalSourceProvider,
+  provider: SourceDocProvider,
   tag: string,
   attrs: string,
 ): Pick<PendingBlock, "kind" | "label" | "anchor"> | null {
@@ -148,13 +131,7 @@ function nativeIdentity(
   }
 
   const paragraph = id.match(/^(?:para(?:graph)?)[_-]?(\d{1,5})$/iu)?.[1];
-  if (
-    paragraph &&
-    (provider === "tna" ||
-      provider === "scc" ||
-      provider === "canlii" ||
-      provider === "courtlistener")
-  ) {
+  if (paragraph && (provider === "tna" || provider === "courtlistener")) {
     return {
       kind: "paragraph",
       label: `par${Number(paragraph)}`,
@@ -182,9 +159,9 @@ function nativeIdentity(
     : null;
 }
 
-function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
+function nativeMarkupBlocks(provider: SourceDocProvider, markup: string) {
   const parts: string[] = [];
-  const blocks: LegalStructureBlock[] = [];
+  const blocks: SourceDocBlock[] = [];
   const open: PendingBlock[] = [];
   let position = 0;
   const appendText = (value: string) => {
@@ -241,8 +218,6 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
             start: pending.start,
             end,
             anchor: pending.anchor,
-            locator_kind: pending.kind,
-            provider_locator: pending.anchor ?? pending.label,
             origin: "native",
             parentLabel: pending.parentLabel,
           });
@@ -292,8 +267,6 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
         start: pending.start,
         end: text.length,
         anchor: pending.anchor,
-        locator_kind: pending.kind,
-        provider_locator: pending.anchor ?? pending.label,
         origin: "native",
         parentLabel: pending.parentLabel,
       });
@@ -308,8 +281,6 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
         start: page.start,
         end,
         anchor: page.anchor,
-        locator_kind: "page",
-        provider_locator: page.anchor ?? page.label,
         origin: "native",
       });
     }
@@ -317,97 +288,69 @@ function nativeMarkupStructure(provider: LegalSourceProvider, markup: string) {
   return { text, blocks };
 }
 
-function countBlocks(blocks: LegalStructureBlock[]) {
-  return {
-    paragraph: blocks.filter(({ kind }) => kind === "paragraph").length,
-    page: blocks.filter(({ kind }) => kind === "page").length,
-    section: blocks.filter(({ kind }) => kind === "section").length,
-    footnote: blocks.filter(({ kind }) => kind === "footnote").length,
-  };
-}
-
-export function buildLegalSourceStructure(args: {
-  provider: LegalSourceProvider;
+export function compileNativeMarkupSourceDoc(args: {
+  provider: SourceDocProvider;
+  id: string;
+  url?: string | null;
   text: string;
   markup?: string | null;
-  docType?: "cases" | "laws";
   citation?: string | null;
-  alternateCitation?: string | null;
-  dataset?: string | null;
-  name?: string | null;
-  sectionMap?: Record<string, string> | null;
-}): LegalSourceStructure {
+}): SourceDoc {
   const native = args.markup?.trim()
-    ? nativeMarkupStructure(args.provider, args.markup)
-    : { text: "", blocks: [] as LegalStructureBlock[] };
-  const docType = args.docType === "laws" ? "laws" : "cases";
-  // The provider section map only applies to its own rendition; once native
-  // markup has supplied the text, the map's offsets mean nothing.
-  const mapped =
-    !native.text && args.docType === "laws" && args.sectionMap
-      ? compileA2AJSourceDoc({
-          citation: args.citation ?? "",
-          docType: "laws",
-          text: args.text,
-          name: args.name,
-          sectionMap: args.sectionMap,
-        })
-      : null;
-  const fromSectionMap = !!mapped?.blocks.some(
-    ({ origin }) => origin === "native",
-  );
-  const text = native.text || (fromSectionMap ? mapped!.text : args.text);
-  const compiled =
-    fromSectionMap && text === mapped!.text
-      ? mapped!
-      : compileA2AJSourceDoc({
-          citation: args.citation ?? "",
-          docType,
-          text,
-          alternateCitation: args.alternateCitation,
-          dataset: args.dataset,
-          name: args.name,
-        });
+    ? nativeMarkupBlocks(args.provider, args.markup)
+    : { text: "", blocks: [] as SourceDocBlock[] };
+  const text = native.text || args.text;
   const nativeKinds = new Set(native.blocks.map(({ kind }) => kind));
-  const heuristicSource =
-    args.docType === "laws" && fromSectionMap ? "section_map" : "flat_text";
-  const heuristic = compiled.blocks
-    .filter(({ kind }) => !nativeKinds.has(kind))
-    .map((block) => ({ ...block, origin: "heuristic" as const }));
+  const heuristic = a2ajCaseBlocks({
+    text,
+    citation: args.citation,
+  }).filter(({ kind }) => !nativeKinds.has(kind));
   const blocks = [...native.blocks, ...heuristic].sort(
     (left, right) =>
       left.start - right.start ||
       left.end - right.end ||
       left.label.localeCompare(right.label),
   );
-  return {
-    status: blocks.length ? "usable" : "unavailable",
-    source: native.blocks.length
-      ? heuristic.length
-        ? "hybrid"
-        : "native"
-      : heuristicSource,
+  return createSourceDoc({
+    provider: args.provider,
+    id: args.id,
+    url: args.url ?? null,
+    docType: "cases",
     text,
     blocks,
-    counts: countBlocks(blocks),
-  };
+  });
 }
 
-function materialize(
-  structure: LegalSourceStructure,
-  block: LegalStructureBlock,
-) {
+export type LegalSourceStructureSummary = {
+  status: SourceDoc["status"];
+  source: "native" | "hybrid" | "flat_text";
+  counts: Record<SourceDocLocatorKind, number>;
+};
+
+/** The index as provider tools advertise it: whose labels back the blocks. */
+export function summarizeLegalSourceDoc(
+  doc: SourceDoc,
+): LegalSourceStructureSummary {
+  const native = doc.blocks.some(({ origin }) => origin === "native");
+  const heuristic = doc.blocks.some(({ origin }) => origin === "heuristic");
   return {
-    ...block,
-    text: structure.text.slice(block.start, block.end).trim(),
+    status: doc.status,
+    source: native ? (heuristic ? "hybrid" : "native") : "flat_text",
+    counts: {
+      paragraph: doc.ranges.paragraph.count,
+      page: doc.ranges.page.count,
+      section: doc.ranges.section.count,
+      footnote: doc.ranges.footnote.count,
+    },
   };
 }
 
-function normalizeLegalLocator(kind: LegalLocatorKind, locator: string) {
+function normalizeLegalLocator(kind: SourceDocLocatorKind, locator: string) {
   const standard = normalizeSourceDocLocator(kind, locator);
   if (standard || kind !== "section") return standard;
-  // Native markup also labels provisions by roman numeral, bare letter, or
-  // title ("Interpretation"), which no numeric grammar admits.
+  // Native markup and journal articles also label provisions by roman
+  // numeral, bare letter, or title ("Interpretation"), which no numeric
+  // grammar admits.
   const compact = locator
     .trim()
     .replace(/^(?:ss?\.?|sections?)\s*/iu, "")
@@ -420,68 +363,25 @@ function normalizeLegalLocator(kind: LegalLocatorKind, locator: string) {
   return title ? `sectitle:${title}` : "";
 }
 
-export function lookupLegalSourceStructure(
-  structure: LegalSourceStructure,
-  kind: LegalLocatorKind,
+/**
+ * lookupSourceDoc with the wider provider-corpus grammar: a locator that IS a
+ * block label passes through verbatim (persisted receipts replay the label
+ * they stored), and section locators fall back to roman/letter labels and
+ * `sectitle:` title aliases.
+ */
+export function lookupLegalSourceDoc(
+  doc: SourceDoc,
+  kind: SourceDocLocatorKind,
   locator: string,
   contextBlocks = 0,
-): LegalStructureLookup {
-  const exactLabel = locator.trim();
-  const requestedLabel = structure.blocks.some(
+): SourceDocLookup {
+  const exact = locator.trim();
+  const requestedLabel = doc.blocks.some(
     (block) =>
       block.kind === kind &&
-      block.label.toLowerCase() === exactLabel.toLowerCase(),
+      block.label.toLowerCase() === exact.toLowerCase(),
   )
-    ? exactLabel
+    ? exact
     : normalizeLegalLocator(kind, locator);
-  const available = structure.blocks.filter((block) => block.kind === kind);
-  if (!requestedLabel || !available.length) {
-    return {
-      status: "unavailable",
-      requestedLabel,
-      matches: [],
-      block: null,
-      before: [],
-      after: [],
-    };
-  }
-  const matches = available.filter((block) =>
-    [block.label, ...(block.aliases ?? [])].some(
-      (label) => label.toLowerCase() === requestedLabel.toLowerCase(),
-    ),
-  );
-  if (matches.length !== 1) {
-    return {
-      status: matches.length ? "ambiguous" : "not_found",
-      requestedLabel,
-      matches: matches.map(({ label }) => label),
-      block: null,
-      before: [],
-      after: [],
-    };
-  }
-  const selected = matches[0];
-  const index = available.indexOf(selected);
-  const context = Math.min(Math.max(Math.trunc(contextBlocks), 0), 2);
-  return {
-    status: "found",
-    requestedLabel,
-    matches: [selected.label],
-    block: materialize(structure, selected),
-    before: available
-      .slice(Math.max(0, index - context), index)
-      .map((block) => materialize(structure, block)),
-    after: available
-      .slice(index + 1, index + 1 + context)
-      .map((block) => materialize(structure, block)),
-  };
-}
-
-export function buildTnaStructure(xml: string) {
-  return buildLegalSourceStructure({
-    provider: "tna",
-    text: "",
-    markup: xml,
-    docType: "cases",
-  });
+  return lookupSourceDocLabel(doc, kind, requestedLabel, contextBlocks);
 }

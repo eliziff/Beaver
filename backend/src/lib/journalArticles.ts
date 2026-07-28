@@ -4,12 +4,16 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "./legalDataPath";
 import {
-  lookupLegalSourceStructure,
-  type LegalLocatorKind,
-  type LegalSourceStructure,
-  type LegalStructureBlock,
-  type LegalStructureLookup,
-} from "./legalSourceStructure";
+  createSourceDoc,
+  type SourceDoc,
+  type SourceDocBlock,
+  type SourceDocLocatorKind,
+  type SourceDocLookup,
+} from "./sourceDoc";
+import {
+  lookupLegalSourceDoc,
+  summarizeLegalSourceDoc,
+} from "./sourceDocNativeMarkup";
 
 type Row = Record<string, unknown>;
 type PageRow = { page_label: unknown; pdf_page: unknown };
@@ -38,14 +42,14 @@ export type JournalArticleDocument = {
   date: string | null;
   url: string;
   text: string;
-  structure: LegalSourceStructure;
+  structure: SourceDoc;
   upstreamLicense: string | null;
   journalName: string | null;
   authors: string | null;
   language: "en";
 };
 
-export type JournalArticleLookup = LegalStructureLookup & {
+export type JournalArticleLookup = SourceDocLookup & {
   provider: "journal";
   identifier: string;
   hitId: string;
@@ -341,19 +345,21 @@ export function searchJournalArticles(
 }
 
 function addRanges(
-  matches: Array<Omit<LegalStructureBlock, "end">>,
+  matches: Array<Omit<SourceDocBlock, "end">>,
   textLength: number,
 ) {
-  return matches.map((block, index): LegalStructureBlock => ({
+  return matches.map((block, index): SourceDocBlock => ({
     ...block,
     end: matches[index + 1]?.start ?? textLength,
   }));
 }
 
-function journalStructure(
+function journalSourceDoc(
+  articleId: number,
+  url: string,
   text: string,
   pageRows: PageRow[],
-): LegalSourceStructure {
+): SourceDoc {
   const pageAnchors = new Map(
     pageRows.flatMap((row) => {
       const label = String(row.page_label ?? "").trim();
@@ -410,7 +416,7 @@ function journalStructure(
   const paragraphs = [...text.matchAll(/\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gu)]
     .filter((match) => !/^\[page\s+\d+\]/iu.test(match[0]))
     .map(
-      (match, index): LegalStructureBlock => ({
+      (match, index): SourceDocBlock => ({
         kind: "paragraph",
         label: `par${index + 1}`,
         start: match.index,
@@ -421,18 +427,13 @@ function journalStructure(
   const blocks = [...pages, ...sections, ...footnotes, ...paragraphs].sort(
     (left, right) => left.start - right.start || left.end - right.end,
   );
-  return {
-    status: blocks.length ? "usable" : "unavailable",
-    source: pages.length ? "hybrid" : "flat_text",
+  return createSourceDoc({
+    provider: "journal",
+    id: String(articleId),
+    url,
     text,
     blocks,
-    counts: {
-      page: pages.length,
-      section: sections.length,
-      footnote: footnotes.length,
-      paragraph: paragraphs.length,
-    },
-  };
+  });
 }
 
 function articleRow(identifier: string) {
@@ -483,7 +484,7 @@ export function fetchJournalArticle(
     date: string(row, "document_date_en"),
     url,
     text,
-    structure: journalStructure(text, pageRows),
+    structure: journalSourceDoc(articleId, url, text, pageRows),
     upstreamLicense: string(row, "upstream_license"),
     journalName: string(row, "journal_name"),
     authors: string(row, "authors"),
@@ -498,11 +499,11 @@ export function fetchJournalArticle(
 
 export function lookupJournalArticle(
   document: JournalArticleDocument,
-  kind: LegalLocatorKind,
+  kind: SourceDocLocatorKind,
   locator: string,
   contextBlocks = 0,
 ): JournalArticleLookup {
-  const lookup = lookupLegalSourceStructure(
+  const lookup = lookupLegalSourceDoc(
     document.structure,
     kind,
     locator,
@@ -522,6 +523,7 @@ export function lookupJournalArticle(
 export function resolveJournalViewerDocument(identifier: string) {
   const document = fetchJournalArticle(identifier);
   if (!document) return null;
+  const summary = summarizeLegalSourceDoc(document.structure);
   const payload = {
     schemaVersion: "mike.legal-source.v1" as const,
     provider: "journal" as const,
@@ -546,8 +548,10 @@ export function resolveJournalViewerDocument(identifier: string) {
     },
     text: document.text,
     structure: {
-      ...document.structure,
-      text: undefined,
+      status: summary.status,
+      source: summary.source,
+      blocks: document.structure.blocks,
+      counts: summary.counts,
     },
     truncated: false,
   };

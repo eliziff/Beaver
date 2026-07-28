@@ -12,6 +12,7 @@ import {
 } from "../chat/publicLegalSourceState";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "../chat/tools/publicLegalSourceTools";
 import type { PublicLegalDocument } from "../publicLegalSources";
+import { createSourceDoc } from "../sourceDoc";
 
 const fallback = {
   provider: "govinfo",
@@ -43,13 +44,12 @@ describe("public legal source PDF fallback", () => {
       title: "United States v. Example",
       url: "https://www.govinfo.gov/app/details/USCOURTS-cod-1_22-cv-00930",
       text: "United States v. Example\n1:22-cv-00930",
-      structure: {
-        status: "unavailable",
-        source: "flat_text",
+      structure: createSourceDoc({
+        provider: "govinfo",
+        id: "USCOURTS-cod-1_22-cv-00930",
         text: "United States v. Example\n1:22-cv-00930",
         blocks: [],
-        counts: { paragraph: 0, section: 0, page: 0, footnote: 0 },
-      },
+      }),
       attachments: [
         {
           title: "Decision",
@@ -127,22 +127,21 @@ describe("public legal source PDF fallback", () => {
       title: "Example v Secretary of State",
       url: "https://caselaw.nationalarchives.gov.uk/uksc/2026/1",
       text: "Native judgment text.",
-      structure: {
-        status: "usable",
-        source: "native",
+      structure: createSourceDoc({
+        provider: "tna",
+        id: "[2026] UKSC 1",
         text: "Native judgment text.",
         blocks: [
           {
             kind: "paragraph",
-            label: "1",
+            label: "par1",
             anchor: "para_1",
             start: 0,
             end: 21,
             origin: "native",
           },
         ],
-        counts: { paragraph: 1, section: 0, page: 0, footnote: 0 },
-      },
+      }),
       attachments: [
         {
           title: "Judgment PDF",
