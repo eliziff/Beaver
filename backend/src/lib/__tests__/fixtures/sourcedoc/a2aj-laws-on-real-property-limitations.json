@@ -1,0 +1,29 @@
+{
+  "provider": "a2aj",
+  "docType": "laws",
+  "dataset": "LEGISLATION-ON",
+  "citation": "RSO 1990, c L15",
+  "alternateCitation": null,
+  "name": "Real Property Limitations Act",
+  "date": "2009-12-15T00:00:00",
+  "url": "https://www.ontario.ca/laws/api/v2/legislation/en/doc-search/statute/90l15",
+  "language": "en",
+  "shape": "laws-ontario-bare-sections",
+  "capture": {
+    "endpoint": "/fetch",
+    "params": {
+      "citation": "RSO 1990, c L15",
+      "doc_type": "laws",
+      "output_language": "en"
+    },
+    "capturedAt": "2026-07-28",
+    "fullTextChars": 34804,
+    "excerptChars": 2543,
+    "excerptCharRange": [
+      0,
+      2543
+    ],
+    "note": "Real Property Limitations Act (Ontario) ss 1-4: definitions, equity saving, Crown sixty-year limitation, s 4 ten-year limitation for recovery of land or rent. Plausible-but-wrong Ontario limitation statute; cut before the s 5 heading."
+  },
+  "text": "# Real Property Limitations Act\n\nR.S.O. 1990, c. L.15\n\n### Definitions\n\n1 In this Act,\n“action” includes an information on behalf of the Crown and any civil proceeding; (“action”)\n“assurance” means a deed or instrument, other than a will, by which land may be conveyed or transferred; (“transfert”)\n“land” includes messuages and all other hereditaments, whether corporeal or incorporeal, chattels and other personal property transmissible to heirs, money to be laid out in the purchase of land, and any share of the same hereditaments and properties or any of them, any estate of inheritance, or estate for any life or lives, or other estate transmissible to heirs, any possibility, right or title of entry or action, and any other interest capable of being inherited, whether the same estates, possibilities, rights, titles and interest or any of them, are in possession, reversion, remainder or contingency; (“bien-fonds”)\n“rent” includes all annuities and periodical sums of money charged upon or payable out of land. (“loyer”) \u0003 \u0003\n\n### Refusing relief because of acquiescence or otherwise\n\n2 Nothing in this Act interferes with any rule of equity in refusing relief on the ground of acquiescence, or otherwise, to any person whose right to bring an action is not barred by virtue of this Act. \u0003 \u0003\n\n### Limitation where the Crown interested\n\n3 (1) No entry, distress, or action shall be made or brought on behalf of the Crown against any person for the recovery of or respecting any land or rent, or of land or for or concerning any revenues, rents, issues or profits, but within sixty years next after the right to make such entry or distress or to bring such action has first accrued to the Crown. \u0003 \u0003\n\n### Application of certain sections to Crown\n\n(2) Subsections 5 (1), (2), (3), (5), (6), (7), (9), (10), (11) and (12) and sections 6, 8 to 11 and 13 to 15 apply to rights of entry, distress or action asserted by or on behalf of the Crown. \u0003 \u0003\n\n### Limitation where the subject interested\n\n4 No person shall make an entry or distress, or bring an action to recover any land or rent, but within ten years next after the time at which the right to make such entry or distress, or to bring such action, first accrued to some person through whom the person making or bringing it claims, or if the right did not accrue to any person through whom that person claims, then within ten years next after the time at which the right to make such entry or distress, or to bring such action, first accrued to the person making or bringing it. \u0003 \u0003\n\n"
+}

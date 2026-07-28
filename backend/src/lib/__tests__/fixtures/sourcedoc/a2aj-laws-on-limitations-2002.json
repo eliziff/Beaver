@@ -1,0 +1,29 @@
+{
+  "provider": "a2aj",
+  "docType": "laws",
+  "dataset": "LEGISLATION-ON",
+  "citation": "SO 2002, c 24, Sched B",
+  "alternateCitation": null,
+  "name": "Limitations Act, 2002",
+  "date": "2024-12-04T00:00:00",
+  "url": "https://www.ontario.ca/laws/api/v2/legislation/en/doc-search/statute/02l24",
+  "language": "en",
+  "shape": "laws-ontario-bare-sections",
+  "capture": {
+    "endpoint": "/fetch",
+    "params": {
+      "citation": "SO 2002, c 24, Sched B",
+      "doc_type": "laws",
+      "output_language": "en"
+    },
+    "capturedAt": "2026-07-28",
+    "fullTextChars": 29530,
+    "excerptChars": 4820,
+    "excerptCharRange": [
+      0,
+      4820
+    ],
+    "note": "Limitations Act, 2002 (Ontario) ss 1-8: definitions, application, Crown, s 4 basic two-year limitation period, s 5 discovery (incl. 5(1)(a)(i)-(iv), 5(1)(b), 5(2) presumption), minors, incapable persons, litigation guardians. Cut before the s 9 heading."
+  },
+  "text": "# Limitations Act, 2002\n\nS.O. 2002, c. 24, Sched. B\n\n### Definitions and Application\n\n### Definitions\n\n1 In this Act,\n“adverse effect” has the same meaning as in the Environmental Protection Act; (“conséquence préjudiciable”)\n“assault” includes a battery; (“voies de fait”)\n“claim” means a claim to remedy an injury, loss or damage that occurred as a result of an act or omission; (“réclamation”)\n“contaminant” has the same meaning as in the Environmental Protection Act; (“contaminant”)\n“discharge” has the same meaning as in the Environmental Protection Act; (“rejet”, “rejeter”)\n“environmental claim” means a claim based on an act or omission that caused, contributed to, or permitted the discharge of a contaminant into the natural environment that has caused or is likely to cause an adverse effect; (“réclamation relative à l’environnement”)\n“natural environment” has the same meaning as in the Environmental Protection Act. (“environnement naturel”)\n\n### Application\n\n2 (1) This Act applies to claims pursued in court proceedings other than,\n(a) proceedings to which the Real Property Limitations Act applies;\n(b) proceedings in the nature of an appeal, if the time for commencing them is governed by an Act or rule of court;\n(c) proceedings under the Judicial Review Procedure Act;\n(d) proceedings to which the Provincial Offences Act applies;\n(e) proceedings based on the existing aboriginal and treaty rights of the aboriginal peoples of Canada which are recognized and affirmed in section 35 of the Constitution Act, 1982;\n(f) proceedings based on equitable claims by aboriginal peoples against the Crown; and\n(g) proceedings to which the Limitation Convention or the Amended Limitation Convention, as defined in the International Sales Conventions Act, applies.\n\n### Exception, aboriginal rights\n\n(2) Proceedings referred to in clause (1) (e) and (f) are governed by the law that would have been in force with respect to limitation of actions if this Act had not been passed.\n\n### Crown\n\n3 This Act binds the Crown.\n\n### Basic Limitation Period\n\n### Basic limitation period\n\n4 Unless this Act provides otherwise, a proceeding shall not be commenced in respect of a claim after the second anniversary of the day on which the claim was discovered.\n\n### Discovery\n\n5 (1) A claim is discovered on the earlier of,\n(a) the day on which the person with the claim first knew,\n(i) that the injury, loss or damage had occurred,\n(ii) that the injury, loss or damage was caused by or contributed to by an act or omission,\n(iii) that the act or omission was that of the person against whom the claim is made, and\n(iv) that, having regard to the nature of the injury, loss or damage, a proceeding would be an appropriate means to seek to remedy it; and\n(b) the day on which a reasonable person with the abilities and in the circumstances of the person with the claim first ought to have known of the matters referred to in clause (a).\n\n### Presumption\n\n(2) A person with a claim shall be presumed to have known of the matters referred to in clause (1) (a) on the day the act or omission on which the claim is based took place, unless the contrary is proved.\n\n### Demand obligations\n\n(3) For the purposes of subclause (1) (a) (i), the day on which injury, loss or damage occurs in relation to a demand obligation is the first day on which there is a failure to perform the obligation, once a demand for the performance is made.\n\n### Same\n\n(4) Subsection (3) applies in respect of every demand obligation created on or after January 1, 2004.\n\n### Minors\n\n6 The limitation period established by section 4 does not run during any time in which the person with the claim,\n(a) is a minor; and\n(b) is not represented by a litigation guardian in relation to the claim.\n\n### Incapable persons\n\n7 (1) The limitation period established by section 4 does not run during any time in which the person with the claim,\n(a) is incapable of commencing a proceeding in respect of the claim because of his or her physical, mental or psychological condition; and\n(b) is not represented by a litigation guardian in relation to the claim.\n\n### Presumption\n\n(2) A person shall be presumed to have been capable of commencing a proceeding in respect of a claim at all times unless the contrary is proved.\n\n### Extension\n\n(3) If the running of a limitation period is postponed or suspended under this section and the period has less than six months to run when the postponement or suspension ends, the period is extended to include the day that is six months after the day on which the postponement or suspension ends.\n(4) Repealed: 2016, c. 2, Sched. 2, s. 1.\n\n### Litigation guardians\n\n8 If a person is represented by a litigation guardian in relation to the claim, section 5 applies as if the litigation guardian were the person with the claim.\n\n"
+}
