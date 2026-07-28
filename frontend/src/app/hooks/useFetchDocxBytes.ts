@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";
+import { API_BASE, apiFetch } from "@/app/lib/beaverApi";
 
 export interface FetchDocxResult {
     bytes: ArrayBuffer | null;
@@ -56,13 +56,11 @@ export function useFetchDocxBytes(
         }
 
         const key = cacheKey(documentId, versionId, refetchKey);
-        const apiBase =
-            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
             ? `?version_id=${encodeURIComponent(versionId)}`
             : "";
         const path = `/single-documents/${documentId}/docx${qs}`;
-        const url = `${apiBase}${path}`;
+        const url = `${API_BASE}${path}`;
 
         // Cache hit: reuse bytes synchronously, no network, no spinner.
         const cached = bytesCache.get(key);
