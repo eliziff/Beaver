@@ -1,0 +1,219 @@
+{
+  "schema_version": "1",
+  "name": "legalbench",
+  "upstream": {
+    "repository": "https://github.com/HazyResearch/legalbench",
+    "prompts_commit": "b46bf4ffae90524b2b72aaa30e7745fe9db64481",
+    "hf_dataset": "nguha/legalbench",
+    "hf_rows_api": "https://datasets-server.huggingface.co/rows",
+    "paper": "https://arxiv.org/abs/2308.11462",
+    "license_note": "LegalBench tasks carry per-task licenses (paper license table). All nine selected tasks are CC BY 4.0. The Learned Hands issue-spotting family was excluded because it is CC BY-NC-SA 4.0 (noncommercial); rule_qa was excluded because the paper scores it manually. Downloaded rows and prompt files stay in the git-ignored data/ directory; only this manifest is committed."
+  },
+  "scoring": {
+    "version": "legalbench-em-balanced-acc-1",
+    "normalization": "TypeScript port of normalize() and evaluate_exact_match_balanced_accuracy() in HazyResearch/legalbench evaluation.py"
+  },
+  "tasks": [
+    {
+      "task": "abercrombie",
+      "capability": "rule application (trademark distinctiveness spectrum)",
+      "labels": [
+        "generic",
+        "descriptive",
+        "suggestive",
+        "arbitrary",
+        "fanciful"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 85.3,
+      "gpt4_source": "arXiv:2308.11462 Table 63 (commercial models on rule-conclusion tasks)",
+      "test_rows": 95,
+      "prompt": {
+        "path": "prompts/abercrombie.base_prompt.txt",
+        "sha256": "38eb4ab061206f5d45eb9508b4d0aa0bfaf567f6d8469b4c866bf60c31c5490a",
+        "bytes": 827
+      },
+      "data": {
+        "path": "tasks/abercrombie.json",
+        "sha256": "9edf8c1aa51bdec9556436a11493c1f2045270f0de332f631654db4ab6dd7188",
+        "bytes": 8451
+      }
+    },
+    {
+      "task": "hearsay",
+      "capability": "rule application (hearsay determination)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 83.8,
+      "gpt4_source": "arXiv:2308.11462 Table 63 (commercial models on rule-conclusion tasks)",
+      "test_rows": 94,
+      "prompt": {
+        "path": "prompts/hearsay.base_prompt.txt",
+        "sha256": "a0dc84db3aff09d9390813347257ed3abe1d7502c2461034bccb8da493431990",
+        "bytes": 855
+      },
+      "data": {
+        "path": "tasks/hearsay.json",
+        "sha256": "f8e2eef64c9396d58dc31af9cdf9ee20c71ee9193d9c31070e9c5ad25f8fd034",
+        "bytes": 19842
+      }
+    },
+    {
+      "task": "personal_jurisdiction",
+      "capability": "rule application (personal jurisdiction)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 91.4,
+      "gpt4_source": "arXiv:2308.11462 Table 63 (commercial models on rule-conclusion tasks)",
+      "test_rows": 50,
+      "prompt": {
+        "path": "prompts/personal_jurisdiction.base_prompt.txt",
+        "sha256": "88b0e5516da31aba0f9a1cd65bffc8bf8bd4f2c46b7cf33637fec535fd6dbe93",
+        "bytes": 2032
+      },
+      "data": {
+        "path": "tasks/personal_jurisdiction.json",
+        "sha256": "384e8d1caca266b886abf975406f657665071482af0715c4a98e9d9eef49dbd4",
+        "bytes": 22531
+      }
+    },
+    {
+      "task": "ucc_v_common_law",
+      "capability": "rule QA (UCC vs common-law governance)",
+      "labels": [
+        "UCC",
+        "Common Law"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 98.8,
+      "gpt4_source": "arXiv:2308.11462 Table 63 (commercial models on rule-conclusion tasks)",
+      "test_rows": 94,
+      "prompt": {
+        "path": "prompts/ucc_v_common_law.base_prompt.txt",
+        "sha256": "af9214f2336e2628e823c8321ffa846fa903fba76aebe8265f5c0d0ef96ff56d",
+        "bytes": 1314
+      },
+      "data": {
+        "path": "tasks/ucc_v_common_law.json",
+        "sha256": "0788d19a9736c5d483f05dc6f2b2935b178369bcfb4f0ebccc82a7b7d125a324",
+        "bytes": 15081
+      }
+    },
+    {
+      "task": "corporate_lobbying",
+      "capability": "issue spotting (bill relevance to a company)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 81.7,
+      "gpt4_source": "arXiv:2308.11462 Table 59 (commercial models on issue-spotting tasks)",
+      "test_rows": 490,
+      "prompt": {
+        "path": "prompts/corporate_lobbying.base_prompt.txt",
+        "sha256": "f146848aa2279132b7fdfe4566226147082e39405dbf23e5052dfbb17d4b801d",
+        "bytes": 614
+      },
+      "data": {
+        "path": "tasks/corporate_lobbying.json",
+        "sha256": "845791d6b9e5650511f249b0a6f07772b61e7ee1bde2875ea96d4b43555eabf2",
+        "bytes": 3018779
+      }
+    },
+    {
+      "task": "contract_qa",
+      "capability": "contract clause understanding (clause-content QA)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 96.2,
+      "gpt4_source": "arXiv:2308.11462 Table 71 (commercial models on interpretation tasks)",
+      "test_rows": 80,
+      "prompt": {
+        "path": "prompts/contract_qa.base_prompt.txt",
+        "sha256": "ae3bc5a5cd8c3bc7e4da3d19c649b859e0fd8b35d167b7acf5d8737544ed7c4e",
+        "bytes": 2580
+      },
+      "data": {
+        "path": "tasks/contract_qa.json",
+        "sha256": "ca4cca615eaf762f3db1a0c4aaa6c85a6815e6a9eda86424755bfe1b7bceab89",
+        "bytes": 28882
+      }
+    },
+    {
+      "task": "cuad_anti-assignment",
+      "capability": "contract clause understanding (CUAD anti-assignment)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 91.4,
+      "gpt4_source": "arXiv:2308.11462 Table 71 (commercial models on interpretation tasks)",
+      "test_rows": 1172,
+      "prompt": {
+        "path": "prompts/cuad_anti-assignment.base_prompt.txt",
+        "sha256": "dd82f551163acda0baa682788e22349bd5e444196a1346548d3de8d1a9aef4a0",
+        "bytes": 1781
+      },
+      "data": {
+        "path": "tasks/cuad_anti-assignment.json",
+        "sha256": "1a14f7ef4e7d181ab049acef8d092af9e9076ce03fc417eaa77a286974a80b51",
+        "bytes": 555549
+      }
+    },
+    {
+      "task": "maud_specific_performance",
+      "capability": "merger agreement understanding (MAUD specific performance)",
+      "labels": [
+        "A",
+        "B"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 51.5,
+      "gpt4_source": "arXiv:2308.11462 Table 71 (commercial models on interpretation tasks)",
+      "test_rows": 178,
+      "prompt": {
+        "path": "prompts/maud_specific_performance.base_prompt.txt",
+        "sha256": "b4b5481b47e5c12a2b760432a0283477b29b99f82681ede01210e367a625d7af",
+        "bytes": 1211
+      },
+      "data": {
+        "path": "tasks/maud_specific_performance.json",
+        "sha256": "15e27f1b36be3df6c3ba0e207c384c8d3b6d4a556942f96b7cbc1d1bffc67894",
+        "bytes": 111176
+      }
+    },
+    {
+      "task": "citation_prediction_classification",
+      "capability": "citation support (does the case support the text)",
+      "labels": [
+        "Yes",
+        "No"
+      ],
+      "license": "CC BY 4.0",
+      "gpt4_balanced_accuracy": 71.3,
+      "gpt4_source": "arXiv:2308.11462 Table 55 (commercial models on rule-recall tasks)",
+      "test_rows": 108,
+      "prompt": {
+        "path": "prompts/citation_prediction_classification.base_prompt.txt",
+        "sha256": "c043607b3aef22f140c67382f3202cd58061aa05b3279613f4f0b946a6314253",
+        "bytes": 802
+      },
+      "data": {
+        "path": "tasks/citation_prediction_classification.json",
+        "sha256": "3df7a4aedcaa2e7baf4c69b7408f399ac519d853901535154fdc3f118d72e741",
+        "bytes": 29707
+      }
+    }
+  ]
+}
