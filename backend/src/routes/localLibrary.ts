@@ -28,7 +28,10 @@ import {
   type LocalPdfLocatorKind,
 } from "../lib/localPdfLookup";
 import { linkLocalDocxCitations } from "../lib/docxCitationLinking";
-import { fixLocalDocxSupraCrossReferences } from "../lib/docxDeterministicCleanup";
+import {
+  fixLocalDocxSupraCrossReferences,
+  inspectLocalDocxAutomation,
+} from "../lib/docxDeterministicCleanup";
 import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
@@ -98,6 +101,31 @@ localLibraryRouter.post(
       res
         .status(detail.startsWith("Unsupported file type") ? 400 : 500)
         .json({ detail });
+    }
+  }),
+);
+
+localLibraryRouter.get(
+  "/:kind/documents/:documentId/automation",
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const kind = libraryKind(req.params.kind);
+    if (kind !== "file") {
+      return void res
+        .status(400)
+        .json({ detail: "Document automation applies to Library files" });
+    }
+    try {
+      res.json(
+        await inspectLocalDocxAutomation(
+          res.locals.userId as string,
+          req.params.documentId,
+        ),
+      );
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "DOCX inspection failed";
+      res.status(detail === "Document not found" ? 404 : 400).json({ detail });
     }
   }),
 );
