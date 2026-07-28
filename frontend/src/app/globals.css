@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@custom-variant dark (&:is(.dark *));
 
 .overflow-y-auto,
 .overflow-auto {
@@ -19,12 +18,6 @@
     --color-brand-soft: var(--brand-red-soft);
     --font-sans: var(--font-inter);
     --font-serif: var(--font-eb-garamond);
-    --color-blue: rgb(213, 43, 30);
-    --color-blue-50: rgba(213, 43, 30, 0.05);
-    --color-blue-100: rgba(213, 43, 30, 0.1);
-    --color-blue-200: rgba(213, 43, 30, 0.3);
-    --color-blue-600: rgb(213, 43, 30);
-    --color-blue-700: rgb(183, 32, 22);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -58,19 +51,6 @@
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: var(--brand-red);
-}
-
-.dark {
-    --brand-red-soft: #351311;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --primary: var(--brand-red);
-    --primary-foreground: #ffffff;
-    --muted-foreground: oklch(0.708 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
     --ring: var(--brand-red);
 }
 
@@ -199,14 +179,14 @@
 }
 
 .pdf-text-layer .pdf-text-highlight {
-    background-color: rgba(37, 99, 235, 0.2);
+    background-color: rgba(213, 43, 30, 0.22);
     border-radius: 2px;
     position: static;
 }
 
 .docx-view-container span.docx-text-highlight,
 .docx-view-container .docx-text-highlight {
-    background-color: rgba(37, 99, 235, 0.35) !important;
+    background-color: rgba(213, 43, 30, 0.3) !important;
     border-radius: 2px;
     padding: 0 1px;
     color: inherit !important;
@@ -214,7 +194,7 @@
 
 .case-opinion-content span.docx-text-highlight,
 .case-opinion-content .docx-text-highlight {
-    background-color: rgba(96, 165, 250, 0.55) !important;
+    background-color: rgba(213, 43, 30, 0.35) !important;
     border-radius: 2px;
     padding: 0 1px;
     color: inherit !important;
