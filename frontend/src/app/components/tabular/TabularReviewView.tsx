@@ -37,7 +37,6 @@ import type {
 import { AddColumnModal } from "./AddColumnModal";
 import { TRWorkflowModal } from "./TRWorkflowModal";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
-import { AddProjectDocsModal } from "../modals/AddProjectDocsModal";
 import { PeopleModal } from "../modals/PeopleModal";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
@@ -221,6 +220,23 @@ export function TRView({ reviewId, projectId }: Props) {
             columns_config: columns,
         });
         setDocuments((prev) => [...prev, ...toAdd]);
+        if (projectId) {
+            setProject((current) => {
+                if (!current) return current;
+                const cachedIds = new Set(
+                    current.documents?.map((document) => document.id),
+                );
+                return {
+                    ...current,
+                    documents: [
+                        ...(current.documents ?? []),
+                        ...toAdd.filter(
+                            (document) => !cachedIds.has(document.id),
+                        ),
+                    ],
+                };
+            });
+        }
         if (columns.length > 0) {
             setCells((prev) => [
                 ...prev,
@@ -669,6 +685,9 @@ export function TRView({ reviewId, projectId }: Props) {
     const filteredDocuments = q
         ? documents.filter((d) => d.filename.toLowerCase().includes(q))
         : documents;
+    const addedDocumentIds = new Set(
+        documents.map((document) => document.id),
+    );
 
     return (
         <div className="flex h-full overflow-hidden">
@@ -1077,36 +1096,40 @@ export function TRView({ reviewId, projectId }: Props) {
                 }
             />
 
-            {project ? (
-                <AddProjectDocsModal
-                    open={addDocsOpen}
-                    onClose={() => setAddDocsOpen(false)}
-                    onSelect={(docs: Document[]) => handleAddDocuments(docs)}
-                    breadcrumb={[
-                        "Projects",
-                        project.name +
-                            (project.cm_number
-                                ? ` (#${project.cm_number})`
-                                : ""),
-                        "Tabular Reviews",
-                        ...(review ? [review.title || "Untitled Review"] : []),
-                        "Add Documents",
-                    ]}
-                    projectId={project.id}
-                    excludeDocIds={new Set(documents.map((d) => d.id))}
-                />
-            ) : (
-                <AddDocumentsModal
-                    open={addDocsOpen}
-                    onClose={() => setAddDocsOpen(false)}
-                    onSelect={(docs: Document[]) => handleAddDocuments(docs)}
-                    breadcrumb={[
-                        "Tabular Reviews",
-                        ...(review ? [review.title || "Untitled Review"] : []),
-                        "Add Documents",
-                    ]}
-                />
-            )}
+            <AddDocumentsModal
+                open={addDocsOpen}
+                onClose={() => setAddDocsOpen(false)}
+                onSelect={(docs: Document[]) => handleAddDocuments(docs)}
+                breadcrumb={[
+                    ...(project
+                        ? [
+                              "Projects",
+                              project.name +
+                                  (project.cm_number
+                                      ? ` (#${project.cm_number})`
+                                      : ""),
+                          ]
+                        : []),
+                    "Tabular Reviews",
+                    ...(review ? [review.title || "Untitled Review"] : []),
+                    "Add Documents",
+                ]}
+                projectId={projectId}
+                documents={
+                    projectId
+                        ? (project?.documents ?? []).filter(
+                              (document) =>
+                                  !addedDocumentIds.has(document.id),
+                          )
+                        : undefined
+                }
+                showTabs={!projectId}
+                accept={
+                    projectId
+                        ? ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+                        : undefined
+                }
+            />
 
             <TabularReviewDetailsModal
                 open={detailsOpen}
