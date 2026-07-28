@@ -51,8 +51,6 @@ export function TableFilters<T extends string>({
     allLabel: string;
     options: TableFilterOption<T>[];
     onChange: (value: T | null) => void;
-    widthClassName?: string;
-    align?: "left" | "right";
     searchable?: boolean;
 }) {
     if (searchable || options.length > 8) {

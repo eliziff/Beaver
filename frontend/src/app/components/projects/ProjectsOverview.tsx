@@ -322,8 +322,6 @@ export function ProjectsOverview() {
             label="Sort by project name"
             value={nameSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
-            align="right"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("name", direction)}
         />
@@ -333,7 +331,6 @@ export function ProjectsOverview() {
             label="Sort by CM"
             value={cmSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("cm", direction)}
         />
@@ -357,7 +354,6 @@ export function ProjectsOverview() {
             searchable
             value={ownerFilter}
             allLabel="All Owners"
-            widthClassName="w-44"
             options={ownerOptions}
             onChange={handleOwnerFilterChange}
         />
@@ -367,7 +363,6 @@ export function ProjectsOverview() {
             label="Sort by files"
             value={filesSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("files", direction)}
         />
@@ -377,7 +372,6 @@ export function ProjectsOverview() {
             label="Sort by chats"
             value={chatsSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("chats", direction)}
         />
@@ -387,7 +381,6 @@ export function ProjectsOverview() {
             label="Sort by tabular reviews"
             value={reviewsSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("reviews", direction)}
         />
@@ -397,7 +390,6 @@ export function ProjectsOverview() {
             label="Sort by created date"
             value={createdSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("created", direction)}
         />
