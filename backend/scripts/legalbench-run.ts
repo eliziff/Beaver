@@ -7,7 +7,8 @@
  *   EVAL_LIVE=1 npx tsx scripts/legalbench-run.ts \
  *     --task abercrombie,cuad_anti-assignment --limit 25
  *
- * Flags: --task <name,name|all> (default all), --model <id> (default
+ * Flags: --task <name,name|all> (default all), --effort <low|medium|high>
+ * (optional, forwarded as reasoningEffort), --model <id> (default
  * gpt-5-mini), --limit <n|all> (default 25 examples per task, deterministic
  * class-stratified prefix of the official test split — see
  * selectStratifiedRows), --setup-only (download/verify data, no model calls),
@@ -225,6 +226,7 @@ async function runTask(args: {
   manifestBytes: Buffer;
   taskName: string;
   model: string;
+  effort?: string;
   limit: number;
   runDir: string;
 }): Promise<TaskRun> {
@@ -254,6 +256,7 @@ async function runTask(args: {
         const index = next++;
         results[index] = await streamChatWithTools({
           model: args.model,
+          reasoningEffort: args.effort,
           systemPrompt: "",
           messages: [{ role: "user", content: prompts[index] }],
         });
@@ -370,6 +373,7 @@ async function main() {
     process.exit(2);
   }
   const model = flag("model", "gpt-5-mini");
+  const effort = flag("effort", "") || undefined;
   const limitRaw = flag("limit", "25");
   const limit = limitRaw === "all" ? 0 : Number.parseInt(limitRaw, 10);
   if (Number.isNaN(limit) || limit < 0)
@@ -395,6 +399,7 @@ async function main() {
       manifestBytes,
       taskName,
       model,
+      effort,
       limit,
       runDir,
     });
