@@ -5,7 +5,6 @@ import {
     useCallback,
     useContext,
     useEffect,
-    useMemo,
     useRef,
     useState,
     type ReactNode,
@@ -188,34 +187,19 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         [loadChats],
     );
 
-    const value = useMemo(
-        () => ({
-            chats,
-            hasMoreChats,
-            loadChats,
-            loadMoreChats,
-            saveChat,
-            renameChat: renameChatFn,
-            stagePendingChatMessage,
-            peekPendingChatMessage,
-            claimPendingChatMessage,
-            replaceChatId,
-            deleteChat: deleteChatFn,
-        }),
-        [
-            chats,
-            hasMoreChats,
-            loadChats,
-            loadMoreChats,
-            saveChat,
-            renameChatFn,
-            stagePendingChatMessage,
-            peekPendingChatMessage,
-            claimPendingChatMessage,
-            replaceChatId,
-            deleteChatFn,
-        ],
-    );
+    const value = {
+        chats,
+        hasMoreChats,
+        loadChats,
+        loadMoreChats,
+        saveChat,
+        renameChat: renameChatFn,
+        stagePendingChatMessage,
+        peekPendingChatMessage,
+        claimPendingChatMessage,
+        replaceChatId,
+        deleteChat: deleteChatFn,
+    };
 
     return (
         <ChatHistoryContext.Provider value={value}>
