@@ -1,56 +1,55 @@
-# Beaver: minimal evaluation, context, compaction, and caching plan
+# Beaver: Minimal Evaluation, Context, Compaction, and Caching Plan
 
-Status: adopted 2026-07-27 with the scoping decisions below. This is the
-measurement-first plan: instrument before building, one variable per
-comparison, and no benchmark for machinery Beaver does not have. A longer
-companion brief exists outside the repo; its four-arm benchmark portfolio,
-hidden holdouts, and Beaver-CAN-12 task suite are **rejected** as
-infrastructure-in-the-dark. Only this document is authoritative.
+> **Purpose:** give a coding agent a small, ordered engineering plan.  
+> **Do not implement this entire document in one pull request.** Complete one step, measure it, and preserve the old behaviour behind a configuration flag until the new behaviour is proven better.
 
-## Scoping decisions against the existing codebase
+## What not to build yet
 
-The plan below was written repo-blind. Beaver already owns several of the
-pieces it asks for, so the steps are re-scoped:
+Do **not** begin by creating a new Canadian legal benchmark. Use existing public benchmarks first.
 
-| Plan step | Decision | Why |
-| --- | --- | --- |
-| Step 1 — common eval trace | **Adopt first.** Extend `backend/src/lib/llm/contextManifest.ts`, which already records per-component sizes, token estimates, latency, and provider/model per call. Add suite/item identity, config hash, commit sha, provider cached-token counts, score, and output path; wrap the existing harnesses (`backend/scripts/prompt-live-harness.ts`, `benchmarks/docx_corpus`) in one thin runner that emits `eval_run.json` per item plus `comparison.md`. | The 2026-07-27 prompt-diet work already ran old-vs-new arms and a cache-token check by hand; the runner makes that the default shape of every future change. |
-| Step 2.1 — LegalBench-RAG-mini | **Defer indefinitely.** | It measures chunking/embedding/reranking. Beaver has no chunk-embedding RAG pipeline, and the master plan (P1.4) commits to lexical-first with vectors only if earned. A benchmark for machinery that does not exist is dark infrastructure. Revisit only if P1.4 ever earns vectors. |
-| Step 2.2 — CanLegalRAGBench | **Adopt second, retrieval stage only.** Score whether `a2aj_search` surfaces the annotated Canadian cases. | This measures a surface Beaver actually ships. The end-to-end answer stage waits for the Step 1 runner. |
-| Step 2.3 — LongMemEval | **Adopt when a second context strategy exists**, as the instrument for the master plan's P2.2 factorial. | Comparing context strategies needs two strategies; today there is one. |
-| Step 3 — log / matter state / assembler | **Partially exists; extend, do not rebuild.** Append-only transcript and server-authoritative session state are master-plan P0.6; matters live in `legalKnowledgeGraphStore`; evidence handles already carry provenance. The missing piece is the explicit prompt-component manifest per turn (Step 1 covers it). | The plan's "never preserve only in prose" list matches the evidence-handle doctrine already shipped. |
-| Step 4 — strategy switch | **Adopt the two-strategy version** (`full_history`, `legal_state_retrieval_tail`) behind a flag, after Step 1. | Matches P0.6/P2.2. The other three strategies wait for measurements. |
-| Step 5 — compaction gates | **Adopt as written.** The five mechanical invariants become deterministic integration tests. | Cheap, and exactly the repo's abstention/receipt doctrine. |
-| Step 6 — Beaver-owned caches | **Mostly exists** (provider cache P1.2, artifact keying doctrine, parsed-PDF caches). Add trace fields for hits/misses/time-saved instead of new caches. | Measure the caches that exist before building more. |
-| Step 7 — provider prompt caching | **OpenAI already measured** (2,304-token stable prefix reuse verified with provider counters, including across the conditional spreadsheet splice — see `backend/scripts/prompt-cache-check.ts`). Add Anthropic/Gemini only when real keys and real usage exist. | One provider proven beats three providers assumed. |
-| Step 8 — product trials | **Defer.** | Not until the runner is boring. |
+Do not build:
 
-**Order of work: Step 1 runner → CanLegalRAGBench retrieval adapter →
-strategy flag + invariants → LongMemEval.** Nothing else until those produce
-traces that have influenced at least one engineering decision.
+- a general evaluation platform;
+- a custom legal summarization model;
+- a large local Canadian-law corpus solely for testing;
+- every provider’s caching implementation at once;
+- a single composite “Beaver score.”
+
+Beaver needs a thin runner, good traces, and controlled comparisons.
+
+---
 
 ## Rules for every experiment
 
-1. **Change one material variable at a time.** Do not change the model,
-   retriever, prompt, chunking, context policy, and cache policy in the same
-   comparison.
-2. **Use the same model and settings for baseline and candidate.**
-3. **Pin everything.** Record the Beaver commit, dataset version, model
-   identifier, provider settings, prompt/config hash, and lockfile.
-4. **Keep every raw output.** Never retain only aggregate scores.
-5. **Separate development from reporting.** Iterate on a small deterministic
-   subset; run the full benchmark for release checks; never call a result
-   "unseen" if the benchmark was used during development.
-6. **A cheaper wrong answer is not an improvement.** Compare cost and latency
-   only after quality is acceptable.
+1. **Change one material variable at a time.**  
+   Do not change the model, retriever, prompt, chunking, context policy, and cache policy in the same comparison.
 
-## Step 1 — one common evaluation trace
+2. **Use the same model and settings for baseline and candidate.**  
+   Otherwise the test does not isolate Beaver’s contribution.
 
-Each benchmark item emits an `eval_run.json`:
+3. **Pin everything.**  
+   Record the Beaver commit, dataset version/commit, model identifier, provider settings, prompt/config hash, and dependency lockfile.
+
+4. **Keep every raw output.**  
+   Do not retain only aggregate scores.
+
+5. **Separate development from reporting.**  
+   Use a small deterministic subset while iterating. Run the full benchmark for release checks. Never call a result “unseen” if the benchmark was used during development.
+
+6. **A cheaper wrong answer is not an improvement.**  
+   Compare cost and latency only after quality is acceptable.
+
+---
+
+# Step 1 — Add one common evaluation trace
+
+Before changing compaction or caching, make every run measurable.
+
+Each benchmark item should emit an `eval_run.json` containing at least:
 
 ```json
 {
-  "suite": "prompt-live",
+  "suite": "legalbench-rag-mini",
   "suite_version": "pinned-commit-or-release",
   "item_id": "item-001",
   "beaver_commit": "full-git-sha",
@@ -71,31 +70,211 @@ Each benchmark item emits an `eval_run.json`:
 }
 ```
 
-Also retain: ordered retrieved-passage IDs, hashes of prompt components and
-source documents, the assembled-context manifest, output/artifact hashes,
-and errors/retries. Never log secrets or client contents by default.
+Also retain:
 
-**Done when** one command runs a benchmark configuration and produces raw
-outputs, per-item traces, aggregate `results.json`, and a human-readable
-`comparison.md`.
+- the ordered IDs of retrieved passages;
+- hashes of the prompt components and source documents;
+- the assembled-context manifest;
+- output and artifact hashes;
+- errors and retries.
 
-## Step 2 — CanLegalRAGBench, retrieval stage first
+Avoid logging secrets or client contents by default.
 
-1. **Retrieval only:** did `a2aj_search` retrieve the annotated relevant
-   Canadian cases? Report Recall@5/10, nDCG@10, MRR, retrieved tokens, and
-   latency.
-2. **End-to-end answer** (later, on the Step 1 runner): supported, responsive
-   claims from the retrieved material, with failures separated into
-   retrieval / grounding / unsupported claim / citation / over-answering.
+### Done when
 
-The benchmark's own authors note automatic scoring can penalize genuinely
-relevant authorities missing from the gold set — preserve retrieved cases
-for manual review; never silently count out-of-gold cases either way.
+One command can run a benchmark configuration and produce:
 
-## Step 3 — context strategies behind one switch
+```text
+raw outputs
+per-item traces
+aggregate results.json
+human-readable comparison.md
+```
 
-Two strategies first: `full_history` (current behaviour, default) and
-`legal_state_retrieval_tail`. Initial test defaults (not truths):
+---
+
+# Step 2 — Integrate existing benchmarks in this order
+
+## 2.1 LegalBench-RAG-mini: fast retrieval development
+
+Use this first because it is small and tests the part of RAG most affected by:
+
+- chunk size and boundaries;
+- embeddings;
+- lexical versus dense retrieval;
+- hybrid retrieval;
+- reranking;
+- top-k;
+- deduplication.
+
+Measure:
+
+```text
+Recall@5
+Recall@10
+nDCG@10
+MRR
+retrieved_tokens_per_query
+latency
+cost
+```
+
+Do not involve answer generation at first. Retrieval must be diagnosable independently.
+
+### Done when
+
+The runner can compare two Beaver retrieval configurations on the same items and show whether a quality gain required sending substantially more text to the model.
+
+## 2.2 CanLegalRAGBench: Canadian legal RAG
+
+Add this after the retrieval runner works.
+
+Test it in two stages:
+
+1. **Retrieval only:** did Beaver retrieve the annotated relevant Canadian cases?
+2. **End-to-end answer:** did Beaver make supported, responsive claims from the retrieved material?
+
+Report strict benchmark metrics, but preserve retrieved cases for manual review. The benchmark authors found that automatic scoring can penalize genuinely relevant authorities omitted from the annotated gold set. Do not silently count every out-of-gold case as either correct or incorrect.
+
+Use a deterministic development subset while iterating. Run the full dataset for release checks and disclose that the public benchmark was used during development.
+
+### Done when
+
+A report separates:
+
+```text
+retrieval failure
+generation/grounding failure
+unsupported claim
+citation failure
+irrelevant over-answering
+```
+
+## 2.3 LongMemEval: memory and compaction
+
+Use LongMemEval to compare conversation-memory strategies. It tests extraction, knowledge updates, temporal reasoning, multi-session reasoning, and abstention.
+
+This is not a legal benchmark, but it answers the engineering question: **does the context system preserve and retrieve information from long conversations?**
+
+Run it against the same model using each context strategy described below.
+
+### Optional later suites
+
+Only after the above works:
+
+- a public legal-agent benchmark for end-to-end document work;
+- RedlineBench if native tracked-change DOCX editing is a Beaver priority.
+
+Do not add several suites before the first three produce reliable traces.
+
+---
+
+# Step 3 — Separate stored history from model context
+
+The full transcript should be durable audit history, not the prompt sent on every turn.
+
+Implement three separate layers.
+
+## A. Append-only event log
+
+Store every:
+
+- user message;
+- assistant message;
+- tool call and result;
+- uploaded document/version;
+- state update;
+- compaction event.
+
+Do not destroy this when compacting.
+
+## B. Structured matter state
+
+Maintain an inspectable JSON object for legally important state:
+
+```json
+{
+  "matter_id": "matter-001",
+  "jurisdictions": ["CA-AB"],
+  "law_as_of": "2026-07-27",
+  "objective": "Prepare a research memorandum",
+  "active_instructions": [],
+  "superseded_instructions": [],
+  "facts": [],
+  "disputed_facts": [],
+  "authorities": [],
+  "document_versions": [],
+  "accepted_edits": [],
+  "open_questions": [],
+  "privacy_flags": []
+}
+```
+
+Every material entry should contain provenance:
+
+```json
+{
+  "value": "The agreement was signed on 2024-03-01.",
+  "source_id": "DOC-004",
+  "locator": "page 7",
+  "originating_turn": "TURN-006",
+  "status": "asserted"
+}
+```
+
+Model-proposed state patches must be:
+
+- schema validated;
+- versioned;
+- linked to the originating turn;
+- reversible;
+- explicit about supersession rather than silent replacement.
+
+Never preserve the following **only** in a prose summary:
+
+- citations and authorities;
+- exact quotations;
+- paragraph/page/section pinpoints;
+- jurisdiction and law-as-of date;
+- deadlines;
+- active and superseded instructions;
+- current and superseded document versions;
+- accepted edits;
+- disputed facts;
+- privilege or sensitivity flags.
+
+## C. Prompt assembler
+
+Build the working prompt from components, in this order:
+
+```text
+1. stable system instructions and relevant tool definitions
+2. pinned legal/safety/output constraints
+3. structured matter state
+4. request-specific retrieved evidence
+5. bounded recent conversation/tool tail
+6. current user request
+```
+
+Emit a manifest showing the token count and hash of every component.
+
+---
+
+# Step 4 — Put context strategies behind one switch
+
+Implement these as interchangeable strategies:
+
+```text
+full_history
+recent_tail
+summary_plus_tail
+legal_state_retrieval_tail
+provider_native_plus_legal_state
+```
+
+Do not implement all five at once. Start with `full_history` and `legal_state_retrieval_tail`.
+
+A practical initial configuration:
 
 ```yaml
 working_context_tokens: 32000
@@ -105,56 +284,230 @@ retrieved_evidence_tokens: 16000
 narrative_summary_tokens: 2000
 ```
 
-`legal_state_retrieval_tail` per turn: append events to the durable log;
-propose and validate a matter-state patch (schema-validated, versioned,
-linked to the originating turn, reversible, explicit about supersession);
-retrieve evidence for the current request; keep a bounded recent tail;
-summarize only older narrative; assemble within budget; record what was
-included, excluded, or compressed.
+These are test defaults, not universal truths. Reserve output/reasoning space separately and tune them using benchmark results.
 
-Never preserve **only** in a prose summary: citations and authorities, exact
-quotations, pinpoints, jurisdiction and law-as-of date, deadlines, active and
-superseded instructions, document versions, accepted edits, disputed facts,
-privilege flags. (This is the evidence-handle doctrine, restated.)
+## `legal_state_retrieval_tail` mechanics
 
-Provider-native compaction (e.g. OpenAI's opaque compaction item) is a
-transport optimization only — always paired with Beaver-owned state.
+On each turn:
 
-## Step 4 — compaction ship gate
+1. append the new events to the durable log;
+2. propose and validate a matter-state patch;
+3. retrieve evidence needed for the current request;
+4. retain a bounded recent tail;
+5. summarize only older narrative/tool history that is still useful;
+6. assemble the prompt within the working budget;
+7. record what was included, excluded, or compressed.
 
-The five mechanical invariants, as deterministic integration tests:
+The narrative summary should explain conversational continuity and prior decisions. It should not become the sole store for legally material facts.
 
-1. a newer instruction supersedes an older instruction;
-2. the current document version wins over a superseded version;
-3. an exact citation, quotation, and locator survive;
-4. a disputed fact is not treated as established;
-5. a jurisdiction and law-as-of date stated early in the matter survive.
+## Provider-native compaction
 
-Do not adopt a compacted strategy unless it shows: no new failed invariants,
-no material LongMemEval reduction, no material legal-benchmark reduction,
-≥25% lower input tokens, and no unacceptable latency or review-cost
-regression. Run stochastic configurations at least three times for close
-calls. Never hide weak categories inside an average.
+Treat provider-native compaction as an optional transport optimization.
 
-## Steps 5–6 — caches
+For example, OpenAI currently returns an opaque compaction item. Beaver cannot inspect that item as authoritative legal state. Always pair native compaction with Beaver-owned structured matter state and the append-only log.
 
-Beaver-owned caches are keyed so that a content or implementation change
-naturally causes a miss (file hash + parser version, chunk hash + config
-version, citation/locator + source hash + validator version, …), are
-deletable and inspectable, and record hits/misses/avoided-work in traces.
-No Redis or cache service unless local storage measurably fails.
+---
 
-Provider prompt caching: keep the stable prefix stable (tools, system
-instructions, stable examples), dynamic matter below the boundary. OpenAI is
-measured; re-read provider docs immediately before adding another — caching
-rules change. Caching does not shorten context; compaction and caching stay
-separate features.
+# Step 5 — Test compaction without inventing a large Beaver benchmark
 
-## References
+Use:
 
+- **LongMemEval** for broad memory performance;
+- **CanLegalRAGBench** to ensure legal retrieval/answer quality does not regress;
+- a few small Beaver integration tests for mechanical invariants.
+
+The Beaver tests are not a new substantive benchmark. They only verify that the machinery preserves:
+
+1. a newer instruction that supersedes an older instruction;
+2. the current document version rather than a superseded version;
+3. an exact citation, quotation, and locator;
+4. a disputed fact that must not be treated as established;
+5. a jurisdiction and law-as-of date stated early in the matter.
+
+Compare, with the same model:
+
+```text
+full_history
+legal_state_retrieval_tail
+provider-native-plus-legal-state (later)
+```
+
+For close or release decisions, run stochastic configurations at least three times.
+
+### Ship gate
+
+Do not adopt a compacted strategy unless it produces:
+
+- no additional failed legal-state invariants;
+- no material reduction on LongMemEval;
+- no material reduction on the selected legal benchmark;
+- lower input-token use, with an initial target of at least 25%;
+- no unacceptable latency or review-cost regression.
+
+Record exact counts and confidence limits where practical. Do not hide weak categories inside an overall average.
+
+---
+
+# Step 6 — Add Beaver-owned caches before provider caches
+
+Implement local, content-addressed caches in this order:
+
+| Cached object | Cache key |
+|---|---|
+| Parsed document | file hash + parser version |
+| Chunks | parsed-text hash + chunker/config version |
+| Embeddings | chunk hash + embedding-model ID |
+| Retrieval result | query hash + filters + index revision |
+| Citation validation | citation/locator + source hash + validator version |
+| Rendered preview | document hash + renderer version |
+
+Requirements:
+
+- a content or implementation change naturally causes a miss;
+- cache hits and misses produce equivalent substantive results;
+- caches are deletable and inspectable;
+- matter-specific data is scoped by matter;
+- tests prove invalidation works;
+- traces record hits, misses, avoided work, and time saved.
+
+Do not add Redis or a separate cache service unless local storage is demonstrably inadequate.
+
+---
+
+# Step 7 — Add provider prompt caching for one provider
+
+Do this only after the prompt assembler is stable.
+
+Expose a provider-neutral request shape:
+
+```text
+stable_prefix
+dynamic_suffix
+matter_scope
+cache_policy
+```
+
+Arrange the prompt for prefix reuse:
+
+```text
+stable tools
+stable system instructions
+stable examples or rubric
+stable source packet, when reused
+---------------- cache boundary ----------------
+current matter state
+request-specific evidence
+recent tail
+current request
+```
+
+Keep timestamps, random IDs, changing tool definitions, and user-specific content out of the stable prefix.
+
+Implement the provider Beaver actually uses most. Measure:
+
+```text
+cache-write tokens/cost
+cache-read tokens/cost
+hit rate
+latency
+total cost per successful benchmark item
+```
+
+Then add a second provider only if the first implementation proves useful.
+
+Current provider behaviour differs:
+
+- OpenAI caching depends on exact prompt prefixes and supports cache-routing keys and explicit breakpoints on current models.
+- Anthropic supports automatic or explicit prefix breakpoints, normally with a five-minute cache lifetime and an optional longer lifetime.
+- Gemini supports implicit caching on current models; explicit cache objects depend on the API surface used.
+
+Re-read the official documentation immediately before implementation. Provider caching, pricing, retention, and eligibility rules change.
+
+Caching does not shorten context and does not protect against irrelevant old history. Keep compaction and caching as separate features.
+
+---
+
+# Step 8 — Later, run controlled product trials
+
+Once the runner is stable, select a small set of public closed-source legal tasks that include:
+
+- identical instructions;
+- identical uploaded source documents;
+- objective rubric criteria;
+- exportable outputs.
+
+Run each product in a fresh workspace, record the product/date/settings, export the answer, remove product branding, and score it blind with the same rubric.
+
+Keep this separate from Beaver development. The immediate goal is to improve Beaver against frozen public tasks and its own frozen baseline—not to produce vendor marketing claims.
+
+---
+
+# Recommended pull-request order
+
+## PR 1 — Common trace and comparison report
+
+No context changes yet.
+
+## PR 2 — LegalBench-RAG-mini adapter
+
+Establish retrieval baselines and token-volume metrics.
+
+## PR 3 — Append-only log, matter-state schema, and prompt manifest
+
+Preserve current full-history behaviour as the default.
+
+## PR 4 — `legal_state_retrieval_tail`
+
+Add the first compacted strategy behind a feature flag.
+
+## PR 5 — LongMemEval adapter and context ablation
+
+Compare full history against the new strategy.
+
+## PR 6 — CanLegalRAGBench adapter
+
+Verify Canadian retrieval and grounded answering.
+
+## PR 7 — Local parsing/chunk/embedding caches
+
+Measure avoided work.
+
+## PR 8 — One provider prompt-cache adapter
+
+Adopt only if benchmarked net cost or latency improves without quality loss.
+
+---
+
+# Coding-agent instruction
+
+```text
+Implement only the requested pull-request step from
+docs/beaver-minimal-evaluation-context-plan.md.
+
+Before editing, read AGENTS.md and the relevant current benchmark,
+conversation-state, provider, and storage code. Do not refactor unrelated
+code. Preserve existing behaviour behind a feature flag where appropriate.
+Pin external benchmark versions and do not modify their prompts or gold data.
+Add deterministic tests first where practical.
+
+At completion, report:
+1. every file changed;
+2. every command run;
+3. baseline and candidate results;
+4. token, cache, latency, and cost changes;
+5. any quality regression or unresolved uncertainty.
+```
+
+---
+
+# Primary references
+
+- [Beaver repository](https://github.com/eliziff/Beaver)
 - [LegalBench-RAG](https://github.com/zeroentropy-cc/legalbenchrag)
 - [CanLegalRAGBench](https://github.com/NLP-UBC/CanLegalRAGBench)
 - [LongMemEval](https://github.com/xiaowu0162/LongMemEval)
 - [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+- [OpenAI compaction](https://developers.openai.com/api/docs/guides/compaction)
+- [OpenAI conversation state](https://developers.openai.com/api/docs/guides/conversation-state)
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
 - [Gemini context caching](https://ai.google.dev/gemini-api/docs/caching)
