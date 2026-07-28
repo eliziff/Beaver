@@ -56,7 +56,7 @@ import {
     DOC_NAME_COL_W,
     treeNameCellStyle,
 } from "@/app/components/projects/ProjectPageParts";
-import { formatBytes, formatDate } from "@/app/lib/utils";
+import { formatBytes, formatDate, sortRows } from "@/app/lib/utils";
 import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -2078,39 +2078,34 @@ export function DocTable({
 
         if (!enableHeaderFilters || !sort) return rows;
 
-        return [...rows].sort((a, b) => {
-            const multiplier = sort.direction === "asc" ? 1 : -1;
-
+        return sortRows(rows, (a, b) => {
             if (sort.key === "size") {
-                return ((a.size_bytes ?? 0) - (b.size_bytes ?? 0)) * multiplier;
+                return (a.size_bytes ?? 0) - (b.size_bytes ?? 0);
             }
 
             if (sort.key === "version") {
                 return (
                     ((documentVersionNumber(a) ?? 0) -
-                        (documentVersionNumber(b) ?? 0)) *
-                    multiplier
+                        (documentVersionNumber(b) ?? 0))
                 );
             }
 
             if (sort.key === "created") {
                 return (
                     (dateTimeValue(a.created_at) -
-                        dateTimeValue(b.created_at)) *
-                    multiplier
+                        dateTimeValue(b.created_at))
                 );
             }
 
             if (sort.key === "updated") {
                 return (
                     (dateTimeValue(a.updated_at) -
-                        dateTimeValue(b.updated_at)) *
-                    multiplier
+                        dateTimeValue(b.updated_at))
                 );
             }
 
-            return a.filename.localeCompare(b.filename) * multiplier;
-        });
+            return a.filename.localeCompare(b.filename);
+        }, sort.direction);
     }, [docs, enableHeaderFilters, q, sort, typeFilter]);
 
     const nameSortDirection = sort?.key === "name" ? sort.direction : null;
