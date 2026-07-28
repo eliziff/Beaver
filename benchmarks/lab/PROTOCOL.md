@@ -37,11 +37,20 @@ the model constant?
 ## Grading
 
 LAB's own evaluator (`evaluation.run_eval`), all-pass rubric scoring,
-per-criterion pass rates as the diagnostic. Judge: `codex/gpt-5.6-sol`
-(same subscription route; LAB's official judge is claude-sonnet-4-6, which
-is API spend — see deviations). Same judge for both arms, so the A/B
-comparison is internally consistent even though absolute scores are not
-comparable to Harvey's published numbers.
+per-criterion pass rates as the diagnostic.
+
+Headline judge: `claude-code/claude-sonnet-4-6` — LAB's official judge
+MODEL, reached through headless Claude Code (`claude -p`) on the Claude
+subscription (flat rate, official surface; same legitimacy pattern as the
+codex route). Differences from Harvey's API grading rig: no schema-enforced
+output, no temperature pin.
+
+Bulk/iteration judge: `codex/gpt-5.6-sol` (subscription route). Calibration
+on the smoke runs (112 criterion verdicts, both arms): 110/112 agreement
+(98.2%); both disagreements were borderline implicit-vs-express-statement
+calls where codex was the STRICTER judge, on the Beaver arm — i.e. no
+same-family leniency observed. Quote this calibration whenever codex-judge
+numbers are reported.
 
 ## Task selection
 
@@ -53,13 +62,14 @@ Scale-up only after pilot results are reviewed.
 
 ## Deviations from official LAB (all forced by the no-API-spend constraint or platform)
 
-1. Judge is codex/gpt-5.6-sol, not claude-sonnet-4-6 → absolute scores not
-   leaderboard-comparable; A/B deltas are the deliverable.
-2. Judging the model's own family invites self-preference bias — identical in
-   both arms, so it cancels in the comparison but inflates absolute numbers.
-3. Temperature is stripped (backend rejects it); LAB defaults to 0.0.
-4. Docker instead of podman for the sandbox.
-5. LAB's LLM deliverable-filename matcher (Anthropic API, fires only when
+1. Judge model is the official one (claude-sonnet-4-6) but via headless
+   Claude Code, not the Anthropic API: no schema-enforced verdict JSON, no
+   temperature pin. Agent model (gpt-5.6-sol via ChatGPT backend) is not a
+   model Harvey published, so rows are still not leaderboard rows.
+2. Agent-side temperature is stripped (codex backend rejects it); LAB
+   defaults to 0.0.
+3. Docker instead of podman for the sandbox.
+4. LAB's LLM deliverable-filename matcher (Anthropic API, fires only when
    filenames don't match) is left keyless → degrades to no-match; both arms
    must name deliverables exactly as task.json specifies.
 
