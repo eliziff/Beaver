@@ -211,12 +211,6 @@ function caseCitationEventFromRecord(
   };
 }
 
-function recordFromUnknown(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 function stringField(
   record: Record<string, unknown> | null,
   key: string,

@@ -1311,7 +1311,7 @@ export async function streamAnonymousChat(params: {
       model: selectedModel,
       systemPrompt: continuationId ? "" : systemPrompt,
       messages: (continuationId ? messages.slice(-1) : messages).map(
-        (message, index, list) => ({
+        (message) => ({
           role: message.role === "assistant" ? "assistant" : "user",
           content: formatChatMessageContent(message),
           images: imagesForMessage(message, imagesByDocumentId),
