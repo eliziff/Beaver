@@ -133,6 +133,14 @@ Work:
   tabular, workflow, and legacy/cloud-only UI where safe.
 - Add a fast verification lane for backend-only and static-public changes; keep
   the full production build as a release gate.
+- Run a width-criminal audit across every route, modal, panel, toolbar, growing
+  collection, and embedded service. Reading/forms/chat/settings/setup stay at a
+  human-scale maximum width; long catalogs use bounded searchable lists; no
+  ordinary surface grows to its contents or the available viewport.
+- Exercise desktop, narrow viewport, 200% zoom, and 320 CSS pixels. Fail on
+  shell horizontal overflow, clipped controls, upward-opening full-screen
+  dropdowns, or a bounding-box change caused by hover, focus, selection,
+  loading, or moving between modal steps.
 
 Acceptance:
 
@@ -141,6 +149,9 @@ Acceptance:
   warmed Table of Authorities open.
 - Remove code/dependencies only when tests and bundle/runtime measurements show
   a strict win.
+- Keep screenshots and measured element rectangles for representative wide,
+  narrow, and stepped states. A visual assertion from source code alone does
+  not pass the width audit.
 
 Recorded strict wins on the same Windows/i3-1315U machine:
 
