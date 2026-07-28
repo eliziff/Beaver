@@ -121,6 +121,21 @@ it("renders streamed content before the response closes", async () => {
     fireEvent.change(input, { target: { value: "New question" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(api.streamChat).toHaveBeenCalledOnce());
+    expect(api.streamChat).toHaveBeenCalledWith(
+        "review-1",
+        expect.arrayContaining([
+            expect.objectContaining({
+                role: "user",
+                content: "New question",
+            }),
+        ]),
+        "chat-1",
+        expect.anything(),
+        expect.objectContaining({
+            model: "codex:gpt-5.6-terra",
+            reasoningEffort: "high",
+        }),
+    );
 
     await act(async () => {
         emit('{"type":"content_delta","text":"Live answer"}');
