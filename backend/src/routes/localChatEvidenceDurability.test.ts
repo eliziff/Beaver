@@ -161,6 +161,59 @@ afterEach(async () => {
 });
 
 describe("anonymous chat PDF evidence durability", () => {
+  it("passes a selected document and system workflow into the provider turn", async () => {
+    const localDocuments = await import("../lib/localDocumentStore");
+    const document = await localDocuments.createLocalDocument({
+      userId: USER_ID,
+      kind: "file",
+      filename: "Lease.docx",
+      bytes: Buffer.from("test-docx-bytes"),
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const response = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: {
+          kind: "message",
+          content: "extract key terms",
+          files: [
+            {
+              filename: document.filename,
+              document_id: document.id,
+            },
+          ],
+          workflow: {
+            id: "builtin-extract-key-terms",
+            title: "Extract Key Terms",
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(mocks.providerMessages[0]?.at(-1)?.content).toContain(
+      `- Lease.docx (document_id: ${document.id})`,
+    );
+    expect(mocks.providerMessages[0]?.at(-1)?.content).toContain(
+      "[Workflow: Extract Key Terms (id: builtin-extract-key-terms)]",
+    );
+    expect(mocks.systemPrompts[0]).toContain(
+      "Never ask the user to choose between PDF, DOCX, or text views.",
+    );
+    expect(mocks.systemPrompts[0]).toContain(
+      "then call library_revise_docx",
+    );
+    expect(mocks.systemPrompts[0]).toContain(
+      "Do not substitute a prose list of proposed or suggested changes",
+    );
+    expect(mocks.systemPrompts[0]).toContain(
+      "return its exact app_url as the edited-document link",
+    );
+  });
+
   it("carries a hidden registry across reload and compacted client history", async () => {
     mocks.activeHandles.push(HANDLE);
     let loaded = await loadApp();
@@ -494,6 +547,151 @@ describe("anonymous chat PDF evidence durability", () => {
     expect((await first).status).toBe(200);
   });
 
+  it("streams and persists every response character through the final period", async () => {
+    const expected =
+      "It will need local-law review before use because tenancy rules vary by jurisdiction.";
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      params.callbacks?.onContentDelta?.("It will need local-law re");
+      params.callbacks?.onContentDelta?.(
+        "view before use because tenancy rules vary by jurisdiction",
+      );
+      params.callbacks?.onContentDelta?.(".");
+      return { fullText: expected };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const response = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Draft a lease" },
+      });
+    const streamedText = response.text
+      .split("\n")
+      .filter((line) => line.startsWith("data: {"))
+      .map((line) => JSON.parse(line.slice(6)) as { type?: string; text?: string })
+      .filter((event) => event.type === "content_delta")
+      .map((event) => event.text ?? "")
+      .join("");
+
+    expect(streamedText).toBe(expected);
+    expect(
+      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+    ).toMatchObject({
+      messages: [
+        { role: "user", content: "Draft a lease" },
+        {
+          role: "assistant",
+          content: [{ type: "content", text: expected }],
+        },
+      ],
+    });
+  });
+
+  it("continues and persists a turn after the response client disconnects", async () => {
+    let release!: () => void;
+    let providerSignal: AbortSignal | undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      providerSignal = params.abortSignal;
+      await held;
+      params.callbacks?.onContentDelta?.("Completed after navigation.");
+      return { fullText: "Completed after navigation." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const activeRequest = request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Keep working" },
+      });
+    const clientResult = activeRequest.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
+    });
+    activeRequest.abort();
+
+    expect(providerSignal?.aborted).toBe(false);
+    release();
+    await vi.waitFor(() => {
+      expect(
+        loaded.store.getAnonymousChat(USER_ID, created.body.id),
+      ).toMatchObject({
+        transcript_version: 2,
+        messages: [
+          { role: "user", content: "Keep working" },
+          {
+            role: "assistant",
+            content: [
+              { type: "content", text: "Completed after navigation." },
+            ],
+          },
+        ],
+      });
+    });
+    await clientResult;
+  });
+
+  it("aborts an active turn only through the explicit stop endpoint", async () => {
+    mocks.streamChatWithTools.mockImplementation(
+      async (params) =>
+        new Promise((_resolve, reject) => {
+          params.abortSignal?.addEventListener(
+            "abort",
+            () => {
+              const error = new Error("Stream aborted.");
+              error.name = "AbortError";
+              reject(error);
+            },
+            { once: true },
+          );
+        }),
+    );
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    const activeRequest = request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        expected_version: 0,
+        current_turn: { kind: "message", content: "Stop explicitly" },
+      })
+      .then((response) => response);
+
+    await vi.waitFor(() => {
+      expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
+    });
+    const stopped = await request(loaded.app)
+      .post(`/chat/${created.body.id}/stop`)
+      .send({});
+
+    expect(stopped.status).toBe(200);
+    expect(stopped.body).toEqual({ stopped: true });
+    expect((await activeRequest).status).toBe(200);
+    expect(
+      loaded.store.getAnonymousChat(USER_ID, created.body.id),
+    ).toMatchObject({
+      transcript_version: 2,
+      messages: [
+        { role: "user", content: "Stop explicitly" },
+        {
+          role: "assistant",
+          content: [{ type: "content", text: "Cancelled by user." }],
+        },
+      ],
+    });
+  });
+
   it("persists partial content and terminal failures for canonical replay", async () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       params.callbacks?.onContentDelta?.("Partial answer");
@@ -599,6 +797,41 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(
       loaded.store.getAnonymousChat(USER_ID, created.body.id),
     ).toBeNull();
+  });
+
+  it("persists project association changes across reload", async () => {
+    mocks.matterDocuments = [];
+    let loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    const associated = await request(loaded.app)
+      .patch(`/chat/${created.body.id}`)
+      .send({ project_id: PROJECT_ID });
+    expect(associated.status).toBe(200);
+    expect(associated.body).toMatchObject({
+      id: created.body.id,
+      project_id: PROJECT_ID,
+    });
+
+    loaded = await loadApp();
+    expect((await request(loaded.app).get(`/chat/${created.body.id}`)).body.chat)
+      .toMatchObject({
+        id: created.body.id,
+        project_id: PROJECT_ID,
+      });
+
+    const unlinked = await request(loaded.app)
+      .patch(`/chat/${created.body.id}`)
+      .send({ project_id: null });
+    expect(unlinked.status).toBe(200);
+    expect(unlinked.body.project_id).toBeNull();
+
+    loaded = await loadApp();
+    expect((await request(loaded.app).get(`/chat/${created.body.id}`)).body.chat)
+      .toMatchObject({
+        id: created.body.id,
+        project_id: null,
+      });
   });
 
   it("does not resurrect project chats deleted with their matter", async () => {

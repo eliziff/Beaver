@@ -160,13 +160,13 @@ describe("POST /chat — streaming endpoint", () => {
 });
 
 describe("PATCH /chat/:chatId", () => {
-    it("returns 400 when title is missing", async () => {
+    it("returns 400 when no supported update is present", async () => {
         const res = await request(app)
             .patch("/chat/chat-1")
             .set("Authorization", "Bearer test")
             .send({});
 
         expect(res.status).toBe(400);
-        expect(res.body.detail).toBe("title is required");
+        expect(res.body.detail).toBe("title or project_id is required");
     });
 });

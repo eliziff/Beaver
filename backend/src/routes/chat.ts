@@ -12,7 +12,9 @@ import {
   AssistantStreamError,
   buildCancelledAssistantMessage,
   CLIENT_WORK_PRODUCT_PRESUMPTION,
+  devLog,
   extractCitations,
+  formatChatMessageContent,
   isAbortError,
   runLLMStream,
   stripTransientAssistantEvents,
@@ -42,7 +44,11 @@ import {
 } from "../lib/chat/localPdfEvidenceState";
 import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
-import { createCitation, parseCitations } from "../lib/chat/citations";
+import {
+  citationUrls,
+  createCitation,
+  parseCitations,
+} from "../lib/chat/citations";
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
@@ -62,6 +68,7 @@ import {
   deleteAnonymousChat,
   getAnonymousChat,
   listAnonymousChats,
+  updateAnonymousChatProject,
   updateAnonymousChatTitle,
   resetAnonymousAssistantEvents,
   type AnonymousChat,
@@ -82,11 +89,12 @@ import { legalKnowledgeGraphStore } from "../lib/legalKnowledgeGraphStore";
 import { listLocalDocumentsById } from "../lib/localDocumentStore";
 import { readLocalPdfEvidenceReceipt } from "../lib/localPdfLookup";
 import {
-  anonymousTurnInProgress,
-  anonymousTurnWasDeleted,
-  beginAnonymousTurn,
-  finishAnonymousTurn,
-} from "../lib/anonymousChatTurns";
+  abortChatTurn,
+  beginChatTurn,
+  chatTurnInProgress,
+  chatTurnWasDeleted,
+  finishChatTurn,
+} from "../lib/chatTurns";
 import {
   claimAnonymousCodexSession,
   deleteAnonymousProviderSessions,
@@ -97,10 +105,6 @@ import {
 export const chatRouter = Router();
 
 type Db = ReturnType<typeof createServerSupabase>;
-const isDev = process.env.NODE_ENV !== "production";
-const devLog = (...args: Parameters<typeof console.log>) => {
-  if (isDev) console.log(...args);
-};
 
 const TITLE_FALLBACK = "Misc. Query";
 const LOCAL_PDF_EVIDENCE_REGISTRY_EVENT = "local_pdf_evidence_handles";
@@ -130,6 +134,14 @@ type LocalPdfEvidenceRegistryItem =
   | LibraryPdfEvidenceRegistryItem
   | ProviderPdfEvidenceRegistryItem;
 
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const trimmedString = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
 function providerRegistryItem(
   item: LocalPdfEvidenceRegistryItem,
 ): item is ProviderPdfEvidenceRegistryItem {
@@ -143,83 +155,59 @@ function registryItemKey(item: LocalPdfEvidenceRegistryItem) {
 }
 
 function registryItem(value: unknown): LocalPdfEvidenceRegistryItem | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const row = value as Record<string, unknown>;
-  const handle = typeof row.handle === "string" ? row.handle.trim() : "";
-  const sourceReference =
-    typeof row.source_reference === "string"
-      ? row.source_reference.trim()
-      : "";
-  if (
-    LOCAL_PDF_EVIDENCE_HANDLE.test(handle) &&
-    PROVIDER_PDF_SOURCE_REFERENCE.test(sourceReference)
-  ) {
+  const row = asRecord(value);
+  if (!row) return null;
+  const handle = trimmedString(row.handle);
+  if (!LOCAL_PDF_EVIDENCE_HANDLE.test(handle)) return null;
+  const sourceReference = trimmedString(row.source_reference);
+  if (PROVIDER_PDF_SOURCE_REFERENCE.test(sourceReference)) {
     return { handle, source_reference: sourceReference };
   }
-  const documentId =
-    typeof row.document_id === "string" ? row.document_id.trim() : "";
-  const versionId =
-    typeof row.version_id === "string" ? row.version_id.trim() : "";
-  if (
-    !LOCAL_PDF_EVIDENCE_HANDLE.test(handle) ||
-    !documentId ||
-    !versionId ||
-    documentId.length > 200 ||
-    versionId.length > 200
-  ) {
+  const documentId = trimmedString(row.document_id);
+  const versionId = trimmedString(row.version_id);
+  if (!documentId || !versionId || documentId.length > 200 || versionId.length > 200) {
     return null;
   }
-  return {
-    handle,
-    document_id: documentId,
-    version_id: versionId,
-  };
+  return { handle, document_id: documentId, version_id: versionId };
 }
 
+// Reads the registry event from the newest assistant message only; older
+// messages never carry a fresher registry.
 function priorLocalPdfEvidenceRegistry(
   chat: AnonymousChat,
   allowedDocumentIds?: ReadonlySet<string>,
 ) {
-  for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
-    const message = chat.messages[index];
-    if (message.role !== "assistant") continue;
-    if (!Array.isArray(message.content)) return [];
-    for (
-      let eventIndex = message.content.length - 1;
-      eventIndex >= 0;
-      eventIndex -= 1
-    ) {
-      const value = message.content[eventIndex];
-      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-      const event = value as Record<string, unknown>;
+  const assistant = [...chat.messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  if (!Array.isArray(assistant?.content)) return [];
+  const event = [...assistant.content]
+    .reverse()
+    .map(asRecord)
+    .find(
+      (row) =>
+        row?.type === LOCAL_PDF_EVIDENCE_REGISTRY_EVENT &&
+        row.schema_version === 1,
+    );
+  if (!event) return [];
+  const seen = new Set<string>();
+  return (Array.isArray(event.handles) ? event.handles : [])
+    .map(registryItem)
+    .filter((item): item is LocalPdfEvidenceRegistryItem => {
+      const itemKey = item ? registryItemKey(item) : "";
       if (
-        event.type !== LOCAL_PDF_EVIDENCE_REGISTRY_EVENT ||
-        event.schema_version !== 1
+        !item ||
+        seen.has(itemKey) ||
+        (allowedDocumentIds &&
+          !providerRegistryItem(item) &&
+          !allowedDocumentIds.has(item.document_id))
       ) {
-        continue;
+        return false;
       }
-      const seen = new Set<string>();
-      return (Array.isArray(event.handles) ? event.handles : [])
-        .map(registryItem)
-        .filter((item): item is LocalPdfEvidenceRegistryItem => {
-          const itemKey = item ? registryItemKey(item) : "";
-          if (
-            !item ||
-            seen.has(itemKey) ||
-            (allowedDocumentIds &&
-              !providerRegistryItem(item) &&
-              !allowedDocumentIds.has(item.document_id))
-          ) {
-            return false;
-          }
-          seen.add(itemKey);
-          return true;
-        })
-        .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
-    }
-    return [];
-  }
-  return [];
+      seen.add(itemKey);
+      return true;
+    })
+    .slice(0, MAX_LOCAL_PDF_EVIDENCE_HANDLES);
 }
 
 async function activeLocalPdfEvidenceRegistry(
@@ -239,20 +227,16 @@ async function activeLocalPdfEvidenceRegistry(
         }));
       }
       try {
-        const receipt = await readLocalPdfEvidenceReceipt(handle);
-        if (
-          allowedDocumentIds &&
-          !allowedDocumentIds.has(receipt.source.document_id)
-        ) {
-          return [];
-        }
-        return [
-          {
-            handle,
-            document_id: receipt.source.document_id,
-            version_id: receipt.source.version_id,
-          },
-        ];
+        const { source } = await readLocalPdfEvidenceReceipt(handle);
+        return allowedDocumentIds && !allowedDocumentIds.has(source.document_id)
+          ? []
+          : [
+              {
+                handle,
+                document_id: source.document_id,
+                version_id: source.version_id,
+              },
+            ];
       } catch {
         return [];
       }
@@ -296,6 +280,12 @@ function localPdfEvidenceRegistryPrompt(
   );
 }
 
+const HIDDEN_LOCAL_EVENT_TYPES = new Set<unknown>([
+  LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+  LOCAL_MUTATION_COMMITTED_EVENT,
+  LOCAL_TURN_COMPLETED_EVENT,
+]);
+
 function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
   return messages.flatMap((storedMessage) => {
     const { turn_id: turnId, ...message } = storedMessage;
@@ -303,16 +293,7 @@ function visibleAnonymousMessages(messages: AnonymousChatMessage[]) {
       return [message];
     }
     const content = message.content.filter(
-      (event) =>
-        !event ||
-        typeof event !== "object" ||
-        Array.isArray(event) ||
-        ((event as Record<string, unknown>).type !==
-          LOCAL_PDF_EVIDENCE_REGISTRY_EVENT &&
-          (event as Record<string, unknown>).type !==
-            LOCAL_MUTATION_COMMITTED_EVENT &&
-          (event as Record<string, unknown>).type !==
-            LOCAL_TURN_COMPLETED_EVENT),
+      (event) => !HIDDEN_LOCAL_EVENT_TYPES.has(asRecord(event)?.type),
     );
     if (turnId && content.length === 0) return [];
     return [{ ...message, content }];
@@ -323,8 +304,7 @@ function anonymousTurnDocumentIds(value: unknown): string[] | null {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return null;
   const ids = value.map((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-    const id = (item as Record<string, unknown>).document_id;
+    const id = asRecord(item)?.document_id;
     return typeof id === "string" && id.trim() ? id.trim() : null;
   });
   return ids.every((id): id is string => id !== null) ? ids : null;
@@ -345,29 +325,14 @@ function sameAnonymousNormalTurn(
   ) {
     return false;
   }
-  const storedWorkflow =
-    stored.workflow &&
-    typeof stored.workflow === "object" &&
-    !Array.isArray(stored.workflow)
-      ? (stored.workflow as Record<string, unknown>)
-      : undefined;
+  const storedWorkflow = asRecord(stored.workflow) ?? undefined;
   return (
     (storedWorkflow?.id ?? undefined) === workflow?.id &&
     (storedWorkflow?.title ?? undefined) === workflow?.title
   );
 }
 
-type AnonymousNormalTurnState = {
-  user: AnonymousChatMessage;
-  assistant?: AnonymousChatMessage;
-  completed: boolean;
-  mutationCommitted: boolean;
-};
-
-function anonymousNormalTurnState(
-  chat: AnonymousChat,
-  turnId: string,
-): AnonymousNormalTurnState | null {
+function anonymousNormalTurnState(chat: AnonymousChat, turnId: string) {
   const user = chat.messages.find(
     (message) => message.role === "user" && message.turn_id === turnId,
   );
@@ -378,28 +343,14 @@ function anonymousNormalTurnState(
       (message) =>
         message.role === "assistant" && message.turn_id === turnId,
     );
-  const events = Array.isArray(assistant?.content)
-    ? assistant.content
-    : [];
+  const events = Array.isArray(assistant?.content) ? assistant.content : [];
+  const hasEvent = (type: string) =>
+    events.some((event) => asRecord(event)?.type === type);
   return {
     user,
     assistant,
-    completed: events.some(
-      (event) =>
-        !!event &&
-        typeof event === "object" &&
-        !Array.isArray(event) &&
-        (event as Record<string, unknown>).type ===
-          LOCAL_TURN_COMPLETED_EVENT,
-    ),
-    mutationCommitted: events.some(
-      (event) =>
-        !!event &&
-        typeof event === "object" &&
-        !Array.isArray(event) &&
-        (event as Record<string, unknown>).type ===
-          LOCAL_MUTATION_COMMITTED_EVENT,
-    ),
+    completed: hasEvent(LOCAL_TURN_COMPLETED_EVENT),
+    mutationCommitted: hasEvent(LOCAL_MUTATION_COMMITTED_EVENT),
   };
 }
 
@@ -411,26 +362,18 @@ function appendAnonymousNormalTurnEvents(
 ) {
   const state = anonymousNormalTurnState(chat, turnId);
   if (!state) throw new Error("Anonymous turn receipt is missing");
-  if (state.assistant) {
-    if (
-      !appendAnonymousAssistantEvents(
-        chat,
-        events,
-        citations,
-        undefined,
-        turnId,
-      )
-    ) {
-      throw new Error("Anonymous turn response receipt is missing");
-    }
+  if (!state.assistant) {
+    appendAnonymousMessage(chat, {
+      turn_id: turnId,
+      role: "assistant",
+      content: events,
+      citations,
+    });
     return;
   }
-  appendAnonymousMessage(chat, {
-    turn_id: turnId,
-    role: "assistant",
-    content: events,
-    citations,
-  });
+  if (!appendAnonymousAssistantEvents(chat, events, citations, undefined, turnId)) {
+    throw new Error("Anonymous turn response receipt is missing");
+  }
 }
 
 function storedAskInputsResponse(
@@ -440,9 +383,8 @@ function storedAskInputsResponse(
   if (!parsed || !Array.isArray(event.responses)) return null;
   const rawById = new Map(
     event.responses.flatMap((value) => {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-      const row = value as Record<string, unknown>;
-      return typeof row.id === "string"
+      const row = asRecord(value);
+      return row && typeof row.id === "string"
         ? [[row.id.trim().slice(0, 80), row] as const]
         : [];
     }),
@@ -452,12 +394,9 @@ function storedAskInputsResponse(
     const rawDocuments = rawById.get(item.id)?.documents;
     if (!Array.isArray(rawDocuments)) continue;
     item.documents = rawDocuments.flatMap((value) => {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-      const row = value as Record<string, unknown>;
-      const documentId =
-        typeof row.document_id === "string" ? row.document_id.trim() : "";
-      const filename =
-        typeof row.filename === "string" ? row.filename.trim() : "";
+      const row = asRecord(value);
+      const documentId = trimmedString(row?.document_id);
+      const filename = trimmedString(row?.filename);
       return documentId && filename
         ? [{ document_id: documentId, filename }]
         : [];
@@ -484,32 +423,25 @@ function pendingAnonymousAskInputs(
   let responseFailed = false;
   let mutationCommitted = false;
   for (const value of assistant.content) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const event = value as Record<string, unknown>;
+    const event = asRecord(value);
+    if (!event) continue;
     if (event.type === "ask_inputs") {
       const normalized = normalizeAskInputsEvent(event);
       ask = normalized.items.length ? normalized : null;
       response = null;
       responseFailed = false;
       mutationCommitted = false;
-      continue;
-    }
-    if (event.type === "ask_inputs_response" && ask) {
+    } else if (event.type === "ask_inputs_response" && ask) {
       response = storedAskInputsResponse(event);
       responseFailed = false;
       mutationCommitted = false;
+    } else if (!response) {
       continue;
-    }
-    if (!response) continue;
-    if (event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
+    } else if (event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
       mutationCommitted = true;
-      continue;
-    }
-    if (event.type === "error") {
+    } else if (event.type === "error") {
       responseFailed = true;
-      continue;
-    }
-    if (event.type === "content" && typeof event.text === "string") {
+    } else if (event.type === "content" && typeof event.text === "string") {
       responseFailed =
         event.text.trim().toLowerCase() === "cancelled by user.";
     }
@@ -531,19 +463,17 @@ function canonicalAnonymousAskInputsResponse(
   response: AskInputsResponseRequest,
   files: { filename: string; document_id: string }[],
 ): CanonicalAskInputsResponse {
+  const fail = (detail: string): CanonicalAskInputsResponse => ({
+    ok: false,
+    detail,
+  });
   if (response.responses.length !== pending.items.length) {
-    return {
-      ok: false,
-      detail: "Response does not match the pending assistant questions",
-    };
+    return fail("Response does not match the pending assistant questions");
   }
   const responsesById = new Map<string, AskInputResponseItem>();
   for (const item of response.responses) {
     if (responsesById.has(item.id)) {
-      return {
-        ok: false,
-        detail: "Response contains a duplicate assistant question",
-      };
+      return fail("Response contains a duplicate assistant question");
     }
     responsesById.set(item.id, item);
   }
@@ -554,17 +484,11 @@ function canonicalAnonymousAskInputsResponse(
   for (const item of pending.items) {
     const submitted = responsesById.get(item.id);
     if (!submitted || submitted.kind !== item.kind) {
-      return {
-        ok: false,
-        detail: "Response does not match the pending assistant questions",
-      };
+      return fail("Response does not match the pending assistant questions");
     }
     if (item.kind === "choice" && submitted.kind === "choice") {
       if (submitted.question.trim() !== item.question) {
-        return {
-          ok: false,
-          detail: "Response question does not match the assistant question",
-        };
+        return fail("Response question does not match the assistant question");
       }
       if (submitted.skipped) {
         canonical.push({
@@ -580,10 +504,7 @@ function canonicalAnonymousAskInputsResponse(
         (option) => option.value === answer,
       );
       if (!answer || (!knownAnswer && !item.allow_other)) {
-        return {
-          ok: false,
-          detail: "Response choice is not available for this question",
-        };
+        return fail("Response choice is not available for this question");
       }
       canonical.push({
         id: item.id,
@@ -621,10 +542,7 @@ function canonicalAnonymousAskInputsResponse(
         documents.length === 0 ||
         documents.length !== submittedDocuments.length
       ) {
-        return {
-          ok: false,
-          detail: "Response documents are not attached to this turn",
-        };
+        return fail("Response documents are not attached to this turn");
       }
       canonical.push({
         id: item.id,
@@ -700,7 +618,23 @@ type AccessibleChat = {
 } & Record<string, unknown>;
 
 function sseWrite(res: import("express").Response, payload: unknown) {
+  if (res.destroyed || res.writableEnded) return;
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+/** Starts the SSE response and claims the chat's single-turn lock. */
+function beginSseTurn(res: import("express").Response, chatId: string) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  const streamAbort = new AbortController();
+  if (!beginChatTurn(chatId, streamAbort)) {
+    res.end();
+    return null;
+  }
+  return streamAbort;
 }
 
 export async function streamAnonymousChat(params: {
@@ -717,47 +651,43 @@ export async function streamAnonymousChat(params: {
   attachedDocuments?: { filename: string; document_id: string }[];
 }) {
   const { res, userId } = params;
+  const fail = (status: number, detail: string) => {
+    res.status(status).json({ detail });
+  };
+  const conflict = (code: string, currentVersion: number, detail?: string) => {
+    res.status(409).json({
+      code,
+      current_version: currentVersion,
+      ...(detail ? { detail } : {}),
+    });
+  };
   const existingChat = params.chatId
     ? getAnonymousChat(userId, params.chatId)
     : null;
-  if (params.chatId && !existingChat) {
-    res.status(404).json({ detail: "Chat not found" });
-    return;
-  }
+  if (params.chatId && !existingChat) return fail(404, "Chat not found");
   if (!existingChat && params.expectedVersion !== 0) {
-    res.status(409).json({
-      code: "chat_version_conflict",
-      current_version: 0,
-    });
-    return;
+    return conflict("chat_version_conflict", 0);
   }
   if (
     existingChat &&
     params.projectIdProvided &&
     existingChat.project_id !== (params.projectId ?? null)
   ) {
-    res.status(400).json({ detail: "project_id does not match chat" });
-    return;
+    return fail(400, "project_id does not match chat");
   }
   const projectId = existingChat?.project_id ?? params.projectId ?? null;
   const matterDocumentIds = projectId
     ? legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId)
     : undefined;
-  if (projectId && !matterDocumentIds) {
-    res.status(404).json({ detail: "Project not found" });
-    return;
-  }
+  if (projectId && !matterDocumentIds) return fail(404, "Project not found");
   const allowedDocumentIds = matterDocumentIds
     ? new Set(matterDocumentIds)
     : undefined;
-  const displayedDocumentId =
-    typeof params.displayedDocument?.document_id === "string"
-      ? params.displayedDocument.document_id.trim()
-      : "";
-  const attachedDocumentIds = (params.attachedDocuments ?? []).map((document) =>
-    typeof document?.document_id === "string"
-      ? document.document_id.trim()
-      : "",
+  const displayedDocumentId = trimmedString(
+    params.displayedDocument?.document_id,
+  );
+  const attachedDocumentIds = (params.attachedDocuments ?? []).map((doc) =>
+    trimmedString(doc?.document_id),
   );
   const requestedFocusIds = [
     ...(displayedDocumentId ? [displayedDocumentId] : []),
@@ -772,39 +702,36 @@ export async function streamAnonymousChat(params: {
         (documentId) => !allowedDocumentIds.has(documentId),
       ))
   ) {
-    res.status(400).json({ detail: "Focused document is not in this matter" });
-    return;
+    return fail(400, "Focused document is not in this matter");
   }
   const uniqueFocusIds = [...new Set(requestedFocusIds)];
   const focusedDocuments = uniqueFocusIds.length
     ? await listLocalDocumentsById(userId, uniqueFocusIds)
     : [];
   if (focusedDocuments.length !== uniqueFocusIds.length) {
-    res.status(400).json({ detail: "Focused document is unavailable" });
-    return;
+    return fail(400, "Focused document is unavailable");
   }
   const focusedById = new Map(
     focusedDocuments.map((document) => [document.id, document] as const),
   );
-  const focusLines: string[] = [];
-  if (displayedDocumentId) {
-    focusLines.push(
-      `Displayed document: ${JSON.stringify(
-        focusedById.get(displayedDocumentId)!.filename,
-      )} (document_id: ${displayedDocumentId})`,
-    );
-  }
-  if (attachedDocumentIds.length) {
-    focusLines.push(
-      "User-attached documents for this turn:",
-      ...attachedDocumentIds.map(
-        (documentId) =>
-          `- ${JSON.stringify(
-            focusedById.get(documentId)!.filename,
-          )} (document_id: ${documentId})`,
-      ),
-    );
-  }
+  const focusName = (documentId: string) =>
+    JSON.stringify(focusedById.get(documentId)!.filename);
+  const focusLines = [
+    ...(displayedDocumentId
+      ? [
+          `Displayed document: ${focusName(displayedDocumentId)} (document_id: ${displayedDocumentId})`,
+        ]
+      : []),
+    ...(attachedDocumentIds.length
+      ? [
+          "User-attached documents for this turn:",
+          ...attachedDocumentIds.map(
+            (documentId) =>
+              `- ${focusName(documentId)} (document_id: ${documentId})`,
+          ),
+        ]
+      : []),
+  ];
   const focusPrompt = focusLines.length
     ? `CURRENT MATTER FOCUS:\n${focusLines.join("\n")}\n\n`
     : "";
@@ -823,15 +750,13 @@ export async function streamAnonymousChat(params: {
     allowedDocumentIds &&
     turnDocumentIds.some((documentId) => !allowedDocumentIds.has(documentId))
   ) {
-    res.status(400).json({ detail: "Attached document is not in this matter" });
-    return;
+    return fail(400, "Attached document is not in this matter");
   }
   const turnDocuments = turnDocumentIds.length
     ? await listLocalDocumentsById(userId, turnDocumentIds)
     : [];
   if (turnDocuments.length !== turnDocumentIds.length) {
-    res.status(400).json({ detail: "Attached document is unavailable" });
-    return;
+    return fail(400, "Attached document is unavailable");
   }
   const turnDocumentById = new Map(
     turnDocuments.map((document) => [document.id, document] as const),
@@ -874,20 +799,11 @@ export async function streamAnonymousChat(params: {
       allowedDocumentIds,
     );
   } catch (error) {
-    res.status(400).json({
-      detail: safeErrorMessage(error, "Invalid image attachment"),
-    });
-    return;
+    return fail(400, safeErrorMessage(error, "Invalid image attachment"));
   }
   const selectedModel = params.model || DEFAULT_MAIN_MODEL;
-  if (
-    imagesByDocumentId.size &&
-    !modelSupportsImageInput(selectedModel)
-  ) {
-    res.status(400).json({
-      detail: `Model "${selectedModel}" does not support image input.`,
-    });
-    return;
+  if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
+    return fail(400, `Model "${selectedModel}" does not support image input.`);
   }
   const chat = existingChat ?? createAnonymousChat(userId, projectId);
   const priorEvidenceRegistry = priorLocalPdfEvidenceRegistry(
@@ -902,7 +818,8 @@ export async function streamAnonymousChat(params: {
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
         : "The user's local Beaver Library is connected"
-    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. Revise a Library DOCX with library_revise_docx using its exact active version_id; never claim a revision succeeded without its receipt. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and return job.open_path; do not parse the document or invent local paths yourself. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
+    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a revision succeeded without its tool receipt, and return its exact app_url as the edited-document link. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document with split_fallback auto, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration.\n\n` +
+    "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it. A selected Library document is already provided by document_id: use the Library tools and infer its available representation. Never ask the user to choose between PDF, DOCX, or text views.\n\n" +
     "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
     focusPrompt +
     priorEvidencePrompt +
@@ -934,12 +851,8 @@ export async function streamAnonymousChat(params: {
       })
     : null;
 
-  if (anonymousTurnInProgress(chat.id)) {
-    res.status(409).json({
-      code: "chat_turn_in_progress",
-      current_version: chat.transcript_version,
-    });
-    return;
+  if (chatTurnInProgress(chat.id)) {
+    return conflict("chat_turn_in_progress", chat.transcript_version);
   }
   const normalTurnId =
     params.currentTurn.kind === "message"
@@ -950,20 +863,14 @@ export async function streamAnonymousChat(params: {
     if (params.currentTurn.kind === "ask_inputs_response") {
       const pending = pendingAnonymousAskInputs(chat);
       if (!pending) {
-        res.status(400).json({
-          detail: "No assistant question is available for this response",
-        });
-        return;
+        return fail(400, "No assistant question is available for this response");
       }
       const canonicalResponse = canonicalAnonymousAskInputsResponse(
         pending.event,
         params.currentTurn.response,
         canonicalTurnFiles,
       );
-      if (!canonicalResponse.ok) {
-        res.status(400).json({ detail: canonicalResponse.detail });
-        return;
-      }
+      if (!canonicalResponse.ok) return fail(400, canonicalResponse.detail);
       if (pending.retryResponse) {
         if (
           !sameAskInputsResponse(
@@ -971,24 +878,17 @@ export async function streamAnonymousChat(params: {
             canonicalResponse.response,
           )
         ) {
-          res.status(400).json({
-            detail: "Retry the same response to the assistant questions",
-          });
-          return;
+          return fail(400, "Retry the same response to the assistant questions");
         }
         if (pending.mutationCommitted) {
-          res.status(409).json({
-            code: "chat_retry_blocked_after_mutation",
-            current_version: chat.transcript_version,
-            detail:
-              "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.",
-          });
-          return;
+          return conflict(
+            "chat_retry_blocked_after_mutation",
+            chat.transcript_version,
+            "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.",
+          );
         }
         if (chat.transcript_version !== params.expectedVersion) {
-          throw new AnonymousChatVersionConflictError(
-            chat.transcript_version,
-          );
+          return conflict("chat_version_conflict", chat.transcript_version);
         }
       } else {
         const appended = appendAnonymousAssistantEvents(
@@ -1005,10 +905,10 @@ export async function streamAnonymousChat(params: {
           params.expectedVersion,
         );
         if (!appended) {
-          res.status(400).json({
-            detail: "No assistant question is available for this response",
-          });
-          return;
+          return fail(
+            400,
+            "No assistant question is available for this response",
+          );
         }
       }
     } else {
@@ -1024,41 +924,29 @@ export async function streamAnonymousChat(params: {
             params.currentTurn.message.workflow,
           )
         ) {
-          res.status(400).json({
-            detail: "turn_id was already used for a different message",
-          });
-          return;
+          return fail(400, "turn_id was already used for a different message");
         }
         if (priorTurn.completed) {
-          res.status(409).json({
-            code: "chat_turn_already_completed",
-            current_version: chat.transcript_version,
-          });
-          return;
-        }
-        if (priorTurn.mutationCommitted) {
-          res.status(409).json({
-            code: "chat_retry_blocked_after_mutation",
-            current_version: chat.transcript_version,
-            detail:
-              "The prior response changed local data before it stopped. Review that result before sending a new instruction.",
-          });
-          return;
-        }
-        if (chat.transcript_version !== params.expectedVersion) {
-          throw new AnonymousChatVersionConflictError(
+          return conflict(
+            "chat_turn_already_completed",
             chat.transcript_version,
           );
+        }
+        if (priorTurn.mutationCommitted) {
+          return conflict(
+            "chat_retry_blocked_after_mutation",
+            chat.transcript_version,
+            "The prior response changed local data before it stopped. Review that result before sending a new instruction.",
+          );
+        }
+        if (chat.transcript_version !== params.expectedVersion) {
+          return conflict("chat_version_conflict", chat.transcript_version);
         }
         const lastUser = [...chat.messages]
           .reverse()
           .find((message) => message.role === "user");
         if (lastUser?.id !== priorTurn.user.id) {
-          res.status(409).json({
-            code: "chat_version_conflict",
-            current_version: chat.transcript_version,
-          });
-          return;
+          return conflict("chat_version_conflict", chat.transcript_version);
         }
         if (
           priorTurn.assistant &&
@@ -1084,11 +972,7 @@ export async function streamAnonymousChat(params: {
     }
   } catch (error) {
     if (error instanceof AnonymousChatVersionConflictError) {
-      res.status(409).json({
-        code: "chat_version_conflict",
-        current_version: error.currentVersion,
-      });
-      return;
+      return conflict("chat_version_conflict", error.currentVersion);
     }
     throw error;
   }
@@ -1129,25 +1013,12 @@ export async function streamAnonymousChat(params: {
         )
       : chat.messages,
   ).map(withinMatter);
-  const lastUser = [...messages].reverse().find((message) => {
-    return message.role === "user" && typeof message.content === "string";
-  });
+  const lastUser = [...messages]
+    .reverse()
+    .find((m) => m.role === "user" && typeof m.content === "string");
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
-
-  const streamAbort = new AbortController();
-  if (!beginAnonymousTurn(chat.id, streamAbort)) {
-    res.end();
-    return;
-  }
-  let streamFinished = false;
-  res.on("close", () => {
-    if (!streamFinished) streamAbort.abort();
-  });
+  const streamAbort = beginSseTurn(res, chat.id);
+  if (!streamAbort) return;
 
   let rawText = "";
   let visibleText = "";
@@ -1167,81 +1038,116 @@ export async function streamAnonymousChat(params: {
   let pendingAskInputs: AskInputsEvent | null = null;
   let askInputsFinalized = false;
   let localMutationCommitted = false;
+  // Flushes the splitter's held-back tail into visibleText; sseWrite
+  // already no-ops on a destroyed/ended response.
+  const flushTail = (emit = true) => {
+    const tail = splitter.takeTail();
+    if (!tail) return;
+    visibleText += tail;
+    if (emit) sseWrite(res, { type: "content_delta", text: tail });
+  };
+  const withEvidenceRegistry = async (events: unknown[]) => {
+    const registry = mergeLocalPdfEvidenceRegistries(
+      await activeLocalPdfEvidenceRegistry(
+        localPdfEvidenceHandles,
+        allowedDocumentIds,
+      ),
+      priorEvidenceRegistry,
+    );
+    if (registry.length > 0) {
+      events.push({
+        type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
+        schema_version: 1,
+        handles: registry,
+      });
+    }
+    return events;
+  };
+  // Routes assistant events to the store slot for this turn kind. Only a
+  // normal (turn_id) turn gets the completion receipt, and only when the
+  // turn is finishing rather than recording an interim event.
+  const persistTurnEvents = (
+    events: unknown[],
+    opts: { citations?: unknown[]; complete?: boolean } = {},
+  ) => {
+    if (params.currentTurn.kind === "ask_inputs_response") {
+      appendAnonymousAssistantEvents(chat, events, opts.citations);
+    } else if (normalTurnId) {
+      appendAnonymousNormalTurnEvents(
+        chat,
+        normalTurnId,
+        opts.complete
+          ? [
+              ...events,
+              { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
+            ]
+          : events,
+        opts.citations,
+      );
+    } else {
+      appendAnonymousMessage(chat, {
+        role: "assistant",
+        content: events,
+        citations: opts.citations,
+      });
+    }
+  };
+  const maybeSetTitle = () => {
+    if (!chat.title && lastUser?.content) {
+      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
+    }
+  };
+  const sseFinishTurn = (citations: unknown[]) => {
+    sseWrite(res, {
+      type: "transcript_version",
+      transcriptVersion: chat.transcript_version,
+    });
+    sseWrite(res, { type: "content_done" });
+    sseWrite(res, { type: "citations", status: "final", citations });
+    if (!res.destroyed && !res.writableEnded) res.write("data: [DONE]\n\n");
+  };
+  const toolReply = (id: string, payload: unknown) => ({
+    tool_use_id: id,
+    content: JSON.stringify(payload),
+  });
+  const runTurnTools = (calls: Parameters<typeof runLocalAssistantTools>[1]) =>
+    runLocalAssistantTools(
+      userId,
+      calls,
+      a2ajLookups,
+      a2ajDocuments,
+      courtlistenerState,
+      publicLegalState,
+      allowedDocumentIds,
+      localPdfEvidenceHandles,
+      projectId,
+    );
   const acceptPendingAskInputs = (event: AskInputsEvent) => {
     if (pendingAskInputs || event.items.length === 0) return;
     pendingAskInputs = event;
     rawText = "";
     visibleText = "";
     splitter.reset();
-    if (!res.destroyed) sseWrite(res, { type: "content_reset" });
+    sseWrite(res, { type: "content_reset" });
   };
   const finalizePendingAskInputs = async () => {
     const event = pendingAskInputs;
     if (!event || askInputsFinalized) return Boolean(event);
     if (isCodex) discardProviderSession();
-    {
-      const tail = splitter.takeTail();
-      if (tail) {
-        visibleText += tail;
-        if (!res.destroyed) {
-          sseWrite(res, { type: "content_delta", text: tail });
-        }
-      }
-    }
-    const assistantEvents: unknown[] = visibleText
-      ? [{ type: "content", text: visibleText }]
-      : [];
-    assistantEvents.push(event);
-    const activeEvidenceRegistry = await activeLocalPdfEvidenceRegistry(
-      localPdfEvidenceHandles,
-      allowedDocumentIds,
-    );
-    const nextEvidenceRegistry = mergeLocalPdfEvidenceRegistries(
-      activeEvidenceRegistry,
-      priorEvidenceRegistry,
-    );
-    if (nextEvidenceRegistry.length > 0) {
-      assistantEvents.push({
-        type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
-        schema_version: 1,
-        handles: nextEvidenceRegistry,
-      });
-    }
-    if (anonymousTurnWasDeleted(chat.id)) {
+    flushTail();
+    const assistantEvents = await withEvidenceRegistry([
+      ...(visibleText ? [{ type: "content", text: visibleText }] : []),
+      event,
+    ]);
+    if (chatTurnWasDeleted(chat.id)) {
       askInputsFinalized = true;
       return true;
     }
-    if (params.currentTurn.kind === "ask_inputs_response") {
-      appendAnonymousAssistantEvents(chat, assistantEvents);
-    } else if (normalTurnId) {
-      appendAnonymousNormalTurnEvents(chat, normalTurnId, [
-        ...assistantEvents,
-        { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
-      ]);
-    } else {
-      appendAnonymousMessage(chat, {
-        role: "assistant",
-        content: assistantEvents,
-      });
-    }
-    if (!chat.title && lastUser?.content) {
-      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
-    }
+    persistTurnEvents(assistantEvents, { complete: true });
+    maybeSetTitle();
     askInputsFinalized = true;
-    if (!res.destroyed) {
-      sseWrite(res, event);
-      sseWrite(res, {
-        type: "transcript_version",
-        transcriptVersion: chat.transcript_version,
-      });
-      sseWrite(res, { type: "content_done" });
-      sseWrite(res, {
-        type: "citations",
-        status: "final",
-        citations: [],
-      });
-      res.write("data: [DONE]\n\n");
-    }
+    sseWrite(res, event);
+    sseFinishTurn([]);
     return true;
   };
   let providerActivity = false;
@@ -1258,7 +1164,7 @@ export async function streamAnonymousChat(params: {
       messages: (continuationId ? messages.slice(-1) : messages).map(
         (message) => ({
           role: message.role === "assistant" ? "assistant" : "user",
-          content: message.content ?? "",
+          content: formatChatMessageContent(message),
           images: imagesForMessage(message, imagesByDocumentId),
         }),
       ),
@@ -1284,94 +1190,57 @@ export async function streamAnonymousChat(params: {
                 (call) => call.name !== "ask_inputs",
               );
               const otherResults = otherCalls.length
-                ? await runLocalAssistantTools(
-                    userId,
-                    otherCalls,
-                    a2ajLookups,
-                    a2ajDocuments,
-                    courtlistenerState,
-                    publicLegalState,
-                    allowedDocumentIds,
-                    localPdfEvidenceHandles,
-                    projectId,
-                  )
+                ? await runTurnTools(otherCalls)
                 : [];
-              return calls.map((call) =>
-                call.name === "ask_inputs"
-                  ? {
-                      tool_use_id: call.id,
-                      content: JSON.stringify({
+              return calls.map(
+                (call) =>
+                  (call.name === "ask_inputs"
+                    ? toolReply(call.id, {
                         ok: false,
                         error:
                           "ask_inputs must be called before document or workflow changes in a turn",
-                      }),
-                    }
-                  : (otherResults.find(
-                      (result) => result.tool_use_id === call.id,
-                    ) ?? {
-                      tool_use_id: call.id,
-                      content: JSON.stringify({
-                        ok: false,
-                        error: "Tool result is unavailable",
-                      }),
-                    }),
+                      })
+                    : otherResults.find(
+                        (result) => result.tool_use_id === call.id,
+                      )) ??
+                  toolReply(call.id, {
+                    ok: false,
+                    error: "Tool result is unavailable",
+                  }),
               );
             }
           }
         }
         if (pendingAskInputs) {
-          const results = calls.map((call) => ({
-            tool_use_id: call.id,
-            content: JSON.stringify({
-              ok: true,
-              status: "waiting_for_user",
-            }),
-          }));
+          const results = calls.map((call) =>
+            toolReply(call.id, { ok: true, status: "waiting_for_user" }),
+          );
           streamAbort.abort();
           return results;
         }
-        const results = await runLocalAssistantTools(
-          userId,
-          calls,
-          a2ajLookups,
-          a2ajDocuments,
-          courtlistenerState,
-          publicLegalState,
-          allowedDocumentIds,
-          localPdfEvidenceHandles,
-          projectId,
-        );
+        const results = await runTurnTools(calls);
         const mutationWasAlreadyCommitted = localMutationCommitted;
         for (const call of calls) {
           if (!LOCAL_MUTATION_TOOL_NAMES.has(call.name)) continue;
-          const toolResult = results.find(
+          const content = results.find(
             (result) => result.tool_use_id === call.id,
-          );
+          )?.content;
           try {
-            const parsed = JSON.parse(toolResult?.content ?? "{}") as {
-              ok?: unknown;
-            };
-            if (parsed.ok === true) localMutationCommitted = true;
-          } catch {
-            // A mutation is only considered committed on an explicit receipt.
-          }
+            // A mutation only counts as committed on an explicit receipt.
+            if ((JSON.parse(content ?? "{}") as { ok?: unknown }).ok === true) {
+              localMutationCommitted = true;
+            }
+          } catch {}
         }
         if (
           !mutationWasAlreadyCommitted &&
           localMutationCommitted &&
-          !anonymousTurnWasDeleted(chat.id)
+          !chatTurnWasDeleted(chat.id) &&
+          (params.currentTurn.kind === "ask_inputs_response" || normalTurnId)
         ) {
-          const mutationEvent = {
-            type: LOCAL_MUTATION_COMMITTED_EVENT,
-            schema_version: 1,
-          };
-          if (params.currentTurn.kind === "ask_inputs_response") {
-            appendAnonymousAssistantEvents(chat, [mutationEvent]);
-          } else if (normalTurnId) {
-            appendAnonymousNormalTurnEvents(chat, normalTurnId, [
-              mutationEvent,
-            ]);
-          }
+          persistTurnEvents([
+            { type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1 },
+          ]);
         }
         return results;
       },
@@ -1419,13 +1288,7 @@ export async function streamAnonymousChat(params: {
       }
     }
 
-    {
-      const tail = splitter.takeTail();
-      if (tail) {
-        visibleText += tail;
-        sseWrite(res, { type: "content_delta", text: tail });
-      }
-    }
+    flushTail();
     if (await finalizePendingAskInputs()) return;
     const citations = parseCitations(rawText).map((citation) =>
       createCitation(
@@ -1437,72 +1300,33 @@ export async function streamAnonymousChat(params: {
         publicLegalState,
       ),
     );
-    const citationUrls = citations.flatMap((citation) => {
-      const url = "url" in citation ? citation.url : null;
-      return typeof url === "string" ? [url] : [];
-    });
-    const providerLinkedText = appendPublicLegalPinpointLinks(
-      appendA2AJPinpointLinks(visibleText.trimEnd(), a2ajLookups),
-      publicLegalState,
-      citationUrls,
-    );
+    const urls = citationUrls(citations);
     const linkedText = await appendLocalPdfPinpointLinks(
-      providerLinkedText,
+      appendPublicLegalPinpointLinks(
+        appendA2AJPinpointLinks(visibleText.trimEnd(), a2ajLookups),
+        publicLegalState,
+        urls,
+      ),
       userId,
       localPdfEvidenceHandles,
       allowedDocumentIds,
-      citationUrls,
+      urls,
     );
     const linkDelta = linkedText.slice(visibleText.trimEnd().length);
     if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
     visibleText = linkedText;
 
-    const assistantEvents: unknown[] = visibleText
-      ? [{ type: "content", text: visibleText }]
-      : [
-          {
+    const assistantEvents = await withEvidenceRegistry([
+      visibleText
+        ? { type: "content", text: visibleText }
+        : {
             type: "error",
             message: "The selected model returned no response.",
           },
-        ];
-    const activeEvidenceRegistry = await activeLocalPdfEvidenceRegistry(
-      localPdfEvidenceHandles,
-      allowedDocumentIds,
-    );
-    const nextEvidenceRegistry = mergeLocalPdfEvidenceRegistries(
-      activeEvidenceRegistry,
-      priorEvidenceRegistry,
-    );
-    if (nextEvidenceRegistry.length > 0) {
-      assistantEvents.push({
-        type: LOCAL_PDF_EVIDENCE_REGISTRY_EVENT,
-        schema_version: 1,
-        handles: nextEvidenceRegistry,
-      });
-    }
-    if (anonymousTurnWasDeleted(chat.id)) return;
-    if (params.currentTurn.kind === "ask_inputs_response") {
-      appendAnonymousAssistantEvents(chat, assistantEvents, citations);
-    } else if (normalTurnId) {
-      appendAnonymousNormalTurnEvents(
-        chat,
-        normalTurnId,
-        [
-          ...assistantEvents,
-          { type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 },
-        ],
-        citations,
-      );
-    } else {
-      appendAnonymousMessage(chat, {
-        role: "assistant",
-        content: assistantEvents,
-        citations,
-      });
-    }
-    if (!chat.title && lastUser?.content) {
-      updateAnonymousChatTitle(chat, normalizeGeneratedTitle(lastUser.content));
-    }
+    ]);
+    if (chatTurnWasDeleted(chat.id)) return;
+    persistTurnEvents(assistantEvents, { citations, complete: true });
+    maybeSetTitle();
     if (
       isCodex &&
       codexCompatibilityKey &&
@@ -1530,17 +1354,7 @@ export async function streamAnonymousChat(params: {
     } else if (isCodex) {
       discardProviderSession();
     }
-    sseWrite(res, {
-      type: "transcript_version",
-      transcriptVersion: chat.transcript_version,
-    });
-    sseWrite(res, { type: "content_done" });
-    sseWrite(res, {
-      type: "citations",
-      status: "final",
-      citations,
-    });
-    res.write("data: [DONE]\n\n");
+    sseFinishTurn(citations);
   } catch (error) {
     if (pendingAskInputs) {
       try {
@@ -1555,46 +1369,28 @@ export async function streamAnonymousChat(params: {
     if (isCodex) discardProviderSession();
     const message = safeErrorMessage(error, "Model request failed");
     console.error("[chat/anonymous]", safeErrorLog(error));
-    const pendingTail = splitter.takeTail();
-    const visiblePartial = visibleText + pendingTail;
-    if (
-      !anonymousTurnWasDeleted(chat.id) &&
-      !streamAbort.signal.aborted &&
-      pendingTail
-    ) {
-      sseWrite(res, { type: "content_delta", text: pendingTail });
-    }
-    if (!anonymousTurnWasDeleted(chat.id)) {
-      try {
-        const partialEvents = visiblePartial
-          ? [{ type: "content", text: visiblePartial }]
-          : [];
-        const errorEvents = isAbortError(error)
-          ? [
-              ...partialEvents,
-              { type: "content", text: "Cancelled by user." },
-            ]
-          : [...partialEvents, { type: "error", message }];
-        if (params.currentTurn.kind === "ask_inputs_response") {
-          appendAnonymousAssistantEvents(chat, errorEvents);
-        } else if (normalTurnId) {
-          appendAnonymousNormalTurnEvents(chat, normalTurnId, errorEvents);
-        } else {
-          appendAnonymousMessage(chat, {
-            role: "assistant",
-            content: errorEvents,
-          });
-        }
-      } catch (persistError) {
-        console.error(
-          "[chat/anonymous] failed to persist model error",
-          safeErrorLog(persistError),
-        );
-      }
-    }
-    if (anonymousTurnWasDeleted(chat.id)) {
+    const deleted = chatTurnWasDeleted(chat.id);
+    flushTail(!deleted && !streamAbort.signal.aborted);
+    if (deleted) {
       // Deletion is authoritative; do not recreate or write to the chat.
-    } else if (!res.headersSent) {
+      return;
+    }
+    try {
+      const partialEvents = visibleText
+        ? [{ type: "content", text: visibleText }]
+        : [];
+      persistTurnEvents(
+        isAbortError(error)
+          ? [...partialEvents, { type: "content", text: "Cancelled by user." }]
+          : [...partialEvents, { type: "error", message }],
+      );
+    } catch (persistError) {
+      console.error(
+        "[chat/anonymous] failed to persist model error",
+        safeErrorLog(persistError),
+      );
+    }
+    if (!res.headersSent) {
       res.status(502).json({ detail: message });
     } else if (!streamAbort.signal.aborted) {
       sseWrite(res, {
@@ -1606,11 +1402,10 @@ export async function streamAnonymousChat(params: {
         type: "transcript_version",
         transcriptVersion: chat.transcript_version,
       });
-      res.write("data: [DONE]\n\n");
+      if (!res.destroyed && !res.writableEnded) res.write("data: [DONE]\n\n");
     }
   } finally {
-    finishAnonymousTurn(chat.id);
-    streamFinished = true;
+    finishChatTurn(chat.id, streamAbort);
     res.end();
   }
 }
@@ -1624,22 +1419,9 @@ function parseOptionalProjectId(
     return { ok: true, provided: false, projectId: null };
   if (value === null) return { ok: true, provided: true, projectId: null };
   if (typeof value !== "string" || !value.trim()) {
-    return {
-      ok: false,
-      detail: "project_id must be a non-empty string or null",
-    };
+    return { ok: false, detail: "project_id must be a non-empty string or null" };
   }
   return { ok: true, provided: true, projectId: value.trim() };
-}
-
-function parseOptionalChatId(
-  value: unknown,
-): { ok: true; chatId: string | null } | { ok: false; detail: string } {
-  if (value === undefined || value === null) return { ok: true, chatId: null };
-  if (typeof value !== "string" || !value.trim()) {
-    return { ok: false, detail: "chat_id must be a non-empty string" };
-  }
-  return { ok: true, chatId: value.trim() };
 }
 
 export function parseChatMessages(
@@ -1666,16 +1448,6 @@ export function parseChatMessages(
   }
 
   return { ok: true, messages: value as ChatMessage[] };
-}
-
-function parseOptionalModel(
-  value: unknown,
-): { ok: true; model: string | undefined } | { ok: false; detail: string } {
-  if (value === undefined) return { ok: true, model: undefined };
-  if (typeof value !== "string" || !value.trim()) {
-    return { ok: false, detail: "model must be a non-empty string" };
-  }
-  return { ok: true, model: value.trim() };
 }
 
 async function validateAccessibleProjectId(
@@ -1725,13 +1497,15 @@ async function getAccessibleChat(
 // own projects in the global recent-chats list). Chats in projects that
 // are merely *shared with* the user are NOT included here — those are
 // listed per-project via GET /projects/:projectId/chats.
+function parseListLimit(raw: unknown, fallback: number | null) {
+  const limit = Number.parseInt(String(raw ?? ""), 10);
+  return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : fallback;
+}
+
 chatRouter.get("/", requireAuth, async (req, res) => {
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
-    const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
-    const limit = Number.isFinite(requestedLimit)
-      ? Math.min(Math.max(requestedLimit, 1), 100)
-      : 20;
+    const limit = parseListLimit(req.query.limit, 20) as number;
     res.json(
       listAnonymousChats(userId)
         .filter((chat) => chat.project_id === null)
@@ -1743,11 +1517,7 @@ chatRouter.get("/", requireAuth, async (req, res) => {
   try {
     const userId = res.locals.userId as string;
     const db = createServerSupabase();
-    const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
-    const limit = Number.isFinite(requestedLimit)
-      ? Math.min(Math.max(requestedLimit, 1), 100)
-      : null;
-
+    const limit = parseListLimit(req.query.limit, null);
     const { data, error } = await db.rpc("get_chats_overview", {
       p_user_id: userId,
       p_limit: limit,
@@ -1824,6 +1594,25 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
   res.json({ chat, messages: hydrated });
 });
 
+chatRouter.post("/:chatId/stop", requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const userEmail = res.locals.userEmail as string | undefined;
+  const { chatId } = req.params;
+
+  if (isAnonymousLocalMode()) {
+    if (!getAnonymousChat(userId, chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+  } else {
+    const db = createServerSupabase();
+    if (!(await getAccessibleChat(chatId, userId, userEmail, db))) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+  }
+
+  res.json({ stopped: abortChatTurn(chatId) });
+});
+
 // Stored doc_edited events capture the `status` at the time the assistant
 // produced the edit (always "pending"). If the user later accepts or rejects,
 // `document_edits.status` is updated but the stored event is not. On chat load
@@ -1861,12 +1650,8 @@ async function hydrateEditStatuses(
       .select("id, status")
       .in("id", Array.from(editIds));
     for (const r of (rows ?? []) as { id: string; status: string }[]) {
-      if (
-        r.status === "pending" ||
-        r.status === "accepted" ||
-        r.status === "rejected"
-      ) {
-        statusById.set(r.id, r.status);
+      if (["pending", "accepted", "rejected"].includes(r.status)) {
+        statusById.set(r.id, r.status as "pending" | "accepted" | "rejected");
       }
     }
   }
@@ -1885,45 +1670,34 @@ async function hydrateEditStatuses(
     }
   }
 
+  const withVersionNumber = (row: Record<string, unknown>) =>
+    typeof row.version_id === "string" && versionNumberById.has(row.version_id)
+      ? {
+          ...row,
+          version_number: versionNumberById.get(row.version_id) ?? null,
+        }
+      : row;
   const patchAnnList = (list: unknown): unknown => {
     if (!Array.isArray(list)) return list;
-    return (list as Record<string, unknown>[]).map((a) => {
-      let next = a;
-      if (typeof a?.edit_id === "string" && statusById.has(a.edit_id)) {
-        next = { ...next, status: statusById.get(a.edit_id) };
-      }
-      if (
-        typeof a?.version_id === "string" &&
-        versionNumberById.has(a.version_id)
-      ) {
-        next = {
-          ...next,
-          version_number: versionNumberById.get(a.version_id) ?? null,
-        };
-      }
-      return next;
-    });
+    return (list as Record<string, unknown>[]).map((a) =>
+      withVersionNumber(
+        typeof a?.edit_id === "string" && statusById.has(a.edit_id)
+          ? { ...a, status: statusById.get(a.edit_id) }
+          : a,
+      ),
+    );
   };
   return messages.map((m) => {
     const next: Record<string, unknown> = { ...m };
     if (Array.isArray(m.content)) {
-      next.content = (m.content as Record<string, unknown>[]).map((ev) => {
-        if (ev?.type !== "doc_edited") return ev;
-        let patched: Record<string, unknown> = {
-          ...ev,
-          annotations: patchAnnList(ev.annotations),
-        };
-        if (
-          typeof ev.version_id === "string" &&
-          versionNumberById.has(ev.version_id)
-        ) {
-          patched = {
-            ...patched,
-            version_number: versionNumberById.get(ev.version_id) ?? null,
-          };
-        }
-        return patched;
-      });
+      next.content = (m.content as Record<string, unknown>[]).map((ev) =>
+        ev?.type === "doc_edited"
+          ? withVersionNumber({
+              ...ev,
+              annotations: patchAnnList(ev.annotations),
+            })
+          : ev,
+      );
     }
     return next;
   });
@@ -1931,25 +1705,88 @@ async function hydrateEditStatuses(
 
 chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
+  const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
-  const title = (req.body.title ?? "").trim();
-  if (!title) return void res.status(400).json({ detail: "title is required" });
+  const body =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const titleProvided = Object.prototype.hasOwnProperty.call(body, "title");
+  const projectProvided = Object.prototype.hasOwnProperty.call(
+    body,
+    "project_id",
+  );
+  if (!titleProvided && !projectProvided) {
+    return void res
+      .status(400)
+      .json({ detail: "title or project_id is required" });
+  }
+
+  let title: string | undefined;
+  if (titleProvided) {
+    title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title)
+      return void res.status(400).json({ detail: "title is required" });
+  }
+  const parsedProjectId = projectProvided
+    ? parseOptionalProjectId(body.project_id)
+    : ({ ok: true, provided: false, projectId: null } as const);
+  if (!parsedProjectId.ok) {
+    return void res.status(400).json({ detail: parsedProjectId.detail });
+  }
 
   if (isAnonymousLocalMode()) {
     const chat = getAnonymousChat(userId, chatId);
     if (!chat) return void res.status(404).json({ detail: "Chat not found" });
-    updateAnonymousChatTitle(chat, title);
-    res.json({ id: chat.id, title: chat.title });
+    if (
+      projectProvided &&
+      parsedProjectId.projectId &&
+      !legalKnowledgeGraphStore().getMatter(
+        userId,
+        parsedProjectId.projectId,
+      )
+    ) {
+      return void res.status(404).json({ detail: "Project not found" });
+    }
+    if (title) updateAnonymousChatTitle(chat, title);
+    if (projectProvided) {
+      updateAnonymousChatProject(chat, parsedProjectId.projectId);
+    }
+    res.json({
+      id: chat.id,
+      title: chat.title,
+      project_id: chat.project_id,
+    });
     return;
   }
 
   const db = createServerSupabase();
+  const existing = await getAccessibleChat(chatId, userId, userEmail, db);
+  if (!existing || existing.user_id !== userId) {
+    return void res.status(404).json({ detail: "Chat not found" });
+  }
+  if (projectProvided) {
+    const projectAccess = await validateAccessibleProjectId(
+      parsedProjectId.projectId,
+      userId,
+      userEmail,
+      db,
+    );
+    if (!projectAccess.ok) {
+      return void res
+        .status(projectAccess.status)
+        .json({ detail: projectAccess.detail });
+    }
+  }
+  const updates: { title?: string; project_id?: string | null } = {};
+  if (title) updates.title = title;
+  if (projectProvided) updates.project_id = parsedProjectId.projectId;
   const { data, error } = await db
     .from("chats")
-    .update({ title })
+    .update(updates)
     .eq("id", chatId)
     .eq("user_id", userId)
-    .select("id, title")
+    .select("id, title, project_id")
     .single();
 
   if (error || !data)
@@ -1982,8 +1819,7 @@ chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
-  const message =
-    typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  const message = trimmedString(req.body?.message);
   if (!message)
     return void res.status(400).json({ detail: "message is required" });
 
@@ -2025,25 +1861,31 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? (req.body as Record<string, unknown>)
       : {};
-  const parsedChatId = parseOptionalChatId(body.chat_id);
-  if (!parsedChatId.ok) {
-    return void res.status(400).json({ detail: parsedChatId.detail });
+  if (
+    body.chat_id != null &&
+    (typeof body.chat_id !== "string" || !body.chat_id.trim())
+  ) {
+    return void res
+      .status(400)
+      .json({ detail: "chat_id must be a non-empty string" });
   }
+  const chat_id = typeof body.chat_id === "string" ? body.chat_id.trim() : null;
   const parsedProjectId = parseOptionalProjectId(body.project_id);
   if (!parsedProjectId.ok) {
     return void res.status(400).json({ detail: parsedProjectId.detail });
   }
-  const parsedModel = parseOptionalModel(body.model);
-  if (!parsedModel.ok) {
-    return void res.status(400).json({ detail: parsedModel.detail });
+  if (
+    body.model !== undefined &&
+    (typeof body.model !== "string" || !body.model.trim())
+  ) {
+    return void res
+      .status(400)
+      .json({ detail: "model must be a non-empty string" });
   }
-  const chat_id = parsedChatId.chatId;
   const project_id = parsedProjectId.projectId;
-  const model = parsedModel.model;
+  const model = typeof body.model === "string" ? body.model.trim() : undefined;
   const reasoningEffort =
-    typeof body.reasoning_effort === "string"
-      ? body.reasoning_effort.trim().slice(0, 32) || undefined
-      : undefined;
+    trimmedString(body.reasoning_effort).slice(0, 32) || undefined;
 
   if (isAnonymousLocalMode()) {
     if (body.messages !== undefined) {
@@ -2155,6 +1997,32 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
   devLog("[chat/stream] resolved chatId", chatId);
 
+  const turnChatId = chatId;
+  // In the ask_inputs continuation case events append to the prior
+  // assistant row; otherwise they are a fresh assistant message.
+  const persistAssistantTurn = async (
+    events: Parameters<typeof appendAssistantEventsToLastAssistantMessage>[2],
+    citations: unknown[],
+  ) => {
+    if (askInputsResponse) {
+      await appendAssistantEventsToLastAssistantMessage(
+        db,
+        turnChatId,
+        events,
+        citations,
+      );
+      return null;
+    }
+    return (
+      await db.from("chat_messages").insert({
+        chat_id: turnChatId,
+        role: "assistant",
+        content: events.length ? events : null,
+        citations: citations.length ? citations : null,
+      })
+    ).error;
+  };
+
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   if (askInputsResponse) {
     await appendAskInputsResponseToLastAssistantMessage(
@@ -2187,10 +2055,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     });
   }
   const selectedModel = model || DEFAULT_MAIN_MODEL;
-  if (
-    imagesByDocumentId.size &&
-    !modelSupportsImageInput(selectedModel)
-  ) {
+  if (imagesByDocumentId.size && !modelSupportsImageInput(selectedModel)) {
     return void res.status(400).json({
       detail: `Model "${selectedModel}" does not support image input.`,
     });
@@ -2226,18 +2091,11 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     workflowCount: Object.keys(workflowStore).length,
   });
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
-
-  const write = (line: string) => res.write(line);
-  const streamAbort = new AbortController();
-  let streamFinished = false;
-  res.on("close", () => {
-    if (!streamFinished) streamAbort.abort();
-  });
+  const write = (line: string) => {
+    if (!res.destroyed && !res.writableEnded) res.write(line);
+  };
+  const streamAbort = beginSseTurn(res, chatId);
+  if (!streamAbort) return;
 
   try {
     write(`data: ${JSON.stringify({ type: "chat_id", chatId })}\n\n`);
@@ -2263,22 +2121,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       eventCount: events?.length ?? 0,
     });
 
-    const persistedEvents = stripTransientAssistantEvents(events);
-    if (askInputsResponse) {
-      await appendAssistantEventsToLastAssistantMessage(
-        db,
-        chatId,
-        persistedEvents,
-        citations,
-      );
-    } else {
-      await db.from("chat_messages").insert({
-        chat_id: chatId,
-        role: "assistant",
-        content: persistedEvents.length ? persistedEvents : null,
-        citations: citations.length ? citations : null,
-      });
-    }
+    await persistAssistantTurn(stripTransientAssistantEvents(events), citations);
 
     if (!chatTitle && lastUser?.content) {
       await db
@@ -2296,24 +2139,10 @@ chatRouter.post("/", requireAuth, async (req, res) => {
           buildCitations: (fullText, events) =>
             extractCitations(fullText, docIndex, events),
         });
-        const saveError = askInputsResponse
-          ? null
-          : (
-              await db.from("chat_messages").insert({
-                chat_id: chatId,
-                role: "assistant",
-                content: partial.events.length ? partial.events : null,
-                citations: partial.citations.length ? partial.citations : null,
-              })
-            ).error;
-        if (askInputsResponse) {
-          await appendAssistantEventsToLastAssistantMessage(
-            db,
-            chatId,
-            partial.events,
-            partial.citations,
-          );
-        }
+        const saveError = await persistAssistantTurn(
+          partial.events,
+          partial.citations,
+        );
         if (saveError) {
           console.error(
             "[chat/stream] failed to save aborted stream",
@@ -2333,24 +2162,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       err instanceof AssistantStreamError ? err.fullText : "";
     try {
       const citations = extractCitations(errorFullText, docIndex, errorEvents);
-      const saveError = askInputsResponse
-        ? null
-        : (
-            await db.from("chat_messages").insert({
-              chat_id: chatId,
-              role: "assistant",
-              content: errorEvents.length ? errorEvents : null,
-              citations: citations.length ? citations : null,
-            })
-          ).error;
-      if (askInputsResponse) {
-        await appendAssistantEventsToLastAssistantMessage(
-          db,
-          chatId,
-          errorEvents,
-          citations,
-        );
-      }
+      const saveError = await persistAssistantTurn(errorEvents, citations);
       if (saveError)
         console.error("[chat/stream] failed to save error", saveError);
     } catch (saveErr) {
@@ -2359,10 +2171,9 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     try {
       write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
       write("data: [DONE]\n\n");
-    } catch {
-    }
+    } catch {}
   } finally {
-    streamFinished = true;
+    finishChatTurn(chatId, streamAbort);
     res.end();
   }
 });
