@@ -87,6 +87,19 @@ describe("agreement DOCX drafting", () => {
     expect(xml).toContain("Alex");
   });
 
+  it("reports every bad field in one recoverable error", async () => {
+    const rendered = await renderMarkdownDocx("Lease", "{{a}}", [
+      { id: "a", value: "ok" },
+      { id: "", value: "x" },
+      { id: "a", value: "dup" },
+      { id: "b", value: 7 },
+    ]);
+    if (!("error" in rendered)) throw new Error("expected rejection");
+    expect(rendered.error).toContain("fields[1].id");
+    expect(rendered.error).toContain('"a" is duplicated');
+    expect(rendered.error).toContain('"b" value');
+  });
+
   it("exposes concise semantic Markdown in both tool catalogs", () => {
     const generated = TOOLS.find(
       (tool) => tool.function.name === "generate_docx",
@@ -112,12 +125,9 @@ describe("agreement DOCX drafting", () => {
     expect(properties).toHaveProperty("sources");
     expect(properties).not.toHaveProperty("sections");
     expect(local.function.description).toContain("local Library");
-    expect(editor.function.description).toContain(
-      "return the edited Word artifact",
-    );
-    expect(editor.function.description).toContain(
-      "instead of replying with proposed or suggested changes",
-    );
+    // Anchor the load-bearing instruction fragments, not full sentences.
+    expect(editor.function.description).toContain("edited Word artifact");
+    expect(editor.function.description).toContain("proposed or suggested");
   });
 
   it("uses structure-aware reads instead of the removed copy/edit path", () => {

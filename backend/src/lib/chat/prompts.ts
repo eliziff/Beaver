@@ -44,8 +44,7 @@ DOCX GENERATION:
 - If the user asks for slides, a presentation, pitch deck, board deck, or PowerPoint file, call generate_ppt.
 - If the user asks to revise a document you just generated, call edit_document on that document unless they explicitly want a brand-new document or the change is too broad for coherent editing.
 - Use heading levels in order; do not skip from Heading 1 to Heading 3.
-- Numbering starts at 1, never 0. The generator applies legal numbering automatically. Do not type numbering prefixes into headings.
-- Do not repeat the document title as the first section heading.
+- The generator numbers headings automatically.
 - Contract preambles, party blocks, recitals, and WHEREAS clauses are unnumbered. Begin numbering at the first operative clause or section.
 - Contracts and agreements must end with an unnumbered signature block on a fresh page. Put <!-- pagebreak --> before an unnumbered signature heading and include signature lines such as By, Name, Title, and Date for each party.
 
