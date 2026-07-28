@@ -10,17 +10,13 @@ import {
 } from "../lib/documentVersions";
 import { singleFileUpload } from "../lib/upload";
 import { handleDocumentUpload } from "./documents";
-import { normalizeDocumentFilename } from "../lib/normalize";
+import {
+  normalizeDocumentFilename,
+  normalizeLibraryKind,
+  type LibraryKind,
+} from "../lib/normalize";
 
 export const libraryRouter = Router();
-
-type LibraryKind = "file" | "template";
-
-function normalizeLibraryKind(value: unknown): LibraryKind | null {
-  if (value === "file" || value === "files") return "file";
-  if (value === "template" || value === "templates") return "template";
-  return null;
-}
 
 function mapLibraryDocument<T extends Record<string, unknown>>(doc: T) {
   return {
