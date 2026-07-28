@@ -44,8 +44,10 @@ import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import {
     filenameExtensionChangeWarning,
-    formatUnsupportedDocumentWarning,
     hasFilenameExtensionChange,
+} from "@/app/lib/documentFilename";
+import {
+    formatUnsupportedDocumentWarning,
     partitionSupportedDocumentFiles,
     SUPPORTED_DOCUMENT_ACCEPT,
 } from "@/app/lib/documentUploadValidation";
