@@ -228,6 +228,58 @@ describe("extractAnchors: French productions", () => {
   });
 });
 
+describe("extractAnchors: worded durations (statutory drafting)", () => {
+  it("reads English worded durations", () => {
+    expect(norms("not later than eighteen months after", "duration")).toEqual([
+      "dur:18:month",
+    ]);
+    expect(norms("within thirty days of demand", "duration")).toEqual([
+      "dur:30:day",
+    ]);
+  });
+
+  it("reads French worded durations to the same keys", () => {
+    expect(norms("dans les dix-huit mois suivant", "duration")).toEqual([
+      "dur:18:month",
+    ]);
+    expect(norms("dans les quinze mois suivant", "duration")).toEqual([
+      "dur:15:month",
+    ]);
+    expect(norms("un délai de quatre-vingt-dix jours", "duration")).toEqual([
+      "dur:90:day",
+    ]);
+    expect(norms("vingt et un jours francs", "duration")).toEqual([
+      "dur:21:clear_day",
+    ]);
+  });
+
+  it("keeps real bilingual statute text concordant (CBCA s. 133 probe)", () => {
+    // Verbatim (condensed) from A2AJ, laws-lois source, OGL-Canada.
+    const en = {
+      name: "cbca-133-en",
+      text:
+        "The directors of a corporation shall call an annual meeting of " +
+        "shareholders (a) not later than eighteen months after the " +
+        "corporation comes into existence; and (b) subsequently, not later " +
+        "than fifteen months after holding the last preceding annual " +
+        "meeting but no later than six months after the end of the " +
+        "corporation's preceding financial year.",
+    };
+    const fr = {
+      name: "cbca-133-fr",
+      text:
+        "Les administrateurs doivent convoquer une assemblée annuelle : " +
+        "a) dans les dix-huit mois suivant la création de la société; " +
+        "b) par la suite, dans les quinze mois suivant l'assemblée annuelle " +
+        "précédente mais au plus tard dans les six mois suivant la fin de " +
+        "chaque exercice.",
+    };
+    const report = bilingualConcordance(en, fr);
+    expect(report.classes.duration.matched).toBe(3); // 18, 15, 6 months
+    expect(report.discordant).toBe(0);
+  });
+});
+
 describe("bilingualConcordance", () => {
   const en = {
     name: "en",
