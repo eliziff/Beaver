@@ -1,6 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncProfileEmail } from "../lib/userLookup";
+
+type CreateClient = typeof import("@supabase/supabase-js").createClient;
+let createClient: CreateClient | undefined;
+
+function cloudClient() {
+  return (createClient ??=
+    (require("@supabase/supabase-js") as { createClient: CreateClient })
+      .createClient);
+}
 
 const isDev = process.env.NODE_ENV !== "production";
 const devLog = (...args: Parameters<typeof console.log>) => {
@@ -121,7 +130,7 @@ export async function requireAuth(
     return;
   }
 
-  const admin = createClient(supabaseUrl, serviceKey, {
+  const admin = cloudClient()(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
   });
   const { data } = await admin.auth.getUser(token);
@@ -180,7 +189,7 @@ export async function requireMfaIfEnrolled(
     return;
   }
 
-  const admin = createClient(supabaseUrl, serviceKey, {
+  const admin = cloudClient()(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
   });
   const { data, error } =

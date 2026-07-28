@@ -89,13 +89,22 @@ describe("GET /health", () => {
 describe("requireAuth middleware", () => {
     it("accepts protected requests without a token in anonymous mode", async () => {
         const previousMode = process.env.AUTH_MODE;
+        const previousNodeEnv = process.env.NODE_ENV;
+        const previousUrl = process.env.SUPABASE_URL;
+        const previousKey = process.env.SUPABASE_SECRET_KEY;
+        process.env.NODE_ENV = "development";
         process.env.AUTH_MODE = "anonymous";
+        process.env.SUPABASE_URL = "";
+        process.env.SUPABASE_SECRET_KEY = "";
         try {
-            const res = await request(app).get("/chat");
+            const res = await request(app).get("/user/api-keys");
             expect(res.status).toBe(200);
-            expect(res.body).toEqual([]);
+            expect(res.body).toHaveProperty("sources");
         } finally {
             process.env.AUTH_MODE = previousMode;
+            process.env.NODE_ENV = previousNodeEnv;
+            process.env.SUPABASE_URL = previousUrl;
+            process.env.SUPABASE_SECRET_KEY = previousKey;
         }
     });
 

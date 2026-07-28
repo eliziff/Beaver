@@ -6,7 +6,6 @@ import {
   getChat,
   stopChat,
   streamChat,
-  streamProjectChat,
 } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -17,11 +16,8 @@ import type {
   Citation,
   Message,
 } from "@/app/components/shared/types";
-import {
-  parseCourtlistenerCaseSearches,
-  parseCourtlistenerEventCases,
-} from "@/app/lib/assistantEvents";
 import { readSseData } from "@/app/lib/sse";
+import { reduceAssistantStreamEvent } from "@/app/lib/assistantStreamEvents";
 import {
   readSelectedModel,
   readSelectedReasoningEffort,
@@ -506,46 +502,30 @@ export function useAssistantChat({
             workflow: message.workflow,
           };
 
-      const response = await (projectId
-        ? streamProjectChat({
-            projectId,
-            ...(isAnonymousMode
-              ? {
-                  current_turn: currentTurn,
-                  expected_version: transcriptVersionRef.current,
-                }
-              : { messages: apiMessages }),
-            chat_id: chatId,
-            model,
-            reasoning_effort: reasoningEffort,
-            displayed_doc: displayedDoc
-              ? {
-                  filename: displayedDoc.filename,
-                  document_id: displayedDoc.documentId,
-                }
-              : undefined,
-            attached_documents:
-              attachedDocs.length > 0 ? attachedDocs : undefined,
-            ask_inputs_response: isAnonymousMode
-              ? undefined
-              : turnOptions?.askInputsResponse,
-            signal: controller.signal,
-          })
-        : streamChat({
-            ...(isAnonymousMode
-              ? {
-                  current_turn: currentTurn,
-                  expected_version: transcriptVersionRef.current,
-                }
-              : { messages: apiMessages }),
-            chat_id: chatId,
-            model,
-            reasoning_effort: reasoningEffort,
-            ask_inputs_response: isAnonymousMode
-              ? undefined
-              : turnOptions?.askInputsResponse,
-            signal: controller.signal,
-          }));
+      const response = await streamChat({
+        ...(isAnonymousMode
+          ? {
+              current_turn: currentTurn,
+              expected_version: transcriptVersionRef.current,
+            }
+          : { messages: apiMessages }),
+        chat_id: chatId,
+        project_id: projectId,
+        model,
+        reasoning_effort: reasoningEffort,
+        displayed_doc: displayedDoc
+          ? {
+              filename: displayedDoc.filename,
+              document_id: displayedDoc.documentId,
+            }
+          : undefined,
+        attached_documents:
+          attachedDocs.length > 0 ? attachedDocs : undefined,
+        ask_inputs_response: isAnonymousMode
+          ? undefined
+          : turnOptions?.askInputsResponse,
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
         if (isAnonymousMode && response.status === 409 && chatId) {
@@ -680,54 +660,6 @@ export function useAssistantChat({
               continue;
             }
 
-            if (data.type === "content_delta") {
-              const text = data.text as string;
-
-              // Real content is streaming — retire any
-              // "Thinking…" / "Running…" placeholders, and
-              // finalize any in-flight reasoning block so it
-              // doesn't get stuck rendering as streaming.
-              clearStreamingPlaceholders();
-              finalizeStreamingReasoning();
-
-              // Activity renders separately, so keep one answer block even
-              // when a tool notification races a text delta.
-              const events = eventsRef.current;
-              let contentIndex = -1;
-              for (let index = events.length - 1; index >= 0; index--) {
-                const event = events[index];
-                if (event.type === "content" && event.isStreaming) {
-                  contentIndex = index;
-                  break;
-                }
-              }
-              if (contentIndex < 0) {
-                eventsRef.current = [
-                  ...events,
-                  {
-                    type: "content" as const,
-                    text,
-                    isStreaming: true,
-                  },
-                ];
-                scheduleEventsSnapshot();
-              } else {
-                const nextEvents = [...events];
-                const content = events[contentIndex] as Extract<
-                  AssistantEvent,
-                  { type: "content" }
-                >;
-                nextEvents[contentIndex] = {
-                  type: "content" as const,
-                  text: `${content.text}${text}`,
-                  isStreaming: true,
-                };
-                eventsRef.current = nextEvents;
-                scheduleEventsSnapshot();
-              }
-              continue;
-            }
-
             if (data.type === "content_final") {
               flushPendingEventsSnapshot();
               const text = typeof data.text === "string" ? data.text : "";
@@ -763,57 +695,19 @@ export function useAssistantChat({
               continue;
             }
 
-            if (data.type === "reasoning_delta") {
-              const text = data.text as string;
-              let events = eventsRef.current;
-              const last = events[events.length - 1];
-              if (last?.type === "reasoning" && last.isStreaming) {
-                eventsRef.current = [
-                  ...events.slice(0, -1),
-                  {
-                    type: "reasoning" as const,
-                    text: last.text + text,
-                    isStreaming: true,
-                  },
-                ];
+            const reduction = reduceAssistantStreamEvent(eventsRef.current, data);
+            if (reduction) {
+              eventsRef.current = reduction.events;
+              if (reduction.deferPaint) {
+                scheduleEventsSnapshot();
               } else {
-                // New reasoning block — finalize any in-flight
-                // content event first so the next content_delta
-                // starts a fresh block at the correct position.
-                clearStreamingPlaceholders();
-                events = eventsRef.current;
-                eventsRef.current = [
-                  ...events,
-                  {
-                    type: "reasoning" as const,
-                    text,
-                    isStreaming: true,
-                  },
-                ];
+                flushPendingEventsSnapshot();
+                const snapshot = [...reduction.events];
+                updateLatestAssistantMessage((message) => ({
+                  ...message,
+                  events: snapshot,
+                }));
               }
-              scheduleEventsSnapshot();
-              continue;
-            }
-
-            if (data.type === "reasoning_block_end") {
-              const events = eventsRef.current;
-              const last = events[events.length - 1];
-              if (last?.type === "reasoning" && last.isStreaming) {
-                eventsRef.current = [
-                  ...events.slice(0, -1),
-                  {
-                    type: "reasoning" as const,
-                    text: last.text,
-                  },
-                ];
-              }
-              flushPendingEventsSnapshot();
-              const snapshot = [...eventsRef.current];
-              updateLatestAssistantMessage((message) => ({
-                ...message,
-                events: snapshot,
-              }));
-              pushThinkingPlaceholder();
               continue;
             }
 
@@ -837,47 +731,6 @@ export function useAssistantChat({
                 type: "workflow_applied",
                 workflow_id: data.workflow_id as string,
                 title: data.title as string,
-              });
-              continue;
-            }
-
-            if (data.type === "case_citation") {
-              pushEvent({
-                type: "case_citation",
-                cluster_id:
-                  typeof data.cluster_id === "number"
-                    ? (data.cluster_id as number)
-                    : null,
-                case_name:
-                  typeof data.case_name === "string"
-                    ? (data.case_name as string)
-                    : null,
-                citation:
-                  typeof data.citation === "string"
-                    ? (data.citation as string)
-                    : null,
-                url: data.url as string,
-                pdfUrl:
-                  typeof data.pdfUrl === "string" ? (data.pdfUrl as string) : null,
-                dateFiled:
-                  typeof data.dateFiled === "string"
-                    ? (data.dateFiled as string)
-                    : null,
-              });
-              continue;
-            }
-
-            if (data.type === "case_opinions") {
-              pushEvent({
-                type: "case_opinions",
-                cluster_id:
-                  typeof data.cluster_id === "number"
-                    ? (data.cluster_id as number)
-                    : 0,
-                case: data.case as Extract<
-                  AssistantEvent,
-                  { type: "case_opinions" }
-                >["case"],
               });
               continue;
             }
@@ -923,243 +776,6 @@ export function useAssistantChat({
                 }),
               );
               pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "courtlistener_search_case_law_start") {
-              pushEvent({
-                type: "courtlistener_search_case_law",
-                query: (data.query as string) ?? "",
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "courtlistener_search_case_law") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "courtlistener_search_case_law" &&
-                  e.query === (data.query as string) &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "courtlistener_search_case_law",
-                  query: (data.query as string) ?? "",
-                  result_count:
-                    typeof data.result_count === "number"
-                      ? (data.result_count as number)
-                      : 0,
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "courtlistener_get_cases_start") {
-              pushEvent({
-                type: "courtlistener_get_cases",
-                cluster_ids: Array.isArray(data.cluster_ids)
-                  ? (data.cluster_ids as unknown[]).filter(
-                      (value: unknown): value is number =>
-                        typeof value === "number",
-                    )
-                  : [],
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "courtlistener_get_cases") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "courtlistener_get_cases" &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "courtlistener_get_cases",
-                  cluster_ids: Array.isArray(data.cluster_ids)
-                    ? (data.cluster_ids as unknown[]).filter(
-                        (value: unknown): value is number =>
-                          typeof value === "number",
-                      )
-                    : [],
-                  case_count:
-                    typeof data.case_count === "number"
-                      ? (data.case_count as number)
-                      : 0,
-                  opinion_count:
-                    typeof data.opinion_count === "number"
-                      ? (data.opinion_count as number)
-                      : 0,
-                  cases: parseCourtlistenerEventCases(data.cases),
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "courtlistener_find_in_case_start") {
-              const searches = parseCourtlistenerCaseSearches(data.searches);
-              pushEvent({
-                type: "courtlistener_find_in_case",
-                cluster_id: searches?.length
-                  ? null
-                  : typeof data.cluster_id === "number"
-                    ? (data.cluster_id as number)
-                    : null,
-                query: searches?.length ? "" : ((data.query as string) ?? ""),
-                searches,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "courtlistener_find_in_case") {
-              const searches = parseCourtlistenerCaseSearches(data.searches);
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "courtlistener_find_in_case" &&
-                  (searches?.length
-                    ? Array.isArray(e.searches)
-                    : e.cluster_id ===
-                        (typeof data.cluster_id === "number"
-                          ? (data.cluster_id as number)
-                          : null) && e.query === (data.query as string)) &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "courtlistener_find_in_case",
-                  cluster_id: searches?.length
-                    ? null
-                    : typeof data.cluster_id === "number"
-                      ? (data.cluster_id as number)
-                      : null,
-                  query: searches?.length ? "" : ((data.query as string) ?? ""),
-                  total_matches:
-                    typeof data.total_matches === "number"
-                      ? (data.total_matches as number)
-                      : 0,
-                  searches,
-                  case_name:
-                    typeof data.case_name === "string"
-                      ? (data.case_name as string)
-                      : null,
-                  citation:
-                    typeof data.citation === "string"
-                      ? (data.citation as string)
-                      : null,
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "courtlistener_read_case_start") {
-              pushEvent({
-                type: "courtlistener_read_case",
-                cluster_id:
-                  typeof data.cluster_id === "number"
-                    ? (data.cluster_id as number)
-                    : null,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "courtlistener_read_case") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "courtlistener_read_case" &&
-                  e.cluster_id ===
-                    (typeof data.cluster_id === "number"
-                      ? (data.cluster_id as number)
-                      : null) &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "courtlistener_read_case",
-                  cluster_id:
-                    typeof data.cluster_id === "number"
-                      ? (data.cluster_id as number)
-                      : null,
-                  case_name:
-                    typeof data.case_name === "string"
-                      ? (data.case_name as string)
-                      : null,
-                  citation:
-                    typeof data.citation === "string"
-                      ? (data.citation as string)
-                      : null,
-                  opinion_count:
-                    typeof data.opinion_count === "number"
-                      ? (data.opinion_count as number)
-                      : 0,
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "courtlistener_verify_citations_start") {
-              pushEvent({
-                type: "courtlistener_verify_citations",
-                citation_count:
-                  typeof data.citation_count === "number"
-                    ? (data.citation_count as number)
-                    : 0,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "courtlistener_verify_citations") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "courtlistener_verify_citations" &&
-                  !!e.isStreaming,
-                () => ({
-                  type: "courtlistener_verify_citations",
-                  citation_count:
-                    typeof data.citation_count === "number"
-                      ? (data.citation_count as number)
-                      : 0,
-                  match_count:
-                    typeof data.match_count === "number"
-                      ? (data.match_count as number)
-                      : 0,
-                  error:
-                    typeof data.error === "string"
-                      ? (data.error as string)
-                      : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_read_start") {
-              pushEvent({
-                type: "doc_read",
-                filename: data.filename as string,
-                isStreaming: true,
-              });
               continue;
             }
 
@@ -1239,18 +855,6 @@ export function useAssistantChat({
               if (items.length > 0) {
                 pushEvent({ type: "ask_inputs", items });
               }
-              continue;
-            }
-
-            if (data.type === "doc_read") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "doc_read" &&
-                  e.filename === data.filename &&
-                  !!e.isStreaming,
-                (e) => ({ ...e, isStreaming: false }),
-              );
-              pushThinkingPlaceholder();
               continue;
             }
 

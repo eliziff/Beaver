@@ -8,3 +8,9 @@ export function abortError(): Error {
 export function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw abortError();
 }
+
+export function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { name?: unknown; message?: unknown };
+  return record.name === "AbortError" || record.message === "Stream aborted.";
+}

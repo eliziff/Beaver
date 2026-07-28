@@ -220,8 +220,9 @@ describe("account-free matter routes", () => {
     expect(matterHistory.body[0].id).toBe(createdChat.body.id);
 
     const streamed = await request(app)
-      .post(`/projects/${firstMatter.body.id}/chat`)
+      .post("/chat")
       .send({
+        project_id: firstMatter.body.id,
         chat_id: createdChat.body.id,
         expected_version: 0,
         current_turn: { kind: "message", content: "Read this matter." },
@@ -235,8 +236,9 @@ describe("account-free matter routes", () => {
     ).toEqual([source.body.id]);
 
     const unavailableFocus = await request(app)
-      .post(`/projects/${firstMatter.body.id}/chat`)
+      .post("/chat")
       .send({
+        project_id: firstMatter.body.id,
         chat_id: createdChat.body.id,
         expected_version: 2,
         current_turn: {
@@ -273,8 +275,9 @@ describe("account-free matter routes", () => {
     );
 
     const continued = await request(app)
-      .post(`/projects/${firstMatter.body.id}/chat`)
+      .post("/chat")
       .send({
+        project_id: firstMatter.body.id,
         chat_id: createdChat.body.id,
         expected_version: 3,
         current_turn: {
@@ -329,10 +332,9 @@ describe("account-free matter routes", () => {
       "[User responses to requested inputs]\n" +
         `- Documents requested for Record: appeal-record.xlsx (document_id: ${source.body.id})`,
     );
-    // Attached means provided: the turn itself carries the extracted text.
-    expect(lastContent).toContain(
-      `[Attached document "appeal-record.xlsx" (document_id: ${source.body.id}) full text:`,
-    );
+    // Attachments are announced, not preloaded: the manifest above names the
+    // document; its text stays behind the Library tools.
+    expect(lastContent).not.toContain("full text:");
 
     const continuedChat = await request(app).get(
       `/chat/${createdChat.body.id}`,
@@ -352,8 +354,9 @@ describe("account-free matter routes", () => {
     ]);
 
     const wrongMatter = await request(app)
-      .post(`/projects/${secondMatter.body.id}/chat`)
+      .post("/chat")
       .send({
+        project_id: secondMatter.body.id,
         chat_id: createdChat.body.id,
         expected_version: 5,
         current_turn: { kind: "message", content: "Cross the boundary." },
@@ -362,8 +365,9 @@ describe("account-free matter routes", () => {
     expect(wrongMatter.body.detail).toMatch(/does not match/u);
 
     const malformed = await request(app)
-      .post(`/projects/${firstMatter.body.id}/chat`)
+      .post("/chat")
       .send({
+        project_id: firstMatter.body.id,
         expected_version: 5,
         current_turn: { kind: "message", content: 7 },
       });

@@ -16,7 +16,7 @@ import {
   type CourtlistenerCase,
   type CourtlistenerToolState,
 } from "../courtlistenerToolRunner";
-import { executeMcpToolCall, type McpToolEvent } from "../../mcpConnectors";
+import type { McpToolEvent } from "../../mcpConnectors";
 import { createServerSupabase } from "../../supabase";
 import {
   type DocStore,
@@ -498,7 +498,9 @@ export async function runToolCalls(
           name: tc.function.name,
         })}\n\n`,
       );
-      const { content, event } = await executeMcpToolCall(
+      const { content, event } = await (
+        await import("../../mcpConnectors")
+      ).executeMcpToolCall(
         userId,
         tc.function.name,
         args,
