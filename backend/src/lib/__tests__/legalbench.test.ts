@@ -170,6 +170,19 @@ describe("extractLabel", () => {
     ).toBe("Yes");
   });
 
+  it("honours an unambiguous bolded verdict inside a verbose analysis", () => {
+    expect(
+      extractLabel(
+        "I'll verify whether Huff supports that proposition.Supportive? **Yes.**\nThere is no conflicting authority.",
+        YES_NO,
+      ),
+    ).toBe("Yes");
+    // Two different bolded labels stay ambiguous.
+    expect(
+      extractLabel("**Yes** at first glance, but ultimately **No**.", YES_NO),
+    ).toBeNull();
+  });
+
   it("falls back to a unique whole-word label match", () => {
     expect(extractLabel("The answer is Yes", YES_NO)).toBe("Yes");
     expect(
