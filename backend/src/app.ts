@@ -39,6 +39,11 @@ function lazyRouter(load: () => Promise<Router>): RequestHandler {
   };
 }
 
+const localOrCloudRouter = (
+  local: () => Promise<Router>,
+  cloud: () => Promise<Router>,
+) => lazyRouter(() => (isAnonymousLocalMode() ? local() : cloud()));
+
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -174,22 +179,18 @@ app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
 app.use(
   "/single-documents",
-  lazyRouter(() =>
-    isAnonymousLocalMode()
-      ? import("./routes/localDocuments").then(
-          (mod) => mod.localDocumentsRouter,
-        )
-      : import("./routes/documents").then((mod) => mod.documentsRouter),
+  localOrCloudRouter(
+    () => import("./routes/localDocuments").then((mod) => mod.localDocumentsRouter),
+    () => import("./routes/documents").then((mod) => mod.documentsRouter),
   ),
 );
 app.use("/library/legal", legalLibraryRouter);
 app.use("/legal-knowledge", legalKnowledgeRouter);
 app.use(
   "/library",
-  lazyRouter(() =>
-    isAnonymousLocalMode()
-      ? import("./routes/localLibrary").then((mod) => mod.localLibraryRouter)
-      : import("./routes/library").then((mod) => mod.libraryRouter),
+  localOrCloudRouter(
+    () => import("./routes/localLibrary").then((mod) => mod.localLibraryRouter),
+    () => import("./routes/library").then((mod) => mod.libraryRouter),
   ),
 );
 app.use(
