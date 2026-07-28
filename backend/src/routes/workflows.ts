@@ -8,6 +8,7 @@ import {
 } from "../lib/systemWorkflows";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import { findMissingUserEmails } from "../lib/userLookup";
+import { normalizeOptionalString } from "../lib/normalize";
 
 export const workflowsRouter = Router();
 
@@ -191,12 +192,6 @@ function withDatabaseWorkflow(workflow: WorkflowRecord) {
     skill_md: prompt_md ?? null,
     is_system: false,
   };
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed || null;
 }
 
 function normalizeJurisdictions(value: unknown): string[] | null {
