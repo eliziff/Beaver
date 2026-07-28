@@ -41,8 +41,10 @@ function Shell({ route, navigate }: { route: Route; navigate: (route: Route) => 
 
 function Assistant() {
   const [chats, setChats] = useState<Chat[]>([]);
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState("Ready");
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     api.chats().then(setChats).catch(() => setStatus("Start a new local chat"));
@@ -51,14 +53,28 @@ function Assistant() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!prompt.trim()) return;
-    setStatus("Creating chat…");
+    const content = prompt.trim();
+    const nextMessages = [...messages, { role: "user", content }, { role: "assistant", content: "" }];
+    setMessages(nextMessages);
+    setPrompt("");
+    setRunning(true);
+    setStatus("Working…");
     try {
-      await api.createChat(prompt.trim());
-      setChats((current) => [{ id: crypto.randomUUID(), title: prompt.trim() }, ...current]);
-      setPrompt("");
-      setStatus("Chat created");
+      for await (const event of api.streamChat(nextMessages.slice(0, -1))) {
+        if (event.type === "content_delta" && event.text) {
+          setMessages((current) => {
+            const last = current.length - 1;
+            return current.map((message, index) => index === last ? { ...message, content: message.content + event.text } : message);
+          });
+        }
+        if (event.type === "error") throw new Error(event.error || "Chat failed");
+      }
+      setStatus("Ready");
+      setChats((current) => [{ id: crypto.randomUUID(), title: content }, ...current]);
     } catch {
-      setStatus("Could not reach the local runtime");
+      setStatus("Could not complete the local chat");
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -69,11 +85,12 @@ function Assistant() {
         <h1>What are you working on?</h1>
         <p className="muted">Draft, review, or research client work.</p>
         <form className="prompt" onSubmit={submit}>
-          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask Beaver…" rows={3} />
-          <button className="primary" type="submit">Start chat</button>
+          <textarea disabled={running} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask Beaver…" rows={3} />
+          <button className="primary" disabled={running} type="submit">{running ? "Working…" : "Send"}</button>
         </form>
         <span className="status" role="status">{status}</span>
       </div>
+      {messages.length > 0 && <section className="panel transcript">{messages.map((message, index) => <div className={`message ${message.role}`} key={`${message.role}-${index}`}><strong>{message.role === "user" ? "You" : "Beaver"}</strong><p>{message.content || (running ? "…" : "No response")}</p></div>)}</section>}
       <section className="panel">
         <div className="panel-heading"><h2>Recent chats</h2><span>{chats.length}</span></div>
         {chats.length ? chats.slice(0, 8).map((chat) => <div className="row" key={chat.id}>{chat.title || "Untitled chat"}</div>) : <p className="empty">No chats yet.</p>}
