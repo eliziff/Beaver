@@ -97,22 +97,37 @@ function misplaceBlocks(
   return lines.join("\n");
 }
 
+// Base labels (occurrence suffixes stripped): "@n" suffixes disambiguate
+// restarts WITHIN one parse, but cascade unpredictably under damage, so
+// cross-version recall must compare base-label multisets.
 function labelSet(text: string) {
   const skeleton = compileAgreementSkeleton(text);
-  return {
-    labels: new Set(skeleton.nodes.map((node) => node.label)),
-    ladder: skeleton.ladder,
-  };
+  const labels = new Map<string, number>();
+  for (const node of skeleton.nodes) {
+    const base = node.label.replace(/@\d+$/u, "");
+    labels.set(base, (labels.get(base) ?? 0) + 1);
+  }
+  return { labels, ladder: skeleton.ladder };
 }
 
 const anchorSet = (text: string) =>
   new Set(extractAnchors(text).map((hit) => hit.norm));
 
-function recall(clean: Set<string>, dirty: Set<string>): number {
-  if (!clean.size) return 1;
+function recall(
+  clean: Set<string> | Map<string, number>,
+  dirty: Set<string> | Map<string, number>,
+): number {
+  const count = (side: Set<string> | Map<string, number>, key: string) =>
+    side instanceof Map ? (side.get(key) ?? 0) : side.has(key) ? 1 : 0;
+  let total = 0;
   let hits = 0;
-  for (const item of clean) if (dirty.has(item)) hits += 1;
-  return hits / clean.size;
+  for (const [key, n] of clean instanceof Map
+    ? clean.entries()
+    : [...clean].map((k) => [k, 1] as const)) {
+    total += n;
+    hits += Math.min(n, count(dirty, key));
+  }
+  return total ? hits / total : 1;
 }
 
 async function main() {
