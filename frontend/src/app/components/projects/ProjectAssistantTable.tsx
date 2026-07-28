@@ -24,7 +24,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
-import { formatDate } from "@/app/lib/utils";
+import { formatDate, sortRows } from "@/app/lib/utils";
 
 function creatorLabel(chat: Chat, currentUserId?: string | null) {
     if (currentUserId && chat.user_id === currentUserId) return "Me";
@@ -112,22 +112,18 @@ export function ProjectAssistantTable({
         );
         if (!sort) return rows;
 
-        return [...rows].sort((a, b) => {
-            const multiplier = sort.direction === "asc" ? 1 : -1;
+        return sortRows(rows, (a, b) => {
             if (sort.key === "created") {
                 return (
                     (new Date(a.created_at).getTime() -
-                        new Date(b.created_at).getTime()) *
-                    multiplier
+                        new Date(b.created_at).getTime())
                 );
             }
 
-            return (
-                (a.title ?? "Untitled Chat").localeCompare(
-                    b.title ?? "Untitled Chat",
-                ) * multiplier
+            return (a.title ?? "Untitled Chat").localeCompare(
+                b.title ?? "Untitled Chat",
             );
-        });
+        }, sort.direction);
     }, [creatorFilter, currentUserId, filteredChats, sort]);
 
     const allVisibleChatsSelected =

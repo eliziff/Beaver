@@ -37,7 +37,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-import { formatDate } from "@/app/lib/utils";
+import { formatDate, sortRows } from "@/app/lib/utils";
 
 function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
     if (project.is_owner ?? project.user_id === currentUserId) return "Me";
@@ -177,46 +177,32 @@ export function ProjectsOverview() {
 
         if (!sort) return rows;
 
-        return [...rows].sort((a, b) => {
-            const multiplier = sort.direction === "asc" ? 1 : -1;
-
+        return sortRows(rows, (a, b) => {
             if (sort.key === "cm") {
-                return (
-                    (a.cm_number ?? "").localeCompare(b.cm_number ?? "") *
-                    multiplier
-                );
+                return (a.cm_number ?? "").localeCompare(b.cm_number ?? "");
             }
 
             if (sort.key === "files") {
-                return (
-                    ((a.document_count ?? 0) - (b.document_count ?? 0)) *
-                    multiplier
-                );
+                return (a.document_count ?? 0) - (b.document_count ?? 0);
             }
 
             if (sort.key === "chats") {
-                return (
-                    ((a.chat_count ?? 0) - (b.chat_count ?? 0)) * multiplier
-                );
+                return (a.chat_count ?? 0) - (b.chat_count ?? 0);
             }
 
             if (sort.key === "reviews") {
-                return (
-                    ((a.review_count ?? 0) - (b.review_count ?? 0)) *
-                    multiplier
-                );
+                return (a.review_count ?? 0) - (b.review_count ?? 0);
             }
 
             if (sort.key === "created") {
                 return (
-                    (new Date(a.created_at).getTime() -
-                        new Date(b.created_at).getTime()) *
-                    multiplier
+                    new Date(a.created_at).getTime() -
+                    new Date(b.created_at).getTime()
                 );
             }
 
-            return a.name.localeCompare(b.name) * multiplier;
-        });
+            return a.name.localeCompare(b.name);
+        }, sort.direction);
     }, [
         activeFilter,
         ownerFilter,
