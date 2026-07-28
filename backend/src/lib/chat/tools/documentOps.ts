@@ -171,76 +171,19 @@ export async function generateDocx(
   );
   if ("error" in rendered) return rendered;
 
+  // Persist to DB so generated docs are first-class documents: openable in
+  // the DocPanel and editable via edit_document. In project chats we attach
+  // to the project so it appears in the sidebar; in the general chat
+  // project_id stays null and it remains a standalone document.
   try {
-    const { filename, bytes: buf } = rendered;
-    const docId = crypto.randomUUID().replace(/-/g, "");
-    const key = generatedDocKey(userId, docId, filename);
-
-    await uploadFile(
-      key,
-      buf.buffer as ArrayBuffer,
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    );
-    const downloadUrl = buildDownloadUrl(key, filename);
-
-    // Persist to DB so generated docs are first-class documents:
-    // openable in the DocPanel and editable via edit_document. In
-    // project chats we attach to the project so it appears in the
-    // sidebar; in the general chat we leave project_id null and it
-    // stays a standalone document.
-    const { data: docRow, error: docErr } = await db
-      .from("documents")
-      .insert({
-        project_id: options?.projectId ?? null,
-        user_id: userId,
-        status: "ready",
-      })
-      .select("id")
-      .single();
-    if (docErr || !docRow) {
-      return {
-        error: `Failed to record generated document: ${docErr?.message ?? "unknown"}`,
-      };
-    }
-    const documentId = docRow.id as string;
-
-    const { data: versionRow, error: verErr } = await db
-      .from("document_versions")
-      .insert({
-        document_id: documentId,
-        storage_path: key,
-        source: "generated",
-        version_number: 1,
-        filename: filename,
-        file_type: "docx",
-        size_bytes: buf.byteLength,
-        page_count: null,
-      })
-      .select("id")
-      .single();
-    if (verErr || !versionRow) {
-      return {
-        error: `Failed to record generated document version: ${verErr?.message ?? "unknown"}`,
-      };
-    }
-    const versionId = versionRow.id as string;
-
-    await db
-      .from("documents")
-      .update({
-        current_version_id: versionId,
-      })
-      .eq("id", documentId);
-
-    return {
-      filename,
-      download_url: downloadUrl,
-      document_id: documentId,
-      version_id: versionId,
-      version_number: 1,
-      storage_path: key,
-      message: `Document '${filename}' has been generated successfully.`,
-    };
+    return await persistGeneratedFile({
+      title,
+      extension: "docx",
+      buffer: rendered.bytes,
+      userId,
+      db,
+      projectId: options?.projectId ?? null,
+    });
   } catch (e) {
     return { error: String(e) };
   }
@@ -422,16 +365,15 @@ ${normalizedSheets
 }
 
 function pptTextParagraphs(lines: string[], opts: { title?: boolean } = {}) {
+  const titleAttrs = opts.title ? ' sz="3200" b="1"' : ' sz="2000"';
+  const bullet = opts.title
+    ? ""
+    : '<a:pPr marL="342900" indent="-171450"><a:buChar char="&#8226;"/></a:pPr>';
   return lines
-    .map((line, index) => {
-      const escaped = xmlEscape(line);
-      const titleAttrs = opts.title ? ' sz="3200" b="1"' : ' sz="2000"';
-      const bullet =
-        !opts.title && index >= 0
-          ? '<a:pPr marL="342900" indent="-171450"><a:buChar char="&#8226;"/></a:pPr>'
-          : "";
-      return `<a:p>${bullet}<a:r><a:rPr lang="en-US"${titleAttrs}/><a:t>${escaped}</a:t></a:r></a:p>`;
-    })
+    .map(
+      (line) =>
+        `<a:p>${bullet}<a:r><a:rPr lang="en-US"${titleAttrs}/><a:t>${xmlEscape(line)}</a:t></a:r></a:p>`,
+    )
     .join("");
 }
 
@@ -616,7 +558,7 @@ ${slides
 
 async function persistGeneratedFile(params: {
   title: string;
-  extension: "xlsx" | "pptx";
+  extension: "docx" | "xlsx" | "pptx";
   buffer: Buffer;
   userId: string;
   db: ReturnType<typeof createServerSupabase>;
@@ -635,8 +577,10 @@ async function persistGeneratedFile(params: {
     contentTypeForDocumentType(extension),
   );
 
+  // Generated DOCX intentionally gets no PDF rendition (the DocPanel renders
+  // DOCX natively); pptx still converts, xlsx never does.
   let pdfStoragePath: string | null = null;
-  if (shouldConvertToPdf(extension)) {
+  if (extension !== "docx" && shouldConvertToPdf(extension)) {
     try {
       const pdfBuf = await docxToPdf(buffer);
       const pdfKey = convertedPdfKey(userId, docId);
@@ -792,11 +736,6 @@ async function loadCurrentVersionBytes(
   };
 }
 
-/**
- * Ensure the document has a document_versions row for the current upload.
- * Called before writing the first 'assistant_edit' row so the history is
- * complete. Idempotent.
- */
 export async function runEditDocument(params: {
   documentId: string;
   userId: string;
@@ -1104,18 +1043,8 @@ export async function readDocumentContent(
 ): Promise<string> {
   const emitEvents = opts?.emitEvents ?? true;
   const mode = opts?.mode ?? "text";
-  devLog(`[read_document] called with docLabel="${docLabel}"`);
   const docInfo = docStore.get(docLabel);
-  if (!docInfo) {
-    devLog(
-      `[read_document] MISS — docLabel "${docLabel}" not in docStore. Known labels:`,
-      Array.from(docStore.keys()),
-    );
-    return "Document not found.";
-  }
-  devLog(
-    `[read_document] docInfo: filename="${docInfo.filename}", file_type="${docInfo.file_type}", storage_path="${docInfo.storage_path}"`,
-  );
+  if (!docInfo) return "Document not found.";
 
   const documentId = docIndex?.[docLabel]?.document_id;
   const emitDocRead = () => {
@@ -1140,7 +1069,6 @@ export async function readDocumentContent(
     // Prefer the current tracked-changes version (if any) so read_document
     // reflects accepted/pending edits rather than the original upload.
     let raw: ArrayBuffer | null = null;
-    let sourcePath = docInfo.storage_path;
     let versionId = docIndex?.[docLabel]?.version_id ?? null;
     let versionNumber = docIndex?.[docLabel]?.version_number ?? null;
     let activeFileType = docInfo.file_type;
@@ -1153,17 +1081,9 @@ export async function readDocumentContent(
           current.bytes.byteOffset,
           current.bytes.byteOffset + current.bytes.byteLength,
         ) as ArrayBuffer;
-        sourcePath = current.storage_path;
         versionId = current.version_id;
         versionNumber = current.version_number;
         activeFileType = current.file_type ?? activeFileType;
-        devLog(
-          `[read_document] using current version path="${sourcePath}" (bytes=${raw.byteLength})`,
-        );
-      } else {
-        devLog(
-          `[read_document] loadCurrentVersionBytes returned null for documentId="${documentId}", falling back to original storage_path`,
-        );
       }
     }
     if (mode === "drafting" && documentId && db && !currentVersionLoaded) {
@@ -1173,18 +1093,8 @@ export async function readDocumentContent(
         error: "The active DOCX version could not be read",
       });
     }
+    if (!raw) raw = await downloadFile(docInfo.storage_path);
     if (!raw) {
-      raw = await downloadFile(docInfo.storage_path);
-      if (raw) {
-        devLog(
-          `[read_document] fallback download from storage_path="${docInfo.storage_path}" (bytes=${raw.byteLength})`,
-        );
-      }
-    }
-    if (!raw) {
-      devLog(
-        `[read_document] FAILED to download any bytes for docLabel="${docLabel}" (tried path="${sourcePath}")`,
-      );
       emitDocRead();
       return "Document could not be read.";
     }
@@ -1215,63 +1125,31 @@ export async function readDocumentContent(
         ...source,
       });
     }
-    // Log the first 8 bytes so we can identify real file format regardless
-    // of the declared file_type. Valid .docx starts with "PK\x03\x04"
-    // (zip). Legacy .doc starts with "\xD0\xCF\x11\xE0" (OLE/CFB).
-    // %PDF-1 is a PDF even if mislabeled. Truncated uploads show as all-zero.
-    {
-      const head = Buffer.from(raw).subarray(0, 8);
-      const hex = head.toString("hex");
-      const ascii = head.toString("binary").replace(/[^\x20-\x7e]/g, ".");
-      devLog(
-        `[read_document] magic bytes hex=${hex} ascii="${ascii}" for filename="${docInfo.filename}"`,
-      );
-    }
+    const mammothText = async () =>
+      (
+        await (
+          await import("mammoth")
+        ).extractRawText({ buffer: Buffer.from(raw!) })
+      ).value;
     let text: string;
     if (fileType === "pdf") {
       text = await extractPdfText(raw);
-      devLog(
-        `[read_document] pdf extracted length=${text.length} for filename="${docInfo.filename}"`,
-      );
     } else if (fileType === "docx") {
       // Use the same flattening as the edit_document matcher so the
       // LLM sees exactly the characters it can anchor against.
       text = await extractDocxBodyText(Buffer.from(raw));
-      devLog(
-        `[read_document] docx extractDocxBodyText length=${text.length} for filename="${docInfo.filename}"`,
-      );
-      if (!text) {
-        devLog(
-          `[read_document] docx accepted-view extractor returned empty, falling back to mammoth for filename="${docInfo.filename}"`,
-        );
-        const mammoth = await import("mammoth");
-        const result = await mammoth.extractRawText({
-          buffer: Buffer.from(raw),
-        });
-        text = result.value;
-        devLog(
-          `[read_document] docx mammoth fallback length=${text.length} for filename="${docInfo.filename}"`,
-        );
-      }
+      if (!text) text = await mammothText();
     } else if (isSpreadsheetDocumentType(fileType)) {
       // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
       // cell-addressed markdown view with Excel-formatted values.
       text = spreadsheetToLLMText(Buffer.from(raw));
-      devLog(
-        `[read_document] spreadsheet extracted length=${text.length} for filename="${docInfo.filename}"`,
-      );
     } else if (fileType === "pptx") {
       text = await extractPresentationText(Buffer.from(raw));
-      devLog(
-        `[read_document] presentation extracted length=${text.length} for filename="${docInfo.filename}"`,
-      );
     } else if (
       isPresentationDocumentType(fileType) ||
       isWordDocumentType(fileType)
     ) {
-      devLog(
-        `[read_document] legacy Office file_type="${fileType}" for filename="${docInfo.filename}", converting to pdf for text extraction`,
-      );
+      // Legacy Office formats go through a PDF detour for text extraction.
       const pdfBuf = await docxToPdf(Buffer.from(raw));
       text = await extractPdfText(
         pdfBuf.buffer.slice(
@@ -1279,32 +1157,13 @@ export async function readDocumentContent(
           pdfBuf.byteOffset + pdfBuf.byteLength,
         ) as ArrayBuffer,
       );
-      devLog(
-        `[read_document] legacy Office PDF extraction length=${text.length} for filename="${docInfo.filename}"`,
-      );
     } else {
-      devLog(
-        `[read_document] unknown file_type="${docInfo.file_type}" for filename="${docInfo.filename}", trying mammoth`,
-      );
-      const mammoth = await import("mammoth");
-      const result = await mammoth.extractRawText({
-        buffer: Buffer.from(raw),
-      });
-      text = result.value;
-      devLog(
-        `[read_document] mammoth length=${text.length} for filename="${docInfo.filename}"`,
-      );
+      text = await mammothText();
     }
-    devLog(
-      `[read_document] DONE filename="${docInfo.filename}" finalTextLength=${text.length} firstChars=${JSON.stringify(text.slice(0, 120))}`,
-    );
     emitDocRead();
     return text;
   } catch (err) {
-    devLog(
-      `[read_document] THREW for docLabel="${docLabel}" filename="${docInfo.filename}":`,
-      err,
-    );
+    devLog(`[read_document] failed for "${docInfo.filename}":`, err);
     if (emitEvents)
       write(
         `data: ${JSON.stringify({ type: "doc_read", filename: docInfo.filename })}\n\n`,
@@ -1472,14 +1331,6 @@ export async function findInDocumentContent(params: {
       ok: false,
       filename: docInfo.filename,
       error: "Document could not be read.",
-    });
-  }
-
-  const needle = normalizeQuery(query);
-  if (!needle) {
-    return JSON.stringify({
-      ok: false,
-      error: "Empty query after normalization.",
     });
   }
 
