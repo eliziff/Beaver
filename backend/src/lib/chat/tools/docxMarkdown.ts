@@ -73,7 +73,17 @@ const CONTROL_RE = new RegExp(`^\\{\\{(${CONTROL_MARKER})\\}\\}$`, "u");
 type ParseState = {
   controlCounts: Map<string, number>;
   referencedNotes: Set<string>;
+  warnings: string[];
 };
+
+function warn(warnings: string[], message: string) {
+  if (!warnings.includes(message)) warnings.push(message);
+}
+
+function snippet(text: string) {
+  const trimmed = text.trim();
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
+}
 
 export function normalizeDocxControlTag(tag: string) {
   const normalized = tag.trim().toLowerCase().replace(/[ \t]+/gu, "_");
@@ -86,15 +96,24 @@ function nextControl(state: ParseState, tag: string) {
   return { type: "control", tag, occurrence } as const;
 }
 
-function assertPlainText(text: string) {
+function warnLiteralMarkers(text: string, warnings: string[]) {
   if (text.includes("{{") || text.includes("}}")) {
-    throw new Error(`Invalid content-control marker in "${text}".`);
+    warn(
+      warnings,
+      `Kept malformed content-control marker in "${snippet(text)}" as literal text.`,
+    );
   }
   if (text.includes("[^")) {
-    throw new Error(`Invalid footnote reference in "${text}".`);
+    warn(
+      warnings,
+      `Kept malformed footnote reference in "${snippet(text)}" as literal text.`,
+    );
   }
   if (text.includes("[@")) {
-    throw new Error(`Invalid citation marker in "${text}".`);
+    warn(
+      warnings,
+      `Kept malformed citation marker in "${snippet(text)}" as literal text.`,
+    );
   }
 }
 
@@ -114,7 +133,7 @@ function parseInline(
     const index = match.index;
     if (index > cursor) {
       const plain = text.slice(cursor, index);
-      assertPlainText(plain);
+      warnLiteralMarkers(plain, state.warnings);
       children.push({ type: "text", text: unescapeMarkdown(plain) });
     }
 
@@ -124,18 +143,27 @@ function parseInline(
     const control = token.match(CONTROL_RE);
     if (footnote) {
       if (!allowFootnoteReferences) {
-        throw new Error("Footnotes cannot contain footnote references.");
+        warn(
+          state.warnings,
+          `Removed footnote reference "[^${footnote[1]}]" inside a footnote; footnotes cannot reference footnotes.`,
+        );
+      } else {
+        state.referencedNotes.add(footnote[1]);
+        children.push({ type: "footnote", id: footnote[1] });
       }
-      state.referencedNotes.add(footnote[1]);
-      children.push({ type: "footnote", id: footnote[1] });
     } else if (citation) {
       children.push({ type: "citation", id: citation[1] });
     } else if (control) {
       const tag = normalizeDocxControlTag(control[1]);
       if (!tag) {
-        throw new Error(`Invalid content-control marker in "${token}".`);
+        warn(
+          state.warnings,
+          `Kept malformed content-control marker "${snippet(token)}" as literal text.`,
+        );
+        children.push({ type: "text", text: token });
+      } else {
+        children.push(nextControl(state, tag));
       }
-      children.push(nextControl(state, tag));
     } else {
       const strong = token.startsWith("**");
       const value = token.slice(strong ? 2 : 1, strong ? -2 : -1);
@@ -155,7 +183,7 @@ function parseInline(
 
   if (cursor < text.length) {
     const plain = text.slice(cursor);
-    assertPlainText(plain);
+    warnLiteralMarkers(plain, state.warnings);
     children.push({ type: "text", text: unescapeMarkdown(plain) });
   }
   return children;
@@ -278,38 +306,66 @@ function parseHeading(
   line: string,
   bookmarks: Set<string>,
   state: ParseState,
-): Extract<DocxMarkdownBlock, { type: "heading" }> | null {
+): Extract<DocxMarkdownBlock, { type: "heading" }> | "skip" | null {
   const match = line.match(/^(#{1,3})\s+(.+)$/u);
   if (!match) return null;
 
   let text = match[2].trim();
   let numbered = true;
   let bookmark: string | undefined;
+  const attributes: string[] = [];
   while (true) {
-    const attribute = text.match(/\s+\{(-|#[^{}]+)\}$/u);
+    const attribute = text.match(/(?:^|\s+)\{(-|#[^{}]*)\}$/u);
     if (!attribute) break;
     text = text.slice(0, attribute.index).trimEnd();
-    if (attribute[1] === "-") {
-      if (!numbered) throw new Error("Heading repeats the {-} attribute.");
+    attributes.unshift(attribute[1]);
+  }
+  for (const attribute of attributes) {
+    if (attribute === "-") {
+      if (!numbered) {
+        warn(
+          state.warnings,
+          `Ignored a repeated {-} attribute on heading "${snippet(line)}".`,
+        );
+      }
       numbered = false;
       continue;
     }
-    if (bookmark) throw new Error("Heading defines more than one bookmark.");
-    bookmark = attribute[1].slice(1);
-    if (!BOOKMARK_ID.test(bookmark)) {
-      throw new Error(
-        `Invalid bookmark "${bookmark}"; use 1-40 letters, numbers, or underscores, beginning with a letter.`,
+    const candidate = attribute.slice(1);
+    if (bookmark) {
+      warn(
+        state.warnings,
+        `Ignored extra bookmark "${candidate}" on heading "${snippet(line)}"; kept "${bookmark}".`,
       );
+      continue;
     }
-    if (bookmarks.has(bookmark)) {
-      throw new Error(`Duplicate bookmark "${bookmark}".`);
+    if (!BOOKMARK_ID.test(candidate)) {
+      warn(
+        state.warnings,
+        `Dropped invalid bookmark "${candidate}"; use 1-40 letters, numbers, or underscores, beginning with a letter.`,
+      );
+      continue;
     }
+    if (bookmarks.has(candidate)) {
+      warn(state.warnings, `Dropped duplicate bookmark "${candidate}".`);
+      continue;
+    }
+    bookmark = candidate;
     bookmarks.add(bookmark);
   }
   if (/\s+\{[#-][^}]*\}$/u.test(text)) {
-    throw new Error(`Invalid heading attribute in "${line}".`);
+    warn(
+      state.warnings,
+      `Kept unrecognized heading attribute in "${snippet(line)}" as literal text.`,
+    );
   }
-  if (!text) throw new Error("Heading text cannot be empty.");
+  if (!text) {
+    warn(
+      state.warnings,
+      `Skipped heading "${snippet(line)}" because it has no text.`,
+    );
+    return "skip";
+  }
 
   return {
     type: "heading",
@@ -320,7 +376,7 @@ function parseHeading(
   };
 }
 
-function extractFootnotes(lines: string[]) {
+function extractFootnotes(lines: string[], warnings: string[]) {
   const definitions: { id: string; text: string }[] = [];
   const body: string[] = [];
   const ids = new Set<string>();
@@ -329,15 +385,14 @@ function extractFootnotes(lines: string[]) {
     const match = lines[index].match(FOOTNOTE_DEFINITION_RE);
     if (!match) {
       if (/^\[\^[^\]]*\]:/u.test(lines[index])) {
-        throw new Error(`Invalid footnote definition "${lines[index]}".`);
+        warn(
+          warnings,
+          `Treated invalid footnote definition "${snippet(lines[index])}" as body text.`,
+        );
       }
       body.push(lines[index]);
       continue;
     }
-    if (ids.has(match[1])) {
-      throw new Error(`Duplicate footnote definition "${match[1]}".`);
-    }
-    ids.add(match[1]);
     const parts = [match[2].trim()];
     while (
       index + 1 < lines.length &&
@@ -346,10 +401,21 @@ function extractFootnotes(lines: string[]) {
       index += 1;
       parts.push(lines[index].trim());
     }
-    const text = parts.filter(Boolean).join(" ");
-    if (!text) throw new Error(`Footnote "${match[1]}" is empty.`);
-    definitions.push({ id: match[1], text });
     body.push("");
+    if (ids.has(match[1])) {
+      warn(
+        warnings,
+        `Ignored duplicate footnote definition "${match[1]}"; the first definition wins.`,
+      );
+      continue;
+    }
+    const text = parts.filter(Boolean).join(" ");
+    if (!text) {
+      warn(warnings, `Dropped empty footnote "${match[1]}".`);
+      continue;
+    }
+    ids.add(match[1]);
+    definitions.push({ id: match[1], text });
   }
   return { definitions, body };
 }
@@ -366,7 +432,26 @@ function beginsBlock(lines: string[], index: number) {
   );
 }
 
-export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
+function mapInlineArrays(
+  blocks: DocxMarkdownBlock[],
+  transform: (children: DocxMarkdownInline[]) => DocxMarkdownInline[],
+) {
+  for (const block of blocks) {
+    if (block.type === "heading" || block.type === "paragraph") {
+      block.children = transform(block.children);
+    } else if (block.type === "list") {
+      for (const item of block.items) item.children = transform(item.children);
+    } else if (block.type === "table") {
+      block.headers = block.headers.map(transform);
+      block.rows = block.rows.map((row) => row.map(transform));
+    }
+  }
+}
+
+export function parseDocxMarkdown(
+  markdown: string,
+  warnings: string[] = [],
+): DocxMarkdownDocument {
   if (typeof markdown !== "string" || !markdown.trim()) {
     throw new Error("Markdown must not be empty.");
   }
@@ -377,12 +462,14 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
   const state: ParseState = {
     controlCounts: new Map(),
     referencedNotes: new Set(),
+    warnings,
   };
   const bookmarks = new Set<string>();
   const { definitions, body } = extractFootnotes(
     normalizeMarkdownLines(
       markdown.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n"),
     ),
+    warnings,
   );
   const blocks: DocxMarkdownBlock[] = [];
 
@@ -400,6 +487,10 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
     }
 
     const heading = parseHeading(line, bookmarks, state);
+    if (heading === "skip") {
+      index += 1;
+      continue;
+    }
     if (heading) {
       blocks.push(heading);
       index += 1;
@@ -410,9 +501,17 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
     if (control) {
       const tag = normalizeDocxControlTag(control[1]);
       if (!tag) {
-        throw new Error(`Invalid content-control marker in "${trimmed}".`);
+        warn(
+          warnings,
+          `Kept malformed content-control marker "${snippet(trimmed)}" as literal text.`,
+        );
+        blocks.push({
+          type: "paragraph",
+          children: [{ type: "text", text: trimmed }],
+        });
+      } else {
+        blocks.push(nextControl(state, tag));
       }
-      blocks.push(nextControl(state, tag));
       index += 1;
       continue;
     }
@@ -441,9 +540,19 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
       while (index < body.length && body[index].includes("|")) {
         const row = splitTableRow(body[index]);
         if (row.length !== headers.length) {
-          throw new Error(
-            `Table row has ${row.length} cells; expected ${headers.length}.`,
+          warn(
+            warnings,
+            `Adjusted a table row from ${row.length} to ${headers.length} cells to match the header.`,
           );
+          if (row.length > headers.length) {
+            row.splice(
+              headers.length - 1,
+              row.length,
+              row.slice(headers.length - 1).join(" "),
+            );
+          } else {
+            while (row.length < headers.length) row.push("");
+          }
         }
         rows.push(row);
         index += 1;
@@ -468,21 +577,33 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
     });
   }
 
-  const footnotes = definitions.map(({ id, text }) => ({
-    id,
-    children: parseInline(text, state, false),
-  }));
   const definitionIds = new Set(definitions.map(({ id }) => id));
   for (const id of state.referencedNotes) {
     if (!definitionIds.has(id)) {
-      throw new Error(`Footnote reference "${id}" has no definition.`);
+      warn(
+        warnings,
+        `Removed footnote marker "[^${id}]" because it has no definition.`,
+      );
     }
   }
-  for (const id of definitionIds) {
-    if (!state.referencedNotes.has(id)) {
-      throw new Error(`Footnote definition "${id}" is not referenced.`);
-    }
-  }
+  mapInlineArrays(blocks, (children) =>
+    children.filter(
+      (child) => child.type !== "footnote" || definitionIds.has(child.id),
+    ),
+  );
+  const footnotes = definitions
+    .filter(({ id }) => {
+      if (state.referencedNotes.has(id)) return true;
+      warn(
+        warnings,
+        `Dropped footnote definition "${id}" because it is never referenced.`,
+      );
+      return false;
+    })
+    .map(({ id, text }) => ({
+      id,
+      children: parseInline(text, state, false),
+    }));
   return { blocks, footnotes };
 }
 
@@ -559,25 +680,40 @@ function titleKey(value: string) {
 export async function renderDocxMarkdown(
   markdown: string,
   options: RenderDocxMarkdownOptions = {},
+  warnings: string[] = [],
 ): Promise<Buffer> {
-  return renderDocxMarkdownDocument(parseDocxMarkdown(markdown), options);
+  return renderDocxMarkdownDocument(
+    parseDocxMarkdown(markdown, warnings),
+    options,
+    warnings,
+  );
 }
 
 export async function renderDocxMarkdownDocument(
   document: DocxMarkdownDocument,
   options: RenderDocxMarkdownOptions = {},
+  warnings: string[] = [],
 ): Promise<Buffer> {
   const controls = collectControlTags(document);
   const citationIds = collectCitationIds(document);
   const citations = options.citations ?? {};
+  const unverifiedCitations = new Set<string>();
   for (const id of citationIds) {
     if (!Object.hasOwn(citations, id)) {
-      throw new Error(`Citation marker "${id}" has no verified source.`);
+      warn(
+        warnings,
+        `Removed citation marker "[@${id}]" because it has no verified source.`,
+      );
+      unverifiedCitations.add(id);
     }
   }
   for (const [id, citation] of Object.entries(citations)) {
     if (!citationIds.has(id)) {
-      throw new Error(`Verified citation "${id}" has no marker.`);
+      warn(
+        warnings,
+        `Omitted verified citation "${id}" because the text has no [@${id}] marker.`,
+      );
+      continue;
     }
     if (
       !citation ||
@@ -607,16 +743,29 @@ export async function renderDocxMarkdownDocument(
   for (const [rawTag, value] of Object.entries(options.values ?? {})) {
     const tag = normalizeDocxControlTag(rawTag);
     if (!tag) {
-      throw new Error(`Invalid content-control value key "${rawTag}".`);
+      warn(
+        warnings,
+        `Ignored content-control value with invalid key "${snippet(rawTag)}".`,
+      );
+      continue;
     }
     if (Object.hasOwn(values, tag)) {
-      throw new Error(`Content-control value "${tag}" is duplicated.`);
+      warn(
+        warnings,
+        `Ignored duplicate content-control value "${tag}"; the first value wins.`,
+      );
+      continue;
     }
     if (typeof value !== "string") {
-      throw new Error(`Content-control value "${tag}" must be text.`);
+      warn(warnings, `Ignored non-text content-control value "${tag}".`);
+      continue;
     }
     if (!controls.has(tag)) {
-      throw new Error(`Content-control value "${tag}" has no marker.`);
+      warn(
+        warnings,
+        `Ignored content-control value "${tag}" because the text has no {{${tag}}} marker.`,
+      );
+      continue;
     }
     if (value.length > 20_000) {
       throw new Error(
@@ -698,11 +847,13 @@ export async function renderDocxMarkdownDocument(
   const controlValue = (tag: string) =>
     values[tag] ?? `[${controlLabel(tag)}]`;
   const inlineControl = (tag: string, occurrence: number) => {
-    const value = controlValue(tag);
+    let value = controlValue(tag);
     if (/[\r\n]/u.test(value)) {
-      throw new Error(
-        `Inline content-control value "${tag}" cannot span lines.`,
+      warn(
+        warnings,
+        `Joined the multi-line value for inline control "${tag}" onto one line.`,
       );
+      value = value.replace(/\s*\r?\n\s*/gu, " ").trim();
     }
     return imported("w:sdt", undefined, [
       controlProperties(tag, occurrence, true),
@@ -721,30 +872,33 @@ export async function renderDocxMarkdownDocument(
     children: DocxMarkdownInline[],
     forceBold = false,
   ): ParagraphChild[] =>
-    children.map((child) => {
+    children.flatMap((child): ParagraphChild[] => {
       switch (child.type) {
         case "text":
-          return run(child.text, { bold: forceBold });
+          return [run(child.text, { bold: forceBold })];
         case "strong":
-          return run(child.text, { bold: true });
+          return [run(child.text, { bold: true })];
         case "emphasis":
-          return run(child.text, { bold: forceBold, italics: true });
+          return [run(child.text, { bold: forceBold, italics: true })];
         case "footnote":
-          return new FootnoteReferenceRun(noteNumbers.get(child.id)!);
+          return [new FootnoteReferenceRun(noteNumbers.get(child.id)!)];
         case "citation": {
+          if (unverifiedCitations.has(child.id)) return [];
           const citation = citations[child.id];
-          return new ExternalHyperlink({
-            link: citation.url,
-            children: [
-              new TextRun({
-                text: citation.text,
-                style: "Hyperlink",
-              }),
-            ],
-          });
+          return [
+            new ExternalHyperlink({
+              link: citation.url,
+              children: [
+                new TextRun({
+                  text: citation.text,
+                  style: "Hyperlink",
+                }),
+              ],
+            }),
+          ];
         }
         case "control":
-          return inlineControl(child.tag, child.occurrence);
+          return [inlineControl(child.tag, child.occurrence)];
       }
     });
 

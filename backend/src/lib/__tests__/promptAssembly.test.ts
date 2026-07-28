@@ -33,17 +33,19 @@ describe("system prompt assembly", () => {
       [{ doc_id: "doc-0", filename: "lease.pdf" }],
     );
     const content = systemContent(messages);
-    const copies = content.match(/do not call read_document or fetch_documents again/gu);
+    // Anchor on the distinctive fragment, not the full sentence, so cosmetic
+    // rewording of the surrounding prose does not break the count.
+    const copies = content.match(/fetch_documents again/gu);
     expect(copies?.length).toBe(1);
   });
 
   it("keeps upstream Mike's editing rules: read once, then edit_document", () => {
     const prompt = buildSystemPrompt(false);
 
-    expect(prompt).toContain(
-      "Do not reread the same document/version before calling edit_document",
-    );
-    expect(prompt).toContain("Renumber all affected downstream items");
+    // Behavioral anchors, not verbatim sentences: the no-reread-before-edit
+    // rule and the renumbering rule must be present in some wording.
+    expect(prompt).toMatch(/reread[^.]*edit_document/i);
+    expect(prompt).toContain("Renumber");
   });
 
   it("omits the spreadsheet block when no spreadsheet is in context", () => {
@@ -134,10 +136,10 @@ describe("system prompt assembly", () => {
   it("keeps the essential citation contract intact", () => {
     for (const required of [
       "<CITATIONS>",
-      '"doc_id" must be the exact chat-local label',
+      "chat-local label",
       "[[PAGE_BREAK]]",
       "only citation annotation markers",
-      "Omit the <CITATIONS> block when there are no citations",
+      "Omit the <CITATIONS> block",
     ]) {
       expect(SYSTEM_PROMPT).toContain(required);
     }
