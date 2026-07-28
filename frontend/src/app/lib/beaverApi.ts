@@ -896,16 +896,12 @@ export async function uploadLibraryDocument(
   kind: LibraryKind,
   file: File,
 ): Promise<Document> {
-  const authHeaders = await getAuthHeader();
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/library/${kind}/documents`, {
+  return apiRequest<Document>(`/library/${kind}/documents`, {
     method: "POST",
-    headers: { ...authHeaders },
     body: form,
   });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<Document>;
 }
 
 export async function createLibraryFolder(
@@ -1084,20 +1080,13 @@ export async function uploadDocumentVersion(
   file: File,
   filename?: string,
 ): Promise<DocumentVersion> {
-  const authHeaders = await getAuthHeader();
   const form = new FormData();
   form.append("file", file);
   if (filename) form.append("filename", filename);
-  const response = await fetch(
-    `${API_BASE}/single-documents/${documentId}/versions`,
-    {
-      method: "POST",
-      headers: { ...authHeaders },
-      body: form,
-    },
+  return apiRequest<DocumentVersion>(
+    `/single-documents/${documentId}/versions`,
+    { method: "POST", body: form },
   );
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<DocumentVersion>;
 }
 
 export async function replaceDocumentVersionFile(
@@ -1106,20 +1095,13 @@ export async function replaceDocumentVersionFile(
   file: File,
   filename?: string,
 ): Promise<DocumentVersion> {
-  const authHeaders = await getAuthHeader();
   const form = new FormData();
   form.append("file", file);
   if (filename) form.append("filename", filename);
-  const response = await fetch(
-    `${API_BASE}/single-documents/${documentId}/versions/${versionId}/file`,
-    {
-      method: "PUT",
-      headers: { ...authHeaders },
-      body: form,
-    },
+  return apiRequest<DocumentVersion>(
+    `/single-documents/${documentId}/versions/${versionId}/file`,
+    { method: "PUT", body: form },
   );
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<DocumentVersion>;
 }
 
 export async function copyDocumentVersionFromDocument(
@@ -1162,29 +1144,21 @@ export async function uploadProjectDocument(
   projectId: string,
   file: File,
 ): Promise<Document> {
-  const authHeaders = await getAuthHeader();
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/projects/${projectId}/documents`, {
+  return apiRequest<Document>(`/projects/${projectId}/documents`, {
     method: "POST",
-    headers: { ...authHeaders },
     body: form,
   });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<Document>;
 }
 
 export async function uploadStandaloneDocument(file: File): Promise<Document> {
-  const authHeaders = await getAuthHeader();
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/single-documents`, {
+  return apiRequest<Document>("/single-documents", {
     method: "POST",
-    headers: { ...authHeaders },
     body: form,
   });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<Document>;
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {
