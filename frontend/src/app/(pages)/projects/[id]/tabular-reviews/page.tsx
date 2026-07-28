@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
 import {
     deleteTabularReview,
     updateTabularReview,
@@ -14,45 +13,10 @@ import {
 } from "@/app/components/projects/ProjectWorkspace";
 import type { TabularReview } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 
 interface Props {
     params: Promise<{ id: string }>;
-}
-
-function SelectedReviewActions({
-    selectedCount,
-    open,
-    onOpenChange,
-    onDelete,
-}: {
-    selectedCount: number;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onDelete: () => void;
-}) {
-    if (selectedCount === 0) return null;
-
-    return (
-        <div className="relative">
-            <TabPillButton
-                onClick={() => onOpenChange(!open)}
-            >
-                Actions
-                <ChevronDown className="h-3.5 w-3.5" />
-            </TabPillButton>
-            {open && (
-                <div className="absolute right-0 top-full z-[120] mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <button
-                        onClick={onDelete}
-                        className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
-                    >
-                        Delete
-                    </button>
-                </div>
-            )}
-        </div>
-    );
 }
 
 export default function ProjectTabularReviewsPage({ params }: Props) {
@@ -72,7 +36,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
     const [detailsReview, setDetailsReview] = useState<TabularReview | null>(
         null,
     );
-    const [actionsOpen, setActionsOpen] = useState(false);
     const docs = project?.documents ?? [];
     const reviews = useMemo(() => projectReviews ?? [], [projectReviews]);
     const loading = projectReviews === null;
@@ -131,7 +94,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
 
     const handleDeleteSelectedReviews = useCallback(async () => {
         const ids = [...selectedReviewIds];
-        setActionsOpen(false);
         const owned = ids.filter((id) => {
             const review = reviews.find((r) => r.id === id);
             return !review || !user?.id || review.user_id === user?.id;
@@ -157,18 +119,31 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         user?.id,
     ]);
 
+    const toolbarActions = (
+        <span className="inline-flex h-8 w-28">
+            {selectedReviewIds.length > 0 && (
+                <NativeActionSelect
+                    label="Actions"
+                    items={[
+                        {
+                            label: "Delete",
+                            onSelect: () =>
+                                void handleDeleteSelectedReviews(),
+                        },
+                    ]}
+                    className="w-full"
+                    triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100 hover:text-gray-950"
+                >
+                    Actions
+                    <span aria-hidden="true">&#9662;</span>
+                </NativeActionSelect>
+            )}
+        </span>
+    );
+
     return (
         <>
-            <ProjectSectionToolbar
-                actions={selectedReviewIds.length > 0 ? (
-                    <SelectedReviewActions
-                        selectedCount={selectedReviewIds.length}
-                        open={actionsOpen}
-                        onOpenChange={setActionsOpen}
-                        onDelete={() => void handleDeleteSelectedReviews()}
-                    />
-                ) : undefined}
-            />
+            <ProjectSectionToolbar actions={toolbarActions} />
             <TabularReviewsTable
                 reviews={reviews}
                 filteredReviews={filteredReviews}
