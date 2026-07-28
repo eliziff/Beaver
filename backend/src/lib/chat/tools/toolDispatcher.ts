@@ -452,6 +452,52 @@ function cachedCaseNotFetchedResult(clusterId: number | null) {
   };
 }
 
+export function readTabularCells(
+  tabularStore: TabularCellStore,
+  colIndices?: number[],
+  rowIndices?: number[],
+) {
+  const columns = colIndices?.length
+    ? tabularStore.columns.filter((_, index) => colIndices.includes(index))
+    : tabularStore.columns;
+  const documents = rowIndices?.length
+    ? tabularStore.documents.filter((_, index) => rowIndices.includes(index))
+    : tabularStore.documents;
+  const label = `${columns.length} ${columns.length === 1 ? "column" : "columns"} × ${documents.length} ${documents.length === 1 ? "row" : "rows"}`;
+  const lines: string[] = [];
+
+  for (const column of columns) {
+    const columnPosition = tabularStore.columns.findIndex(
+      (candidate) => candidate.index === column.index,
+    );
+    for (const document of documents) {
+      const rowPosition = tabularStore.documents.findIndex(
+        (candidate) => candidate.id === document.id,
+      );
+      const cell = tabularStore.cells.get(`${column.index}:${document.id}`);
+      lines.push(
+        `[COL:${columnPosition} "${column.name}" | ROW:${rowPosition} "${document.filename}"]`,
+      );
+      if (cell?.summary) {
+        lines.push(`Summary: ${cell.summary}`);
+        if (cell.flag) lines.push(`Flag: ${cell.flag}`);
+        if (cell.reasoning) lines.push(`Reasoning: ${cell.reasoning}`);
+      } else {
+        lines.push("(not yet generated)");
+      }
+      lines.push("");
+    }
+  }
+
+  return {
+    label,
+    content:
+      `${tabularStore.app_url ? `Review app_url: ${tabularStore.app_url}\n\n` : ""}${
+        lines.join("\n") || "No cells found."
+      }`,
+  };
+}
+
 export async function runToolCalls(
   toolCalls: ToolCall[],
   docStore: DocStore,
@@ -828,54 +874,24 @@ export async function runToolCalls(
     } else if (tc.function.name === "read_table_cells" && tabularStore) {
       const colIndices = args.col_indices as number[] | undefined;
       const rowIndices = args.row_indices as number[] | undefined;
-
-      const filteredCols = colIndices?.length
-        ? tabularStore.columns.filter((_, i) => colIndices.includes(i))
-        : tabularStore.columns;
-      const filteredDocs = rowIndices?.length
-        ? tabularStore.documents.filter((_, i) => rowIndices.includes(i))
-        : tabularStore.documents;
-
-      const label = `${filteredCols.length} ${filteredCols.length === 1 ? "column" : "columns"} × ${filteredDocs.length} ${filteredDocs.length === 1 ? "row" : "rows"}`;
-      write(
-        `data: ${JSON.stringify({ type: "doc_read_start", filename: label })}\n\n`,
+      const selected = readTabularCells(
+        tabularStore,
+        colIndices,
+        rowIndices,
       );
 
-      const lines: string[] = [];
-      for (const col of filteredCols) {
-        const colPos = tabularStore.columns.findIndex(
-          (c) => c.index === col.index,
-        );
-        for (const doc of filteredDocs) {
-          const rowPos = tabularStore.documents.findIndex(
-            (d) => d.id === doc.id,
-          );
-          const cell = tabularStore.cells.get(`${col.index}:${doc.id}`);
-          lines.push(
-            `[COL:${colPos} "${col.name}" | ROW:${rowPos} "${doc.filename}"]`,
-          );
-          if (cell?.summary) {
-            lines.push(`Summary: ${cell.summary}`);
-            if (cell.flag) lines.push(`Flag: ${cell.flag}`);
-            if (cell.reasoning) lines.push(`Reasoning: ${cell.reasoning}`);
-          } else {
-            lines.push(`(not yet generated)`);
-          }
-          lines.push("");
-        }
-      }
+      write(
+        `data: ${JSON.stringify({ type: "doc_read_start", filename: selected.label })}\n\n`,
+      );
 
       write(
-        `data: ${JSON.stringify({ type: "doc_read", filename: label })}\n\n`,
+        `data: ${JSON.stringify({ type: "doc_read", filename: selected.label })}\n\n`,
       );
-      docsRead.push({ filename: label });
+      docsRead.push({ filename: selected.label });
       toolResults.push({
         role: "tool",
         tool_call_id: tc.id,
-        content:
-          `${tabularStore.app_url ? `Review app_url: ${tabularStore.app_url}\n\n` : ""}${
-            lines.join("\n") || "No cells found."
-          }`,
+        content: selected.content,
       });
     } else if (
       tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||
