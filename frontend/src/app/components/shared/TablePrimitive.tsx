@@ -18,12 +18,6 @@ import {
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 
-export const TABLE_SCROLL_CLOSE_EVENT = "mike:table-scroll-close";
-
-export function closeTablePopups() {
-    window.dispatchEvent(new Event(TABLE_SCROLL_CLOSE_EVENT));
-}
-
 export const TABLE_STICKY_CELL_BG = "bg-app-surface";
 export const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
@@ -183,8 +177,7 @@ export function TableScrollArea({
     className,
     header,
     scrollRef,
-    onScroll,
-}: DivProps & {
+}: Omit<DivProps, "onScroll"> & {
     header?: ReactNode;
     scrollRef?: RefObject<HTMLDivElement | null>;
 }) {
@@ -209,7 +202,6 @@ export function TableScrollArea({
                             headerViewportRef.current.scrollLeft =
                                 event.currentTarget.scrollLeft;
                         }
-                        onScroll?.(event);
                     }}
                 >
                     {children}
