@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { DocumentViewer } from "../shared/views/DocumentViewer";
@@ -353,15 +353,12 @@ function DownloadButton({
         if (busy || isReloading) return;
         setBusy(true);
         try {
-            const authHeaders = await getAuthHeader();
-            const apiBase =
-                process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
             const qs = versionId
                 ? `?version_id=${encodeURIComponent(versionId)}`
                 : "";
-            const resp = await fetch(
-                `${apiBase}/single-documents/${documentId}/docx${qs}`,
-                { headers: authHeaders },
+            const resp = await apiFetch(
+                `/single-documents/${documentId}/docx${qs}`,
+                { headers: { Accept: "*/*" } },
             );
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             downloadBlob(await resp.blob(), filename);

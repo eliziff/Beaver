@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 
 export interface FetchDocxResult {
     bytes: ArrayBuffer | null;
@@ -61,7 +61,8 @@ export function useFetchDocxBytes(
         const qs = versionId
             ? `?version_id=${encodeURIComponent(versionId)}`
             : "";
-        const url = `${apiBase}/single-documents/${documentId}/docx${qs}`;
+        const path = `/single-documents/${documentId}/docx${qs}`;
+        const url = `${apiBase}${path}`;
 
         // Cache hit: reuse bytes synchronously, no network, no spinner.
         const cached = bytesCache.get(key);
@@ -80,10 +81,11 @@ export function useFetchDocxBytes(
         const pending =
             inFlight.get(key) ??
             (async () => {
-                const authHeaders = await getAuthHeader();
                 // Stream bytes through the backend (avoids CORS on R2
                 // signed URLs).
-                const bin = await fetch(url, { headers: authHeaders });
+                const bin = await apiFetch(path, {
+                    headers: { Accept: "*/*" },
+                });
                 if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
                 const buf = await bin.arrayBuffer();
                 bytesCache.set(key, buf);

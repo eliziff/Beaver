@@ -2,11 +2,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-    getAuthHeader: vi.fn(async () => ({})),
+    apiFetch: vi.fn((path: string, init?: RequestInit) => fetch(path, init)),
 }));
 
 vi.mock("@/app/lib/beaverApi", () => ({
-    getAuthHeader: mocks.getAuthHeader,
+    apiFetch: mocks.apiFetch,
 }));
 
 import { preloadSingleDoc, useFetchSingleDoc } from "./useFetchSingleDoc";
