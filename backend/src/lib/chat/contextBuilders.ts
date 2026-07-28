@@ -159,22 +159,37 @@ export function buildMessages(
   }
 
   for (const msg of messages) {
-    let content = msg.content ?? "";
-    if (msg.role === "user" && msg.workflow) {
-      content = `[Workflow: ${msg.workflow.title} (id: ${msg.workflow.id})]\n\n${content}`;
-    }
-    if (msg.role === "user" && msg.files?.length) {
-      const lines = msg.files.map((f) => {
-        const slug = f.document_id
-          ? slugByDocumentId.get(f.document_id)
-          : undefined;
-        return slug ? `- ${slug}: ${f.filename}` : `- ${f.filename}`;
-      });
-      content = `[The user attached the following document(s) to this message:\n${lines.join("\n")}]\n\n${content}`;
-    }
-    formatted.push({ role: msg.role, content, images: msg.images });
+    formatted.push({
+      role: msg.role,
+      content: formatChatMessageContent(msg, slugByDocumentId),
+      images: msg.images,
+    });
   }
   return formatted;
+}
+
+export function formatChatMessageContent(
+  message: ChatMessage,
+  slugByDocumentId: ReadonlyMap<string, string> = new Map(),
+) {
+  let content = message.content ?? "";
+  if (message.role !== "user") return content;
+  if (message.workflow) {
+    content = `[Workflow: ${message.workflow.title} (id: ${message.workflow.id})]\n\n${content}`;
+  }
+  if (message.files?.length) {
+    const lines = message.files.map((file) => {
+      const slug = file.document_id
+        ? slugByDocumentId.get(file.document_id)
+        : undefined;
+      if (slug) return `- ${slug}: ${file.filename}`;
+      return file.document_id
+        ? `- ${file.filename} (document_id: ${file.document_id})`
+        : `- ${file.filename}`;
+    });
+    content = `[The user attached the following document(s) to this message:\n${lines.join("\n")}]\n\n${content}`;
+  }
+  return content;
 }
 
 export function extractCitations(
