@@ -37,23 +37,12 @@ import {
   loadProfileUsersByEmail,
 } from "../lib/userLookup";
 import { localTabularStore } from "../lib/localTabularStore";
+import {
+  normalizeDocumentFilename,
+  normalizeOptionalString,
+} from "../lib/normalize";
 
 export const projectsRouter = Router();
-
-function normalizeOptionalString(value: unknown) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeDocumentFilename(nextName: unknown, currentName: string) {
-  if (typeof nextName !== "string") return null;
-  const trimmed = nextName.trim().slice(0, 200);
-  if (!trimmed) return null;
-  if (/\.[a-z0-9]{1,6}$/i.test(trimmed)) return trimmed;
-  const ext = currentName.match(/\.[a-z0-9]{1,6}$/i)?.[0] ?? "";
-  return `${trimmed}${ext}`;
-}
 
 async function localMatterDocuments(userId: string, projectId: string) {
   const documentIds =
