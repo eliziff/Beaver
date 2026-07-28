@@ -805,9 +805,12 @@ export async function applyTrackedEdits(
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
     // Annotate mode renders reasons as anchored comments where present.
-    // Whether every edit SHOULD carry a rationale is a policy question the
-    // caller measures, not a contract this layer enforces: unreasoned edits
-    // simply produce no comment, and the caller can count them.
+    // DEFAULT OFF, deliberately: Word comments degrade editor performance
+    // on long documents, and rationale already travels in the receipt, so
+    // comments exist only for explicit user requests. Whether every edit
+    // SHOULD carry a rationale is a policy question the caller measures,
+    // not a contract this layer enforces: unreasoned edits simply produce
+    // no comment, and the caller can count them.
     const annotate = opts?.annotate ?? false;
 
     const zip = await loadZip(bytes);
