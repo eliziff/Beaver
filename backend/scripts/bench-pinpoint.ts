@@ -15,9 +15,11 @@
  * previous label is present the table prints the speedup, so the same script
  * proves the before/after claim rather than a prose assertion.
  */
+import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as links from "../src/lib/legalSourceLinks";
+import { gitRunState, sha256Hex, writeRunTrace } from "../src/lib/runTrace";
 import type { LegalSourceEvidence } from "../src/lib/legalSourceLinks";
 import { sourceDocBlockText, type SourceDoc } from "../src/lib/sourceDoc";
 import { compileA2AJSourceDoc } from "../src/lib/sourceDocA2AJ";
@@ -50,7 +52,11 @@ type Fixture = {
   text: string;
 };
 
+/** Every fixture read, so the run trace can hash the exact source packet. */
+const FIXTURES_USED = new Set<string>();
+
 function fixture(name: string): Fixture {
+  FIXTURES_USED.add(name);
   return JSON.parse(
     readFileSync(path.join(FIXTURES, `${name}.json`), "utf8"),
   ) as Fixture;
@@ -302,7 +308,10 @@ function previous(label: string): Measurement[] | null {
   }
 }
 
+const startedAt = new Date().toISOString();
+const startedMs = performance.now();
 const measurements = cases().map(measure);
+const latencyMs = performance.now() - startedMs;
 const baseline =
   LABEL === "before" ? null : (previous("before") ?? previous("current"));
 
@@ -337,3 +346,46 @@ writeFileSync(
 );
 console.log(`\nwrote ${output}`);
 if (!readdirSync(OUTPUT_DIR).length) process.exitCode = 1;
+
+// One run-trace record per run (docs/beaver-evaluation-context-plan.md §8).
+// This benchmark is deterministic — no model call — so provider/model/token/
+// cost fields are explicit nulls; sources and artifacts appear as hashes only.
+const repoRoot = path.join(__dirname, "..", "..");
+const sourceManifest = [...FIXTURES_USED].sort().map((name) => ({
+  source_id: name,
+  sha256: sha256Hex(readFileSync(path.join(FIXTURES, `${name}.json`))),
+}));
+const trace = writeRunTrace({
+  schema_version: "1",
+  run_id: randomUUID(),
+  task_id: "bench-pinpoint",
+  arm: LABEL === "before" ? "beaver_baseline" : "beaver_candidate",
+  started_at: startedAt,
+  ...gitRunState(__dirname),
+  provider: null,
+  model: null,
+  effort: null,
+  context_strategy: null,
+  cache_strategy: null,
+  prompt_hash: null,
+  source_manifest_hash: sha256Hex(JSON.stringify(sourceManifest)),
+  input_tokens: null,
+  output_tokens: null,
+  cached_input_tokens: null,
+  cache_write_tokens: null,
+  latency_ms: Number(latencyMs.toFixed(1)),
+  estimated_cost: null,
+  retrieved_source_ids: sourceManifest.map((entry) => entry.source_id),
+  artifact_paths: [
+    path.relative(repoRoot, output).split(path.sep).join("/"),
+  ],
+  artifact_hashes: [sha256Hex(readFileSync(output))],
+  fatal_errors: [],
+  all_pass: null,
+  score: Object.fromEntries(
+    measurements.map((item) => [item.name, Number(item.perUnitMs.toFixed(4))]),
+  ),
+  scoring_version: "bench-pinpoint-median-ms-per-unit/1",
+  manual_review_minutes: null,
+});
+console.log(`wrote ${trace}`);

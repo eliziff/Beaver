@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^CAN-[A-Z]+-\\d{3}$"
+    },
+    "sources": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^SRC-\\d{3}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a2aj_fixture",
+              "task_local"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "authority",
+              "distractor",
+              "matter_document"
+            ]
+          },
+          "citation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "superseded_by": {
+            "type": "string",
+            "pattern": "^SRC-\\d{3}$"
+          }
+        },
+        "required": [
+          "source_id",
+          "kind",
+          "path",
+          "sha256",
+          "role",
+          "citation"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "task_id",
+    "sources"
+  ],
+  "additionalProperties": false
+}
