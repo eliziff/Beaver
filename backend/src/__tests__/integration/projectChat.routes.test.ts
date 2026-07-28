@@ -1,39 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+import { createSupabaseStub } from "../helpers/supabaseStub";
 
 const { runLLMStream, checkProjectAccess } = vi.hoisted(() => ({
     runLLMStream: vi.fn(),
     checkProjectAccess: vi.fn(),
 }));
 
-function makeQuery() {
-    const result = {
-        data: { id: "chat-1", title: null, project_id: "p1" },
-        error: null,
-    };
-    const q: Record<string, unknown> = {};
-    const chain = [
-        "select", "insert", "update", "delete", "upsert",
-        "eq", "neq", "in", "is", "or", "lt", "gt", "gte", "lte",
-        "filter", "order", "limit", "range", "contains",
-    ];
-    for (const m of chain) q[m] = vi.fn(() => q);
-    q.single = vi.fn(() => Promise.resolve(result));
-    q.maybeSingle = vi.fn(() => Promise.resolve(result));
-    q.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(result).then(resolve, reject);
-    return q;
-}
-
 function mockSupabase() {
-    return {
-        from: vi.fn(() => makeQuery()),
-        rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: { id: "u1" } }, error: null }),
+    return createSupabaseStub({
+        result: {
+            data: { id: "chat-1", title: null, project_id: "p1" },
+            error: null,
         },
-    };
+    });
 }
 
 vi.mock("../../lib/supabase", () => ({

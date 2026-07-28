@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+import { createSupabaseStub } from "../helpers/supabaseStub";
 
 // Hoisted mock fn so the vi.mock factory below (which is itself hoisted above
 // the imports) can reference it. Lets each test drive the stream outcome.
@@ -7,36 +8,10 @@ const { runLLMStream } = vi.hoisted(() => ({
     runLLMStream: vi.fn(),
 }));
 
-// A permissive, chainable Supabase stub. Every query-builder method returns the
-// same object (so arbitrary chains work), the object is awaitable (thenable),
-// and the terminal single()/maybeSingle() resolve to a chat row. The chat
-// routes only read `.id`/`.title` and check `.error`, so this is enough to let
-// a request flow through chat creation and message inserts without real IO.
-function makeQuery() {
-    const result = { data: { id: "chat-1", title: null }, error: null };
-    const q: Record<string, unknown> = {};
-    const chain = [
-        "select", "insert", "update", "delete", "upsert",
-        "eq", "neq", "in", "is", "or", "lt", "gt", "gte", "lte",
-        "filter", "order", "limit", "range", "contains",
-    ];
-    for (const m of chain) q[m] = vi.fn(() => q);
-    q.single = vi.fn(() => Promise.resolve(result));
-    q.maybeSingle = vi.fn(() => Promise.resolve(result));
-    q.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(result).then(resolve, reject);
-    return q;
-}
-
 function mockSupabase() {
-    return {
-        from: vi.fn(() => makeQuery()),
-        rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: { id: "u1" } }, error: null }),
-        },
-    };
+    return createSupabaseStub({
+        result: { data: { id: "chat-1", title: null }, error: null },
+    });
 }
 
 vi.mock("../../lib/supabase", () => ({
