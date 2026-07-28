@@ -19,7 +19,6 @@ import {
     SkeletonLine,
     TableScrollArea,
     TableSelectionPlaceholder,
-    closeTablePopups,
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
@@ -91,10 +90,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     ref,
 ) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const lastScrollLeftRef = useRef(0);
-    const scrollCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-        null,
-    );
 
     const sortedColumns = useMemo(
         () => [...columns].sort((a, b) => a.index - b.index),
@@ -145,29 +140,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         },
         [],
     );
-
-    function handleRowsScroll() {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        if (container.scrollLeft !== lastScrollLeftRef.current) {
-            lastScrollLeftRef.current = container.scrollLeft;
-            if (scrollCloseTimerRef.current === null) {
-                scrollCloseTimerRef.current = setTimeout(() => {
-                    scrollCloseTimerRef.current = null;
-                    closeTablePopups();
-                }, 16);
-            }
-        }
-    }
-
-    useEffect(() => {
-        return () => {
-            if (scrollCloseTimerRef.current !== null) {
-                clearTimeout(scrollCloseTimerRef.current);
-            }
-        };
-    }, []);
 
     useImperativeHandle(ref, () => ({
         scrollToCell(colIdx: number, rowIdx: number) {
@@ -337,7 +309,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     return (
         <TableScrollArea
             scrollRef={scrollContainerRef}
-            onScroll={handleRowsScroll}
             header={
                 <div
                     className={`z-[70] flex h-10 min-w-full shrink-0 ${TR_HEADER_BG}`}

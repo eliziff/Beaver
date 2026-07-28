@@ -1,26 +1,33 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TRTable } from "./TRTable";
-import type { ColumnConfig, Document } from "../shared/types";
+import type {
+    ColumnConfig,
+    Document,
+    TabularCell,
+} from "../shared/types";
 
 const doc = { id: "doc-1", filename: "report.pdf" } as Document;
 
 function renderTable(
     columns: ColumnConfig[] = [],
     onEditColumn = vi.fn(),
+    cells: TabularCell[] = [],
+    onExpand = vi.fn(),
+    onCitationClick = vi.fn(),
 ) {
     return render(
         <TRTable
             loading={false}
             columns={columns}
             documents={[doc]}
-            cells={[]}
+            cells={cells}
             savingColumn={false}
             savingColumnsConfig={false}
             selectedDocIds={[]}
             onSelectionChange={vi.fn()}
-            onExpand={vi.fn()}
-            onCitationClick={vi.fn()}
+            onExpand={onExpand}
+            onCitationClick={onCitationClick}
             onEditColumn={onEditColumn}
             onAddColumn={vi.fn()}
             onAddDocuments={vi.fn()}
@@ -63,5 +70,59 @@ describe("TRTable", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Edit Parties" }));
         expect(onEditColumn).toHaveBeenCalledWith(column);
+    });
+
+    it("opens details from the cell and routes citation locators separately", () => {
+        const column = {
+            index: 0,
+            name: "Finding",
+            prompt: "Find it",
+        };
+        const cell = {
+            id: "cell-1",
+            document_id: doc.id,
+            column_index: 0,
+            content: {
+                summary:
+                    'Answer [[page:7||quote:page quote]] [[sheet:Authorities||cell:B2||quote:sheet quote]]',
+            },
+            status: "done",
+        } as TabularCell;
+        const onExpand = vi.fn();
+        const onCitationClick = vi.fn();
+        renderTable(
+            [column],
+            vi.fn(),
+            [cell],
+            onExpand,
+            onCitationClick,
+        );
+
+        const pageCitation = screen.getByTitle('Page 7: "page quote"');
+        fireEvent.click(pageCitation.closest(".group")!);
+        expect(onExpand).toHaveBeenCalledOnce();
+        expect(onExpand).toHaveBeenCalledWith(cell);
+
+        fireEvent.click(pageCitation);
+        fireEvent.click(screen.getByTitle('Authorities!B2: "sheet quote"'));
+        expect(onCitationClick).toHaveBeenNthCalledWith(
+            1,
+            cell,
+            7,
+            "page quote",
+            1,
+            undefined,
+            undefined,
+        );
+        expect(onCitationClick).toHaveBeenNthCalledWith(
+            2,
+            cell,
+            undefined,
+            "sheet quote",
+            2,
+            "Authorities",
+            "B2",
+        );
+        expect(onExpand).toHaveBeenCalledOnce();
     });
 });
