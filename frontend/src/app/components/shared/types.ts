@@ -412,7 +412,7 @@ export interface CitationQuote {
 }
 
 export type DocumentCitationQuote = {
-  page: number | string;
+  page?: number | string;
   quote: string;
   /**
    * Spreadsheet citations are located by cell, not page: `sheet` is the
@@ -431,12 +431,7 @@ export type DocumentCitation = {
   version_id?: string | null;
   version_number?: number | null;
   filename: string;
-  /** Legacy single-quote fields. Prefer `quotes` for new citations. */
-  page: number | string;
-  quote: string;
-  sheet?: string;
-  cell?: string;
-  quotes?: DocumentCitationQuote[];
+  quotes: DocumentCitationQuote[];
 };
 
 export type CaseCitation = {
@@ -550,10 +545,7 @@ export function getDocumentCitationQuotes(
     a.kind === "public_legal"
   )
     return [];
-  if (Array.isArray(a.quotes) && a.quotes.length) {
-    return a.quotes.filter((entry) => entry.quote.trim().length > 0);
-  }
-  return [{ page: a.page, quote: a.quote, sheet: a.sheet, cell: a.cell }];
+  return a.quotes.filter((entry) => entry.quote.trim().length > 0);
 }
 
 /**
@@ -601,13 +593,13 @@ export function formatCitationPage(a: Citation): string {
   );
   if (pages.length > 1) return `Pages ${pages.join(", ")}`;
   if (pages.length === 1) return `Page ${pages[0]}`;
-  return `Page ${a.page}`;
+  return "";
 }
 
 /** Locator label for a single quote — "Page 3" for docs, "Sheet1, cell B7" for cells. */
 export function formatCitationQuotePage(
   a: Citation,
-  page: number | string,
+  page: number | string | undefined,
   quote?: DocumentCitationQuote,
 ): string {
   if (a.kind === "public_legal") return "Source";
@@ -618,7 +610,7 @@ export function formatCitationQuotePage(
   ) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
-  return `Page ${page}`;
+  return page == null ? "" : `Page ${page}`;
 }
 
 /**
