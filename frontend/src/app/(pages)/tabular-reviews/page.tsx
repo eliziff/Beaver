@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -19,7 +20,6 @@ import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableBody,
     TableCell,
@@ -31,6 +31,7 @@ import {
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
+    TableSelectionPlaceholder,
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
@@ -380,7 +381,7 @@ export default function TabularReviewsPage() {
                     <TableHeaderRow>
                         <TableStickyCell header>
                             {loading ? (
-                                <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
+                                <TableSelectionPlaceholder />
                             ) : (
                                 <CheckboxControl
                                     checked={allSelected}
@@ -433,7 +434,7 @@ export default function TabularReviewsPage() {
                                     hover={false}
                                     bgClassName="bg-transparent"
                                 >
-                                    <SkeletonDot className="mr-4" />
+                                    <TableSelectionPlaceholder />
                                     <SkeletonLine className="h-3.5 w-48" />
                                 </TableStickyCell>
                                 <TableCell className="ml-auto w-24">
@@ -487,17 +488,14 @@ export default function TabularReviewsPage() {
                             const projectName = review.project_id
                                 ? projectNameById.get(review.project_id)
                                 : null;
+                            const reviewHref = review.project_id
+                                ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
+                                : `/tabular-reviews/${review.id}`;
                             return (
                                 <TableRow
                                     key={review.id}
                                     selected={selectedIds.includes(review.id)}
-                                    onClick={() => {
-                                        router.push(
-                                            review.project_id
-                                                ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
-                                                : `/tabular-reviews/${review.id}`,
-                                        );
-                                    }}
+                                    onClick={() => router.push(reviewHref)}
                                 >
                                     <TablePrimaryCell
                                         selected={selectedIds.includes(
@@ -507,7 +505,16 @@ export default function TabularReviewsPage() {
                                             toggleOne(review.id)
                                         }
                                         label={
-                                            review.title ?? "Untitled Review"
+                                            <Link
+                                                href={reviewHref}
+                                                prefetch
+                                                onClick={(event) =>
+                                                    event.stopPropagation()
+                                                }
+                                            >
+                                                {review.title ??
+                                                    "Untitled Review"}
+                                            </Link>
                                         }
                                     />
                                     <TableCell className="ml-auto w-24">

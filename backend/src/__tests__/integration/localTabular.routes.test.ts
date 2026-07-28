@@ -260,6 +260,16 @@ describe("account-free tabular reviews", () => {
         document_ids: [],
         columns_config: [],
       });
+    expect(
+      (await request(app).get(`/tabular-review/${created.body.id}/chats`)).body,
+    ).toEqual([]);
+    expect(
+      (
+        await request(app).get(
+          `/tabular-review/${created.body.id}/chats/unused/messages`,
+        )
+      ).body,
+    ).toEqual([]);
 
     const response = await request(app)
       .post(`/tabular-review/${created.body.id}/chat`)

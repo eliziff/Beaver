@@ -10,6 +10,7 @@ import {
     inspectLibraryDocumentAutomation,
     submitLibraryDocumentToAuthorities,
 } from "@/app/lib/beaverApi";
+import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
 
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
@@ -44,6 +45,12 @@ describe("DocumentAutomation", () => {
                 file_type: "xlsx",
             }),
         ).toBe(false);
+        expect(
+            documentAutomationEligible({
+                ...docx,
+                library_kind: "template",
+            }),
+        ).toBe(false);
 
         const { rerender } = render(
             <DocumentAutomation
@@ -61,6 +68,43 @@ describe("DocumentAutomation", () => {
         expect(
             screen.getByRole("button", { name: "Automation" }),
         ).toBeVisible();
+    });
+
+    it("keeps one stable disabled trigger until one DOCX is eligible", () => {
+        const { rerender } = render(
+            <DocumentAutomation
+                document={null}
+                showWhenUnavailable
+            />,
+        );
+        const trigger = screen.getByRole("button", { name: "Automation" });
+        expect(trigger).toBeDisabled();
+
+        rerender(
+            <DocumentAutomation
+                document={{
+                    id: "pdf-1",
+                    filename: "Decision.pdf",
+                    file_type: "pdf",
+                }}
+                showWhenUnavailable
+            />,
+        );
+        expect(screen.getByRole("button", { name: "Automation" })).toBe(
+            trigger,
+        );
+        expect(trigger).toBeDisabled();
+
+        rerender(
+            <DocumentAutomation
+                document={docx}
+                showWhenUnavailable
+            />,
+        );
+        expect(screen.getByRole("button", { name: "Automation" })).toBe(
+            trigger,
+        );
+        expect(trigger).toBeEnabled();
     });
 
     it("waits for server capabilities before opening", async () => {
@@ -106,6 +150,59 @@ describe("DocumentAutomation", () => {
         expect(screen.queryByText(docx.filename)).toBeNull();
     });
 
+    it("moves run status out of the direct control and into Assistant activity", async () => {
+        const user = userEvent.setup();
+        let release!: (
+            value: Awaited<ReturnType<typeof fixLibraryDocxSupras>>,
+        ) => void;
+        vi.mocked(inspectLibraryDocumentAutomation).mockResolvedValue({
+            supra_references: true,
+        });
+        vi.mocked(fixLibraryDocxSupras).mockReturnValue(
+            new Promise((resolve) => {
+                release = resolve;
+            }),
+        );
+        render(
+            <>
+                <DocumentAutomation document={docx} />
+                <AssistantAutomationActivity />
+            </>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Automation" }));
+        await user.click(
+            await screen.findByRole("button", {
+                name: "Fix supra references",
+            }),
+        );
+
+        expect(
+            screen.queryByRole("complementary", { name: "Automation" }),
+        ).toBeNull();
+        expect(
+            await screen.findByRole("button", {
+                name: "Fix supra references: running",
+            }),
+        ).toBeVisible();
+
+        release({
+            ok: true,
+            document_id: docx.id,
+            version_id: "version-2",
+            filename: "Lease - supras fixed.docx",
+            detected: 1,
+            converted: 1,
+            already_linked: 0,
+            review_required: 0,
+        });
+        expect(
+            await screen.findByRole("button", {
+                name: "Fix supra references: complete",
+            }),
+        ).toBeVisible();
+    });
+
     it("reports deterministic results and keeps Authorities explicit", async () => {
         const user = userEvent.setup();
         const onDocumentChanged = vi.fn();
@@ -135,10 +232,13 @@ describe("DocumentAutomation", () => {
             app_url: "/table-of-authorities?job=abc",
         });
         render(
-            <DocumentAutomation
-                document={docx}
-                onDocumentChanged={onDocumentChanged}
-            />,
+            <>
+                <DocumentAutomation
+                    document={docx}
+                    onDocumentChanged={onDocumentChanged}
+                />
+                <AssistantAutomationActivity />
+            </>,
         );
 
         await user.click(screen.getByRole("button", { name: "Automation" }));
@@ -147,14 +247,28 @@ describe("DocumentAutomation", () => {
                 name: "Fix supra references",
             }),
         );
+        expect(
+            screen.queryByRole("complementary", { name: "Automation" }),
+        ).toBeNull();
+        await user.click(
+            await screen.findByRole("button", {
+                name: "Fix supra references: complete",
+            }),
+        );
         expect(await screen.findByText("2")).toBeVisible();
         expect(onDocumentChanged).toHaveBeenCalledWith(
             expect.objectContaining({ version_id: "version-2" }),
         );
 
+        await user.click(screen.getByRole("button", { name: "Automation" }));
         await user.click(
-            screen.getByRole("button", {
+            await screen.findByRole("button", {
                 name: "Create book/table of authorities",
+            }),
+        );
+        await user.click(
+            await screen.findByRole("button", {
+                name: "Create book/table of authorities: review",
             }),
         );
         const link = await screen.findByRole("link", {

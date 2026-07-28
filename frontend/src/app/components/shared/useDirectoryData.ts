@@ -69,6 +69,9 @@ export function useDirectoryData(
     const loadedTabsRef = useRef<Record<DirectoryTab, boolean>>({
         ...EMPTY_LOADED,
     });
+    const settledTabsRef = useRef<Record<DirectoryTab, boolean>>({
+        ...EMPTY_LOADED,
+    });
 
     const loadTab = useCallback(
         async (tab: DirectoryTab) => {
@@ -112,6 +115,10 @@ export function useDirectoryData(
                     setProjects([]);
                 }
             } finally {
+                settledTabsRef.current = {
+                    ...settledTabsRef.current,
+                    [tab]: true,
+                };
                 loadingTabsRef.current = {
                     ...loadingTabsRef.current,
                     [tab]: false,
@@ -135,9 +142,17 @@ export function useDirectoryData(
         };
     }, [enabled, initialTab, loadTab]);
 
+    const resolvedLoadingTabs = {
+        ...loadingTabs,
+        [initialTab]:
+            enabled && !settledTabsRef.current[initialTab]
+                ? true
+                : loadingTabs[initialTab],
+    };
+
     return {
-        loading: loadingTabs[initialTab],
-        loadingTabs,
+        loading: resolvedLoadingTabs[initialTab],
+        loadingTabs: resolvedLoadingTabs,
         standaloneDocuments,
         templateDocuments,
         fileFolders,

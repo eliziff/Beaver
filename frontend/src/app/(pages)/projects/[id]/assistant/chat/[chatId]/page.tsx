@@ -42,7 +42,7 @@ import { DocumentAutomation } from "@/app/components/documents/DocumentAutomatio
 import {
     AutomationRunPanel,
     automationRunKey,
-} from "@/app/components/documents/AutomationRun";
+} from "@/app/components/assistant/AutomationRun";
 import { PdfView } from "@/app/components/shared/views/PdfView";
 import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
@@ -234,6 +234,13 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         retryRejectedTurn,
         cancel,
     } = useAssistantChat({ initialMessages, chatId, projectId });
+    const responseLoadingRef = useRef(isResponseLoading);
+    const pendingProjectRouteRef = useRef<{ projectId: string | null } | null>(
+        null,
+    );
+    useEffect(() => {
+        responseLoadingRef.current = isResponseLoading;
+    }, [isResponseLoading]);
     const mergeAutomationRun = useCallback(
         (run: AutomationRunEvent) => {
             const key = automationRunKey(run);
@@ -339,6 +346,17 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             .catch(() => router.replace(`/projects/${projectId}/assistant`))
             .finally(() => setChatLoaded(true));
     }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (isResponseLoading || !pendingProjectRouteRef.current) return;
+        const { projectId: nextProjectId } = pendingProjectRouteRef.current;
+        pendingProjectRouteRef.current = null;
+        router.replace(
+            nextProjectId
+                ? `/projects/${nextProjectId}/assistant/chat/${chatId}`
+                : `/assistant/chat/${chatId}`,
+        );
+    }, [chatId, isResponseLoading, router]);
 
     useEffect(() => {
         const match = chats?.find((c) => c.id === chatId);
@@ -796,12 +814,18 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     }, []);
 
     async function changeProject(nextProjectId: string | null) {
-        await updateChatProject(chatId, nextProjectId);
-        router.replace(
-            nextProjectId
-                ? `/projects/${nextProjectId}/assistant/chat/${chatId}`
-                : `/assistant/chat/${chatId}`,
-        );
+        const updated = await updateChatProject(chatId, nextProjectId);
+        if (responseLoadingRef.current) {
+            pendingProjectRouteRef.current = {
+                projectId: updated.project_id,
+            };
+        } else {
+            router.replace(
+                updated.project_id
+                    ? `/projects/${updated.project_id}/assistant/chat/${chatId}`
+                    : `/assistant/chat/${chatId}`,
+            );
+        }
     }
 
     return (
@@ -856,9 +880,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     }
                                     setProjectModalOpen(true);
                                 }}
-                                disabled={isResponseLoading}
                                 aria-label={`Change project: ${project?.name ?? "current project"}`}
-                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
                             >
                                 <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">
@@ -1430,6 +1453,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             <SelectAssistantProjectModal
                 open={projectModalOpen}
                 onClose={() => setProjectModalOpen(false)}
+                chatTitle={chatTitle}
+                currentLocation={project?.name}
                 currentProjectId={projectId}
                 onSelectProject={changeProject}
             />

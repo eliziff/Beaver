@@ -68,13 +68,23 @@ describe("SelectAssistantProjectModal", () => {
             <SelectAssistantProjectModal
                 open
                 onClose={vi.fn()}
+                chatTitle="Lease review"
                 currentProjectId="project-1"
                 onSelectProject={onSelectProject}
             />,
         );
 
-        await user.click(screen.getByRole("button", { name: "No project" }));
-        await user.click(screen.getByRole("button", { name: "Save" }));
+        expect(
+            screen.getByRole("dialog", {
+                name: "Move “Lease review” to a project",
+            }),
+        ).toHaveTextContent("Current location: Matter One");
+        await user.click(
+            screen.getByRole("button", {
+                name: "Assistant (no project)",
+            }),
+        );
+        await user.click(screen.getByRole("button", { name: "Move chat" }));
 
         expect(onSelectProject).toHaveBeenCalledWith(null);
         expect(mocks.saveChat).not.toHaveBeenCalled();

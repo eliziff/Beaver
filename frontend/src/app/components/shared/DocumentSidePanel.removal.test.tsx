@@ -8,7 +8,24 @@ vi.mock("@/app/components/shared/views/PdfView", () => ({
   PdfView: () => <div>PDF preview</div>,
 }));
 vi.mock("@/app/components/shared/views/DocxView", () => ({
-  DocxView: () => <div>Word preview</div>,
+  DocxView: ({
+    versionId,
+    preferPdfRendition,
+    refetchKey,
+  }: {
+    versionId?: string | null;
+    preferPdfRendition?: boolean;
+    refetchKey?: string | number;
+  }) => (
+    <div
+      data-testid="word-preview"
+      data-version-id={versionId ?? ""}
+      data-prefer-pdf={String(!!preferPdfRendition)}
+      data-revision={refetchKey ?? ""}
+    >
+      Word preview
+    </div>
+  ),
 }));
 vi.mock("@/app/components/shared/views/SpreadsheetView", () => ({
   SpreadsheetView: () => <div>Spreadsheet preview</div>,
@@ -72,6 +89,70 @@ function renderPanel({
 }
 
 describe("DocumentSidePanel document removal", () => {
+  it("opens the known current DOCX rendition before version rows load", async () => {
+    const docxDocument = {
+      ...document,
+      filename: "Brief.docx",
+      file_type: "docx",
+      storage_path: "brief.docx",
+      pdf_storage_path: "brief.pdf",
+      current_version_id: "version-3",
+      updated_at: "2026-07-28T00:00:00.000Z",
+    };
+    const docxVersion = {
+      ...version3,
+      filename: "Brief.docx",
+      file_type: "docx",
+    };
+
+    const { rerender } = render(
+      <DocumentSidePanel
+        doc={docxDocument}
+        versions={[]}
+        versionsLoading
+        onClose={vi.fn()}
+        onLoadVersions={vi.fn()}
+        onSelectVersion={vi.fn()}
+        onDownloadDocument={vi.fn()}
+        onDownloadVersion={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onUploadNewVersion={vi.fn(async () => {})}
+        onReplaceVersion={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    const preview = await screen.findByTestId("word-preview");
+    expect(preview).toHaveAttribute("data-version-id", "version-3");
+    expect(preview).toHaveAttribute("data-prefer-pdf", "true");
+    expect(preview).toHaveAttribute(
+      "data-revision",
+      "2026-07-28T00:00:00.000Z",
+    );
+
+    rerender(
+      <DocumentSidePanel
+        doc={docxDocument}
+        currentVersionId="version-3"
+        versions={[docxVersion]}
+        versionsLoading={false}
+        onClose={vi.fn()}
+        onLoadVersions={vi.fn()}
+        onSelectVersion={vi.fn()}
+        onDownloadDocument={vi.fn()}
+        onDownloadVersion={vi.fn()}
+        onRenameVersion={vi.fn()}
+        onDeleteVersion={vi.fn()}
+        onUploadNewVersion={vi.fn(async () => {})}
+        onReplaceVersion={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("word-preview")).toBe(preview);
+  });
+
   it("bounds and searches long version histories with keyboard navigation", async () => {
     const versions = Array.from({ length: 1000 }, (_, index) => {
       const number = index + 1;

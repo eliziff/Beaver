@@ -21,6 +21,7 @@ interface ModalProps {
     open: boolean;
     onClose: () => void;
     children: ReactNode;
+    role?: "dialog" | "alertdialog";
     breadcrumbs?: ReactNode[];
     headerAction?: ReactNode;
     size?: ModalSize;
@@ -39,9 +40,9 @@ interface ModalProps {
 
 const sizeClassName: Record<ModalSize, string> = {
     sm: "max-w-md",
-    md: "max-w-xl",
-    lg: "max-w-2xl",
-    xl: "max-w-4xl",
+    md: "max-w-lg",
+    lg: "max-w-xl",
+    xl: "max-w-2xl",
 };
 
 const FOCUSABLE =
@@ -51,6 +52,7 @@ export function Modal({
     open,
     onClose,
     children,
+    role = "dialog",
     breadcrumbs,
     headerAction,
     size = "lg",
@@ -137,7 +139,7 @@ export function Modal({
             }}
         >
             <div
-                role="dialog"
+                role={role}
                 aria-modal="true"
                 aria-labelledby={hasHeader ? titleId : undefined}
                 aria-label={hasHeader ? undefined : "Dialog"}
@@ -152,11 +154,20 @@ export function Modal({
                 {hasHeader && (
                     <div className="flex shrink-0 items-center justify-between gap-3 p-4 pl-5">
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs leading-none text-gray-400">
+                            <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden text-xs leading-none text-gray-400">
                                 {breadcrumbs?.map((segment, index) => (
                                     <span
                                         key={index}
-                                        className="flex items-center gap-1.5"
+                                        className={cn(
+                                            "min-w-0 items-center gap-1.5",
+                                            index > 0 &&
+                                                index <
+                                                    (breadcrumbs?.length ?? 0) -
+                                                        1
+                                                ? "hidden sm:flex"
+                                                : "flex",
+                                            index === 0 && "shrink-0",
+                                        )}
                                     >
                                         {index > 0 && <span>›</span>}
                                         <span

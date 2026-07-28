@@ -136,6 +136,13 @@ export function OpenSourceWorkflowModal({
                       ? "Update open-source submission"
                       : "Open source",
             ]}
+            footerStatus={
+                submitted ? (
+                    <span className="inline-flex h-9 items-center text-sm text-gray-500">
+                        Closing in {closeCountdown}
+                    </span>
+                ) : undefined
+            }
             primaryAction={
                 submitted
                     ? undefined
@@ -163,9 +170,6 @@ export function OpenSourceWorkflowModal({
                     <p className="mt-3 max-w-sm text-xs leading-6 text-gray-600">
                         Your workflow snapshot has been submitted for review.
                         You&apos;ll be notified by email if it is accepted.
-                    </p>
-                    <p className="mt-6 text-xs font-medium text-gray-500">
-                        Closing in {closeCountdown}
                     </p>
                 </div>
             ) : (

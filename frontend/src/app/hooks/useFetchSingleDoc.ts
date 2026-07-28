@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { getAuthHeader } from "@/app/lib/beaverApi";
 
 /**
@@ -15,6 +15,10 @@ export type DocResult =
     | { type: "docx" }
     | null;
 
+type LoadedDoc = Exclude<DocResult, null>;
+let cached: { key: string; result: LoadedDoc } | null = null;
+let pending: { key: string; promise: Promise<LoadedDoc> } | null = null;
+
 /** Office spreadsheet content types served raw by /display. */
 function isSpreadsheetContentType(contentType: string): boolean {
     return (
@@ -23,72 +27,117 @@ function isSpreadsheetContentType(contentType: string): boolean {
     );
 }
 
+function requestKey(
+    documentId: string,
+    versionId?: string | null,
+    revision?: string | number | null,
+) {
+    return `${documentId}:${versionId ?? "current"}:${revision ?? ""}`;
+}
+
+async function loadSingleDoc(
+    documentId: string,
+    versionId?: string | null,
+    revision?: string | number | null,
+): Promise<LoadedDoc> {
+    const key = requestKey(documentId, versionId, revision);
+    if (cached?.key === key) return cached.result;
+    if (pending?.key === key) return pending.promise;
+
+    const promise = (async () => {
+        const authHeaders = await getAuthHeader();
+        const apiBase =
+            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+        const qs = versionId
+            ? `?version_id=${encodeURIComponent(versionId)}`
+            : "";
+        const response = await fetch(
+            `${apiBase}/single-documents/${documentId}/display${qs}`,
+            { headers: authHeaders },
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const contentType = response.headers.get("content-type") ?? "";
+        let result: LoadedDoc;
+        if (contentType.includes("application/pdf")) {
+            result = { type: "pdf", buffer: await response.arrayBuffer() };
+        } else if (isSpreadsheetContentType(contentType)) {
+            result = {
+                type: "spreadsheet",
+                buffer: await response.arrayBuffer(),
+            };
+        } else {
+            await response.arrayBuffer().catch(() => {});
+            result = { type: "docx" };
+        }
+
+        cached = { key, result };
+        return result;
+    })();
+    pending = { key, promise };
+    void promise
+        .finally(() => {
+            if (pending?.promise === promise) pending = null;
+        })
+        .catch(() => {});
+    return promise;
+}
+
+export function preloadSingleDoc(
+    documentId: string,
+    versionId?: string | null,
+    revision?: string | number | null,
+) {
+    return loadSingleDoc(documentId, versionId, revision);
+}
+
 export function useFetchSingleDoc(
     documentId: string | null | undefined,
     versionId?: string | null,
+    revision?: string | number | null,
 ) {
-    const [result, setResult] = useState<DocResult>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const prevKeyRef = useRef<string | null>(null);
+    const key = documentId
+        ? requestKey(documentId, versionId, revision)
+        : null;
+    const [state, setState] = useState<{
+        key: string | null;
+        result: DocResult;
+        error: string | null;
+    }>(() => ({
+        key,
+        result: key && cached?.key === key ? cached.result : null,
+        error: null,
+    }));
 
     useEffect(() => {
-        if (!documentId) return;
-        const requestKey = `${documentId}:${versionId ?? "current"}`;
-        if (requestKey === prevKeyRef.current) return;
-        prevKeyRef.current = requestKey;
-
-        setLoading(true);
-        setError(null);
-        setResult(null);
+        if (!documentId || !key || cached?.key === key) return;
 
         let cancelled = false;
-
-        (async () => {
-            try {
-                const authHeaders = await getAuthHeader();
-                if (cancelled) return;
-
-                const apiBase =
-                    process.env.NEXT_PUBLIC_API_BASE_URL ??
-                    "http://localhost:3001";
-                const qs = versionId
-                    ? `?version_id=${encodeURIComponent(versionId)}`
-                    : "";
-                const response = await fetch(
-                    `${apiBase}/single-documents/${documentId}/display${qs}`,
-                    { headers: authHeaders },
-                );
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                if (cancelled) return;
-
-                const contentType =
-                    response.headers.get("content-type") ?? "";
-                if (contentType.includes("application/pdf")) {
-                    const buffer = await response.arrayBuffer();
-                    if (!cancelled) setResult({ type: "pdf", buffer });
-                } else if (isSpreadsheetContentType(contentType)) {
-                    const buffer = await response.arrayBuffer();
-                    if (!cancelled) setResult({ type: "spreadsheet", buffer });
-                } else {
-                    // Drain the body so the connection is reusable, but the
-                    // bytes are useless to PDF/spreadsheet viewers. Callers
-                    // should route DOC/DOCX files to DocxView directly.
-                    await response.arrayBuffer().catch(() => {});
-                    if (!cancelled) setResult({ type: "docx" });
+        loadSingleDoc(documentId, versionId, revision)
+            .then((loaded) => {
+                if (!cancelled) setState({ key, result: loaded, error: null });
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setState({
+                        key,
+                        result: null,
+                        error: "Failed to load document.",
+                    });
                 }
-            } catch {
-                if (!cancelled) setError("Failed to load document.");
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
+            });
 
         return () => {
             cancelled = true;
-            prevKeyRef.current = null;
         };
-    }, [documentId, versionId]);
+    }, [documentId, key, revision, versionId]);
 
-    return { result, loading, error };
+    const result =
+        key && cached?.key === key
+            ? cached.result
+            : state.key === key
+              ? state.result
+              : null;
+    const error = state.key === key ? state.error : null;
+    return { result, loading: !!key && !result && !error, error };
 }

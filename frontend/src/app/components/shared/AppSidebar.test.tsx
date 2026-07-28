@@ -224,6 +224,8 @@ describe("AppSidebar", () => {
   });
 
   it("moves an Assistant chat through the shared project chooser", async () => {
+    const moved = vi.fn();
+    window.addEventListener("beaver:chat-project-moved", moved);
     render(<AppSidebar mobileOpen={false} onToggle={vi.fn()} />);
 
     fireEvent.click(
@@ -233,7 +235,7 @@ describe("AppSidebar", () => {
     );
     fireEvent.click(
       within(
-        screen.getByRole("dialog", { name: "Choose project" }),
+        await screen.findByRole("dialog", { name: "Choose project" }),
       ).getByRole("button", { name: "Matter One" }),
     );
 
@@ -244,9 +246,13 @@ describe("AppSidebar", () => {
       ),
     );
     expect(mocks.loadChats).toHaveBeenCalledOnce();
-    expect(mocks.replace).toHaveBeenCalledWith(
-      "/projects/project-1/assistant/chat/assistant-chat",
-    );
+    expect(moved).toHaveBeenCalledOnce();
+    expect((moved.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      chatId: "assistant-chat",
+      projectId: "project-1",
+    });
+    expect(mocks.replace).not.toHaveBeenCalled();
+    window.removeEventListener("beaver:chat-project-moved", moved);
   });
 
   it("exposes local tools and read-only starter workflows", () => {
@@ -263,14 +269,16 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("link", { name: "API keys" })).toBeNull();
   });
 
-  it("opens one Settings modal in cloud mode", () => {
+  it("opens one Settings modal in cloud mode", async () => {
     mocks.anonymousMode = false;
     mocks.profile = null;
     const onToggle = vi.fn();
     render(<AppSidebar mobileOpen onToggle={onToggle} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    expect(
+      await screen.findByRole("dialog", { name: "Settings" }),
+    ).toBeVisible();
     const account = screen.getByRole("link", { name: "Account" });
     expect(account).toHaveAttribute("href", "/account");
     expect(onToggle).toHaveBeenCalledOnce();

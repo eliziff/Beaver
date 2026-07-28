@@ -46,7 +46,7 @@ export function ProjectChoiceList({
             <div
                 role="listbox"
                 aria-label="Projects"
-                className="max-h-48 overflow-y-auto p-1"
+                className="h-48 overflow-y-auto p-1"
             >
                 {loading ? (
                     <p className="px-2 py-3 text-sm text-gray-500">

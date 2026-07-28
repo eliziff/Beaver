@@ -76,3 +76,17 @@ it("renders loaded messages and positions the latest question before paint", asy
     ).toBe(76);
     expect(container.querySelector('[style*="opacity"]')).toBeNull();
 });
+
+it("renders a useful two-line composer", async () => {
+    render(
+        <TRChatPanel
+            reviewId="review-1"
+            onCitationClick={vi.fn()}
+            onClose={vi.fn()}
+        />,
+    );
+
+    expect(
+        await screen.findByPlaceholderText("How can I help?"),
+    ).toHaveAttribute("rows", "2");
+});

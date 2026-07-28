@@ -655,10 +655,8 @@ async function persistGeneratedFile(params: {
     contentTypeForDocumentType(extension),
   );
 
-  // Generated DOCX intentionally gets no PDF rendition (the DocPanel renders
-  // DOCX natively); pptx still converts, xlsx never does.
   let pdfStoragePath: string | null = null;
-  if (extension !== "docx" && shouldConvertToPdf(extension)) {
+  if (shouldConvertToPdf(extension)) {
     try {
       const pdfBuf = await docxToPdf(buffer);
       const pdfKey = convertedPdfKey(userId, docId);

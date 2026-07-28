@@ -46,7 +46,6 @@ import { LIQUID_TABLE_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { NewWorkflowModal } from "@/app/components/workflows/NewWorkflowModal";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableBody,
     TableCell,
@@ -56,6 +55,7 @@ import {
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
+    TableSelectionPlaceholder,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
@@ -393,20 +393,19 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                         onClick: () => router.push("/workflows"),
                         title: "Back to Workflows",
                     },
-                    {
-                        label: (
-                            <span className="text-gray-900 truncate max-w-xs">
-                                {workflow.metadata.title}
-                            </span>
-                        ),
-                    },
+                    { label: workflow.metadata.title },
                 ]}
                 actions={[
-                    saveStatus !== "idle"
-                        ? {
+                    {
                                   type: "custom",
                                   render: (
-                                      <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500">
+                                      <span
+                                          className={`inline-flex h-7 w-24 items-center justify-center gap-1.5 rounded-full text-sm text-gray-500 ${
+                                              saveStatus === "idle"
+                                                  ? "invisible"
+                                                  : ""
+                                          }`}
+                                      >
                                           {saveStatus === "saved" ? (
                                               <Check className="h-3.5 w-3.5 text-green-600" />
                                           ) : null}
@@ -414,9 +413,8 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                               ? "Saving…"
                                               : "Saved"}
                                       </span>
-                                  ),
-                          }
-                        : null,
+                        ),
+                    },
                         canShare
                             ? {
                                   onClick: () => setShareOpen(true),
@@ -850,7 +848,7 @@ function TabularWorkflowEditorSkeleton() {
                             hover={false}
                             widthClassName={NAME_COL_W}
                         >
-                            <SkeletonDot className="mr-4" />
+                            <TableSelectionPlaceholder />
                             <SkeletonLine className="h-2.5 w-20" />
                         </TableStickyCell>
                         <TableHeaderCell className="ml-auto w-36">
@@ -875,7 +873,7 @@ function TabularWorkflowEditorSkeleton() {
                                 widthClassName={NAME_COL_W}
                             >
                                 <div className="flex min-w-0 flex-1 items-center">
-                                    <SkeletonDot className="mr-4" />
+                                    <TableSelectionPlaceholder />
                                     <SkeletonLine
                                         className={`h-3 ${titleWidths[i - 1]}`}
                                     />

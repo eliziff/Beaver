@@ -42,6 +42,7 @@ Keep changes small, measured, and local-first.
 
 ## UI content rule
 
+- Use a consistent text hierarchy whose visual prominence tracks informational importance, so titles, headings, body copy, labels, metadata, and controls never compete or receive arbitrary emphasis.
 - Every visible word must add information or enable an action. Delete headings,
   badges, descriptions, counts, and status copy that merely repeat adjacent
   content or state already obvious from selection, position, or control labels.

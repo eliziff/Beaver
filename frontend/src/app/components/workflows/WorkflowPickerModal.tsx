@@ -22,6 +22,19 @@ interface WorkflowPickerModalProps {
 
 export function WorkflowPickerModal({
     open,
+    ...props
+}: WorkflowPickerModalProps) {
+    if (!open) return null;
+
+    return (
+        <OpenWorkflowPickerModal
+            key={`${props.workflowType}:${props.initialWorkflowId ?? ""}`}
+            {...props}
+        />
+    );
+}
+
+function OpenWorkflowPickerModal({
     onClose,
     onSelect,
     workflowType,
@@ -32,22 +45,14 @@ export function WorkflowPickerModal({
     closeOnSelect = true,
     initialWorkflowId,
     disabledWorkflow,
-}: WorkflowPickerModalProps) {
+}: Omit<WorkflowPickerModalProps, "open">) {
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<Workflow | null>(null);
     const [search, setSearch] = useState("");
 
     useEffect(() => {
-        if (!open) return;
         let cancelled = false;
-        const frame = requestAnimationFrame(() => {
-            if (cancelled) return;
-            setWorkflows([]);
-            setLoading(true);
-            setSelected(null);
-            setSearch("");
-        });
 
         listWorkflows(workflowType)
             .then((workflows) => {
@@ -72,11 +77,8 @@ export function WorkflowPickerModal({
 
         return () => {
             cancelled = true;
-            cancelAnimationFrame(frame);
         };
-    }, [initialWorkflowId, open, workflowType]);
-
-    if (!open) return null;
+    }, [initialWorkflowId, workflowType]);
 
     const selectionDisabled =
         !selected || selecting || (selected && disabledWorkflow?.(selected));
@@ -84,8 +86,6 @@ export function WorkflowPickerModal({
         selecting && selectingLabel ? selectingLabel : primaryLabel;
 
     function handleClose() {
-        setSelected(null);
-        setSearch("");
         onClose();
     }
 
@@ -97,9 +97,9 @@ export function WorkflowPickerModal({
 
     return (
         <Modal
-            open={open}
+            open
             onClose={handleClose}
-            size={selected ? "xl" : "lg"}
+            size="xl"
             breadcrumbs={breadcrumbs}
             primaryAction={{
                 label: resolvedPrimaryLabel,
