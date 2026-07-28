@@ -143,9 +143,8 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = screen.getByTitle("Table of Authorities");
     expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
+    expect(frame).toHaveClass("invisible");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
 
     fireEvent.load(frame);
     signal(frame, "mike:table-of-authorities-ready");
@@ -153,6 +152,7 @@ describe("TableOfAuthoritiesHost", () => {
     expect(
       screen.queryByTestId("authorities-neutral-cover"),
     ).not.toBeInTheDocument();
+    expect(frame).not.toHaveClass("invisible");
     expect(frame).toHaveAttribute("tabindex", "0");
   });
 
@@ -205,6 +205,84 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).toHaveAttribute("tabindex", "-1");
   });
 
+  it("finishes one session-bound boot while hidden without reloading on activation", async () => {
+    vi.mocked(launchTableOfAuthorities).mockResolvedValue({
+      ok: true,
+      url: "http://127.0.0.1:8765/",
+      reused: false,
+    });
+    const view = render(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+    const frame = await screen.findByTitle("Table of Authorities");
+    const source = frame.getAttribute("src");
+
+    expect(source).toContain("session=");
+    expect(source).toContain("attempt=");
+    expect(frame).toHaveClass("invisible");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+
+    view.rerender(<TableOfAuthoritiesHost active enabled />);
+
+    expect(frame).toHaveAttribute("src", source);
+    expect(frame).toHaveClass("invisible");
+    expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
+
+    signal(frame, "mike:table-of-authorities-ready");
+
+    expect(frame).not.toHaveClass("invisible");
+    expect(
+      screen.queryByTestId("authorities-neutral-cover"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retains a ready scoped attempt while inactive", async () => {
+    const job = "a".repeat(32);
+    navigation.search = `?job=${job}`;
+    const view = render(<TableOfAuthoritiesHost active enabled />);
+    const frame = await screen.findByTitle("Table of Authorities");
+    const source = frame.getAttribute("src");
+    signal(frame, "mike:table-of-authorities-ready");
+
+    navigation.search = "";
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+
+    expect(frame).toHaveAttribute("src", source);
+    expect(frame).toHaveAttribute("aria-hidden", "true");
+
+    navigation.search = `?job=${job}`;
+    view.rerender(<TableOfAuthoritiesHost active enabled />);
+
+    expect(frame).toHaveAttribute("src", source);
+    expect(frame).toHaveAttribute("aria-hidden", "false");
+    expect(frame).not.toHaveClass("invisible");
+  });
+
+  it("hides a ready generic frame before activating a scoped attempt", async () => {
+    const view = render(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+    const frame = await screen.findByTitle("Table of Authorities");
+    const genericAttempt = attemptFor(frame);
+    signal(frame, "mike:table-of-authorities-ready");
+
+    const job = "b".repeat(32);
+    navigation.search = `?job=${job}`;
+    view.rerender(<TableOfAuthoritiesHost active enabled />);
+
+    await waitFor(() =>
+      expect(
+        new URL(frame.getAttribute("src")!).searchParams.get("job"),
+      ).toBe(job),
+    );
+    expect(attemptFor(frame)).not.toBe(genericAttempt);
+    expect(frame).toHaveClass("invisible");
+    expect(frame).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+  });
+
   it("reacts to scope changes and ignores a stale iframe attempt", async () => {
     const firstJob = "a".repeat(32);
     const secondJob = "b".repeat(32);
@@ -223,9 +301,8 @@ describe("TableOfAuthoritiesHost", () => {
     const secondAttempt = attemptFor(frame);
     expect(secondAttempt).not.toBe(firstAttempt);
     expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(
-      screen.queryByTestId("authorities-neutral-cover"),
-    ).not.toBeInTheDocument();
+    expect(frame).toHaveClass("invisible");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
 
     signal(frame, "mike:table-of-authorities-ready", firstAttempt);
     expect(frame).toHaveAttribute("tabindex", "-1");
