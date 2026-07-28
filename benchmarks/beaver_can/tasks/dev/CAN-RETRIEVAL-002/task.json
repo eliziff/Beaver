@@ -1,0 +1,25 @@
+{
+  "id": "CAN-RETRIEVAL-002",
+  "jurisdiction": "CA-ON",
+  "law_as_of": "2026-06-30",
+  "task_type": "retrieval",
+  "deliverable": {
+    "type": "ranked_authorities",
+    "required_filename": "answer.json"
+  },
+  "source_ids": [
+    "SRC-001",
+    "SRC-002",
+    "SRC-003",
+    "SRC-004",
+    "SRC-005",
+    "SRC-006"
+  ],
+  "fatal_errors": [
+    "fabricated_authority",
+    "fabricated_quotation",
+    "invalid_pinpoint",
+    "wrong_jurisdiction",
+    "outside_source_packet"
+  ]
+}

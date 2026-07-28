@@ -1,0 +1,35 @@
+{
+  "required_issues": ["ISSUE-01"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["4"]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": ["5", "5(1)", "5(1)(a)", "5(2)"]
+    },
+    {
+      "source_id": "SRC-002",
+      "proposition_id": "PROP-03",
+      "acceptable_pinpoints": [42, 45, 46]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03"],
+  "definitions": {
+    "ISSUE-01": "When the basic two-year limitation period started running on the client's negligence claim against its accountant: discovery of the claim under the Limitations Act, 2002, assessed on the Grant Thornton plausible-inference standard, not the date the statements were negligently prepared.",
+    "PROP-01": "A proceeding shall not be commenced in respect of a claim after the second anniversary of the day on which the claim was discovered (the basic limitation period).",
+    "PROP-02": "A claim is discovered on the earlier of the day the claimant first knew the s 5(1)(a) matters (injury, causation, identity of the defendant, and that a proceeding is an appropriate remedy) and the day a reasonable person with the claimant's abilities and circumstances first ought to have known of them; s 5(2) presumes knowledge on the day of the act or omission unless the contrary is proved.",
+    "PROP-03": "A claim is discovered when the plaintiff has knowledge, actual or constructive, of the material facts upon which a plausible inference of liability on the defendant's part can be drawn - more than mere suspicion or speculation, but less than certainty of liability or knowledge of every constituent element.",
+    "CONCLUSION-01": "The basic limitation period runs from 2024 discovery (subject to the s 5(2) presumption being rebutted), so the Limitations Act, 2002 ss 4-5 and Grant Thornton must rank first and second.",
+    "CLAIM-01": "The Limitation Act, SBC 2012, c 13 governs the limitation period for this Ontario claim (wrong jurisdiction).",
+    "CLAIM-02": "The Real Property Limitations Act supplies the limitation period for a professional-negligence claim about financial statements (wrong Ontario statute; it governs land and rent).",
+    "CLAIM-03": "R. v. Oakes or the Food and Drug Regulations bear on when the limitation period started running."
+  }
+}

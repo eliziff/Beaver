@@ -1,0 +1,53 @@
+{
+  "task_id": "CAN-RETRIEVAL-002",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-limitations-2002.json",
+      "sha256": "e2d6fa5c33639ac444891f60dad59fd5b579d7b8e0840b6faa6e7e11c8569aad",
+      "role": "authority",
+      "citation": "Limitations Act, 2002, SO 2002, c 24, Sch B"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-2021scc31-bracket.json",
+      "sha256": "3c08618fd46a5a8470a12120173780675feecf55bb6b16ceea5c87eced4b5d64",
+      "role": "authority",
+      "citation": "Grant Thornton LLP v. New Brunswick, 2021 SCC 31"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-bc-limitation-2012.json",
+      "sha256": "d6875c1bec2d2d4927ca277728ac7db5adfe6c9ff102acced1db1c9c81b586c6",
+      "role": "distractor",
+      "citation": "Limitation Act, SBC 2012, c 13"
+    },
+    {
+      "source_id": "SRC-004",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-real-property-limitations.json",
+      "sha256": "0bd4f3d1e508da777f828b11071bc564bacf2bc64fd4913d4df1919988c3c8ff",
+      "role": "distractor",
+      "citation": "Real Property Limitations Act, RSO 1990, c L.15"
+    },
+    {
+      "source_id": "SRC-005",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-1986scr103-dot.json",
+      "sha256": "d85045ce5311c64d690e3d405ec157ceeefe11bae5f137f3d23735ae7ff9952d",
+      "role": "distractor",
+      "citation": "R. v. Oakes, [1986] 1 SCR 103"
+    },
+    {
+      "source_id": "SRC-006",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-regs-fed-crc870-a01.json",
+      "sha256": "34714a9570b8841f41283861cd6e60bd61b072dbe57245b71c361f5c292e9aa4",
+      "role": "distractor",
+      "citation": "Food and Drug Regulations, CRC, c 870"
+    }
+  ]
+}

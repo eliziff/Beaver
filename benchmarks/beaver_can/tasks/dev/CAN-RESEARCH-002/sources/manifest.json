@@ -1,0 +1,37 @@
+{
+  "task_id": "CAN-RESEARCH-002",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-2014scc71-bracket.json",
+      "sha256": "981d74b3656d74951bdcb5fb022b0b261936807b2b9eb04546cd1514be09e3bf",
+      "role": "authority",
+      "citation": "Bhasin v. Hrynew, 2014 SCC 71"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-2020scc45-bracket.json",
+      "sha256": "84d3736317b2b612f8b037ba8dd99a80224386afbf132979c4ea78dbec034261",
+      "role": "authority",
+      "citation": "C.M. Callow Inc. v. Zollinger, 2020 SCC 45"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-2014scc53-bracket.json",
+      "sha256": "03f3f77c8277f9bc698990f6abdce8b9e999dc2bd86db9c47a9c43a653516c24",
+      "role": "distractor",
+      "citation": "Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53"
+    },
+    {
+      "source_id": "SRC-004",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-occupiers-liability.json",
+      "sha256": "fabdc4bcdf0d5dda54b3e68186e227c0ff4e8c3fdcaf89f543db73bad2f9baea",
+      "role": "distractor",
+      "citation": "Occupiers' Liability Act, RSO 1990, c O.2"
+    }
+  ]
+}

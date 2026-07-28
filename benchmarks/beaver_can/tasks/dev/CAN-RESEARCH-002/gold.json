@@ -1,0 +1,59 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": [63, 64, 65]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": [73]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-03",
+      "acceptable_pinpoints": [74, 75]
+    },
+    {
+      "source_id": "SRC-002",
+      "proposition_id": "PROP-04",
+      "acceptable_pinpoints": [84, 87]
+    },
+    {
+      "source_id": "SRC-002",
+      "proposition_id": "PROP-05",
+      "acceptable_pinpoints": [89, 91, 94]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-02", "acceptable": ["no", "qualified_no"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04"],
+  "required_quotations": [
+    {
+      "source_id": "SRC-001",
+      "quote": "parties must not lie or otherwise knowingly mislead each other about matters directly linked to the performance of the contract",
+      "acceptable_pinpoints": [73]
+    }
+  ],
+  "definitions": {
+    "ISSUE-01": "Whether the common law duty of good faith / honest contractual performance constrains the exercise of the express termination-for-convenience clause, and the content of that duty.",
+    "ISSUE-02": "Whether conduct short of an outright lie - half-truths, omissions, silence, or failing to correct a false impression the client created - can breach the duty of honest performance when the termination right is exercised.",
+    "ISSUE-03": "Whether the duty of honest performance can be excluded by the parties' agreement (for example an entire agreement clause), and whether the client may terminate while staying silent.",
+    "PROP-01": "Good faith contractual performance is a general organizing principle of the common law of contract: parties must perform their contractual duties honestly and reasonably and not capriciously or arbitrarily, with appropriate regard to the legitimate contractual interests of the contracting partner.",
+    "PROP-02": "There is a general duty of honesty in contractual performance: parties must not lie or otherwise knowingly mislead each other about matters directly linked to the performance of the contract, though this imposes no duty of loyalty or of disclosure.",
+    "PROP-03": "The duty of honest performance is a general doctrine of contract law that operates irrespective of the parties' intentions, so the parties are not free to exclude it; an entire agreement clause is no impediment to the duty.",
+    "PROP-04": "Even an apparently unfettered right to terminate for convenience cannot be exercised in a manner that transgresses honest performance: where the exercise of a contractual right is undertaken dishonestly, the exercise is a breach of contract, whatever the motive for termination.",
+    "PROP-05": "Whether a party has knowingly misled its counterparty is fact-specific and can include lies, half-truths, omissions, and even silence; absent a duty of disclosure, a party must still refrain from deceiving and from leaving uncorrected, in anticipation of exercising its termination right, a false impression created by its own communications.",
+    "CONCLUSION-01": "The client may exercise the express termination clause itself, provided the manner of exercise is honest.",
+    "CONCLUSION-02": "The client may not stay silent while knowing its own statements have left the counterparty with a false impression about renewal; exercising the clause without correcting that impression risks breach and damages.",
+    "CLAIM-01": "The duty of honest performance can be excluded by an entire-agreement clause (Bhasin holds the parties are not free to exclude it).",
+    "CLAIM-02": "The duty of honest performance imposes a positive duty of disclosure requiring the client to disclose its intention to terminate (Bhasin and Callow say there is no duty of loyalty or of disclosure; the obligation is not to knowingly mislead and to correct one's own false impressions).",
+    "CLAIM-03": "Silence can never breach the duty of honest performance (Callow holds knowingly misleading conduct can include half-truths, omissions, and even silence).",
+    "CLAIM-04": "The question is one of contractual interpretation governed by Sattva's approach to interpreting the termination clause (the packet issue is dishonest exercise of an admitted right, not the clause's meaning)."
+  }
+}
