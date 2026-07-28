@@ -1,127 +1,98 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-    CLAUDE_MAIN_MODELS,
-    GEMINI_MAIN_MODELS,
-    OPENAI_MAIN_MODELS,
-    DEEPSEEK_MAIN_MODELS,
-    META_MAIN_MODELS,
-    CLAUDE_MID_MODELS,
-    GEMINI_MID_MODELS,
-    OPENAI_MID_MODELS,
     CLAUDE_LOW_MODELS,
-    GEMINI_LOW_MODELS,
-    OPENAI_LOW_MODELS,
+    CLAUDE_MAIN_MODELS,
+    CLAUDE_MID_MODELS,
+    DEEPSEEK_MAIN_MODELS,
     DEFAULT_MAIN_MODEL,
-    DEFAULT_TITLE_MODEL,
     DEFAULT_TABULAR_MODEL,
+    DEFAULT_TITLE_MODEL,
+    GEMINI_LOW_MODELS,
+    GEMINI_MAIN_MODELS,
+    GEMINI_MID_MODELS,
+    META_MAIN_MODELS,
+    OPENAI_LOW_MODELS,
+    OPENAI_MAIN_MODELS,
+    OPENAI_MID_MODELS,
     providerForModel,
     resolveModel,
 } from "../llm/models";
 
-// ---------------------------------------------------------------------------
-// providerForModel
-// ---------------------------------------------------------------------------
+const PROVIDER_CATALOGS: Record<string, string[]> = {
+    claude: [
+        ...CLAUDE_MAIN_MODELS,
+        ...CLAUDE_MID_MODELS,
+        ...CLAUDE_LOW_MODELS,
+    ],
+    gemini: [
+        ...GEMINI_MAIN_MODELS,
+        ...GEMINI_MID_MODELS,
+        ...GEMINI_LOW_MODELS,
+    ],
+    openai: [
+        ...OPENAI_MAIN_MODELS,
+        ...OPENAI_MID_MODELS,
+        ...OPENAI_LOW_MODELS,
+    ],
+    deepseek: [...DEEPSEEK_MAIN_MODELS],
+    openrouter: [...META_MAIN_MODELS],
+};
+const CATALOG = Object.values(PROVIDER_CATALOGS).flat();
 
-describe("providerForModel", () => {
-    it("maps claude-* ids to the claude provider", () => {
-        for (const model of [...CLAUDE_MAIN_MODELS, ...CLAUDE_MID_MODELS, ...CLAUDE_LOW_MODELS]) {
-            expect(providerForModel(model)).toBe("claude");
-        }
+describe("model catalog", () => {
+    it("maps every catalog and provider-shaped id", () => {
+        expect(
+            Object.fromEntries(
+                Object.entries(PROVIDER_CATALOGS).map(
+                    ([provider, models]) => [
+                        provider,
+                        [...new Set(models.map(providerForModel))],
+                    ],
+                ),
+            ),
+        ).toEqual({
+            claude: ["claude"],
+            gemini: ["gemini"],
+            openai: ["openai"],
+            deepseek: ["deepseek"],
+            openrouter: ["openrouter"],
+        });
+        expect([
+            providerForModel("claude-nonexistent"),
+            providerForModel("gpt-nonexistent"),
+        ]).toEqual(["claude", "openai"]);
     });
 
-    it("maps gemini-* ids to the gemini provider", () => {
-        for (const model of [...GEMINI_MAIN_MODELS, ...GEMINI_MID_MODELS, ...GEMINI_LOW_MODELS]) {
-            expect(providerForModel(model)).toBe("gemini");
-        }
+    it("rejects ids without a known provider", () => {
+        expect(() => providerForModel("llama-3")).toThrow(
+            /Unknown model id/u,
+        );
+        expect(() => providerForModel("")).toThrow(/Unknown model id/u);
     });
 
-    it("maps gpt-* ids to the openai provider", () => {
-        for (const model of [...OPENAI_MAIN_MODELS, ...OPENAI_MID_MODELS, ...OPENAI_LOW_MODELS]) {
-            expect(providerForModel(model)).toBe("openai");
-        }
-    });
-
-    it("maps current DeepSeek V4 ids to the deepseek provider", () => {
-        for (const model of DEEPSEEK_MAIN_MODELS) {
-            expect(providerForModel(model)).toBe("deepseek");
-        }
-    });
-
-    it("maps Meta Muse Spark to the OpenRouter provider", () => {
-        for (const model of META_MAIN_MODELS) {
-            expect(providerForModel(model)).toBe("openrouter");
-        }
-    });
-
-    it("throws on an unknown model id", () => {
-        expect(() => providerForModel("llama-3")).toThrow(/Unknown model id/);
-        expect(() => providerForModel("")).toThrow(/Unknown model id/);
-    });
-
-    it("infers by prefix only, without validating against the catalog", () => {
-        // Documents current behavior: any claude-/gemini-/gpt- prefix is
-        // accepted even if the id is not a canonical model.
-        expect(providerForModel("claude-nonexistent")).toBe("claude");
-        expect(providerForModel("gpt-nonexistent")).toBe("openai");
-    });
-});
-
-// ---------------------------------------------------------------------------
-// resolveModel
-// ---------------------------------------------------------------------------
-
-describe("resolveModel", () => {
-    it("falls back for unknown model ids", () => {
-        expect(resolveModel("gpt-3.5-turbo", DEFAULT_MAIN_MODEL)).toBe(
+    it("accepts catalog models and falls back for empty or unknown ids", () => {
+        expect([
+            CATALOG.map((model) => resolveModel(model, "fallback-model")),
+            resolveModel("gpt-3.5-turbo", DEFAULT_MAIN_MODEL),
+            resolveModel(null, DEFAULT_MAIN_MODEL),
+            resolveModel(undefined, DEFAULT_TABULAR_MODEL),
+            resolveModel("", DEFAULT_TITLE_MODEL),
+        ]).toEqual([
+            CATALOG,
             DEFAULT_MAIN_MODEL,
-        );
-    });
-
-    it("falls back for null, undefined, and empty ids", () => {
-        expect(resolveModel(null, DEFAULT_MAIN_MODEL)).toBe(DEFAULT_MAIN_MODEL);
-        expect(resolveModel(undefined, DEFAULT_TABULAR_MODEL)).toBe(
+            DEFAULT_MAIN_MODEL,
             DEFAULT_TABULAR_MODEL,
-        );
-        expect(resolveModel("", DEFAULT_TITLE_MODEL)).toBe(DEFAULT_TITLE_MODEL);
-    });
+            DEFAULT_TITLE_MODEL,
+        ]);
 
-    it("accepts models from every tier of the catalog", () => {
-        const catalog = [
-            ...CLAUDE_MAIN_MODELS,
-            ...GEMINI_MAIN_MODELS,
-            ...OPENAI_MAIN_MODELS,
-            ...CLAUDE_MID_MODELS,
-            ...GEMINI_MID_MODELS,
-            ...OPENAI_MID_MODELS,
-            ...CLAUDE_LOW_MODELS,
-            ...GEMINI_LOW_MODELS,
-            ...OPENAI_LOW_MODELS,
-            ...DEEPSEEK_MAIN_MODELS,
-            ...META_MAIN_MODELS,
+        const defaults = [
+            DEFAULT_MAIN_MODEL,
+            DEFAULT_TITLE_MODEL,
+            DEFAULT_TABULAR_MODEL,
         ];
-        for (const model of catalog) {
-            expect(resolveModel(model, "fallback-model")).toBe(model);
-        }
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Default model sanity
-// ---------------------------------------------------------------------------
-
-describe("default models", () => {
-    it("every default resolves to itself (defaults are in the catalog)", () => {
-        expect(resolveModel(DEFAULT_MAIN_MODEL, "x")).toBe(DEFAULT_MAIN_MODEL);
-        expect(resolveModel(DEFAULT_TITLE_MODEL, "x")).toBe(DEFAULT_TITLE_MODEL);
-        expect(resolveModel(DEFAULT_TABULAR_MODEL, "x")).toBe(
-            DEFAULT_TABULAR_MODEL,
+        expect(defaults.map((model) => resolveModel(model, "x"))).toEqual(
+            defaults,
         );
-    });
-
-    it("every default has a resolvable provider", () => {
-        // Do not pin which provider — only that resolution cannot throw.
-        expect(() => providerForModel(DEFAULT_MAIN_MODEL)).not.toThrow();
-        expect(() => providerForModel(DEFAULT_TITLE_MODEL)).not.toThrow();
-        expect(() => providerForModel(DEFAULT_TABULAR_MODEL)).not.toThrow();
+        for (const model of defaults) providerForModel(model);
     });
 });
