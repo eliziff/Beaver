@@ -140,30 +140,18 @@ export function ProjectsOverview() {
     }, [authLoading, isAuthenticated, user?.id]);
 
     const q = search.toLowerCase();
-    const practices = useMemo(
-        () =>
-            Array.from(
-                new Set(
-                    projects
-                        .map((project) => project.practice?.trim())
-                        .filter((practice): practice is string => !!practice),
-                ),
-            ).sort((a, b) => a.localeCompare(b)),
-        [projects],
-    );
-    const ownerOptions = useMemo(
-        () =>
-            Array.from(
-                new Set(
-                    projects.map((project) =>
-                        getProjectOwnerLabel(project, user?.id),
-                    ),
-                ),
-            )
-                .sort((a, b) => a.localeCompare(b))
-                .map((owner) => ({ value: owner, label: owner })),
-        [projects, user?.id],
-    );
+    const practices = Array.from(
+        new Set(
+            projects
+                .map((project) => project.practice?.trim())
+                .filter((practice): practice is string => !!practice),
+        ),
+    ).sort((a, b) => a.localeCompare(b));
+    const ownerOptions = Array.from(
+        new Set(projects.map((project) => getProjectOwnerLabel(project, user?.id))),
+    )
+        .sort((a, b) => a.localeCompare(b))
+        .map((owner) => ({ value: owner, label: owner }));
     const filtered = useMemo(() => {
         const rows = (
             activeFilter === "all"

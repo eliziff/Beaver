@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, ChevronDown, Search } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
@@ -33,26 +33,20 @@ export function ModelPicker({
     const searchRef = useRef<HTMLInputElement>(null);
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
-    const availableModels = useMemo(
-        () =>
-            models.filter((model) =>
-                apiKeys
-                    ? isModelAvailable(model.id, apiKeys)
-                    : model.group === "Codex",
-            ),
-        [apiKeys, models],
+    const availableModels = models.filter((model) =>
+        apiKeys
+            ? isModelAvailable(model.id, apiKeys)
+            : model.group === "Codex",
     );
     const groups = [...new Set(availableModels.map((model) => model.group))];
-    const filtered = useMemo(() => {
-        const needle = query.trim().toLowerCase();
-        return needle
-            ? availableModels.filter((model) =>
-                  `${model.group} ${model.label} ${model.id}`
-                      .toLowerCase()
-                      .includes(needle),
-              )
-            : availableModels;
-    }, [availableModels, query]);
+    const needle = query.trim().toLowerCase();
+    const filtered = needle
+        ? availableModels.filter((model) =>
+              `${model.group} ${model.label} ${model.id}`
+                  .toLowerCase()
+                  .includes(needle),
+          )
+        : availableModels;
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : selected?.group === "Codex";

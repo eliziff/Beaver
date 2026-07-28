@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { PRACTICE_OPTIONS } from "../workflows/practices";
 import { ModalSelect, type ModalSelectOption } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
@@ -21,21 +20,17 @@ export function ProjectPracticeField({
     onChange,
     disabled = false,
 }: ProjectPracticeFieldProps) {
-    const selectedOption = useMemo(() => {
-        if (!value.trim()) return OPTION_NONE;
-        return (PRACTICE_OPTIONS as readonly string[]).includes(value)
-            ? value
-            : OPTION_OTHER;
-    }, [value]);
+    const selectedOption = !value.trim()
+        ? OPTION_NONE
+        : (PRACTICE_OPTIONS as readonly string[]).includes(value)
+          ? value
+          : OPTION_OTHER;
     const customValue =
         selectedOption === OPTION_OTHER && value !== OPTION_OTHER ? value : "";
-    const options = useMemo<ModalSelectOption[]>(
-        () => [
-            { value: OPTION_NONE, label: "None" },
-            ...PRACTICE_OPTIONS,
-        ],
-        [],
-    );
+    const options: ModalSelectOption[] = [
+        { value: OPTION_NONE, label: "None" },
+        ...PRACTICE_OPTIONS,
+    ];
 
     function handleSelect(option: string) {
         if (option === OPTION_NONE) {
