@@ -15,8 +15,14 @@ import { COURTLISTENER_TOOL_NAMES } from "./tools/courtlistenerTools";
 import { findTextMatches } from "./tools/documentOps";
 
 type JsonRecord = Record<string, unknown>;
+type CourtlistenerCall = Pick<NormalizedToolCall, "name" | "input">;
+type CourtlistenerToolOptions = {
+  db?: Parameters<typeof getCourtlistenerCases>[0]["db"];
+  apiToken?: string | null;
+  pdfFallbackUserId?: string;
+};
 
-export type LocalCourtlistenerCase = {
+export type CourtlistenerCase = {
   clusterId: number;
   caseName: string | null;
   citations: string[];
@@ -26,8 +32,8 @@ export type LocalCourtlistenerCase = {
   opinions: object[];
 };
 
-export type LocalCourtlistenerState = {
-  casesByClusterId: Map<number, LocalCourtlistenerCase>;
+export type CourtlistenerToolState = {
+  casesByClusterId: Map<number, CourtlistenerCase>;
 };
 
 const TOOL_NAMES = new Set<string>(Object.values(COURTLISTENER_TOOL_NAMES));
@@ -82,7 +88,7 @@ function selectedOpinionIds(args: JsonRecord) {
   return one && one > 0 ? [one] : [];
 }
 
-function cachedCase(state: LocalCourtlistenerState, args: JsonRecord) {
+function cachedCase(state: CourtlistenerToolState, args: JsonRecord) {
   const clusterId = integer(args.clusterId) ?? integer(args.cluster_id);
   return {
     clusterId,
@@ -105,7 +111,7 @@ function compactOpinionMetadata(opinion: object) {
 }
 
 function cacheFetchedCases(
-  state: LocalCourtlistenerState,
+  state: CourtlistenerToolState,
   requestedIds: number[],
   fetched: unknown[],
 ) {
@@ -121,7 +127,7 @@ function cacheFetchedCases(
             Boolean(opinion) && typeof opinion === "object",
         )
       : [];
-    const cached: LocalCourtlistenerCase = {
+    const cached: CourtlistenerCase = {
       clusterId,
       caseName: text(value, "caseName"),
       citations: Array.isArray(value.citations)
@@ -140,7 +146,7 @@ function cacheFetchedCases(
 }
 
 async function queueCourtlistenerPdfFallback(
-  caseRecord: LocalCourtlistenerCase,
+  caseRecord: CourtlistenerCase,
   userId?: string,
 ) {
   // A PDF fallback is only worth importing when no opinion carries
@@ -170,9 +176,9 @@ async function queueCourtlistenerPdfFallback(
 }
 
 async function execute(
-  call: NormalizedToolCall,
-  state: LocalCourtlistenerState,
-  userId?: string,
+  call: CourtlistenerCall,
+  state: CourtlistenerToolState,
+  options: CourtlistenerToolOptions,
 ) {
   const args = call.input;
   if (call.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
@@ -184,6 +190,7 @@ async function execute(
       filedBefore:
         typeof args.filedBefore === "string" ? args.filedBefore : undefined,
       limit: typeof args.limit === "number" ? args.limit : undefined,
+      apiToken: options.apiToken,
     });
   }
 
@@ -194,6 +201,8 @@ async function execute(
             (citation): citation is string => typeof citation === "string",
           )
         : [],
+      db: options.db,
+      apiToken: options.apiToken,
     });
   }
 
@@ -201,21 +210,39 @@ async function execute(
     const ids = integers(
       args.clusterIds ?? args.cluster_ids ?? [args.clusterId],
     );
-    const payload = await getCourtlistenerCases({ clusterIds: ids });
+    const payload = await getCourtlistenerCases({
+      clusterIds: ids,
+      db: options.db,
+      apiToken: options.apiToken,
+    });
     const fetched =
       payload && Array.isArray((payload as { cases?: unknown[] }).cases)
         ? (payload as { cases: unknown[] }).cases
         : [];
     const cases = cacheFetchedCases(state, ids, fetched);
+    const errors = fetched
+      .map((item) => text(record(item), "error"))
+      .filter((error): error is string => !!error);
+    const error =
+      text(record(payload), "error") ?? (errors.join("; ") || null);
     const pdfFallbacks = new Map<number, ProviderPdfQueueResult>();
-    if (userId && ids.length === 1 && cases.length === 1) {
+    if (
+      options.pdfFallbackUserId &&
+      ids.length === 1 &&
+      cases.length === 1
+    ) {
       const caseRecord = cases[0];
-      const fallback = await queueCourtlistenerPdfFallback(caseRecord, userId);
+      const fallback = await queueCourtlistenerPdfFallback(
+        caseRecord,
+        options.pdfFallbackUserId,
+      );
       if (fallback) pdfFallbacks.set(caseRecord.clusterId, fallback);
     }
     return {
       ok:
-        cases.length > 0 && cases.every(({ opinions }) => opinions.length > 0),
+        !error &&
+        cases.length > 0 &&
+        cases.every(({ opinions }) => opinions.length > 0),
       case_count: cases.length,
       opinion_count: cases.reduce(
         (sum, caseRecord) => sum + caseRecord.opinions.length,
@@ -224,14 +251,21 @@ async function execute(
       cases: cases.map((caseRecord) => ({
         cluster_id: caseRecord.clusterId,
         case_name: caseRecord.caseName,
+        citation: caseRecord.citations[0] ?? null,
         citations: caseRecord.citations,
         dateFiled: caseRecord.dateFiled,
+        url: caseRecord.url,
+        pdfUrl: caseRecord.pdfUrl,
         opinion_count: caseRecord.opinions.length,
         opinions: caseRecord.opinions.map(compactOpinionMetadata),
         pdf_fallback: pdfFallbacks.get(caseRecord.clusterId) ?? null,
       })),
-      next_required_action:
-        "Use courtlistener_find_in_case or courtlistener_lookup_case_locator before relying on the case.",
+      ...(error ? { error } : {}),
+      next_required_action: cases.some(
+        ({ opinions }) => opinions.length > 1,
+      )
+        ? "Opinion text is cached server-side only. Use courtlistener_find_in_case with short 1-3 word keyword probes for relevant passages. At least one fetched case has multiple opinions; if snippets are insufficient, choose the needed opinion_id(s) from the text-free opinion metadata and call courtlistener_read_case with only those IDs. Do not read all opinions unless the question requires it."
+        : "Opinion text is cached server-side only. Use courtlistener_find_in_case with short 1-3 word keyword probes for relevant passages, or courtlistener_read_case if snippets are insufficient.",
     };
   }
 
@@ -244,7 +278,10 @@ async function execute(
         "Case has not been fetched in this turn. Call courtlistener_get_cases first.",
     };
   }
-  const pdfFallback = await queueCourtlistenerPdfFallback(caseRecord, userId);
+  const pdfFallback = await queueCourtlistenerPdfFallback(
+    caseRecord,
+    options.pdfFallbackUserId,
+  );
 
   if (call.name === COURTLISTENER_TOOL_NAMES.findInCase) {
     const query = typeof args.query === "string" ? args.query : "";
@@ -278,6 +315,7 @@ async function execute(
           opinion_id: opinionId(value),
           type: text(value, "type"),
           author: text(value, "author"),
+          url: text(value, "url"),
         })),
       );
     }
@@ -388,18 +426,29 @@ async function execute(
 
 export async function runLocalCourtlistenerTool(
   call: NormalizedToolCall,
-  state: LocalCourtlistenerState,
+  state: CourtlistenerToolState,
   userId?: string,
 ): Promise<NormalizedToolResult | null> {
+  const payload = await executeCourtlistenerTool(call, state, {
+    pdfFallbackUserId: userId,
+  });
+  return payload ? result(call, payload) : null;
+}
+
+export async function executeCourtlistenerTool(
+  call: CourtlistenerCall,
+  state: CourtlistenerToolState,
+  options: CourtlistenerToolOptions = {},
+): Promise<JsonRecord | null> {
   if (!TOOL_NAMES.has(call.name)) return null;
   try {
-    return result(call, await execute(call, state, userId));
+    return (await execute(call, state, options)) as JsonRecord;
   } catch (error) {
-    return result(call, {
+    return {
       ok: false,
       source: "CourtListener",
       error:
         error instanceof Error ? error.message : "CourtListener tool failed.",
-    });
+    };
   }
 }

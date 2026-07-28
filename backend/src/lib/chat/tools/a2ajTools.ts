@@ -1,8 +1,139 @@
+import {
+  fetchA2AJDocument,
+  lookupA2AJLocator,
+  searchA2AJ,
+  type A2AJDocument,
+  type A2AJLocatorLookup,
+} from "../../a2aj";
+
 export const A2AJ_TOOL_NAMES = {
   search: "a2aj_search",
   fetch: "a2aj_fetch",
   lookup: "a2aj_lookup",
 } as const;
+
+export type A2AJToolExecution = {
+  payload: Record<string, unknown>;
+  document?: A2AJDocument;
+  lookup?: A2AJLocatorLookup;
+};
+
+function optionalString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function optionalNumber(value: unknown) {
+  return typeof value === "number" ? value : undefined;
+}
+
+export async function executeA2AJTool(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<A2AJToolExecution | null> {
+  if (!Object.values(A2AJ_TOOL_NAMES).includes(name as never)) return null;
+
+  try {
+    if (name === A2AJ_TOOL_NAMES.search) {
+      const results = await searchA2AJ({
+        query: optionalString(args.query) ?? "",
+        docType: args.doc_type === "laws" ? "laws" : "cases",
+        searchType: args.search_type === "name" ? "name" : "full_text",
+        language: args.search_language === "fr" ? "fr" : "en",
+        size: optionalNumber(args.size),
+        dataset: optionalString(args.dataset),
+        startDate: optionalString(args.start_date),
+        endDate: optionalString(args.end_date),
+        sortResults:
+          args.sort_results === "newest_first" ||
+          args.sort_results === "oldest_first"
+            ? args.sort_results
+            : "default",
+      });
+      return {
+        payload: {
+          ok: true,
+          source: "A2AJ",
+          result_count: results.length,
+          results,
+          next_required_action:
+            "Use a2aj_fetch with a returned citation before relying on source text in the final answer.",
+        },
+      };
+    }
+
+    if (name === A2AJ_TOOL_NAMES.fetch) {
+      const document = await fetchA2AJDocument({
+        citation: optionalString(args.citation) ?? "",
+        docType: args.doc_type === "laws" ? "laws" : "cases",
+        language: args.output_language === "fr" ? "fr" : "en",
+        section: optionalString(args.section),
+      });
+      return {
+        document: document ?? undefined,
+        payload: document
+          ? {
+              ok: true,
+              source: "A2AJ",
+              ...document,
+              ...(document.truncated
+                ? {
+                    next_required_action: `Only the first ${document.text.length} of ${document.total_chars} characters are shown. Use a2aj_lookup for a specific paragraph or section, or a2aj_fetch with "section", before relying on any part of this document you cannot see.`,
+                  }
+                : {}),
+            }
+          : {
+              ok: false,
+              source: "A2AJ",
+              error: "A2AJ did not find an exact matching document.",
+            },
+      };
+    }
+
+    const lookup = await lookupA2AJLocator({
+      citation: optionalString(args.citation) ?? "",
+      docType: args.doc_type === "laws" ? "laws" : "cases",
+      language: args.output_language === "fr" ? "fr" : "en",
+      kind:
+        args.locator_type === "page"
+          ? "page"
+          : args.locator_type === "section"
+            ? "section"
+            : "paragraph",
+      locator: optionalString(args.locator) ?? "",
+      contextBlocks: optionalNumber(args.context_blocks),
+    });
+    return {
+      lookup: lookup ?? undefined,
+      payload: lookup
+        ? {
+            ok: lookup.status === "found",
+            source: "A2AJ",
+            ...lookup,
+            url: undefined,
+          }
+        : {
+            ok: false,
+            source: "A2AJ",
+            error: "A2AJ did not find an exact matching document.",
+          },
+    };
+  } catch (error) {
+    const action =
+      name === A2AJ_TOOL_NAMES.search
+        ? "search"
+        : name === A2AJ_TOOL_NAMES.fetch
+          ? "fetch"
+          : "lookup";
+    return {
+      payload: {
+        ok: false,
+        source: "A2AJ",
+        error:
+          error instanceof Error ? error.message : `A2AJ ${action} failed.`,
+      },
+    };
+  }
+}
 
 export const A2AJ_TOOLS = [
   {

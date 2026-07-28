@@ -22,10 +22,12 @@ vi.mock("../courtlistener", () => ({
 }));
 
 import { runLocalAssistantTools } from "../chat/localAssistantTools";
+import { runToolCalls } from "../chat/tools/toolDispatcher";
+import type { DocStore, ToolCall } from "../chat/types";
 import {
   runLocalCourtlistenerTool,
-  type LocalCourtlistenerState,
-} from "../chat/localCourtlistenerTools";
+  type CourtlistenerToolState,
+} from "../chat/courtlistenerToolRunner";
 import { COURTLISTENER_TOOL_NAMES } from "../chat/tools/courtlistenerTools";
 import { appendLocalPdfPinpointLinks } from "../chat/localPdfEvidenceState";
 
@@ -259,7 +261,7 @@ describe("provider PDF consumers", () => {
         },
       ],
     });
-    const state: LocalCourtlistenerState = {
+    const state: CourtlistenerToolState = {
       casesByClusterId: new Map(),
     };
     const call = {
@@ -355,6 +357,59 @@ describe("provider PDF consumers", () => {
     );
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
     expect(JSON.parse(explored!.content).pdf_fallback).toEqual(fallback);
+  });
+
+  it("uses the shared CourtListener executor in cloud chat", async () => {
+    getCourtlistenerCases.mockResolvedValue({
+      cases: [
+        {
+          clusterId: 42,
+          caseName: "Example v. State",
+          citations: ["1 F.4th 2"],
+          url: "https://www.courtlistener.com/opinion/42/example/",
+          opinions: [{ opinionId: 8, text: "Opinion text" }],
+        },
+      ],
+    });
+    const calls = [
+      {
+        id: "fetch",
+        type: "function",
+        function: {
+          name: COURTLISTENER_TOOL_NAMES.getCases,
+          arguments: JSON.stringify({ clusterIds: [42] }),
+        },
+      },
+      {
+        id: "find",
+        type: "function",
+        function: {
+          name: COURTLISTENER_TOOL_NAMES.findInCase,
+          arguments: JSON.stringify({
+            clusterId: 42,
+            query: "Opinion",
+          }),
+        },
+      },
+    ] as ToolCall[];
+    const writes: string[] = [];
+
+    const response = await runToolCalls(
+      calls,
+      new Map() as DocStore,
+      "user-1",
+      null as never,
+      (value) => writes.push(value),
+    );
+
+    expect(JSON.parse((response.toolResults[0] as { content: string }).content))
+      .toMatchObject({ ok: true, case_count: 1, opinion_count: 1 });
+    expect(JSON.parse((response.toolResults[1] as { content: string }).content))
+      .toMatchObject({ ok: true, total_matches: 1 });
+    expect(writes.join("")).toContain('"type":"case_opinions"');
+    expect(writes.join("")).toContain(
+      '"type":"courtlistener_find_in_case"',
+    );
   });
 
   it("uses a same-host Decisia PDF candidate for flat A2AJ text", async () => {

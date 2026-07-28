@@ -2,13 +2,7 @@ import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { appUrl } from "../appRoutes";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
-import {
-  fetchA2AJDocument,
-  lookupA2AJLocator,
-  searchA2AJ,
-  type A2AJDocument,
-  type A2AJLocatorLookup,
-} from "../a2aj";
+import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
@@ -54,7 +48,10 @@ import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
 } from "../tableOfAuthorities";
-import { A2AJ_TOOL_NAMES, A2AJ_TOOLS } from "./tools/a2ajTools";
+import {
+  A2AJ_TOOLS,
+  executeA2AJTool,
+} from "./tools/a2ajTools";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
@@ -76,8 +73,8 @@ import {
 import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
-  type LocalCourtlistenerState,
-} from "./localCourtlistenerTools";
+  type CourtlistenerToolState,
+} from "./courtlistenerToolRunner";
 
 const tool = (
   name: string,
@@ -707,7 +704,7 @@ export async function runLocalAssistantTools(
   calls: NormalizedToolCall[],
   a2ajLookups?: A2AJLocatorLookup[],
   a2ajDocuments?: A2AJDocument[],
-  courtlistenerState?: LocalCourtlistenerState,
+  courtlistenerState?: CourtlistenerToolState,
   publicLegalState?: PublicLegalSourceState,
   allowedDocumentIds?: Set<string>,
   localPdfEvidenceHandles?: Set<string>,
@@ -1385,84 +1382,21 @@ export async function runLocalAssistantTools(
         }
       }
 
-      if (call.name === A2AJ_TOOL_NAMES.search) {
-        const documents = await searchA2AJ({
-          query: typeof args.query === "string" ? args.query : "",
-          docType: args.doc_type === "laws" ? "laws" : "cases",
-          searchType: args.search_type === "name" ? "name" : "full_text",
-          language: args.search_language === "fr" ? "fr" : "en",
-          size: optionalNumber(args.size),
-          dataset: optionalString(args.dataset),
-          startDate: optionalString(args.start_date),
-          endDate: optionalString(args.end_date),
-          sortResults:
-            args.sort_results === "newest_first" ||
-            args.sort_results === "oldest_first"
-              ? args.sort_results
-              : "default",
-        });
-        return result(call, {
-          ok: true,
-          source: "A2AJ",
-          results: documents,
-          next_required_action: "Use a2aj_fetch before relying on source text.",
-        });
-      }
-
-      if (call.name === A2AJ_TOOL_NAMES.fetch) {
-        const document = await fetchA2AJDocument({
-          citation: typeof args.citation === "string" ? args.citation : "",
-          docType: args.doc_type === "laws" ? "laws" : "cases",
-          language: args.output_language === "fr" ? "fr" : "en",
-          section: optionalString(args.section),
-        });
-        if (document?.url) a2ajDocuments?.push(document);
-        const pdfFallback = document
-          ? await queueA2ajPdfFallback(document)
-          : null;
-        return result(
-          call,
-          document
-            ? {
-                ok: true,
-                source: "A2AJ",
-                ...document,
-                ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
-              }
-            : { ok: false, source: "A2AJ", error: "Document not found" },
-        );
-      }
-
-      if (call.name === A2AJ_TOOL_NAMES.lookup) {
-        const lookup = await lookupA2AJLocator({
-          citation: typeof args.citation === "string" ? args.citation : "",
-          docType: args.doc_type === "laws" ? "laws" : "cases",
-          language: args.output_language === "fr" ? "fr" : "en",
-          kind:
-            args.locator_type === "page"
-              ? "page"
-              : args.locator_type === "section"
-                ? "section"
-                : "paragraph",
-          locator: typeof args.locator === "string" ? args.locator : "",
-          contextBlocks: optionalNumber(args.context_blocks),
-        });
-        if (lookup?.status === "found" && lookup.block) {
-          a2ajLookups?.push(lookup);
+      const a2aj = await executeA2AJTool(call.name, args);
+      if (a2aj) {
+        if (a2aj.document?.url) a2ajDocuments?.push(a2aj.document);
+        if (a2aj.lookup?.status === "found" && a2aj.lookup.block) {
+          a2ajLookups?.push(a2aj.lookup);
         }
-        const pdfFallback = lookup ? await queueA2ajPdfFallback(lookup) : null;
-        return result(
-          call,
-          lookup
-            ? {
-                ok: lookup.status === "found",
-                source: "A2AJ",
-                ...lookup,
-                url: undefined,
-                ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
-              }
-            : { ok: false, source: "A2AJ", error: "Document not found" },
-        );
+        const pdfFallback = a2aj.document
+          ? await queueA2ajPdfFallback(a2aj.document)
+          : a2aj.lookup
+            ? await queueA2ajPdfFallback(a2aj.lookup)
+            : null;
+        return result(call, {
+          ...a2aj.payload,
+          ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
+        });
       }
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });
