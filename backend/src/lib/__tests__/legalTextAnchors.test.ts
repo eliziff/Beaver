@@ -80,6 +80,22 @@ describe("extractAnchors: dates", () => {
     expect(norms("matures on 15 March 2027")).toEqual(["date:2027-03-15"]);
   });
 
+  it("reads recital-style ordinal dates (CUAD-measured gap)", () => {
+    expect(norms("executed on the 15th day of March, 2027")).toEqual([
+      "date:2027-03-15",
+    ]);
+    expect(norms("dated March 15th, 2027")).toEqual(["date:2027-03-15"]);
+    expect(norms("on the 1st of June, 2020")).toEqual(["date:2020-06-01"]);
+  });
+
+  it("reads worded percentages", () => {
+    expect([...new Set(norms("fifty percent (50%) of Net Revenue"))]).toEqual([
+      "pct:50",
+    ]);
+    expect(norms("twenty-five percent of the fees")).toEqual(["pct:25"]);
+    expect(norms("a large percent of users")).toEqual([]);
+  });
+
   it("deliberately ignores month-year mentions", () => {
     expect(norms("the March 2027 maturity")).toEqual([]);
   });

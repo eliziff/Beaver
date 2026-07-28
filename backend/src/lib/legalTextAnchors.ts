@@ -103,15 +103,23 @@ const CURRENCIES: Record<string, string> = {
   "pounds sterling": "gbp",
 };
 const PERCENT_RE = /(\d[\d,]*(?:\.\d+)?)\s?(?:%|percent\b|per cent\b)/giu;
+const PERCENT_WORDS_RE =
+  /\b([A-Za-z][A-Za-z\s\-]{2,50}?)\s?(?:percent|per cent)\b/giu;
 const RATIO_X_RE = /(?<![\w$.])(\d+(?:\.\d+)?)\s?x\b/giu;
 const RATIO_TO_ONE_RE =
   /(?<![\w$.])(\d+(?:\.\d+)?)\s?(?::|to)\s?1(?:\.0{1,2})?\b(?!\.\d)/giu;
 const DATE_TEXTUAL_RE = new RegExp(
-  String.raw`\b(${MONTH_ALTERNATION})\s+(\d{1,2}),?\s+(\d{4})\b`,
+  String.raw`\b(${MONTH_ALTERNATION})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b`,
   "giu",
 );
 const DATE_DAY_FIRST_RE = new RegExp(
-  String.raw`\b(\d{1,2})\s+(${MONTH_ALTERNATION})\s+(\d{4})\b`,
+  String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(${MONTH_ALTERNATION}),?\s+(\d{4})\b`,
+  "giu",
+);
+// Recital style: "the 15th day of March, 2027" (CUAD-measured gap: ordinal
+// long-form dates carry many Agreement/Effective Date answers).
+const DATE_DAY_OF_RE = new RegExp(
+  String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+day\s+of\s+(${MONTH_ALTERNATION}),?\s+(\d{4})\b`,
   "giu",
 );
 const DATE_NUMERIC_RE = /\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/gu;
@@ -246,14 +254,31 @@ export function extractAnchors(text: string): AnchorHit[] {
       hits.push({ cls: "date", raw: match[0], norm: `date:${iso}`, index: match.index });
     }
   }
-  for (const match of text.matchAll(DATE_DAY_FIRST_RE)) {
-    const iso = isoDate(
-      Number(match[3]),
-      MONTHS[match[2].toLowerCase()],
-      Number(match[1]),
-    );
-    if (iso) {
-      hits.push({ cls: "date", raw: match[0], norm: `date:${iso}`, index: match.index });
+  for (const re of [DATE_DAY_FIRST_RE, DATE_DAY_OF_RE]) {
+    for (const match of text.matchAll(re)) {
+      const iso = isoDate(
+        Number(match[3]),
+        MONTHS[match[2].toLowerCase()],
+        Number(match[1]),
+      );
+      if (iso) {
+        hits.push({ cls: "date", raw: match[0], norm: `date:${iso}`, index: match.index ?? 0 });
+      }
+    }
+  }
+  // Worded percentages ("fifty percent", usually followed by "(50%)"):
+  // parse the trailing number-word phrase (CUAD-measured gap in
+  // revenue-share and cap clauses).
+  for (const match of text.matchAll(PERCENT_WORDS_RE)) {
+    const phrase = numberWordSuffix(match[1]);
+    const value = phrase === null ? null : wordPhraseToNumber(phrase);
+    if (value !== null) {
+      hits.push({
+        cls: "percent",
+        raw: match[0],
+        norm: `pct:${value}`,
+        index: match.index ?? 0,
+      });
     }
   }
   for (const match of text.matchAll(DATE_NUMERIC_RE)) {
