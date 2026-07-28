@@ -30,6 +30,7 @@ import {
   parseCitationsWithDiagnostics,
   parsePartialCitationObjects,
   createCitation,
+  citationUrls,
 } from "./citations";
 import { createVisibleStreamSplitter } from "./visibleStream";
 import {
@@ -59,12 +60,7 @@ export type AssistantEvent =
       }[];
     }
   | { type: "doc_read"; filename: string; document_id?: string }
-  | {
-      type: "doc_find";
-      filename: string;
-      query: string;
-      total_matches: number;
-    }
+  | { type: "doc_find"; filename: string; query: string; total_matches: number }
   | {
       type: "doc_created";
       filename: string;
@@ -131,7 +127,24 @@ function throwIfAborted(signal?: AbortSignal) {
   throw err;
 }
 
-export async function runLLMStream(params: {
+export async function runLLMStream({
+  apiMessages,
+  docStore,
+  docIndex,
+  userId,
+  db,
+  write,
+  extraTools,
+  includeResearchTools = true,
+  workflowStore,
+  tabularStore,
+  buildCitations,
+  model,
+  apiKeys,
+  reasoningEffort,
+  signal,
+  projectId,
+}: {
   apiMessages: unknown[];
   docStore: DocStore;
   docIndex: DocIndex;
@@ -158,24 +171,6 @@ export async function runLLMStream(params: {
   events: AssistantEvent[];
   citations: unknown[];
 }> {
-  const {
-    apiMessages,
-    docStore,
-    docIndex,
-    userId,
-    db,
-    write,
-    extraTools,
-    includeResearchTools = true,
-    workflowStore,
-    tabularStore,
-    buildCitations,
-    model,
-    apiKeys,
-    reasoningEffort,
-    signal,
-    projectId,
-  } = params;
   const researchTools = includeResearchTools
     ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS]
     : [];
@@ -227,14 +222,13 @@ export async function runLLMStream(params: {
   let streamingCitationsBuffer = "";
   let streamedCitationCount = 0;
 
+  const emit = (payload: unknown) =>
+    write(`data: ${JSON.stringify(payload)}\n\n`);
   const emitCitationStreamSnapshot = (
     status: "started" | "partial",
     citations: unknown[],
   ) => {
-    if (buildCitations) return;
-    write(
-      `data: ${JSON.stringify({ type: "citations", status, citations })}\n\n`,
-    );
+    if (!buildCitations) emit({ type: "citations", status, citations });
   };
 
   const streamHiddenCitationContent = (delta: string) => {
@@ -259,9 +253,7 @@ export async function runLLMStream(params: {
   const splitter = createVisibleStreamSplitter({
     onVisible: (visible) => {
       iterVisibleText += visible;
-      write(
-        `data: ${JSON.stringify({ type: "content_delta", text: visible })}\n\n`,
-      );
+      emit({ type: "content_delta", text: visible });
     },
     onOpen: () => {
       streamingCitationsBuffer = "";
@@ -271,21 +263,14 @@ export async function runLLMStream(params: {
     onHidden: streamHiddenCitationContent,
   });
 
-  const flushVisibleTail = (opts: { emit?: boolean } = {}) => {
-    const tail = splitter.takeTail();
-    if (!tail) return;
-    iterVisibleText += tail;
-    if (opts.emit ?? true) {
-      write(
-        `data: ${JSON.stringify({ type: "content_delta", text: tail })}\n\n`,
-      );
-    }
-  };
-
   const flushText = (opts: { emit?: boolean } = {}) => {
     if (!iterText) return;
     fullText += iterText;
-    flushVisibleTail(opts);
+    const tail = splitter.takeTail();
+    if (tail) {
+      iterVisibleText += tail;
+      if (opts.emit ?? true) emit({ type: "content_delta", text: tail });
+    }
     if (iterVisibleText) {
       events.push({ type: "content", text: iterVisibleText });
     }
@@ -325,14 +310,12 @@ export async function runLLMStream(params: {
         },
         onReasoningDelta: (delta) => {
           iterReasoning += delta;
-          write(
-            `data: ${JSON.stringify({ type: "reasoning_delta", text: delta })}\n\n`,
-          );
+          emit({ type: "reasoning_delta", text: delta });
         },
         onReasoningBlockEnd: () => {
           if (!iterReasoning) return;
           events.push({ type: "reasoning", text: iterReasoning });
-          write(`data: ${JSON.stringify({ type: "reasoning_block_end" })}\n\n`);
+          emit({ type: "reasoning_block_end" });
           iterReasoning = "";
         },
         // Fires after Claude's turn ends with stop_reason=tool_use, before
@@ -343,12 +326,7 @@ export async function runLLMStream(params: {
         // and the first tool-specific event.
         onToolCallStart: (call) => {
           flushText();
-          write(
-            `data: ${JSON.stringify({
-              type: "tool_call_start",
-              name: call.name,
-            })}\n\n`,
-          );
+          emit({ type: "tool_call_start", name: call.name });
         },
       },
       runTools: async (calls) => {
@@ -396,62 +374,46 @@ export async function runLLMStream(params: {
         a2ajLookups.push(...batchA2AJLookups);
         a2ajDocuments.push(...batchA2AJDocuments);
         throwIfAborted(signal);
-        for (const r of docsRead) {
-          events.push({
-            type: "doc_read",
+        events.push(
+          ...docsRead.map((r) => ({
+            type: "doc_read" as const,
             filename: r.filename,
             document_id: r.document_id,
-          });
-        }
-        for (const f of docsFound) {
-          events.push({
-            type: "doc_find",
+          })),
+          ...docsFound.map((f) => ({
+            type: "doc_find" as const,
             filename: f.filename,
             query: f.query,
             total_matches: f.total_matches,
-          });
-        }
-        for (const dl of docsCreated) {
-          events.push({
-            type: "doc_created",
+          })),
+          ...docsCreated.map((dl) => ({
+            type: "doc_created" as const,
             filename: dl.filename,
             download_url: dl.download_url,
             document_id: dl.document_id,
             version_id: dl.version_id,
             version_number: dl.version_number ?? null,
-          });
-        }
-        for (const wf of workflowsApplied) {
-          events.push({
-            type: "workflow_applied",
+          })),
+          ...workflowsApplied.map((wf) => ({
+            type: "workflow_applied" as const,
             workflow_id: wf.workflow_id,
             title: wf.title,
-          });
-        }
-        for (const e of docsEdited) {
-          events.push({
-            type: "doc_edited",
+          })),
+          ...docsEdited.map((e) => ({
+            type: "doc_edited" as const,
             filename: e.filename,
             document_id: e.document_id,
             version_id: e.version_id,
             version_number: e.version_number,
             download_url: e.download_url,
             annotations: e.annotations,
-          });
-        }
+          })),
+        );
         for (const askInputsEvent of askInputsEvents) {
-          write(`data: ${JSON.stringify(askInputsEvent)}\n\n`);
+          emit(askInputsEvent);
           events.push(askInputsEvent);
         }
-        for (const event of courtlistenerEvents) {
-          events.push(event);
-        }
-        for (const event of mcpEvents) {
-          events.push(event);
-        }
-        for (const event of caseCitationEvents) {
-          events.push(event);
-        }
+        events.push(...courtlistenerEvents, ...mcpEvents, ...caseCitationEvents);
 
         if (askInputsEvents.length > 0) {
           throw new AssistantStreamAskInputsPause();
@@ -517,17 +479,12 @@ export async function runLLMStream(params: {
   const linkedText = appendPublicLegalPinpointLinks(
     visibleText,
     publicLegalState,
-    citations.flatMap((citation) => {
-      const url = (citation as { url?: unknown })?.url;
-      return typeof url === "string" ? [url] : [];
-    }),
+    citationUrls(citations),
   );
   const linkDelta = linkedText.slice(visibleText.length);
   if (linkDelta) {
     events.push({ type: "content", text: linkDelta });
-    write(
-      `data: ${JSON.stringify({ type: "content_delta", text: linkDelta })}\n\n`,
-    );
+    emit({ type: "content_delta", text: linkDelta });
   }
   devLog("[chat/stream] final citations", {
     hasCitationsBlock: citationDiagnostics.hasBlock,
@@ -537,9 +494,7 @@ export async function runLLMStream(params: {
     emittedCitationCount: citations.length,
     usedCustomCitationBuilder: !!buildCitations,
   });
-  write(
-    `data: ${JSON.stringify({ type: "citations", status: "final", citations })}\n\n`,
-  );
+  emit({ type: "citations", status: "final", citations });
   write("data: [DONE]\n\n");
 
   return { fullText, events, citations };

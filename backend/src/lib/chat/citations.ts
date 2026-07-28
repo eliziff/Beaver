@@ -404,6 +404,14 @@ export function parsePartialCitationObjects(text: string): ParsedCitation[] {
     .filter((citation): citation is ParsedCitation => citation !== null);
 }
 
+/** URLs of built citations, for suppressing duplicate pinpoint links. */
+export function citationUrls(citations: unknown[]): string[] {
+  return citations.flatMap((citation) => {
+    const url = (citation as { url?: unknown } | null)?.url;
+    return typeof url === "string" ? [url] : [];
+  });
+}
+
 type CasesByClusterId = Map<
   number,
   {
