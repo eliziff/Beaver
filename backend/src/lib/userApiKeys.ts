@@ -10,7 +10,7 @@ export type ApiKeyProvider =
     | "deepseek"
     | "openrouter"
     | "courtlistener";
-export type ApiKeySource = "user" | "env" | null;
+type ApiKeySource = "user" | "env" | null;
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources: Record<ApiKeyProvider, ApiKeySource>;
 };

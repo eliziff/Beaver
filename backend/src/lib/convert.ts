@@ -30,23 +30,29 @@ function resolveSofficeBinaryPaths(): string[] {
     if (value) candidates.add(value);
   }
 
+  // Windows binaries carry the .exe suffix, so the bare names below can
+  // never match there even when LibreOffice is installed and on PATH.
+  const windows = process.platform === "win32";
+  const names = windows ? ["soffice.exe"] : ["soffice", "libreoffice"];
   const pathDirs = (process.env.PATH ?? "")
     .split(path.delimiter)
     .filter(Boolean);
   for (const dir of pathDirs) {
-    candidates.add(path.join(dir, "soffice"));
-    candidates.add(path.join(dir, "libreoffice"));
+    for (const name of names) candidates.add(path.join(dir, name));
   }
 
-  for (const filePath of [
-    "/usr/bin/libreoffice",
-    "/usr/bin/soffice",
-    "/snap/bin/libreoffice",
-    "/opt/libreoffice/program/soffice",
-    "/opt/libreoffice7.6/program/soffice",
-  ]) {
-    candidates.add(filePath);
-  }
+  const installs = windows
+    ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]
+        .filter(Boolean)
+        .map((dir) => path.join(dir!, "LibreOffice", "program", "soffice.exe"))
+    : [
+        "/usr/bin/libreoffice",
+        "/usr/bin/soffice",
+        "/snap/bin/libreoffice",
+        "/opt/libreoffice/program/soffice",
+        "/opt/libreoffice7.6/program/soffice",
+      ];
+  for (const filePath of installs) candidates.add(filePath);
 
   _sofficeBinaryPaths = [...candidates].filter(executablePath);
   return _sofficeBinaryPaths;
