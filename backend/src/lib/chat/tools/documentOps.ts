@@ -107,11 +107,15 @@ function docxFieldValues(raw: unknown) {
   if (!Array.isArray(raw) || raw.length > 100) {
     throw new Error("DOCX fields must be an array of at most 100 values.");
   }
+  // Report every bad field in one error so the model can fix the whole call
+  // in a single retry instead of discovering problems one round-trip at a time.
   const values: Record<string, string> = {};
+  const problems: string[] = [];
   let totalLength = 0;
-  for (const item of raw) {
+  for (const [index, item] of raw.entries()) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
-      throw new Error("Each DOCX field must have an id and text value.");
+      problems.push(`fields[${index}] must be an object with id and value.`);
+      continue;
     }
     const record = item as Record<string, unknown>;
     const id =
@@ -119,21 +123,31 @@ function docxFieldValues(raw: unknown) {
         ? normalizeDocxControlTag(record.id)
         : null;
     if (!id) {
-      throw new Error(
-        "DOCX field ids must normalize to stable identifiers beginning with a letter.",
+      problems.push(
+        `fields[${index}].id must normalize to an identifier beginning with a letter.`,
       );
+      continue;
     }
     if (Object.hasOwn(values, id)) {
-      throw new Error(`DOCX field "${id}" is duplicated.`);
+      problems.push(`field "${id}" is duplicated.`);
+      continue;
     }
     if (typeof record.value !== "string" || record.value.length > 20_000) {
-      throw new Error(`DOCX field "${id}" must be at most 20,000 characters.`);
+      problems.push(
+        `field "${id}" value must be a string of at most 20,000 characters.`,
+      );
+      continue;
     }
     totalLength += record.value.length;
-    if (totalLength > 200_000) {
-      throw new Error("DOCX field values exceed 200,000 characters in total.");
-    }
     values[id] = record.value;
+  }
+  if (totalLength > 200_000) {
+    problems.push("field values exceed 200,000 characters in total.");
+  }
+  if (problems.length) {
+    throw new Error(
+      `DOCX fields rejected: ${problems.join(" ")} Fix every listed field and retry the same call.`,
+    );
   }
   return values;
 }
