@@ -6,6 +6,7 @@ import {
   SYSTEM_WORKFLOWS,
   type SystemWorkflow,
 } from "../lib/systemWorkflows";
+import { isAnonymousLocalMode } from "../lib/localMode";
 import { findMissingUserEmails } from "../lib/userLookup";
 
 export const workflowsRouter = Router();
@@ -86,6 +87,16 @@ const DEFAULT_WORKFLOW_PRACTICE = "General Transactions";
 const DEFAULT_WORKFLOW_JURISDICTIONS = ["General"];
 const WORKFLOW_CONTRIBUTIONS_ENABLED =
   process.env.WORKFLOW_CONTRIBUTIONS_ENABLED === "true";
+const LOCAL_STARTER_WORKFLOW_IDS = new Set([
+  "builtin-change-of-control-tabular-review",
+  "builtin-commercial-agreement-tabular-review",
+  "builtin-credit-agreement-review",
+  "builtin-draft-cp-checklist",
+  "builtin-shareholder-agreement-review",
+]);
+const LOCAL_STARTER_WORKFLOWS = SYSTEM_WORKFLOWS.filter((workflow) =>
+  LOCAL_STARTER_WORKFLOW_IDS.has(workflow.id),
+);
 
 type WorkflowAccess =
   | {
@@ -102,6 +113,16 @@ function asyncRoute(handler: AsyncRoute) {
     void handler(req, res).catch(next);
   };
 }
+
+workflowsRouter.use((req, res, next) => {
+  if (!isAnonymousLocalMode() || req.method === "GET") {
+    next();
+    return;
+  }
+  res
+    .status(503)
+    .json({ detail: "This feature requires Supabase persistence" });
+});
 
 function withWorkflowAccess<T extends object>(
   workflow: T,
@@ -308,8 +329,16 @@ workflowsRouter.get("/", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { type } = req.query as { type?: string };
-  const db = createServerSupabase();
   const workflowType = typeof type === "string" && type ? type : null;
+  if (isAnonymousLocalMode()) {
+    res.json(
+      LOCAL_STARTER_WORKFLOWS.filter(
+        (workflow) => !workflowType || workflow.metadata.type === workflowType,
+      ).map(withSystemWorkflowAccess),
+    );
+    return;
+  }
+  const db = createServerSupabase();
 
   const { data, error } = await db.rpc("get_workflows_overview", {
     p_user_id: userId,
@@ -468,6 +497,10 @@ workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) 
 }));
 
 workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (req, res) => {
+  if (isAnonymousLocalMode()) {
+    res.json([]);
+    return;
+  }
   const userId = res.locals.userId as string;
   const db = createServerSupabase();
   const { data, error } = await db
@@ -634,11 +667,16 @@ workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => 
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { workflowId } = req.params;
-  const systemWorkflow = SYSTEM_WORKFLOWS.find(
+  const systemWorkflow = (
+    isAnonymousLocalMode() ? LOCAL_STARTER_WORKFLOWS : SYSTEM_WORKFLOWS
+  ).find(
     (workflow) => workflow.id === workflowId,
   );
   if (systemWorkflow) {
     return void res.json(withSystemWorkflowAccess(systemWorkflow));
+  }
+  if (isAnonymousLocalMode()) {
+    return void res.status(404).json({ detail: "Workflow not found" });
   }
 
   const db = createServerSupabase();
@@ -662,6 +700,13 @@ workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => 
 workflowsRouter.get("/:workflowId/shares", requireAuth, asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
+  if (isAnonymousLocalMode()) {
+    if (LOCAL_STARTER_WORKFLOW_IDS.has(workflowId)) {
+      res.json([]);
+      return;
+    }
+    return void res.status(404).json({ detail: "Workflow not found" });
+  }
   const db = createServerSupabase();
 
   const { data: wf } = await db
