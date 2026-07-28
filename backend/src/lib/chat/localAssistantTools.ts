@@ -7,6 +7,11 @@ import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
 import { anchorCoverage } from "../legalTextAnchors";
+import {
+  compileAgreementSkeleton,
+  readSection,
+  renderAgreementOutline,
+} from "../legalTextSkeleton";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { applyTrackedEdits, type EditInput } from "../docxTrackedChanges";
@@ -125,6 +130,28 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           enum: ["text", "drafting"],
           description:
             "Defaults to text. Drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
+        },
+        section: {
+          type: "string",
+          description:
+            "Optional structural locator parsed from the document's own numbering — 'Section 8.01(b)', '8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'. Returns only that span (children included) instead of the full text. Call library_outline first for the exact handles.",
+        },
+      },
+      required: ["document_id"],
+    },
+  ),
+  tool(
+    "library_outline",
+    "Deterministic structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the exact handle library_read's section parameter accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens with nothing structural omitted — prefer this over reading full text when deciding what exists or planning pinpoint reads.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        max_chars: {
+          type: "integer",
+          minimum: 1000,
+          maximum: 40000,
+          description: "Outline character budget. Defaults to 8000.",
         },
       },
       required: ["document_id"],
@@ -1276,6 +1303,31 @@ export async function runLocalAssistantTools(
         const document = await extractLocalDocument(userId, documentId);
         if (!document) return fail(call, "Document not found");
         if (call.name === "library_read") {
+          const sectionLocator = trimmed(args.section);
+          if (sectionLocator) {
+            const skeleton = compileAgreementSkeleton(document.text);
+            const lookup = readSection(skeleton, sectionLocator);
+            if (lookup.status !== "found" || !lookup.block) {
+              return result(call, {
+                ok: false,
+                error:
+                  `Section '${sectionLocator}' not found (${lookup.status}` +
+                  (lookup.matches.length
+                    ? `; candidates: ${lookup.matches.join(", ")}`
+                    : "") +
+                  "). Call library_outline for the available handles.",
+              });
+            }
+            const maxChars = 60_000;
+            return result(call, {
+              ok: true,
+              filename: document.filename,
+              section: lookup.block.label,
+              parent: lookup.block.parentLabel,
+              text: lookup.block.text.slice(0, maxChars),
+              truncated: lookup.block.text.length > maxChars,
+            });
+          }
           const maxChars = 300_000;
           return result(call, {
             ok: true,
@@ -1296,6 +1348,30 @@ export async function runLocalAssistantTools(
           filename: document.filename,
           query,
           ...matches,
+        });
+      }
+
+      if (call.name === "library_outline") {
+        if (!documentId) return fail(call, "document_id is required");
+        const document = await extractLocalDocument(userId, documentId);
+        if (!document) return fail(call, "Document not found");
+        const skeleton = compileAgreementSkeleton(document.text);
+        if (!skeleton.nodes.length) {
+          return result(call, {
+            ok: true,
+            filename: document.filename,
+            nodes: 0,
+            outline:
+              "No numbered structure detected; use library_read or library_find.",
+          });
+        }
+        return result(call, {
+          ok: true,
+          filename: document.filename,
+          nodes: skeleton.nodes.length,
+          outline: renderAgreementOutline(skeleton, {
+            maxChars: clampInt(args.max_chars, 1_000, 40_000, 8_000),
+          }),
         });
       }
 
