@@ -28,9 +28,8 @@ vi.mock("../openrouter", () => ({
   streamOpenRouter: vi.fn(),
   completeOpenRouterText: vi.fn(),
 }));
-vi.mock("../codex", () => ({
-  streamCodex: vi.fn(),
-  completeCodexText: vi.fn(),
+vi.mock("../codexApi", () => ({
+  streamCodexApi: vi.fn(),
 }));
 
 import {
