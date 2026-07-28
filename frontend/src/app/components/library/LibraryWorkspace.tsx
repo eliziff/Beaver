@@ -43,12 +43,8 @@ type LibraryViewCollection = {
 
 type LibraryWorkspaceContextValue = {
     collections: Record<LibraryKind, LibraryViewCollection | null>;
-    loadingByKind: Record<LibraryKind, boolean>;
     searchByKind: Record<LibraryKind, string>;
-    loadLibrary: (
-        kind: LibraryKind,
-        options?: { showLoading?: boolean },
-    ) => Promise<void>;
+    loadLibrary: (kind: LibraryKind) => Promise<void>;
     setSearchForKind: (kind: LibraryKind, value: string) => void;
     setDocumentsForKind: (
         kind: LibraryKind,
@@ -99,12 +95,6 @@ export function LibraryWorkspaceProvider({
         files: null,
         templates: null,
     });
-    const [loadingByKind, setLoadingByKind] = useState<
-        Record<LibraryKind, boolean>
-    >({
-        files: false,
-        templates: false,
-    });
     const [searchByKind, setSearchByKind] = useState<
         Record<LibraryKind, string>
     >({
@@ -112,34 +102,24 @@ export function LibraryWorkspaceProvider({
         templates: "",
     });
 
-    const loadLibrary = useCallback(
-        async (kind: LibraryKind, options: { showLoading?: boolean } = {}) => {
-            if (options.showLoading) {
-                setLoadingByKind((prev) => ({ ...prev, [kind]: true }));
-            }
-            try {
-                const loaded = await getLibrary(kind);
-                setCollections((prev) => ({
-                    ...prev,
-                    [kind]: {
-                        documents: loaded.documents,
-                        folders: loaded.folders,
-                    },
-                }));
-            } catch (error) {
-                console.error("[library] failed to load", error);
-                setCollections((prev) => ({
-                    ...prev,
-                    [kind]: EMPTY_COLLECTION,
-                }));
-            } finally {
-                if (options.showLoading) {
-                    setLoadingByKind((prev) => ({ ...prev, [kind]: false }));
-                }
-            }
-        },
-        [],
-    );
+    const loadLibrary = useCallback(async (kind: LibraryKind) => {
+        try {
+            const loaded = await getLibrary(kind);
+            setCollections((prev) => ({
+                ...prev,
+                [kind]: {
+                    documents: loaded.documents,
+                    folders: loaded.folders,
+                },
+            }));
+        } catch (error) {
+            console.error("[library] failed to load", error);
+            setCollections((prev) => ({
+                ...prev,
+                [kind]: EMPTY_COLLECTION,
+            }));
+        }
+    }, []);
 
     const setSearchForKind = useCallback((kind: LibraryKind, value: string) => {
         setSearchByKind((prev) => ({ ...prev, [kind]: value }));
@@ -188,7 +168,6 @@ export function LibraryWorkspaceProvider({
     const value = useMemo(
         () => ({
             collections,
-            loadingByKind,
             searchByKind,
             loadLibrary,
             setSearchForKind,
@@ -197,7 +176,6 @@ export function LibraryWorkspaceProvider({
         }),
         [
             collections,
-            loadingByKind,
             loadLibrary,
             searchByKind,
             setDocumentsForKind,
@@ -229,7 +207,6 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     const router = useRouter();
     const {
         collections,
-        loadingByKind,
         searchByKind,
         loadLibrary,
         setSearchForKind,
@@ -242,7 +219,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
 
     useEffect(() => {
         if (collection) return;
-        void loadLibrary(kind, { showLoading: true });
+        void loadLibrary(kind);
     }, [collection, kind, loadLibrary]);
 
     const setDocuments: Dispatch<SetStateAction<Document[]>> = useCallback(
@@ -261,7 +238,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     >(null);
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-    const loading = !collection || loadingByKind[kind];
+    const loading = !collection;
     const addCollectionLabel = kind === "templates" ? "Templates" : "Files";
 
     const handleAddDocumentsActionChange = useCallback(
