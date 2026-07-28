@@ -25,9 +25,7 @@ export const OPENAI_MID_MODELS = ["gpt-5.4"] as const;
 export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
-const CODEX_MAIN_MODELS = ["codex-exec"] as const;
 const CODEX_MODEL_PREFIX = "codex:";
-const CODEX_API_MODEL_PREFIX = "codex-api:";
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -45,15 +43,11 @@ const ALL_MODELS = new Set<string>([
     ...OPENAI_LOW_MODELS,
     ...DEEPSEEK_MAIN_MODELS,
     ...META_MAIN_MODELS,
-    ...CODEX_MAIN_MODELS,
 ]);
 
 
 export function providerForModel(model: string): Provider {
-    if (model.startsWith(CODEX_API_MODEL_PREFIX)) return "codex-api";
-    if (model === "codex-exec" || model.startsWith(CODEX_MODEL_PREFIX)) {
-        return "codex";
-    }
+    if (model.startsWith(CODEX_MODEL_PREFIX)) return "codex";
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
@@ -63,14 +57,7 @@ export function providerForModel(model: string): Provider {
 }
 
 export function resolveModel(id: string | null | undefined, fallback: string): string {
-    if (
-        id &&
-        (id === "codex-exec" ||
-            id.startsWith(CODEX_MODEL_PREFIX) ||
-            id.startsWith(CODEX_API_MODEL_PREFIX))
-    ) {
-        return id;
-    }
+    if (id?.startsWith(CODEX_MODEL_PREFIX)) return id;
     if (id && ALL_MODELS.has(id)) return id;
     return fallback;
 }
@@ -81,19 +68,8 @@ export function codexModelSlug(model: string): string | null {
     return slug || null;
 }
 
-export function codexApiModelSlug(model: string): string | null {
-    if (!model.startsWith(CODEX_API_MODEL_PREFIX)) return null;
-    const slug = model.slice(CODEX_API_MODEL_PREFIX.length).trim();
-    return slug || null;
-}
-
 /** All currently exposed Beaver models accept images; unknown future models fail closed. */
 export function modelSupportsImageInput(model: string): boolean {
     if (model.startsWith("deepseek-")) return false;
-    return (
-        model === "codex-exec" ||
-        model.startsWith(CODEX_MODEL_PREFIX) ||
-        model.startsWith(CODEX_API_MODEL_PREFIX) ||
-        ALL_MODELS.has(model)
-    );
+    return model.startsWith(CODEX_MODEL_PREFIX) || ALL_MODELS.has(model);
 }

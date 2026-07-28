@@ -8,8 +8,7 @@ export type Provider =
   | "openai"
   | "deepseek"
   | "openrouter"
-  | "codex"
-  | "codex-api";
+  | "codex";
 
 export type OpenAIToolSchema = {
   type: "function";

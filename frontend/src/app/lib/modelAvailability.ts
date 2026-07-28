@@ -40,7 +40,7 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "openai") return "OpenAI";
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
-    if (provider === "codex") return "Codex CLI";
+    if (provider === "codex") return "Codex";
     return "Google (Gemini)";
 }
 
