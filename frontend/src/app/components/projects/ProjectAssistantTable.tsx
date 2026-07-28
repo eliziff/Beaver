@@ -145,8 +145,6 @@ export function ProjectAssistantTable({
             label="Sort by chat name"
             value={nameSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
-            align="right"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("name", direction)}
         />
@@ -157,7 +155,6 @@ export function ProjectAssistantTable({
             searchable
             value={creatorFilter}
             allLabel="All Creators"
-            widthClassName="w-44"
             options={creatorOptions}
             onChange={handleCreatorFilterChange}
         />
@@ -167,7 +164,6 @@ export function ProjectAssistantTable({
             label="Sort by created date"
             value={createdSortDirection}
             allLabel="Default Order"
-            widthClassName="w-40"
             options={SORT_OPTIONS}
             onChange={(direction) => handleSortChange("created", direction)}
         />
