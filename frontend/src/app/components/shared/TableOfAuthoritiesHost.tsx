@@ -18,6 +18,16 @@ const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const localFrameUrl = (() => {
+  if (!isAnonymousMode) return null;
+  const url = new URL(
+    process.env.NEXT_PUBLIC_TABLE_OF_AUTHORITIES_URL ??
+      "http://127.0.0.1:8765",
+  );
+  url.searchParams.set("mode", "mike");
+  url.searchParams.set("attempt", "");
+  return url.toString();
+})();
 const warmedService =
   typeof window !== "undefined" && isAnonymousMode
     ? launchTableOfAuthorities()
@@ -89,19 +99,6 @@ function AuthoritiesShell({
   );
 }
 
-function sessionId() {
-  const key = "mike-table-of-authorities-session";
-  try {
-    const stored = window.sessionStorage.getItem(key);
-    if (stored && JOB_ID.test(stored)) return stored;
-    const created = crypto.randomUUID().replaceAll("-", "");
-    window.sessionStorage.setItem(key, created);
-    return created;
-  } catch {
-    return crypto.randomUUID().replaceAll("-", "");
-  }
-}
-
 export function TableOfAuthoritiesHost({
   active,
   enabled,
@@ -110,14 +107,17 @@ export function TableOfAuthoritiesHost({
     job: "",
     project: "",
   });
-  const [url, setUrl] = useState<string | null>(null);
-  const [frameReady, setFrameReady] = useState(false);
-  const [frameScope, setFrameScope] = useState("");
+  const [url, setUrl] = useState<string | null>(localFrameUrl);
+  const [frameReady, setFrameReady] = useState(Boolean(localFrameUrl));
+  const [frameScope, setFrameScope] = useState(
+    localFrameUrl ? ":" : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const sessionRef = useRef("");
-  const urlRef = useRef("");
-  const expectedOriginRef = useRef("");
+  const urlRef = useRef(localFrameUrl ?? "");
+  const expectedOriginRef = useRef(
+    localFrameUrl ? new URL(localFrameUrl).origin : "",
+  );
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
   const serviceRef = useRef(warmedService);
@@ -143,6 +143,7 @@ export function TableOfAuthoritiesHost({
       watchdogRef.current = window.setTimeout(() => {
         if (attemptRef.current !== attempt) return;
         watchdogRef.current = null;
+        setFrameReady(false);
         setError("Table of Authorities took too long to start.");
       }, BOOT_TIMEOUT_MS);
     },
@@ -179,6 +180,7 @@ export function TableOfAuthoritiesHost({
         setFrameReady(true);
       } else if (data.type === "mike:table-of-authorities-error") {
         clearWatchdog();
+        setFrameReady(false);
         setError(
           typeof data.message === "string"
             ? data.message
@@ -223,10 +225,8 @@ export function TableOfAuthoritiesHost({
           pingFrame();
           return;
         }
-        if (!sessionRef.current) sessionRef.current = sessionId();
         const attempt = crypto.randomUUID();
         serviceUrl.searchParams.set("mode", "mike");
-        serviceUrl.searchParams.set("session", sessionRef.current);
         serviceUrl.searchParams.set("attempt", attempt);
         if (scope.job) serviceUrl.searchParams.set("job", scope.job);
         if (scope.project) {
