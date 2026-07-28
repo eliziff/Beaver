@@ -194,33 +194,32 @@ export function ReasoningEffortToggle({
             <span className="chat-input-control-label text-[10px] uppercase tracking-wide text-gray-500">
                 Effort
             </span>
-            {supported ? (
-                <select
-                    value={selectedEffort}
-                    onChange={(event) => onChange(event.currentTarget.value)}
-                    title="Choose reasoning effort"
-                    aria-label={`Reasoning effort: ${selectedEffort}`}
-                    className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"
-                >
-                    {efforts.map((level) => (
+            <select
+                value={selectedEffort ?? ""}
+                disabled={!supported}
+                onChange={(event) => onChange(event.currentTarget.value)}
+                title="Choose reasoning effort"
+                aria-label={
+                    supported
+                        ? `Reasoning effort: ${selectedEffort}`
+                        : "Reasoning effort unavailable"
+                }
+                className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"
+            >
+                {supported ? (
+                    efforts.map((level) => (
                         <option key={level.effort} value={level.effort}>
                             {level.effort}
                         </option>
-                    ))}
-                </select>
-            ) : (
-                <select
-                    aria-label="Reasoning effort unavailable"
-                    disabled
-                    className="h-full min-w-0 flex-1 bg-white text-sm text-gray-500"
-                >
+                    ))
+                ) : (
                     <option>
                         {model.startsWith("codex:") && !catalog
                             ? "Loading"
                             : "Automatic"}
                     </option>
-                </select>
-            )}
+                )}
+            </select>
         </label>
     );
 }
