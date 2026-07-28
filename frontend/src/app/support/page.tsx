@@ -99,7 +99,7 @@ export default function SupportPage() {
                     </p>
                     <button
                         onClick={() => router.push("/")}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
                     >
                         Back to Home
                     </button>
@@ -139,14 +139,14 @@ export default function SupportPage() {
                                             }
                                             className={`p-4 rounded-lg border-2 text-left transition-colors ${
                                                 feedbackType === type.value
-                                                    ? "border-blue-600 bg-blue-50"
+                                                    ? "border-red-600 bg-red-50"
                                                     : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         >
                                             <div
                                                 className={`font-medium ${
                                                     feedbackType === type.value
-                                                        ? "text-blue-700"
+                                                        ? "text-red-700"
                                                         : "text-gray-900"
                                                 }`}
                                             >
@@ -177,7 +177,7 @@ export default function SupportPage() {
                                             setLink(e.target.value)
                                         }
                                         placeholder="https://mikeoss.com/..."
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-colors"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
                                         If the bug is in a chat, mouseover the
@@ -201,7 +201,7 @@ export default function SupportPage() {
                                     id="subject"
                                     value={subject}
                                     onChange={(e) => setSubject(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-colors"
                                     required
                                 />
                             </div>
@@ -220,7 +220,7 @@ export default function SupportPage() {
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Please describe your question, issue, or suggestion in detail..."
                                     rows={5}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-colors resize-none"
                                     required
                                 />
                             </div>
@@ -250,7 +250,7 @@ export default function SupportPage() {
                                     !subject.trim() ||
                                     !message.trim()
                                 }
-                                className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                                    className="w-full py-3 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                             >
                                 {isSubmitting ? (
                                     <>

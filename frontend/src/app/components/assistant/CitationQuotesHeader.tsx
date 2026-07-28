@@ -283,14 +283,14 @@ function QuoteItem({
             type="button"
             onClick={onClick}
             className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${
-                isActive ? "bg-blue-100/70" : "bg-gray-100 hover:bg-gray-200/70"
+                isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"
             }`}
         >
             <div className="flex flex-col gap-1.5">
                 {quote.eyebrow && (
                     <p
                         className={`font-serif text-xs ${
-                            isActive ? "text-blue-900" : "text-gray-500"
+                            isActive ? "text-red-900" : "text-gray-500"
                         }`}
                     >
                         {quote.eyebrow}
@@ -298,14 +298,14 @@ function QuoteItem({
                 )}
                 <p
                     className={`font-serif text-sm leading-6 ${
-                        isActive ? "text-blue-950" : "text-gray-700"
+                        isActive ? "text-red-950" : "text-gray-700"
                     }`}
                 >
                     &ldquo;{quote.quote.replace(/"/g, "'")}&rdquo;
                     {quote.inlineDetail && (
                         <span
                             className={`text-sm ${
-                                isActive ? "text-blue-900" : "text-gray-500"
+                                isActive ? "text-red-900" : "text-gray-500"
                             }`}
                         >
                             {" "}
@@ -316,7 +316,7 @@ function QuoteItem({
                 {quote.detail && (
                     <p
                         className={`font-serif text-xs ${
-                            isActive ? "text-blue-900" : "text-gray-500"
+                            isActive ? "text-red-900" : "text-gray-500"
                         }`}
                     >
                         {quote.detail}

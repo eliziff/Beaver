@@ -270,7 +270,7 @@ export function ProjectExplorer({
                                 }}
                                 className={`flex items-center gap-1.5 py-1.5 pr-2 rounded-sm cursor-pointer select-none transition-colors group ${
                                     isDragTarget
-                                        ? "bg-blue-50 ring-1 ring-inset ring-blue-200"
+                                        ? "bg-red-50 ring-1 ring-inset ring-red-200"
                                         : "hover:bg-gray-50"
                                 }`}
                                 style={{ paddingLeft: basePadding }}
@@ -363,7 +363,7 @@ export function ProjectExplorer({
     return (
         <>
         <ul
-            className={`p-1 relative h-full ${dragOverRoot && dragOverFolderId === null ? "ring-2 ring-blue-400 ring-inset" : ""}`}
+            className={`p-1 relative h-full ${dragOverRoot && dragOverFolderId === null ? "ring-2 ring-red-400 ring-inset" : ""}`}
             onContextMenu={(e) => {
                 // Only fires if not stopped by a child
                 openContextMenu(e, null);

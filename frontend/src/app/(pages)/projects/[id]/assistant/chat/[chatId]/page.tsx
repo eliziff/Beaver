@@ -674,12 +674,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     </div>
                     <div
                         className={`relative h-full flex-1 overflow-y-auto ${
-                            explorerDragOver ? "bg-blue-50" : ""
+                            explorerDragOver ? "bg-red-50" : ""
                         }`}
                     >
                         {explorerDragOver && (
                             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                                <p className="text-xs font-medium text-blue-500">
+                                <p className="text-xs font-medium text-red-600">
                                     Drop to upload
                                 </p>
                             </div>

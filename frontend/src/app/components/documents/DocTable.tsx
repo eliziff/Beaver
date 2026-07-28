@@ -2515,7 +2515,7 @@ export function DocTable({
                         <div className="flex-1 flex flex-col min-h-0">
                             <div className="flex-1 flex flex-col min-h-0 relative">
                                 {dragOverRoot && dragOverFolderId === null && (
-                                    <div className="absolute inset-0 border-2 border-blue-400 pointer-events-none z-[80]" />
+                                    <div className="absolute inset-0 border-2 border-red-400 pointer-events-none z-[80]" />
                                 )}
 
                                 {/* Empty state */}
