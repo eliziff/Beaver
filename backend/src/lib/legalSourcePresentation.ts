@@ -22,7 +22,7 @@ export type LegalMarkdownBlock =
   | (PresentedText & { kind: "blockquote"; depth: number })
   | (PresentedText & { kind: "paragraph"; depth: number });
 
-export type UpstreamPdfLink = {
+type UpstreamPdfLink = {
   url: string;
   label?: string | null;
   mediaType?: string | null;
