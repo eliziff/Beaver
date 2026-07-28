@@ -1,154 +1,112 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
     redactSensitiveText,
-    safeErrorMessage,
     safeErrorLog,
+    safeErrorMessage,
 } from "../safeError";
 
-// ---------------------------------------------------------------------------
-// redactSensitiveText
-// ---------------------------------------------------------------------------
-
-describe("redactSensitiveText", () => {
-    it('redacts the OpenAI "Incorrect API key provided" message', () => {
-        expect(
-            redactSensitiveText(
+describe("safe errors", () => {
+    it("redacts labelled and provider-shaped secrets", () => {
+        const inputs = {
+            incorrectKey:
                 "Incorrect API key provided: sk-proj-abc123def456ghi789.",
+            incorrectKeyNoPeriod:
+                "Incorrect API key provided: badkey123",
+            apiUnderscore: "api_key: mysecret123",
+            apiSpace: "api key = mysecret123",
+            token: "token: abcdef123456",
+            secret: "secret is abcdef123456",
+            authorization: "authorization: abcdef123456",
+            shortValue: "token: abc",
+            openai: "request failed for sk-abc123def456ghi789 today",
+            anthropic: "used sk-ant-api03-abc123def456",
+            google: "key AIzaSyA1234567890abcdefghij failed",
+            multiple:
+                "first sk-abc123def456ghi789 then AIzaSyA1234567890abcdefghij",
+            ordinary: "Document not found",
+        };
+
+        expect(
+            Object.fromEntries(
+                Object.entries(inputs).map(([name, input]) => [
+                    name,
+                    redactSensitiveText(input),
+                ]),
             ),
-        ).toBe("Incorrect API key provided: [redacted].");
+        ).toEqual({
+            incorrectKey: "Incorrect API key provided: [redacted].",
+            incorrectKeyNoPeriod: "Incorrect API key provided: [redacted]",
+            apiUnderscore: "api_key: [redacted]",
+            apiSpace: "api key = [redacted]",
+            token: "token: [redacted]",
+            secret: "secret is [redacted]",
+            authorization: "authorization: [redacted]",
+            shortValue: "token: abc",
+            openai: "request failed for [redacted] today",
+            anthropic: "used [redacted]",
+            google: "key [redacted] failed",
+            multiple: "first [redacted] then [redacted]",
+            ordinary: "Document not found",
+        });
     });
 
-    it("keeps the trailing period optional in the incorrect-key message", () => {
-        expect(
-            redactSensitiveText("Incorrect API key provided: badkey123"),
-        ).toBe("Incorrect API key provided: [redacted]");
+    it("turns thrown and unknown values into safe messages", () => {
+        expect({
+            error: safeErrorMessage(new Error("boom")),
+            secret: safeErrorMessage(
+                new Error("bad key sk-abc123def456ghi789"),
+            ),
+            string: safeErrorMessage("token: abcdef123456"),
+            number: safeErrorMessage(42),
+            nullValue: safeErrorMessage(null),
+            object: safeErrorMessage({ message: "obj" }),
+            emptyError: safeErrorMessage(new Error("")),
+            fallback: safeErrorMessage(undefined, "Chat failed"),
+        }).toEqual({
+            error: "boom",
+            secret: "bad key [redacted]",
+            string: "token: [redacted]",
+            number: "Unexpected error",
+            nullValue: "Unexpected error",
+            object: "Unexpected error",
+            emptyError: "Unexpected error",
+            fallback: "Chat failed",
+        });
     });
 
-    it("redacts secrets after api_key labels", () => {
-        expect(redactSensitiveText("api_key: mysecret123")).toBe(
-            "api_key: [redacted]",
-        );
-        expect(redactSensitiveText("api key = mysecret123")).toBe(
-            "api key = [redacted]",
-        );
-    });
+    it("logs useful error metadata without leaking secrets", () => {
+        const normal = safeErrorLog(new Error("boom"));
+        const secretValue = "sk-abc123def456ghi789";
+        const redacted = safeErrorLog(new Error(`bad key ${secretValue}`));
+        const withoutStack = new Error("boom");
+        withoutStack.stack = undefined;
 
-    it("redacts secrets after token/secret/authorization labels", () => {
-        expect(redactSensitiveText("token: abcdef123456")).toBe(
-            "token: [redacted]",
-        );
-        expect(redactSensitiveText("secret is abcdef123456")).toBe(
-            "secret is [redacted]",
-        );
-        expect(redactSensitiveText("authorization: abcdef123456")).toBe(
-            "authorization: [redacted]",
-        );
-    });
-
-    it("leaves short values after labels alone (below 6 chars)", () => {
-        expect(redactSensitiveText("token: abc")).toBe("token: abc");
-    });
-
-    it("redacts bare OpenAI-style sk- keys anywhere in the text", () => {
-        expect(
-            redactSensitiveText("request failed for sk-abc123def456ghi789 today"),
-        ).toBe("request failed for [redacted] today");
-    });
-
-    it("redacts bare Anthropic-style sk-ant- keys", () => {
-        expect(
-            redactSensitiveText("used sk-ant-api03-abc123def456"),
-        ).toBe("used [redacted]");
-    });
-
-    it("redacts bare Google AIza keys", () => {
-        expect(
-            redactSensitiveText("key AIzaSyA1234567890abcdefghij failed"),
-        ).toBe("key [redacted] failed");
-    });
-
-    it("redacts multiple secrets in one string", () => {
-        const result = redactSensitiveText(
-            "first sk-abc123def456ghi789 then AIzaSyA1234567890abcdefghij",
-        );
-        expect(result).toBe("first [redacted] then [redacted]");
-    });
-
-    it("leaves ordinary text unchanged", () => {
-        expect(redactSensitiveText("Document not found")).toBe(
-            "Document not found",
-        );
-    });
-});
-
-// ---------------------------------------------------------------------------
-// safeErrorMessage
-// ---------------------------------------------------------------------------
-
-describe("safeErrorMessage", () => {
-    it("uses the message of an Error instance", () => {
-        expect(safeErrorMessage(new Error("boom"))).toBe("boom");
-    });
-
-    it("redacts secrets inside an Error message", () => {
-        expect(
-            safeErrorMessage(new Error("bad key sk-abc123def456ghi789")),
-        ).toBe("bad key [redacted]");
-    });
-
-    it("passes plain strings through (redacted)", () => {
-        expect(safeErrorMessage("token: abcdef123456")).toBe(
-            "token: [redacted]",
-        );
-    });
-
-    it("falls back for non-Error, non-string values", () => {
-        expect(safeErrorMessage(42)).toBe("Unexpected error");
-        expect(safeErrorMessage(null)).toBe("Unexpected error");
-        expect(safeErrorMessage({ message: "obj" })).toBe("Unexpected error");
-    });
-
-    it("falls back for an Error with an empty message", () => {
-        expect(safeErrorMessage(new Error(""))).toBe("Unexpected error");
-    });
-
-    it("honors a custom fallback", () => {
-        expect(safeErrorMessage(undefined, "Chat failed")).toBe("Chat failed");
-    });
-});
-
-// ---------------------------------------------------------------------------
-// safeErrorLog
-// ---------------------------------------------------------------------------
-
-describe("safeErrorLog", () => {
-    it("captures name, message, and stack for an Error", () => {
-        const error = new Error("boom");
-        const log = safeErrorLog(error);
-        expect(log.name).toBe("Error");
-        expect(log.message).toBe("boom");
-        expect(log.stack).toContain("boom");
-    });
-
-    it("redacts secrets in the message and stack", () => {
-        const error = new Error("bad key sk-abc123def456ghi789");
-        const log = safeErrorLog(error);
-        expect(log.message).toBe("bad key [redacted]");
-        expect(log.stack).not.toContain("sk-abc123def456ghi789");
-    });
-
-    it("falls back to 'Unexpected error' for an empty Error message", () => {
-        expect(safeErrorLog(new Error("")).message).toBe("Unexpected error");
-    });
-
-    it("omits the stack when the Error has none", () => {
-        const error = new Error("boom");
-        error.stack = undefined;
-        expect(safeErrorLog(error).stack).toBeUndefined();
-    });
-
-    it("handles non-Error values with a null name and no stack", () => {
-        const log = safeErrorLog("plain failure");
-        expect(log).toEqual({ name: null, message: "plain failure" });
+        expect({
+            normal: {
+                name: normal.name,
+                message: normal.message,
+                stackContainsMessage: normal.stack?.includes("boom"),
+            },
+            redacted: {
+                message: redacted.message,
+                stackLeaksSecret: redacted.stack?.includes(secretValue),
+            },
+            empty: safeErrorLog(new Error("")).message,
+            missingStack: safeErrorLog(withoutStack).stack,
+            plain: safeErrorLog("plain failure"),
+        }).toEqual({
+            normal: {
+                name: "Error",
+                message: "boom",
+                stackContainsMessage: true,
+            },
+            redacted: {
+                message: "bad key [redacted]",
+                stackLeaksSecret: false,
+            },
+            empty: "Unexpected error",
+            missingStack: undefined,
+            plain: { name: null, message: "plain failure" },
+        });
     });
 });
