@@ -13,14 +13,12 @@ interface Props {
     onUnhide?: () => void;
     onDownload?: () => void;
     onRemoveFromFolder?: () => void;
-    onShowAllVersions?: () => void;
     onUploadNewVersion?: () => void;
     onNewSubfolder?: () => void;
     deleting?: boolean;
     deleteDisabled?: boolean;
     onEditDetails?: () => void;
     onRename?: () => void;
-    onUpdateCmNumber?: () => void;
     newSubfolderLabel?: string;
     renameLabel?: string;
     deleteLabel?: string;
@@ -32,14 +30,12 @@ export function RowActions({
     onUnhide,
     onDownload,
     onRemoveFromFolder,
-    onShowAllVersions,
     onUploadNewVersion,
     onNewSubfolder,
     deleting,
     deleteDisabled,
     onEditDetails,
     onRename,
-    onUpdateCmNumber,
     newSubfolderLabel = "New subfolder",
     renameLabel = "Rename",
     deleteLabel = "Delete",
@@ -56,9 +52,7 @@ export function RowActions({
     add(newSubfolderLabel, onNewSubfolder);
     add(renameLabel, onRename);
     add("Edit details", onEditDetails);
-    add("Edit CM No.", onUpdateCmNumber);
     add("Download", onDownload);
-    add("Show all versions", onShowAllVersions);
     add("Upload new version", onUploadNewVersion);
     add("Remove from subfolder", onRemoveFromFolder);
     add("Activate", onUnhide);

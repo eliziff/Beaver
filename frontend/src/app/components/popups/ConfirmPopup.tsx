@@ -15,7 +15,6 @@ interface ConfirmPopupProps {
     cancelLabel?: ReactNode;
     onConfirm: () => void;
     onCancel: () => void;
-    confirmDisabled?: boolean;
     className?: string;
 }
 
@@ -28,11 +27,9 @@ export function ConfirmPopup({
     cancelLabel = "Cancel",
     onConfirm,
     onCancel,
-    confirmDisabled = false,
     className,
 }: ConfirmPopupProps) {
     const confirmBusy = confirmStatus === "loading";
-    const resolvedConfirmDisabled = confirmDisabled || confirmStatus !== "idle";
     const normalizedConfirmLabel =
         typeof confirmLabel === "string" ? confirmLabel : "Confirm";
     const isDeleteAction = normalizedConfirmLabel
@@ -71,7 +68,7 @@ export function ConfirmPopup({
             primaryAction={{
                 label: resolvedConfirmLabel,
                 onClick: onConfirm,
-                disabled: resolvedConfirmDisabled,
+                disabled: confirmStatus !== "idle",
                 variant: isDeleteAction ? "danger" : "primary",
                 "aria-busy": confirmBusy,
             }}

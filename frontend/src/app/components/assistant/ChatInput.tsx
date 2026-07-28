@@ -64,7 +64,6 @@ interface Props {
     onCancel: () => void;
     isLoading: boolean;
     hideAddDocButton?: boolean;
-    hideWorkflowButton?: boolean;
     projectName?: string;
     projectCmNumber?: string | null;
     projectId?: string;
@@ -79,7 +78,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         onCancel,
         isLoading,
         hideAddDocButton,
-        hideWorkflowButton,
         projectName,
         projectCmNumber,
         projectId,
@@ -446,28 +444,26 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     )}
                                 />
                             )}
-                            {!hideWorkflowButton && (
-                                <button
-                                    type="button"
-                                    onClick={() => setWorkflowModalOpen(true)}
-                                    aria-label="Open workflows"
-                                    className={cn(
-                                        "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm transition-colors",
-                                        selectedWorkflow
-                                            ? "text-blue-600 hover:text-blue-700"
-                                            : "text-gray-400 hover:text-gray-700",
-                                    )}
-                                >
-                                    {selectedWorkflow ? (
-                                        <Check className="h-3.5 w-3.5" />
-                                    ) : (
-                                        <Waypoints className="h-3.5 w-3.5" />
-                                    )}
-                                    <span className="chat-input-control-label hidden sm:inline">
-                                        Workflows
-                                    </span>
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setWorkflowModalOpen(true)}
+                                aria-label="Open workflows"
+                                className={cn(
+                                    "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm transition-colors",
+                                    selectedWorkflow
+                                        ? "text-blue-600 hover:text-blue-700"
+                                        : "text-gray-400 hover:text-gray-700",
+                                )}
+                            >
+                                {selectedWorkflow ? (
+                                    <Check className="h-3.5 w-3.5" />
+                                ) : (
+                                    <Waypoints className="h-3.5 w-3.5" />
+                                )}
+                                <span className="chat-input-control-label hidden sm:inline">
+                                    Workflows
+                                </span>
+                            </button>
                         </div>
 
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
