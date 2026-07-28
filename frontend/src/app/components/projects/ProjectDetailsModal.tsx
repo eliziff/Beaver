@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
@@ -44,14 +44,11 @@ export function ProjectDetailsModal({
     const trimmedName = nameDraft.trim();
     const trimmedCm = cmDraft.trim();
     const trimmedPractice = practiceDraft.trim();
-    const hasChanges = useMemo(() => {
-        if (!project) return false;
-        return (
-            trimmedName !== project.name ||
+    const hasChanges =
+        !!project &&
+        (trimmedName !== project.name ||
             trimmedCm !== (project.cm_number ?? "") ||
-            trimmedPractice !== (project.practice ?? "")
-        );
-    }, [project, trimmedCm, trimmedName, trimmedPractice]);
+            trimmedPractice !== (project.practice ?? ""));
 
     if (!project) return null;
 

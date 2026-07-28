@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import {
     deleteTabularReview,
     updateTabularReview,
@@ -37,7 +37,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         null,
     );
     const docs = project?.documents ?? [];
-    const reviews = useMemo(() => projectReviews ?? [], [projectReviews]);
+    const reviews = projectReviews ?? [];
     const loading = projectReviews === null;
 
     useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
@@ -48,13 +48,10 @@ export function TabularReviewDetailsModal({
 
     const trimmedTitle = titleDraft.trim();
     const nextProjectId = underProject ? selectedProjectId : null;
-    const hasChanges = useMemo(() => {
-        if (!review) return false;
-        return (
-            trimmedTitle !== (review.title ?? "") ||
-            nextProjectId !== (review.project_id ?? null)
-        );
-    }, [nextProjectId, review, trimmedTitle]);
+    const hasChanges =
+        !!review &&
+        (trimmedTitle !== (review.title ?? "") ||
+            nextProjectId !== (review.project_id ?? null));
 
     if (!review) return null;
 
