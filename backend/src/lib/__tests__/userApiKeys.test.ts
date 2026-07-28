@@ -6,20 +6,10 @@ import {
 } from "../userApiKeys";
 
 describe("normalizeApiKeyProvider", () => {
-    it('returns "claude" for "claude"', () => {
-        expect(normalizeApiKeyProvider("claude")).toBe("claude");
-    });
-
-    it('returns "openai" for "openai"', () => {
-        expect(normalizeApiKeyProvider("openai")).toBe("openai");
-    });
-
-    it('returns "gemini" for "gemini"', () => {
-        expect(normalizeApiKeyProvider("gemini")).toBe("gemini");
-    });
-
-    it('returns "deepseek" for "deepseek"', () => {
-        expect(normalizeApiKeyProvider("deepseek")).toBe("deepseek");
+    it("returns each supported provider unchanged", () => {
+        for (const provider of ["claude", "openai", "gemini", "deepseek"]) {
+            expect(normalizeApiKeyProvider(provider)).toBe(provider);
+        }
     });
 
     it("returns null for unknown provider strings", () => {
