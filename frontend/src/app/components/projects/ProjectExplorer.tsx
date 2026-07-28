@@ -10,7 +10,6 @@ import type {
     Document,
     Folder as ProjectFolder,
 } from "@/app/components/shared/types";
-import { VersionChip } from "@/app/components/shared/VersionChip";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
@@ -342,9 +341,13 @@ export function ProjectExplorer({
                             <span className="text-xs truncate">
                                 {doc.filename}
                             </span>
-                            <VersionChip
-                                n={doc.active_version_number}
-                            />
+                            {typeof doc.active_version_number === "number" &&
+                                Number.isFinite(doc.active_version_number) &&
+                                doc.active_version_number >= 1 && (
+                                    <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1 py-0.5 text-[10px] font-medium text-gray-500">
+                                        V{doc.active_version_number}
+                                    </span>
+                                )}
                         </li>
                     );
                 })}
