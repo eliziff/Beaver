@@ -384,6 +384,11 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
                 "Exact active version_id returned by library_list or a prior document receipt.",
             },
             edits: sharedProperties.edits,
+            annotate: {
+              type: "boolean",
+              description:
+                "Markup mode: render each edit's reason as an anchored Word comment on its tracked change, so the rationale is visible in the deliverable. Every edit must then carry a non-empty reason — rationale-free markup is rejected, and the new version is auto-checked by the structural lint.",
+            },
           },
           required: ["document_id", "version_id", "edits"],
         },
@@ -1029,10 +1034,22 @@ export async function runLocalAssistantTools(
               edit_errors: ["Every requested edit was a no-op"],
             });
           }
+          const annotate = args.annotate === true;
+          if (annotate) {
+            const missingReason = edits.findIndex(
+              (edit) => !edit.reason?.trim(),
+            );
+            if (missingReason >= 0) {
+              return fail(
+                call,
+                `annotate requires a non-empty reason on every edit; edit ${missingReason} has none. A markup without rationale is a clean draft.`,
+              );
+            }
+          }
           const edited = await applyTrackedEdits(
             await readFile(file.path),
             edits,
-            { author: "Beaver" },
+            { author: "Beaver", annotate },
           );
           if (edited.errors.length || !edited.changes.length) {
             return result(call, {
@@ -1071,6 +1088,13 @@ export async function runLocalAssistantTools(
             },
           });
           if (!version) return fail(call, "version_id is no longer active");
+          // Markup deliverables get deterministic same-turn feedback: the
+          // structural lint runs on the freshly produced version.
+          const lint = annotate
+            ? await lintLocalDocxStructure(userId, documentId, version.id).catch(
+                () => null,
+              )
+            : null;
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
@@ -1086,6 +1110,21 @@ export async function runLocalAssistantTools(
             file_type: version.file_type,
             source_sha256: version.source_sha256,
             change_count: edited.changes.length,
+            comment_count: edited.comments,
+            structural_lint: lint
+              ? {
+                  finding_count: lint.findings.length,
+                  findings: lint.findings
+                    .slice(0, 8)
+                    .map(({ code, severity, subject, message }) => ({
+                      code,
+                      severity,
+                      subject,
+                      message,
+                    })),
+                  notes: lint.notes,
+                }
+              : undefined,
             download_url: downloadUrl,
             annotations: trackedEdits.map((edit) => ({
               kind: "edit",

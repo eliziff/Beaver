@@ -83,6 +83,8 @@ export interface ApplyTrackedEditsResult {
     bytes: Buffer;
     changes: AppliedChange[];
     errors: EditError[];
+    /** anchored Word comments created from edit reasons (annotate mode) */
+    comments: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -798,10 +800,21 @@ export async function extractTrackedChangeIds(
 export async function applyTrackedEdits(
     bytes: Buffer,
     edits: EditInput[],
-    opts?: { author?: string },
+    opts?: { author?: string; annotate?: boolean },
 ): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
+    const annotate = opts?.annotate ?? false;
+    if (annotate) {
+        const missing = edits.findIndex(
+            (edit) => !edit.reason || !edit.reason.trim(),
+        );
+        if (missing >= 0) {
+            throw new Error(
+                `annotate requires a non-empty reason on every edit (edit ${missing} has none): a markup without rationale is a clean draft, not a markup.`,
+            );
+        }
+    }
 
     const zip = await loadZip(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
@@ -1066,6 +1079,153 @@ export async function applyTrackedEdits(
         setChildren(p.paraNode, newKids);
     }
 
+    // Annotate mode: each edit's reason becomes a real anchored Word
+    // comment spanning that edit's revision wrappers, so the rationale is
+    // IN the deliverable rather than dying in the receipt. One comment per
+    // edit (its clusters share one reason).
+    let commentsAdded = 0;
+    if (annotate) {
+        const existingEntry = getZipEntry(zip, "word/comments.xml");
+        const existingXml = existingEntry
+            ? await existingEntry.async("string")
+            : "";
+        let nextCommentId = maxCommentId(existingXml) + 1;
+        const commentBodies: string[] = [];
+
+        for (const [paraIdx, plans] of plansPerParagraph) {
+            const p = paragraphs[paraIdx];
+            const kids = elChildren(p.paraNode);
+            const byEdit = new Map<number, PlannedChange[]>();
+            for (const plan of plans) {
+                const list = byEdit.get(plan.editIndex) ?? [];
+                list.push(plan);
+                byEdit.set(plan.editIndex, list);
+            }
+            const inserts: Array<{ at: number; after: boolean; nodes: XNode[] }> =
+                [];
+            for (const group of byEdit.values()) {
+                const reason = group[0].reason?.trim();
+                if (!reason) continue;
+                const wrapperIds = new Set<string>();
+                for (const plan of group) {
+                    if (plan.delWId) wrapperIds.add(plan.delWId);
+                    if (plan.insWId) wrapperIds.add(plan.insWId);
+                }
+                let first = -1;
+                let last = -1;
+                kids.forEach((kid, index) => {
+                    const name = elName(kid);
+                    if (name !== "w:ins" && name !== "w:del") return;
+                    const id = elAttrs(kid)["@_w:id"];
+                    if (id != null && wrapperIds.has(String(id))) {
+                        if (first < 0) first = index;
+                        last = index;
+                    }
+                });
+                if (first < 0) continue;
+                const commentId = String(nextCommentId++);
+                inserts.push({
+                    at: first,
+                    after: false,
+                    nodes: [
+                        makeEl("w:commentRangeStart", [], { "w:id": commentId }),
+                    ],
+                });
+                inserts.push({
+                    at: last,
+                    after: true,
+                    nodes: [
+                        makeEl("w:commentRangeEnd", [], { "w:id": commentId }),
+                        makeEl("w:r", [
+                            makeEl("w:commentReference", [], { "w:id": commentId }),
+                        ]),
+                    ],
+                });
+                commentBodies.push(
+                    `<w:comment w:id="${commentId}" w:author="${escapeXmlAttr(author)}" ` +
+                        `w:date="${now}" w:initials="BV">` +
+                        `<w:p><w:r><w:t xml:space="preserve">${escapeXmlText(reason)}</w:t></w:r></w:p>` +
+                        `</w:comment>`,
+                );
+                commentsAdded += 1;
+            }
+            if (inserts.length) {
+                // Descending positions keep earlier indexes valid.
+                inserts.sort(
+                    (a, b) => b.at - a.at || Number(b.after) - Number(a.after),
+                );
+                const next = [...kids];
+                for (const insert of inserts) {
+                    next.splice(
+                        insert.at + (insert.after ? 1 : 0),
+                        0,
+                        ...insert.nodes,
+                    );
+                }
+                setChildren(p.paraNode, next);
+            }
+        }
+
+        if (commentBodies.length) {
+            const bodies = commentBodies.join("");
+            let commentsXml: string;
+            if (existingXml.includes("</w:comments>")) {
+                commentsXml = existingXml.replace(
+                    /<\/w:comments>\s*$/u,
+                    `${bodies}</w:comments>`,
+                );
+            } else if (/<w:comments\b[^>]*\/>\s*$/u.test(existingXml)) {
+                // Generators commonly ship an empty self-closed comments part.
+                commentsXml = existingXml.replace(
+                    /\/>\s*$/u,
+                    `>${bodies}</w:comments>`,
+                );
+            } else {
+                commentsXml =
+                    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+                    `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+                    `${bodies}</w:comments>`;
+            }
+            setZipEntry(zip, "word/comments.xml", commentsXml);
+
+            // Register the part: content type + document relationship.
+            const typesEntry = getZipEntry(zip, "[Content_Types].xml");
+            if (typesEntry) {
+                const typesXml = await typesEntry.async("string");
+                if (!typesXml.includes('PartName="/word/comments.xml"')) {
+                    setZipEntry(
+                        zip,
+                        "[Content_Types].xml",
+                        typesXml.replace(
+                            "</Types>",
+                            `<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>`,
+                        ),
+                    );
+                }
+            }
+            const relsEntry = getZipEntry(zip, "word/_rels/document.xml.rels");
+            if (relsEntry) {
+                const relsXml = await relsEntry.async("string");
+                if (
+                    !relsXml.includes(
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+                    )
+                ) {
+                    let relNumber = 1000;
+                    while (relsXml.includes(`Id="rId${relNumber}"`)) relNumber += 1;
+                    setZipEntry(
+                        zip,
+                        "word/_rels/document.xml.rels",
+                        relsXml.replace(
+                            "</Relationships>",
+                            `<Relationship Id="rId${relNumber}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>`,
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
     const builder = createBuilder();
     const rebuiltXml = builder.build(tree);
     const withDecl = ensureXmlDeclaration(rebuiltXml);
@@ -1075,7 +1235,39 @@ export async function applyTrackedEdits(
         type: "nodebuffer",
         compression: "DEFLATE",
     });
-    return { bytes: outBuf, changes: appliedChanges, errors };
+    return {
+        bytes: outBuf,
+        changes: appliedChanges,
+        errors,
+        comments: commentsAdded,
+    };
+}
+
+function maxCommentId(commentsXml: string): number {
+    let max = 0;
+    for (const match of commentsXml.matchAll(
+        /<w:comment\b[^>]*\bw:id="(\d+)"/gu,
+    )) {
+        const value = Number(match[1]);
+        if (Number.isFinite(value) && value > max) max = value;
+    }
+    return max;
+}
+
+const XML_ESCAPES: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;",
+};
+
+function escapeXmlText(value: string): string {
+    return value.replace(/[&<>]/gu, (ch) => XML_ESCAPES[ch]);
+}
+
+function escapeXmlAttr(value: string): string {
+    return value.replace(/[&<>"']/gu, (ch) => XML_ESCAPES[ch]);
 }
 
 // ---------------------------------------------------------------------------
