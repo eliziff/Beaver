@@ -2159,7 +2159,11 @@ async function extractPdfMarkdown(buf: ArrayBuffer): Promise<string> {
                     }>;
                 };
             }
-        ).getDocument({ data: new Uint8Array(buf) }).promise;
+        ).getDocument({
+            // Untrusted uploads: never let pdf.js compile font programs via eval.
+            data: new Uint8Array(buf),
+            isEvalSupported: false,
+        }).promise;
         const pages: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);

@@ -1207,20 +1207,3 @@ async function loadProjectFolder(
     .maybeSingle();
   return (data as { id: string; parent_folder_id: string | null } | null) ?? null;
 }
-
-
-async function countPdfPages(buf: ArrayBuffer): Promise<number | null> {
-  try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs" as string);
-    const pdf = await (
-      pdfjsLib as unknown as {
-        getDocument: (opts: unknown) => {
-          promise: Promise<{ numPages: number }>;
-        };
-      }
-    ).getDocument({ data: new Uint8Array(buf) }).promise;
-    return pdf.numPages;
-  } catch {
-    return null;
-  }
-}
