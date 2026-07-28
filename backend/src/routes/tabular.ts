@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { readFile } from "node:fs/promises";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
@@ -20,6 +20,7 @@ import {
     buildCancelledAssistantMessage,
     isAbortError,
     runLLMStream,
+    readTabularCells,
     stripTransientAssistantEvents,
     TABULAR_TOOLS,
     type ChatMessage,
@@ -29,6 +30,7 @@ import {
     completeText,
     providerForModel,
     streamChatWithTools,
+    type OpenAIToolSchema,
     type Provider,
     type UserApiKeys,
 } from "../lib/llm";
@@ -93,6 +95,7 @@ function providerLabel(provider: Provider): string {
 
 function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
     const provider = providerForModel(model);
+    if (provider === "codex") return null;
     if (apiKeys[provider]?.trim()) return null;
     return {
         provider,
@@ -829,6 +832,8 @@ tabularRouter.post(
         const { document_id, column_index } = req.body as {
             document_id: string;
             column_index: number;
+            model?: string;
+            reasoning_effort?: string;
         };
 
         if (!document_id || column_index == null)
@@ -864,8 +869,12 @@ tabularRouter.post(
                     .json({ detail: "Document not found" });
             const { tabular_model, api_keys } =
                 await getUserModelSettings(userId);
+            const selectedModel =
+                typeof req.body.model === "string" && req.body.model.trim()
+                    ? req.body.model.trim()
+                    : tabular_model;
             const missingKey = missingModelApiKey(
-                tabular_model,
+                selectedModel,
                 api_keys,
             );
             if (missingKey) {
@@ -883,7 +892,7 @@ tabularRouter.post(
                 status: "generating",
             });
             const result = await queryTabularCell(
-                tabular_model,
+                selectedModel,
                 document.filename,
                 document.markdown,
                 column.prompt,
@@ -953,7 +962,11 @@ tabularRouter.post(
             userId,
             db,
         );
-        const missingKey = missingModelApiKey(tabular_model, api_keys);
+        const selectedModel =
+            typeof req.body.model === "string" && req.body.model.trim()
+                ? req.body.model.trim()
+                : tabular_model;
+        const missingKey = missingModelApiKey(selectedModel, api_keys);
         if (missingKey) {
             return void res.status(422).json({
                 code: "missing_api_key",
@@ -987,7 +1000,7 @@ tabularRouter.post(
         }
 
         const result = await queryTabularCell(
-            tabular_model,
+            selectedModel,
             docActive?.filename?.trim() || "Untitled document",
             markdown,
             column.prompt,
@@ -1036,7 +1049,15 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
         }
         const { tabular_model, api_keys } =
             await getUserModelSettings(userId);
-        const missingKey = missingModelApiKey(tabular_model, api_keys);
+        const selectedModel =
+            typeof req.body?.model === "string" && req.body.model.trim()
+                ? req.body.model.trim()
+                : tabular_model;
+        const reasoningEffort =
+            typeof req.body?.reasoning_effort === "string"
+                ? req.body.reasoning_effort.trim().slice(0, 32) || undefined
+                : undefined;
+        const missingKey = missingModelApiKey(selectedModel, api_keys);
         if (missingKey) {
             return void res.status(422).json({
                 code: "missing_api_key",
@@ -1104,7 +1125,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                 }
                 const received = new Set<number>();
                 await queryTabularAllColumns(
-                    tabular_model,
+                    selectedModel,
                     document.filename,
                     document.markdown,
                     pendingColumns,
@@ -1113,6 +1134,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                         writeCell(documentId, columnIndex, result, "done");
                     },
                     api_keys,
+                    reasoningEffort,
                 );
                 for (const column of pendingColumns) {
                     if (received.has(column.index)) continue;
@@ -1198,7 +1220,15 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     );
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
-    const missingKey = missingModelApiKey(tabular_model, api_keys);
+    const selectedModel =
+        typeof req.body?.model === "string" && req.body.model.trim()
+            ? req.body.model.trim()
+            : tabular_model;
+    const reasoningEffort =
+        typeof req.body?.reasoning_effort === "string"
+            ? req.body.reasoning_effort.trim().slice(0, 32) || undefined
+            : undefined;
+    const missingKey = missingModelApiKey(selectedModel, api_keys);
     if (missingKey) {
         return void res.status(422).json({
             code: "missing_api_key",
@@ -1274,7 +1304,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                 const receivedColumns = new Set<number>();
                 try {
                     await queryTabularAllColumns(
-                        tabular_model,
+                        selectedModel,
                         filename,
                         markdown,
                         columnsToProcess,
@@ -1294,6 +1324,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                             );
                         },
                         api_keys,
+                        reasoningEffort,
                     );
                 } catch (err) {
                     console.error(
@@ -1528,6 +1559,113 @@ Rules:
     return formatted;
 }
 
+async function streamLocalTabularChat(params: {
+    res: Response;
+    model: string;
+    reasoningEffort?: string;
+    apiKeys: UserApiKeys;
+    messages: ChatMessage[];
+    tabularStore: TabularCellStore;
+    reviewTitle: string;
+}) {
+    const formatted = buildTabularMessages(
+        params.messages,
+        params.tabularStore,
+        params.reviewTitle,
+    ) as { role: "system" | "user" | "assistant"; content: string }[];
+    const write = (event: unknown) =>
+        params.res.write(`data: ${JSON.stringify(event)}\n\n`);
+    const abort = new AbortController();
+    params.res.on("close", () => abort.abort());
+    params.res.setHeader("Content-Type", "text/event-stream");
+    params.res.setHeader("Cache-Control", "no-cache");
+    params.res.setHeader("Connection", "keep-alive");
+    params.res.setHeader("X-Accel-Buffering", "no");
+    params.res.flushHeaders();
+
+    try {
+        const result = await streamChatWithTools({
+            model: params.model,
+            systemPrompt: formatted[0]?.content ?? "",
+            messages: formatted.slice(1).map((message) => ({
+                role:
+                    message.role === "assistant"
+                        ? ("assistant" as const)
+                        : ("user" as const),
+                content: message.content,
+            })),
+            tools: TABULAR_TOOLS as OpenAIToolSchema[],
+            apiKeys: params.apiKeys,
+            enableThinking: true,
+            reasoningEffort: params.reasoningEffort,
+            abortSignal: abort.signal,
+            callbacks: {
+                onContentDelta: (text) =>
+                    write({ type: "content_delta", text }),
+                onReasoningDelta: (text) =>
+                    write({ type: "reasoning_delta", text }),
+                onReasoningBlockEnd: () =>
+                    write({ type: "reasoning_block_end" }),
+                onToolCallStart: (call) =>
+                    write({ type: "tool_call_start", name: call.name }),
+            },
+            runTools: async (calls) =>
+                calls.map((call) => {
+                    if (call.name !== "read_table_cells") {
+                        return {
+                            tool_use_id: call.id,
+                            content: "Tool unavailable.",
+                        };
+                    }
+                    const columns = Array.isArray(call.input.col_indices)
+                        ? call.input.col_indices.filter(
+                              (value): value is number =>
+                                  Number.isSafeInteger(value),
+                          )
+                        : undefined;
+                    const rows = Array.isArray(call.input.row_indices)
+                        ? call.input.row_indices.filter(
+                              (value): value is number =>
+                                  Number.isSafeInteger(value),
+                          )
+                        : undefined;
+                    const selected = readTabularCells(
+                        params.tabularStore,
+                        columns,
+                        rows,
+                    );
+                    write({
+                        type: "doc_read_start",
+                        filename: selected.label,
+                    });
+                    write({ type: "doc_read", filename: selected.label });
+                    return {
+                        tool_use_id: call.id,
+                        content: selected.content,
+                    };
+                }),
+        });
+        write({
+            type: "citations",
+            citations: extractTabularAnnotations(
+                result.fullText,
+                params.tabularStore,
+            ),
+        });
+        params.res.write("data: [DONE]\n\n");
+    } catch (error) {
+        if (!isAbortError(error)) {
+            write({
+                type: "content_delta",
+                text: safeErrorMessage(error, "Tabular chat failed"),
+            });
+            params.res.write("data: [DONE]\n\n");
+        }
+    } finally {
+        params.res.end();
+    }
+}
+
 
 tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
@@ -1538,11 +1676,15 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
         chat_id: existingChatId,
         review_title: clientReviewTitle,
         project_name: clientProjectName,
+        model: requestedModel,
+        reasoning_effort: requestedReasoningEffort,
     } = req.body as {
         messages: ChatMessage[];
         chat_id?: string;
         review_title?: string;
         project_name?: string;
+        model?: string;
+        reasoning_effort?: string;
     };
 
     const lastUser = [...(messages ?? [])]
@@ -1552,6 +1694,69 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
         return void res
             .status(400)
             .json({ detail: "messages must include a user message" });
+    }
+
+    if (isAnonymousLocalMode()) {
+        const detail = localTabularStore().detail(userId, reviewId);
+        if (!detail)
+            return void res
+                .status(404)
+                .json({ detail: "Review not found" });
+        const { tabular_model, api_keys } =
+            await getUserModelSettings(userId);
+        const selectedModel =
+            typeof requestedModel === "string" && requestedModel.trim()
+                ? requestedModel.trim()
+                : tabular_model;
+        const missingKey = missingModelApiKey(selectedModel, api_keys);
+        if (missingKey) {
+            return void res.status(422).json({
+                code: "missing_api_key",
+                ...missingKey,
+            });
+        }
+        const documents = await listLocalDocumentsById(
+            userId,
+            detail.review.document_ids,
+        );
+        const tabularStore: TabularCellStore = {
+            app_url: appUrl({
+                kind: "tabular-review",
+                id: reviewId,
+                projectId: detail.review.project_id,
+            }),
+            columns: [...detail.review.columns_config].sort(
+                (left, right) => left.index - right.index,
+            ),
+            documents: documents.map((document) => ({
+                id: document.id as string,
+                filename:
+                    typeof document.filename === "string" &&
+                    document.filename.trim()
+                        ? document.filename.trim()
+                        : "Untitled document",
+            })),
+            cells: new Map(
+                detail.cells.map((cell) => [
+                    `${cell.column_index}:${cell.document_id}`,
+                    parseCellContent(cell.content),
+                ]),
+            ),
+        };
+        await streamLocalTabularChat({
+            res,
+            model: selectedModel,
+            reasoningEffort:
+                typeof requestedReasoningEffort === "string"
+                    ? requestedReasoningEffort.trim().slice(0, 32) ||
+                      undefined
+                    : undefined,
+            apiKeys: api_keys,
+            messages,
+            tabularStore,
+            reviewTitle: detail.review.title || "Untitled Review",
+        });
+        return;
     }
 
     const db = createServerSupabase();
@@ -1625,7 +1830,15 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     };
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
-    const missingKey = missingModelApiKey(tabular_model, api_keys);
+    const selectedModel =
+        typeof requestedModel === "string" && requestedModel.trim()
+            ? requestedModel.trim()
+            : tabular_model;
+    const reasoningEffort =
+        typeof requestedReasoningEffort === "string"
+            ? requestedReasoningEffort.trim().slice(0, 32) || undefined
+            : undefined;
+    const missingKey = missingModelApiKey(selectedModel, api_keys);
     if (missingKey) {
         return void res.status(422).json({
             code: "missing_api_key",
@@ -1708,8 +1921,9 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
             tabularStore,
             buildCitations: (text) =>
                 extractTabularAnnotations(text, tabularStore),
-            model: tabular_model,
+            model: selectedModel,
             apiKeys: api_keys,
+            reasoningEffort,
             signal: streamAbort.signal,
         });
 
@@ -2030,6 +2244,7 @@ async function queryTabularAllColumns(
     columns: Column[],
     onResult: (columnIndex: number, result: CellResult) => Promise<void>,
     apiKeys?: import("../lib/llm").UserApiKeys,
+    reasoningEffort?: string,
 ): Promise<void> {
     const columnsDesc = columns
         .map((col) => {
@@ -2091,6 +2306,8 @@ Rules:
             messages: [{ role: "user", content: USER }],
             tools: [],
             apiKeys,
+            enableThinking: Boolean(reasoningEffort),
+            reasoningEffort,
             callbacks: {
                 onContentDelta: (delta) => {
                     contentBuffer += delta;
