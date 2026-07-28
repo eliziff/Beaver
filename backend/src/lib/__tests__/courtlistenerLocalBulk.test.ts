@@ -124,4 +124,102 @@ describe("local CourtListener bulk data", () => {
       results: [{ clusterId: 99, court: "ca9", dateFiled: "2025-01-02" }],
     });
   });
+
+  it("slices a truncated multi-stream opinions dump at the last complete record", async () => {
+    temporaryDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "beaver-courtlistener-slice-"),
+    );
+    const databasePath = path.join(temporaryDirectory, "courtlistener.sqlite");
+    const citations = path.join(temporaryDirectory, "citations.csv");
+    const clusters = path.join(temporaryDirectory, "opinion-clusters.csv");
+    const streamOne = path.join(temporaryDirectory, "stream-one.csv");
+    const streamTwo = path.join(temporaryDirectory, "stream-two.csv");
+    const compressedOpinions = path.join(temporaryDirectory, "opinions.csv.bz2");
+    const slicedOpinions = path.join(temporaryDirectory, "opinions-head.csv");
+    await Promise.all([
+      writeFile(
+        citations,
+        'id,volume,reporter,page,type,cluster_id\n"1","410","U.S.","113","1","42"\n',
+      ),
+      writeFile(
+        clusters,
+        "id,case_name,case_name_short,case_name_full,slug,date_filed\n" +
+          '"42","Roe v. Wade","Roe","Roe v. Wade","roe-v-wade","1973-01-22"\n' +
+          '"43","Gamma v. Delta","Gamma","Gamma v. Delta","gamma-v-delta","1980-06-01"\n' +
+          '"44","Epsilon v. Zeta","Epsilon","Epsilon v. Zeta","epsilon-v-zeta","1990-03-04"\n',
+      ),
+      // Bulk dialect: every field quoted, embedded quotes backslash-escaped,
+      // literal newlines allowed inside quoted fields.
+      writeFile(
+        streamOne,
+        "id,cluster_id,type,plain_text\n" +
+          '"8","42","010combined","First line.\nSecond \\"quoted\\" line."\n',
+      ),
+      // Second bz2 stream ends mid-record, as an HTTP range cut would.
+      writeFile(
+        streamTwo,
+        '"9","43","020lead","Short text."\n"10","44","030conc","Truncated tex',
+      ),
+    ]);
+    const compress = spawnSync(
+      "python",
+      [
+        "-c",
+        "import bz2,sys; open(sys.argv[3],'wb').write(" +
+          "bz2.compress(open(sys.argv[1],'rb').read())+" +
+          "bz2.compress(open(sys.argv[2],'rb').read()))",
+        streamOne,
+        streamTwo,
+        compressedOpinions,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(compress.status, compress.stderr).toBe(0);
+    const sliced = spawnSync(
+      "python",
+      [
+        "-c",
+        "import pathlib,sys; sys.path.insert(0, sys.argv[1]); " +
+          "from fetch_courtlistener_bulk import download_opinions_head; " +
+          "download_opinions_head(pathlib.Path(sys.argv[2]).resolve().as_uri()," +
+          " pathlib.Path(sys.argv[3]), 1 << 30)",
+        path.resolve("scripts"),
+        compressedOpinions,
+        slicedOpinions,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(sliced.status, sliced.stderr).toBe(0);
+    expect(sliced.stdout).toContain("2 opinion rows");
+    const imported = spawnSync(
+      "python",
+      [
+        path.resolve("scripts/import_courtlistener_bulk.py"),
+        "--citations",
+        citations,
+        "--clusters",
+        clusters,
+        "--opinions",
+        slicedOpinions,
+        "--output",
+        databasePath,
+        "--opinion-fts",
+      ],
+      { encoding: "utf8" },
+    );
+    expect(imported.status, imported.stderr).toBe(0);
+    process.env.MIKE_COURTLISTENER_BULK_DB = databasePath;
+    const bulk = await import("../courtlistenerLocalBulk");
+    expect(bulk.getLocalCourtlistenerCase(42)).toMatchObject({
+      citations: ["410 U.S. 113"],
+      opinions: [
+        { id: 8, plainText: 'First line.\nSecond "quoted" line.' },
+      ],
+    });
+    expect(bulk.getLocalCourtlistenerCase(43)).toMatchObject({
+      opinions: [{ id: 9, plainText: "Short text." }],
+    });
+    // The truncated third record must not survive the slice.
+    expect(bulk.getLocalCourtlistenerCase(44)).toMatchObject({ opinions: [] });
+  });
 });
