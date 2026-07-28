@@ -6,10 +6,8 @@ import {
     useCallback,
     useEffect,
     useMemo,
-    useRef,
     useState,
 } from "react";
-import { ChevronDown } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     createProjectFolder,
@@ -32,8 +30,8 @@ import {
 } from "@/app/components/documents/DocTable";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
-import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 
 interface Props {
     projectId: string;
@@ -56,22 +54,10 @@ export function ProjectDocumentsView({ projectId }: Props) {
     >(null);
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-    const [actionsOpen, setActionsOpen] = useState(false);
-    const actionsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!projectLoading) prefetchProjectSections();
     }, [projectLoading, prefetchProjectSections]);
-
-    useEffect(() => {
-        function handleClick(event: MouseEvent) {
-            if (!actionsRef.current?.contains(event.target as Node)) {
-                setActionsOpen(false);
-            }
-        }
-        if (actionsOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [actionsOpen]);
 
     const documents = project?.documents ?? [];
     const setDocuments = useCallback(
@@ -138,49 +124,38 @@ export function ProjectDocumentsView({ projectId }: Props) {
                     selectionActions?.onAutomationDocumentChanged
                 }
             />
-            {selectionActions && (
-                <div ref={actionsRef} className="relative">
-                    <TabPillButton
-                        onClick={() => setActionsOpen((open) => !open)}
+            <span className="inline-flex h-8 w-[5.5rem]">
+                {selectionActions && (
+                    <NativeActionSelect
+                        label="Actions"
+                        items={[
+                            {
+                                label: "Download",
+                                onSelect: () =>
+                                    void selectionActions.onDownload(),
+                            },
+                            ...(selectionActions.hasDocumentsInFolders
+                                ? [
+                                      {
+                                          label: "Remove from subfolder",
+                                          onSelect: () =>
+                                              void selectionActions.onRemoveFromFolder(),
+                                      },
+                                  ]
+                                : []),
+                            {
+                                label: isAnonymousMode ? "Remove" : "Delete",
+                                onSelect: () => void selectionActions.onDelete(),
+                            },
+                        ]}
+                        className="w-full"
+                        triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-sm font-medium text-gray-800 hover:bg-gray-100 hover:text-gray-950"
                     >
                         Actions
-                        <ChevronDown className="h-3.5 w-3.5" />
-                    </TabPillButton>
-                    {actionsOpen && (
-                        <div className="absolute top-full right-0 z-[120] mt-1 w-36 overflow-hidden rounded-lg border border-gray-100 bg-app-surface shadow-lg">
-                            <button
-                                onClick={() => {
-                                    setActionsOpen(false);
-                                    void selectionActions.onDownload();
-                                }}
-                                className={`w-full px-3 py-1.5 text-left text-xs text-gray-600 transition-colors ${APP_SURFACE_HOVER_CLASS}`}
-                            >
-                                Download
-                            </button>
-                            {selectionActions.hasDocumentsInFolders && (
-                                <button
-                                    onClick={() => {
-                                        setActionsOpen(false);
-                                        void selectionActions.onRemoveFromFolder();
-                                    }}
-                                    className={`w-full px-3 py-1.5 text-left text-xs text-gray-600 transition-colors ${APP_SURFACE_HOVER_CLASS}`}
-                                >
-                                    Remove from subfolder
-                                </button>
-                            )}
-                            <button
-                                onClick={() => {
-                                    setActionsOpen(false);
-                                    void selectionActions.onDelete();
-                                }}
-                                className="w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
-                            >
-                                {isAnonymousMode ? "Remove" : "Delete"}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+                        <span aria-hidden="true">&#9662;</span>
+                    </NativeActionSelect>
+                )}
+            </span>
             <TabPillButton
                 onClick={createFolderAction ?? undefined}
                 disabled={!createFolderAction || projectLoading}

@@ -157,7 +157,7 @@ function AutomationTrigger({
             aria-busy={inspecting}
             disabled={disabled || inspecting}
             onClick={onClick}
-            className="flex h-8 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            className="flex h-8 w-[6.5rem] items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
         >
             <span className="flex h-4 w-4 items-center justify-center">
                 {inspecting && <Loader2 className="h-4 w-4 animate-spin" />}
