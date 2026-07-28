@@ -38,6 +38,8 @@ benchmarks/traces/
 benchmarks/beaver_can/private_results/
 benchmarks/legalbench_rag/data/
 benchmarks/legalbench_rag/results/
+benchmarks/legalbench/data/
+benchmarks/legalbench/results/
 backend/src/lib/chat/*.old.harness.ts
 
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)

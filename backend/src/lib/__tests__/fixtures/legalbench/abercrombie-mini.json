@@ -1,0 +1,31 @@
+{
+  "task": "abercrombie",
+  "prompt_template": "A mark is generic if it is the common name for the product. A mark is descriptive if it describes a purpose, nature, or attribute of the product. A mark is suggestive if it suggests or implies a quality or characteristic of the product. A mark is arbitrary if it is a real English word that has no relation to the product. A mark is fanciful if it is an invented word.\n\nQ: The mark \"Ivory\" for a product made of elephant tusks. What is the type of mark?\nA: generic\n\nQ: The mark \"Tasty\" for bread. What is the type of mark?\nA: descriptive\n\nQ: The mark \"Caress\" for body soap. What is the type of mark?\nA: suggestive\n\nQ: The mark \"Virgin\" for wireless communications. What is the type of mark?\nA: arbitrary\n\nQ: The mark \"Aswelly\" for a taxi service. What is the type of mark?\nA: fanciful\n\nQ: {{text}} What is the type of mark?\nA:",
+  "rows": [
+    {
+      "index": 0,
+      "answer": "generic",
+      "text": "The mark “Salt” for packages of sodium chloride."
+    },
+    {
+      "index": 19,
+      "answer": "descriptive",
+      "text": "The mark “Sharp” for a television."
+    },
+    {
+      "index": 38,
+      "answer": "suggestive",
+      "text": "The mark \"Chicken of the Sea\" for canned fish."
+    },
+    {
+      "index": 42,
+      "answer": "arbitrary",
+      "text": "The mark \"Old Crow\" for whiskey."
+    },
+    {
+      "index": 76,
+      "answer": "fanciful",
+      "text": "The mark \"Madak\" for a printing company."
+    }
+  ]
+}

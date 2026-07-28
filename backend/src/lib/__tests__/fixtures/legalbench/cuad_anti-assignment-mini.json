@@ -1,0 +1,42 @@
+{
+  "task": "cuad_anti-assignment",
+  "prompt_template": "Does the clause require consent or notice of a party if the contract is assigned to a third party?\n\nClause: Neither ADAMS GOLF nor CONSULTANT shall have the right to grant sublicenses hereunder or to assign, alienate or otherwise transfer any of its rights or obligations hereunder.\nLabel: Yes\n\nClause: Likewise, Dynamic Hearing may not assign or transfer any of its rights or obligations under this Agreement without the prior written consent of IntriCon.\nLabel: Yes\n\nClause: Operator shall not make any assignment of all or any part of this Agreement or any of the rights or obligations hereunder unless there first shall have been obtained the written consent thereto of Owner, which consent shall not be unreasonably withheld, conditioned, or delayed.\nLabel: Yes\n\nClause: For clarity, if AbbVie does not exercise its License Option, Harpoon retains all rights under Harpoon's interests in the Joint Patents and the Joint Know-How, if any, to Exploit the Licensed Compounds and Licensed Products in its sole discretion without duty to account to AbbVie in connection with such use or Exploitation.\nLabel: No\n\nClause: The construction, interpretation and performance of this Agreement and all transactions under it shall be governed by the law of the State of Israel, without giving effect to choice of law rules, and both Parties consent to jurisdiction by the courts of the City of Haifa.\nLabel: No\n\nClause: CBC may terminate this Agreement by no less than 24 (twenty four) months notice given in writing by CBC to MediWound, or such greater period as may be reasonable for MediWound to establish an alternative source of manufacture of Bromelain SP and/or to acquire sufficient inventory of Bromelain SP for a 24 (twenty four) months period.\nLabel: No\n\nClause: {{text}}\nLabel:",
+  "rows": [
+    {
+      "index": 0,
+      "text": "Sparkling shall:<omitted>(c) not assign this Agreement or transfer, lease, export or grant a sublicence of the Work to any Person, except as and when authorized to do so by Garman in writing;",
+      "answer": "Yes",
+      "document_name": "SPARKLINGSPRINGWATERHOLDINGSLTD_07_03_2002-EX-10.13-SOFTWARE LICENSE AND MAINTENANCE AGREEMENT.PDF"
+    },
+    {
+      "index": 1,
+      "text": "Neither party may assign this Agreement without the other's prior written approval, except by operation of law or in connection with the sale of substantially all of the assets of such party's business or the acquisition of such party by a third party.",
+      "answer": "Yes",
+      "document_name": "BEYONDCOMCORP_08_03_2000-EX-10.2-CO-HOSTING AGREEMENT.PDF"
+    },
+    {
+      "index": 2,
+      "text": "This Agreement shall be binding upon the parties and their respective successors and assigns; provided, however, that no rights or obligations hereunder, including but not limited to Licensee's Subscriber accounts, shall be assigned or transferred, in whole or in part, by either of the parties hereto to any person, firm or corporation without prior written consent by the other party, which consent shall not be unreasonably withheld or delayed.",
+      "answer": "Yes",
+      "document_name": "BOLIVARMININGCORP_05_23_2003-EX-2.1-VISP WEB SITE BUILDING AND HOSTING AGREEMENT.PDF"
+    },
+    {
+      "index": 586,
+      "text": "Unless otherwise terminated as specified in this Section 12, the ---- term of this Agreement shall begin on the Effective Date and will not end until the later of (a) twelve (12) months from the Launch Date; or (2) the date Intuit displays a total of 176,717,916 Impressions in accordance with the terms set forth herein (\"Term\").",
+      "answer": "No",
+      "document_name": "STAMPSCOMINC_06_24_1999-EX-10.18-SPONSORSHIP AGREEMENT.PDF"
+    },
+    {
+      "index": 587,
+      "text": "Unless sooner terminated in accordance with the provisions hereof, the initial term of this Agreement (\"Initial Term\") will be ten (10) years from the Effective Date, provided that at any time following the 7th anniversary of such date, either party may terminate such strategic alliance upon not less than 60 days' prior written notice to the other party.",
+      "answer": "No",
+      "document_name": "REWALKROBOTICSLTD_07_10_2014-EX-10.2-STRATEGIC ALLIANCE AGREEMENT.PDF"
+    },
+    {
+      "index": 588,
+      "text": "Upon the termination of this Agreement, Operator shall cooperate in the transition of operations to Owner or a successor operator and upon Owner's request, will promptly deliver all books and records and other property (including, without limitation, intellectual property) of Owner to Owner or the successor operator, as applicable.",
+      "answer": "No",
+      "document_name": "SANDRIDGEENERGYINC_08_06_2009-EX-10.6-OPERATIONS AND MAINTENANCE AGREEMENT.PDF"
+    }
+  ]
+}
