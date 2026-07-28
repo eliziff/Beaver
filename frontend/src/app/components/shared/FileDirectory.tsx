@@ -17,6 +17,7 @@ import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
+import { formatBytes, formatDate } from "@/app/lib/utils";
 
 const DIRECTORY_GRID_CLASS =
     "grid grid-cols-[36px_18px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[36px_18px_minmax(0,1fr)_48px_84px] md:grid-cols-[36px_18px_minmax(0,1fr)_48px_84px_64px]";
@@ -31,22 +32,6 @@ const DIRECTORY_TABS: { value: DirectoryTab; label: string }[] = [
 
 const EMPTY_DOCUMENTS: Document[] = [];
 const EMPTY_FOLDERS: LibraryFolder[] = [];
-
-function formatDate(iso: string | null) {
-    if (!iso) return null;
-    return new Date(iso).toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
-}
-
-function formatBytes(bytes: number | null | undefined) {
-    if (bytes == null) return null;
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function versionLabel(doc: Document) {
     const n = doc.active_version_number;

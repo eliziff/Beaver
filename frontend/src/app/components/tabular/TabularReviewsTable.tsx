@@ -31,6 +31,7 @@ import {
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
+import { formatDate } from "@/app/lib/utils";
 
 type ReviewSortKey = "name" | "columns" | "documents" | "created";
 
@@ -45,14 +46,6 @@ const REVIEW_COLUMN = {
     created: "hidden w-32 xl:flex",
     actions: "w-7 sm:w-8",
 } as const;
-
-function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
-}
 
 export function TabularReviewsTable({
     reviews,

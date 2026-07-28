@@ -54,10 +54,9 @@ import {
 import {
     DOC_NAME_COL_W,
     DocIcon,
-    formatBytes,
-    formatDate,
     treeNameCellStyle,
 } from "@/app/components/projects/ProjectPageParts";
+import { formatBytes, formatDate } from "@/app/lib/utils";
 import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import {
     APP_SURFACE_ACTIVE_CLASS,
