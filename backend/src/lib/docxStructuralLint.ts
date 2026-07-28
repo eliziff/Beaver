@@ -96,7 +96,7 @@ function excerptAround(text: string, subject: string) {
 
 const ROMAN_PATTERN = /^[IVXLCDM]+$/u;
 
-function romanToInt(value: string) {
+export function romanToInt(value: string) {
   const values: Record<string, number> = {
     I: 1,
     V: 5,
@@ -118,7 +118,7 @@ function romanToInt(value: string) {
 
 // A reference like "Section 85 of the Income Tax Act" points outside this
 // document. Only "of this ..." (and "hereof"/bare continuations) are internal.
-function isExternalReference(following: string) {
+export function isExternalReference(following: string) {
   const trimmed = following.replace(/^\s*\([a-z0-9]{1,4}\)/giu, "").trimStart();
   const external = trimmed.match(/^(?:of|to|under)\s+(\w+)/iu);
   if (!external) return false;
@@ -445,7 +445,7 @@ type DefinedTermsResult = {
   notes: string[];
 };
 
-function collectDefinedTerms(texts: string[]) {
+export function collectDefinedTerms(texts: string[]) {
   const terms = new Map<string, number[]>();
   for (let index = 0; index < texts.length; index += 1) {
     const text = texts[index];
