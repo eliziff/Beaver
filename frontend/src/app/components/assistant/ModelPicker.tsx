@@ -33,20 +33,29 @@ export function ModelPicker({
     const searchRef = useRef<HTMLInputElement>(null);
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
-    const groups = [...new Set(models.map((model) => model.group))];
+    const availableModels = useMemo(
+        () =>
+            models.filter((model) =>
+                apiKeys
+                    ? isModelAvailable(model.id, apiKeys)
+                    : model.group === "Codex",
+            ),
+        [apiKeys, models],
+    );
+    const groups = [...new Set(availableModels.map((model) => model.group))];
     const filtered = useMemo(() => {
         const needle = query.trim().toLowerCase();
         return needle
-            ? models.filter((model) =>
+            ? availableModels.filter((model) =>
                   `${model.group} ${model.label} ${model.id}`
                       .toLowerCase()
                       .includes(needle),
               )
-            : models;
-    }, [models, query]);
+            : availableModels;
+    }, [availableModels, query]);
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
-        : true;
+        : selected?.group === "Codex";
 
     useEffect(() => {
         if (!open) return;
@@ -144,44 +153,36 @@ export function ModelPicker({
                                 <div className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
                                     {group}
                                 </div>
-                                {options.map((model) => {
-                                    const available = apiKeys
-                                        ? isModelAvailable(model.id, apiKeys)
-                                        : true;
-                                    return (
-                                        <button
-                                            key={model.id}
-                                            type="button"
-                                            role="option"
-                                            aria-selected={model.id === value}
-                                            onClick={() => choose(model.id)}
-                                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
-                                        >
-                                            <Check
-                                                aria-hidden="true"
-                                                className={cn(
-                                                    "h-4 w-4 shrink-0 text-red-700",
-                                                    model.id !== value &&
-                                                        "invisible",
-                                                )}
-                                            />
-                                            <span className="min-w-0 flex-1 truncate">
-                                                {model.label}
-                                            </span>
-                                            {!available && (
-                                                <span className="shrink-0 text-xs text-red-700">
-                                                    API key missing
-                                                </span>
+                                {options.map((model) => (
+                                    <button
+                                        key={model.id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={model.id === value}
+                                        onClick={() => choose(model.id)}
+                                        className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <Check
+                                            aria-hidden="true"
+                                            className={cn(
+                                                "h-4 w-4 shrink-0 text-red-700",
+                                                model.id !== value &&
+                                                    "invisible",
                                             )}
-                                        </button>
-                                    );
-                                })}
+                                        />
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {model.label}
+                                        </span>
+                                    </button>
+                                ))}
                             </div>
                         );
                     })}
                     {!filtered.length && (
                         <p className="px-3 py-6 text-center text-sm text-gray-600">
-                            No matching models
+                            {availableModels.length
+                                ? "No matching models"
+                                : "No configured models"}
                         </p>
                     )}
                 </div>
