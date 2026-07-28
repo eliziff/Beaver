@@ -45,10 +45,12 @@ function Harness({
     selectionFirst = true,
     initialDocuments = [document],
     onActions,
+    uploadDocument = async () => document,
 }: {
     selectionFirst?: boolean;
     initialDocuments?: Document[];
     onActions?: (actions: DocTableSelectionActions | null) => void;
+    uploadDocument?: (file: File) => Promise<Document>;
 }) {
     const [documents, setDocuments] = useState(initialDocuments);
     const [folders, setFolders] = useState<DocTableFolder[]>([]);
@@ -63,7 +65,7 @@ function Harness({
             loading={false}
             search=""
             operations={{
-                uploadDocument: vi.fn(),
+                uploadDocument,
                 refreshCollection: vi.fn(),
                 createFolder: vi.fn(),
                 renameFolder: vi.fn(),
@@ -97,6 +99,44 @@ function rects(elements: HTMLElement[]) {
 }
 
 describe("DocTable Library interactions", () => {
+    it("keeps collection drop listeners mounted and uses the latest uploader", async () => {
+        const addListener = vi.spyOn(window, "addEventListener");
+        const removeListener = vi.spyOn(window, "removeEventListener");
+        const firstUpload = vi.fn(async () => document);
+        const latestUpload = vi.fn(async () => wordDocument);
+        const { rerender, unmount } = render(
+            <Harness uploadDocument={firstUpload} />,
+        );
+        const dragEvents = ["dragenter", "dragover", "dragleave", "drop"];
+        const registrations = (spy: typeof addListener, type: string) =>
+            spy.mock.calls.filter(([eventType]) => eventType === type).length;
+
+        rerender(<Harness uploadDocument={latestUpload} />);
+
+        for (const event of dragEvents) {
+            expect(registrations(addListener, event)).toBe(1);
+            expect(registrations(removeListener, event)).toBe(0);
+        }
+
+        const file = new File(["brief"], "Brief.pdf", {
+            type: "application/pdf",
+        });
+        fireEvent.drop(window, {
+            dataTransfer: { types: ["Files"], files: [file] },
+        });
+
+        await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
+        expect(firstUpload).not.toHaveBeenCalled();
+        for (const event of dragEvents) {
+            expect(registrations(addListener, event)).toBe(1);
+        }
+
+        unmount();
+        for (const event of dragEvents) {
+            expect(registrations(removeListener, event)).toBe(1);
+        }
+    });
+
     it("selects on click without opening and keeps View visible", () => {
         render(<Harness />);
         const row = documentRow();
