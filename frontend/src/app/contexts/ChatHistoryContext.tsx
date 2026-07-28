@@ -22,8 +22,6 @@ import type { Chat, Message } from "@/app/components/shared/types";
 interface ChatHistoryContextType {
     chats: Chat[] | null;
     hasMoreChats: boolean;
-    currentChatId: string | null;
-    setCurrentChatId: (chatId: string | null) => void;
     loadChats: () => Promise<void>;
     loadMoreChats: () => void;
     saveChat: (projectId?: string) => Promise<string | null>;
@@ -55,7 +53,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     const [chats, setChats] = useState<Chat[] | null>(null);
     const [chatLimit, setChatLimit] = useState(INITIAL_CHAT_LIMIT);
     const [hasMoreChats, setHasMoreChats] = useState(false);
-    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     const [newChatMessages, setNewChatMessages] = useState<Message[] | null>(
         null,
     );
@@ -83,7 +80,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             setChats([]);
             setChatLimit(INITIAL_CHAT_LIMIT);
             setHasMoreChats(false);
-            setCurrentChatId(null);
             return;
         }
 
@@ -97,10 +93,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
 
     const replaceChatId = useCallback(
         (oldChatId: string, newChatId: string, title?: string) => {
-            if (!oldChatId || !newChatId || oldChatId === newChatId) {
-                setCurrentChatId(newChatId || oldChatId || null);
-                return;
-            }
+            if (!oldChatId || !newChatId || oldChatId === newChatId) return;
 
             setChats((prev) => {
                 if (!prev) return prev;
@@ -118,7 +111,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
                     return true;
                 });
             });
-            setCurrentChatId(newChatId);
         },
         [],
     );
@@ -165,22 +157,19 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     const deleteChatFn = useCallback(
         async (chatId: string) => {
             setChats((prev) => (prev ?? []).filter((c) => c.id !== chatId));
-            if (currentChatId === chatId) setCurrentChatId(null);
             try {
                 await deleteChat(chatId);
             } catch {
                 void loadChats();
             }
         },
-        [currentChatId, loadChats],
+        [loadChats],
     );
 
     const value = useMemo(
         () => ({
             chats,
             hasMoreChats,
-            currentChatId,
-            setCurrentChatId,
             loadChats,
             loadMoreChats,
             saveChat,
@@ -193,7 +182,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         [
             chats,
             hasMoreChats,
-            currentChatId,
             loadChats,
             loadMoreChats,
             saveChat,

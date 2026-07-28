@@ -54,7 +54,7 @@ const DELETE_DATA_COPY: Record<
 };
 
 export default function PrivacyDataPage() {
-    const { loadChats, setCurrentChatId } = useChatHistoryContext();
+    const { loadChats } = useChatHistoryContext();
     const [pendingDeleteAction, setPendingDeleteAction] =
         useState<DeleteDataAction | null>(null);
     const [deletingAction, setDeletingAction] =
@@ -136,13 +136,11 @@ export default function PrivacyDataPage() {
             }
             if (action === "chats") {
                 await deleteAllChats();
-                setCurrentChatId(null);
                 await loadChats();
             } else if (action === "tabular-reviews") {
                 await deleteAllTabularReviews();
             } else {
                 await deleteAllProjects();
-                setCurrentChatId(null);
                 await loadChats();
             }
             setPendingDeleteAction(null);

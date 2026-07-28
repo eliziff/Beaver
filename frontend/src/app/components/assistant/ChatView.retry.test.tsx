@@ -23,7 +23,6 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({
         replaceChatId: vi.fn(),
         loadChats: mocks.loadChats,
-        setCurrentChatId: vi.fn(),
         saveChat: vi.fn(),
         setNewChatMessages: vi.fn(),
     }),

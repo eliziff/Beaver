@@ -21,8 +21,7 @@ export default function AssistantChatPage() {
     const [projectName, setProjectName] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
 
-    const { setCurrentChatId, newChatMessages, setNewChatMessages } =
-        useChatHistoryContext();
+    const { newChatMessages, setNewChatMessages } = useChatHistoryContext();
 
     const initialMessages = newChatMessages ?? [];
     const {
@@ -73,10 +72,6 @@ export default function AssistantChatPage() {
 
     const hasAutoSent = useRef(false);
     const hasLoaded = useRef(false);
-
-    useEffect(() => {
-        setCurrentChatId(id);
-    }, [id, setCurrentChatId]);
 
     useEffect(() => {
         if (initialMessages.length > 0) {
