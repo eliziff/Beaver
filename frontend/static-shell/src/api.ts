@@ -68,6 +68,13 @@ async function* stream(path: string, body: unknown): AsyncGenerator<StreamEvent>
 
 export const api = {
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
+  upload: async (kind: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch(`${apiBase}/library/${kind}/documents`, { method: "POST", body });
+    if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+    return response.json() as Promise<LibraryDocument>;
+  },
   chats: () => request<Chat[]>("/chat?limit=20"),
   streamChat: (messages: { role: string; content: string }[]) =>
     stream("/chat", { messages }),
