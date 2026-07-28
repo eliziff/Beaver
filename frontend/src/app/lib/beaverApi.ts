@@ -173,6 +173,23 @@ function multipartRequest<T>(
   });
 }
 
+async function streamRequest(
+  path: string,
+  body: unknown,
+  options?: { signal?: AbortSignal; accept?: string },
+) {
+  return fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: options?.accept ?? "application/json",
+      ...(await getAuthHeader()),
+    },
+    body: JSON.stringify(body),
+    signal: options?.signal,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
@@ -1360,16 +1377,9 @@ export async function streamChat(payload: {
   signal?: AbortSignal;
 }): Promise<Response> {
   const { signal, ...body } = payload;
-  const authHeaders = await getAuthHeader();
-  return fetch(`${API_BASE}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...authHeaders,
-    },
-    body: JSON.stringify(body),
+  return streamRequest("/chat", body, {
     signal,
+    accept: "text/event-stream",
   });
 }
 
@@ -1467,14 +1477,9 @@ export async function streamTabularGeneration(
   reviewId: string,
   options?: { model?: string; reasoningEffort?: string },
 ): Promise<Response> {
-  const authHeaders = await getAuthHeader();
-  return fetch(`${API_BASE}/tabular-review/${reviewId}/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({
-      model: options?.model,
-      reasoning_effort: options?.reasoningEffort,
-    }),
+  return streamRequest(`/tabular-review/${reviewId}/generate`, {
+    model: options?.model,
+    reasoning_effort: options?.reasoningEffort,
   });
 }
 
@@ -1490,20 +1495,14 @@ export async function streamTabularChat(
     reasoningEffort?: string;
   },
 ): Promise<Response> {
-  const authHeaders = await getAuthHeader();
-  return fetch(`${API_BASE}/tabular-review/${reviewId}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({
-      messages,
-      chat_id: chat_id ?? undefined,
-      review_title: context?.reviewTitle ?? undefined,
-      project_name: context?.projectName ?? undefined,
-      model: context?.model,
-      reasoning_effort: context?.reasoningEffort,
-    }),
-    signal: signal ?? undefined,
-  });
+  return streamRequest(`/tabular-review/${reviewId}/chat`, {
+    messages,
+    chat_id: chat_id ?? undefined,
+    review_title: context?.reviewTitle ?? undefined,
+    project_name: context?.projectName ?? undefined,
+    model: context?.model,
+    reasoning_effort: context?.reasoningEffort,
+  }, { signal });
 }
 
 export interface TRCitationAnnotation {
