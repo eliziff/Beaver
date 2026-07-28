@@ -80,6 +80,13 @@ export type ResponsesAdapterConfig = {
   persistent: boolean;
   reasoningSummary?: boolean;
   defaultReasoningEffort?: string;
+  /** Extra request headers (e.g. ChatGPT-Account-ID for the Codex backend). */
+  headers?: Record<string, string>;
+  /**
+   * The Codex subscription backend's Responses dialect: store must be false
+   * and max_output_tokens is rejected as unsupported.
+   */
+  codexBackend?: boolean;
 };
 
 function apiKey(override?: string | null): string {
@@ -198,6 +205,8 @@ async function createResponse(params: {
   previousResponseId?: string;
   reasoning?: { summary?: "auto"; effort?: string };
   apiKey: string;
+  headers?: Record<string, string>;
+  codexBackend?: boolean;
   signal?: AbortSignal;
 }): Promise<Response> {
   const response = await fetch(params.endpoint ?? OPENAI_RESPONSES_URL, {
@@ -205,6 +214,7 @@ async function createResponse(params: {
     headers: {
       Authorization: `Bearer ${params.apiKey}`,
       "Content-Type": "application/json",
+      ...params.headers,
     },
     body: JSON.stringify({
       model: params.model,
@@ -212,7 +222,9 @@ async function createResponse(params: {
       input: params.input,
       tools: params.tools?.length ? params.tools : undefined,
       stream: params.stream,
-      max_output_tokens: params.maxTokens ?? MAX_OUTPUT_TOKENS,
+      ...(params.codexBackend
+        ? { store: false }
+        : { max_output_tokens: params.maxTokens ?? MAX_OUTPUT_TOKENS }),
       previous_response_id: params.previousResponseId,
       reasoning: params.reasoning,
     }),
@@ -289,14 +301,20 @@ export async function streamResponsesApi(
         tools: responseTools,
         stream: true,
         previousResponseId: config.persistent ? previousResponseId : undefined,
-        reasoning: enableThinking
-          ? {
-              summary: config.reasoningSummary ? "auto" : undefined,
-              effort:
-                params.reasoningEffort ?? config.defaultReasoningEffort,
-            }
-          : undefined,
+        reasoning:
+          enableThinking || params.reasoningEffort
+            ? {
+                summary:
+                  enableThinking && config.reasoningSummary
+                    ? "auto"
+                    : undefined,
+                effort:
+                  params.reasoningEffort ?? config.defaultReasoningEffort,
+              }
+            : undefined,
         apiKey: config.apiKey,
+        headers: config.headers,
+        codexBackend: config.codexBackend,
         signal: params.abortSignal,
       });
       if (!response.body) throw new Error("OpenAI response had no body");
