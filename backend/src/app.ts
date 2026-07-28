@@ -1,16 +1,13 @@
 import "./lib/loadEnv";
-import express from "express";
+import express, { type RequestHandler, type Router } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { chatRouter } from "./routes/chat";
 import { projectsRouter } from "./routes/projects";
-import { projectChatRouter } from "./routes/projectChat";
-import { documentsRouter } from "./routes/documents";
-import { libraryRouter } from "./routes/library";
 import { tabularRouter } from "./routes/tabular";
 import { workflowsRouter } from "./routes/workflows";
-import { userRouter } from "./routes/user";
+import { localUserRouter } from "./routes/localUser";
 import { downloadsRouter } from "./routes/downloads";
 import { caseLawRouter } from "./routes/caseLaw";
 import { codexRouter } from "./routes/codex";
@@ -30,6 +27,21 @@ const allowedDevelopmentFrontendUrls = new Set([
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ]);
+
+function lazyRouter(load: () => Promise<Router>): RequestHandler {
+  let router: Router | undefined;
+  let pending: Promise<Router> | undefined;
+  return (req, res, next) => {
+    if (router) return void router(req, res, next);
+    pending ??= load();
+    void pending
+      .then((loaded) => {
+        router = loaded;
+        loaded(req, res, next);
+      })
+      .catch(next);
+  };
+}
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -140,7 +152,6 @@ app.use(
 app.use(generalLimiter);
 
 app.post("/chat", chatLimiter);
-app.post("/projects/:projectId/chat", chatLimiter);
 app.post("/tabular-review/:reviewId/chat", chatLimiter);
 app.post("/tabular-review/:reviewId/generate", chatLimiter);
 app.post("/chat/create", chatCreateLimiter);
@@ -165,16 +176,32 @@ app.use(express.json({ limit: "50mb" }));
 
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
-app.use("/projects/:projectId/chat", projectChatRouter);
 app.use("/single-documents", localDocumentsRouter);
-app.use("/single-documents", documentsRouter);
+app.use(
+  "/single-documents",
+  lazyRouter(() => import("./routes/documents").then((mod) => mod.documentsRouter)),
+);
 app.use("/library/legal", legalLibraryRouter);
 app.use("/legal-knowledge", legalKnowledgeRouter);
 app.use("/library", localLibraryRouter);
-app.use("/library", libraryRouter);
+app.use(
+  "/library",
+  lazyRouter(() => import("./routes/library").then((mod) => mod.libraryRouter)),
+);
 app.use("/tabular-review", tabularRouter);
 app.use("/workflows", workflowsRouter);
-app.use("/user", userRouter);
+const cloudUserRouter = lazyRouter(() =>
+  import("./routes/user").then((mod) => mod.userRouter),
+);
+app.use(
+  "/user",
+  (req, res, next) =>
+    (isAnonymousLocalMode() ? localUserRouter : cloudUserRouter)(
+      req,
+      res,
+      next,
+    ),
+);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
 app.use("/codex", codexRouter);

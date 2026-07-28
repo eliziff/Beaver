@@ -1440,6 +1440,8 @@ export async function streamChat(payload: {
   project_id?: string;
   model?: string;
   reasoning_effort?: string;
+  displayed_doc?: { filename: string; document_id: string };
+  attached_documents?: { filename: string; document_id: string }[];
   ask_inputs_response?: {
     responses: (
       | {
@@ -1462,56 +1464,6 @@ export async function streamChat(payload: {
   const { signal, ...body } = payload;
   const authHeaders = await getAuthHeader();
   return fetch(`${API_BASE}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...authHeaders,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
-}
-
-type StreamChatMessage = {
-  role: string;
-  content: string;
-  files?: { filename: string; document_id?: string }[];
-  workflow?: { id: string; title: string };
-};
-
-export async function streamProjectChat(payload: {
-  projectId: string;
-  messages?: StreamChatMessage[];
-  current_turn?: StreamCurrentTurn;
-  expected_version?: number;
-  chat_id?: string;
-  model?: string;
-  reasoning_effort?: string;
-  displayed_doc?: { filename: string; document_id: string };
-  attached_documents?: { filename: string; document_id: string }[];
-  ask_inputs_response?: {
-    responses: (
-      | {
-          id: string;
-          kind: "choice";
-          question: string;
-          answer?: string;
-          skipped?: boolean;
-        }
-      | {
-          id: string;
-          kind: "documents";
-          filenames: string[];
-          skipped?: boolean;
-        }
-    )[];
-  };
-  signal?: AbortSignal;
-}): Promise<Response> {
-  const { projectId, signal, ...body } = payload;
-  const authHeaders = await getAuthHeader();
-  return fetch(`${API_BASE}/projects/${projectId}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

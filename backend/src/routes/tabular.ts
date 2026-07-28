@@ -16,16 +16,12 @@ import {
 import { extractPresentationText } from "../lib/officeText";
 import { spreadsheetToLLMText } from "../lib/spreadsheet";
 import {
-    AssistantStreamError,
-    buildCancelledAssistantMessage,
-    isAbortError,
-    runLLMStream,
-    readTabularCells,
-    stripTransientAssistantEvents,
-    TABULAR_TOOLS,
     type ChatMessage,
     type TabularCellStore,
-} from "../lib/chat";
+} from "../lib/chat/types";
+import { readTabularCells } from "../lib/chat/tools/toolDispatcher";
+import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
+import { isAbortError } from "../lib/llm/abort";
 import {
     completeText,
     providerForModel,
@@ -1788,6 +1784,16 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
         });
         return;
     }
+
+    const [cloudContext, cloudStreaming] = await Promise.all([
+        import("../lib/chat/contextBuilders"),
+        import("../lib/chat/streaming"),
+    ]);
+    const {
+        buildCancelledAssistantMessage,
+        stripTransientAssistantEvents,
+    } = cloudContext;
+    const { AssistantStreamError, runLLMStream } = cloudStreaming;
 
     const db = createServerSupabase();
     const { data: review, error } = await db

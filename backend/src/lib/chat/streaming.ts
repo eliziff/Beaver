@@ -5,9 +5,10 @@ import {
   type LlmMessage,
   type OpenAIToolSchema,
 } from "../llm";
+import { isAbortError } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import { createServerSupabase } from "../supabase";
-import { buildUserMcpTools, type McpToolEvent } from "../mcpConnectors";
+import type { McpToolEvent } from "../mcpConnectors";
 import {
   COURTLISTENER_TOOLS,
   type CaseCitationEvent,
@@ -114,11 +115,7 @@ class AssistantStreamAskInputsPause extends Error {
   }
 }
 
-export function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const record = error as { name?: unknown; message?: unknown };
-  return record.name === "AbortError" || record.message === "Stream aborted.";
-}
+export { isAbortError };
 
 function throwIfAborted(signal?: AbortSignal) {
   if (!signal?.aborted) return;
@@ -174,7 +171,9 @@ export async function runLLMStream({
   const researchTools = includeResearchTools
     ? [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS]
     : [];
-  const mcpTools = await buildUserMcpTools(userId, db);
+  const mcpTools = await (
+    await import("../mcpConnectors")
+  ).buildUserMcpTools(userId, db);
   const baseTools = [...TOOLS, ...researchTools, ...WORKFLOW_TOOLS];
   const activeTools = extraTools?.length
     ? [...baseTools, ...mcpTools, ...extraTools]

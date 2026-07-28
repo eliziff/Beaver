@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   getChat: vi.fn(),
   stopChat: vi.fn(),
   streamChat: vi.fn(),
-  streamProjectChat: vi.fn(),
   loadChats: vi.fn(),
   saveChat: vi.fn(),
   stagePendingChatMessage: vi.fn(),
@@ -21,7 +20,6 @@ vi.mock("@/app/lib/beaverApi", () => ({
   getChat: mocks.getChat,
   stopChat: mocks.stopChat,
   streamChat: mocks.streamChat,
-  streamProjectChat: mocks.streamProjectChat,
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
@@ -171,7 +169,7 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("sends the durable project ID on every project chat turn", async () => {
-    mocks.streamProjectChat
+    mocks.streamChat
       .mockResolvedValueOnce(
         streamResponse([
           {
@@ -210,28 +208,27 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(mocks.streamProjectChat).toHaveBeenCalledTimes(2);
-    expect(mocks.streamProjectChat).toHaveBeenNthCalledWith(
+    expect(mocks.streamChat).toHaveBeenCalledTimes(2);
+    expect(mocks.streamChat).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        projectId: "project-1",
+        project_id: "project-1",
         chat_id: "chat-1",
         current_turn: expect.objectContaining({
           content: "First project turn",
         }),
       }),
     );
-    expect(mocks.streamProjectChat).toHaveBeenNthCalledWith(
+    expect(mocks.streamChat).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        projectId: "project-1",
+        project_id: "project-1",
         chat_id: "chat-1",
         current_turn: expect.objectContaining({
           content: "Second project turn",
         }),
       }),
     );
-    expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 
   it("sends selected documents with the first workflow turn", async () => {

@@ -17,7 +17,6 @@ vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     getChat: vi.fn(),
     streamChat: mocks.streamChat,
-    streamProjectChat: vi.fn(),
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({
