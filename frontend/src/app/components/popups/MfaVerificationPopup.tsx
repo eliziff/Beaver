@@ -269,7 +269,7 @@ export function VerificationCodeInput({
                     onChange={(event) => updateDigit(index, event.target.value)}
                     onPaste={handlePaste}
                     onKeyDown={(event) => handleKeyDown(event, index)}
-                    className="h-13 w-12 rounded-lg border border-gray-300 bg-gray-50 text-center text-2xl font-medium font-serif text-gray-950 shadow-none outline-none transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-300/45 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="h-13 w-12 rounded-lg border border-gray-300 bg-gray-50 text-center text-2xl font-medium font-serif text-gray-950 shadow-none outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-300/45 disabled:cursor-not-allowed disabled:opacity-45"
                     aria-label={`Verification code digit ${index + 1}`}
                     maxLength={1}
                 />

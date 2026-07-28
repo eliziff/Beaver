@@ -594,7 +594,7 @@ export function PdfView({
                             onClick={handleZoomOut}
                             disabled={zoom <= ZOOM_MIN}
                             aria-label="Zoom out"
-                            className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30 transition-colors"
+                            className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30"
                         >
                             <ZoomOut className="h-3.5 w-3.5" />
                         </button>
@@ -605,7 +605,7 @@ export function PdfView({
                             onClick={handleZoomIn}
                             disabled={zoom >= ZOOM_MAX}
                             aria-label="Zoom in"
-                            className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30 transition-colors"
+                            className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30"
                         >
                             <ZoomIn className="h-3.5 w-3.5" />
                         </button>

@@ -129,7 +129,7 @@ function CellMarkdown({
                                             citation.cell,
                                         );
                                     }}
-                                    className="mx-0.5 inline-flex items-center justify-center rounded-full bg-gray-200 w-3.5 h-3.5 text-[9px] font-medium text-gray-700 align-super cursor-pointer hover:bg-gray-300 transition-colors"
+                                    className="mx-0.5 inline-flex items-center justify-center rounded-full bg-gray-200 w-3.5 h-3.5 text-[9px] font-medium text-gray-700 align-super cursor-pointer hover:bg-gray-300"
                                 >
                                     {idx + 1}
                                 </span>
@@ -217,7 +217,7 @@ export const TabularCell = memo(function TabularCell({
 
     return (
         <div
-            className="group relative flex h-8 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 transition-colors hover:bg-gray-50"
+            className="group relative flex h-8 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 hover:bg-gray-50"
             onClick={handleSeeDetails}
         >
             {cell.content.flag && (

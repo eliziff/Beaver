@@ -363,7 +363,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                         onClick={() =>
                                             setSelectedWorkflow(null)
                                         }
-                                        className="rounded-full p-0.5 ml-0.5 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                                        className="rounded-full p-0.5 ml-0.5 text-white/60 hover:text-white hover:bg-white/20"
                                     >
                                         <X className="h-2.5 w-2.5" />
                                     </button>
@@ -391,7 +391,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                                     ),
                                                 )
                                             }
-                                            className="ml-0.5 rounded-full p-0.5 text-gray-400 transition-colors hover:bg-gray-900/5 hover:text-gray-700"
+                                            className="ml-0.5 rounded-full p-0.5 text-gray-400 hover:bg-gray-900/5 hover:text-gray-700"
                                         >
                                             <X className="h-2.5 w-2.5" />
                                         </button>
@@ -449,7 +449,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 onClick={() => setWorkflowModalOpen(true)}
                                 aria-label="Open workflows"
                                 className={cn(
-                                    "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm transition-colors",
+                                    "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm",
                                     selectedWorkflow
                                         ? "text-red-700 hover:text-red-800"
                                         : "text-gray-400 hover:text-gray-700",
@@ -484,7 +484,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             <button
                                 type="button"
                                 className={cn(
-                                    "order-3 relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
+                                    "order-3 relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
                                 )}
                                 onClick={handleActionClick}
                                 disabled={!isLoading && !value.trim()}

@@ -129,7 +129,7 @@ export function DocReadBlock({
                 ) : onClick ? (
                     <button
                         onClick={onClick}
-                        className="flex min-w-0 items-center gap-1.5 text-left transition-colors hover:text-gray-700 cursor-pointer"
+                        className="flex min-w-0 items-center gap-1.5 text-left hover:text-gray-700 cursor-pointer"
                     >
                         {showFileIcon && (
                             <FileTypeIcon
@@ -294,7 +294,7 @@ export function DocDownloadBlock({
         <button
             type="button"
             onClick={handleDownload}
-            className="shrink-0 flex items-center bg-white/25 px-6 text-gray-500 transition-colors hover:bg-white/55 hover:text-gray-700 cursor-pointer"
+            className="shrink-0 flex items-center bg-white/25 px-6 text-gray-500 hover:bg-white/55 hover:text-gray-700 cursor-pointer"
         >
             <Download size={13} />
         </button>
@@ -308,7 +308,7 @@ export function DocDownloadBlock({
                 <button
                     type="button"
                     onClick={onOpen}
-                    className="flex items-stretch flex-1 min-w-0 text-left transition-colors hover:bg-white/45 cursor-pointer"
+                    className="flex items-stretch flex-1 min-w-0 text-left hover:bg-white/45 cursor-pointer"
                 >
                     {body}
                 </button>
@@ -335,7 +335,7 @@ export function DocDownloadBlock({
             <button
                 type="button"
                 onClick={handleDownload}
-                className="flex items-stretch flex-1 min-w-0 text-left transition-colors hover:bg-white/45 cursor-pointer"
+                className="flex items-stretch flex-1 min-w-0 text-left hover:bg-white/45 cursor-pointer"
             >
                 {body}
             </button>
@@ -359,7 +359,7 @@ export function WorkflowAppliedBlock({
             {onClick ? (
                 <button
                     onClick={onClick}
-                    className="text-left hover:text-gray-700 transition-colors cursor-pointer"
+                    className="text-left hover:text-gray-700 cursor-pointer"
                 >
                     {title}
                 </button>
@@ -467,7 +467,7 @@ export function CourtListenerBlock({
             {hasItems ? (
                 <button
                     onClick={() => setIsOpen((v) => !v)}
-                    className="text-left hover:text-gray-700 transition-colors inline-flex items-center"
+                    className="text-left hover:text-gray-700 inline-flex items-center"
                 >
                     <span className="font-medium">{label}</span>
                     {detail ? <span>&nbsp;{detail}</span> : null}

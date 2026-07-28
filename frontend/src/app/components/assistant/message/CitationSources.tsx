@@ -179,7 +179,7 @@ export function CitationsBlock({
                                     type="button"
                                     onClick={() => onOpenSource?.(row.source)}
                                     disabled={!sourceIsClickable}
-                                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm font-serif text-gray-700 transition-colors enabled:hover:text-gray-950 disabled:cursor-default"
+                                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm font-serif text-gray-700 enabled:hover:text-gray-950 disabled:cursor-default"
                                 >
                                     <CitationSourceIcon
                                         annotation={row.source}

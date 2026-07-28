@@ -249,7 +249,7 @@ function TRAssistantMessage({
                                             )
                                         }
                                         title={`${cit.col_name} · ${cit.doc_name.replace(/\.[^.]+$/, "")}`}
-                                        className="mx-0.5 inline-flex items-center justify-center rounded-full w-4 h-4 text-[10px] font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors align-super font-serif"
+                                        className="mx-0.5 inline-flex items-center justify-center rounded-full w-4 h-4 text-[10px] font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 align-super font-serif"
                                     >
                                         {cit.ref}
                                     </button>
@@ -414,7 +414,7 @@ function TRChatInput({
                         type="button"
                         onClick={handleAction}
                         disabled={!isLoading && !value.trim()}
-                        className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white shadow-sm transition-colors hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95"
+                        className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white shadow-sm hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300 active:enabled:scale-95"
                     >
                         {isLoading ? (
                             <Square
@@ -561,7 +561,7 @@ function HistoryDropdown({
 
 const HEADER_PILL_CLASS =
     "flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-app-surface px-1 py-0.5 shadow-sm";
-const HEADER_PILL_BUTTON_CLASS = `flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
+const HEADER_PILL_BUTTON_CLASS = `flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -926,7 +926,7 @@ export function TRChatPanel({
                         <button
                             popoverTarget={historyPopoverId}
                             title="Chat history"
-                            className={`flex h-5 min-w-0 items-center gap-1 rounded-full px-1.5 text-gray-700 transition-colors ${APP_SURFACE_HOVER_CLASS}`}
+                            className={`flex h-5 min-w-0 items-center gap-1 rounded-full px-1.5 text-gray-700 ${APP_SURFACE_HOVER_CLASS}`}
                         >
                             <span className="min-w-0 truncate text-xs font-medium">
                                 {currentChatTitle ?? "New chat"}

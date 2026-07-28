@@ -255,7 +255,7 @@ export function McpConnectorFields({
                                     tokenAction.loading ||
                                     tokenAction.cleared
                                 }
-                                className={`absolute inset-y-1 right-1.5 px-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:text-gray-300 ${
+                                className={`absolute inset-y-1 right-1.5 px-1 text-xs font-medium disabled:cursor-not-allowed disabled:text-gray-300 ${
                                     tokenAction.active || tokenAction.cleared
                                         ? "text-red-600 hover:text-red-700"
                                         : "text-gray-500 hover:text-gray-900"
@@ -281,7 +281,7 @@ export function McpConnectorFields({
                 <button
                     type="button"
                     onClick={() => onShowAdvancedChange(!showAdvanced)}
-                    className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
+                    className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-gray-500 hover:text-gray-900"
                     disabled={disabled}
                 >
                     Advanced

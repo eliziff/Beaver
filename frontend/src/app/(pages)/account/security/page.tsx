@@ -406,7 +406,7 @@ export default function SecurityPage() {
                                                 )
                                             }
                                             disabled={busy || !factors[0]?.id}
-                                            className="text-xs font-medium text-red-600 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                                            className="text-xs font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
                                         >
                                             Remove authenticator app
                                         </button>
@@ -506,7 +506,7 @@ export default function SecurityPage() {
                                     <button
                                         type="button"
                                         onClick={() => void copySetupKey()}
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-950"
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-950"
                                     >
                                         <Copy className="h-3 w-3" />
                                         {setupKeyCopied ? "Copied" : "Copy"}
