@@ -543,19 +543,6 @@ interface ParagraphRef {
     globalStart: number; // where this paragraph starts in the full doc text
 }
 
-function indexAll(hay: string, needle: string): number[] {
-    if (!needle) return [];
-    const out: number[] = [];
-    let i = 0;
-    while (i <= hay.length - needle.length) {
-        const j = hay.indexOf(needle, i);
-        if (j < 0) break;
-        out.push(j);
-        i = j + 1;
-    }
-    return out;
-}
-
 // --- Whitespace / punctuation normalization for anchor matching -------------
 // The text LLMs see (via mammoth's extractRawText) does not line up 1:1 with
 // the raw w:t concatenation: smart quotes, non-breaking spaces, tabs, and
@@ -708,16 +695,6 @@ function findBody(doc: XNode[]): XNode[] | null {
         }
     }
     return null;
-}
-
-function replaceBody(doc: XNode[], bodyChildren: XNode[]): void {
-    for (const top of doc) {
-        if (elName(top) !== "w:document") continue;
-        const docKids = elChildren(top);
-        for (const c of docKids) {
-            if (elName(c) === "w:body") setChildren(c, bodyChildren);
-        }
-    }
 }
 
 /**
@@ -1229,4 +1206,3 @@ function truncate(s: string, n: number): string {
     if (!s) return "";
     return s.length > n ? s.slice(0, n) + "…" : s;
 }
-

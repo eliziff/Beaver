@@ -1,8 +1,10 @@
 "use client";
 
 import {
+    forwardRef,
     useCallback,
     useEffect,
+    useImperativeHandle,
     useLayoutEffect,
     useRef,
     useState,
@@ -25,6 +27,7 @@ import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import type {
     AssistantEvent,
     Citation,
+    Document,
     EditAnnotation,
     Message,
 } from "../shared/types";
@@ -54,6 +57,18 @@ interface Props {
     onRetryRejectedTurn?: () => void;
     projectName?: string | null;
     onProjectClick?: () => void;
+    projectId?: string;
+    projectCmNumber?: string | null;
+    hideAddDocButton?: boolean;
+    useDisplayedDocumentContext?: boolean;
+    onDocumentsUploaded?: (documents: Document[]) => void;
+    onActiveDocumentChange?: (documentId: string | null) => void;
+}
+
+export interface ChatViewHandle {
+    attachDocument: (document: Document) => void;
+    closeDocument: (documentId: string) => void;
+    openDocument: (document: Document) => void;
 }
 
 const MOBILE_BREAKPOINT_PX = 768;
@@ -68,18 +83,27 @@ function isSmallScreen() {
     );
 }
 
-export function ChatView({
-    chatId,
-    messages,
-    isResponseLoading,
-    handleChat,
-    cancel,
-    rejectedTurn,
-    onRejectedTurnRestored,
-    onRetryRejectedTurn,
-    projectName,
-    onProjectClick,
-}: Props) {
+export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
+    {
+        chatId,
+        messages,
+        isResponseLoading,
+        handleChat,
+        cancel,
+        rejectedTurn,
+        onRejectedTurnRestored,
+        onRetryRejectedTurn,
+        projectName,
+        onProjectClick,
+        projectId,
+        projectCmNumber,
+        hideAddDocButton,
+        useDisplayedDocumentContext,
+        onDocumentsUploaded,
+        onActiveDocumentChange,
+    },
+    ref,
+) {
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
@@ -582,7 +606,7 @@ export function ChatView({
                 `calc(100dvh - ${headerHeight + messageGap * 3 + userMessageHeight + paddingBottom}px)`,
             );
         }
-    }, [messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [messages.length]);
 
     const updateScrollButton = useCallback(() => {
         const c = messagesContainerRef.current;
@@ -664,18 +688,47 @@ export function ChatView({
     const activeDocument = tabs.find(
         (tab): tab is DocumentTab | CitationTab | EditTab =>
             tab.id === activeTabId &&
+            tab.kind !== "automation" &&
             tab.kind !== "case" &&
             tab.kind !== "legal",
     );
+    useEffect(() => {
+        onActiveDocumentChange?.(activeDocument?.documentId ?? null);
+    }, [activeDocument?.documentId, onActiveDocumentChange]);
+    useImperativeHandle(
+        ref,
+        () => ({
+            attachDocument: (document) =>
+                chatInputRef.current?.addDoc(document),
+            closeDocument: closeTab,
+            openDocument: (document) =>
+                openDocument({
+                    documentId: document.id,
+                    filename: document.filename,
+                    versionId: document.current_version_id ?? null,
+                    versionNumber: document.active_version_number ?? null,
+                }),
+        }),
+        [closeTab, openDocument],
+    );
     const submitMessage = (message: Message) => {
+        if (!activeDocument) {
+            return handleChat(message);
+        }
+        if (useDisplayedDocumentContext) {
+            return handleChat(message, {
+                displayedDoc: {
+                    filename: activeDocument.filename,
+                    documentId: activeDocument.documentId,
+                },
+            });
+        }
         if (
-            !activeDocument ||
             message.files?.some(
                 (file) => file.document_id === activeDocument.documentId,
             )
-        ) {
+        )
             return handleChat(message);
-        }
         return handleChat({
             ...message,
             files: [
@@ -868,6 +921,11 @@ export function ChatView({
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
+                            hideAddDocButton={hideAddDocButton}
+                            projectId={projectId}
+                            projectName={projectName ?? undefined}
+                            projectCmNumber={projectCmNumber}
+                            onDocumentsUploaded={onDocumentsUploaded}
                             restoreDraft={
                                 rejectedTurn?.options?.askInputsResponse
                                     ? null
@@ -890,6 +948,7 @@ export function ChatView({
                     <AssistantSidePanel
                         tabs={tabs}
                         activeTabId={activeTabId}
+                        projectId={projectId}
                         onActivateTab={setActiveTabId}
                         onCloseTab={closeTab}
                         onCloseAll={closeAllTabs}
@@ -939,4 +998,4 @@ export function ChatView({
             />
         </div>
     );
-}
+});

@@ -211,7 +211,7 @@ async function deleteDocumentAndVersionFiles(db: Db, documentId: string) {
   return db.from("documents").delete().eq("id", documentId);
 }
 
-documentsRouter.get("/", requireAuth, async (req, res) => {
+documentsRouter.get("/", requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
   const db = createServerSupabase();
   const { data, error } = await db

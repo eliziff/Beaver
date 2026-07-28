@@ -27,9 +27,14 @@ describe("ProjectChoiceList", () => {
             />,
         );
 
-        expect(screen.getByRole("option", { name: /Appeal/ })).toHaveAttribute(
-            "aria-selected",
-            "true",
+        const selected = screen.getByRole("option", { name: /Appeal/ });
+        const unselected = screen.getByRole("option", { name: /Acquisition/ });
+        expect(selected).toHaveAttribute("aria-selected", "true");
+        expect(selected.querySelector("svg:last-child")).not.toHaveClass(
+            "invisible",
+        );
+        expect(unselected.querySelector("svg:last-child")).toHaveClass(
+            "invisible",
         );
 
         fireEvent.change(screen.getByRole("searchbox"), {

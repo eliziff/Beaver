@@ -71,6 +71,7 @@ export type DocPanelMode =
 interface Props {
     documentId: string;
     filename: string;
+    projectId?: string;
     versionId: string | null;
     versionNumber: number | null;
     mode: DocPanelMode;
@@ -91,6 +92,7 @@ interface Props {
 export function DocPanel({
     documentId,
     filename,
+    projectId,
     versionId,
     versionNumber,
     mode,
@@ -180,6 +182,7 @@ export function DocPanel({
                 <DocumentTitleRow
                     documentId={documentId}
                     filename={filename}
+                    projectId={projectId}
                     versionId={actionVersionId}
                     versionNumber={versionNumber}
                     isReloading={isReloading}
@@ -247,6 +250,7 @@ export function DocPanel({
 function DocumentTitleRow({
     documentId,
     filename,
+    projectId,
     versionId,
     versionNumber,
     isReloading,
@@ -254,6 +258,7 @@ function DocumentTitleRow({
 }: {
     documentId: string;
     filename: string;
+    projectId?: string;
     versionId: string | null;
     versionNumber: number | null;
     isReloading: boolean;
@@ -278,7 +283,7 @@ function DocumentTitleRow({
             </div>
             <div className="shrink-0">
                 <DocumentAutomation
-                    document={{ id: documentId, filename }}
+                    document={{ id: documentId, filename, project_id: projectId }}
                     onDocumentChanged={(result) =>
                         onDocumentChanged(result.version_id)
                     }

@@ -76,12 +76,10 @@ export function ProjectChoiceList({
                                         ? ` (#${project.cm_number})`
                                         : ""}
                                 </span>
-                                {selected ? (
-                                    <Check
-                                        className="h-4 w-4 shrink-0"
-                                        aria-hidden="true"
-                                    />
-                                ) : null}
+                                <Check
+                                    className={`h-4 w-4 shrink-0 ${selected ? "" : "invisible"}`}
+                                    aria-hidden="true"
+                                />
                             </button>
                         );
                     })

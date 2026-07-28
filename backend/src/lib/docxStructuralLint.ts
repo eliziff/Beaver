@@ -1,4 +1,3 @@
-import type JSZip from "jszip";
 import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
 import { getLocalVersionFile } from "./localDocumentStore";
