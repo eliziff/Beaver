@@ -1,0 +1,107 @@
+{
+  "provider": "a2aj",
+  "dataset": "a2aj/hansard",
+  "config": "ontario",
+  "split": "train",
+  "capture": {
+    "endpoint": "https://datasets-server.huggingface.co/filter",
+    "params": {
+      "dataset": "a2aj/hansard",
+      "config": "ontario",
+      "split": "train",
+      "where": "\"Date\">='2025-05-01' AND \"Date\"<='2025-05-31'",
+      "offset": 0,
+      "length": 100
+    },
+    "capturedAt": "2026-07-28",
+    "numRowsTotalForWhere": 4495,
+    "corpusNumRows": 1347812,
+    "note": "Six verbatim rows from the 2025-05-01 Ontario Legislative Assembly sitting, chosen to cover a null-speaker procedural entry, Members Statements, Question Period exchanges, and accented speaker names. Intervention text is unmodified."
+  },
+  "rows": [
+    {
+      "ID": "20250501-0000001",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": null,
+      "SubjectofBusiness": null,
+      "PersonSpeaking": null,
+      "intervention_type": "procedural",
+      "Intervention": "The House met at 0900.",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    },
+    {
+      "ID": "20250501-0000028",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": "Members’ Statements",
+      "SubjectofBusiness": "Mental health services",
+      "PersonSpeaking": "MPP Catherine McKenney",
+      "intervention_type": "speech",
+      "Intervention": "I want to take the opportunity, first, to congratulate Yasir Naqvi on his most recent win as member of Parliament in Ottawa Centre—I look forward to working with him to build permanent and deeply affordable housing—and to thank Joel Harden, our former MPP, for his years of service here at the Legislature and in the community. Shortly after I was elected as MPP, I received a phone call from a woman who was desperately advocating on behalf of her son, who was recently diagnosed with mental illness. He had experienced a psychotic episode in October 2024 and was subsequently arrested on minor charges. In December, he was found not criminally responsible and ordered by a judge to be accepted to the Royal Ottawa Mental Health Centre, but there were no hospital beds. So he remains in custody, unwell and in need of health care. Over the past six months in detention, he has not been receiving the mental health treatment he requires for his recovery. His family fears greatly for his physical safety and his mental well-being. I bring this to the attention of my colleagues here in the Legislature today to demonstrate the dire need for investment in mental health care beds so that we can remove people from prison who are unwell and do not belong there, and so that we can provide the health care they require to improve their well-being.",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    },
+    {
+      "ID": "20250501-0000031",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": "Members’ Statements",
+      "SubjectofBusiness": "United Nations Permanent Forum on Indigenous Issues",
+      "PersonSpeaking": "Mr. Sol Mamakwa",
+      "intervention_type": "speech",
+      "Intervention": "Good morning, Speaker. ᒥᓄᑭᔐᐸᔭ At the end of April, a delegation of Matawa First Nations youth travelled to New York to speak and represent their nations at the United Nations Permanent Forum on Indigenous Issues. They were accompanied by two members of the Matawa First Nations management board of directors. These youth were strong and outspoken advocates for our nations in northern Ontario. They reminded our various governments in Ontario, in Canada and globally of the importance of truly committing to a spirit of partnership and reconciliation. They met with other Indigenous youth from nations across the world and made significant connections. They also had critical discussions with leaders like Willie Littlechild and the Ontario Regional Chief Abram Benedict, and even including our former Premier, Ambassador Bob Rae. While on the global stage, in their statements at the forum, they made sure to address issues close to home. They spoke on how government has the obligation to meaningfully implement treaty agreements and respect our lands and sovereignty as rights holders. I just want to acknowledge them, recognize them and congratulate them for their leadership And thank you to the board of directors for empowering our future leaders. Meegwetch.",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    },
+    {
+      "ID": "20250501-0000047",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": "Introduction of Visitors",
+      "SubjectofBusiness": null,
+      "PersonSpeaking": "M me France Gélinas",
+      "intervention_type": "speech",
+      "Intervention": "J’aimerais souhaiter la bienvenue au président du Collège Boréal, Daniel Giroux, qui est ici avec le groupe Canadian Parents for French. Bienvenue.",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    },
+    {
+      "ID": "20250501-0000050",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": "Question Period",
+      "SubjectofBusiness": "Automotive industry",
+      "PersonSpeaking": "Ms. Marit Stiles",
+      "intervention_type": "speech",
+      "Intervention": "The government’s financial watchdog warned yesterday that we’re heading for a recession—growth cut in half, jobs on the line. And what was the Premier’s response? It was, “Well, let’s just see what happens.” That’s what he said, Speaker. He said, “Let’s see what happens.” Well, we’ve seen what happens when the response is to wait around. More than 12,000 auto workers in Windsor are already off the job thanks to closures at Stellantis—temporary closures, but closures nonetheless. I have to ask, does the Premier understand what’s at stake for Ontario workers right now?",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    },
+    {
+      "ID": "20250501-0000052",
+      "Date": "2025-05-01",
+      "jurisdiction": "ontario",
+      "chamber": "legislative_assembly",
+      "language": "en",
+      "OrderofBusiness": "Question Period",
+      "SubjectofBusiness": "Automotive industry",
+      "PersonSpeaking": "Hon. Peter Bethlenfalvy",
+      "intervention_type": "speech",
+      "Intervention": "This government absolutely knows what’s at stake. In fact, we ran a campaign just a few months ago—a campaign to protect jobs, to protect the economy, to protect communities, to protect families across this great province. And one thing is very clear: The status quo is no longer an option. We are going to do what it takes to support the hard-working men and women of this great province. Some of the actions that we’ve taken to date include $11 billion of relief for businesses and workers in this province. Do you know why we’re able to do that? Because we have a fiscal framework and a balance sheet that has never been stronger in the last couple of decades, because of our fiscal prudence, respecting taxpayer money, and making sure that we can support those families and hard-working—",
+      "upstream_license": "See upstream license, including non-commercial use and other restrictions: https://perma.cc/D5TN-9RX6. Note: This is an unofficial reproduction of materials made available by the Legislative Assembly of Ontario, without endorsement by or affiliation with the Legislative Assembly of Ontario.",
+      "source_url": "https://www.ola.org/en/legislative-business/house-documents/parliament-44/session-1/2025-05-01/hansard"
+    }
+  ]
+}
