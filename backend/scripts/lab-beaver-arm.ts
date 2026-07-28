@@ -245,18 +245,29 @@ async function main() {
     }
   }
 
-  // Token estimates from the context-manifest receipts (ceil(bytes/4); no
-  // usage in the SSE stream). Output side estimated from the answer text.
+  // Real usage from the context-manifest receipts (each streamChatWithTools
+  // call appends one entry with provider-reported usage); the byte-based
+  // inputEstimate is the fallback for entries that died before usage.
   let inputTokens = 0;
+  let outputTokens = 0;
+  let tokenSource = "context_manifest_usage";
   const manifestPath = process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH ?? "";
   if (manifestPath && existsSync(manifestPath)) {
     for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/u)) {
       if (!line.trim()) continue;
-      const entry = JSON.parse(line) as { totals?: { tokens?: number } };
-      inputTokens += entry.totals?.tokens ?? 0;
+      const entry = JSON.parse(line) as {
+        usage?: { inputTokens?: number; outputTokens?: number } | null;
+        inputEstimate?: { tokens?: number };
+      };
+      if (entry.usage?.inputTokens != null) {
+        inputTokens += entry.usage.inputTokens;
+        outputTokens += entry.usage.outputTokens ?? 0;
+      } else {
+        inputTokens += entry.inputEstimate?.tokens ?? 0;
+        tokenSource = "context_manifest_mixed_estimate";
+      }
     }
   }
-  const outputTokens = Math.ceil(answer.length / 4);
 
   writeFileSync(
     path.join(runDir, "config.json"),
@@ -284,7 +295,7 @@ async function main() {
         input_tokens: inputTokens,
         output_tokens: outputTokens,
         total_tokens: inputTokens + outputTokens,
-        token_source: "context_manifest_estimate",
+        token_source: tokenSource,
         wall_clock_seconds: Math.round(wallClock * 100) / 100,
         finished_cleanly: true,
         completed_at: new Date().toISOString(),
