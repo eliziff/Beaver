@@ -7,6 +7,7 @@ import {
     type SetStateAction,
     useCallback,
     useEffect,
+    useEffectEvent,
     useMemo,
     useRef,
     useState,
@@ -1072,6 +1073,10 @@ export function DocTable({
         }
     }
 
+    const dropCollectionFilesFromWindow = useEffectEvent(
+        handleDropCollectionFiles,
+    );
+
     useEffect(() => {
         const hasFiles = (dataTransfer: DataTransfer | null) =>
             !!dataTransfer && Array.from(dataTransfer.types).includes("Files");
@@ -1107,7 +1112,7 @@ export function DocTable({
             collectionDragDepthRef.current = 0;
             setIsDraggingCollectionFiles(false);
             setDragOverFileRoot(false);
-            void handleDropCollectionFiles(
+            void dropCollectionFilesFromWindow(
                 Array.from(event.dataTransfer?.files ?? []),
             );
         }
@@ -1122,7 +1127,7 @@ export function DocTable({
             window.removeEventListener("dragleave", handleDragLeave);
             window.removeEventListener("drop", handleDrop);
         };
-    });
+    }, []);
 
     async function handleDropDocumentVersions(doc: Document, files: File[]) {
         if (files.length === 0) return;
