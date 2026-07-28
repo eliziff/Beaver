@@ -15,6 +15,7 @@
  */
 
 import type JSZip from "jszip";
+import diff from "fast-diff";
 import { loadZip } from "./zip";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 
@@ -316,27 +317,41 @@ interface PlannedChange {
 }
 
 /**
- * Collapse a `fast-diff` result into a minimal `{deletedText, insertedText}`
- * tuple anchored at a single start position. `fast-diff` produces
- * sequences like EQ-DEL-EQ-INS. For tracked-change UI we want one
- * "replace this substring with that substring" card per edit, so we
- * merge everything into the outer span.
+ * Split one matched edit into its minimal change clusters using `fast-diff`
+ * with semantic cleanup, so fixing "paras 332-334" is one deleted "3" — and a
+ * two-spot edit is two tiny tracked changes — instead of one giant
+ * delete-and-reinsert of everything between the first and last difference.
+ * Each cluster is a contiguous deleted range of `find` (empty for a pure
+ * insertion) plus the text inserted at its start; the semantic cleanup keeps
+ * word-shaped changes whole rather than character confetti.
  */
-function collapseDiff(find: string, replace: string): { deleted: string; inserted: string; leadingEq: number; trailingEq: number } {
-    // Find leading/trailing common substrings so the tracked range is minimal
-    let leading = 0;
-    const minLen = Math.min(find.length, replace.length);
-    while (leading < minLen && find[leading] === replace[leading]) leading++;
-    let trailing = 0;
-    while (
-        trailing < minLen - leading &&
-        find[find.length - 1 - trailing] === replace[replace.length - 1 - trailing]
-    ) {
-        trailing++;
+function minimalEditClusters(
+    find: string,
+    replace: string,
+): { offset: number; deleted: string; inserted: string }[] {
+    const clusters: { offset: number; deleted: string; inserted: string }[] = [];
+    let offset = 0;
+    for (const [op, text] of diff(find, replace, undefined, true)) {
+        if (op === diff.EQUAL) {
+            offset += text.length;
+            continue;
+        }
+        const last = clusters[clusters.length - 1];
+        let cluster: { offset: number; deleted: string; inserted: string };
+        if (last && last.offset + last.deleted.length === offset) {
+            cluster = last;
+        } else {
+            cluster = { offset, deleted: "", inserted: "" };
+            clusters.push(cluster);
+        }
+        if (op === diff.DELETE) {
+            cluster.deleted += text;
+            offset += text.length;
+        } else {
+            cluster.inserted += text;
+        }
     }
-    const deleted = find.slice(leading, find.length - trailing);
-    const inserted = replace.slice(leading, replace.length - trailing);
-    return { deleted, inserted, leadingEq: leading, trailingEq: trailing };
+    return clusters;
 }
 
 // ---------------------------------------------------------------------------
@@ -975,19 +990,14 @@ export async function applyTrackedEdits(
             findEnd,
         );
 
-        const { deleted, inserted, leadingEq } = collapseDiff(
-            originalFind,
-            replace,
-        );
-        if (!deleted && !inserted) {
+        const clusters = minimalEditClusters(originalFind, replace);
+        if (clusters.length === 0) {
             errors.push({
                 index: editIdx,
                 reason: "Replacement does not change the matched text.",
             });
             continue;
         }
-        const minStart = findStart + leadingEq;
-        const minEnd = minStart + deleted.length;
         void findEnd;
 
         const protectedAt = (position: number) =>
@@ -996,17 +1006,21 @@ export async function applyTrackedEdits(
             paragraphs[paraIdx].flat.runs[
                 paragraphs[paraIdx].flat.charRun[position]
             ]?.protectedByContentControl;
-        let touchesContentControl =
-            minStart === minEnd &&
-            (protectedAt(minStart) || protectedAt(minStart - 1));
-        for (
-            let position = minStart;
-            !touchesContentControl && position < minEnd;
-            position += 1
+        const clusterTouchesControl = (start: number, end: number) => {
+            if (start === end)
+                return Boolean(protectedAt(start) || protectedAt(start - 1));
+            for (let position = start; position < end; position += 1)
+                if (protectedAt(position)) return true;
+            return false;
+        };
+        if (
+            clusters.some((cluster) =>
+                clusterTouchesControl(
+                    findStart + cluster.offset,
+                    findStart + cluster.offset + cluster.deleted.length,
+                ),
+            )
         ) {
-            touchesContentControl = Boolean(protectedAt(position));
-        }
-        if (touchesContentControl) {
             errors.push({
                 index: editIdx,
                 reason: "This edit touches a Word content control. Edit the control in Word or regenerate the draft.",
@@ -1014,25 +1028,27 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        const changeId = `mike-${editIdx}-${Date.now()}`;
-        const plan: PlannedChange = {
+        const editPlans: PlannedChange[] = clusters.map((cluster, clusterIdx) => ({
             editIndex: editIdx,
-            deleteStart: minStart,
-            deleteEnd: minEnd,
-            deletedText: deleted,
-            insertedText: inserted,
+            deleteStart: findStart + cluster.offset,
+            deleteEnd: findStart + cluster.offset + cluster.deleted.length,
+            deletedText: cluster.deleted,
+            insertedText: cluster.inserted,
             contextBefore: edit.context_before ?? "",
             contextAfter: edit.context_after ?? "",
             reason: edit.reason,
-            changeId,
-            delWId: deleted ? String(nextWId++) : undefined,
-            insWId: inserted ? String(nextWId++) : undefined,
-        };
+            changeId: `mike-${editIdx}-${clusterIdx}-${Date.now()}`,
+            delWId: cluster.deleted ? String(nextWId++) : undefined,
+            insWId: cluster.inserted ? String(nextWId++) : undefined,
+        }));
 
-        // Check for overlap with earlier plans in the same paragraph.
+        // Check for overlap with earlier edits' plans in the same paragraph.
+        // The whole edit is rejected atomically — never half its clusters.
         const existing = plansPerParagraph.get(paraIdx) ?? [];
-        const overlap = existing.some(
-            (p) => !(plan.deleteEnd <= p.deleteStart || plan.deleteStart >= p.deleteEnd),
+        const overlap = editPlans.some((plan) =>
+            existing.some(
+                (p) => !(plan.deleteEnd <= p.deleteStart || plan.deleteStart >= p.deleteEnd),
+            ),
         );
         if (overlap) {
             errors.push({
@@ -1042,20 +1058,22 @@ export async function applyTrackedEdits(
             continue;
         }
 
-        existing.push(plan);
+        existing.push(...editPlans);
         existing.sort((a, b) => a.deleteStart - b.deleteStart);
         plansPerParagraph.set(paraIdx, existing);
 
-        appliedChanges.push({
-            id: changeId,
-            delId: plan.delWId,
-            insId: plan.insWId,
-            deletedText: plan.deletedText,
-            insertedText: plan.insertedText,
-            contextBefore: plan.contextBefore,
-            contextAfter: plan.contextAfter,
-            reason: plan.reason,
-        });
+        for (const plan of editPlans) {
+            appliedChanges.push({
+                id: plan.changeId,
+                delId: plan.delWId,
+                insId: plan.insWId,
+                deletedText: plan.deletedText,
+                insertedText: plan.insertedText,
+                contextBefore: plan.contextBefore,
+                contextAfter: plan.contextAfter,
+                reason: plan.reason,
+            });
+        }
     }
 
     // Apply plans per paragraph.
