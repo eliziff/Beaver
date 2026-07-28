@@ -11,7 +11,6 @@ import {
     PageHeader,
     type PageHeaderAction,
 } from "@/app/components/shared/PageHeader";
-import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import type { Project } from "@/app/components/shared/types";
 import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
 import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";
@@ -29,16 +28,6 @@ export function treeNameCellStyle(depth: number): CSSProperties | undefined {
     return {
         paddingLeft: TREE_NAME_PADDING_PX + depth * TREE_CONTROL_WIDTH_PX,
     };
-}
-
-export function DocIcon({
-    fileType,
-    muted = false,
-}: {
-    fileType: string | null;
-    muted?: boolean;
-}) {
-    return <FileTypeIcon fileType={fileType} className="h-4 w-4" muted={muted} />;
 }
 
 export function ProjectPageHeader({

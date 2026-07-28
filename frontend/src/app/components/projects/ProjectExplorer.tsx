@@ -31,10 +31,6 @@ interface Props {
     onMoveFolder?: (folderId: string, targetFolderId: string | null) => Promise<void>;
 }
 
-function DocIcon({ fileType }: { fileType: string | null }) {
-    return <FileTypeIcon fileType={fileType} className="h-3.5 w-3.5" />;
-}
-
 type ContextMenuState = {
     x: number;
     y: number;
@@ -337,7 +333,10 @@ export function ProjectExplorer({
                             }`}
                             style={{ paddingLeft: basePadding }}
                         >
-                            <DocIcon fileType={doc.file_type} />
+                            <FileTypeIcon
+                                fileType={doc.file_type}
+                                className="h-3.5 w-3.5"
+                            />
                             <span className="text-xs truncate">
                                 {doc.filename}
                             </span>
