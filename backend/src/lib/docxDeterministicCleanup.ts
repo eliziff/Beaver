@@ -7,7 +7,9 @@ import {
 } from "./localDocumentStore";
 import { decodeXmlText, escapeXmlText } from "./text";
 
-const SUPRA_PATTERN = /\bsupra,?\s+note\s+(\d+)\b/giu;
+const SUPRA_PATTERN =
+  /\bsupra,?\s{1,4}(?:note|nn?\.?)\s{1,4}(\d+)\b/giu;
+const NUMBERED_SUPRA_PATTERN = /\bsupra\b.{0,40}?\d+\b/iu;
 const RUN_PATTERN = /<w:r\b([^>]*)>([\s\S]*?)<\/w:r>/gu;
 const TEXT_PATTERN = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gu;
 const PARAGRAPH_PATTERN = /<w:p\b[\s\S]*?<\/w:p>/gu;
@@ -191,6 +193,26 @@ function analyzeSupras(xml: string) {
     }
   }
   return { detected, alreadyLinked, ordinals };
+}
+
+function containsNumberedSupra(xml: string) {
+  for (const paragraph of xml.matchAll(PARAGRAPH_PATTERN)) {
+    const text = [...paragraph[0].matchAll(TEXT_PATTERN)]
+      .map((node) => decodeXmlText(node[1] ?? ""))
+      .join("");
+    if (NUMBERED_SUPRA_PATTERN.test(text)) return true;
+  }
+  return false;
+}
+
+export async function hasDocxSupraReferences(bytes: Buffer) {
+  const zip = await loadZip(bytes);
+  const footnotes = getZipEntry(zip, "word/footnotes.xml");
+  if (footnotes && containsNumberedSupra(await footnotes.async("string"))) {
+    return true;
+  }
+  const document = getZipEntry(zip, "word/document.xml");
+  return !!document && containsNumberedSupra(await document.async("string"));
 }
 
 function nextBookmarkId(documentXml: string) {
@@ -493,5 +515,19 @@ export async function fixLocalDocxSupraCrossReferences(
     filename: version.filename,
     ...cleanup,
     bytes: undefined,
+  };
+}
+
+export async function inspectLocalDocxAutomation(
+  userId: string,
+  documentId: string,
+) {
+  const file = await getLocalVersionFile(userId, documentId);
+  if (!file) throw new Error("Document not found");
+  if (file.fileType.toLowerCase() !== "docx") {
+    throw new Error("Document automation currently requires a DOCX document");
+  }
+  return {
+    supra_references: await hasDocxSupraReferences(await readFile(file.path)),
   };
 }
