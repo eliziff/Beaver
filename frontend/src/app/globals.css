@@ -306,13 +306,17 @@
 
 @keyframes docxEditFlash {
     0%, 20% {
-        background-color: rgba(59, 130, 246, 0.45);
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
+        background-color: rgba(213, 43, 30, 0.22);
+        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0.3);
     }
     100% {
-        background-color: rgba(59, 130, 246, 0);
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0);
+        background-color: rgba(213, 43, 30, 0);
+        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0);
     }
+}
+
+.transition-colors {
+    transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
