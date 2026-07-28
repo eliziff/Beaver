@@ -31,7 +31,7 @@ import {
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { formatDate } from "@/app/lib/utils";
+import { formatDate, sortRows } from "@/app/lib/utils";
 
 type ReviewSortKey = "name" | "columns" | "documents" | "created";
 
@@ -94,35 +94,26 @@ export function TabularReviewsTable({
     const visibleReviews = useMemo(() => {
         if (!sort) return filteredReviews;
 
-        return [...filteredReviews].sort((a, b) => {
-            const multiplier = sort.direction === "asc" ? 1 : -1;
-
+        return sortRows(filteredReviews, (a, b) => {
             if (sort.key === "columns") {
                 return (
                     ((a.columns_config?.length ?? 0) -
-                        (b.columns_config?.length ?? 0)) *
-                    multiplier
+                        (b.columns_config?.length ?? 0))
                 );
             }
             if (sort.key === "documents") {
-                return (
-                    ((a.document_count ?? 0) - (b.document_count ?? 0)) *
-                    multiplier
-                );
+                return (a.document_count ?? 0) - (b.document_count ?? 0);
             }
             if (sort.key === "created") {
                 return (
                     (new Date(a.created_at).getTime() -
-                        new Date(b.created_at).getTime()) *
-                    multiplier
+                        new Date(b.created_at).getTime())
                 );
             }
-            return (
-                (a.title ?? "Untitled Review").localeCompare(
-                    b.title ?? "Untitled Review",
-                ) * multiplier
+            return (a.title ?? "Untitled Review").localeCompare(
+                b.title ?? "Untitled Review",
             );
-        });
+        }, sort.direction);
     }, [filteredReviews, sort]);
     const allSelected =
         visibleReviews.length > 0 &&
