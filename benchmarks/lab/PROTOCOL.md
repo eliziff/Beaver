@@ -73,6 +73,46 @@ Scale-up only after pilot results are reviewed.
    filenames don't match) is left keyless → degrades to no-match; both arms
    must name deliverables exactly as task.json specifies.
 
+## Fairness audit (pre-pilot, 2026-07-28)
+
+Held constant across arms (verified, not assumed):
+- Model and route: gpt-5.6-sol via the codex backend, both arms.
+- Reasoning effort: explicit `medium` both arms (Arm A `--reasoning-effort`,
+  Arm B `reasoning_effort` on /chat; the earlier Arm B smokes ran at backend
+  default). Temperature: unsendable on this backend for both arms.
+- Adapter semantics: live-probed — the backend emits no reasoning output
+  items; both LAB's Python adapter and Beaver's openai.ts resend exactly the
+  emitted output items plus function_call_output between turns. Multi-turn
+  function calling verified working in both.
+- Output-token basis: both arms report raw API `output_tokens` (inclusive of
+  reasoning tokens); input tokens inclusive of cache reads in both.
+- Information access: Arm A sandbox is --network=none; Arm B has Beaver's
+  online research tools (CourtListener/A2AJ/public-legal) removed from the
+  advertised tool list by the runner. Removal recorded per run in receipts.
+- Output caps: `max_output_tokens` unsendable on this backend → uncapped in
+  both arms (official LAB caps OpenAI runs at 128k; never binding in practice).
+- Task inputs: identical bytes; non-uploadable types (.eml) reach Beaver
+  wrapped as .docx with content unchanged, and reach Arm A raw.
+- Grading: identical evaluator, judge model, prompts, pandoc extraction,
+  strict filename matching (LLM matcher keyless) for both arms.
+
+Harness-intrinsic differences (the thing being measured, not confounds):
+tool inventories, system prompts, context assembly, loop budget (LAB: 200
+turns; Beaver: product cap of 10 provider iterations per turn), Beaver
+authoring deliverables via library_create_docx vs Arm A writing files.
+
+Known residual imperfections (disclosed, judged immaterial):
+- Beaver's local system prompt still mentions research capabilities whose
+  tools are removed (function calling is constrained to advertised tools, so
+  they cannot be invoked; mild self-handicap for Arm B if anything).
+- Judge reached via headless CLI: no schema-enforced verdict JSON, no
+  temperature pin (LAB itself drops the schema on final retry).
+- Single run per task per arm → sampling noise; neither arm can pin
+  temperature, so nondeterminism is symmetric.
+- Arm A executes in a resource-limited container (2 CPU / 2 GB); Arm B runs
+  in-process on the host. Affects file parsing speed only, not model calls;
+  wall-clock comparisons favor neither arm materially.
+
 ## Results
 
 Under `C:/Users/elias/Desktop/harvey-labs/results/` (LAB layout:
