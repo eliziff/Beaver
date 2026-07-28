@@ -96,7 +96,7 @@ describe("anonymous Codex provider sessions", () => {
     expect(store.readAnonymousCodexSession(USER_ID, CHAT_ID)).toBeNull();
   });
 
-  it("removes the sidecar with its canonical chat", async () => {
+  it("retains the sidecar in recycling and removes it with the chat", async () => {
     vi.resetModules();
     const [store, chats] = await Promise.all([
       import("../anonymousProviderSessionStore"),
@@ -113,6 +113,8 @@ describe("anonymous Codex provider sessions", () => {
     });
 
     expect(chats.deleteAnonymousChat(USER_ID, chat.id)).toBe(true);
+    expect(store.readAnonymousCodexSession(USER_ID, chat.id)).not.toBeNull();
+    expect(chats.permanentlyDeleteAnonymousChat(USER_ID, chat.id)).toBe(true);
     expect(store.readAnonymousCodexSession(USER_ID, chat.id)).toBeNull();
   });
 });

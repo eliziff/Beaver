@@ -500,7 +500,8 @@ create table if not exists public.chats (
   project_id uuid references public.projects(id) on delete cascade,
   user_id text not null,
   title text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz
 );
 
 create index if not exists idx_chats_user
@@ -508,6 +509,10 @@ create index if not exists idx_chats_user
 
 create index if not exists idx_chats_project
   on public.chats(project_id);
+
+create index if not exists chats_deleted_user_idx
+  on public.chats(user_id, deleted_at desc)
+  where deleted_at is not null;
 
 create or replace function public.get_chats_overview(
   p_user_id text,
@@ -530,12 +535,15 @@ as $$
     c.title,
     c.created_at
   from public.chats c
-  where c.user_id = p_user_id
-     or exists (
-      select 1
-      from public.projects p
-      where p.id = c.project_id
-        and p.user_id = p_user_id
+  where c.deleted_at is null
+    and (
+      c.user_id = p_user_id
+      or exists (
+        select 1
+        from public.projects p
+        where p.id = c.project_id
+          and p.user_id = p_user_id
+      )
     )
   order by c.created_at desc
   limit case
@@ -644,7 +652,8 @@ as $$
   chat_counts as (
     select c.project_id, count(*)::integer as chat_count
     from public.chats c
-    where c.project_id in (select vp.id from visible_projects vp)
+    where c.deleted_at is null
+      and c.project_id in (select vp.id from visible_projects vp)
     group by c.project_id
   ),
   review_counts as (

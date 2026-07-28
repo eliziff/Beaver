@@ -437,7 +437,13 @@ export function deleteAnonymousChat(userId: string, chatId: string): boolean {
   const chat = readChat(userId, chatId);
   if (!chat || chat.deleted_at !== null) return false;
   abortChatTurnForDeletion(chat.id);
-  const next = { ...chat, deleted_at: new Date().toISOString() };
+  const now = new Date().toISOString();
+  const next = {
+    ...chat,
+    deleted_at: now,
+    updated_at: now,
+    transcript_version: chat.transcript_version + 1,
+  };
   writeChat(next);
   Object.assign(chat, next);
   return true;
@@ -450,7 +456,12 @@ export function restoreAnonymousChat(userId: string, chatId: string): boolean {
     removeChat(chat);
     return false;
   }
-  const next = { ...chat, deleted_at: null };
+  const next = {
+    ...chat,
+    deleted_at: null,
+    updated_at: new Date().toISOString(),
+    transcript_version: chat.transcript_version + 1,
+  };
   writeChat(next);
   Object.assign(chat, next);
   return true;

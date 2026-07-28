@@ -1001,6 +1001,7 @@ projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
     .from("chats")
     .select("*")
     .eq("project_id", projectId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) return void res.status(500).json({ detail: error.message });
   const chats = data ?? [];
