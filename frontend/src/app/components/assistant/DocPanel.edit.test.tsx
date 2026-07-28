@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EditAnnotation } from "../shared/types";
 
@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 describe("edit document panel", () => {
-    it("leaves the redline as the only change preview", () => {
+    it("leaves the redline as the only change preview", async () => {
         const { container } = render(
             <DocPanel
                 documentId="doc-1"
@@ -81,10 +81,13 @@ describe("edit document panel", () => {
         ).not.toBeInTheDocument();
         screen.getByRole("button", { name: "Accept" });
         screen.getByRole("button", { name: "Reject" });
+        await waitFor(() => {
         expect(
             screen.getByText("Couldn't save accept — please retry."),
         ).toBeInTheDocument();
-        expect(mocks.docxView).toHaveBeenLastCalledWith(
+        });
+        await waitFor(() =>
+            expect(mocks.docxView).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 highlightEdit: expect.objectContaining({
                     key: "edit-1",
@@ -92,6 +95,7 @@ describe("edit document panel", () => {
                     deleted_text: edit.deleted_text,
                 }),
             }),
+            ),
         );
     });
 
