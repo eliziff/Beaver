@@ -6,12 +6,16 @@ import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
-import { anchorCoverage } from "../legalTextAnchors";
+import { consolidateAmendment } from "../legalAmendOps";
+import { computeDeadline } from "../legalDeadlines";
+import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
+import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
 import {
   compileAgreementSkeleton,
   readSection,
   renderAgreementOutline,
 } from "../legalTextSkeleton";
+import { termDriftReport } from "../legalTermDrift";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { applyTrackedEdits, type EditInput } from "../docxTrackedChanges";
@@ -316,6 +320,120 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         },
       },
       required: ["source_document_ids", "draft_document_ids"],
+    },
+  ),
+  tool(
+    "library_apply_amendment",
+    "Deterministically consolidate an amending instrument against a source Library document: amendment prose (US cut-and-bite and Canadian replace-style) is compiled into typed edit ops addressed by section labels, applied with hard failures (target not found, quoted text absent or ambiguous, overlapping ops), and verified by recompiling the result. DRY-RUN REPORT ONLY: returns per-op receipts, refusals, and the consolidation preview; it never writes a new version. Instructions the grammar cannot compile are refused and listed, never guessed at.",
+    {
+      type: "object",
+      properties: {
+        source_document_id: {
+          type: "string",
+          description: "Library document_id of the instrument being amended.",
+        },
+        amendment_document_id: {
+          type: "string",
+          description:
+            "Library document_id of the amending instrument. Provide this or amendment_text.",
+        },
+        amendment_text: {
+          type: "string",
+          description:
+            "Amendment prose pasted directly (e.g. one resolution), when it is not a Library document.",
+        },
+        preview_chars: {
+          type: "integer",
+          minimum: 0,
+          maximum: 20000,
+          description:
+            "Length of consolidated-text preview to return. Defaults to 0 (receipts only).",
+        },
+      },
+      required: ["source_document_id"],
+    },
+  ),
+  tool(
+    "library_deadline",
+    "Compute a legal deadline deterministically with a derivation trace: Interpretation Act s. 27(2) exclude-first-include-last day counting, s. 27(1) clear/'at least' days, s. 28 month anniversaries with month-end clamping, s. 26 holiday rollover (direction-aware), and business-day counting over computed statutory holiday tables (CA federal, CA-ON, CA-BC, CA-QC, US). NEVER compute limitation periods, notice deadlines, or business-day arithmetic in prose — call this and quote its trace.",
+    {
+      type: "object",
+      properties: {
+        anchor_date: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+          description: "ISO date the period runs from (or to, for direction=before).",
+        },
+        count: { type: "integer", minimum: 1, maximum: 10000 },
+        unit: {
+          type: "string",
+          enum: ["day", "business_day", "clear_day", "week", "month", "year"],
+        },
+        direction: { type: "string", enum: ["after", "before"] },
+        jurisdiction: {
+          type: "string",
+          enum: ["CA", "CA-ON", "CA-BC", "CA-QC", "US"],
+          description: "Holiday table. Defaults to CA (federal).",
+        },
+        weekend: {
+          type: "string",
+          enum: ["sat_sun", "sun_only"],
+          description:
+            "Non-working weekend days. Federal s. 35 'holiday' includes only Sunday; commercial Business Day definitions exclude both. Defaults to sat_sun.",
+        },
+        extra_holidays: {
+          type: "array",
+          items: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+          description: "Contract-designated additional non-business days.",
+        },
+      },
+      required: ["anchor_date", "count", "unit"],
+    },
+  ),
+  tool(
+    "library_term_drift",
+    "Deterministically diff defined terms across a deal stack of Library documents: the same term defined with divergent bodies (first difference located and excerpted), terms used in a document that defines them nowhere (imported uses), and in-document duplicate definitions. Divergences shown are real wording differences — normalization touches only whitespace and quote glyphs. Requires at least two documents.",
+    {
+      type: "object",
+      properties: {
+        document_ids: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 2,
+          description: "Library document_ids of the deal-stack documents.",
+        },
+        max_rows: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Cap on reported rows per list. Defaults to 40.",
+        },
+      },
+      required: ["document_ids"],
+    },
+  ),
+  tool(
+    "library_bilingual_concordance",
+    "Concordance gate for equally-authentic bilingual instruments: every value-bearing anchor (money, dates, durations incl. worded forms, percentages, statute refs, neutral citations) must appear in BOTH language versions — French productions normalize to the same keys ('2 250 000 $' = '$2,250,000', 'L.R.C. (1985), ch. C-46, art. 231' = 'R.S.C. 1985, c. C-46, s. 231', '2015 CSC 5' = '2015 SCC 5'). Anchors present in one version only are drafting or translation drift. Purely mechanical; triage rows for relevance.",
+    {
+      type: "object",
+      properties: {
+        english_document_id: {
+          type: "string",
+          description: "Library document_id of the English version.",
+        },
+        french_document_id: {
+          type: "string",
+          description: "Library document_id of the French version.",
+        },
+        max_rows_per_class: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Cap on reported rows per anchor class. Defaults to 40.",
+        },
+      },
+      required: ["english_document_id", "french_document_id"],
     },
   ),
   tool(
@@ -1442,6 +1560,139 @@ export async function runLocalAssistantTools(
           });
         } catch (error) {
           return fail(call, errorText(error, "Anchor coverage failed"));
+        }
+      }
+
+      if (call.name === "library_apply_amendment") {
+        const sourceId = trimmed(args.source_document_id);
+        const amendmentId = trimmed(args.amendment_document_id);
+        const amendmentText = trimmed(args.amendment_text);
+        if (!sourceId) return fail(call, "source_document_id is required");
+        if (!amendmentId && !amendmentText) {
+          return fail(call, "Provide amendment_document_id or amendment_text");
+        }
+        const outsideAmend = [sourceId, amendmentId].find(
+          (id) => id && allowedDocumentIds && !allowedDocumentIds.has(id),
+        );
+        if (outsideAmend) {
+          return fail(call, `Document ${outsideAmend} is not attached to this matter`);
+        }
+        try {
+          const source = await extractLocalDocument(userId, sourceId);
+          if (!source) return fail(call, "Source document not found");
+          let prose = amendmentText;
+          if (amendmentId) {
+            const amendment = await extractLocalDocument(userId, amendmentId);
+            if (!amendment) return fail(call, "Amendment document not found");
+            prose = amendment.text;
+          }
+          const outcome = consolidateAmendment(source.text, prose);
+          const previewChars = clampInt(args.preview_chars, 0, 20_000, 0);
+          return result(call, {
+            ok: true,
+            source: source.filename,
+            ops_compiled: outcome.parse.ops.length,
+            instructions_refused: outcome.parse.unparsed,
+            applied: outcome.applied.map((receipt) => ({
+              kind: receipt.op.kind,
+              target: receipt.op.target,
+              removed: receipt.removed.slice(0, 160),
+              inserted: receipt.inserted.slice(0, 160),
+            })),
+            failures: outcome.failures.map((failure) => ({
+              kind: failure.op.kind,
+              target: failure.op.target,
+              code: failure.code,
+              detail: failure.detail,
+            })),
+            verification: outcome.verification,
+            consolidated_preview: previewChars
+              ? outcome.text.slice(0, previewChars)
+              : undefined,
+            note: "Dry-run report; no Library version was written.",
+          });
+        } catch (error) {
+          return fail(call, errorText(error, "Amendment consolidation failed"));
+        }
+      }
+
+      if (call.name === "library_deadline") {
+        try {
+          const deadline = computeDeadline({
+            anchor: trimmed(args.anchor_date) ?? "",
+            count: clampInt(args.count, 1, 10_000, NaN),
+            unit: trimmed(args.unit) as DeadlineUnit,
+            direction: trimmed(args.direction) === "before" ? "before" : "after",
+            jurisdiction: (trimmed(args.jurisdiction) ||
+              "CA") as DeadlineJurisdiction,
+            weekend: trimmed(args.weekend) === "sun_only" ? "sun_only" : "sat_sun",
+            extraHolidays: stringArray(args.extra_holidays),
+          });
+          return result(call, { ok: true, ...deadline });
+        } catch (error) {
+          return fail(call, errorText(error, "Deadline computation failed"));
+        }
+      }
+
+      if (call.name === "library_term_drift") {
+        const driftIds = stringArray(args.document_ids);
+        if (driftIds.length < 2) {
+          return fail(call, "document_ids requires at least two documents");
+        }
+        const outsideDrift = driftIds.find(
+          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
+        );
+        if (outsideDrift) {
+          return fail(call, `Document ${outsideDrift} is not attached to this matter`);
+        }
+        try {
+          const loaded = await Promise.all(
+            driftIds.map(async (id) => {
+              const document = await extractLocalDocument(userId, id);
+              if (!document) throw new Error(`document ${id} not found`);
+              return { name: document.filename, text: document.text };
+            }),
+          );
+          return result(call, {
+            ok: true,
+            ...termDriftReport(loaded, {
+              maxRows: clampInt(args.max_rows, 1, 100, 40),
+            }),
+          });
+        } catch (error) {
+          return fail(call, errorText(error, "Term drift report failed"));
+        }
+      }
+
+      if (call.name === "library_bilingual_concordance") {
+        const englishId = trimmed(args.english_document_id);
+        const frenchId = trimmed(args.french_document_id);
+        if (!englishId || !frenchId) {
+          return fail(call, "english_document_id and french_document_id are required");
+        }
+        const outsidePair = [englishId, frenchId].find(
+          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
+        );
+        if (outsidePair) {
+          return fail(call, `Document ${outsidePair} is not attached to this matter`);
+        }
+        try {
+          const [english, french] = await Promise.all([
+            extractLocalDocument(userId, englishId),
+            extractLocalDocument(userId, frenchId),
+          ]);
+          if (!english) return fail(call, "English document not found");
+          if (!french) return fail(call, "French document not found");
+          return result(call, {
+            ok: true,
+            ...bilingualConcordance(
+              { name: english.filename, text: english.text },
+              { name: french.filename, text: french.text },
+              { maxRowsPerClass: clampInt(args.max_rows_per_class, 1, 100, 40) },
+            ),
+          });
+        } catch (error) {
+          return fail(call, errorText(error, "Bilingual concordance failed"));
         }
       }
 
