@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { User, Loader2 } from "lucide-react";
+import { Loader2, Trash2, User } from "lucide-react";
 import type { ProjectPeople } from "@/app/lib/beaverApi";
 import { AddUserInput } from "../shared/AddUserInput";
+import { NativeActionSelect } from "../ui/native-action-select";
 import { Modal } from "./Modal";
 
-/**
- * Any resource the modal can manage members for — projects today, tabular
- * reviews now, anything else with a `shared_with` email list later.
- */
 interface SharedResource {
     id: string;
     shared_with?: string[] | null;
@@ -20,22 +17,10 @@ interface SharedResource {
 interface Props {
     open: boolean;
     onClose: () => void;
-    /** The thing being shared (project, review, …). */
     resource: SharedResource | null;
-    /**
-     * Resolve the owner + members roster for the given resource. Different
-     * resource types hit different endpoints (`/projects/:id/people`,
-     * `/tabular-review/:id/people`, …) so the caller passes the appropriate
-     * fetcher.
-     */
     fetchPeople: (id: string) => Promise<ProjectPeople>;
-    /** Currently signed-in user's email — gets the "You" tag if it matches. */
     currentUserEmail?: string | null;
     breadcrumb: string[];
-    /**
-     * Persist a new shared_with list. Parent should PATCH the resource and
-     * sync its local state on success. Throw to surface an error inline.
-     */
     onSharedWithChange?: (sharedWith: string[]) => Promise<void> | void;
 }
 
@@ -46,10 +31,6 @@ type RosterRow = {
     role: "owner" | "member";
 };
 
-/**
- * Roster of every Beaver member with access to the project, with controls to
- * add/remove members. Mirrors AddDocumentsModal's frame.
- */
 export function PeopleModal({
     open,
     onClose,
@@ -61,12 +42,8 @@ export function PeopleModal({
 }: Props) {
     const [busy, setBusy] = useState<"add" | "remove" | null>(null);
     const [removingEmail, setRemovingEmail] = useState<string | null>(null);
-    const [memberMenuEmail, setMemberMenuEmail] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Server-resolved roster: owner email/display_name + members'
-    // display_names. We keep `resource.shared_with` as the source of truth
-    // for membership and just merge display_names from this fetch.
     const [people, setPeople] = useState<ProjectPeople | null>(null);
     const [lookupDisplayByEmail, setLookupDisplayByEmail] = useState<
         Map<string, string | null>
@@ -88,28 +65,8 @@ export function PeopleModal({
         setError(null);
         setBusy(null);
         setRemovingEmail(null);
-        setMemberMenuEmail(null);
     }, [open]);
 
-    useEffect(() => {
-        if (!memberMenuEmail) return;
-        function handleClickAway(event: PointerEvent) {
-            const target = event.target;
-            if (
-                target instanceof HTMLElement &&
-                target.closest("[data-people-member-menu]")
-            ) {
-                return;
-            }
-            setMemberMenuEmail(null);
-        }
-        document.addEventListener("pointerdown", handleClickAway);
-        return () =>
-            document.removeEventListener("pointerdown", handleClickAway);
-    }, [memberMenuEmail]);
-
-    // Re-fetch roster whenever the modal opens or membership changes —
-    // keyed by the joined shared_with list so add/remove triggers a refresh.
     const sharedKey = sharedWith
         .map((e) => e.toLowerCase())
         .sort()
@@ -242,14 +199,12 @@ export function PeopleModal({
         } finally {
             setBusy(null);
             setRemovingEmail(null);
-            setMemberMenuEmail(null);
         }
     }
 
     return (
         <Modal open={open} onClose={onClose} breadcrumbs={breadcrumb}>
             <div className="flex min-h-0 flex-1 flex-col gap-5 pb-5">
-                {/* Add-member row */}
                 {onSharedWithChange && (
                     <section className="space-y-2">
                         <AddUserInput
@@ -279,7 +234,6 @@ export function PeopleModal({
                         )}
                     </div>
 
-                    {/* Member list */}
                     {rosterPending ? (
                         <div className="min-h-0 flex-1 space-y-1">
                             {[1, 2].map((item) => (
@@ -355,72 +309,41 @@ export function PeopleModal({
                                             </span>
                                         )}
                                         {entry.role === "member" && (
-                                            <div
-                                                className="relative flex shrink-0 items-center"
-                                                data-people-member-menu
-                                            >
+                                            <div className="flex shrink-0 items-center">
                                                 <span className="rounded-full px-2 py-1 text-xs text-gray-400">
                                                     Member
                                                 </span>
-                                                {onSharedWithChange && (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                setMemberMenuEmail(
-                                                                    (current) =>
-                                                                        current ===
-                                                                        entryEmail
-                                                                            ? null
-                                                                            : entryEmail,
-                                                                );
-                                                            }}
-                                                            disabled={
-                                                                busy !== null
-                                                            }
-                                                            title="Member actions"
-                                                            className={`flex h-6 items-center justify-center overflow-hidden rounded-full text-xs leading-none text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50 ${
-                                                                memberMenuEmail ===
-                                                                entryEmail
-                                                                    ? "w-6 opacity-100"
-                                                                    : "w-0 opacity-0 group-hover:w-6 group-hover:opacity-100"
-                                                            }`}
-                                                        >
-                                                            ···
-                                                        </button>
-                                                        {memberMenuEmail ===
-                                                            entryEmail && (
-                                                            <div
-                                                                className="absolute right-0 top-full z-30 mt-1 min-w-28 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 p-1 shadow-sm"
-                                                                onClick={(
-                                                                    event,
-                                                                ) =>
-                                                                    event.stopPropagation()
-                                                                }
-                                                            >
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
+                                                <span
+                                                    className="inline-flex h-6 w-6"
+                                                    dir="rtl"
+                                                >
+                                                    {onSharedWithChange && (
+                                                        <NativeActionSelect
+                                                            label={`Remove access for ${entryEmail}`}
+                                                            placeholder="Choose"
+                                                            items={[
+                                                                {
+                                                                    label: "Remove access",
+                                                                    onSelect: () =>
                                                                         void handleRemove(
                                                                             entryEmail,
-                                                                        )
-                                                                    }
-                                                                    disabled={
+                                                                        ),
+                                                                    disabled:
                                                                         busy !==
-                                                                        null
-                                                                    }
-                                                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-                                                                >
-                                                                    {isRemoving && (
-                                                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                                                    )}
-                                                                    Delete
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
+                                                                        null,
+                                                                },
+                                                            ]}
+                                                            className="h-full w-full"
+                                                            triggerClassName="h-6 w-6 items-center justify-center rounded-full text-xs leading-none text-gray-500 hover:bg-gray-200 hover:text-gray-800 peer-disabled:opacity-50"
+                                                        >
+                                                            {isRemoving ? (
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </NativeActionSelect>
+                                                    )}
+                                                </span>
                                             </div>
                                         )}
                                     </li>
