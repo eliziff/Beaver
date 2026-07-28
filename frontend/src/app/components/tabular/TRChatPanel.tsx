@@ -385,7 +385,7 @@ function TRChatInput({
             <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white pt-2 pb-1.5 shadow-sm">
                 <textarea
                     ref={textareaRef}
-                    rows={1}
+                    rows={2}
                     placeholder="How can I help?"
                     value={value}
                     onChange={(e) => {
@@ -597,7 +597,7 @@ export function TRChatPanel({
     const [minHeight, setMinHeight] = useState("0px");
     const [panelWidth, setPanelWidth] = useState(380);
     const [isResizing, setIsResizing] = useState(false);
-    const [inputHeight, setInputHeight] = useState(96);
+    const [inputHeight, setInputHeight] = useState(120);
 
     const resizeStartRef = useRef({ x: 0, width: 380 });
 

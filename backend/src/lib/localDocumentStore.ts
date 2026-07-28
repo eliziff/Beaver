@@ -170,6 +170,41 @@ async function currentStore() {
   return readStore();
 }
 
+async function ensureLocalPdfRendition(
+  userId: string,
+  documentId: string,
+  versionId?: string | null,
+) {
+  return mutateStore(async (store) => {
+    const document = store.documents.find(
+      (item) => item.id === documentId && item.userId === userId,
+    );
+    if (!document) return;
+    const version = versionId
+      ? document.versions.find((item) => item.id === versionId)
+      : activeVersion(document);
+    if (
+      !version ||
+      version.pdfStoragePath ||
+      !shouldConvertToPdf(version.fileType)
+    ) {
+      return;
+    }
+
+    const pdf = await docxToPdf(
+      await readFile(absoluteDataPath(version.storagePath)),
+    );
+    const hash = crypto.createHash("sha256").update(pdf).digest("hex");
+    const relativePath = path.join(
+      "files",
+      documentId,
+      `${version.id}-${hash.slice(0, 16)}.pdf`,
+    );
+    await writeFile(absoluteDataPath(relativePath), pdf);
+    version.pdfStoragePath = relativePath;
+  });
+}
+
 function suffixFor(filename: string) {
   return filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : "";
 }
@@ -412,12 +447,31 @@ export async function getLocalVersionFile(
   versionId?: string | null,
   preferPdf = false,
 ) {
-  const document = await getLocalDocument(userId, documentId);
+  let document = await getLocalDocument(userId, documentId);
   if (!document) return null;
-  const version = versionId
+  let version = versionId
     ? document.versions.find((item) => item.id === versionId)
     : activeVersion(document);
   if (!version) return null;
+  if (
+    preferPdf &&
+    !version.pdfStoragePath &&
+    shouldConvertToPdf(version.fileType)
+  ) {
+    try {
+      await ensureLocalPdfRendition(userId, documentId, version.id);
+      const refreshed = await getLocalDocument(userId, documentId);
+      const refreshedVersion = refreshed?.versions.find(
+        (item) => item.id === version!.id,
+      );
+      if (refreshed && refreshedVersion) {
+        document = refreshed;
+        version = refreshedVersion;
+      }
+    } catch {
+      // Native Office preview remains available when conversion is unavailable.
+    }
+  }
   const relativePath = preferPdf && version.pdfStoragePath
     ? version.pdfStoragePath
     : version.storagePath;

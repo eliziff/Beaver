@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
@@ -52,10 +52,12 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
+  const [movingChatIds, setMovingChatIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const { chats, hasMoreChats, loadMoreChats, loadChats, setCurrentChatId } =
     useChatHistoryContext();
   const pathname = usePathname();
-  const router = useRouter();
   const routeChatId = useMemo(() => {
     if (pathname.startsWith("/assistant/chat/")) {
       return pathname.split("/").pop() ?? null;
@@ -67,8 +69,11 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
     return projectChatMatch?.[1] ?? null;
   }, [pathname]);
   const assistantChats = useMemo(
-    () => chats?.filter((chat) => !chat.project_id) ?? chats,
-    [chats],
+    () =>
+      chats?.filter(
+        (chat) => !chat.project_id && !movingChatIds.has(chat.id),
+      ) ?? chats,
+    [chats, movingChatIds],
   );
 
   useEffect(() => {
@@ -78,16 +83,28 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   async function moveChatToProject(projectId: string | null) {
     const chat = chatProjectTarget;
     if (!chat) return;
-    await updateChatProject(chat.id, projectId);
-    const refresh = loadChats();
-    if (routeChatId === chat.id) {
-      router.replace(
-        projectId
-          ? `/projects/${projectId}/assistant/chat/${chat.id}`
-          : `/assistant/chat/${chat.id}`,
-      );
+    setMovingChatIds((current) => new Set(current).add(chat.id));
+    setChatProjectTarget(null);
+    try {
+      const updated = await updateChatProject(chat.id, projectId);
+      if (routeChatId === chat.id) {
+        window.dispatchEvent(
+          new CustomEvent("beaver:chat-project-moved", {
+            detail: {
+              chatId: chat.id,
+              projectId: updated.project_id,
+            },
+          }),
+        );
+      }
+      await loadChats().catch(() => {});
+    } finally {
+      setMovingChatIds((current) => {
+        const next = new Set(current);
+        next.delete(chat.id);
+        return next;
+      });
     }
-    await refresh;
   }
 
   return (
@@ -266,21 +283,26 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
           </button>
         </div>
       </aside>
-      <SelectAssistantProjectModal
-        open={!!chatProjectTarget}
-        onClose={() => setChatProjectTarget(null)}
-        currentProjectId={chatProjectTarget?.project_id}
-        onSelectProject={moveChatToProject}
-      />
-      <RecyclingBinModal
-        open={recyclingOpen}
-        onClose={() => setRecyclingOpen(false)}
-        onRestored={loadChats}
-      />
-      <AppSettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {chatProjectTarget && (
+        <SelectAssistantProjectModal
+          open
+          onClose={() => setChatProjectTarget(null)}
+          chatTitle={chatProjectTarget.title}
+          currentLocation="Assistant"
+          currentProjectId={chatProjectTarget.project_id}
+          onSelectProject={moveChatToProject}
+        />
+      )}
+      {recyclingOpen && (
+        <RecyclingBinModal
+          open
+          onClose={() => setRecyclingOpen(false)}
+          onRestored={loadChats}
+        />
+      )}
+      {settingsOpen && (
+        <AppSettingsModal open onClose={() => setSettingsOpen(false)} />
+      )}
     </>
   );
 }

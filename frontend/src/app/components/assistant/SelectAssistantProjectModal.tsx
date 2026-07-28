@@ -15,6 +15,8 @@ import { Modal } from "../modals/Modal";
 interface Props {
     open: boolean;
     onClose: () => void;
+    chatTitle?: string | null;
+    currentLocation?: string | null;
     currentProjectId?: string | null;
     onSelectProject?: (projectId: string | null) => Promise<void> | void;
 }
@@ -22,6 +24,8 @@ interface Props {
 export function SelectAssistantProjectModal({
     open,
     onClose,
+    chatTitle,
+    currentLocation,
     currentProjectId,
     onSelectProject,
 }: Props) {
@@ -55,6 +59,8 @@ export function SelectAssistantProjectModal({
             if (!chatId) return;
             onClose();
             router.push(`/projects/${selectedId}/assistant/chat/${chatId}`);
+        } catch {
+            return;
         } finally {
             setCreating(false);
         }
@@ -66,22 +72,28 @@ export function SelectAssistantProjectModal({
               project.name.toLowerCase().includes(query),
           )
         : projects;
+    const currentProject = projects.find(
+        (project) => project.id === currentProjectId,
+    );
+    const actionLabel = onSelectProject
+        ? chatTitle
+            ? `Move “${chatTitle}” to a project`
+            : "Move chat to a project"
+        : "Start chat in a project";
 
     return (
         <Modal
             open={open}
             onClose={onClose}
-            breadcrumbs={[
-                "Assistant",
-                onSelectProject ? "Choose Project" : "Start Chat in a Project",
-            ]}
+            className="!h-auto max-h-[min(600px,calc(100dvh-2rem))]"
+            breadcrumbs={["Assistant", actionLabel]}
             primaryAction={{
                 label: creating
                     ? onSelectProject
-                        ? "Saving…"
+                        ? "Moving…"
                         : "Creating…"
                     : onSelectProject
-                      ? "Save"
+                      ? "Move chat"
                       : "Continue",
                 onClick: handleContinue,
                 disabled:
@@ -91,6 +103,16 @@ export function SelectAssistantProjectModal({
                         : !selectedId),
             }}
         >
+            {onSelectProject && (
+                <p className="pb-3 pt-1 text-xs text-gray-500">
+                    Current location:{" "}
+                    <span className="text-gray-800">
+                        {currentLocation ??
+                            currentProject?.name ??
+                            "Assistant"}
+                    </span>
+                </p>
+            )}
             <div className="pb-2 pt-1">
                 <SearchBar
                     value={search}
@@ -99,7 +121,7 @@ export function SelectAssistantProjectModal({
                     autoFocus
                 />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+            <div className="h-48 shrink-0 overflow-y-auto pb-2">
                 {loading ? (
                     <div className="space-y-px">
                         <div className="flex items-center rounded-md px-2 py-2">
@@ -129,7 +151,7 @@ export function SelectAssistantProjectModal({
                     <div className="overflow-hidden rounded-sm">
                         <div className="flex items-center justify-between px-2 py-2">
                             <p className="text-xs font-medium text-gray-400">
-                                Projects
+                                Move to
                             </p>
                         </div>
                         <div className="space-y-px">
@@ -147,7 +169,7 @@ export function SelectAssistantProjectModal({
                                         )}
                                     </span>
                                     <span className="text-gray-700">
-                                        No project
+                                        Assistant (no project)
                                     </span>
                                 </button>
                             )}

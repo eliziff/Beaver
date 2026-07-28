@@ -19,9 +19,9 @@ import {
 } from "@/app/components/ui/liquid-surface";
 
 const DIRECTORY_GRID_CLASS =
-    "grid grid-cols-[36px_18px_minmax(0,1fr)_48px_84px_64px] items-center gap-2";
+    "grid grid-cols-[36px_18px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[36px_18px_minmax(0,1fr)_48px_84px] md:grid-cols-[36px_18px_minmax(0,1fr)_48px_84px_64px]";
 const DIRECTORY_FOLDER_CONTENT_CLASS =
-    "col-span-5 grid min-w-0 grid-cols-[18px_minmax(0,1fr)_48px_84px_64px] items-center gap-2";
+    "col-span-3 grid min-w-0 grid-cols-[18px_minmax(0,1fr)_48px] items-center gap-2 sm:col-span-4 sm:grid-cols-[18px_minmax(0,1fr)_48px_84px] md:col-span-5 md:grid-cols-[18px_minmax(0,1fr)_48px_84px_64px]";
 
 const DIRECTORY_TABS: { value: DirectoryTab; label: string }[] = [
     { value: "files", label: "Files" },
@@ -373,10 +373,10 @@ export function FileDirectory({
                                 {folder.name}
                             </span>
                             <span className="truncate text-gray-400">-</span>
-                            <span className="truncate text-gray-400">
+                            <span className="hidden truncate text-gray-400 sm:block">
                                 {formatDate(folder.created_at) ?? "--"}
                             </span>
-                            <span className="truncate text-right text-gray-400">
+                            <span className="hidden truncate text-right text-gray-400 md:block">
                                 {docsInFolder.length}{" "}
                                 {docsInFolder.length === 1 ? "file" : "files"}
                             </span>
@@ -449,8 +449,8 @@ export function FileDirectory({
                                     style={{ width: `${w}%` }}
                                 />
                                 <SkeletonLine className="w-8" />
-                                <SkeletonLine className="w-14" />
-                                <SkeletonLine className="ml-auto w-10" />
+                                <SkeletonLine className="hidden w-14 sm:block" />
+                                <SkeletonLine className="ml-auto hidden w-10 md:block" />
                             </div>
                         ))}
                     </div>
@@ -637,12 +637,12 @@ export function FileDirectory({
                                             <span className="truncate text-gray-400">
                                                 -
                                             </span>
-                                            <span className="truncate text-gray-400">
+                                            <span className="hidden truncate text-gray-400 sm:block">
                                                 {formatDate(
                                                     project.created_at,
                                                 ) ?? "--"}
                                             </span>
-                                            <span className="truncate text-right text-gray-400">
+                                            <span className="hidden truncate text-right text-gray-400 md:block">
                                                 {docs.length}{" "}
                                                 {docs.length === 1
                                                     ? "file"
@@ -697,8 +697,8 @@ function FileDirectoryHeader({ indented = false }: { indented?: boolean }) {
             <span />
             <span className="col-span-2">Name</span>
             <span>Version</span>
-            <span>Created</span>
-            <span className="text-right">Size</span>
+            <span className="hidden sm:block">Created</span>
+            <span className="hidden text-right md:block">Size</span>
         </div>
     );
 }
@@ -715,8 +715,10 @@ function FileDirectoryMetaCells({
     return (
         <>
             <span className="truncate text-gray-400">{version ?? "--"}</span>
-            <span className="truncate text-gray-400">{created ?? "--"}</span>
-            <span className="truncate text-right text-gray-400">
+            <span className="hidden truncate text-gray-400 sm:block">
+                {created ?? "--"}
+            </span>
+            <span className="hidden truncate text-right text-gray-400 md:block">
                 {size ?? "--"}
             </span>
         </>

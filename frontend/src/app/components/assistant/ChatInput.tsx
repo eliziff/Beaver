@@ -146,37 +146,43 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
     useEffect(() => {
         if (!restoreDraft) return;
-        setValue((current) =>
-            current.trim()
-                ? `${restoreDraft.content}\n\n${current}`
-                : restoreDraft.content,
-        );
-        const restoredIds = new Set(
-            (restoreDraft.files ?? []).flatMap((file) =>
-                file.document_id ? [file.document_id] : [],
-            ),
-        );
-        setAttachedDocs((current) => {
-            const existing = new Set(current.map((document) => document.id));
-            return [
-                ...current,
-                ...lastSubmittedDocsRef.current.filter(
-                    (document) =>
-                        restoredIds.has(document.id) &&
-                        !existing.has(document.id),
+        const frame = requestAnimationFrame(() => {
+            setValue((current) =>
+                current.trim()
+                    ? `${restoreDraft.content}\n\n${current}`
+                    : restoreDraft.content,
+            );
+            const restoredIds = new Set(
+                (restoreDraft.files ?? []).flatMap((file) =>
+                    file.document_id ? [file.document_id] : [],
                 ),
-            ];
+            );
+            setAttachedDocs((current) => {
+                const existing = new Set(
+                    current.map((document) => document.id),
+                );
+                return [
+                    ...current,
+                    ...lastSubmittedDocsRef.current.filter(
+                        (document) =>
+                            restoredIds.has(document.id) &&
+                            !existing.has(document.id),
+                    ),
+                ];
+            });
+            if (restoreDraft.workflow) {
+                setSelectedWorkflow(
+                    (current) => current ?? restoreDraft.workflow!,
+                );
+            }
+            if (textareaRef.current) {
+                textareaRef.current.style.height = "auto";
+                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+                textareaRef.current.focus();
+            }
+            onDraftRestored?.();
         });
-        if (restoreDraft.workflow) {
-            setSelectedWorkflow((current) => current ?? restoreDraft.workflow!);
-        }
-        requestAnimationFrame(() => {
-            if (!textareaRef.current) return;
-            textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-            textareaRef.current.focus();
-        });
-        onDraftRestored?.();
+        return () => cancelAnimationFrame(frame);
     }, [onDraftRestored, restoreDraft]);
 
     const handleAddDocsFromSelector = useCallback(

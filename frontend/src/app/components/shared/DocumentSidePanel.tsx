@@ -281,12 +281,15 @@ export function DocumentSidePanel({
     const activeVersionCount = versions.filter(
         (version) => version.deleted_at == null,
     ).length;
+    const resolvedCurrentVersionId =
+        currentVersionId ?? doc.current_version_id ?? null;
     const selectedVersion =
         versions.find((version) => version.id === versionId) ??
-        versions.find((version) => version.id === currentVersionId) ??
+        versions.find((version) => version.id === resolvedCurrentVersionId) ??
         orderedVersions[0] ??
         null;
-    const selectedVersionId = selectedVersion?.id ?? versionId ?? null;
+    const selectedVersionId =
+        selectedVersion?.id ?? versionId ?? resolvedCurrentVersionId;
     const tabbableVersionId =
         visibleVersions.find(
             (version) =>
@@ -314,6 +317,12 @@ export function DocumentSidePanel({
             ? doc.page_count
             : selectedVersion.page_count;
     const selectedUploadedAt = selectedVersion?.created_at ?? doc.created_at;
+    const viewerRevision =
+        selectedVersionId === resolvedCurrentVersionId
+            ? doc.updated_at ?? selectedVersion?.created_at
+            : selectedVersion?.created_at ?? doc.updated_at;
+    const viewerKey = `${doc.id}:${selectedVersionId ?? "current"}:${viewerRevision}`;
+    const preferPdfRendition = selectedIsDocx;
     const selectedExtension = filenameExtension(selectedFilename);
     const replaceFileType = replaceTargetVersion
         ? fileTypeForVersion(replaceTargetVersion, selectedFileType)
@@ -718,23 +727,26 @@ export function DocumentSidePanel({
                     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                         {isSpreadsheetFilename(selectedFilename) ? (
                             <SpreadsheetView
-                                key={`${selectedVersionId ?? "current"}:${selectedUploadedAt ?? ""}:${selectedSizeBytes ?? ""}`}
+                                key={viewerKey}
                                 documentId={doc.id}
                                 versionId={selectedVersionId}
                             />
                         ) : selectedIsDocx ? (
                             <DocxView
-                                key={`${selectedVersionId ?? "current"}:${selectedUploadedAt ?? ""}:${selectedSizeBytes ?? ""}`}
+                                key={viewerKey}
                                 documentId={doc.id}
                                 versionId={selectedVersionId}
+                                preferPdfRendition={preferPdfRendition}
+                                refetchKey={viewerRevision ?? undefined}
                             />
                         ) : (
                             <PdfView
-                                key={`${selectedVersionId ?? "current"}:${selectedUploadedAt ?? ""}:${selectedSizeBytes ?? ""}`}
+                                key={viewerKey}
                                 doc={{
                                     document_id: doc.id,
                                     version_id: selectedVersionId,
                                 }}
+                                revision={viewerRevision}
                             />
                         )}
                     </div>

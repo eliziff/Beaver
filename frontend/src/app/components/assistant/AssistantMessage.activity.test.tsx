@@ -24,7 +24,7 @@ describe("AssistantMessage activity", () => {
         );
 
         const workingButton = screen.getByRole("button", {
-            name: "Reading Lease.docx",
+            name: "Activity — Reading Lease.docx",
         });
 
         const completedEvents: AssistantEvent[] = [
@@ -44,15 +44,20 @@ describe("AssistantMessage activity", () => {
         rerender(<AssistantMessage events={completedEvents} />);
 
         const activityButton = screen.getByRole("button", {
-            name: "Compared: renewal dates notice periods",
+            name: "Activity — Compared: renewal dates notice periods",
         });
         expect(activityButton).toBe(workingButton);
         expect(screen.queryByText(/Completed in \d+ steps?/)).toBeNull();
+        const summary = activityButton.textContent;
 
         await userEvent.click(activityButton);
-        expect(activityButton).toHaveAccessibleName("Activity");
+        expect(activityButton).toHaveAccessibleName(
+            "Activity — Compared: renewal dates notice periods",
+        );
+        expect(activityButton.textContent).toBe(summary);
 
         const activityList = screen.getAllByRole("list")[0];
+        expect(activityButton.nextElementSibling).toBe(activityList);
         const activityRows = Array.from(activityList.children).map((node) =>
             node.textContent?.replace(/\s+/g, " ").trim(),
         );
@@ -64,6 +69,7 @@ describe("AssistantMessage activity", () => {
         expect(
             within(activityList).getByText("lease terms").tagName,
         ).toBe("STRONG");
+        expect(activityList.textContent).not.toContain("**");
         expect(activityList.textContent).not.toContain("Analyzed request");
         expect(
             within(activityList).queryByRole("button", {
@@ -87,10 +93,12 @@ describe("AssistantMessage activity", () => {
         );
 
         const disclosure = screen.getByRole("button", {
-            name: "Editing document",
+            name: "Activity — Editing document",
         });
         await userEvent.click(disclosure);
-        expect(disclosure).toHaveAccessibleName("Activity");
+        expect(disclosure).toHaveAccessibleName(
+            "Activity — Editing document",
+        );
         screen.getByText("Editing document...");
         expect(
             screen.queryByText(/library_revise_docx/),
@@ -131,7 +139,7 @@ describe("AssistantMessage activity", () => {
         );
 
         const disclosure = screen.getByRole("button", {
-            name: "Checked renewal dates.",
+            name: "Activity — Checked renewal dates.",
         });
         expect(screen.queryByText("Working")).not.toBeInTheDocument();
         await userEvent.click(disclosure);
@@ -150,9 +158,9 @@ describe("AssistantMessage activity", () => {
     it("shows a single compact thinking row before the first event", () => {
         render(<AssistantMessage events={[]} isStreaming />);
 
-        expect(screen.getAllByRole("status", { name: "Thinking" })).toHaveLength(
-            1,
-        );
+        expect(
+            screen.getAllByRole("status", { name: "Activity — Thinking" }),
+        ).toHaveLength(1);
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
@@ -171,7 +179,7 @@ describe("AssistantMessage activity", () => {
         );
 
         const disclosure = screen.getByRole("button", {
-            name: "Using case magic lookup",
+            name: "Activity — Using case magic lookup",
         });
         await userEvent.click(disclosure);
         expect(screen.getByText("Using case magic lookup...")).toBeVisible();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -9,6 +9,11 @@ import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
+import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
+import {
+    TableOfAuthoritiesFallback,
+    TableOfAuthoritiesHost,
+} from "@/app/components/shared/TableOfAuthoritiesHost";
 
 export default function BeaverLayout({
     children,
@@ -18,10 +23,10 @@ export default function BeaverLayout({
     const { isAuthenticated, authLoading } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+    const authoritiesActive = pathname === "/table-of-authorities";
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-    const handleSidebarToggle = () =>
-        setMobileSidebarOpen((open) => !open);
+    const handleSidebarToggle = () => setMobileSidebarOpen((open) => !open);
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -60,32 +65,60 @@ export default function BeaverLayout({
                                     <PanelLeft className="h-4 w-4" />
                                 </button>
                             </div>
-                            <main className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-hidden">
-                                {authLoading ? (
-                                    <p
-                                        className="m-auto px-6 text-sm text-gray-500"
-                                        role="status"
-                                    >
-                                        Loading…
-                                    </p>
-                                ) : isAnonymousMode &&
-                                  requiresAccount(pathname) ? (
-                                    <div className="m-auto px-6 text-center">
-                                        <h1 className="text-2xl font-medium font-serif text-gray-900">
-                                            Unavailable in local mode
-                                        </h1>
-                                        <p className="mt-2 text-sm text-gray-500">
-                                            This feature is not available
-                                            locally yet.
+                            <div className="relative flex min-h-0 w-full flex-1">
+                                <main className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-hidden">
+                                    {authLoading ? (
+                                        <p
+                                            className="m-auto px-6 text-sm text-gray-500"
+                                            role="status"
+                                        >
+                                            Loading…
                                         </p>
-                                    </div>
-                                ) : (
-                                    children
-                                )}
-                            </main>
+                                    ) : isAnonymousMode &&
+                                      requiresAccount(pathname) ? (
+                                        <div className="m-auto px-6 text-center">
+                                            <h1 className="text-2xl font-medium font-serif text-gray-900">
+                                                Unavailable in local mode
+                                            </h1>
+                                            <p className="mt-2 text-sm text-gray-500">
+                                                This feature is not available
+                                                locally yet.
+                                            </p>
+                                        </div>
+                                    ) : authoritiesActive ? null : (
+                                        children
+                                    )}
+                                </main>
+                                <Suspense
+                                    fallback={
+                                        <TableOfAuthoritiesFallback
+                                            active={
+                                                authoritiesActive &&
+                                                !authLoading &&
+                                                isAuthenticated
+                                            }
+                                        />
+                                    }
+                                >
+                                    <TableOfAuthoritiesHost
+                                        active={
+                                            authoritiesActive &&
+                                            !authLoading &&
+                                            isAuthenticated
+                                        }
+                                        enabled={
+                                            !authLoading &&
+                                            isAuthenticated &&
+                                            (isAnonymousMode ||
+                                                authoritiesActive)
+                                        }
+                                    />
+                                </Suspense>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <AssistantAutomationActivity />
             </SidebarContext.Provider>
         </ChatHistoryProvider>
     );

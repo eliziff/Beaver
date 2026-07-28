@@ -1367,6 +1367,12 @@ tabularRouter.get("/:reviewId/chats", requireAuth, async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
+    if (isAnonymousLocalMode()) {
+        if (!localTabularStore().get(userId, reviewId)) {
+            return void res.status(404).json({ detail: "Review not found" });
+        }
+        return void res.json([]);
+    }
     const db = createServerSupabase();
 
     const { data: review, error } = await db
@@ -1396,7 +1402,15 @@ tabularRouter.delete(
     requireAuth,
     async (req, res) => {
         const userId = res.locals.userId as string;
-        const { chatId } = req.params;
+        const { reviewId, chatId } = req.params;
+        if (isAnonymousLocalMode()) {
+            if (!localTabularStore().get(userId, reviewId)) {
+                return void res
+                    .status(404)
+                    .json({ detail: "Review not found" });
+            }
+            return void res.status(204).send();
+        }
         const db = createServerSupabase();
         // Owner-only delete — sibling collaborators shouldn't be able to wipe
         // each other's threads.
@@ -1420,6 +1434,14 @@ tabularRouter.patch(
             typeof req.body?.title === "string" ? req.body.title.trim() : "";
         if (!title)
             return void res.status(400).json({ detail: "Title is required" });
+        if (isAnonymousLocalMode()) {
+            if (!localTabularStore().get(userId, req.params.reviewId)) {
+                return void res
+                    .status(404)
+                    .json({ detail: "Review not found" });
+            }
+            return void res.status(404).json({ detail: "Chat not found" });
+        }
         const db = createServerSupabase();
         // Owner-only rename — mirrors the delete rule above.
         const { error } = await db
@@ -1439,6 +1461,14 @@ tabularRouter.get(
         const userId = res.locals.userId as string;
         const userEmail = res.locals.userEmail as string | undefined;
         const { reviewId, chatId } = req.params;
+        if (isAnonymousLocalMode()) {
+            if (!localTabularStore().get(userId, reviewId)) {
+                return void res
+                    .status(404)
+                    .json({ detail: "Review not found" });
+            }
+            return void res.json([]);
+        }
         const db = createServerSupabase();
 
         const { data: review } = await db
@@ -2174,54 +2204,6 @@ async function generateChatTitle(
     } catch {
         return null;
     }
-}
-
-function buildTabularContext(
-    columns: any[],
-    docs: any[],
-    cells: any[],
-): string {
-    const lines: string[] = [
-        "# Tabular Review Context\n",
-        "Columns (0-based index):",
-    ];
-    columns.forEach((col: any, i: number) =>
-        lines.push(`- COL:${i} → "${col.name}"`),
-    );
-    lines.push("", "Documents (0-based row index):");
-    docs.forEach((doc: any, i: number) =>
-        lines.push(`- ROW:${i} → "${doc.filename}"`),
-    );
-    lines.push("", "## Table Data\n");
-    lines.push(`| Document | ${columns.map((c: any) => c.name).join(" | ")} |`);
-    lines.push(`|---|${columns.map(() => "---").join("|")}|`);
-    docs.forEach((doc: any, rowIdx: number) => {
-        const rowCells = columns.map((col: any, colPos: number) => {
-            const cell = cells.find(
-                (c: any) =>
-                    c.document_id === doc.id && c.column_index === col.index,
-            ) as any;
-            if (
-                !cell ||
-                cell.status === "pending" ||
-                cell.status === "generating"
-            ) {
-                return `(pending) [[COL:${colPos}||ROW:${rowIdx}]]`;
-            }
-            if (cell.status === "error") {
-                return `(error) [[COL:${colPos}||ROW:${rowIdx}]]`;
-            }
-            const content = parseCellContent(cell.content);
-            const summary = content?.summary?.trim() || "(not yet generated)";
-            const truncated =
-                summary.length > 400 ? summary.slice(0, 400) + "…" : summary;
-            return `${truncated} [[COL:${colPos}||ROW:${rowIdx}]]`;
-        });
-        lines.push(
-            `| ROW:${rowIdx} ${doc.filename} | ${rowCells.join(" | ")} |`,
-        );
-    });
-    return lines.join("\n");
 }
 
 type CellResult = {

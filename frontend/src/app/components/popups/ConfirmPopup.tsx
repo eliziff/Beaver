@@ -1,10 +1,8 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import { PillButton } from "@/app/components/ui/pill-button";
-import { cn } from "@/app/lib/utils";
+import { Modal } from "@/app/components/modals/Modal";
 
 type ConfirmStatus = "idle" | "loading" | "complete";
 
@@ -33,12 +31,13 @@ export function ConfirmPopup({
     confirmDisabled = false,
     className,
 }: ConfirmPopupProps) {
-    if (!open) return null;
     const confirmBusy = confirmStatus === "loading";
     const resolvedConfirmDisabled = confirmDisabled || confirmStatus !== "idle";
     const normalizedConfirmLabel =
         typeof confirmLabel === "string" ? confirmLabel : "Confirm";
-    const isDeleteAction = normalizedConfirmLabel.toLowerCase() === "delete";
+    const isDeleteAction = normalizedConfirmLabel
+        .toLowerCase()
+        .startsWith("delete");
     const resolvedConfirmLabel =
         confirmStatus === "loading" ? (
             <span className="inline-flex h-full items-center gap-1.5">
@@ -56,59 +55,52 @@ export function ConfirmPopup({
             confirmLabel
         );
 
-    return createPortal(
-        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[230] flex justify-center px-4">
-            <div
-                className={cn(
-                    "pointer-events-auto w-[min(92vw,520px)] rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm",
-                    className,
-                )}
-            >
-                {title && (
-                    <div className="text-sm font-medium text-gray-950 mb-3">
-                        {title}
-                    </div>
-                )}
-                {message && (
-                    <div
-                        className={cn("text-xs text-gray-700", title && "mt-1")}
-                    >
-                        {message}
-                    </div>
-                )}
-                <div className="mt-3 flex items-center justify-end gap-2">
-                    <PillButton
-                        tone="white"
-                        size="sm"
-                        onClick={onCancel}
-                    >
-                        {cancelLabel}
-                    </PillButton>
-                    <PillButton
-                        tone={isDeleteAction ? "danger" : "black"}
-                        size="sm"
-                        onClick={onConfirm}
-                        disabled={resolvedConfirmDisabled}
-                        className="h-7 px-3.5 leading-none"
-                        aria-busy={confirmBusy}
-                    >
-                        {resolvedConfirmLabel}
-                    </PillButton>
-                </div>
-            </div>
-        </div>,
-        document.body,
+    return (
+        <Modal
+            open={open}
+            onClose={confirmBusy ? () => undefined : onCancel}
+            role="alertdialog"
+            size="sm"
+            className={`!h-auto ${className ?? ""}`}
+            breadcrumbs={[title ?? "Confirm"]}
+            cancelAction={{
+                label: cancelLabel,
+                onClick: onCancel,
+                disabled: confirmBusy,
+            }}
+            primaryAction={{
+                label: resolvedConfirmLabel,
+                onClick: onConfirm,
+                disabled: resolvedConfirmDisabled,
+                variant: isDeleteAction ? "danger" : "primary",
+                "aria-busy": confirmBusy,
+            }}
+        >
+            {message ? (
+                <div className="pb-5 text-sm text-gray-700">{message}</div>
+            ) : null}
+        </Modal>
     );
 }
 
 function progressiveLabel(label: string) {
-    const lower = label.toLowerCase();
-    if (lower.endsWith("e")) return `${label.slice(0, -1)}ing...`;
-    return `${label}ing...`;
+    return transformFirstWord(label, (word) =>
+        word.toLowerCase().endsWith("e")
+            ? `${word.slice(0, -1)}ing…`
+            : `${word}ing…`,
+    );
 }
 
 function completedLabel(label: string) {
-    const lower = label.toLowerCase();
-    if (lower.endsWith("e")) return `${label}d`;
-    return `${label}ed`;
+    return transformFirstWord(label, (word) =>
+        word.toLowerCase().endsWith("e") ? `${word}d` : `${word}ed`,
+    );
+}
+
+function transformFirstWord(
+    label: string,
+    transform: (word: string) => string,
+) {
+    const [first = label, ...rest] = label.split(" ");
+    return [transform(first), ...rest].join(" ");
 }

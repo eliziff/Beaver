@@ -30,6 +30,7 @@ import {
     type DocTableSelectionActions,
     type DocTableFolder,
 } from "@/app/components/documents/DocTable";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
@@ -130,6 +131,13 @@ export function ProjectDocumentsView({ projectId }: Props) {
 
     const toolbarActions = (
         <div className="flex items-center gap-1.5">
+            <DocumentAutomation
+                document={selectionActions?.automationDocument ?? null}
+                showWhenUnavailable
+                onDocumentChanged={
+                    selectionActions?.onAutomationDocumentChanged
+                }
+            />
             {selectionActions && (
                 <div ref={actionsRef} className="relative">
                     <TabPillButton

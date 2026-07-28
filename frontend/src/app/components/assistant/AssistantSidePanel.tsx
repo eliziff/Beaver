@@ -24,7 +24,7 @@ import {
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
-import { AutomationRunPanel } from "@/app/components/documents/AutomationRun";
+import { AutomationRunPanel } from "./AutomationRun";
 
 // ---------------------------------------------------------------------------
 // Tab data

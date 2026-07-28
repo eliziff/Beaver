@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, X } from "lucide-react";
 import type {
     AutomationRunEvent,
     AutomationToolName,
@@ -13,12 +14,20 @@ const LABELS: Record<AutomationToolName, string> = {
     library_fix_docx_supras: "Fix supra references",
 };
 
+const LOCAL_AUTOMATION_EVENT = "beaver:assistant-automation";
+
 export function automationLabel(tool: AutomationToolName) {
     return LABELS[tool];
 }
 
 export function automationRunKey(run: AutomationRunEvent) {
     return run.job_id ? `toa:${run.job_id}` : run.id;
+}
+
+export function publishAutomationRun(run: AutomationRunEvent) {
+    window.dispatchEvent(
+        new CustomEvent(LOCAL_AUTOMATION_EVENT, { detail: run }),
+    );
 }
 
 export function AutomationRunButton({
@@ -31,6 +40,7 @@ export function AutomationRunButton({
     return (
         <button
             type="button"
+            aria-label={`${automationLabel(run.tool)}: ${run.status}`}
             onClick={() => onOpen(run)}
             className="flex min-h-10 w-full max-w-xl items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-left hover:border-gray-500 hover:bg-gray-50"
         >
@@ -123,5 +133,62 @@ export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
                 </a>
             )}
         </div>
+    );
+}
+
+export function AssistantAutomationActivity() {
+    const [run, setRun] = useState<AutomationRunEvent | null>(null);
+    const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        const onRun = (event: Event) => {
+            const next = (event as CustomEvent<AutomationRunEvent>).detail;
+            if (next?.type !== "automation_run") return;
+            if (next.status === "running") setExpanded(false);
+            setRun((current) =>
+                current && automationRunKey(current) === automationRunKey(next)
+                    ? { ...current, ...next }
+                    : next,
+            );
+        };
+        window.addEventListener(LOCAL_AUTOMATION_EVENT, onRun);
+        return () => window.removeEventListener(LOCAL_AUTOMATION_EVENT, onRun);
+    }, []);
+
+    if (!run) return null;
+
+    return (
+        <aside
+            aria-label="Assistant activity"
+            aria-live="polite"
+            className="fixed bottom-4 right-4 z-[190] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-300 bg-white shadow-md"
+        >
+            <div className="flex h-10 items-center border-b border-gray-200 px-3">
+                <span className="min-w-0 flex-1 text-xs font-medium text-gray-600">
+                    Assistant activity
+                </span>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setRun(null);
+                        setExpanded(false);
+                    }}
+                    aria-label="Dismiss automation activity"
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-950"
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+            {expanded ? (
+                <AutomationRunPanel run={run} />
+            ) : (
+                <div className="p-2">
+                    <AutomationRunButton
+                        run={run}
+                        onOpen={() => setExpanded(true)}
+                    />
+                </div>
+            )}
+        </aside>
     );
 }

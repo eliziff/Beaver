@@ -91,7 +91,7 @@ export function PageHeader({
             className={cn(
                 "flex min-w-0 flex-wrap items-center justify-between gap-4",
                 "mx-4 md:mx-6",
-                "min-h-[76px] pb-4 pt-5.5",
+                "min-h-[max(76px,4.625rem)] pb-4 pt-5.5",
                 shrink && "shrink-0",
             )}
         >
@@ -116,7 +116,7 @@ function PageHeaderActions({
     actionsDisabled: boolean;
 }) {
     return (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             {actions.map((action, index) => (
                 <PageHeaderActionRenderer
                     key={index}
@@ -237,7 +237,7 @@ function PageHeaderSearchActionControl({
         <div
             className={cn(
                 CONTROL_CLASS,
-                "w-56 max-w-[calc(100vw-6.5rem)] cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700 sm:w-72",
+                "min-w-0 w-36 flex-1 max-w-[calc(100vw-6.5rem)] cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700 sm:w-72 sm:flex-none",
                 APP_SURFACE_ACTIVE_CLASS,
                 disabled && "opacity-60",
             )}

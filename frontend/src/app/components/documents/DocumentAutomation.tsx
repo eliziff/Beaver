@@ -1,7 +1,12 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useState, type ComponentType } from "react";
+import {
+    useEffect,
+    useState,
+    type ComponentType,
+    type MouseEventHandler,
+} from "react";
 import { BookOpen, Link2, Loader2, RefreshCw, X } from "lucide-react";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
@@ -18,14 +23,15 @@ import type {
 } from "@/app/components/shared/types";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import {
-    AutomationRunPanel,
     automationLabel,
-} from "./AutomationRun";
+    publishAutomationRun,
+} from "@/app/components/assistant/AutomationRun";
 
 export type DocumentAutomationTarget = {
     id: string;
     filename: string;
     file_type?: string | null;
+    library_kind?: "file" | "template";
     project_id?: string | null;
 };
 
@@ -44,6 +50,7 @@ export function documentAutomationEligible(
     document: DocumentAutomationTarget | null,
 ) {
     if (!document) return false;
+    if (document.library_kind === "template") return false;
     return (
         document.file_type?.trim().toLowerCase() === "docx" ||
         document.filename.trim().toLowerCase().endsWith(".docx")
@@ -51,6 +58,7 @@ export function documentAutomationEligible(
 }
 
 function docxRun(
+    id: string,
     tool: Extract<
         AutomationToolName,
         "library_fix_docx_supras" | "library_link_docx_citations"
@@ -71,7 +79,7 @@ function docxRun(
               ];
     return {
         type: "automation_run",
-        id: `${tool}:${result.version_id}`,
+        id,
         tool,
         status: result.ok ? "complete" : "error",
         stage: automationLabel(tool),
@@ -87,12 +95,13 @@ function docxRun(
 }
 
 function authoritiesRun(
+    id: string,
     documentId: string,
     job: TableOfAuthoritiesJob,
 ): AutomationRunEvent {
     return {
         type: "automation_run",
-        id: `toa:${job.id}`,
+        id,
         tool: "toa_submit_library_document",
         status: job.state || "queued",
         stage: job.operation || "Submitted",
@@ -112,24 +121,49 @@ function authoritiesRun(
 export function DocumentAutomation({
     document,
     onDocumentChanged,
+    showWhenUnavailable = false,
 }: {
     document: DocumentAutomationTarget | null;
+    showWhenUnavailable?: boolean;
     onDocumentChanged?: (
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
 }) {
-    if (
-        !isAnonymousMode ||
-        !document ||
-        !documentAutomationEligible(document)
-    ) {
-        return null;
-    }
+    if (!isAnonymousMode) return null;
+    const eligibleDocument = documentAutomationEligible(document)
+        ? document
+        : null;
+    if (!eligibleDocument && !showWhenUnavailable) return null;
     return (
         <DocumentAutomationMenu
-            document={document}
+            document={eligibleDocument}
             onDocumentChanged={onDocumentChanged}
         />
+    );
+}
+
+function AutomationTrigger({
+    disabled = false,
+    inspecting = false,
+    onClick,
+}: {
+    disabled?: boolean;
+    inspecting?: boolean;
+    onClick?: MouseEventHandler<HTMLButtonElement>;
+}) {
+    return (
+        <button
+            type="button"
+            aria-busy={inspecting}
+            disabled={disabled || inspecting}
+            onClick={onClick}
+            className="flex h-8 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+        >
+            <span className="flex h-4 w-4 items-center justify-center">
+                {inspecting && <Loader2 className="h-4 w-4 animate-spin" />}
+            </span>
+            Automation
+        </button>
     );
 }
 
@@ -137,26 +171,25 @@ function DocumentAutomationMenu({
     document,
     onDocumentChanged,
 }: {
-    document: DocumentAutomationTarget;
+    document: DocumentAutomationTarget | null;
     onDocumentChanged?: (
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
 }) {
-    const [open, setOpen] = useState(false);
+    const [openFor, setOpenFor] = useState<string | null>(null);
     const [inspecting, setInspecting] = useState(false);
     const [showSupras, setShowSupras] = useState(false);
     const [running, setRunning] = useState<AutomationToolName | null>(null);
-    const [run, setRun] = useState<AutomationRunEvent | null>(null);
     const [inspectionError, setInspectionError] = useState("");
+    const open = !!document && openFor === document.id;
 
     useEffect(() => {
-        setOpen(false);
-        setRun(null);
+        setOpenFor(null);
         setInspectionError("");
-    }, [document.id]);
+    }, [document?.id]);
 
     async function openAutomation() {
-        if (inspecting) return;
+        if (!document || inspecting) return;
         setInspecting(true);
         setInspectionError("");
         try {
@@ -164,7 +197,7 @@ function DocumentAutomationMenu({
                 document.id,
             );
             setShowSupras(capabilities.supra_references === true);
-            setOpen(true);
+            setOpenFor(document.id);
         } catch (error) {
             setInspectionError(
                 error instanceof Error
@@ -177,10 +210,13 @@ function DocumentAutomationMenu({
     }
 
     async function runAction(tool: Action["tool"]) {
+        if (!document) return;
+        const runId = `${tool}:${document.id}`;
         setRunning(tool);
-        setRun({
+        setOpenFor(null);
+        publishAutomationRun({
             type: "automation_run",
-            id: `${tool}:running`,
+            id: runId,
             tool,
             status: "running",
             stage: automationLabel(tool),
@@ -188,8 +224,9 @@ function DocumentAutomationMenu({
         });
         try {
             if (tool === "toa_submit_library_document") {
-                setRun(
+                publishAutomationRun(
                     authoritiesRun(
+                        runId,
                         document.id,
                         await submitLibraryDocumentToAuthorities(
                             document.id,
@@ -204,14 +241,14 @@ function DocumentAutomationMenu({
                 tool === "library_fix_docx_supras"
                     ? await fixLibraryDocxSupras(document.id)
                     : await linkLibraryDocxCitations(document.id);
-            setRun(docxRun(tool, result));
+            publishAutomationRun(docxRun(runId, tool, result));
             try {
                 await onDocumentChanged?.(result);
             } catch {}
         } catch (error) {
-            setRun({
+            publishAutomationRun({
                 type: "automation_run",
-                id: `${tool}:error`,
+                id: runId,
                 tool,
                 status: "error",
                 stage: automationLabel(tool),
@@ -232,23 +269,14 @@ function DocumentAutomationMenu({
 
     return (
         <>
-            <button
-                type="button"
-                aria-busy={inspecting}
-                disabled={inspecting}
+            <AutomationTrigger
+                disabled={!document || !!running}
+                inspecting={inspecting}
                 onClick={(event) => {
                     event.stopPropagation();
                     void openAutomation();
                 }}
-                className="flex h-8 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:text-gray-500"
-            >
-                <span className="flex h-4 w-4 items-center justify-center">
-                    {inspecting && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                </span>
-                Automation
-            </button>
+            />
             <WarningPopup
                 open={!!inspectionError}
                 onClose={() => setInspectionError("")}
@@ -270,7 +298,7 @@ function DocumentAutomationMenu({
                             <button
                                 type="button"
                                 data-shortcut-close
-                                onClick={() => setOpen(false)}
+                                onClick={() => setOpenFor(null)}
                                 aria-label="Close Automation"
                                 className="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-950"
                             >
@@ -286,22 +314,11 @@ function DocumentAutomationMenu({
                                     onClick={() => void runAction(tool)}
                                     className="flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-50"
                                 >
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                                        {running === tool ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Icon className="h-4 w-4" />
-                                        )}
-                                    </span>
+                                    <Icon className="h-4 w-4 shrink-0" />
                                     {automationLabel(tool)}
                                 </button>
                             ))}
                         </div>
-                        {run && (
-                            <div className="border-t border-gray-200">
-                                <AutomationRunPanel run={run} />
-                            </div>
-                        )}
                     </aside>,
                     globalThis.document.body,
                 )}

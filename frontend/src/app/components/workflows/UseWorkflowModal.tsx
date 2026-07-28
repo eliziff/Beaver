@@ -13,7 +13,6 @@ import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
-import { workflowDetailPath } from "./workflowRoutes";
 
 interface Props {
     workflows: Workflow[];
@@ -22,28 +21,18 @@ interface Props {
     skipSelect?: boolean;
 }
 
-function SelectedWorkflowSummary({ workflow }: { workflow: Workflow }) {
-    return (
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-            <span className="shrink-0 text-xs font-medium text-gray-700">
-                Selected workflow
-            </span>
-            <span className="min-w-0 flex-1 truncate text-right text-xs text-gray-500">
-                {workflow.metadata.title}
-            </span>
-        </div>
+export function UseWorkflowModal({
+    workflows,
+    workflow,
+    onClose,
+    skipSelect = false,
+}: Props) {
+    const [screen, setScreen] = useState<"select" | "details" | "documents">(
+        skipSelect ? "details" : "select",
     );
-}
-
-// ---------------------------------------------------------------------------
-// UseWorkflowModal
-// ---------------------------------------------------------------------------
-export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = false }: Props) {
-    const [screen, setScreen] = useState<"select" | "details" | "documents">("select");
     const [selected, setSelected] = useState<Workflow | null>(workflow);
     const [listSearch, setListSearch] = useState("");
 
-    // Configure screen state
     const [inProject, setInProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
         null,
@@ -70,7 +59,6 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workflow?.id]);
 
-    // Reset configure state on back
     useEffect(() => {
         if (screen === "select") {
             resetConfigureState();
@@ -86,7 +74,7 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
 
     function handleClose() {
         setSelected(null);
-        setScreen("select");
+        setScreen(skipSelect ? "details" : "select");
         resetConfigureState();
         onClose();
     }
@@ -94,9 +82,6 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
     if (!workflow) return null;
     const wf = selected ?? workflow;
 
-    // ---------------------------------------------------------------------------
-    // Handlers
-    // ---------------------------------------------------------------------------
     async function handleStartChat() {
         setSaving(true);
         try {
@@ -174,56 +159,35 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
         screen === "select"
             ? ["Workflows", "Select workflow"]
             : [
-                  <button
-                      key="workflows"
-                      type="button"
-                      onClick={() => setScreen("select")}
-                      className="transition-colors hover:text-gray-700"
-                  >
-                      Workflows
-                  </button>,
+                  skipSelect ? (
+                      "Workflows"
+                  ) : (
+                      <button
+                          key="workflows"
+                          type="button"
+                          onClick={() => setScreen("select")}
+                          className="transition-colors hover:text-gray-700"
+                      >
+                          Workflows
+                      </button>
+                  ),
                   wf.metadata.title,
                   wf.metadata.type === "assistant" ? "New Chat" : "New Review",
                   screen === "details" ? "Details" : "Attach Documents",
               ];
 
-    const selectPageAction = () => {
-        router.push(workflowDetailPath(wf));
-        handleClose();
-    };
-
-    // ---------------------------------------------------------------------------
-    // Render
-    // ---------------------------------------------------------------------------
     return (
         <Modal
             open={!!workflow}
             onClose={handleClose}
-            size={screen === "select" ? "xl" : "lg"}
+            size="xl"
             breadcrumbs={breadcrumbs}
-            secondaryAction={
-                screen === "select"
-                    ? {
-                          label: "View Page",
-                          onClick: selectPageAction,
-                      }
-                    : screen === "details"
-                      ? {
-                          label: "Back",
-                          onClick: () => setScreen("select"),
-                          disabled: saving,
-                      }
-                      : {
-                          label: "Back",
-                          onClick: () => setScreen("details"),
-                          disabled: saving,
-                      }
-            }
             primaryAction={
                 screen === "select"
                     ? {
                           label: "Use",
                           onClick: () => setScreen("details"),
+                          disabled: !selected,
                       }
                     : screen === "details"
                       ? {
@@ -248,30 +212,37 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
                                 (inProject && !selectedProjectId),
                         }
             }
-            cancelAction={false}
+            cancelAction={
+                screen === "select"
+                    ? false
+                    : {
+                          label: "Back",
+                          onClick: () =>
+                              screen === "documents"
+                                  ? setScreen("details")
+                                  : skipSelect
+                                    ? handleClose()
+                                    : setScreen("select"),
+                          disabled: saving,
+                      }
+            }
         >
-            {/* ── SELECT SCREEN ── */}
             {screen === "select" && (
                 <WorkflowPickerContent
                     workflows={workflows}
-                    selected={wf}
-                    onSelect={(next) => {
-                        if (next) setSelected(next);
-                    }}
+                    selected={selected}
+                    onSelect={setSelected}
                     search={listSearch}
                     onSearchChange={setListSearch}
                     workflowType="all"
                     previewMode="auto"
                     showTypeIcon
-                    allowClearPreview={false}
+                    allowClearPreview
                 />
             )}
 
-            {/* ── DETAILS SCREEN ── */}
             {screen === "details" && (
                 <div className="flex min-h-0 flex-1 flex-col">
-                    <SelectedWorkflowSummary workflow={wf} />
-
                     <div className="space-y-6">
                         <div>
                             <ModalFieldLabel as="p">Use in</ModalFieldLabel>
@@ -324,7 +295,6 @@ export function UseWorkflowModal({ workflows, workflow, onClose, skipSelect = fa
                 </div>
             )}
 
-            {/* ── DOCUMENTS SCREEN ── */}
             {screen === "documents" && (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div className="flex min-h-0 flex-1 flex-col">

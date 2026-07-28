@@ -22,7 +22,7 @@ const inFlight = new Map<string, Promise<ArrayBuffer>>();
 function cacheKey(
     documentId: string,
     versionId?: string | null,
-    refetchKey?: number,
+    refetchKey?: string | number,
 ): string {
     return `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
 }
@@ -35,7 +35,7 @@ function cacheKey(
 export function useFetchDocxBytes(
     documentId: string | null | undefined,
     versionId?: string | null,
-    refetchKey?: number,
+    refetchKey?: string | number,
 ): FetchDocxResult {
     const initialKey = documentId
         ? cacheKey(documentId, versionId, refetchKey)

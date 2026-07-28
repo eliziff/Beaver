@@ -18,7 +18,6 @@ import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableBody,
     TableCell,
@@ -30,6 +29,7 @@ import {
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
+    TableSelectionPlaceholder,
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
@@ -527,6 +527,10 @@ export function ProjectsOverview() {
                                     className="-ml-2 mr-1"
                                 />
                             )}
+                            <span
+                                aria-hidden="true"
+                                className="mr-2 h-5 w-5 shrink-0"
+                            />
                             <span className="mr-1">Name</span>
                             {nameFilterButton}
                         </TableStickyCell>
@@ -588,8 +592,8 @@ export function ProjectsOverview() {
                                     hover={false}
                                     bgClassName="bg-transparent"
                                 >
-                                    <SkeletonDot className="mr-4" />
-                                    <div className="mr-2 h-4 w-4 shrink-0 rounded bg-gray-100" />
+                                    <TableSelectionPlaceholder />
+                                    <div className="mr-2 h-5 w-5 shrink-0 rounded bg-gray-100" />
                                     <SkeletonLine className="h-3.5 w-48" />
                                 </TableStickyCell>
                                 <TableCell className="ml-auto w-32">

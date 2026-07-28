@@ -17,7 +17,7 @@ export function PreResponseWrapper({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const canExpand = children !== undefined;
-    const visibleLabel = isOpen ? "Activity" : label;
+    const summary = `Activity — ${label}`;
 
     const buttonTextClass = compact ? "text-xs" : "text-sm";
     const childrenGapClass = compact ? "gap-2.5" : "gap-4";
@@ -29,7 +29,11 @@ export function PreResponseWrapper({
                     <ThinkingSpinner size={14} />
                 </span>
             )}
-            <span className="min-w-0 truncate">{visibleLabel}</span>
+            <span className="min-w-0 truncate">
+                <span className="text-gray-500">Activity</span>
+                <span aria-hidden="true"> — </span>
+                <span className="text-gray-700">{label}</span>
+            </span>
         </>
     );
 
@@ -39,7 +43,7 @@ export function PreResponseWrapper({
                 <button
                     type="button"
                     aria-expanded={isOpen}
-                    aria-label={visibleLabel}
+                    aria-label={summary}
                     onClick={() => setIsOpen((open) => !open)}
                     className={`${rowClass} hover:text-gray-900`}
                 >
@@ -50,7 +54,7 @@ export function PreResponseWrapper({
                     />
                 </button>
             ) : (
-                <div role="status" aria-label={label} className={rowClass}>
+                <div role="status" aria-label={summary} className={rowClass}>
                     {rowContent}
                 </div>
             )}

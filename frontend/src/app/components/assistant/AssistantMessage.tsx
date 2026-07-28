@@ -8,7 +8,6 @@ import { PreResponseWrapper } from "./PreResponseWrapper";
 import {
     activityLabel,
     dedupeActivityEntries,
-    eventErrorMessage,
     toolCallLabel,
 } from "./message/eventUtils";
 import { preprocessCitations, internalCaseHref } from "./message/citationUtils";
@@ -18,7 +17,7 @@ import { EditCardsSection } from "./message/EditCardsSection";
 import {
     AutomationRunButton,
     automationRunKey,
-} from "@/app/components/documents/AutomationRun";
+} from "./AutomationRun";
 import {
     AskInputsBlock,
     CourtListenerBlock,
@@ -152,10 +151,6 @@ export function AssistantMessage({
         onEditResolved?.(args);
     };
 
-    const eventErrorMessages = (events ?? [])
-        .filter((event) => event.type !== "automation_run")
-        .map(eventErrorMessage)
-        .filter((message): message is string => !!message);
     const topLevelErrorMessage =
         errorMessage ??
         (
@@ -165,9 +160,6 @@ export function AssistantMessage({
         )?.message ??
         (isError ? "Response failed." : null) ??
         null;
-    const effectiveErrorMessage =
-        topLevelErrorMessage ?? eventErrorMessages[0] ?? null;
-
     const isRenderableEvent = (event: AssistantEvent) =>
         event.type !== "error" &&
         event.type !== "ask_inputs_response" &&
