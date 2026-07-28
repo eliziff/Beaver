@@ -27,7 +27,7 @@ export function pillButtonClassName(
     className?: string,
 ) {
     return cn(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40",
         toneClasses[tone],
         sizeClasses[size],
         className,

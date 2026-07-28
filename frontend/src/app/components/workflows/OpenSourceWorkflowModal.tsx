@@ -8,6 +8,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "@/app/components/modals/ModalSegmentedToggle";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
+import { CheckboxInput } from "@/app/components/ui/checkbox";
 
 type OpenSourceContributorMode = "named" | "anonymous";
 type OpenSourceStatus = "idle" | "loading" | "complete";
@@ -282,10 +283,9 @@ export function OpenSourceWorkflowModal({
                                         disabled={loading}
                                     />
                                 </div>
-                                <div className="flex items-start gap-2 pt-1 sm:col-span-2">
-                                    <input
+                                <label className="flex min-h-10 cursor-pointer items-center gap-2 pt-1 sm:col-span-2">
+                                    <CheckboxInput
                                         id="open-source-disclosure-consent"
-                                        type="checkbox"
                                         checked={disclosureConsent}
                                         onChange={(event) =>
                                             setDisclosureConsent(
@@ -293,7 +293,6 @@ export function OpenSourceWorkflowModal({
                                             )
                                         }
                                         disabled={loading}
-                                        className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-black accent-black focus:ring-gray-400 disabled:cursor-not-allowed"
                                     />
                                     <p className="text-xs leading-5 text-gray-600">
                                         <label
@@ -319,7 +318,7 @@ export function OpenSourceWorkflowModal({
                                             Beaver website.
                                         </label>
                                     </p>
-                                </div>
+                                </label>
                             </div>
                         )}
                     </div>

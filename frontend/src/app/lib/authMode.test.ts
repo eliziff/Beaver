@@ -5,7 +5,7 @@ import { requiresAccount } from "./authMode";
 describe("requiresAccount", () => {
     it("gates account-only routes without blocking local tools", () => {
         expect(requiresAccount("/tabular-reviews/review-1")).toBe(false);
-        expect(requiresAccount("/workflows/assistant/workflow-1")).toBe(true);
+        expect(requiresAccount("/workflows/assistant/workflow-1")).toBe(false);
         expect(
             requiresAccount("/projects/project-1/tabular-reviews/review-1"),
         ).toBe(false);

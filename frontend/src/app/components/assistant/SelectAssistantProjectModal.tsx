@@ -9,15 +9,22 @@ import {
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import { useDirectoryData } from "../shared/useDirectoryData";
-import { ClosedProjectSvgIcon } from "../shared/FolderSvgIcon";
+import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { Modal } from "../modals/Modal";
 
 interface Props {
     open: boolean;
     onClose: () => void;
+    currentProjectId?: string | null;
+    onSelectProject?: (projectId: string | null) => Promise<void> | void;
 }
 
-export function SelectAssistantProjectModal({ open, onClose }: Props) {
+export function SelectAssistantProjectModal({
+    open,
+    onClose,
+    currentProjectId,
+    onSelectProject,
+}: Props) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
     const [search, setSearch] = useState("");
@@ -27,16 +34,23 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
 
     useEffect(() => {
         if (!open) return;
-        setSelectedId(null);
+        setSelectedId(currentProjectId ?? null);
         setSearch("");
-    }, [open]);
+    }, [currentProjectId, open]);
 
     if (!open) return null;
 
     async function handleContinue() {
-        if (!selectedId) return;
+        if (!onSelectProject && !selectedId) return;
+        if (onSelectProject && selectedId === (currentProjectId ?? null)) return;
         setCreating(true);
         try {
+            if (onSelectProject) {
+                await onSelectProject(selectedId);
+                onClose();
+                return;
+            }
+            if (!selectedId) return;
             const chatId = await saveChat(selectedId);
             if (!chatId) return;
             onClose();
@@ -57,11 +71,24 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
         <Modal
             open={open}
             onClose={onClose}
-            breadcrumbs={["Assistant", "Start Chat in a Project"]}
+            breadcrumbs={[
+                "Assistant",
+                onSelectProject ? "Choose Project" : "Start Chat in a Project",
+            ]}
             primaryAction={{
-                label: creating ? "Creating…" : "Continue",
+                label: creating
+                    ? onSelectProject
+                        ? "Saving…"
+                        : "Creating…"
+                    : onSelectProject
+                      ? "Save"
+                      : "Continue",
                 onClick: handleContinue,
-                disabled: !selectedId || creating,
+                disabled:
+                    creating ||
+                    (onSelectProject
+                        ? selectedId === (currentProjectId ?? null)
+                        : !selectedId),
             }}
         >
             <div className="pb-2 pt-1">
@@ -92,10 +119,12 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
                             </div>
                         ))}
                     </div>
-                ) : filteredProjects.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-gray-400">
+                ) : filteredProjects.length === 0 &&
+                  !(onSelectProject && currentProjectId) ? (
+                    <div className="flex flex-col items-center py-8 text-center text-sm text-gray-400">
+                        <FolderSvgIcon className="mb-2 h-6 w-6" />
                         {query ? "No matches found" : "No projects yet"}
-                    </p>
+                    </div>
                 ) : (
                     <div className="overflow-hidden rounded-sm">
                         <div className="flex items-center justify-between px-2 py-2">
@@ -104,6 +133,24 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
                             </p>
                         </div>
                         <div className="space-y-px">
+                            {onSelectProject && currentProjectId && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedId(null)}
+                                    className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors ${selectedId === null ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
+                                >
+                                    <span
+                                        className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${selectedId === null ? "border-gray-900 bg-gray-900" : "border-gray-300"}`}
+                                    >
+                                        {selectedId === null && (
+                                            <span className="h-1.5 w-1.5 rounded-sm bg-white" />
+                                        )}
+                                    </span>
+                                    <span className="text-gray-700">
+                                        No project
+                                    </span>
+                                </button>
+                            )}
                             {filteredProjects.map((project) => {
                                 const isSelected = selectedId === project.id;
                                 const documentCount =
@@ -116,7 +163,11 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
                                         type="button"
                                         onClick={() =>
                                             setSelectedId(
-                                                isSelected ? null : project.id,
+                                                onSelectProject
+                                                    ? project.id
+                                                    : isSelected
+                                                      ? null
+                                                      : project.id,
                                             )
                                         }
                                         className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors ${isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
@@ -128,7 +179,7 @@ export function SelectAssistantProjectModal({ open, onClose }: Props) {
                                                 <span className="h-1.5 w-1.5 rounded-sm bg-white" />
                                             )}
                                         </span>
-                                        <ClosedProjectSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                                        <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                                         <span
                                             className={`flex-1 truncate ${isSelected ? "text-gray-900" : "text-gray-700"}`}
                                         >

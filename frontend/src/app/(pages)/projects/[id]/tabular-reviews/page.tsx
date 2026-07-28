@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import {
     deleteTabularReview,
@@ -60,9 +60,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
     use(params);
     const workspace = useProjectWorkspace();
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { user } = useAuth();
-    const previewEmptyStates = searchParams.get("emptyStates") === "1";
     const {
         ensureProjectReviews,
         project,
@@ -79,8 +77,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
     const [actionsOpen, setActionsOpen] = useState(false);
     const docs = project?.documents ?? [];
     const reviews = useMemo(() => projectReviews ?? [], [projectReviews]);
-    const visibleReviews = previewEmptyStates ? [] : reviews;
-    const loading = projectReviews === null && !previewEmptyStates;
+    const loading = projectReviews === null;
 
     useEffect(() => {
         void ensureProjectReviews();
@@ -88,10 +85,10 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
 
     const q = search.toLowerCase();
     const filteredReviews = q
-        ? visibleReviews.filter((r) =>
+        ? reviews.filter((r) =>
               (r.title ?? "").toLowerCase().includes(q),
           )
-        : visibleReviews;
+        : reviews;
     const allReviewsSelected =
         filteredReviews.length > 0 &&
         filteredReviews.every((r) => selectedReviewIds.includes(r.id));
@@ -183,7 +180,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
             />
             <ProjectReviewsTable
                 docs={docs}
-                reviews={visibleReviews}
+                reviews={reviews}
                 filteredReviews={filteredReviews}
                 selectedReviewIds={selectedReviewIds}
                 allReviewsSelected={allReviewsSelected}

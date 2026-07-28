@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useQuickActionsPreference } from "@/app/components/assistant/quickActionsPreferences";
+import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
 
@@ -101,37 +101,28 @@ export default function FeaturesPage() {
                                 case-law research tools are available in chat.
                             </p>
                         </div>
-                        <div className="mt-4 flex items-start justify-between gap-3 px-3 bg-gray-50 py-3 rounded-md">
-                            <label
-                                htmlFor="jurisdiction-us"
-                                className="min-w-0 cursor-pointer select-none"
-                            >
+                        <label className="mt-4 flex min-h-10 cursor-pointer items-start justify-between gap-3 rounded-md bg-gray-50 px-3 py-3">
+                            <span className="min-w-0 select-none">
                                 <p className="text-sm text-gray-900">US + Canada</p>
                                 <p className="text-sm text-gray-500">
                                     Enable case law research in chat
                                     (CourtListener for US and A2AJ for Canada).
                                 </p>
-                            </label>
-                            <button
+                            </span>
+                            <CheckboxInput
                                 id="jurisdiction-us"
-                                type="button"
-                                role="checkbox"
-                                aria-checked={usEnabled}
-                                onClick={() => {
-                                    setDraftLegalResearchUs(!usEnabled);
+                                checked={usEnabled}
+                                onChange={(event) => {
+                                    setDraftLegalResearchUs(
+                                        event.currentTarget.checked,
+                                    );
                                     setSaved(false);
                                     setSaveError(null);
                                 }}
                                 disabled={saving}
-                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-                                    usEnabled
-                                        ? "border-gray-950 bg-gray-950 text-white"
-                                        : "border-gray-300 bg-white text-transparent"
-                                } disabled:cursor-not-allowed disabled:opacity-45`}
-                            >
-                                <Check className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                                className="mt-0.5"
+                            />
+                        </label>
                         <div className="mt-5 flex items-center justify-between gap-3">
                             <p className="text-sm text-red-600">
                                 {saveError ?? ""}

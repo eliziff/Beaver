@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+    type KeyboardEvent,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
     AlertCircle,
@@ -9,11 +15,13 @@ import {
     Eye,
     Loader2,
     Pencil,
+    Search,
     Trash2,
     Upload,
     X,
 } from "lucide-react";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { PdfView } from "@/app/components/shared/views/PdfView";
 import { DocxView } from "@/app/components/shared/views/DocxView";
@@ -36,6 +44,8 @@ const MIN_DATA_COLUMN_WIDTH = 280;
 const DEFAULT_DATA_COLUMN_WIDTH = 340;
 const RESIZER_WIDTH = 0;
 const MAX_PANEL_WIDTH = 1180;
+const VERSION_BATCH_SIZE = 40;
+const VERSION_SEARCH_THRESHOLD = 12;
 
 interface DocumentSidePanelProps {
     doc: Document | null;
@@ -131,6 +141,26 @@ export function DocumentSidePanel({
     const [mobilePane, setMobilePane] = useState<"document" | "details">(
         "document",
     );
+    const [versionQuery, setVersionQuery] = useState("");
+    const [visibleVersionCount, setVisibleVersionCount] =
+        useState(VERSION_BATCH_SIZE);
+    const orderedVersions = useMemo(() => [...versions].reverse(), [versions]);
+    const filteredVersions = useMemo(() => {
+        const query = versionQuery.trim().toLocaleLowerCase();
+        if (!query) return orderedVersions;
+        return orderedVersions.filter((version) =>
+            [
+                versionFilenameFor(version),
+                versionTitleFor(version),
+                version.source,
+                version.created_at,
+            ]
+                .join(" ")
+                .toLocaleLowerCase()
+                .includes(query),
+        );
+    }, [orderedVersions, versionQuery]);
+    const visibleVersions = filteredVersions.slice(0, visibleVersionCount);
     const panelRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const replaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -173,6 +203,15 @@ export function DocumentSidePanel({
     }, [doc?.id]);
 
     useEffect(() => {
+        setVersionQuery("");
+        setVisibleVersionCount(VERSION_BATCH_SIZE);
+    }, [doc?.id]);
+
+    useEffect(() => {
+        setVisibleVersionCount(VERSION_BATCH_SIZE);
+    }, [versionQuery]);
+
+    useEffect(() => {
         setEditingName(false);
         setNameDraft("");
         setNameError(null);
@@ -201,7 +240,8 @@ export function DocumentSidePanel({
                     .some(
                         (node) =>
                             node instanceof HTMLElement &&
-                            node.hasAttribute("data-document-row"),
+                            (node.hasAttribute("data-document-row") ||
+                                node.hasAttribute("data-shortcut-layer")),
                     )
             ) {
                 return;
@@ -238,7 +278,6 @@ export function DocumentSidePanel({
     const activeDoc = doc;
     const documentId = activeDoc.id;
     const newVersionAccept = ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt";
-    const orderedVersions = [...versions].reverse();
     const activeVersionCount = versions.filter(
         (version) => version.deleted_at == null,
     ).length;
@@ -248,6 +287,14 @@ export function DocumentSidePanel({
         orderedVersions[0] ??
         null;
     const selectedVersionId = selectedVersion?.id ?? versionId ?? null;
+    const tabbableVersionId =
+        visibleVersions.find(
+            (version) =>
+                version.id === selectedVersionId &&
+                version.deleted_at == null,
+        )?.id ??
+        visibleVersions.find((version) => version.deleted_at == null)?.id ??
+        null;
     const selectedFilename = selectedVersion?.filename?.trim() || doc.filename;
     const selectedFileType =
         selectedVersion != null
@@ -266,8 +313,6 @@ export function DocumentSidePanel({
         selectedVersion?.page_count === undefined
             ? doc.page_count
             : selectedVersion.page_count;
-    const selectedVersionNumber =
-        selectedVersion?.version_number ?? doc.active_version_number ?? null;
     const selectedUploadedAt = selectedVersion?.created_at ?? doc.created_at;
     const selectedExtension = filenameExtension(selectedFilename);
     const replaceFileType = replaceTargetVersion
@@ -277,6 +322,45 @@ export function DocumentSidePanel({
         replaceFileType === "pdf" ? ".pdf" : ".docx,.doc";
     const ownerLabel =
         doc.owner_display_name?.trim() || doc.owner_email?.trim() || "—";
+
+    function handleVersionKeyDown(
+        event: KeyboardEvent<HTMLDivElement>,
+        version: DocumentVersion,
+    ) {
+        if (version.deleted_at != null) return;
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelectVersion(version.id, versionFilenameFor(version));
+            return;
+        }
+        if (
+            event.key !== "ArrowDown" &&
+            event.key !== "ArrowUp" &&
+            event.key !== "Home" &&
+            event.key !== "End"
+        ) {
+            return;
+        }
+
+        const list = event.currentTarget.closest('[role="list"]');
+        const options = Array.from(
+            list?.querySelectorAll<HTMLElement>(
+                '[data-version-option]:not([aria-disabled="true"])',
+            ) ?? [],
+        );
+        if (options.length === 0) return;
+        event.preventDefault();
+        const current = options.indexOf(event.currentTarget);
+        const next =
+            event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? options.length - 1
+                  : event.key === "ArrowUp"
+                    ? Math.max(0, current - 1)
+                    : Math.min(options.length - 1, current + 1);
+        options[next]?.focus();
+    }
 
     async function handleSaveName() {
         if (!selectedVersionId) return;
@@ -494,7 +578,7 @@ export function DocumentSidePanel({
         >
             <div
                 onMouseDown={handlePanelResizeMouseDown}
-                className="absolute inset-y-0 left-0 z-20 hidden w-1 cursor-col-resize bg-transparent transition-colors hover:bg-blue-400/60 md:block"
+                className="absolute inset-y-0 left-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-400 md:block"
                 title="Resize document view"
             />
             <div className="mx-3 flex min-h-11 shrink-0 items-center justify-between gap-3 py-2 md:h-11 md:py-0">
@@ -503,11 +587,82 @@ export function DocumentSidePanel({
                         fileType={selectedFileType ?? selectedFilename}
                         className="h-4 w-4"
                     />
-                    <div className="min-w-0 truncate text-sm font-medium text-gray-700">
-                        {selectedFilename}
-                    </div>
+                    {editingName ? (
+                        <>
+                            <input
+                                value={nameDraft}
+                                onChange={(event) => {
+                                    setNameDraft(event.target.value);
+                                    setNameError(null);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        void handleSaveName();
+                                    }
+                                    if (event.key === "Escape") {
+                                        setEditingName(false);
+                                        setNameError(null);
+                                    }
+                                }}
+                                className={cn(
+                                    "h-8 min-w-0 flex-1 border-b bg-transparent text-sm font-medium text-gray-900 outline-none",
+                                    nameError
+                                        ? "border-red-600"
+                                        : "border-gray-400 focus:border-gray-950",
+                                )}
+                                aria-label={
+                                    nameError
+                                        ? `Document name: ${nameError}`
+                                        : "Document name"
+                                }
+                                aria-invalid={!!nameError}
+                                autoFocus
+                            />
+                            <button
+                                type="button"
+                                onClick={() => void handleSaveName()}
+                                disabled={savingName}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-40"
+                                aria-label="Save document name"
+                            >
+                                {savingName ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Check className="h-4 w-4" />
+                                )}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="min-w-0 truncate text-sm font-medium text-gray-700">
+                                {selectedFilename}
+                            </div>
+                            {selectedVersionId && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setNameDraft(selectedFilename);
+                                        setEditingName(true);
+                                        setNameError(null);
+                                    }}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                                    aria-label="Rename document"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </button>
+                            )}
+                        </>
+                    )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
+                    <DocumentAutomation
+                        document={doc}
+                        onDocumentChanged={async (result) => {
+                            await onLoadVersions(doc.id);
+                            onSelectVersion(result.version_id, result.filename);
+                        }}
+                    />
                     <div className="flex h-7 items-center rounded-full bg-gray-200/70 p-0.5 md:hidden">
                         <button
                             type="button"
@@ -588,8 +743,7 @@ export function DocumentSidePanel({
                 <div
                     onMouseDown={handleResizeMouseDown}
                     className={cn(
-                        "relative z-10 hidden w-1.5 -translate-x-1/2 cursor-col-resize transition-colors md:block",
-                        "bg-transparent hover:bg-blue-400/60",
+                        "relative z-10 hidden w-1.5 -translate-x-1/2 cursor-col-resize bg-transparent hover:bg-gray-400 md:block",
                     )}
                     title="Resize document panel"
                 />
@@ -600,79 +754,10 @@ export function DocumentSidePanel({
                         mobilePane === "details" ? "flex" : "hidden md:flex",
                     )}
                 >
-                    <div className="mb-4 shrink-0">
-                        <div className="mb-3 text-xs font-medium text-gray-900">
-                            Name
-                        </div>
-                        {editingName ? (
-                            <div className="space-y-1.5">
-                                <div className="flex min-h-6 items-center gap-2">
-                                    <input
-                                        value={nameDraft}
-                                        onChange={(e) => {
-                                            setNameDraft(e.target.value);
-                                            setNameError(null);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                                e.preventDefault();
-                                                void handleSaveName();
-                                            }
-                                            if (e.key === "Escape") {
-                                                setEditingName(false);
-                                                setNameError(null);
-                                            }
-                                        }}
-                                        className="h-6 min-w-0 flex-1 border-0 border-b border-gray-300 bg-transparent px-0 text-xs leading-6 text-gray-900 outline-none transition-colors focus:border-gray-500"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleSaveName()}
-                                        disabled={savingName}
-                                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/65 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
-                                        title="Save name"
-                                    >
-                                        {savingName ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <Check className="h-3.5 w-3.5" />
-                                        )}
-                                    </button>
-                                </div>
-                                {nameError && (
-                                    <div className="text-xs text-red-600">
-                                        {nameError}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="flex min-h-6 items-center gap-2">
-                                <div className="min-w-0 flex-1 truncate text-xs leading-6 text-gray-800">
-                                    {selectedFilename}
-                                </div>
-                                {selectedVersionId && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setNameDraft(selectedFilename);
-                                            setEditingName(true);
-                                            setNameError(null);
-                                        }}
-                                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/65 hover:text-gray-900"
-                                        title="Edit name"
-                                    >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="mb-3 shrink-0 text-xs font-medium text-gray-900">
-                        Document Data
-                    </div>
-                    <div className="shrink-0 rounded-xl py-2">
+                    <div
+                        className="shrink-0 rounded-xl py-2"
+                        aria-label="Document details"
+                    >
                         <div className="space-y-1.5">
                             <DataRow
                                 label="Type"
@@ -686,15 +771,9 @@ export function DocumentSidePanel({
                                         : "—"
                                 }
                             />
-                            <DataRow
-                                label="Version"
-                                value={
-                                    selectedVersionNumber != null
-                                        ? String(selectedVersionNumber)
-                                        : "—"
-                                }
-                            />
-                            <DataRow label="Owner" value={ownerLabel} />
+                            {ownerLabel !== "—" && (
+                                <DataRow label="Owner" value={ownerLabel} />
+                            )}
                             <DataRow
                                 label="Uploaded"
                                 value={
@@ -703,29 +782,55 @@ export function DocumentSidePanel({
                                         : "—"
                                 }
                             />
-                            <DataRow
-                                label="Pages"
-                                value={
-                                    selectedPageCount != null
-                                        ? String(selectedPageCount)
-                                        : "—"
-                                }
-                            />
+                            {selectedPageCount != null && (
+                                <DataRow
+                                    label="Pages"
+                                    value={String(selectedPageCount)}
+                                />
+                            )}
                         </div>
                     </div>
 
-                    <div className="mb-2 shrink-0 text-xs font-medium text-gray-900">
-                        Versions
+                    <div className="mb-2 flex shrink-0 items-center gap-2">
+                        <h2 className="text-xs font-semibold text-gray-900">
+                            Versions
+                            <span className="ml-1 font-normal text-gray-500">
+                                {versions.length}
+                            </span>
+                        </h2>
+                        {versions.length > VERSION_SEARCH_THRESHOLD && (
+                            <label className="ml-auto flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 focus-within:border-gray-950">
+                                <Search
+                                    className="h-3.5 w-3.5 shrink-0 text-gray-500"
+                                    aria-hidden="true"
+                                />
+                                <span className="sr-only">
+                                    Search versions
+                                </span>
+                                <input
+                                    value={versionQuery}
+                                    onChange={(event) =>
+                                        setVersionQuery(event.target.value)
+                                    }
+                                    placeholder="Search versions"
+                                    className="min-w-0 flex-1 bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-500"
+                                />
+                            </label>
+                        )}
                     </div>
                     <div
                         className={cn(
-                            "flex min-h-0 flex-1 flex-col overflow-visible rounded-xl",
-                            "bg-[#eceef1] px-2",
+                            "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg",
+                            "border border-gray-300 bg-white",
                         )}
                     >
-                        <div className="min-h-0 flex-1 overflow-y-auto py-2">
+                        <div
+                            role="list"
+                            aria-label="Document versions"
+                            className="min-h-0 flex-1 overflow-y-auto"
+                        >
                             {versionsLoading && versions.length === 0 ? (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 p-2">
                                     {Array.from({
                                         length: versionSkeletonCount(
                                             doc.active_version_number,
@@ -737,13 +842,17 @@ export function DocumentSidePanel({
                                     ))}
                                 </div>
                             ) : orderedVersions.length === 0 ? (
-                                <div className="py-2 text-xs text-gray-400">
+                                <div className="p-3 text-xs text-gray-500">
                                     No version history.
                                 </div>
+                            ) : filteredVersions.length === 0 ? (
+                                <div className="p-3 text-xs text-gray-600">
+                                    No matching versions.
+                                </div>
                             ) : (
-                                <div className="space-y-1.5">
+                                <div className="divide-y divide-gray-200">
                                     {uploading && <VersionUploadSkeleton />}
-                                    {orderedVersions.map((version) => {
+                                    {visibleVersions.map((version) => {
                                         const title = versionTitleFor(version);
                                         const filename =
                                             versionFilenameFor(version);
@@ -758,8 +867,14 @@ export function DocumentSidePanel({
                                         return (
                                             <div
                                                 key={version.id}
-                                                role="button"
-                                                tabIndex={0}
+                                                role="listitem"
+                                                data-version-option
+                                                tabIndex={
+                                                    version.id ===
+                                                    tabbableVersionId
+                                                        ? 0
+                                                        : -1
+                                                }
                                                 onClick={() => {
                                                     if (deleted) return;
                                                     onSelectVersion(
@@ -767,22 +882,23 @@ export function DocumentSidePanel({
                                                         filename,
                                                     );
                                                 }}
-                                                onKeyDown={(event) => {
-                                                    if (deleted) return;
-                                                    if (
-                                                        event.key !== "Enter" &&
-                                                        event.key !== " "
+                                                onKeyDown={(event) =>
+                                                    handleVersionKeyDown(
+                                                        event,
+                                                        version,
                                                     )
-                                                        return;
-                                                    event.preventDefault();
-                                                    onSelectVersion(
-                                                        version.id,
-                                                        filename,
-                                                    );
-                                                }}
+                                                }
                                                 aria-disabled={deleted}
+                                                aria-current={
+                                                    selected && !deleted
+                                                        ? "true"
+                                                        : undefined
+                                                }
                                                 className={cn(
-                                                    "group relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-2 hover:bg-gray-50",
+                                                    "group relative flex min-h-14 w-full flex-col overflow-hidden border-l-2 border-transparent bg-white px-3 py-2 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600",
+                                                    selected &&
+                                                        !deleted &&
+                                                        "border-l-gray-950 bg-gray-100",
                                                     deleted
                                                         ? "cursor-not-allowed opacity-55"
                                                         : "cursor-pointer",
@@ -795,19 +911,19 @@ export function DocumentSidePanel({
                                                     />
                                                     <div
                                                         className={cn(
-                                                            "min-w-0 flex-1 truncate text-xs font-medium text-gray-950",
+                                                            "min-w-0 flex-1 truncate text-sm font-medium text-gray-950",
                                                         )}
                                                     >
                                                         {filename}
                                                     </div>
                                                     <span
                                                         className={cn(
-                                                            "inline-flex shrink-0 items-center gap-1 text-[11px] font-normal",
+                                                            "inline-flex shrink-0 items-center gap-1 text-xs font-normal",
                                                             deleted
                                                                 ? "text-gray-300"
                                                                 : selected
-                                                                  ? "text-blue-500"
-                                                                  : "text-gray-400",
+                                                                  ? "text-gray-950"
+                                                                  : "text-gray-500",
                                                         )}
                                                     >
                                                         {selected &&
@@ -818,7 +934,7 @@ export function DocumentSidePanel({
                                                     </span>
                                                 </div>
                                                 <div className="flex min-w-0 items-center gap-2">
-                                                    <div className="min-w-0 flex-1 truncate text-[11px] text-gray-400">
+                                                    <div className="min-w-0 flex-1 truncate text-xs text-gray-500">
                                                         {version.created_at
                                                             ? new Date(
                                                                   version.created_at,
@@ -826,15 +942,10 @@ export function DocumentSidePanel({
                                                             : "—"}
                                                     </div>
                                                     <div
-                                                        className={cn(
-                                                            "flex h-5 shrink-0 items-center gap-0.5",
-                                                            deleted || selected
-                                                                ? "opacity-100"
-                                                                : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                                                        )}
+                                                        className="flex h-8 shrink-0 items-center gap-0.5"
                                                     >
                                                         {deleted ? (
-                                                            <span className="text-[11px] font-medium text-gray-800">
+                                                            <span className="text-xs font-medium text-gray-800">
                                                                 Deleted
                                                             </span>
                                                         ) : (
@@ -855,14 +966,14 @@ export function DocumentSidePanel({
                                                                         deletingVersionId !=
                                                                             null
                                                                     }
-                                                                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-200 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                                                                     aria-label={`Replace ${title}`}
                                                                     title="Replace version file"
                                                                 >
                                                                     {versionReplacing ? (
-                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                                     ) : (
-                                                                        <Upload className="h-3 w-3" />
+                                                                        <Upload className="h-3.5 w-3.5" />
                                                                     )}
                                                                 </button>
                                                                 <button
@@ -877,11 +988,11 @@ export function DocumentSidePanel({
                                                                             filename,
                                                                         );
                                                                     }}
-                                                                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-200 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
                                                                     aria-label={`Download ${title}`}
                                                                     title="Download version"
                                                                 >
-                                                                    <Download className="h-3 w-3" />
+                                                                    <Download className="h-3.5 w-3.5" />
                                                                 </button>
                                                                 <button
                                                                     type="button"
@@ -901,7 +1012,7 @@ export function DocumentSidePanel({
                                                                             null
                                                                     }
                                                                     className={cn(
-                                                                        "inline-flex h-5 w-5 items-center justify-center rounded-full text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40",
+                                                                        "inline-flex h-8 w-8 items-center justify-center rounded-md text-red-700 hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40",
                                                                         !canDelete &&
                                                                             "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-red-500",
                                                                     )}
@@ -913,9 +1024,9 @@ export function DocumentSidePanel({
                                                                     }
                                                                 >
                                                                     {versionDeleting ? (
-                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                                     ) : (
-                                                                        <Trash2 className="h-3 w-3" />
+                                                                        <Trash2 className="h-3.5 w-3.5" />
                                                                     )}
                                                                 </button>
                                                             </>
@@ -925,6 +1036,28 @@ export function DocumentSidePanel({
                                             </div>
                                         );
                                     })}
+                                    {visibleVersionCount <
+                                        filteredVersions.length && (
+                                        <div className="flex min-h-10 items-center justify-between gap-2 px-3 py-2 text-xs text-gray-600">
+                                            <span>
+                                                {visibleVersions.length} of{" "}
+                                                {filteredVersions.length}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setVisibleVersionCount(
+                                                        (count) =>
+                                                            count +
+                                                            VERSION_BATCH_SIZE,
+                                                    )
+                                                }
+                                                className="h-8 rounded-md border border-gray-300 bg-white px-3 font-medium text-gray-900 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                                            >
+                                                Show more
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -985,7 +1118,7 @@ export function DocumentSidePanel({
                                 : "Delete"}
                         </PillButton>
                         <PillButton
-                            tone="blue"
+                            tone="black"
                             size="sm"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploading}
@@ -1082,7 +1215,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
 
 function VersionUploadSkeleton() {
     return (
-        <div className="rounded-lg border border-white/70 bg-white px-3 py-2 shadow-[0_1px_4px_rgba(15,23,42,0.045),inset_0_1px_0_rgba(255,255,255,0.72)]">
+        <div className="rounded-lg border border-gray-300 bg-white px-3 py-2">
             <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-center gap-1.5">

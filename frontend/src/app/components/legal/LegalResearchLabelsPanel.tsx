@@ -1,6 +1,8 @@
 "use client";
 
-import { Fragment, type FormEvent } from "react";
+import { Fragment, type FormEvent, useState } from "react";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
+import { CheckboxInput } from "@/app/components/ui/checkbox";
 
 export interface LegalResearchGraphNode {
     id: string;
@@ -89,6 +91,7 @@ export function LegalResearchLabelsPanel({
     onSave,
     isSaving = false,
 }: LegalResearchLabelsPanelProps) {
+    const [newParentId, setNewParentId] = useState("");
     const assigned = new Set(assignedNodeIds);
     const paths = labelPaths(nodes, edges);
     const assignedLabelCount = paths.filter(({ node }) =>
@@ -119,6 +122,7 @@ export function LegalResearchLabelsPanel({
             parentId: parentId || null,
         });
         form.reset();
+        setNewParentId("");
     }
 
     return (
@@ -137,25 +141,28 @@ export function LegalResearchLabelsPanel({
             </div>
 
             {projectChoices?.length ? (
-                <label className="mt-3 flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium text-gray-800">
+                <label
+                    htmlFor="legal-research-project"
+                    className="mt-3 flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium text-gray-800"
+                >
                     Project
-                    <select
+                    <ModalSelect
+                        id="legal-research-project"
                         value={activeProjectId ?? ""}
-                        onChange={(event) =>
-                            onActiveProjectIdChange?.(event.target.value)
+                        onChange={(value) =>
+                            onActiveProjectIdChange?.(value)
                         }
                         disabled={!onActiveProjectIdChange}
-                        className="h-9 min-w-0 max-w-full rounded-md border border-gray-300 bg-white px-3 text-sm font-normal text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-gray-50 disabled:text-gray-500"
-                    >
-                        <option value="" disabled>
-                            Select project
-                        </option>
-                        {projectChoices.map((project) => (
-                            <option key={project.id} value={project.id}>
-                                {project.name}
-                            </option>
-                        ))}
-                    </select>
+                        searchable
+                        options={[
+                            { value: "", label: "Select project" },
+                            ...projectChoices.map((project) => ({
+                                value: project.id,
+                                label: project.name,
+                            })),
+                        ]}
+                        className="!h-9 min-w-48 max-w-full font-normal"
+                    />
                 </label>
             ) : null}
 
@@ -174,18 +181,16 @@ export function LegalResearchLabelsPanel({
                             return (
                                 <label
                                     key={node.id}
-                                    className={`grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-md border px-3 py-2 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-brand ${
+                                    className={`grid min-h-10 min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border px-3 py-2 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-brand ${
                                         checked
                                             ? "border-gray-400 bg-gray-50"
                                             : "border-gray-200 hover:bg-gray-50"
                                     }`}
                                 >
-                                    <input
-                                        type="checkbox"
+                                    <CheckboxInput
                                         checked={checked}
                                         onChange={() => toggleNode(node.id)}
                                         aria-label={pathName}
-                                        className="mt-0.5 h-4 w-4"
                                         style={{
                                             accentColor:
                                                 node.color ?? "#b91c1c",
@@ -257,22 +262,33 @@ export function LegalResearchLabelsPanel({
                                     className="mt-1 block h-9 w-12 cursor-pointer rounded-md border border-gray-300 bg-white p-1"
                                 />
                             </label>
-                            <label className="block min-w-0 text-xs font-medium text-gray-700">
+                            <label
+                                htmlFor="legal-research-parent"
+                                className="block min-w-0 text-xs font-medium text-gray-700"
+                            >
                                 Parent
-                                <select
+                                <input
+                                    type="hidden"
                                     name="parentId"
-                                    defaultValue=""
-                                    className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 text-sm font-normal text-gray-900 outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                                >
-                                    <option value="">No parent</option>
-                                    {paths.map(({ node, path }) => (
-                                        <option key={node.id} value={node.id}>
-                                            {path
+                                    value={newParentId}
+                                    readOnly
+                                />
+                                <ModalSelect
+                                    id="legal-research-parent"
+                                    value={newParentId}
+                                    onChange={setNewParentId}
+                                    searchable
+                                    options={[
+                                        { value: "", label: "No parent" },
+                                        ...paths.map(({ node, path }) => ({
+                                            value: node.id,
+                                            label: path
                                                 .map((part) => part.name)
-                                                .join(" \u203a ")}
-                                        </option>
-                                    ))}
-                                </select>
+                                                .join(" \u203a "),
+                                        })),
+                                    ]}
+                                    className="mt-1 !h-9 font-normal"
+                                />
                             </label>
                         </div>
                         <div className="flex justify-end">

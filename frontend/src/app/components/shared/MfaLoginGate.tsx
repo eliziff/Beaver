@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { FullScreenLoader } from "@/app/components/shared/FullScreenLoader";
@@ -13,7 +13,6 @@ const MFA_VERIFIED_GRACE_MS = 60_000;
 export function MfaLoginGate({ children }: { children: ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const searchParams = useSearchParams();
     const { user } = useAuth();
     const { profile, loading } = useUserProfile();
     const [gateState, setGateState] = useState<GateState>("idle");
@@ -72,11 +71,13 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
                 setGateState("verified");
                 return;
             }
-            const search = searchParams.toString();
+            const search = window.location.search.slice(1);
             const next = `${pathname}${search ? `?${search}` : ""}`;
             router.replace(`/verify-mfa?next=${encodeURIComponent(next)}`);
         } else if (gateState === "verified" && isVerifyPage) {
-            const next = safeNextPath(searchParams.get("next"));
+            const next = safeNextPath(
+                new URLSearchParams(window.location.search).get("next"),
+            );
             router.replace(next);
         }
     }, [
@@ -86,7 +87,6 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
         pathname,
         profile?.mfaOnLogin,
         router,
-        searchParams,
         user,
     ]);
 

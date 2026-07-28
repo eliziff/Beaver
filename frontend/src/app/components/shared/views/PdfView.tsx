@@ -17,6 +17,7 @@ interface Props {
     /** Changes when the parent wants the current quote re-focused. */
     quoteFocusKey?: string | number;
     rounded?: boolean;
+    onUnavailable?: () => void;
 }
 
 type QuoteEntry = { page?: number; quote: string };
@@ -39,6 +40,7 @@ export function PdfView({
     quotes,
     quoteFocusKey,
     rounded = true,
+    onUnavailable,
 }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,11 @@ export function PdfView({
     const quoteListRef = useRef<QuoteEntry[]>([]);
     const zoomRef = useRef(1.0);
     const currentPageRef = useRef(1);
+    const onUnavailableRef = useRef(onUnavailable);
+
+    useEffect(() => {
+        onUnavailableRef.current = onUnavailable;
+    }, [onUnavailable]);
 
     const quoteList: QuoteEntry[] = useMemo(() => {
         return (
@@ -70,6 +77,12 @@ export function PdfView({
         doc?.document_id ?? null,
         doc?.version_id ?? null,
     );
+
+    useEffect(() => {
+        if (error || (result && result.type !== "pdf")) {
+            onUnavailableRef.current?.();
+        }
+    }, [error, result]);
 
     // Track container width via ResizeObserver so re-renders fire on resize
     useEffect(() => {

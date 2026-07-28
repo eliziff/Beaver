@@ -23,24 +23,17 @@ const PDF_FIXTURE = path.join(__dirname, "fixtures/test.pdf");
  * available. The default model (Gemini) has no key configured in CI, so a
  * submit with it would be blocked by the ApiKeyMissingModal. We pick
  * "Claude Sonnet 4.6" (the cheapest Anthropic entry in ModelToggle.MODELS) so
- * the request streams a real response. The Radix DropdownMenu trigger's title
- * is "Choose model" (current model available) or "API key missing for selected
- * model" (default-Gemini case).
+ * the request streams a real response.
  */
 const CLAUDE_MODEL_LABEL = "Claude Sonnet 4.6";
 
 async function selectClaudeModel(page: Page) {
+    const model = page.getByRole("combobox", { name: /^Model:/ }).first();
+    await model.click();
     await page
-        .getByRole("combobox", { name: /^Model provider:/ })
-        .selectOption("Anthropic");
-    await page
-        .getByRole("combobox", { name: /^Model:/ })
-        .selectOption({ label: CLAUDE_MODEL_LABEL });
-    await expect(
-        page.getByRole("combobox", {
-            name: `Model: ${CLAUDE_MODEL_LABEL}`,
-        }),
-    ).toBeVisible({ timeout: 5_000 });
+        .getByRole("option", { name: CLAUDE_MODEL_LABEL, exact: true })
+        .click();
+    await expect(model).toHaveAccessibleName(`Model: ${CLAUDE_MODEL_LABEL}`);
 }
 
 /* ─── Test 1: authenticated landing ─────────────────────────────────────── */

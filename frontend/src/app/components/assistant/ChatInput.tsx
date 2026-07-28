@@ -140,7 +140,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
                 });
             }
-            setDocSelectorOpen(true);
+            if (attachedDocs.length === 0) setDocSelectorOpen(true);
         },
     }));
 
@@ -513,9 +513,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                 projectId={projectId}
                 breadcrumb={
                     selectedWorkflow
-                        ? ["Assistant", selectedWorkflow.title, "Add Documents"]
-                        : ["Assistant", "Add Documents"]
+                        ? ["Assistant", selectedWorkflow.title, "Add document"]
+                        : ["Assistant", "Add document"]
                 }
+                primaryLabel="Use document"
             />
             <AssistantWorkflowModal
                 open={workflowModalOpen}

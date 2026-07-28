@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
     Check,
     ChevronDown,
@@ -46,7 +46,6 @@ import { LIQUID_TABLE_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { NewWorkflowModal } from "@/app/components/workflows/NewWorkflowModal";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
-    TABLE_CHECKBOX_CLASS,
     SkeletonDot,
     SkeletonLine,
     TableBody,
@@ -59,6 +58,7 @@ import {
     TableScrollArea,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -98,9 +98,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     // Editor state
     const [promptMd, setPromptMd] = useState("");
     const [columns, setColumns] = useState<ColumnConfig[]>([]);
-    const searchParams = useSearchParams();
-    const previewEmptyStates = searchParams.get("emptyStates") === "1";
-    const visibleColumns = previewEmptyStates ? [] : columns;
 
     // Save status
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -540,7 +537,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                             <TableToolbar
                                 actions={
                                     <div className="flex items-center gap-2">
-                                        {visibleColumns.length > 0 &&
+                                        {columns.length > 0 &&
                                             selectedColIndices.length > 0 && (
                                                 <>
                                                     <div
@@ -608,12 +605,11 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                         header
                                         widthClassName={NAME_COL_W}
                                     >
-                                        {visibleColumns.length > 0 ? (
-                                            <input
-                                                type="checkbox"
+                                        {columns.length > 0 ? (
+                                            <CheckboxControl
                                                 checked={
                                                     selectedColIndices.length ===
-                                                    visibleColumns.length
+                                                    columns.length
                                                 }
                                                 ref={(el) => {
                                                     if (el)
@@ -621,24 +617,24 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                                             selectedColIndices.length >
                                                                 0 &&
                                                             selectedColIndices.length <
-                                                                visibleColumns.length;
+                                                                columns.length;
                                                 }}
                                                 onChange={() =>
                                                     setSelectedColIndices(
                                                         selectedColIndices.length ===
-                                                            visibleColumns.length
+                                                            columns.length
                                                             ? []
-                                                            : visibleColumns.map(
+                                                            : columns.map(
                                                                   (column) =>
                                                                       column.index,
                                                               ),
                                                     )
                                                 }
-                                                className={TABLE_CHECKBOX_CLASS}
+                                                className="-ml-2 mr-1"
                                             />
                                         ) : (
                                             <span
-                                                className="mr-4 h-2.5 w-2.5 shrink-0"
+                                                className="-ml-2 mr-1 h-9 w-9 shrink-0"
                                                 aria-hidden="true"
                                             />
                                         )}
@@ -656,7 +652,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                 </TableHeaderRow>
                             }
                         >
-                            {visibleColumns.length === 0 ? (
+                            {columns.length === 0 ? (
                                 <TableEmptyState>
                                     <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />
                                     <p className="text-2xl font-medium font-serif text-gray-900">
@@ -679,7 +675,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                 </TableEmptyState>
                             ) : (
                                 <TableBody>
-                                    {visibleColumns.map((col) => {
+                                    {columns.map((col) => {
                                         const FormatIcon = formatIcon(
                                             col.format ?? "text",
                                         );

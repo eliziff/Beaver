@@ -17,11 +17,17 @@ vi.mock("@/app/lib/beaverApi", () => ({
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({
-        profile: { tabularModel: "gemini-3-flash-preview" },
-        updateModelPreference: vi.fn(),
+        profile: {},
     }),
 }));
-vi.mock("../assistant/ModelToggle", () => ({ ModelToggle: () => null }));
+vi.mock("@/app/hooks/useSelectedModel", () => ({
+    useSelectedModel: () => ["codex:gpt-5.6-terra", vi.fn()],
+    useSelectedReasoningEffort: () => ["high", vi.fn()],
+}));
+vi.mock("../assistant/ModelToggle", () => ({
+    ModelToggle: () => null,
+    ReasoningEffortToggle: () => null,
+}));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
     ApiKeyMissingPopup: () => null,
 }));

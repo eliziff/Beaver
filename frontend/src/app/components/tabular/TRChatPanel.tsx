@@ -19,7 +19,6 @@ import {
     ChevronDown,
     X,
 } from "lucide-react";
-import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import {
     streamTabularChat,
     getTabularChats,
@@ -31,7 +30,10 @@ import {
     type TRCitationAnnotation,
 } from "@/app/lib/beaverApi";
 import type { AssistantEvent } from "../shared/types";
-import { ModelToggle } from "../assistant/ModelToggle";
+import {
+    ModelToggle,
+    ReasoningEffortToggle,
+} from "../assistant/ModelToggle";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { PreResponseWrapper } from "../assistant/PreResponseWrapper";
 import {
@@ -39,7 +41,15 @@ import {
     EventBlock,
     ReasoningBlock,
 } from "../assistant/message/EventBlocks";
+import {
+    activityLabel,
+    dedupeActivityEntries,
+} from "../assistant/message/eventUtils";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import {
+    useSelectedModel,
+    useSelectedReasoningEffort,
+} from "@/app/hooks/useSelectedModel";
 import {
     getModelProvider,
     isModelAvailable,
@@ -108,14 +118,6 @@ function preprocessTRCitations(
 // TRAssistantMessage
 // ---------------------------------------------------------------------------
 
-type TREventGroup =
-    | { kind: "pre"; events: AssistantEvent[]; indices: number[] }
-    | {
-          kind: "content";
-          event: Extract<AssistantEvent, { type: "content" }>;
-          index: number;
-      };
-
 function TRAssistantMessage({
     msg,
     onCitationClick,
@@ -135,27 +137,22 @@ function TRAssistantMessage({
 
     const events = msg.events ?? [];
 
-    // Group consecutive non-content events together so they share a single
-    // PreResponseWrapper. Content events render between wrappers.
-    const groups: TREventGroup[] = [];
-    {
-        let current: Extract<TREventGroup, { kind: "pre" }> | null = null;
-        events.forEach((e, i) => {
-            if (e.type === "content") {
-                if (current) {
-                    groups.push(current);
-                    current = null;
-                }
-                groups.push({ kind: "content", event: e, index: i });
-            } else {
-                if (!current)
-                    current = { kind: "pre", events: [], indices: [] };
-                current.events.push(e);
-                current.indices.push(i);
-            }
-        });
-        if (current) groups.push(current);
-    }
+    const rawActivityEntries = events.flatMap((event, index) =>
+        event.type === "reasoning" ||
+        event.type === "doc_read" ||
+        event.type === "thinking"
+            ? [{ event, index }]
+            : [],
+    );
+    const activityEntries = dedupeActivityEntries(rawActivityEntries);
+    const activityEvents = activityEntries.map(({ event }) => event);
+    const contentEntries = events.flatMap((event, index) =>
+        event.type === "content" ? [{ event, index }] : [],
+    );
+    const latestActivityLabel = [...activityEvents]
+        .reverse()
+        .map(activityLabel)
+        .find((label): label is string => !!label);
 
     const renderPreEvent = (
         event: AssistantEvent,
@@ -269,50 +266,42 @@ function TRAssistantMessage({
 
     return (
         <div className="text-gray-900 font-serif">
-            <div className="w-full h-9 flex items-center mb-2">
-                {msg.isStreaming && <ThinkingSpinner size={18} />}
-            </div>
-            {groups.length > 0 && (
+            {(activityEntries.length > 0 ||
+                contentEntries.length > 0 ||
+                msg.isStreaming) && (
                 <div className="flex flex-col gap-2.5">
-                    {groups.map((g, gIdx) => {
-                        if (g.kind === "content") {
-                            return renderContent(
-                                processedTexts[g.index],
-                                g.index,
-                            );
-                        }
-                        const subsequentContent = groups.some(
-                            (group, index) =>
-                                index > gIdx && group.kind === "content",
-                        );
-                        // "Working" while at least one event in *this*
-                        // wrapper is actively streaming. Gaps between real
-                        // events are bridged by `pushThinkingPlaceholder`
-                        // so this check stays continuously true through
-                        // the whole pre-content phase.
-                        const wrapperIsStreaming = g.events.some(
-                            (event) =>
-                                "isStreaming" in event && !!event.isStreaming,
-                        );
-                        return (
-                            <PreResponseWrapper
-                                key={`p-${g.indices[0]}`}
-                                stepCount={g.events.length}
-                                shouldMinimize={subsequentContent}
-                                isStreaming={wrapperIsStreaming}
-                                compact
-                            >
-                                {g.events.map((event, i) =>
-                                    renderPreEvent(
-                                        event,
-                                        i,
-                                        g.events,
-                                        g.indices[i],
-                                    ),
-                                )}
-                            </PreResponseWrapper>
-                        );
-                    })}
+                    {(activityEntries.length > 0 || msg.isStreaming) && (
+                        <PreResponseWrapper
+                            isStreaming={
+                                !!msg.isStreaming ||
+                                activityEvents.some(
+                                    (event) =>
+                                        "isStreaming" in event &&
+                                        !!event.isStreaming,
+                                )
+                            }
+                            compact
+                            label={latestActivityLabel ?? "Thinking"}
+                        >
+                            {activityEntries.length > 0
+                                ? activityEntries.map(
+                                      ({ event, index }, i) =>
+                                          renderPreEvent(
+                                              event,
+                                              i,
+                                              activityEvents,
+                                              index,
+                                          ),
+                                  )
+                                : undefined}
+                        </PreResponseWrapper>
+                    )}
+                    {contentEntries.map(({ index }) =>
+                        renderContent(
+                            processedTexts[index],
+                            index,
+                        ),
+                    )}
                 </div>
             )}
         </div>
@@ -329,6 +318,8 @@ function TRChatInput({
     onCancel,
     model,
     onModelChange,
+    reasoningEffort,
+    onReasoningEffortChange,
     apiKeys,
     onHeightChange,
 }: {
@@ -337,6 +328,8 @@ function TRChatInput({
     onCancel: () => void;
     model: string;
     onModelChange: (id: string) => void;
+    reasoningEffort?: string;
+    onReasoningEffortChange: (value: string) => void;
     apiKeys?: ApiKeyState;
     onHeightChange: (height: number) => void;
 }) {
@@ -408,6 +401,11 @@ function TRChatInput({
                     className="w-full resize-none text-sm bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48 overflow-hidden border-0 p-0 pl-3 pr-2 pt-0.5"
                 />
                 <div className="flex items-center justify-end gap-1.5 pl-1 pr-2">
+                    <ReasoningEffortToggle
+                        model={model}
+                        value={reasoningEffort}
+                        onChange={onReasoningEffortChange}
+                    />
                     <ModelToggle
                         value={model}
                         onChange={onModelChange}
@@ -579,9 +577,11 @@ export function TRChatPanel({
     initialChatId,
     onChatIdChange,
 }: Props) {
-    const { profile, updateModelPreference } = useUserProfile();
+    const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
-    const currentModel = profile?.tabularModel ?? "gemini-3-flash-preview";
+    const [currentModel, setCurrentModel] = useSelectedModel();
+    const [reasoningEffort, setReasoningEffort] =
+        useSelectedReasoningEffort();
     const [apiKeyModalProvider, setApiKeyModalProvider] =
         useState<ModelProvider | null>(null);
     const [chats, setChats] = useState<TRChat[]>([]);
@@ -860,7 +860,12 @@ export function TRChatPanel({
                 allMessages,
                 currentChatId,
                 controller.signal,
-                { reviewTitle, projectName },
+                {
+                    reviewTitle,
+                    projectName,
+                    model: currentModel,
+                    reasoningEffort,
+                },
             );
             if (!response.body) throw new Error("No response body");
 
@@ -1564,9 +1569,9 @@ export function TRChatPanel({
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 model={currentModel}
-                onModelChange={(id) =>
-                    updateModelPreference("tabularModel", id)
-                }
+                onModelChange={setCurrentModel}
+                reasoningEffort={reasoningEffort}
+                onReasoningEffortChange={setReasoningEffort}
                 apiKeys={apiKeys}
                 onHeightChange={setInputHeight}
             />

@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { ChatView } from "@/app/components/assistant/ChatView";
-import { getChat } from "@/app/lib/beaverApi";
+import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+import {
+    getChat,
+    getProject,
+    updateChatProject,
+} from "@/app/lib/beaverApi";
 
 export default function AssistantChatPage() {
     const router = useRouter();
     const params = useParams();
     const id = params.id as string;
+    const [projectId, setProjectId] = useState<string | null>(null);
+    const [projectName, setProjectName] = useState<string | null>(null);
+    const [projectModalOpen, setProjectModalOpen] = useState(false);
 
     const { setCurrentChatId, newChatMessages, setNewChatMessages } =
         useChatHistoryContext();
@@ -26,7 +34,11 @@ export default function AssistantChatPage() {
         clearRejectedTurn,
         retryRejectedTurn,
         cancel,
-    } = useAssistantChat({ initialMessages, chatId: id });
+    } = useAssistantChat({
+        initialMessages,
+        chatId: id,
+        projectId: projectId ?? undefined,
+    });
 
     const hasAutoSent = useRef(false);
     const hasLoaded = useRef(false);
@@ -44,8 +56,18 @@ export default function AssistantChatPage() {
         hasLoaded.current = true;
 
         getChat(id)
-            .then(({ chat, messages: loaded }) => {
+            .then(async ({ chat, messages: loaded }) => {
                 setTranscriptVersion(chat.transcript_version ?? 0);
+                setProjectId(chat.project_id);
+                if (chat.project_id) {
+                    getProject(chat.project_id)
+                        .then((project) => setProjectName(project.name))
+                        .catch(() => {});
+                    router.replace(
+                        `/projects/${chat.project_id}/assistant/chat/${id}`,
+                    );
+                    return;
+                }
                 if (loaded.length > 0) {
                     setMessages(loaded);
                 } else {
@@ -69,16 +91,40 @@ export default function AssistantChatPage() {
         }
     }, [newChatMessages, messages.length, isResponseLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    async function changeProject(nextProjectId: string | null) {
+        const updated = await updateChatProject(id, nextProjectId);
+        setProjectId(updated.project_id);
+        if (updated.project_id) {
+            const project = await getProject(updated.project_id);
+            setProjectName(project.name);
+            router.replace(
+                `/projects/${updated.project_id}/assistant/chat/${id}`,
+            );
+        } else {
+            setProjectName(null);
+        }
+    }
+
     return (
-        <ChatView
-            chatId={id}
-            messages={messages}
-            isResponseLoading={isResponseLoading}
-            handleChat={handleChat}
-            cancel={cancel}
-            rejectedTurn={rejectedTurn}
-            onRejectedTurnRestored={clearRejectedTurn}
-            onRetryRejectedTurn={() => void retryRejectedTurn()}
-        />
+        <>
+            <ChatView
+                chatId={id}
+                messages={messages}
+                isResponseLoading={isResponseLoading}
+                handleChat={handleChat}
+                cancel={cancel}
+                rejectedTurn={rejectedTurn}
+                onRejectedTurnRestored={clearRejectedTurn}
+                onRetryRejectedTurn={() => void retryRejectedTurn()}
+                projectName={projectName}
+                onProjectClick={() => setProjectModalOpen(true)}
+            />
+            <SelectAssistantProjectModal
+                open={projectModalOpen}
+                onClose={() => setProjectModalOpen(false)}
+                currentProjectId={projectId}
+                onSelectProject={changeProject}
+            />
+        </>
     );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { getAuthHeader } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
@@ -6,16 +6,6 @@ import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import { GfmMarkdown } from "./MarkdownContent";
-
-const THINKING_PHRASES = [
-    "Thinking...",
-    "Pondering...",
-    "Analyzing...",
-    "Reviewing...",
-    "Reasoning...",
-];
-const REASONING_COLLAPSED_MAX_LINES = 6;
-const REASONING_COLLAPSED_MAX_HEIGHT_REM = 9;
 
 // ---------------------------------------------------------------------------
 // Event block primitives
@@ -45,7 +35,10 @@ export function EventBlock({
               ? "bg-red-400 shadow-[0_1px_3px_rgba(15,23,42,0.15),inset_0_1px_0_rgba(255,255,255,0.5)]"
               : "bg-gray-500 shadow-[0_1px_3px_rgba(15,23,42,0.15)]";
     return (
-        <div className="flex items-start text-sm font-serif text-gray-500 relative">
+        <div
+            role="listitem"
+            className="flex items-start text-sm font-serif text-gray-500 relative"
+        >
             {showConnector && <EventConnector />}
             {isStreaming ? (
                 <div className="mt-2 w-1.5 h-1.5 shrink-0 rounded-full border border-gray-400 border-t-transparent animate-spin" />
@@ -72,36 +65,7 @@ export function ReasoningBlock({
     isStreaming: boolean;
     showConnector?: boolean;
 }) {
-    const [isContentOpen, setIsContentOpen] = useState(false);
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [userToggledContent, setUserToggledContent] = useState(false);
-    const [isOverflowing, setIsOverflowing] = useState(false);
-    const [hasMeasured, setHasMeasured] = useState(false);
-    const [thinkingIndex, setThinkingIndex] = useState(0);
-    const contentRef = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-        if (!isStreaming) return;
-        const interval = setInterval(() => {
-            setThinkingIndex((i) => (i + 1) % THINKING_PHRASES.length);
-        }, 2000);
-        return () => clearInterval(interval);
-    }, [isStreaming]);
-
-    useEffect(() => {
-        const el = contentRef.current;
-        if (!el) return;
-        const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 24;
-        const maxHeight = lineHeight * REASONING_COLLAPSED_MAX_LINES;
-        const nextOverflowing = el.scrollHeight > maxHeight + 2;
-        setIsOverflowing(nextOverflowing);
-        setHasMeasured(true);
-        if (!userToggledContent) setIsContentOpen(isStreaming);
-        if (!nextOverflowing) setIsExpanded(false);
-    }, [isStreaming, text, userToggledContent]);
-
-    const showContent = isContentOpen || isStreaming || !hasMeasured;
-    const isCollapsed = isContentOpen && isOverflowing && !isExpanded;
+    const normalizedText = text.replace(/\r\n?/g, "\n").trim();
 
     return (
         <EventBlock
@@ -109,78 +73,20 @@ export function ReasoningBlock({
             isStreaming={isStreaming}
             dotColor="gray"
         >
-            <button
-                onClick={() => {
-                    if (isStreaming) return;
-                    setUserToggledContent(true);
-                    setIsContentOpen((v) => !v);
-                }}
-                className="flex items-center text-sm font-serif text-gray-500 hover:text-gray-600 transition-colors"
-            >
-                <span className="font-medium">
-                    {isStreaming
-                        ? THINKING_PHRASES[thinkingIndex]
-                        : "Thought process"}
-                </span>
-                {!isStreaming && (
-                    <ChevronDown
-                        size={10}
-                        className={`relative top-px ml-1 ${isContentOpen ? "" : "-rotate-90"}`}
-                    />
-                )}
-            </button>
-            {showContent && (
-                <div className="mt-2">
-                    <div
-                        className={`relative ${isCollapsed ? "overflow-hidden" : ""}`}
-                        style={
-                            isCollapsed
-                                ? {
-                                      maxHeight: `${REASONING_COLLAPSED_MAX_HEIGHT_REM}rem`,
-                                  }
-                                : undefined
-                        }
+            {normalizedText && (
+                <div className="text-sm font-serif text-gray-500 prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-500">
+                    <GfmMarkdown
+                        components={{
+                            code: (props) => (
+                                <code
+                                    className="font-serif text-gray-600"
+                                    {...withoutMarkdownNode(props)}
+                                />
+                            ),
+                        }}
                     >
-                        <div
-                            ref={contentRef}
-                            className="text-sm font-serif text-gray-400 prose prose-sm max-w-none [&>*]:text-gray-400 [&>*]:text-sm"
-                        >
-                            <GfmMarkdown
-                                components={{
-                                    code: (props) => (
-                                        <code
-                                            className="font-serif text-gray-600"
-                                            {...withoutMarkdownNode(props)}
-                                        />
-                                    ),
-                                }}
-                            >
-                                {text}
-                            </GfmMarkdown>
-                        </div>
-                        {isCollapsed && (
-                            <>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsExpanded(true)}
-                                    className="absolute left-1/2 bottom-2 z-10 -translate-x-1/2 text-gray-400 transition-colors hover:text-gray-600"
-                                    aria-label="Expand thought process"
-                                >
-                                    <ChevronDown className="h-3.5 w-3.5" />
-                                </button>
-                            </>
-                        )}
-                    </div>
-                    {isOverflowing && isContentOpen && isExpanded && (
-                        <button
-                            type="button"
-                            onClick={() => setIsExpanded(false)}
-                            className="mx-auto mt-2 flex text-gray-400 transition-colors hover:text-gray-600"
-                            aria-label="Minimise thought process"
-                        >
-                            <ChevronDown className="h-3.5 w-3.5 rotate-180" />
-                        </button>
-                    )}
+                        {normalizedText}
+                    </GfmMarkdown>
                 </div>
             )}
         </EventBlock>

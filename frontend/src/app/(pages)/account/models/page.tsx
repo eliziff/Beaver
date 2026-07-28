@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, Info, Loader2 } from "lucide-react";
+import { Check, Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import type { ApiKeyState } from "@/app/lib/beaverApi";
 import {
@@ -9,10 +9,7 @@ import {
     SETTINGS_MODELS,
     type ModelOption,
 } from "@/app/components/assistant/ModelToggle";
-import { isModelAvailable } from "@/app/lib/modelAvailability";
-import {
-    accountGlassInputClassName,
-} from "../accountStyles";
+import { ModelPicker } from "@/app/components/assistant/ModelPicker";
 import { AccountSection } from "../AccountSection";
 
 type ModelPreferenceField = "titleModel" | "tabularModel";
@@ -125,45 +122,16 @@ function ModelPreferenceDropdown({
     isSaving?: boolean;
     isSaved?: boolean;
 }) {
-    const selected = options.find((m) => m.id === value);
-    const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups = [...new Set(options.map((model) => model.group))];
-
     return (
         <div className="flex w-full max-w-xs items-center gap-2">
-            {!selectedAvailable && (
-                <AlertCircle
-                    className="h-3.5 w-3.5 shrink-0 text-red-500"
-                    aria-label="API key missing"
-                />
-            )}
-            <select
+            <ModelPicker
                 value={value}
                 disabled={isSaving}
-                onChange={(event) => onChange(event.currentTarget.value)}
-                title={selected?.label ?? "Select a model"}
-                aria-label="Model"
-                className={`h-9 min-w-0 flex-1 px-3 text-sm ${accountGlassInputClassName}`}
-            >
-                {groups.map((group) => {
-                    const items = options.filter((m) => m.group === group);
-                    return (
-                        <optgroup key={group} label={group}>
-                            {items.map((m) => {
-                                const available = apiKeys
-                                    ? isModelAvailable(m.id, apiKeys)
-                                    : true;
-                                return (
-                                    <option key={m.id} value={m.id}>
-                                        {m.label}
-                                        {available ? "" : " (API key missing)"}
-                                    </option>
-                                );
-                            })}
-                        </optgroup>
-                    );
-                })}
-            </select>
+                models={options}
+                apiKeys={apiKeys}
+                onChange={onChange}
+                className="max-w-xs"
+            />
             {isSaving ? (
                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-500" />
             ) : isSaved ? (

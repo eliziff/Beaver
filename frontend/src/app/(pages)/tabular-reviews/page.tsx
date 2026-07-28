@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChevronDown, Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
 import {
@@ -19,7 +19,6 @@ import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
-    TABLE_CHECKBOX_CLASS,
     SkeletonDot,
     SkeletonLine,
     TableBody,
@@ -35,6 +34,7 @@ import {
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
@@ -79,14 +79,7 @@ export default function TabularReviewsPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { user } = useAuth();
-    const previewEmptyStates = searchParams.get("emptyStates") === "1";
-    const effectiveLoading = loading && !previewEmptyStates;
-    const visibleReviews = useMemo(
-        () => (previewEmptyStates ? [] : reviews),
-        [previewEmptyStates, reviews],
-    );
 
     useEffect(() => {
         Promise.all([
@@ -110,7 +103,7 @@ export default function TabularReviewsPage() {
     );
     const q = search.toLowerCase();
     const filtered = useMemo(() => {
-        const rows = visibleReviews
+        const rows = reviews
             .filter((r) => {
                 if (activeScope === "in-project") return !!r.project_id;
                 if (activeScope === "standalone") return !r.project_id;
@@ -153,7 +146,7 @@ export default function TabularReviewsPage() {
                 ) * multiplier
             );
         });
-    }, [activeScope, projectFilter, q, sort, visibleReviews]);
+    }, [activeScope, projectFilter, q, reviews, sort]);
 
     const allSelected =
         filtered.length > 0 &&
@@ -268,6 +261,7 @@ export default function TabularReviewsPage() {
     const projectFilterButton = (
         <TableFilters
             label="Filter by project"
+            searchable
             value={projectFilter}
             allLabel="All Projects"
             options={projects.map((project) => ({
@@ -385,51 +379,50 @@ export default function TabularReviewsPage() {
                 header={
                     <TableHeaderRow>
                         <TableStickyCell header>
-                            {effectiveLoading ? (
-                                <SkeletonDot className="mr-4" />
+                            {loading ? (
+                                <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
                             ) : (
-                                <input
-                                    type="checkbox"
+                                <CheckboxControl
                                     checked={allSelected}
                                     ref={(el) => {
                                         if (el) el.indeterminate = someSelected;
                                     }}
                                     onChange={toggleAll}
-                                    className={TABLE_CHECKBOX_CLASS}
+                                    className="-ml-2 mr-1"
                                 />
                             )}
                             <span className="mr-1">Name</span>
-                            {!loading && nameFilterButton}
+                            {nameFilterButton}
                         </TableStickyCell>
                         <TableHeaderCell className="ml-auto w-24">
                             <div className="flex items-center gap-1">
                                 <span>Columns</span>
-                                {!loading && columnsFilterButton}
+                                {columnsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-24">
                             <div className="flex items-center gap-1">
                                 <span>Documents</span>
-                                {!loading && documentsFilterButton}
+                                {documentsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-40">
                             <div className="flex items-center gap-1">
                                 <span>Project</span>
-                                {!loading && projectFilterButton}
+                                {projectFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-32">
                             <div className="flex items-center gap-1">
                                 <span>Created</span>
-                                {!loading && createdFilterButton}
+                                {createdFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className="w-8" />
                     </TableHeaderRow>
                 }
             >
-                {effectiveLoading ? (
+                {loading ? (
                     <TableBody>
                         {[1, 2, 3].map((i) => (
                             <TableRow

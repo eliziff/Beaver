@@ -133,9 +133,9 @@ describe("LegalResearchLabelsPanel", () => {
             />,
         );
 
-        await user.selectOptions(
-            screen.getByRole("combobox", { name: "Project" }),
-            "memo",
+        await user.click(screen.getByTitle("Appeal"));
+        await user.click(
+            screen.getByRole("option", { name: "Research memo" }),
         );
 
         expect(onActiveProjectIdChange).toHaveBeenCalledWith("memo");
@@ -170,9 +170,11 @@ describe("LegalResearchLabelsPanel", () => {
         fireEvent.input(screen.getByLabelText("Color"), {
             target: { value: "#7c3aed" },
         });
-        await user.selectOptions(
-            screen.getByRole("combobox", { name: "Parent" }),
-            "administrative-law",
+        await user.click(screen.getByTitle("No parent"));
+        await user.click(
+            screen.getByRole("option", {
+                name: "Public law \u203a Administrative law",
+            }),
         );
         await user.click(
             screen.getByRole("button", { name: "Create label" }),

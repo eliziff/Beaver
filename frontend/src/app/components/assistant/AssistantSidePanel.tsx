@@ -10,6 +10,7 @@ import {
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
+    AutomationRunEvent,
     Citation,
     EditAnnotation,
 } from "../shared/types";
@@ -23,6 +24,7 @@ import {
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
+import { AutomationRunPanel } from "@/app/components/documents/AutomationRun";
 
 // ---------------------------------------------------------------------------
 // Tab data
@@ -59,12 +61,19 @@ export type EditTab = CommonTab & {
     changeNumber?: number;
 };
 
+export type AutomationTab = {
+    kind: "automation";
+    id: string;
+    run: AutomationRunEvent;
+};
+
 export type AssistantSidePanelTab =
     | DocumentTab
     | CitationTab
     | EditTab
     | CaseTab
-    | LegalSourceTab;
+    | LegalSourceTab
+    | AutomationTab;
 
 interface Props {
     tabs: AssistantSidePanelTab[];
@@ -119,6 +128,7 @@ function maxPanelWidth() {
 }
 
 function tabTitle(tab: AssistantSidePanelTab): string {
+    if (tab.kind === "automation") return "Automation";
     if (tab.kind === "case") {
         return tab.caseName || tab.citation || "Case";
     }
@@ -223,11 +233,13 @@ export function AssistantSidePanel({
                     {tabs.map((tab) => {
                         const isActive = tab.id === active.id;
                         const showVersionBadge =
+                            tab.kind !== "automation" &&
                             tab.kind !== "case" &&
                             tab.kind !== "legal" &&
                             typeof tab.versionNumber === "number" &&
                             Number.isFinite(tab.versionNumber) &&
-                            tab.versionNumber > 1;
+                            tab.versionNumber >
+                                (tab.kind === "edit" ? 0 : 1);
                         const title = tabTitle(tab);
                         return (
                             <div
@@ -287,6 +299,17 @@ export function AssistantSidePanel({
             <div className="flex-1 min-h-0 relative">
                 {tabs.map((tab) => {
                     const isActive = tab.id === active.id;
+                    if (tab.kind === "automation") {
+                        return (
+                            <div
+                                key={tab.id}
+                                className={`absolute inset-0 overflow-y-auto ${isActive ? "" : "invisible pointer-events-none"}`}
+                                aria-hidden={!isActive}
+                            >
+                                <AutomationRunPanel run={tab.run} />
+                            </div>
+                        );
+                    }
                     if (tab.kind === "case") {
                         return (
                             <div
@@ -332,7 +355,6 @@ export function AssistantSidePanel({
                               ? {
                                     kind: "edit",
                                     edit: tab.edit,
-                                    changeNumber: tab.changeNumber,
                                     isEditReloading:
                                         isEditReloading?.(tab.edit.edit_id) ??
                                         false,

@@ -4,7 +4,6 @@ import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
 import {
-    TABLE_CHECKBOX_CLASS,
     SkeletonDot,
     SkeletonLine,
     TableBody,
@@ -20,6 +19,7 @@ import {
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
@@ -154,6 +154,7 @@ export function ProjectAssistantTable({
     const creatorFilterButton = (
         <TableFilters
             label="Filter by creator"
+            searchable
             value={creatorFilter}
             allLabel="All Creators"
             widthClassName="w-44"
@@ -178,10 +179,9 @@ export function ProjectAssistantTable({
                 <TableHeaderRow className="pr-8 md:pr-8">
                     <TableStickyCell header>
                         {loading ? (
-                            <SkeletonDot className="mr-4" />
+                            <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
                         ) : (
-                            <input
-                                type="checkbox"
+                            <CheckboxControl
                                 checked={allVisibleChatsSelected}
                                 ref={(el) => {
                                     if (el)
@@ -196,22 +196,22 @@ export function ProjectAssistantTable({
                                             visibleChats.map((c) => c.id),
                                         );
                                 }}
-                                className={TABLE_CHECKBOX_CLASS}
+                                className="-ml-2 mr-1"
                             />
                         )}
                         <span className="mr-1">Chats</span>
-                        {!loading && nameFilterButton}
+                        {nameFilterButton}
                     </TableStickyCell>
                     <TableHeaderCell className="ml-auto w-32">
                         <div className="flex items-center gap-1">
                             <span>Creator</span>
-                            {!loading && creatorFilterButton}
+                            {creatorFilterButton}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className="w-32">
                         <div className="flex items-center gap-1">
                             <span>Created</span>
-                            {!loading && createdFilterButton}
+                            {createdFilterButton}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className="w-8" />

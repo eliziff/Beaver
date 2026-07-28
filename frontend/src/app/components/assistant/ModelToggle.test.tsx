@@ -53,9 +53,37 @@ describe("ModelToggle", () => {
             />,
         );
 
+        screen.getByRole("combobox", { name: /GPT 5.6 Terra/ });
+    });
+
+    it("keeps one fixed control and its selection while options refresh", async () => {
+        const user = userEvent.setup();
+        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        getCatalogMock.mockReturnValue(
+            new Promise((resolve) => {
+                resolveCatalog = resolve;
+            }),
+        );
+        render(
+            <ModelToggle
+                value="codex:gpt-5.6-terra"
+                onChange={vi.fn()}
+            />,
+        );
+
+        const initial = screen.getByRole("combobox", {
+            name: /GPT 5.6 Terra/,
+        });
+
+        resolveCatalog(catalog([luna()]));
+        await waitFor(() => expect(getCatalogMock).toHaveBeenCalled());
+        await user.click(initial);
+        await screen.findByRole("option", { name: "GPT-5.6-Luna" });
+
         expect(
             screen.getByRole("combobox", { name: /GPT 5.6 Terra/ }),
-        ).toBeInTheDocument();
+        ).toBe(initial);
+        expect(initial).toHaveTextContent("GPT 5.6 Terra");
     });
 
     it("shows each canonical model once and never exposes generic Codex local", async () => {
@@ -73,21 +101,48 @@ describe("ModelToggle", () => {
         render(
             <ModelToggle value="codex:gpt-5.6-luna" onChange={vi.fn()} />,
         );
-        const menu = await screen.findByRole("combobox", {
+        const trigger = await screen.findByRole("combobox", {
             name: /GPT-5.6-Luna/,
         });
+        await userEvent.click(trigger);
+        const menu = screen.getByRole("listbox", { name: "Models" });
 
         expect(
             within(menu).getAllByRole("option", { name: "GPT-5.6-Luna" }),
         ).toHaveLength(1);
-        expect(within(menu).queryByText("Claude Fable 5")).not.toBeInTheDocument();
-        expect(
-            screen.getByRole("combobox", {
-                name: "Model provider: Codex",
-            }),
-        ).toBeInTheDocument();
+        for (const group of [
+            "Anthropic",
+            "Google",
+            "DeepSeek",
+            "Meta",
+            "Codex",
+        ]) {
+            within(menu).getByText(group);
+        }
+        within(menu).getByText("Claude Fable 5");
+        expect(screen.getAllByRole("combobox")).toHaveLength(1);
         expect(within(menu).queryByText("Codex (local)")).not.toBeInTheDocument();
         expect(within(menu).queryByText("GPT-5.5")).not.toBeInTheDocument();
+    });
+
+    it("changes provider and model in one grouped control", async () => {
+        const onChange = vi.fn();
+        const user = userEvent.setup();
+        getCatalogMock.mockResolvedValue(catalog([luna()]));
+        render(
+            <ModelToggle value="codex:gpt-5.6-luna" onChange={onChange} />,
+        );
+
+        await user.click(
+            await screen.findByRole("combobox", {
+                name: /GPT-5.6-Luna/,
+            }),
+        );
+        await user.click(
+            screen.getByRole("option", { name: "Claude Sonnet 4.6" }),
+        );
+
+        expect(onChange).toHaveBeenCalledWith("claude-sonnet-4-6");
     });
 
     it("uses the last good catalog when refresh is unavailable", async () => {
@@ -106,15 +161,10 @@ describe("ModelToggle", () => {
             <ModelToggle value="codex:gpt-5.6-luna" onChange={vi.fn()} />,
         );
 
-        expect(
-            await screen.findByRole("combobox", {
-                name: /Cached Luna Label/,
-            }),
-        ).toBeInTheDocument();
+        await screen.findByRole("combobox", {
+            name: /Cached Luna Label/,
+        });
         await waitFor(() => expect(getCatalogMock).toHaveBeenCalled());
-        expect(
-            screen.getByRole("combobox", { name: /Cached Luna Label/ }),
-        ).toBeInTheDocument();
     });
 
     it("exposes both current DeepSeek V4 models in normal chat", async () => {
@@ -123,13 +173,14 @@ describe("ModelToggle", () => {
             <ModelToggle value="deepseek-v4-flash" onChange={vi.fn()} />,
         );
 
-        const menu = screen.getByRole("combobox", {
+        const trigger = screen.getByRole("combobox", {
             name: /DeepSeek V4 Flash/,
         });
-        expect(within(menu).getByText("DeepSeek V4 Flash")).toBeInTheDocument();
-        expect(within(menu).getByText("DeepSeek V4 Pro")).toBeInTheDocument();
-        expect(within(menu).queryByText("deepseek-chat")).not.toBeInTheDocument();
-        expect(within(menu).queryByText("deepseek-reasoner")).not.toBeInTheDocument();
+        await userEvent.click(trigger);
+        const menu = screen.getByRole("listbox", { name: "Models" });
+        within(menu).getByText("DeepSeek V4 Flash");
+        within(menu).getByText("DeepSeek V4 Pro");
+        expect(menu).not.toHaveTextContent(/deepseek-(chat|reasoner)/u);
     });
 
     it("exposes Muse Spark through the configured OpenRouter provider", async () => {
@@ -141,16 +192,57 @@ describe("ModelToggle", () => {
             />,
         );
 
+        await userEvent.click(
+            screen.getByRole("combobox", { name: /Muse Spark 1.1/ }),
+        );
+        screen.getByRole("option", { name: "Muse Spark 1.1" });
+    });
+
+    it("keeps the searchable list bounded with keyboard dismissal", async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        getCatalogMock.mockResolvedValue(catalog([luna()]));
+        render(
+            <ModelToggle value="codex:gpt-5.6-luna" onChange={onChange} />,
+        );
+
+        const trigger = await screen.findByRole("combobox", {
+            name: /GPT-5.6-Luna/,
+        });
+        await user.click(trigger);
+        const listbox = screen.getByRole("listbox", { name: "Models" });
+        const search = screen.getByRole("searchbox", {
+            name: "Search models",
+        });
+        await user.type(search, "sonnet");
+        screen.getByRole("option", { name: "Claude Sonnet 4.6" });
         expect(
-            within(
-                screen.getByRole("combobox", { name: /Muse Spark 1.1/ }),
-            ).getByRole("option", { name: "Muse Spark 1.1" }),
-        ).toBeInTheDocument();
+            screen.queryByRole("option", { name: "GPT-5.6-Luna" }),
+        ).not.toBeInTheDocument();
+        await user.keyboard("{Escape}");
+        expect(listbox).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
+
+        await user.click(trigger);
+        await user.type(
+            screen.getByRole("searchbox", { name: "Search models" }),
+            "sonnet",
+        );
+        await user.keyboard("{ArrowDown}{Enter}");
+        expect(onChange).toHaveBeenCalledWith("claude-sonnet-4-6");
+
+        await user.click(trigger);
+        await user.click(
+            document.querySelector<HTMLElement>("[data-shortcut-layer]")!,
+        );
+        expect(
+            screen.queryByRole("listbox", { name: "Models" }),
+        ).not.toBeInTheDocument();
     });
 });
 
 describe("ReasoningEffortToggle", () => {
-    it("reserves the control width while Codex capabilities load", async () => {
+    it("keeps a disabled control while Codex capabilities load", async () => {
         let resolveCatalog!: (value: CodexModelCatalog) => void;
         getCatalogMock.mockReturnValue(
             new Promise((resolve) => {
@@ -158,7 +250,7 @@ describe("ReasoningEffortToggle", () => {
             }),
         );
 
-        const { container } = render(
+        render(
             <ReasoningEffortToggle
                 model="codex:gpt-5.6-luna"
                 value="medium"
@@ -167,8 +259,11 @@ describe("ReasoningEffortToggle", () => {
         );
 
         expect(
-            container.querySelector(".reasoning-effort-toggle"),
-        ).toHaveAttribute("aria-hidden", "true");
+            screen.getByRole("combobox", {
+                name: "Reasoning effort unavailable",
+            }),
+        ).toBeDisabled();
+        screen.getByRole("option", { name: "Loading" });
 
         resolveCatalog(catalog([luna()]));
         await waitFor(() =>
@@ -209,7 +304,7 @@ describe("ReasoningEffortToggle", () => {
         expect(onChange).toHaveBeenCalledWith("max");
     });
 
-    it("does not show an inapplicable effort control", () => {
+    it("keeps stable geometry when effort is inapplicable", () => {
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
             <ReasoningEffortToggle
@@ -220,10 +315,11 @@ describe("ReasoningEffortToggle", () => {
         );
 
         expect(
-            screen.queryByRole("combobox", {
-                name: /Reasoning effort/,
+            screen.getByRole("combobox", {
+                name: "Reasoning effort unavailable",
             }),
-        ).not.toBeInTheDocument();
+        ).toBeDisabled();
+        screen.getByRole("option", { name: "Automatic" });
     });
 
     it("offers only high and max for DeepSeek, defaulting to high", async () => {

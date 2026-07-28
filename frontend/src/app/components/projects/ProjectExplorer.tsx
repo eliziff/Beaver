@@ -15,12 +15,10 @@ import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import {
-    ProjectSvgIcon,
-    SubfolderSvgIcon,
+    FolderSvgIcon,
 } from "@/app/components/shared/FolderSvgIcon";
 
 interface Props {
-    projectName?: string | null;
     documents: Document[];
     folders?: ProjectFolder[];
     selectedDocId?: string | null;
@@ -47,7 +45,6 @@ type ContextMenuState = {
 };
 
 export function ProjectExplorer({
-    projectName,
     documents,
     folders = [],
     selectedDocId,
@@ -222,7 +219,7 @@ export function ProjectExplorer({
                         style={{ paddingLeft: basePadding }}
                     >
                         <ChevronRight className="h-3 w-3 text-gray-300 shrink-0" />
-                        <SubfolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                        <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                         <input
                             ref={newFolderInputRef}
                             autoFocus
@@ -287,7 +284,7 @@ export function ProjectExplorer({
                                     ? <ChevronDown className="h-3 w-3 text-gray-400 shrink-0" />
                                     : <ChevronRight className="h-3 w-3 text-gray-400 shrink-0" />
                                 }
-                                <SubfolderSvgIcon
+                                <FolderSvgIcon
                                     open={isExpanded}
                                     className="h-3.5 w-3.5 shrink-0"
                                 />
@@ -388,17 +385,6 @@ export function ProjectExplorer({
                 // External file drops bubble up to the parent panel's onDrop (upload handler)
             }}
         >
-            {/* Project root row */}
-            {projectName && (
-                <li
-                    className="flex items-center gap-2 px-2 py-1.5 select-none"
-                    onContextMenu={(e) => { e.stopPropagation(); openContextMenu(e, null); }}
-                >
-                    <ProjectSvgIcon open className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-xs text-gray-500 truncate">{projectName}</span>
-                </li>
-            )}
-
             {/* Tree (depth 1 = direct children of root).
                 Root-level new-folder input is rendered here by renderLevel
                 when creatingIn === null — no separate top-level block. */}
@@ -430,7 +416,7 @@ export function ProjectExplorer({
                                 setNewFolderName("");
                             }}
                         >
-                            <SubfolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
+                            <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                             New subfolder
                         </button>
                     )}

@@ -17,12 +17,12 @@ import type {
 import { TabularCell as TabularCellComponent } from "./TabularCell";
 import { TREditColumnMenu } from "./TREditColumnMenu";
 import {
-    TABLE_CHECKBOX_CLASS,
     SkeletonDot,
     SkeletonLine,
     TableScrollArea,
     closeTablePopups,
 } from "../shared/TablePrimitive";
+import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
@@ -352,14 +352,13 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     <div
                         className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 flex items-center py-2 pl-4 pr-2 text-left text-xs font-medium text-gray-500 select-none`}
                     >
-                        <input
-                            type="checkbox"
+                        <CheckboxControl
                             checked={allSelected}
                             ref={(el) => {
                                 if (el) el.indeterminate = someSelected;
                             }}
                             onChange={toggleAll}
-                            className={TABLE_CHECKBOX_CLASS}
+                            className="-ml-2 mr-1"
                         />
                         <span>Document</span>
                     </div>
@@ -405,10 +404,9 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         <div
                             className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-400 flex items-center`}
                         >
-                            <input
-                                type="checkbox"
+                            <CheckboxControl
                                 disabled
-                                className="mr-4 h-2.5 w-2.5 shrink-0 rounded border-gray-200 cursor-default accent-black disabled:opacity-100"
+                                className="-ml-2 mr-1"
                             />
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin shrink-0" />
                             <span className="line-clamp-1" title={filename}>
@@ -443,11 +441,10 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                             <div
                                 className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center transition-colors ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                             >
-                                <input
-                                    type="checkbox"
+                                <CheckboxControl
                                     checked={selectedDocIdSet.has(doc.id)}
                                     onChange={() => toggleDoc(doc.id)}
-                                    className={TABLE_CHECKBOX_CLASS}
+                                    className="-ml-2 mr-1"
                                 />
                                 <span
                                     className="line-clamp-1"

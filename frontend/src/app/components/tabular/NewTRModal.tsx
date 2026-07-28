@@ -5,15 +5,15 @@ import { Loader2, Upload } from "lucide-react";
 import type { Document, Project, Workflow } from "../shared/types";
 import {
     getProject,
-    listWorkflows,
     uploadProjectDocument,
     uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
 import { FileDirectory } from "../shared/FileDirectory";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
-import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
+import { ProjectChoiceList } from "../projects/ProjectChoiceList";
+import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 
 interface Props {
     open: boolean;
@@ -56,25 +56,14 @@ export function NewTRModal({
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [workflows, setWorkflows] = useState<Workflow[]>([]);
-    const [loadingWorkflows, setLoadingWorkflows] = useState(false);
-    const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(
         null,
     );
+    const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false);
     const formId = "new-tabular-review-modal-form";
 
     useEffect(() => {
         if (!open) return;
-
-        setLoadingWorkflows(true);
-        listWorkflows("tabular")
-            .then((workflows) => {
-                setWorkflows(workflows);
-            })
-            .catch(() => {
-                setWorkflows([]);
-            })
-            .finally(() => setLoadingWorkflows(false));
 
         if (isProjectMode) {
             setSelectedDocuments(fixedProjectDocs ?? []);
@@ -91,7 +80,8 @@ export function NewTRModal({
         setProjectDocs([]);
         setExtraStandaloneDocs([]);
         setSelectedDocuments([]);
-        setSelectedWorkflowId(null);
+        setSelectedWorkflow(null);
+        setWorkflowPickerOpen(false);
         onClose();
     }
 
@@ -111,9 +101,6 @@ export function NewTRModal({
             setStep("documents");
             return;
         }
-        const selectedWorkflow = workflows.find(
-            (w) => w.id === selectedWorkflowId,
-        );
         onAdd(
             title.trim(),
             underProject ? selectedProjectId : undefined,
@@ -174,28 +161,6 @@ export function NewTRModal({
         }
     }
 
-    const workflowOptions = [
-        {
-            value: "",
-            label: loadingWorkflows
-                ? "Loading templates..."
-                : "No template - start from scratch",
-        },
-        ...workflows.map((workflow) => ({
-            value: workflow.id,
-            label: workflow.metadata.title,
-        })),
-    ];
-    const projectOptions = projects.length
-        ? projects.map((project) => ({
-              value: project.id,
-              label:
-                  project.name +
-                  (project.cm_number ? ` (#${project.cm_number})` : ""),
-          }))
-        : [{ value: "", label: "No projects found" }];
-
-    // What to show in the directory depends on mode and toggle state
     const directoryDocuments = isProjectMode
         ? (fixedProjectDocs ?? [])
         : underProject
@@ -217,8 +182,9 @@ export function NewTRModal({
             : ["Tabular Reviews", "New Tabular Review"];
 
     return (
+        <>
         <Modal
-            open={open}
+            open={open && !workflowPickerOpen}
             onClose={handleClose}
             breadcrumbs={[
                 ...breadcrumbs,
@@ -307,15 +273,30 @@ export function NewTRModal({
                             <ModalFieldLabel as="p">
                                 Workflow template
                             </ModalFieldLabel>
-                            <ModalSelect
-                                id="new-tr-workflow-template"
-                                value={selectedWorkflowId ?? ""}
-                                options={workflowOptions}
-                                onChange={(value) =>
-                                    setSelectedWorkflowId(value || null)
-                                }
-                                disabled={loadingWorkflows}
-                            />
+                            <div className="flex min-w-0 items-center gap-2">
+                                <button
+                                    id="new-tr-workflow-template"
+                                    type="button"
+                                    onClick={() => setWorkflowPickerOpen(true)}
+                                    className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 hover:border-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                                >
+                                    <span className="truncate">
+                                        {selectedWorkflow?.metadata.title ??
+                                            "No template — start from scratch"}
+                                    </span>
+                                </button>
+                                {selectedWorkflow && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setSelectedWorkflow(null)
+                                        }
+                                        className="h-10 shrink-0 px-2 text-sm text-gray-600 hover:text-gray-900"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {!isProjectMode && (
@@ -349,16 +330,12 @@ export function NewTRModal({
                                 </button>
 
                                 {underProject && (
-                                    <ModalSelect
-                                        id="new-tr-project"
-                                        value={selectedProjectId}
-                                        options={projectOptions}
+                                    <ProjectChoiceList
+                                        projects={projects}
+                                        value={selectedProjectId || null}
                                         onChange={(value) => {
-                                            if (value) {
-                                                void handleSelectProject(value);
-                                            }
+                                            void handleSelectProject(value);
                                         }}
-                                        placeholder="Select project..."
                                         disabled={projects.length === 0}
                                     />
                                 )}
@@ -380,5 +357,15 @@ export function NewTRModal({
                 )}
             </form>
         </Modal>
+        <WorkflowPickerModal
+            open={workflowPickerOpen}
+            onClose={() => setWorkflowPickerOpen(false)}
+            onSelect={(workflow) => setSelectedWorkflow(workflow)}
+            workflowType="tabular"
+            breadcrumbs={["New tabular review", "Workflow template"]}
+            primaryLabel="Choose"
+            initialWorkflowId={selectedWorkflow?.id}
+        />
+        </>
     );
 }

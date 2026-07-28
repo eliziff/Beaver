@@ -4,6 +4,7 @@ import { useAssistantChat } from "./useAssistantChat";
 
 const mocks = vi.hoisted(() => ({
   getChat: vi.fn(),
+  stopChat: vi.fn(),
   streamChat: vi.fn(),
   streamProjectChat: vi.fn(),
   loadChats: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
   getChat: mocks.getChat,
+  stopChat: mocks.stopChat,
   streamChat: mocks.streamChat,
   streamProjectChat: mocks.streamProjectChat,
 }));
@@ -44,11 +46,30 @@ function streamResponse(events: unknown[]) {
   });
 }
 
+function byteSplitStreamResponse(events: unknown[]) {
+  const bytes = new TextEncoder().encode(
+    [
+      ...events.map((event) => `data: ${JSON.stringify(event)}\n\n`),
+      "data: [DONE]\n\n",
+    ].join(""),
+  );
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
+        controller.close();
+      },
+    }),
+    { headers: { "Content-Type": "text/event-stream" } },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   mocks.loadChats.mockResolvedValue(undefined);
   mocks.generateTitle.mockResolvedValue(undefined);
+  mocks.stopChat.mockResolvedValue({ stopped: true });
 });
 
 describe("useAssistantChat local transcript boundary", () => {
@@ -113,6 +134,123 @@ describe("useAssistantChat local transcript boundary", () => {
         expected_version: 6,
         current_turn: expect.objectContaining({
           content: "Second current turn",
+        }),
+      }),
+    );
+  });
+
+  it("sends the durable project ID on every project chat turn", async () => {
+    mocks.streamProjectChat
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "chat_id",
+            chatId: "chat-1",
+            transcriptVersion: 1,
+          },
+          { type: "transcript_version", transcriptVersion: 2 },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        streamResponse([
+          {
+            type: "chat_id",
+            chatId: "chat-1",
+            transcriptVersion: 3,
+          },
+          { type: "transcript_version", transcriptVersion: 4 },
+        ]),
+      );
+    const { result } = renderHook(() =>
+      useAssistantChat({
+        chatId: "chat-1",
+        projectId: "project-1",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "First project turn",
+      });
+      await result.current.handleChat({
+        role: "user",
+        content: "Second project turn",
+      });
+    });
+
+    expect(mocks.streamProjectChat).toHaveBeenCalledTimes(2);
+    expect(mocks.streamProjectChat).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        projectId: "project-1",
+        chat_id: "chat-1",
+        current_turn: expect.objectContaining({
+          content: "First project turn",
+        }),
+      }),
+    );
+    expect(mocks.streamProjectChat).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        projectId: "project-1",
+        chat_id: "chat-1",
+        current_turn: expect.objectContaining({
+          content: "Second project turn",
+        }),
+      }),
+    );
+    expect(mocks.streamChat).not.toHaveBeenCalled();
+  });
+
+  it("sends selected documents with the first workflow turn", async () => {
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "extract key terms",
+        files: [
+          {
+            filename: "Lease.docx",
+            document_id: "document-1",
+          },
+        ],
+        workflow: {
+          id: "builtin-extract-key-terms",
+          title: "Extract Key Terms",
+        },
+      });
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        current_turn: expect.objectContaining({
+          kind: "message",
+          content: "extract key terms",
+          files: [
+            {
+              filename: "Lease.docx",
+              document_id: "document-1",
+            },
+          ],
+          workflow: {
+            id: "builtin-extract-key-terms",
+            title: "Extract Key Terms",
+          },
         }),
       }),
     );
@@ -614,6 +752,383 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.messages).toEqual([
       { role: "user", content: "Create it once" },
       { role: "assistant", content: "Created." },
+    ]);
+  });
+
+  it("concatenates every streamed character through the final period", async () => {
+    const expected =
+      "It will need local-law review before use because tenancy rules vary by jurisdiction.";
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        {
+          type: "content_delta",
+          text: "It will need local-law re",
+        },
+        {
+          type: "content_delta",
+          text: "view before use because tenancy rules vary by jurisdiction",
+        },
+        { type: "content_delta", text: "." },
+        { type: "citations", status: "final", citations: [] },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Draft a lease",
+      });
+    });
+
+    expect(result.current.messages.at(-1)?.events).toEqual([
+      { type: "content", text: expected },
+    ]);
+  });
+
+  it("reconciles a live local DOCX redline into the original Mike event", async () => {
+    const annotation = {
+      kind: "edit" as const,
+      edit_id: "edit-1",
+      document_id: "document-1",
+      version_id: "version-2",
+      version_number: 2,
+      change_id: "7",
+      del_w_id: "8",
+      ins_w_id: "9",
+      deleted_text: "Original",
+      inserted_text: "Revised",
+      context_before: "",
+      context_after: " provision.",
+      status: "pending" as const,
+    };
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        { type: "tool_call_start", name: "library_revise_docx" },
+        { type: "doc_edited_start", filename: "Draft.docx" },
+        {
+          type: "doc_edited",
+          filename: "Draft.docx",
+          document_id: "document-1",
+          version_id: "version-2",
+          version_number: 2,
+          download_url:
+            "/single-documents/document-1/file?version_id=version-2",
+          annotations: [annotation],
+        },
+        {
+          type: "content_final",
+          text: "The tracked revision is ready.",
+        },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Revise the draft.",
+      });
+    });
+
+    const edited = result.current.messages
+      .at(-1)
+      ?.events?.find((event) => event.type === "doc_edited");
+    expect(edited).toEqual({
+      type: "doc_edited",
+      filename: "Draft.docx",
+      document_id: "document-1",
+      version_id: "version-2",
+      version_number: 2,
+      download_url:
+        "/single-documents/document-1/file?version_id=version-2",
+      annotations: [annotation],
+      isStreaming: false,
+    });
+  });
+
+  it("reconciles a local Word draft into the original Mike document card", async () => {
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        { type: "doc_created_start", filename: "Draft.docx" },
+        {
+          type: "doc_created",
+          filename: "Draft.docx",
+          document_id: "document-1",
+          version_id: "version-1",
+          version_number: 1,
+          download_url:
+            "/single-documents/document-1/file?version_id=version-1",
+        },
+        { type: "content_final", text: "The Word draft is ready." },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Create the draft.",
+      });
+    });
+
+    expect(
+      result.current.messages
+        .at(-1)
+        ?.events?.find((event) => event.type === "doc_created"),
+    ).toEqual({
+      type: "doc_created",
+      filename: "Draft.docx",
+      document_id: "document-1",
+      version_id: "version-1",
+      version_number: 1,
+      download_url:
+        "/single-documents/document-1/file?version_id=version-1",
+      isStreaming: false,
+    });
+  });
+
+  it("preserves exact UTF-8 and Markdown across mid-word tool races and final reconciliation", async () => {
+    const expected =
+      "I’ll prepare a corrected editable version, fixing clear typographical errors.\n\n" +
+      "I found a **matching editable Word copy**.\n\nCorrected safely.";
+    mocks.streamChat.mockResolvedValue(
+      byteSplitStreamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        {
+          type: "content_delta",
+          text: "I’ll prepare a corrected editable version, fixing clear typographic",
+        },
+        { type: "tool_call_start", name: "read_document" },
+        { type: "content_delta", text: "al errors." },
+        { type: "reasoning_delta", text: "**Checking**\n\n- source" },
+        { type: "reasoning_block_end" },
+        {
+          type: "content_delta",
+          text: "\n\nI found a **matching editable Word copy**.",
+        },
+        { type: "tool_call_start", name: "edit_document" },
+        { type: "content_delta", text: "\n\nCorrected safely" },
+        { type: "content_final", text: expected },
+        { type: "citations", status: "final", citations: [] },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Correct the editable copy",
+      });
+    });
+
+    const contentEvents = result.current.messages
+      .at(-1)
+      ?.events?.filter((event) => event.type === "content");
+    expect(contentEvents).toEqual([{ type: "content", text: expected }]);
+    expect(contentEvents?.[0].text).not.toContain("typographic\n\nal");
+    expect(contentEvents?.[0].text).not.toContain("errors.I");
+  });
+
+  it("keeps streamed Automation receipts intact", async () => {
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        {
+          type: "automation_run",
+          id: "call-1",
+          tool: "toa_job_status",
+          job_id: "a".repeat(32),
+          stage: "Build",
+          status: "complete",
+          progress: 100,
+          counts: [{ label: "Outputs", value: 1 }],
+          outputs: [{ name: "Book.pdf", url: "/download/book" }],
+          app_url: "/table-of-authorities?job=abc",
+        },
+        { type: "content_final", text: "The book is ready." },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Build the book",
+      });
+    });
+
+    expect(result.current.messages.at(-1)?.events).toContainEqual(
+      expect.objectContaining({
+        type: "automation_run",
+        id: "call-1",
+        stage: "Build",
+        status: "complete",
+        outputs: [{ name: "Book.pdf", url: "/download/book" }],
+      }),
+    );
+  });
+
+  it("detaches on unmount without stopping or aborting the backend turn", async () => {
+    let releaseResponse!: (response: Response) => void;
+    let requestSignal: AbortSignal | undefined;
+    mocks.streamChat.mockImplementation(
+      (payload: { signal?: AbortSignal }) => {
+        requestSignal = payload.signal;
+        return new Promise<Response>((resolve) => {
+          releaseResponse = resolve;
+        });
+      },
+    );
+    const { result, unmount } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    let pending!: Promise<string | null>;
+    act(() => {
+      pending = result.current.handleChat({
+        role: "user",
+        content: "Keep working",
+      });
+    });
+    await vi.waitFor(() => expect(mocks.streamChat).toHaveBeenCalledOnce());
+
+    unmount();
+
+    expect(requestSignal?.aborted).toBe(false);
+    expect(mocks.stopChat).not.toHaveBeenCalled();
+
+    releaseResponse(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    await pending;
+  });
+
+  it("uses the stop endpoint and preserves the exact partial suffix once", async () => {
+    const expected =
+      "It will need local-law review before use because tenancy rules vary by jurisdiction.";
+    let requestSignal: AbortSignal | undefined;
+    mocks.streamChat.mockImplementation(
+      async (payload: { signal?: AbortSignal }) => {
+        requestSignal = payload.signal;
+        const encoder = new TextEncoder();
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(
+                  'data: {"type":"chat_id","chatId":"chat-1","transcriptVersion":1}\n\n',
+                ),
+              );
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    type: "content_delta",
+                    text: expected,
+                  })}\n\n`,
+                ),
+              );
+              payload.signal?.addEventListener(
+                "abort",
+                () => {
+                  const error = new Error("Stream aborted.");
+                  error.name = "AbortError";
+                  controller.error(error);
+                },
+                { once: true },
+              );
+            },
+          }),
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      },
+    );
+    mocks.getChat.mockResolvedValue({
+      chat: { id: "chat-1", transcript_version: 2 },
+      messages: [
+        { role: "user", content: "Stop after this sentence" },
+        {
+          role: "assistant",
+          content: "",
+          events: [
+            { type: "content", text: expected },
+            { type: "content", text: "Cancelled by user." },
+          ],
+        },
+      ],
+    });
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    let pending!: Promise<string | null>;
+    act(() => {
+      pending = result.current.handleChat({
+        role: "user",
+        content: "Stop after this sentence",
+      });
+    });
+    await vi.waitFor(() => {
+      expect(result.current.messages.at(-1)?.events).toEqual([
+        expect.objectContaining({ type: "content", text: expected }),
+      ]);
+    });
+
+    act(() => result.current.cancel());
+    await act(async () => {
+      await pending;
+    });
+
+    expect(mocks.stopChat).toHaveBeenCalledWith("chat-1");
+    expect(requestSignal?.aborted).toBe(true);
+    expect(result.current.messages.at(-1)?.events).toEqual([
+      { type: "content", text: expected },
+      { type: "content", text: "Cancelled by user." },
     ]);
   });
 });
