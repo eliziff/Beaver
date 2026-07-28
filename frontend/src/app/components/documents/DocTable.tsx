@@ -56,7 +56,6 @@ import {
 import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import {
     APP_SURFACE_ACTIVE_CLASS,
-    APP_SURFACE_GROUP_HOVER_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import {
@@ -71,13 +70,16 @@ import {
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
+import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
+import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 export interface DocTableSelectionActions {
     selectedCount: number;
     selectedDocuments: Document[];
+    automationDocument: Document | null;
     hasDocumentsInFolders: boolean;
+    onAutomationDocumentChanged: () => Promise<void>;
     onDownload: () => Promise<void>;
     onRemoveFromFolder: () => Promise<void>;
     onDelete: () => Promise<void>;
@@ -96,6 +98,22 @@ const DOCUMENT_SIZE_COLUMN = "hidden w-24 shrink-0 md:block";
 const DOCUMENT_VERSION_COLUMN = "w-20 shrink-0";
 const DOCUMENT_CREATED_COLUMN = "hidden w-32 shrink-0 lg:block";
 const DOCUMENT_UPDATED_COLUMN = "hidden w-32 shrink-0 xl:block";
+
+function prewarmDocumentView(doc: Document) {
+    const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
+        .toLowerCase()
+        .replace(/^\./u, "");
+    if (type === "pdf" || !!doc.pdf_storage_path) {
+        void getPdfJs();
+        void preloadSingleDoc(
+            doc.id,
+            doc.current_version_id,
+            doc.updated_at,
+        ).catch(() => {});
+    } else if (type === "doc" || type === "docx") {
+        void import("docx-preview");
+    }
+}
 
 interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>;
@@ -196,6 +214,10 @@ function ProjectTableLoadingHeader({
                 bgClassName={stickyCellBg}
             >
                 <TableSelectionPlaceholder />
+                <span
+                    aria-hidden="true"
+                    className="mr-2 h-4 w-4 shrink-0"
+                />
                 <span className="mr-1">Name</span>
             </TableStickyCell>
             <TableHeaderCell className="ml-auto hidden w-20 items-center gap-1 sm:flex">
@@ -302,6 +324,7 @@ export function DocTable({
     );
     const detachesDocument = documentRemovalMode === "detach";
     const removeDocument = operations.removeDocument ?? deleteDocument;
+    const refreshCollection = operations.refreshCollection;
 
     useEffect(() => {
         loadingRef.current = loading;
@@ -417,9 +440,9 @@ export function DocTable({
         }
     }
 
-    async function refreshDocumentVersionState(docId: string) {
+    const refreshDocumentVersionState = useCallback(async (docId: string) => {
         // Refresh the collection so doc.active_version_number and filename advance.
-        await operations.refreshCollection();
+        await refreshCollection();
         // Re-fetch versions while keeping the previous rows visible until the
         // updated list arrives.
         const res = await listDocumentVersions(docId);
@@ -432,7 +455,7 @@ export function DocTable({
             return next;
         });
         return res;
-    }
+    }, [refreshCollection]);
 
     /**
      * Patch a version filename and update the local cache in place.
@@ -1353,6 +1376,7 @@ export function DocTable({
     }
 
     function openDocument(doc: Document) {
+        prewarmDocumentView(doc);
         setViewingDocVersion(null);
         setViewingDoc(doc);
     }
@@ -1495,18 +1519,13 @@ export function DocTable({
                                 aria-selected={
                                     selectionFirst ? isSelected : undefined
                                 }
-                                className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : APP_SURFACE_HOVER_CLASS}`}
+                                className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}
                             >
                                 {(() => {
-                                    const rowBg = isVersionDragOver
-                                        ? "bg-red-50"
-                                        : isSelected
-                                          ? APP_SURFACE_ACTIVE_CLASS
-                                          : stickyCellBg;
                                     return (
                                         <>
                                             <div
-                                                className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} ${rowBg} py-2 pl-4 pr-2 ${isVersionDragOver || isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                                className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} bg-inherit py-2 pl-4 pr-2`}
                                                 style={treeNameCellStyle(depth)}
                                             >
                                                 <div className="flex items-center">
@@ -1614,6 +1633,16 @@ export function DocTable({
                                                                     doc,
                                                                 );
                                                             }}
+                                                            onPointerEnter={() =>
+                                                                prewarmDocumentView(
+                                                                    doc,
+                                                                )
+                                                            }
+                                                            onFocus={() =>
+                                                                prewarmDocumentView(
+                                                                    doc,
+                                                                )
+                                                            }
                                                             className={pillButtonClassName(
                                                                 "black",
                                                                 "sm",
@@ -1623,14 +1652,6 @@ export function DocTable({
                                                             View
                                                         </button>
                                                     )}
-                                                    <DocumentAutomation
-                                                        document={doc}
-                                                        onDocumentChanged={async () => {
-                                                            await refreshDocumentVersionState(
-                                                                doc.id,
-                                                            );
-                                                        }}
-                                                    />
                                                 </div>
                                             </div>
                                             <div className={`${DOCUMENT_TYPE_COLUMN} ml-auto text-xs text-gray-500 uppercase truncate`}>
@@ -1660,6 +1681,16 @@ export function DocTable({
                                                         type="button"
                                                         onClick={() =>
                                                             openDocument(doc)
+                                                        }
+                                                        onPointerEnter={() =>
+                                                            prewarmDocumentView(
+                                                                doc,
+                                                            )
+                                                        }
+                                                        onFocus={() =>
+                                                            prewarmDocumentView(
+                                                                doc,
+                                                            )
                                                         }
                                                         className={`flex h-8 min-w-8 items-center justify-center rounded-md px-2 ${APP_SURFACE_HOVER_CLASS}`}
                                                         title="Open version history"
@@ -1787,10 +1818,10 @@ export function DocTable({
                                     );
                                 }}
                                 onClick={() => toggleFolder(folder.id)}
-                                className={`${DOCUMENT_ROW_CLASS} ${APP_SURFACE_HOVER_CLASS} cursor-pointer ${isRenaming ? "" : "select-none"} ${dragOverFolderId === folder.id ? "bg-red-50 ring-1 ring-inset ring-red-200" : ""}`}
+                                className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${isRenaming ? "" : "select-none"} ${dragOverFolderId === folder.id ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}
                             >
                                 <div
-                                    className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} py-2 pl-4 pr-2 ${dragOverFolderId === folder.id ? "bg-red-50" : stickyCellBg} ${dragOverFolderId === folder.id ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                    className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} bg-inherit py-2 pl-4 pr-2`}
                                     style={treeNameCellStyle(depth)}
                                 >
                                     <div className="flex items-center">
@@ -2172,6 +2203,11 @@ export function DocTable({
     const someDocsSelected =
         !allDocsSelected &&
         filteredDocs.some((d) => selectedDocIds.includes(d.id));
+    const selectedAutomationDocument =
+        scopeKey !== "templates" && selectedDocIds.length === 1
+            ? (docs.find((document) => document.id === selectedDocIds[0]) ??
+              null)
+            : null;
 
     const selectionActions = useMemo<DocTableSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
@@ -2180,9 +2216,16 @@ export function DocTable({
             selectedDocuments: selectedDocIds
                 .map((id) => docs.find((document) => document.id === id))
                 .filter((document): document is Document => !!document),
+            automationDocument: selectedAutomationDocument,
             hasDocumentsInFolders: selectedDocIds.some(
                 (id) => docs.find((d) => d.id === id)?.folder_id != null,
             ),
+            onAutomationDocumentChanged: async () => {
+                if (!selectedAutomationDocument) return;
+                await refreshDocumentVersionState(
+                    selectedAutomationDocument.id,
+                );
+            },
             onDownload: handleDownloadSelectedDocs,
             onRemoveFromFolder: handleRemoveSelectedFromFolder,
             onDelete: requestDeleteSelectedDocs,
@@ -2191,7 +2234,9 @@ export function DocTable({
         docs,
         handleDownloadSelectedDocs,
         handleRemoveSelectedFromFolder,
+        refreshDocumentVersionState,
         requestDeleteSelectedDocs,
+        selectedAutomationDocument,
         selectedDocIds,
     ]);
 
@@ -2475,6 +2520,10 @@ export function DocTable({
                                             );
                                     }}
                                     className="-ml-2 mr-1"
+                                />
+                                <span
+                                    aria-hidden="true"
+                                    className="mr-2 h-4 w-4 shrink-0"
                                 />
                                 <span className="mr-1">Name</span>
                                 {nameFilterButton}

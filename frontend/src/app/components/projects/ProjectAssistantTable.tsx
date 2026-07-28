@@ -4,7 +4,6 @@ import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableBody,
     TableCell,
@@ -16,6 +15,7 @@ import {
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
+    TableSelectionPlaceholder,
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
@@ -179,7 +179,7 @@ export function ProjectAssistantTable({
                 <TableHeaderRow className="pr-8 md:pr-8">
                     <TableStickyCell header>
                         {loading ? (
-                            <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
+                            <TableSelectionPlaceholder />
                         ) : (
                             <CheckboxControl
                                 checked={allVisibleChatsSelected}
@@ -318,7 +318,7 @@ function ProjectAssistantLoadingRows() {
                 >
                     <TableStickyCell hover={false}>
                         <div className="flex min-w-0 items-center">
-                            <SkeletonDot className="mr-4" />
+                            <TableSelectionPlaceholder />
                             <SkeletonLine
                                 className={`h-3.5 ${titleWidths[i - 1]}`}
                             />

@@ -1,12 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
-import { DocTable, type DocTableFolder } from "./DocTable";
+import {
+    DocTable,
+    type DocTableFolder,
+    type DocTableSelectionActions,
+} from "./DocTable";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: { id: "local-user" } }),
 }));
+vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
     DocumentSidePanel: ({ doc }: { doc: Document | null }) =>
@@ -27,8 +32,25 @@ const document: Document = {
     created_at: "2026-07-27T00:00:00.000Z",
 };
 
-function Harness({ selectionFirst = true }: { selectionFirst?: boolean }) {
-    const [documents, setDocuments] = useState([document]);
+const wordDocument: Document = {
+    ...document,
+    id: "document-2",
+    filename: "Submissions.docx",
+    file_type: "docx",
+    storage_path: "submissions.docx",
+    pdf_storage_path: null,
+};
+
+function Harness({
+    selectionFirst = true,
+    initialDocuments = [document],
+    onActions,
+}: {
+    selectionFirst?: boolean;
+    initialDocuments?: Document[];
+    onActions?: (actions: DocTableSelectionActions | null) => void;
+}) {
+    const [documents, setDocuments] = useState(initialDocuments);
     const [folders, setFolders] = useState<DocTableFolder[]>([]);
 
     return (
@@ -51,15 +73,27 @@ function Harness({ selectionFirst = true }: { selectionFirst?: boolean }) {
                 renameDocument: vi.fn(),
             }}
             selectionFirst={selectionFirst}
+            onSelectionActionsChange={onActions}
         />
     );
 }
 
 function documentRow() {
+    return rowFor("Brief.pdf");
+}
+
+function rowFor(filename: string) {
     return screen
-        .getAllByText("Brief.pdf")
+        .getAllByText(filename)
         .find((element) => element.closest("[data-document-row]"))!
         .closest("[data-document-row]") as HTMLElement;
+}
+
+function rects(elements: HTMLElement[]) {
+    return elements.map((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+    });
 }
 
 describe("DocTable Library interactions", () => {
@@ -140,4 +174,114 @@ describe("DocTable Library interactions", () => {
             "Brief.pdf",
         );
     });
+
+    it("exposes one selected DOCX to the toolbar without row or header controls", async () => {
+        let actions: DocTableSelectionActions | null = null;
+        render(
+            <Harness
+                initialDocuments={[document, wordDocument]}
+                onActions={(next) => {
+                    actions = next;
+                }}
+            />,
+        );
+
+        expect(
+            screen.queryByRole("button", { name: "Automation" }),
+        ).toBeNull();
+        expect(
+            within(rowFor("Brief.pdf")).queryByRole("button", {
+                name: "Automation",
+            }),
+        ).toBeNull();
+        expect(
+            within(rowFor("Submissions.docx")).queryByRole("button", {
+                name: "Automation",
+            }),
+        ).toBeNull();
+
+        fireEvent.click(rowFor("Submissions.docx"));
+        await waitFor(() =>
+            expect(actions?.automationDocument).toBe(wordDocument),
+        );
+
+        fireEvent.click(
+            within(rowFor("Brief.pdf")).getByRole("checkbox"),
+        );
+        await waitFor(() =>
+            expect(actions?.automationDocument).toBeNull(),
+        );
+
+        fireEvent.click(rowFor("Submissions.docx"));
+        await waitFor(() =>
+            expect(actions?.automationDocument).toBe(wordDocument),
+        );
+
+        fireEvent.click(rowFor("Brief.pdf"));
+        await waitFor(() =>
+            expect(actions?.automationDocument).toBe(document),
+        );
+    });
+
+    it.each([1440, 390])(
+        "keeps row and sticky-cell geometry fixed at %ipx",
+        (viewportWidth) => {
+            Object.defineProperty(window, "innerWidth", {
+                configurable: true,
+                value: viewportWidth,
+            });
+            render(<Harness />);
+
+            const row = documentRow();
+            const stickyCell = row.querySelector(
+                ":scope > .sticky",
+            ) as HTMLElement;
+            const elements = [
+                row,
+                ...Array.from(row.children),
+            ] as HTMLElement[];
+            const stickyWidth = Math.max(180, viewportWidth - 112);
+
+            elements.forEach((element, index) => {
+                const width =
+                    element === row
+                        ? viewportWidth
+                        : element === stickyCell
+                          ? stickyWidth
+                          : 32;
+                vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+                    x: index === 0 ? 0 : stickyWidth + (index - 1) * 32,
+                    y: 44,
+                    width,
+                    height: 44,
+                    top: 44,
+                    right: width,
+                    bottom: 88,
+                    left: index === 0 ? 0 : stickyWidth + (index - 1) * 32,
+                    toJSON: () => ({}),
+                });
+            });
+
+            const nodes = [...row.children];
+            const before = rects(elements);
+
+            fireEvent.mouseEnter(row);
+            fireEvent.focus(row);
+            fireEvent.click(row);
+
+            expect(documentRow()).toBe(row);
+            expect([...row.children]).toEqual(nodes);
+            expect(rects(elements)).toEqual(before);
+            expect(row).toHaveClass(
+                "h-11",
+                "min-h-11",
+                "w-full",
+                "bg-app-surface-active",
+            );
+            expect(stickyCell).toHaveClass("bg-inherit");
+            expect(`${row.className} ${stickyCell.className}`).not.toMatch(
+                /\b(?:animate-|duration-|scale-|shadow|transition|translate-)/,
+            );
+        },
+    );
 });

@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
-import { LIBRARY_TABS } from "@/app/components/library/LibraryWorkspace";
+import {
+    LIBRARY_TABS,
+    libraryRoute,
+} from "@/app/components/library/LibraryWorkspace";
 import {
     deleteLegalSource,
     getLegalSourceCoverage,
@@ -27,10 +30,6 @@ import {
 import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import { LegalSourceViewer } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-
-function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
-    return tab === "files" ? "/library" : `/library/${tab}`;
-}
 
 function sourceKindLabel(docType: LegalDocumentType) {
     return docType === "laws"
@@ -71,6 +70,12 @@ export function LegalLibraryPage() {
     const [searching, setSearching] = useState(false);
     const [savingCitation, setSavingCitation] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        for (const tab of LIBRARY_TABS) {
+            router.prefetch(libraryRoute(tab.id));
+        }
+    }, [router]);
 
     useEffect(() => {
         let cancelled = false;

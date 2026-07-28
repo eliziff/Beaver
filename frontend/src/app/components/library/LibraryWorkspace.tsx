@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { DocTable } from "@/app/components/documents/DocTable";
+import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import type {
     DocTableFolder,
     DocTableSelectionActions,
@@ -64,6 +65,10 @@ export const LIBRARY_TABS = [
     { id: "templates", label: "Templates" },
     { id: "legal", label: "Cases & Legislation" },
 ] as const;
+
+export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
+    return tab === "files" ? "/library" : `/library/${tab}`;
+}
 
 const EMPTY_COLLECTION: LibraryViewCollection = {
     documents: [],
@@ -209,6 +214,14 @@ export function LibraryWorkspaceProvider({
 }
 
 export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
+    const router = useRouter();
+
+    useEffect(() => {
+        for (const tab of LIBRARY_TABS) {
+            router.prefetch(libraryRoute(tab.id));
+        }
+    }, [router]);
+
     return <LibraryWorkspaceProvider>{children}</LibraryWorkspaceProvider>;
 }
 
@@ -316,14 +329,22 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                     items={LIBRARY_TABS}
                     active={kind}
                     onChange={(next) => {
-                        router.push(
-                            next === "files"
-                                ? "/library"
-                                : `/library/${next}`,
-                        );
+                        router.push(libraryRoute(next));
                     }}
                     actions={
                         <div className="flex items-center gap-1.5">
+                            {kind === "files" && (
+                                <DocumentAutomation
+                                    document={
+                                        selectionActions?.automationDocument ??
+                                        null
+                                    }
+                                    showWhenUnavailable
+                                    onDocumentChanged={
+                                        selectionActions?.onAutomationDocumentChanged
+                                    }
+                                />
+                            )}
                             <TabPillButton
                                 onClick={createFolderAction ?? undefined}
                                 disabled={!createFolderAction || loading}

@@ -125,6 +125,7 @@ describe("DocxView", () => {
             renderFootnotes: true,
             renderEndnotes: true,
             renderChanges: true,
+            experimental: false,
         });
         const pages = container.querySelectorAll("section.docx");
         expect(pages).toHaveLength(2);
@@ -135,6 +136,24 @@ describe("DocxView", () => {
             expect(page).not.toHaveAttribute("aria-label");
         }
         expect(mocks.getAuthHeader).not.toHaveBeenCalled();
+    });
+
+    it("opens a known PDF rendition without fetching or rendering DOCX", () => {
+        render(
+            <DocxView
+                documentId="doc-with-rendition"
+                versionId="version-1"
+                preferPdfRendition
+            />,
+        );
+
+        expect(screen.getByTestId("pdf-rendition")).toBeInTheDocument();
+        expect(mocks.useFetchDocxBytes).toHaveBeenCalledWith(
+            null,
+            "version-1",
+            undefined,
+        );
+        expect(mocks.renderDocument).not.toHaveBeenCalled();
     });
 
     it("reuses tracked-change IDs for the same document version", async () => {

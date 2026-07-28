@@ -17,9 +17,9 @@ import type {
 import { TabularCell as TabularCellComponent } from "./TabularCell";
 import { TREditColumnMenu } from "./TREditColumnMenu";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableScrollArea,
+    TableSelectionPlaceholder,
     closeTablePopups,
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
@@ -34,14 +34,14 @@ import {
 const SKELETON_COLS = 4;
 const SKELETON_ROWS = 5;
 
-const COL_W = "w-[300px] shrink-0";
+const COL_W = "w-[240px] shrink-0";
 const DOC_COL_W = "w-[332px] shrink-0";
 const TR_STICKY_CELL_BG = "bg-app-surface";
 const TR_HEADER_BG = "bg-app-surface";
 
 // Pixel widths matching the CSS constants above
 const DOC_COL_W_PX = 332;
-const DATA_COL_W_PX = 300;
+const DATA_COL_W_PX = 240;
 const STICKY_LEFT_PX = DOC_COL_W_PX;
 
 export interface TRTableHandle {
@@ -244,7 +244,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         <div
                             className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs font-medium text-gray-500`}
                         >
-                            <SkeletonDot className="mr-4" />
+                            <TableSelectionPlaceholder />
                             <span>Document</span>
                         </div>
                         {Array.from({ length: SKELETON_COLS }).map((_, i) => (
@@ -266,7 +266,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                             style={{ minWidth: skeletonContentWidth }}
                         >
                             <div className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-b border-r border-gray-200 py-2 pl-4 pr-2`}>
-                                <SkeletonDot className="mr-4" />
+                                <TableSelectionPlaceholder />
                                 <SkeletonLine className="h-4 w-32" />
                             </div>
                             {Array.from({ length: SKELETON_COLS }).map((_, col) => (
@@ -296,6 +296,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         <div
                             className={`${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-r border-gray-200 py-2 pl-4 pr-2 text-xs font-medium text-gray-500 select-none`}
                         >
+                            <TableSelectionPlaceholder />
                             Document
                         </div>
                         <div className="flex-1" />

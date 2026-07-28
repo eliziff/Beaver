@@ -271,10 +271,30 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
     return void res.status(404).json({ detail: "No file available" });
 
   const fileType = active.file_type ?? "";
-  const usePdf = shouldConvertToPdf(fileType) && !!active.pdf_storage_path;
-  const raw = await downloadFile(
-    usePdf ? active.pdf_storage_path! : active.storage_path,
-  );
+  let pdfPath = active.pdf_storage_path;
+  let source: ArrayBuffer | null = null;
+  if (shouldConvertToPdf(fileType) && !pdfPath) {
+    source = await downloadFile(active.storage_path);
+    if (source) {
+      pdfPath = await pdfRenditionFor(
+        fileType,
+        active.storage_path,
+        Buffer.from(source),
+        `converted-pdfs/${res.locals.userId}/${documentId}/${active.id}.pdf`,
+        "document-display",
+      );
+      if (pdfPath) {
+        await db
+          .from("document_versions")
+          .update({ pdf_storage_path: pdfPath })
+          .eq("id", active.id);
+      }
+    }
+  }
+  const usePdf = shouldConvertToPdf(fileType) && !!pdfPath;
+  const raw = usePdf
+    ? await downloadFile(pdfPath!)
+    : source ?? (await downloadFile(active.storage_path));
   if (!raw)
     return void res
       .status(404)

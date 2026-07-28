@@ -1,6 +1,6 @@
 "use client";
 
-import { WarningPopup } from "@/app/components/popups/WarningPopup";
+import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 
 export function ChatDeleteWarning({
     open,
@@ -19,9 +19,8 @@ export function ChatDeleteWarning({
 }) {
     const plural = count === 1 ? "chat" : `${count} chats`;
     return (
-        <WarningPopup
+        <ConfirmPopup
             open={open}
-            onClose={onCancel}
             title={
                 permanent
                     ? `Permanently delete ${plural}?`
@@ -32,16 +31,11 @@ export function ChatDeleteWarning({
                     ? "This cannot be undone."
                     : `You can restore ${count === 1 ? "it" : "them"} from Assistant for 30 days.`
             }
-            secondaryAction={{
-                label: "Cancel",
-                onClick: onCancel,
-                disabled: busy,
-            }}
-            primaryAction={{
-                label: permanent ? "Delete permanently" : "Move",
-                onClick: onConfirm,
-                disabled: busy,
-            }}
+            cancelLabel="Cancel"
+            onCancel={onCancel}
+            confirmLabel={permanent ? "Delete permanently" : "Move"}
+            confirmStatus={busy ? "loading" : "idle"}
+            onConfirm={onConfirm}
         />
     );
 }

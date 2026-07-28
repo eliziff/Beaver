@@ -16,6 +16,7 @@ import { PdfView } from "./PdfView";
 interface Props {
     documentId: string;
     versionId?: string | null;
+    preferPdfRendition?: boolean;
     /**
      * Called once the document has been rendered to the DOM. Handy for
      * scrolling to a particular tracked change after a re-render.
@@ -46,7 +47,7 @@ interface Props {
      * the same storage path (no new version row), so the hook has no other
      * signal that the file changed.
      */
-    refetchKey?: number;
+    refetchKey?: string | number;
     /**
      * Citation quotes to highlight in the rendered output. The first match
      * is scrolled into view. Matching remains text-based; stored Word page
@@ -91,7 +92,7 @@ export const DOCX_RENDER_OPTIONS = {
     renderFootnotes: true,
     renderEndnotes: true,
     renderChanges: true,
-    experimental: true,
+    experimental: false,
 } satisfies Partial<DocxPreviewOptions>;
 
 export function fitDocxPages(
@@ -178,7 +179,7 @@ const trackedChangeIdsCache = new Map<
 async function loadTrackedChangeIds(
     documentId: string,
     versionId: string | null | undefined,
-    refetchKey?: number,
+    refetchKey?: string | number,
 ): Promise<TrackedChangeId[]> {
     const key = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
     const cached = trackedChangeIdsCache.get(key);
@@ -278,7 +279,7 @@ async function tagWIdsOnRenderedDom(
     container: HTMLElement,
     documentId: string,
     versionId: string | null | undefined,
-    refetchKey?: number,
+    refetchKey?: string | number,
 ): Promise<void> {
     try {
         const domEls = Array.from(
@@ -321,6 +322,7 @@ export function DocxView({
     initialScrollTop,
     onScrollChange,
     rounded = true,
+    preferPdfRendition = false,
 }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -348,7 +350,7 @@ export function DocxView({
     const renditionKey = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
     const showPdfRendition =
         !highlightEdit &&
-        pdfRenditionKey === renditionKey &&
+        (preferPdfRendition || pdfRenditionKey === renditionKey) &&
         !unavailableRenditionsRef.current.has(renditionKey);
 
     // Stable key for the quote list so the re-highlight effect re-fires
@@ -359,7 +361,7 @@ export function DocxView({
     );
 
     const { bytes, loading, error } = useFetchDocxBytes(
-        documentId,
+        showPdfRendition ? null : documentId,
         versionId,
         refetchKey,
     );
@@ -576,6 +578,7 @@ export function DocxView({
         return (
             <PdfView
                 doc={{ document_id: documentId, version_id: versionId }}
+                revision={refetchKey}
                 quotes={quotes}
                 quoteFocusKey={quoteFocusKey}
                 rounded={rounded}

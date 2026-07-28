@@ -256,7 +256,7 @@ export function TableScrollArea({
                 {header && (
                     <div
                         ref={headerViewportRef}
-                        className="min-w-0 shrink-0 overflow-hidden"
+                        className="min-w-0 shrink-0 overflow-hidden [scrollbar-gutter:stable]"
                     >
                         {header}
                     </div>

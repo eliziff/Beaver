@@ -10,7 +10,7 @@ import {
 import { ArrowDown } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
-import { automationRunKey } from "@/app/components/documents/AutomationRun";
+import { automationRunKey } from "./AutomationRun";
 import { ChatInput } from "./ChatInput";
 import type { ChatInputHandle } from "./ChatInput";
 import { AskInputPopup } from "./AskInputPopup";
@@ -384,17 +384,24 @@ export function ChatView({
             }
         }
         if (!latest.size) return;
-        setTabs((current) => {
-            let changed = false;
-            const next = current.map((tab) => {
-                if (tab.kind !== "automation") return tab;
-                const run = latest.get(tab.id);
-                if (!run || run === tab.run) return tab;
-                changed = true;
-                return { ...tab, run };
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled) return;
+            setTabs((current) => {
+                let changed = false;
+                const next = current.map((tab) => {
+                    if (tab.kind !== "automation") return tab;
+                    const run = latest.get(tab.id);
+                    if (!run || run === tab.run) return tab;
+                    changed = true;
+                    return { ...tab, run };
+                });
+                return changed ? next : current;
             });
-            return changed ? next : current;
         });
+        return () => {
+            cancelled = true;
+        };
     }, [messages]);
 
     const [resolvedEditStatuses, setResolvedEditStatuses] = useState<
@@ -697,13 +704,12 @@ export function ChatView({
                         <button
                             type="button"
                             onClick={onProjectClick}
-                            disabled={isResponseLoading}
                             aria-label={
                                 projectName
                                     ? `Change project: ${projectName}`
                                     : "Add chat to project"
                             }
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
                         >
                             <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                             <span className="truncate">

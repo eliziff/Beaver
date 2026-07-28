@@ -45,6 +45,7 @@ backend/src/lib/chat/*.old.harness.ts
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)
 .tmp-ui/
 .tmp-qa/
+.qa/
 test-results/
 playwright-report/
 e2e/.auth/

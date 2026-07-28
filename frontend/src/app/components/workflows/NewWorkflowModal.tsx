@@ -488,8 +488,17 @@ export function NewWorkflowModal({
             }
             secondaryAction={
                 !isEditing && type === "assistant"
-                    ? {
-                          label: importedSkillName ?? "Upload markdown",
+                      ? {
+                          label: importedSkillName ? (
+                              <span
+                                  className="max-w-40 truncate"
+                                  title={importedSkillName}
+                              >
+                                  {importedSkillName}
+                              </span>
+                          ) : (
+                              "Upload markdown"
+                          ),
                           icon: <Upload className="h-3.5 w-3.5" />,
                           onClick: () => markdownInputRef.current?.click(),
                           disabled: loading,
@@ -500,7 +509,7 @@ export function NewWorkflowModal({
             <form
                 id={formId}
                 onSubmit={handleSubmit}
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-5"
+                className="flex min-h-0 flex-1 flex-col pb-5"
             >
                 <div className="space-y-6">
                     {workflowDetails.length > 0 && (

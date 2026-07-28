@@ -1,7 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  docxToPdf: vi.fn(async () => Buffer.from("%PDF repaired")),
+}));
+
+vi.mock("../convert", () => ({ docxToPdf: mocks.docxToPdf }));
 
 vi.mock("../localPdfIngestion", () => ({
   queueLocalPdfParse: vi.fn(async () => ({
@@ -23,6 +29,63 @@ afterEach(async () => {
 });
 
 describe("local document store", () => {
+  it("durably repairs a missing DOCX rendition when display requests PDF", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const sourcePath = path.join("files", "document-1", "version-1.docx");
+    await writeFile(
+      path.join(temporaryDirectory, "library.json"),
+      JSON.stringify({
+        version: 1,
+        folders: [],
+        legalSources: [],
+        documents: [{
+          id: "document-1",
+          userId: "local-user",
+          kind: "file",
+          folderId: null,
+          createdAt: "2026-07-28T00:00:00.000Z",
+          updatedAt: "2026-07-28T00:00:00.000Z",
+          currentVersionId: "version-1",
+          versions: [{
+            id: "version-1",
+            versionNumber: 1,
+            source: "upload",
+            createdAt: "2026-07-28T00:00:00.000Z",
+            filename: "draft.docx",
+            fileType: "docx",
+            sizeBytes: 4,
+            pageCount: null,
+            storagePath: sourcePath,
+            pdfStoragePath: null,
+          }],
+        }],
+      }),
+      "utf8",
+    );
+    await mkdir(path.join(temporaryDirectory, "files", "document-1"), {
+      recursive: true,
+    });
+    await writeFile(path.join(temporaryDirectory, sourcePath), Buffer.from("docx"));
+    const store = await import("../localDocumentStore");
+
+    const file = await store.getLocalVersionFile(
+      "local-user",
+      "document-1",
+      "version-1",
+      true,
+    );
+    const persisted = JSON.parse(
+      await readFile(path.join(temporaryDirectory, "library.json"), "utf8"),
+    );
+
+    expect(file?.fileType).toBe("pdf");
+    expect(await readFile(file!.path)).toEqual(Buffer.from("%PDF repaired"));
+    expect(persisted.documents[0].versions[0].pdfStoragePath).toMatch(
+      /version-1-[a-f0-9]{16}\.pdf$/u,
+    );
+  });
+
   it("persists uploaded Library files and their bytes", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;

@@ -1,15 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TRTable } from "./TRTable";
-import type { Document } from "../shared/types";
+import type { ColumnConfig, Document } from "../shared/types";
 
 const doc = { id: "doc-1", filename: "report.pdf" } as Document;
 
-function renderTable() {
+function renderTable(columns: ColumnConfig[] = []) {
     return render(
         <TRTable
             loading={false}
-            columns={[]}
+            columns={columns}
             documents={[doc]}
             cells={[]}
             savingColumn={false}
@@ -35,5 +35,15 @@ describe("TRTable", () => {
         expect(screen.getByText("report.pdf")).toBeInTheDocument();
         // One select-all checkbox in the header plus one per document row.
         expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    });
+
+    it("keeps review data columns compact", () => {
+        const { container } = renderTable([
+            { index: 0, name: "Parties", prompt: "Identify parties" },
+        ]);
+
+        expect(
+            container.querySelector("[data-tr-col-header]"),
+        ).toHaveClass("w-[240px]");
     });
 });
