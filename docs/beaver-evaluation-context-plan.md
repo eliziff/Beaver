@@ -7,6 +7,13 @@
 
 ## Operating instruction for the coding agent
 
+> **Priority override (user, 2026-07-28):** external benchmarks first. Defer
+> further Beaver-CAN iteration — no new internal tasks, gold, or validators
+> unless the user asks. Run our capabilities against extant external suites
+> (LegalBench, LegalBench-RAG, including the US material) and report against
+> their published baselines. Existing Beaver-CAN assets stay maintained but
+> frozen.
+
 Read `AGENTS.md`, `docs/mike-canada-master-plan.md`, and the relevant existing code before changing anything. Those files override this plan.
 
 Implement this plan **one numbered issue at a time**. Keep changes small, measurable, local-first, and reversible. Do not create a second evaluation framework beside the existing `benchmarks/` work. Reuse the existing `benchmarks/docx_corpus`, `benchmarks/gold_contract`, and `experiments/context_compaction_track_*` conventions where practical.
