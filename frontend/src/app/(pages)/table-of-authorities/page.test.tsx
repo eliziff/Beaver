@@ -199,6 +199,99 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).toHaveAttribute("tabindex", "-1");
   });
 
+  it("reveals a ready generic frame immediately on navigation intent", async () => {
+    const view = render(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+    const frame = await screen.findByTitle("Table of Authorities");
+    const source = frame.getAttribute("src");
+    signal(frame, "mike:table-of-authorities-ready");
+
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} pending enabled />,
+    );
+
+    expect(screen.getByTestId("authorities-host")).not.toHaveAttribute("inert");
+    expect(screen.getByTitle("Table of Authorities")).toBe(frame);
+    expect(frame).toHaveAttribute("src", source);
+    expect(frame).toHaveAttribute("aria-hidden", "false");
+    expect(frame).toHaveAttribute("tabindex", "0");
+    expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
+  });
+
+  it("covers a retained scoped frame during bare navigation intent", async () => {
+    const job = "a".repeat(32);
+    navigation.search = `?job=${job}`;
+    const view = render(<TableOfAuthoritiesHost active enabled />);
+    const frame = await screen.findByTitle("Table of Authorities");
+    await waitFor(() =>
+      expect(
+        new URL(frame.getAttribute("src")!).searchParams.get("job"),
+      ).toBe(job),
+    );
+    const scopedAttempt = attemptFor(frame);
+    signal(frame, "mike:table-of-authorities-ready");
+
+    navigation.search = "";
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} pending enabled />,
+    );
+
+    expect(screen.getByTestId("authorities-host")).not.toHaveAttribute("inert");
+    expect(frame).toHaveAttribute("aria-hidden", "true");
+    expect(frame).toHaveAttribute("tabindex", "-1");
+    expect(frame).toHaveClass("invisible");
+    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+    expect(frame).toHaveAttribute(
+      "src",
+      expect.stringContaining(`job=${job}`),
+    );
+    expect(attemptFor(frame)).toBe(scopedAttempt);
+
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+    expect(screen.getByTestId("authorities-host")).toHaveAttribute("inert");
+    expect(attemptFor(frame)).toBe(scopedAttempt);
+
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} pending enabled />,
+    );
+    view.rerender(<TableOfAuthoritiesHost active enabled />);
+    expect(frame).toHaveAttribute("aria-hidden", "true");
+    await waitFor(() =>
+      expect(
+        new URL(frame.getAttribute("src")!).searchParams.has("job"),
+      ).toBe(false),
+    );
+    expect(attemptFor(frame)).not.toBe(scopedAttempt);
+    expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the retained frame again when navigation intent rolls back", async () => {
+    const view = render(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+    const frame = await screen.findByTitle("Table of Authorities");
+    const source = frame.getAttribute("src");
+    signal(frame, "mike:table-of-authorities-ready");
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} pending enabled />,
+    );
+    expect(frame).toHaveAttribute("tabindex", "0");
+
+    view.rerender(
+      <TableOfAuthoritiesHost active={false} enabled />,
+    );
+
+    expect(screen.getByTitle("Table of Authorities")).toBe(frame);
+    expect(frame).toHaveAttribute("src", source);
+    expect(frame).toHaveAttribute("aria-hidden", "true");
+    expect(frame).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByTestId("authorities-host")).toHaveAttribute("inert");
+    expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
+  });
+
   it("finishes one preloaded boot while hidden without reloading on activation", async () => {
     vi.mocked(launchTableOfAuthorities).mockResolvedValue({
       ok: true,
