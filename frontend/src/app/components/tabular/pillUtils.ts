@@ -2,7 +2,7 @@ import type { ColumnConfig } from "../shared/types";
 
 /** Sequential colors assigned to tags by their position in the tags array. */
 export const TAG_COLORS = [
-    "bg-blue-100 text-blue-700",
+    "bg-red-50 text-red-700",
     "bg-violet-100 text-violet-700",
     "bg-pink-100 text-pink-700",
     "bg-orange-100 text-orange-700",
@@ -14,7 +14,7 @@ export const TAG_COLORS = [
 
 const CURRENCY_COLORS: Record<string, string> = {
     USD: "bg-green-100 text-green-700",
-    EUR: "bg-blue-100 text-blue-700",
+    EUR: "bg-gray-100 text-gray-700",
     GBP: "bg-purple-100 text-purple-700",
     JPY: "bg-red-100 text-red-700",
     CHF: "bg-orange-100 text-orange-700",

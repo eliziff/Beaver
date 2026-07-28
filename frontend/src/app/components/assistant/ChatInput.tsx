@@ -353,7 +353,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     {(selectedWorkflow || attachedDocs.length > 0) && (
                         <div className="flex flex-wrap gap-1.5 px-2 pt-2">
                             {selectedWorkflow && (
-                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-blue-600 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">
+                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-gray-950 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">
                                     <Library className="h-2.5 w-2.5 shrink-0" />
                                     <span className="max-w-[140px] truncate">
                                         {selectedWorkflow.title}
@@ -451,7 +451,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 className={cn(
                                     "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm transition-colors",
                                     selectedWorkflow
-                                        ? "text-blue-600 hover:text-blue-700"
+                                        ? "text-red-700 hover:text-red-800"
                                         : "text-gray-400 hover:text-gray-700",
                                 )}
                             >
