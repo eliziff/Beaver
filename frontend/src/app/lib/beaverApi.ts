@@ -60,7 +60,7 @@ export function isMfaRequiredError(error: unknown) {
   );
 }
 
-export async function getAuthHeader(): Promise<Record<string, string>> {
+async function getAuthHeader(): Promise<Record<string, string>> {
   if (isAnonymousMode) return {};
   const { supabase } = await import("@/app/lib/supabase");
   const {
