@@ -4,10 +4,11 @@
     "private": true,
     "scripts": {
         "dev": "next dev",
+        "prebuild": "node scripts/guard-live-build.mjs",
         "build": "next build",
         "start": "next start",
         "lint": "eslint",
-        "test": "vitest run",
+        "test": "vitest run && node --test scripts/guard-live-build.test.mjs",
         "preview": "npm run typecheck:opennext && opennextjs-cloudflare build && opennextjs-cloudflare preview",
         "deploy": "npm run typecheck:opennext && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
         "upload": "npm run typecheck:opennext && opennextjs-cloudflare build && opennextjs-cloudflare upload",

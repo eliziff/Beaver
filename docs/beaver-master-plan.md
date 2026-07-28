@@ -172,6 +172,11 @@ The Assistant and workflow-modal lazy-load experiments were reverted after
 about 1.07 seconds. No build-time improvement is claimed yet. The warmed
 Authorities route passed 110/110 internal transitions at 1440, 390, and 320
 CSS pixels with zero changed pixels through two animation frames and 500 ms.
+Building into a live `.next` directory was also proven to cause 500ing chunks
+and full-page fallback navigation. The dependency-free prebuild guard now
+fails before Next in 0.6 seconds without touching the build, while its
+stopped-server probe adds a 44.1 ms median. Exact-build transitions preserved
+SPA state at 1440, 390, and 320 pixels with no failed requests.
 
 ### P0.3 Account-free local parity
 
