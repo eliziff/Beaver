@@ -5,7 +5,6 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { chatRouter } from "./routes/chat";
 import { projectsRouter } from "./routes/projects";
-import { tabularRouter } from "./routes/tabular";
 import { workflowsRouter } from "./routes/workflows";
 import { localUserRouter } from "./routes/localUser";
 import { caseLawRouter } from "./routes/caseLaw";
@@ -187,7 +186,10 @@ app.use(
   "/library",
   lazyRouter(() => import("./routes/library").then((mod) => mod.libraryRouter)),
 );
-app.use("/tabular-review", tabularRouter);
+app.use(
+  "/tabular-review",
+  lazyRouter(() => import("./routes/tabular").then((mod) => mod.tabularRouter)),
+);
 app.use("/workflows", workflowsRouter);
 const cloudUserRouter = lazyRouter(() =>
   import("./routes/user").then((mod) => mod.userRouter),

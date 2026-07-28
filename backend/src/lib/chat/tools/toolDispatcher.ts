@@ -24,12 +24,12 @@ import {
   type TabularCellStore,
   type WorkflowStore,
   type ToolCall,
-  type AskInputItem,
-  type AskInputOption,
   type AskInputsEvent,
   devLog,
   resolveDocLabel,
 } from "../types";
+import { normalizeAskInputsEvent } from "../askInputs";
+import { readTabularCells } from "../tabularCells";
 import { type EditInput } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
 import { appUrl } from "../../appRoutes";
@@ -67,89 +67,6 @@ export type CourtlistenerTurnState = CourtlistenerToolState;
 
 function nonEmpty(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function cleanAskInputString(value: unknown, fallback = ""): string {
-  const text = typeof value === "string" ? value.trim() : "";
-  return text || fallback;
-}
-
-export function normalizeAskInputsEvent(
-  args: Record<string, unknown>,
-): AskInputsEvent {
-  const rawItems = Array.isArray(args.items) ? args.items : [];
-  const seenIds = new Set<string>();
-  const items = rawItems
-    .map((item, index): AskInputItem | null => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-      const row = item as Record<string, unknown>;
-      const id =
-        cleanAskInputString(row.id) ||
-        `${row.kind === "documents" ? "documents" : "choice"}-${index + 1}`;
-      const responsePrefix = cleanAskInputString(row.response_prefix);
-
-      if (row.kind === "documents") {
-        const rawDocumentTypes = Array.isArray(row.document_types)
-          ? row.document_types
-          : [];
-        const documentTypes = rawDocumentTypes
-          .filter((type): type is string => typeof type === "string")
-          .map((type) => type.trim())
-          .filter(Boolean)
-          .map((type) => type.slice(0, 300))
-          .slice(0, 8);
-        return {
-          id: id.slice(0, 80),
-          kind: "documents",
-          document_types: documentTypes,
-          ...(responsePrefix
-            ? { response_prefix: responsePrefix.slice(0, 200) }
-            : {}),
-        };
-      }
-
-      const question = cleanAskInputString(
-        row.question,
-        "Please choose an option.",
-      );
-      const rawOptions = Array.isArray(row.options) ? row.options : [];
-      const options = rawOptions
-        .map((option): AskInputOption | null => {
-          if (!option || typeof option !== "object") return null;
-          const optionRow = option as Record<string, unknown>;
-          const value =
-            cleanAskInputString(optionRow.value) ||
-            cleanAskInputString(optionRow.label);
-          if (!value) return null;
-          return {
-            value: value.slice(0, 500),
-          };
-        })
-        .filter((option): option is AskInputOption => !!option)
-        .slice(0, 8);
-      const normalizedOptions =
-        options.length > 0 ? options : [{ value: "Continue" }];
-      const otherLabel = cleanAskInputString(row.other_label, "Other");
-      return {
-        id: id.slice(0, 80),
-        kind: "choice",
-        question: question.slice(0, 500),
-        options: normalizedOptions,
-        allow_other: row.allow_other !== false,
-        other_label: otherLabel.slice(0, 80),
-        ...(responsePrefix
-          ? { response_prefix: responsePrefix.slice(0, 200) }
-          : {}),
-      };
-    })
-    .filter((item): item is AskInputItem => {
-      if (!item || seenIds.has(item.id)) return false;
-      seenIds.add(item.id);
-      return true;
-    })
-    .slice(0, 12);
-
-  return { type: "ask_inputs", items };
 }
 
 function upsertCourtlistenerCases(
@@ -283,51 +200,7 @@ function findInCaseSearchSummary(
   };
 }
 
-export function readTabularCells(
-  tabularStore: TabularCellStore,
-  colIndices?: number[],
-  rowIndices?: number[],
-) {
-  const columns = colIndices?.length
-    ? tabularStore.columns.filter((_, index) => colIndices.includes(index))
-    : tabularStore.columns;
-  const documents = rowIndices?.length
-    ? tabularStore.documents.filter((_, index) => rowIndices.includes(index))
-    : tabularStore.documents;
-  const label = `${columns.length} ${columns.length === 1 ? "column" : "columns"} × ${documents.length} ${documents.length === 1 ? "row" : "rows"}`;
-  const lines: string[] = [];
-
-  for (const column of columns) {
-    const columnPosition = tabularStore.columns.findIndex(
-      (candidate) => candidate.index === column.index,
-    );
-    for (const document of documents) {
-      const rowPosition = tabularStore.documents.findIndex(
-        (candidate) => candidate.id === document.id,
-      );
-      const cell = tabularStore.cells.get(`${column.index}:${document.id}`);
-      lines.push(
-        `[COL:${columnPosition} "${column.name}" | ROW:${rowPosition} "${document.filename}"]`,
-      );
-      if (cell?.summary) {
-        lines.push(`Summary: ${cell.summary}`);
-        if (cell.flag) lines.push(`Flag: ${cell.flag}`);
-        if (cell.reasoning) lines.push(`Reasoning: ${cell.reasoning}`);
-      } else {
-        lines.push("(not yet generated)");
-      }
-      lines.push("");
-    }
-  }
-
-  return {
-    label,
-    content:
-      `${tabularStore.app_url ? `Review app_url: ${tabularStore.app_url}\n\n` : ""}${
-        lines.join("\n") || "No cells found."
-      }`,
-  };
-}
+export { readTabularCells };
 
 export async function runToolCalls(
   toolCalls: ToolCall[],

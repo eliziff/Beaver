@@ -5,7 +5,7 @@ import { isAnonymousLocalMode } from "../lib/localMode";
 import {
   formatChatMessageContent,
   parseAskInputsResponsePayload,
-} from "../lib/chat/contextBuilders";
+} from "../lib/chat/messageFormatting";
 import { CLIENT_WORK_PRODUCT_PRESUMPTION } from "../lib/chat/prompts";
 import {
   devLog,
@@ -14,7 +14,7 @@ import {
   type AskInputsResponseRequest,
   type ChatMessage,
 } from "../lib/chat/types";
-import { normalizeAskInputsEvent } from "../lib/chat/tools/toolDispatcher";
+import { normalizeAskInputsEvent } from "../lib/chat/askInputs";
 import { isAbortError } from "../lib/llm/abort";
 import {
   completeText,
