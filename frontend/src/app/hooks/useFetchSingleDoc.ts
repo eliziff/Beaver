@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 
 /**
  * /display returns PDF bytes (when the active version has a PDF rendition),
@@ -45,15 +45,12 @@ async function loadSingleDoc(
     if (pending?.key === key) return pending.promise;
 
     const promise = (async () => {
-        const authHeaders = await getAuthHeader();
-        const apiBase =
-            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
             ? `?version_id=${encodeURIComponent(versionId)}`
             : "";
-        const response = await fetch(
-            `${apiBase}/single-documents/${documentId}/display${qs}`,
-            { headers: authHeaders },
+        const response = await apiFetch(
+            `/single-documents/${documentId}/display${qs}`,
+            { cache: "default", headers: { Accept: "*/*" } },
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 

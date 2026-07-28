@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
@@ -186,15 +186,11 @@ async function loadTrackedChangeIds(
     if (cached) return cached;
 
     const pending = (async () => {
-        const authHeaders = await getAuthHeader();
-        const apiBase =
-            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
             ? `?version_id=${encodeURIComponent(versionId)}`
             : "";
-        const response = await fetch(
-            `${apiBase}/single-documents/${documentId}/tracked-change-ids${qs}`,
-            { headers: authHeaders },
+        const response = await apiFetch(
+            `/single-documents/${documentId}/tracked-change-ids${qs}`,
         );
         if (!response.ok) {
             throw new Error(`tracked-change-ids HTTP ${response.status}`);

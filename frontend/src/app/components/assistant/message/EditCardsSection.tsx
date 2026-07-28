@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 import type { EditAnnotation } from "../../shared/types";
 import { applyOptimisticResolution } from "../EditCard";
 
@@ -60,10 +60,6 @@ function BulkEditActions({
         setBusy(verb);
         setProgress({ done: 0, total: pending.length });
         try {
-            const authHeaders = await getAuthHeader();
-            const apiBase =
-                process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-
             // Sequential so the per-document version counter advances in a
             // predictable order and the viewer doesn't race between bumps.
             let done = 0;
@@ -85,12 +81,9 @@ function BulkEditActions({
                     );
                 }
                 try {
-                    const resp = await fetch(
-                        `${apiBase}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
-                        {
-                            method: "POST",
-                            headers: authHeaders,
-                        },
+                    const resp = await apiFetch(
+                        `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
+                        { method: "POST" },
                     );
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const data = (await resp.json()) as {
