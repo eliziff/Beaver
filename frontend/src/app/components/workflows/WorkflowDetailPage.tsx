@@ -61,7 +61,6 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { WorkflowPromptEditor } from "@/app/components/workflows/WorkflowPromptEditor";
 import { downloadWorkflowZip } from "./workflowZipExport";
 
 interface Props {
@@ -506,10 +505,16 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 {workflow.metadata.type === "assistant" ? (
                     /* ── Assistant: WYSIWYG editor ── */
                     <div className="flex-1 min-h-0 px-4 pb-2 pt-4 md:px-6 md:pb-3">
-                        <WorkflowPromptEditor
+                        <textarea
+                            aria-label="Workflow prompt"
                             value={promptMd}
-                            onChange={readOnly ? undefined : handlePromptChange}
                             readOnly={readOnly}
+                            onChange={(event) =>
+                                handlePromptChange(event.target.value)
+                            }
+                            placeholder="Write the workflow prompt in Markdown."
+                            spellCheck
+                            className="min-h-80 w-full resize-y rounded-md border border-gray-300 bg-white p-4 font-mono text-sm leading-6 text-gray-900 outline-none focus:border-gray-600 read-only:resize-none read-only:bg-gray-50"
                         />
                     </div>
                 ) : (
