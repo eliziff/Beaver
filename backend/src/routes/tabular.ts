@@ -37,10 +37,6 @@ import {
     filterAccessibleDocumentIds,
 } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
-import {
-    findMissingUserEmails,
-    loadProfileUsersByEmail,
-} from "../lib/userLookup";
 import { isAnonymousLocalMode } from "../lib/localMode";
 import {
     getLocalVersionFiles,
@@ -448,6 +444,7 @@ tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
     ).map((e) => (e ?? "").toLowerCase());
 
     // Use the mirrored profile email so sharing checks do not scan auth.users.
+    const { loadProfileUsersByEmail } = await import("../lib/userLookup");
     const { userByEmail, userById } = await loadProfileUsersByEmail(db);
 
     const ownerInfo = userById.get(review.user_id as string);
@@ -592,6 +589,7 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
             return void res
                 .status(403)
                 .json({ detail: "Only the review owner can change sharing" });
+        const { findMissingUserEmails } = await import("../lib/userLookup");
         const missingSharedUsers = await findMissingUserEmails(
             db,
             sharedWithUpdate,

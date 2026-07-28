@@ -7,7 +7,6 @@ import {
   type SystemWorkflow,
 } from "../lib/systemWorkflows";
 import { isAnonymousLocalMode } from "../lib/localMode";
-import { findMissingUserEmails } from "../lib/userLookup";
 import { normalizeOptionalString } from "../lib/normalize";
 import { asyncRoute } from "../lib/asyncRoute";
 
@@ -757,6 +756,7 @@ workflowsRouter.post("/:workflowId/share", requireAuth, asyncRoute(async (req, r
   }
 
   const db = createServerSupabase();
+  const { findMissingUserEmails } = await import("../lib/userLookup");
   const missingSharedUsers = await findMissingUserEmails(db, normalizedEmails);
   if (missingSharedUsers.length > 0) {
     return void res.status(400).json({
