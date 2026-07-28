@@ -1,23 +1,19 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertCircle, Expand } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type { ColumnConfig, TabularCell as TCell } from "../shared/types";
 import { preprocessCitations, type ParsedCitation } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
-import {
-    SkeletonLine,
-    TABLE_SCROLL_CLOSE_EVENT,
-} from "../shared/TablePrimitive";
+import { SkeletonLine } from "../shared/TablePrimitive";
 
 interface Props {
     cell: TCell;
     column?: ColumnConfig;
-    closeSignal?: number;
     onExpand: (cell: TCell) => void;
-    onCitationClick?: (
+    onCitationClick: (
         cell: TCell,
         page: number | undefined,
         quote: string,
@@ -66,21 +62,19 @@ function CellMarkdown({
     pills,
     column,
     onCitationClick,
-    onExpand,
     inline,
 }: {
     text: string;
     citations: ParsedCitation[];
     pills: string[];
     column?: ColumnConfig;
-    onCitationClick?: (
+    onCitationClick: (
         page: number | undefined,
         quote: string,
         citationRef: number,
         sheet?: string,
         cell?: string,
     ) => void;
-    onExpand: () => void;
     inline?: boolean;
 }) {
     return (
@@ -127,17 +121,13 @@ function CellMarkdown({
                                     title={`${formatCitationLocation(citation)}: "${citation.quote}"`}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (onCitationClick) {
-                                            onCitationClick(
-                                                citation.page,
-                                                citation.quote,
-                                                idx + 1,
-                                                citation.sheet,
-                                                citation.cell,
-                                            );
-                                        } else {
-                                            onExpand();
-                                        }
+                                        onCitationClick(
+                                            citation.page,
+                                            citation.quote,
+                                            idx + 1,
+                                            citation.sheet,
+                                            citation.cell,
+                                        );
                                     }}
                                     className="mx-0.5 inline-flex items-center justify-center rounded-full bg-gray-200 w-3.5 h-3.5 text-[9px] font-medium text-gray-700 align-super cursor-pointer hover:bg-gray-300 transition-colors"
                                 >
@@ -185,41 +175,9 @@ function formatCitationLocation(citation: ParsedCitation): string {
 export const TabularCell = memo(function TabularCell({
     cell,
     column,
-    closeSignal,
     onExpand,
     onCitationClick,
 }: Props) {
-    const [inlineExpanded, setInlineExpanded] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (closeSignal === undefined) return;
-        const timeout = window.setTimeout(() => setInlineExpanded(false), 0);
-        return () => window.clearTimeout(timeout);
-    }, [closeSignal]);
-
-    useEffect(() => {
-        const close = () => setInlineExpanded(false);
-        window.addEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
-        return () =>
-            window.removeEventListener(TABLE_SCROLL_CLOSE_EVENT, close);
-    }, []);
-
-    useEffect(() => {
-        if (!inlineExpanded) return;
-        function handleClickOutside(e: MouseEvent) {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(e.target as Node)
-            ) {
-                setInlineExpanded(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
-    }, [inlineExpanded]);
-
     if (cell.status === "generating") {
         return <TabularCellSkeleton />;
     }
@@ -243,17 +201,6 @@ export const TabularCell = memo(function TabularCell({
     const firstLine = processed.split("\n").find((l) => l.trim()) ?? processed;
     const collapsedDisplay = firstLine.replace(/^[-*•]\s+/, "");
 
-    function handleCitationClickInOverlay(
-        page: number | undefined,
-        quote: string,
-        citationRef: number,
-        sheet?: string,
-        citationCell?: string,
-    ) {
-        setInlineExpanded(false);
-        handleCitationClick(page, quote, citationRef, sheet, citationCell);
-    }
-
     function handleCitationClick(
         page: number | undefined,
         quote: string,
@@ -261,70 +208,34 @@ export const TabularCell = memo(function TabularCell({
         sheet?: string,
         citationCell?: string,
     ) {
-        onCitationClick?.(cell, page, quote, citationRef, sheet, citationCell);
+        onCitationClick(cell, page, quote, citationRef, sheet, citationCell);
     }
 
     function handleSeeDetails() {
-        setInlineExpanded(false);
         onExpand(cell);
     }
 
     return (
-        <div ref={containerRef} className="relative">
-            {/* Normal cell row — always visible, preserves table layout */}
-            <div
-                className="group relative h-8 px-2 flex items-center text-xs text-gray-800 leading-relaxed cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => setInlineExpanded((v) => !v)}
-            >
-                {cell.content.flag && (
-                    <span
-                        className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${FLAG_STYLES[cell.content.flag]}`}
-                        title={cell.content.flag}
-                    />
-                )}
-                <div className="line-clamp-1 w-full min-w-0">
-                    <CellMarkdown
-                        text={collapsedDisplay}
-                        citations={citations}
-                        pills={pills}
-                        column={column}
-                        onCitationClick={handleCitationClick}
-                        onExpand={handleSeeDetails}
-                        inline
-                    />
-                </div>
-            </div>
-
-            {/* Inline expanded overlay — absolutely positioned so it overlays without disrupting table layout */}
-            {inlineExpanded && (
-                <div className="absolute left-0 top-0 z-50 w-full rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
-                    <div className="relative p-2 pr-4 text-xs text-gray-800 leading-relaxed">
-                        {cell.content.flag && (
-                            <span
-                                className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${FLAG_STYLES[cell.content.flag]}`}
-                                title={cell.content.flag}
-                            />
-                        )}
-                        <CellMarkdown
-                            text={processed}
-                            citations={citations}
-                            pills={pills}
-                            column={column}
-                            onCitationClick={handleCitationClickInOverlay}
-                            onExpand={handleSeeDetails}
-                        />
-                    </div>
-                    <div className="px-2 py-1.5 flex items-center justify-end">
-                        <button
-                            onClick={handleSeeDetails}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
-                        >
-                            <Expand className="h-3 w-3" />
-                            See details
-                        </button>
-                    </div>
-                </div>
+        <div
+            className="group relative flex h-8 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 transition-colors hover:bg-gray-50"
+            onClick={handleSeeDetails}
+        >
+            {cell.content.flag && (
+                <span
+                    className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${FLAG_STYLES[cell.content.flag]}`}
+                    title={cell.content.flag}
+                />
             )}
+            <div className="line-clamp-1 w-full min-w-0">
+                <CellMarkdown
+                    text={collapsedDisplay}
+                    citations={citations}
+                    pills={pills}
+                    column={column}
+                    onCitationClick={handleCitationClick}
+                    inline
+                />
+            </div>
         </div>
     );
 });
