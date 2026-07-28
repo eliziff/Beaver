@@ -6,7 +6,6 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
-import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
@@ -35,6 +34,11 @@ const RecyclingBinModal = lazy(async () => ({
 const AppSettingsModal = lazy(async () => ({
   default: await loadSettingsModal(),
 }));
+const SelectAssistantProjectModal = lazy(() =>
+  import("@/app/components/assistant/SelectAssistantProjectModal").then(
+    (module) => ({ default: module.SelectAssistantProjectModal }),
+  ),
+);
 import { updateChatProject } from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
 

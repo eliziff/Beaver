@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -10,7 +10,11 @@ import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
 import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
-import { TableOfAuthoritiesHost } from "@/app/components/shared/TableOfAuthoritiesHost";
+const TableOfAuthoritiesHost = lazy(() =>
+    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({
+        default: module.TableOfAuthoritiesHost,
+    })),
+);
 
 export default function BeaverLayout({
     children,
@@ -119,21 +123,32 @@ export default function BeaverLayout({
                                         children
                                     )}
                                 </main>
-                                <TableOfAuthoritiesHost
-                                    active={
-                                        authoritiesActive &&
-                                        !authLoading &&
-                                        isAuthenticated
-                                    }
-                                    pending={authoritiesIntent}
-                                    enabled={
-                                        !authLoading &&
-                                        isAuthenticated &&
-                                        (isAnonymousMode ||
-                                            authoritiesActive ||
-                                            authoritiesIntent)
-                                    }
-                                />
+                                {authoritiesVisible && (
+                                    <Suspense
+                                        fallback={
+                                            <div
+                                                aria-hidden="true"
+                                                className="absolute inset-0 bg-[#f3f4f6]"
+                                            />
+                                        }
+                                    >
+                                        <TableOfAuthoritiesHost
+                                            active={
+                                                authoritiesActive &&
+                                                !authLoading &&
+                                                isAuthenticated
+                                            }
+                                            pending={authoritiesIntent}
+                                            enabled={
+                                                !authLoading &&
+                                                isAuthenticated &&
+                                                (isAnonymousMode ||
+                                                    authoritiesActive ||
+                                                    authoritiesIntent)
+                                            }
+                                        />
+                                    </Suspense>
+                                )}
                             </div>
                         </div>
                     </div>
