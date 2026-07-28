@@ -553,7 +553,6 @@ export function DocTable({
         null,
     );
     const [dragOverRoot, setDragOverRoot] = useState(false);
-    const [dragOverFileRoot, setDragOverFileRoot] = useState(false);
     const [isDraggingCollectionFiles, setIsDraggingCollectionFiles] =
         useState(false);
     const collectionDragDepthRef = useRef(0);
@@ -628,7 +627,6 @@ export function DocTable({
         function handleDragEnd() {
             setDragOverFolderId(null);
             setDragOverRoot(false);
-            setDragOverFileRoot(false);
             collectionDragDepthRef.current = 0;
             setIsDraggingCollectionFiles(false);
         }
@@ -1111,7 +1109,6 @@ export function DocTable({
             event.stopPropagation();
             collectionDragDepthRef.current = 0;
             setIsDraggingCollectionFiles(false);
-            setDragOverFileRoot(false);
             void dropCollectionFilesFromWindow(
                 Array.from(event.dataTransfer?.files ?? []),
             );
@@ -1221,7 +1218,6 @@ export function DocTable({
         e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
         setDragOverVersionDocId(docId);
-        setDragOverFileRoot(false);
         setDragOverRoot(false);
     }
 
@@ -1244,7 +1240,6 @@ export function DocTable({
         e.preventDefault();
         e.stopPropagation();
         setDragOverVersionDocId(null);
-        setDragOverFileRoot(false);
         collectionDragDepthRef.current = 0;
         setIsDraggingCollectionFiles(false);
         setDragOverRoot(false);
@@ -1555,9 +1550,6 @@ export function DocTable({
                                 }
                                 className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${selectionFirst ? "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600" : ""} ${isVersionDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : isSelected ? APP_SURFACE_ACTIVE_CLASS : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}
                             >
-                                {(() => {
-                                    return (
-                                        <>
                                             <div
                                                 className={`sticky left-0 z-[60] ${DOC_NAME_COL_W} bg-inherit py-2 pl-4 pr-2`}
                                                 style={treeNameCellStyle(depth)}
@@ -1570,9 +1562,7 @@ export function DocTable({
                                                         </span>
                                                     ) : (
                                                         <CheckboxControl
-                                                            checked={selectedDocIds.includes(
-                                                                doc.id,
-                                                            )}
+                                                            checked={isSelected}
                                                             onChange={() =>
                                                                 toggleDocumentSelection(
                                                                     doc.id,
@@ -1800,9 +1790,6 @@ export function DocTable({
                                                     />
                                                 )}
                                             </div>
-                                        </>
-                                    );
-                                })()}
                             </div>
                         </div>
                     );
@@ -2518,45 +2505,9 @@ export function DocTable({
                         <ProjectTableLoading stickyCellBg={stickyCellBg} />
                     ) : (
                         <div className="flex-1 flex flex-col min-h-0">
-                            {/* Blue ring wraps everything below the header when root-dropping */}
-                            <div
-                                className="flex-1 flex flex-col min-h-0 relative"
-                                onDragOver={(e) => {
-                                    if (!hasFilePayload(e.dataTransfer)) return;
-                                    e.preventDefault();
-                                    e.dataTransfer.dropEffect = "copy";
-                                    setDragOverFileRoot(true);
-                                    setDragOverVersionDocId(null);
-                                }}
-                                onDragLeave={(e) => {
-                                    if (
-                                        !e.currentTarget.contains(
-                                            e.relatedTarget as Node,
-                                        )
-                                    ) {
-                                        setDragOverFileRoot(false);
-                                    }
-                                }}
-                                onDrop={(e) => {
-                                    if (!hasFilePayload(e.dataTransfer)) return;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setDragOverFileRoot(false);
-                                    collectionDragDepthRef.current = 0;
-                                    setIsDraggingCollectionFiles(false);
-                                    setDragOverRoot(false);
-                                    setDragOverFolderId(null);
-                                    setDragOverVersionDocId(null);
-                                    void handleDropCollectionFiles(
-                                        Array.from(e.dataTransfer.files),
-                                    );
-                                }}
-                            >
+                            <div className="flex-1 flex flex-col min-h-0 relative">
                                 {dragOverRoot && dragOverFolderId === null && (
                                     <div className="absolute inset-0 border-2 border-blue-400 pointer-events-none z-[80]" />
-                                )}
-                                {dragOverFileRoot && (
-                                    <div className="pointer-events-none absolute inset-0 z-[90] border-2 border-red-500 bg-red-50/40" />
                                 )}
 
                                 {/* Empty state */}
@@ -2611,7 +2562,6 @@ export function DocTable({
                                 )}
 
                             </div>
-                            {/* end blue ring wrapper */}
                         </div>
                     )}
             </TableScrollArea>
