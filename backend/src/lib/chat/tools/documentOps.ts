@@ -1150,7 +1150,7 @@ export async function readDocumentContent(
     } else if (isSpreadsheetDocumentType(fileType)) {
       // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
       // cell-addressed markdown view with Excel-formatted values.
-      text = spreadsheetToLLMText(Buffer.from(raw));
+      text = await spreadsheetToLLMText(Buffer.from(raw));
     } else if (fileType === "pptx") {
       text = await extractPresentationText(Buffer.from(raw));
     } else if (
