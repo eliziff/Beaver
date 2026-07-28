@@ -1,9 +1,21 @@
 "use client";
 
-import type { ComponentProps } from "react";
-import { DocxView } from "./DocxView";
-import { PdfView } from "./PdfView";
-import { SpreadsheetView } from "./SpreadsheetView";
+import { lazy, Suspense, type ComponentProps } from "react";
+import type { DocxView } from "./DocxView";
+import type { PdfView } from "./PdfView";
+import type { SpreadsheetView } from "./SpreadsheetView";
+
+const DocxRenderer = lazy(() =>
+    import("./DocxView").then(({ DocxView }) => ({ default: DocxView })),
+);
+const PdfRenderer = lazy(() =>
+    import("./PdfView").then(({ PdfView }) => ({ default: PdfView })),
+);
+const SpreadsheetRenderer = lazy(() =>
+    import("./SpreadsheetView").then(({ SpreadsheetView }) => ({
+        default: SpreadsheetView,
+    })),
+);
 
 export type DocumentViewerKind = "docx" | "pdf" | "spreadsheet";
 
@@ -25,9 +37,40 @@ export function DocumentViewer({
     versionId,
     ...options
 }: DocumentViewerProps) {
-    if (kind === "docx")
-        return <DocxView documentId={documentId} versionId={versionId} {...options} />;
-    if (kind === "spreadsheet")
-        return <SpreadsheetView documentId={documentId} versionId={versionId} {...options} />;
-    return <PdfView doc={{ document_id: documentId, version_id: versionId }} {...options} />;
+    const renderer =
+        kind === "docx" ? (
+            <DocxRenderer
+                documentId={documentId}
+                versionId={versionId}
+                {...options}
+            />
+        ) : kind === "spreadsheet" ? (
+            <SpreadsheetRenderer
+                documentId={documentId}
+                versionId={versionId}
+                {...options}
+            />
+        ) : (
+            <PdfRenderer
+                doc={{ document_id: documentId, version_id: versionId }}
+                {...options}
+            />
+        );
+
+    return (
+        <Suspense fallback={<ViewerLoading />}>
+            {renderer}
+        </Suspense>
+    );
+}
+
+function ViewerLoading() {
+    return (
+        <div
+            className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500"
+            role="status"
+        >
+            Loading document…
+        </div>
+    );
 }
