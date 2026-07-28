@@ -50,6 +50,19 @@ export default function BeaverLayout({
         }
     }, [authLoading, isAuthenticated, router]);
 
+    useEffect(() => {
+        const modelRoute =
+            pathname.includes("/assistant") ||
+            pathname.startsWith("/workflows") ||
+            pathname.includes("/tabular-reviews");
+        if (authLoading || !isAuthenticated || !modelRoute) return;
+        void import("@/app/lib/codexModelCatalog")
+            .then(({ preloadCodexModelCatalog }) =>
+                preloadCodexModelCatalog(),
+            )
+            .catch(() => {});
+    }, [authLoading, isAuthenticated, pathname]);
+
     if (!authLoading && !isAuthenticated) return null;
 
     return (
