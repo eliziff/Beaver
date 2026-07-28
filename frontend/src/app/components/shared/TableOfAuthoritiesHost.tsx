@@ -1,16 +1,65 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
+import { isAnonymousMode } from "@/app/lib/authMode";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 
 const BOOT_TIMEOUT_MS = 15_000;
+const JOB_ID = /^[0-9a-f]{32}$/;
+const PROJECT_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LOCAL_FRAME_URL = isAnonymousMode
+  ? new URL(
+      "?mode=mike",
+      process.env.NEXT_PUBLIC_TOA_WEB_URL ?? "http://127.0.0.1:8765/",
+    ).toString()
+  : null;
+const warmedService =
+  typeof window !== "undefined" && isAnonymousMode
+    ? launchTableOfAuthorities()
+    : null;
+void warmedService?.catch(() => {});
 
 interface TableOfAuthoritiesHostProps {
   active: boolean;
   enabled: boolean;
+}
+
+type AuthoritiesScope = {
+  job: string;
+  project: string;
+};
+
+function ScopeReader({
+  active,
+  onChange,
+}: {
+  active: boolean;
+  onChange: (scope: AuthoritiesScope) => void;
+}) {
+  const searchParams = useSearchParams();
+  const job = active && JOB_ID.test(searchParams.get("job") || "")
+    ? searchParams.get("job")!
+    : "";
+  const project =
+    active && PROJECT_ID.test(searchParams.get("project") || "")
+      ? searchParams.get("project")!
+      : "";
+
+  useEffect(() => {
+    onChange({ job, project });
+  }, [job, onChange, project]);
+
+  return null;
 }
 
 function AuthoritiesShell({
@@ -46,44 +95,49 @@ function AuthoritiesShell({
   );
 }
 
-export function TableOfAuthoritiesFallback({ active }: { active: boolean }) {
-  return (
-    <AuthoritiesShell active={active} busy={active}>
-      <div
-        data-testid="authorities-neutral-cover"
-        className="absolute inset-0 bg-[#f3f4f6]"
-      />
-    </AuthoritiesShell>
-  );
+function sessionId() {
+  const key = "mike-table-of-authorities-session";
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (stored && JOB_ID.test(stored)) return stored;
+    const created = crypto.randomUUID().replaceAll("-", "");
+    window.sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return crypto.randomUUID().replaceAll("-", "");
+  }
 }
 
 export function TableOfAuthoritiesHost({
   active,
   enabled,
 }: TableOfAuthoritiesHostProps) {
-  const searchParams = useSearchParams();
-  const requestedJob =
-    active && /^[0-9a-f]{32}$/.test(searchParams.get("job") || "")
-      ? searchParams.get("job")!
-      : "";
-  const requestedProject =
-    active &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      searchParams.get("project") || "",
-    )
-      ? searchParams.get("project")!
-      : "";
-  const [url, setUrl] = useState<string | null>(null);
+  const [scope, setScope] = useState<AuthoritiesScope>({
+    job: "",
+    project: "",
+  });
+  const [url, setUrl] = useState<string | null>(LOCAL_FRAME_URL);
   const [frameReady, setFrameReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const frameReadyRef = useRef(false);
   const sessionRef = useRef("");
-  const urlRef = useRef("");
+  const urlRef = useRef(LOCAL_FRAME_URL ?? "");
   const scopeRef = useRef("");
-  const expectedOriginRef = useRef("");
+  const expectedOriginRef = useRef(
+    LOCAL_FRAME_URL ? new URL(LOCAL_FRAME_URL).origin : "",
+  );
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
-  const serviceRef = useRef<Promise<string> | null>(null);
+  const serviceRef = useRef(warmedService);
+
+  const onScopeChange = useCallback((next: AuthoritiesScope) => {
+    setScope((current) =>
+      current.job === next.job && current.project === next.project
+        ? current
+        : next,
+    );
+  }, []);
 
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current !== null) {
@@ -104,6 +158,14 @@ export function TableOfAuthoritiesHost({
     [clearWatchdog],
   );
 
+  const pingFrame = useCallback(() => {
+    if (!frameRef.current?.contentWindow || !expectedOriginRef.current) return;
+    frameRef.current.contentWindow.postMessage(
+      { type: "mike:table-of-authorities-probe" },
+      expectedOriginRef.current,
+    );
+  }, []);
+
   useEffect(() => {
     const onReady = (event: MessageEvent) => {
       if (
@@ -123,6 +185,7 @@ export function TableOfAuthoritiesHost({
       if (data.type === "mike:table-of-authorities-ready") {
         clearWatchdog();
         setError(null);
+        frameReadyRef.current = true;
         setFrameReady(true);
       } else if (data.type === "mike:table-of-authorities-error") {
         clearWatchdog();
@@ -134,8 +197,12 @@ export function TableOfAuthoritiesHost({
       }
     };
     window.addEventListener("message", onReady);
+    if (urlRef.current) {
+      startWatchdog(attemptRef.current);
+      pingFrame();
+    }
     return () => window.removeEventListener("message", onReady);
-  }, [clearWatchdog]);
+  }, [clearWatchdog, pingFrame, startWatchdog]);
 
   useEffect(
     () => () => {
@@ -147,43 +214,41 @@ export function TableOfAuthoritiesHost({
   useEffect(() => {
     if (!enabled || (!active && urlRef.current)) return;
     let live = true;
-    if (!sessionRef.current) {
-      const key = "mike-table-of-authorities-session";
-      try {
-        const stored = window.sessionStorage.getItem(key);
-        sessionRef.current =
-          stored && /^[0-9a-f]{32}$/.test(stored)
-            ? stored
-            : crypto.randomUUID().replaceAll("-", "");
-        window.sessionStorage.setItem(key, sessionRef.current);
-      } catch {
-        sessionRef.current = crypto.randomUUID().replaceAll("-", "");
-      }
-    }
     if (!serviceRef.current) {
-      startWatchdog("");
-      serviceRef.current = launchTableOfAuthorities().then(
-        (result) => result.url,
-      );
+      serviceRef.current = launchTableOfAuthorities();
     }
     serviceRef.current
       .then((service) => {
         if (!live) return;
-        const scope = [requestedJob, requestedProject];
-        const signature = scope.join(":");
-        if (urlRef.current && scopeRef.current === signature) return;
-        const serviceUrl = new URL(service);
+        const signature = `${scope.job}:${scope.project}`;
+        const serviceUrl = new URL(service.url);
+        const currentOrigin = urlRef.current
+          ? new URL(urlRef.current).origin
+          : "";
+        if (
+          urlRef.current &&
+          scopeRef.current === signature &&
+          currentOrigin === serviceUrl.origin &&
+          (service.reused || frameReadyRef.current)
+        ) {
+          pingFrame();
+          return;
+        }
+        if (!sessionRef.current) sessionRef.current = sessionId();
         const attempt = crypto.randomUUID();
         serviceUrl.searchParams.set("mode", "mike");
         serviceUrl.searchParams.set("session", sessionRef.current);
         serviceUrl.searchParams.set("attempt", attempt);
-        if (scope[0]) serviceUrl.searchParams.set("job", scope[0]);
-        if (scope[1]) serviceUrl.searchParams.set("project", scope[1]);
+        if (scope.job) serviceUrl.searchParams.set("job", scope.job);
+        if (scope.project) {
+          serviceUrl.searchParams.set("project", scope.project);
+        }
         scopeRef.current = signature;
         urlRef.current = serviceUrl.toString();
         expectedOriginRef.current = serviceUrl.origin;
         attemptRef.current = attempt;
         setError(null);
+        frameReadyRef.current = false;
         setFrameReady(false);
         startWatchdog(attempt);
         setUrl(urlRef.current);
@@ -204,28 +269,38 @@ export function TableOfAuthoritiesHost({
     active,
     clearWatchdog,
     enabled,
-    requestedJob,
-    requestedProject,
+    pingFrame,
+    scope.job,
+    scope.project,
     startWatchdog,
   ]);
 
   return (
-    <AuthoritiesShell
-      active={active}
-      busy={active && !frameReady && !error}
-    >
-      {url && (
-        <iframe
-          ref={frameRef}
-          src={url}
-          title="Table of Authorities"
-          aria-hidden={!active || !frameReady}
-          tabIndex={active && frameReady ? 0 : -1}
-          className="absolute inset-0 h-full w-full border-0 bg-[#f3f4f6]"
-        />
-      )}
-      {!frameReady &&
-        (error ? (
+    <>
+      <Suspense fallback={null}>
+        <ScopeReader active={active} onChange={onScopeChange} />
+      </Suspense>
+      <AuthoritiesShell
+        active={active}
+        busy={active && !frameReady && !error}
+      >
+        {url && (
+          <iframe
+            ref={frameRef}
+            src={url}
+            title="Table of Authorities"
+            aria-hidden={!active || !frameReady}
+            tabIndex={active && frameReady ? 0 : -1}
+            onLoad={pingFrame}
+            className="absolute inset-0 h-full w-full border-0 bg-[#f3f4f6]"
+          />
+        )}
+        {!url ? (
+          <div
+            data-testid="authorities-neutral-cover"
+            className="absolute inset-0 bg-[#f3f4f6]"
+          />
+        ) : !frameReady && error ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white p-8">
             <div className="max-w-lg text-center">
               <h2 className="font-serif text-2xl text-gray-900">
@@ -241,12 +316,8 @@ export function TableOfAuthoritiesHost({
               </button>
             </div>
           </div>
-        ) : (
-          <div
-            data-testid="authorities-neutral-cover"
-            className="absolute inset-0 bg-[#f3f4f6]"
-          />
-        ))}
-    </AuthoritiesShell>
+        ) : null}
+      </AuthoritiesShell>
+    </>
   );
 }
