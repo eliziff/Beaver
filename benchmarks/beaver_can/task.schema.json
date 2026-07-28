@@ -20,7 +20,9 @@
       "enum": [
         "closed_source_research",
         "retrieval",
-        "long_thread"
+        "long_thread",
+        "citation_mechanics",
+        "synthetic_review"
       ]
     },
     "deliverable": {
