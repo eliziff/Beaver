@@ -19,7 +19,7 @@ import {
     type ChatMessage,
     type TabularCellStore,
 } from "../lib/chat/types";
-import { readTabularCells } from "../lib/chat/tools/toolDispatcher";
+import { readTabularCells } from "../lib/chat/tabularCells";
 import { TABULAR_TOOLS } from "../lib/chat/tools/toolSchemas";
 import { isAbortError } from "../lib/llm/abort";
 import {
