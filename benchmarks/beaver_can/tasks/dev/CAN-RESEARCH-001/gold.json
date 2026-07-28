@@ -1,0 +1,38 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-003",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["231(5)", "231(5)(e)"]
+    },
+    {
+      "source_id": "SRC-002",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": [21, 22, 24]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-03",
+      "acceptable_pinpoints": [21, 25, 27]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-02", "acceptable": ["no"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02"],
+  "definitions": {
+    "ISSUE-01": "Classification of murder as first degree without planning and deliberation via the s 231(5) constructive route (death caused while committing s 279 forcible confinement).",
+    "ISSUE-02": "Mandatory life sentence on a murder conviction and the appellate treatment of a trial judge's constitutional exemption from the mandatory minimum.",
+    "ISSUE-03": "Reverse-onus statutory presumptions and the presumption of innocence: what burden and standard of proof falls on the accused.",
+    "PROP-01": "Irrespective of planning and deliberation, murder is first degree when the death is caused while the accused is committing or attempting an enumerated offence, including s 279 kidnapping and forcible confinement.",
+    "PROP-02": "Murder carries a mandatory sentence of life imprisonment; the trial judge's constitutional exemption from the mandatory minimum was reversed on appeal and the mandatory minimum imposed.",
+    "PROP-03": "A reverse-onus presumption places a legal (persuasive) burden on the accused to disprove the presumed fact on a balance of probabilities, engaging the constitutionally entrenched presumption of innocence in s 11(d).",
+    "CONCLUSION-01": "The Crown's forcible-confinement theory can support first degree murder even absent planning and deliberation.",
+    "CONCLUSION-02": "The supplied appellate authorities sustained a constitutional exemption from the mandatory minimum sentence.",
+    "CLAIM-01": "Planning and deliberation is always required before murder can be classified as first degree.",
+    "CLAIM-02": "An accused rebutting a reverse-onus presumption must disprove the presumed fact beyond a reasonable doubt."
+  }
+}

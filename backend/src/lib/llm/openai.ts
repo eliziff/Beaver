@@ -2,6 +2,7 @@ import { abortError, throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
   LlmMessage,
+  NormalizedLlmUsage,
   NormalizedToolCall,
   NormalizedToolResult,
   OpenAIToolSchema,
@@ -59,9 +60,17 @@ type ResponseStreamEvent = {
     output_text?: string;
     status?: string;
     error?: { code?: string; message?: string } | null;
+    usage?: ResponseUsage;
   };
   error?: { code?: string; message?: string } | null;
   item?: ResponseFunctionCallItem;
+};
+
+type ResponseUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  input_tokens_details?: { cached_tokens?: number };
+  output_tokens_details?: { reasoning_tokens?: number };
 };
 
 export type ResponsesAdapterConfig = {
@@ -241,6 +250,28 @@ export async function streamResponsesApi(
   let previousResponseId: string | undefined;
   let fullText = "";
   let needsCourtlistenerCitationReminder = false;
+  // Accumulated across tool-loop iterations; null until a response reports it.
+  let usage: NormalizedLlmUsage | null = null;
+  const addUsage = (reported: ResponseUsage) => {
+    // An all-zero report is "not reported", not a free request.
+    if (!reported.input_tokens && !reported.output_tokens) return;
+    usage ??= {
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: null,
+    };
+    usage.inputTokens = (usage.inputTokens ?? 0) + (reported.input_tokens ?? 0);
+    usage.outputTokens =
+      (usage.outputTokens ?? 0) + (reported.output_tokens ?? 0);
+    usage.reasoningTokens =
+      (usage.reasoningTokens ?? 0) +
+      (reported.output_tokens_details?.reasoning_tokens ?? 0);
+    usage.cacheReadInputTokens =
+      (usage.cacheReadInputTokens ?? 0) +
+      (reported.input_tokens_details?.cached_tokens ?? 0);
+  };
   const trace = createLlmTrace({ provider: config.provider, model });
 
   try {
@@ -297,6 +328,14 @@ export async function streamResponsesApi(
 
           if (config.persistent && event.response?.id) {
             previousResponseId = event.response.id;
+          }
+
+          if (
+            (event.type === "response.completed" ||
+              event.type === "response.incomplete") &&
+            event.response?.usage
+          ) {
+            addUsage(event.response.usage);
           }
 
           if (
@@ -365,7 +404,7 @@ export async function streamResponsesApi(
     }
 
     await trace.flush("completed");
-    return { fullText };
+    return usage ? { fullText, usage } : { fullText };
   } catch (error) {
     await trace.flush("error", error);
     throw error;

@@ -1,0 +1,23 @@
+{
+  "required_issues": ["ISSUE-01"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["231(5)", "231(5)(e)"]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03"],
+  "definitions": {
+    "ISSUE-01": "Whether a killing during forcible confinement is first degree murder absent planning and deliberation (constructive classification under s 231(5)).",
+    "PROP-01": "Irrespective of planning and deliberation, murder is first degree when the death is caused while committing or attempting an offence under s 279 (kidnapping and forcible confinement).",
+    "CONCLUSION-01": "Section 231(5)(e) is the governing route to first degree murder on these facts and s 231 must rank first.",
+    "CLAIM-01": "The terrorism provisions (s 83.01 definitions) govern the classification of this killing.",
+    "CLAIM-02": "The Occupiers' Liability Act or the Food and Drug Regulations bear on the murder-classification question.",
+    "CLAIM-03": "R. v. Latimer or R. v. Oakes states the governing test for classifying murder committed during forcible confinement."
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["3(1)"]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": ["4(1)", "4(2)"]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03"],
+  "required_quotations": [
+    {
+      "source_id": "SRC-001",
+      "quote": "An occupier of premises owes a duty to take such care as in all the circumstances of the case is reasonable to see that persons entering on the premises, and the property brought on the premises by those persons are reasonably safe while on the premises.",
+      "acceptable_pinpoints": ["3(1)"]
+    }
+  ],
+  "seeded_identifiers": ["SEED-CAN-CONTEXT-001-RESERVE"],
+  "definitions": {
+    "ISSUE-01": "The occupier's statutory duty of care under s 3(1) of the Occupiers' Liability Act as the baseline for the client's exposure.",
+    "ISSUE-02": "Whether the reduced duty for risks willingly assumed (s 4) applies to Mr. Morin's after-hours entry into the fenced, signed storage yard on the version-2 facts.",
+    "PROP-01": "An occupier owes a duty to take reasonable care in all the circumstances to see that persons entering the premises are reasonably safe.",
+    "PROP-02": "The s 3(1) duty does not apply to risks willingly assumed by the entrant; the occupier then owes only the duty not to create a danger with deliberate intent to harm and not to act with reckless disregard.",
+    "CONCLUSION-01": "On the current (version 2) facts, the reduced s 4 duty is arguably engaged for the after-hours entry into the fenced and signed storage yard.",
+    "CLAIM-01": "The incident occurred on the shop floor during business hours (superseded version-1 fact).",
+    "CLAIM-02": "The memorandum analyzes general negligence or other non-OLA theories of liability (scope instruction INSTR-01 was superseded by INSTR-02).",
+    "CLAIM-03": "The incident occurred on 2026-03-04 (superseded version-1 date; version 2 corrected it to 2026-03-14)."
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "CAN-CONTEXT-001",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-occupiers-liability.json",
+      "sha256": "fabdc4bcdf0d5dda54b3e68186e227c0ff4e8c3fdcaf89f543db73bad2f9baea",
+      "role": "authority",
+      "citation": "Occupiers' Liability Act, RSO 1990, c O.2"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "task_local",
+      "path": "incident-report-v1.md",
+      "sha256": "c8431d0f0cec83984f29a924683f365f530ddb6c5ff4d6cbb4fd713386d87d45",
+      "role": "matter_document",
+      "citation": "Incident report, DOC-INCIDENT version 1",
+      "superseded_by": "SRC-003"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "task_local",
+      "path": "incident-report-v2.md",
+      "sha256": "e97f8c357d2a9826962a2955a93ae89ea9a245803964c3e048a0d87118e65c36",
+      "role": "matter_document",
+      "citation": "Incident report, DOC-INCIDENT version 2"
+    }
+  ]
+}

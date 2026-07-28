@@ -1,0 +1,29 @@
+{
+  "task_id": "CAN-RESEARCH-001",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-1986scr103-dot.json",
+      "sha256": "d85045ce5311c64d690e3d405ec157ceeefe11bae5f137f3d23735ae7ff9952d",
+      "role": "authority",
+      "citation": "R. v. Oakes, [1986] 1 SCR 103"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-case-scc-2001scc1-bare.json",
+      "sha256": "b70671d9f4a55fad996ef06cedfd419fa3e205f25d6db6273e47030552de256e",
+      "role": "authority",
+      "citation": "R. v. Latimer, 2001 SCC 1"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-fed-criminalcode-s231.json",
+      "sha256": "b5082450a44ab13162141b4563108313331953183b842fd19553b31d90a3fe0e",
+      "role": "authority",
+      "citation": "Criminal Code, RSC 1985, c C-46, s 231"
+    }
+  ]
+}

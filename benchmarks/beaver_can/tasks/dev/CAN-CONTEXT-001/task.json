@@ -1,0 +1,21 @@
+{
+  "id": "CAN-CONTEXT-001",
+  "jurisdiction": "CA-ON",
+  "law_as_of": "2026-06-30",
+  "task_type": "long_thread",
+  "deliverable": {
+    "type": "memorandum",
+    "maximum_words": 1200,
+    "required_filename": "answer.docx"
+  },
+  "source_ids": ["SRC-001", "SRC-002", "SRC-003"],
+  "fatal_errors": [
+    "fabricated_authority",
+    "fabricated_quotation",
+    "invalid_pinpoint",
+    "wrong_jurisdiction",
+    "outside_source_packet",
+    "superseded_instruction",
+    "seeded_identifier_leak"
+  ]
+}

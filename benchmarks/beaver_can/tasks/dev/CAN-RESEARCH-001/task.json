@@ -1,0 +1,20 @@
+{
+  "id": "CAN-RESEARCH-001",
+  "jurisdiction": "CA-ON",
+  "law_as_of": "2026-06-30",
+  "task_type": "closed_source_research",
+  "deliverable": {
+    "type": "memorandum",
+    "maximum_words": 1500,
+    "required_filename": "answer.docx"
+  },
+  "source_ids": ["SRC-001", "SRC-002", "SRC-003"],
+  "fatal_errors": [
+    "fabricated_authority",
+    "fabricated_quotation",
+    "invalid_pinpoint",
+    "wrong_jurisdiction",
+    "outside_source_packet",
+    "superseded_instruction"
+  ]
+}
