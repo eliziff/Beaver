@@ -1,13 +1,5 @@
 import type { AssistantEvent } from "../../shared/types";
 
-export function eventErrorMessage(event: AssistantEvent): string | null {
-    if (event.type === "error") return event.message;
-    if ("error" in event && typeof event.error === "string" && event.error) {
-        return event.error;
-    }
-    return null;
-}
-
 export function toolCallLabel(name: string): string {
     if (name === "ask_inputs") return "Asking for input...";
     if (name === "generate_docx" || name === "library_create_docx")
