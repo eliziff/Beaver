@@ -482,7 +482,9 @@ export function FileDirectory({
                     />
                 )}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                    <DirectoryEmpty>No documents yet</DirectoryEmpty>
+                    <DirectoryEmpty>
+                        {q ? "No matches found" : "No documents available"}
+                    </DirectoryEmpty>
                 </div>
             </div>
         );
@@ -550,7 +552,9 @@ export function FileDirectory({
                                 visibleStandaloneDocs.length === 0 &&
                                 directoryFileFolders.length === 0 &&
                                 visibleUploadingFilenames.length === 0 && (
-                                    <DirectoryEmpty>No documents yet</DirectoryEmpty>
+                                    <DirectoryEmpty>
+                                        No documents available
+                                    </DirectoryEmpty>
                                 )}
                         </>
                     )}
