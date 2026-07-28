@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { appUrl } from "../appRoutes";
+import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
 import {
   fetchA2AJDocument,
   lookupA2AJLocator,
@@ -75,367 +77,320 @@ import {
   findTextMatches,
   renderMarkdownDocx,
 } from "./tools/documentOps";
-import { TOOLS } from "./tools/toolSchemas";
+import { TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
   type LocalCourtlistenerState,
 } from "./localCourtlistenerTools";
 
+const tool = (
+  name: string,
+  description: string,
+  parameters: Record<string, unknown>,
+): OpenAIToolSchema => ({
+  type: "function",
+  function: { name, description, parameters },
+});
+
+const DOCUMENT_ID_PROPERTY = {
+  type: "string", description: "DOCX document_id returned by library_list.",
+};
+const OPTIONAL_VERSION_ID_PROPERTY = {
+  type: "string",
+  description: "Optional explicit Library version id. Omit for the active version.",
+};
+
 const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
-  {
-    type: "function",
-    function: {
-      name: "library_list",
-      description:
-        "List documents in the user's local Beaver Library. Use this before claiming a Library document is unavailable. Optionally filter filenames with query.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "Optional case-insensitive filename filter.",
-          },
-          kind: {
-            type: "string",
-            enum: ["file", "template", "all"],
-            description: "Library collection to list. Defaults to all.",
-          },
+  tool(
+    "library_list",
+    "List documents in the user's local Beaver Library with deterministic Beaver app_url fields. Use this before claiming a Library document is unavailable. Optionally filter filenames with query.",
+    {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Optional case-insensitive filename filter.",
+        },
+        kind: {
+          type: "string",
+          enum: ["file", "template", "all"],
+          description: "Library collection to list. Defaults to all.",
         },
       },
     },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_read",
-      description:
-        "Read the active version of a document from the local Beaver Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: { type: "string" },
-          mode: {
-            type: "string",
-            enum: ["text", "drafting"],
-            description:
-              "Defaults to text. Drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
-          },
+  ),
+  tool(
+    "library_read",
+    "Read the active version of a document from the local Beaver Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        mode: {
+          type: "string",
+          enum: ["text", "drafting"],
+          description:
+            "Defaults to text. Drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
         },
-        required: ["document_id"],
       },
+      required: ["document_id"],
     },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_find",
-      description:
-        "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: { type: "string" },
-          query: { type: "string" },
-          max_results: {
-            type: "integer",
-            minimum: 1,
-            maximum: 50,
-          },
-          context_chars: {
-            type: "integer",
-            minimum: 40,
-            maximum: 2000,
-          },
+  ),
+  tool(
+    "library_find",
+    "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        query: { type: "string" },
+        max_results: { type: "integer", minimum: 1, maximum: 50 },
+        context_chars: { type: "integer", minimum: 40, maximum: 2000 },
+      },
+      required: ["document_id", "query"],
+    },
+  ),
+  tool(
+    "library_lookup",
+    "Return only an exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an exactly encoded section/provision. Prefer this over library_read for pinpoint requests. It never guesses or reparses the whole document.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        version_id: {
+          type: "string",
+          description: "Optional exact Library version. Defaults to active.",
         },
-        required: ["document_id", "query"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_lookup",
-      description:
-        "Return only an exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an exactly encoded section/provision. Prefer this over library_read for pinpoint requests. It never guesses or reparses the whole document.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: { type: "string" },
-          version_id: {
-            type: "string",
-            description: "Optional exact Library version. Defaults to active.",
-          },
-          locator_kind: {
-            type: "string",
-            enum: [...LOCAL_PDF_LOCATOR_KINDS],
-            description:
-              "paragraph means parser artifact order; use provision_paragraph for an explicitly encoded legal provision.",
-          },
-          locator: {
-            type: "string",
-            description:
-              "Exact start locator, pair_id, symbol note label, heading, or provider-encoded provision ID.",
-          },
-          end_locator: {
-            type: "string",
-            description:
-              "Optional inclusive range end for page, paragraph, or footnote; maximum 20 units.",
-          },
-          context_blocks: {
-            type: "integer",
-            minimum: 0,
-            maximum: 2,
-            description: "Exact structural neighbors on each side.",
-          },
-          page: {
-            type: "integer",
-            minimum: 1,
-            description:
-              "Optional reference/body page to disambiguate a restarted footnote label.",
-          },
-          occurrence: {
-            type: "integer",
-            minimum: 1,
-            description:
-              "Optional occurrence to disambiguate a restarted footnote label.",
-          },
+        locator_kind: {
+          type: "string",
+          enum: [...LOCAL_PDF_LOCATOR_KINDS],
+          description:
+            "paragraph means parser artifact order; use provision_paragraph for an explicitly encoded legal provision.",
         },
-        required: ["document_id", "locator_kind", "locator"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_evidence",
-      description:
-        "Rehydrate a prior mike-evidence handle from its exact immutable Library PDF version. Use this after compaction or in a later turn instead of asking for the same locator again. The server verifies source, parser, artifact IDs, and text hash before returning text.",
-      parameters: {
-        type: "object",
-        properties: {
-          handle: {
-            type: "string",
-            description: "Opaque mike-evidence:v1 handle from library_lookup.",
-          },
+        locator: {
+          type: "string",
+          description:
+            "Exact start locator, pair_id, symbol note label, heading, or provider-encoded provision ID.",
         },
-        required: ["handle"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "provider_pdf_lookup",
-      description:
-        "Resolve an opaque provider PDF reference returned by a legal-source tool and return one exact parsed structural unit. If parsing is still queued, this reports that state without reading the whole PDF. To rehydrate prior exact evidence, pass its handle with the same reference_id instead of a locator.",
-      parameters: {
-        type: "object",
-        properties: {
-          reference_id: {
-            type: "string",
-            description:
-              "Opaque mike-provider-pdf:v1 reference returned by a source tool.",
-          },
-          handle: {
-            type: "string",
-            description:
-              "Optional mike-evidence:v1 handle previously returned for this exact provider PDF reference.",
-          },
-          locator_kind: {
-            type: "string",
-            enum: [...LOCAL_PDF_LOCATOR_KINDS],
-          },
-          locator: { type: "string" },
-          end_locator: { type: "string" },
-          context_blocks: {
-            type: "integer",
-            minimum: 0,
-            maximum: 2,
-          },
-          page: { type: "integer", minimum: 1 },
-          occurrence: { type: "integer", minimum: 1 },
+        end_locator: {
+          type: "string",
+          description:
+            "Optional inclusive range end for page, paragraph, or footnote; maximum 20 units.",
         },
-        required: ["reference_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_link_docx_citations",
-      description:
-        "Create a new version of a local Library DOCX with verified provider links on its footnote citations. This bounded workflow splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: {
-            type: "string",
-            description: "DOCX document_id returned by library_list.",
-          },
+        context_blocks: {
+          type: "integer",
+          minimum: 0,
+          maximum: 2,
+          description: "Exact structural neighbors on each side.",
         },
-        required: ["document_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_fix_docx_supras",
-      description:
-        "Run the deterministic first pass for a local Library DOCX: turn unambiguous plain 'supra note N' numbers into native updating Word footnote cross-references. It creates a new version when it changes anything and reports ambiguous/restarted/split cases for review. Call this before asking the model to reason through or manually rewrite supra references.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: {
-            type: "string",
-            description: "DOCX document_id returned by library_list.",
-          },
+        page: {
+          type: "integer",
+          minimum: 1,
+          description:
+            "Optional reference/body page to disambiguate a restarted footnote label.",
         },
-        required: ["document_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "library_lint_docx_structure",
-      description:
-        "Run the deterministic structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, literal numbering gaps and duplicates, and duplicate or unused defined terms. Read-only; returns verified findings with paragraph locations plus a receipt of what was checked and what was abstained from. Call this instead of asking the model to scan a document for these drafting errors.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: {
-            type: "string",
-            description: "DOCX document_id returned by library_list.",
-          },
-          version_id: {
-            type: "string",
-            description:
-              "Optional explicit Library version id. Omit for the active version.",
-          },
+        occurrence: {
+          type: "integer",
+          minimum: 1,
+          description:
+            "Optional occurrence to disambiguate a restarted footnote label.",
         },
-        required: ["document_id"],
       },
+      required: ["document_id", "locator_kind", "locator"],
     },
-  },
-  {
-    type: "function",
-    function: {
-      name: "toa_submit_library_document",
-      description:
-        "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
-      parameters: {
-        type: "object",
-        properties: {
-          document_id: {
-            type: "string",
-            description: "DOCX document_id returned by library_list.",
-          },
-          version_id: {
-            type: "string",
-            description:
-              "Optional explicit Library version id. Omit for the active version.",
-          },
-          split_fallback: {
-            type: "string",
-            enum: ["off", "auto"],
-            description:
-              "Use auto to invoke the cached bounded Codex splitter only when deterministic citation splitting is incomplete. Defaults to auto.",
-          },
+  ),
+  tool(
+    "library_evidence",
+    "Rehydrate a prior mike-evidence handle from its exact immutable Library PDF version. Use this after compaction or in a later turn instead of asking for the same locator again. The server verifies source, parser, artifact IDs, and text hash before returning text.",
+    {
+      type: "object",
+      properties: {
+        handle: {
+          type: "string",
+          description: "Opaque mike-evidence:v1 handle from library_lookup.",
         },
-        required: ["document_id"],
       },
+      required: ["handle"],
     },
-  },
-  {
-    type: "function",
-    function: {
-      name: "toa_job_status",
-      description:
-        "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Beaver page to open.",
-      parameters: {
-        type: "object",
-        properties: {
-          job_id: { type: "string", pattern: "^[0-9a-f]{32}$" },
+  ),
+  tool(
+    "provider_pdf_lookup",
+    "Resolve an opaque provider PDF reference returned by a legal-source tool and return one exact parsed structural unit. If parsing is still queued, this reports that state without reading the whole PDF. To rehydrate prior exact evidence, pass its handle with the same reference_id instead of a locator.",
+    {
+      type: "object",
+      properties: {
+        reference_id: {
+          type: "string",
+          description:
+            "Opaque mike-provider-pdf:v1 reference returned by a source tool.",
         },
-        required: ["job_id"],
+        handle: {
+          type: "string",
+          description:
+            "Optional mike-evidence:v1 handle previously returned for this exact provider PDF reference.",
+        },
+        locator_kind: { type: "string", enum: [...LOCAL_PDF_LOCATOR_KINDS] },
+        locator: { type: "string" },
+        end_locator: { type: "string" },
+        context_blocks: { type: "integer", minimum: 0, maximum: 2 },
+        page: { type: "integer", minimum: 1 },
+        occurrence: { type: "integer", minimum: 1 },
       },
+      required: ["reference_id"],
     },
-  },
+  ),
+  tool(
+    "library_link_docx_citations",
+    "Create a new version of a local Library DOCX with verified provider links on its footnote citations. This bounded workflow splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
+    {
+      type: "object",
+      properties: { document_id: DOCUMENT_ID_PROPERTY },
+      required: ["document_id"],
+    },
+  ),
+  tool(
+    "library_fix_docx_supras",
+    "Run the deterministic first pass for a local Library DOCX: turn unambiguous plain 'supra note N' numbers into native updating Word footnote cross-references. It creates a new version when it changes anything and reports ambiguous/restarted/split cases for review. Call this before asking the model to reason through or manually rewrite supra references.",
+    {
+      type: "object",
+      properties: { document_id: DOCUMENT_ID_PROPERTY },
+      required: ["document_id"],
+    },
+  ),
+  tool(
+    "library_lint_docx_structure",
+    "Run the deterministic structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, literal numbering gaps and duplicates, and duplicate or unused defined terms. Read-only; returns verified findings with paragraph locations plus a receipt of what was checked and what was abstained from. Call this instead of asking the model to scan a document for these drafting errors.",
+    {
+      type: "object",
+      properties: {
+        document_id: DOCUMENT_ID_PROPERTY,
+        version_id: OPTIONAL_VERSION_ID_PROPERTY,
+      },
+      required: ["document_id"],
+    },
+  ),
+  tool(
+    "toa_submit_library_document",
+    "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
+    {
+      type: "object",
+      properties: {
+        document_id: DOCUMENT_ID_PROPERTY,
+        version_id: OPTIONAL_VERSION_ID_PROPERTY,
+        split_fallback: {
+          type: "string",
+          enum: ["off", "auto"],
+          description:
+            "Use auto to invoke the cached bounded Codex splitter only when deterministic citation splitting is incomplete. Defaults to auto.",
+        },
+      },
+      required: ["document_id"],
+    },
+  ),
+  tool(
+    "toa_job_status",
+    "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Beaver page to open.",
+    {
+      type: "object",
+      properties: { job_id: { type: "string", pattern: "^[0-9a-f]{32}$" } },
+      required: ["job_id"],
+    },
+  ),
 ];
 
 const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
   TOOLS as OpenAIToolSchema[]
-).flatMap((tool) => {
-  if (tool.function.name === "generate_docx") {
+).flatMap((schema) => {
+  if (schema.function.name === "generate_docx") {
     return [
       {
-        ...tool,
+        ...schema,
         function: {
-          ...tool.function,
+          ...schema.function,
           name: "library_create_docx",
-          description: `${tool.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
+          description: `${schema.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
         },
       },
     ];
   }
-  if (tool.function.name === "edit_document") {
-    const sharedProperties = tool.function.parameters.properties as Record<
+  if (schema.function.name === "edit_document") {
+    const sharedProperties = schema.function.parameters.properties as Record<
       string,
       unknown
     >;
     return [
-      {
-        ...tool,
-        function: {
-          ...tool.function,
-          name: "library_revise_docx",
-          description:
-            "Create a new immutable version of an existing local Library DOCX using precise tracked substitutions. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
-          parameters: {
-            type: "object",
-            properties: {
-              document_id: {
-                type: "string",
-                description: "Exact document_id returned by library_list.",
-              },
-              version_id: {
-                type: "string",
-                description:
-                  "Exact active version_id returned by library_list or a prior document receipt.",
-              },
-              edits: sharedProperties.edits,
+      tool(
+        "library_revise_docx",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes and return its new artifact app_url. Use this for action requests instead of replying with proposed or suggested changes in prose. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
+        {
+          type: "object",
+          properties: {
+            document_id: {
+              type: "string",
+              description: "Exact document_id returned by library_list.",
             },
-            required: ["document_id", "version_id", "edits"],
+            version_id: {
+              type: "string",
+              description:
+                "Exact active version_id returned by library_list or a prior document receipt.",
+            },
+            edits: sharedProperties.edits,
           },
+          required: ["document_id", "version_id", "edits"],
         },
-      },
+      ),
     ];
   }
   return [];
 });
 
 const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
-  (tool) => tool.function.name === "ask_inputs",
+  (schema) => schema.function.name === "ask_inputs",
 );
 
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...LOCAL_ASK_INPUTS_TOOLS,
   ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS,
+  ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
   ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
   ...(A2AJ_TOOLS as OpenAIToolSchema[]),
   ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
 ];
 
+const trimmed = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+const optionalString = (value: unknown) =>
+  typeof value === "string" ? value : undefined;
+const optionalNumber = (value: unknown) =>
+  typeof value === "number" ? value : undefined;
+const clampInt = (value: unknown, min: number, max: number, fallback: number) =>
+  typeof value === "number"
+    ? Math.min(Math.max(Math.trunc(value), min), max)
+    : fallback;
+const sha256 = (value: string) =>
+  crypto.createHash("sha256").update(value).digest("hex");
+const errorText = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
+function pdfLocatorParams(args: Record<string, unknown>) {
+  return {
+    locatorKind: args.locator_kind as LocalPdfLocatorKind,
+    locator: typeof args.locator === "string" ? args.locator : "",
+    endLocator: optionalString(args.end_locator),
+    contextBlocks: optionalNumber(args.context_blocks),
+    page: optionalNumber(args.page),
+    occurrence: optionalNumber(args.occurrence),
+  };
+}
+
 const textCache = new Map<string, string>();
 
-function arrayBuffer(bytes: Buffer): ArrayBuffer {
-  return bytes.buffer.slice(
+const arrayBuffer = (bytes: Buffer): ArrayBuffer =>
+  bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
-}
 
 async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
@@ -513,6 +468,9 @@ function result(
   };
 }
 
+const fail = (call: NormalizedToolCall, error: string) =>
+  result(call, { ok: false, error });
+
 const SAFE_PDF_EVIDENCE_ERRORS = new Set([
   "Invalid PDF evidence handle",
   "Invalid PDF evidence receipt",
@@ -522,12 +480,12 @@ const SAFE_PDF_EVIDENCE_ERRORS = new Set([
   "PDF evidence no longer matches the authoritative source artifacts",
 ]);
 
-function pdfEvidenceError(error: unknown) {
+const pdfEvidenceError = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   return SAFE_PDF_EVIDENCE_ERRORS.has(message)
     ? message
     : "PDF evidence is unavailable";
-}
+};
 
 type LocalPdfLookupResult =
   | Awaited<ReturnType<typeof lookupLocalPdfStructure>>
@@ -645,6 +603,49 @@ async function queueA2ajPdfFallback(
   }
 }
 
+const REVISE_EDIT_KEYS = [
+  "find",
+  "replace",
+  "context_before",
+  "context_after",
+] as const;
+
+function invalidReviseEdit(raw: unknown) {
+  if (!raw || typeof raw !== "object") return true;
+  const edit = raw as Record<string, unknown>;
+  return REVISE_EDIT_KEYS.some(
+    (key) =>
+      typeof edit[key] !== "string" || (edit[key] as string).length > 100_000,
+  );
+}
+
+const DOCX_WORKFLOWS: Record<
+  string,
+  {
+    run: (
+      userId: string,
+      documentId: string,
+      versionId: string | undefined,
+    ) => Promise<unknown>;
+    fallback: string;
+  }
+> = {
+  library_link_docx_citations: {
+    run: (userId, documentId) => linkLocalDocxCitations(userId, documentId),
+    fallback: "DOCX citation linking failed",
+  },
+  library_fix_docx_supras: {
+    run: (userId, documentId) =>
+      fixLocalDocxSupraCrossReferences(userId, documentId),
+    fallback: "DOCX supra cleanup failed",
+  },
+  library_lint_docx_structure: {
+    run: (userId, documentId, versionId) =>
+      lintLocalDocxStructure(userId, documentId, versionId),
+    fallback: "DOCX structural lint failed",
+  },
+};
+
 export async function runLocalAssistantTools(
   userId: string,
   calls: NormalizedToolCall[],
@@ -675,50 +676,53 @@ export async function runLocalAssistantTools(
         );
         if (courtlistenerResult) return courtlistenerResult;
       }
-      const documentId =
-        typeof args.document_id === "string" ? args.document_id.trim() : "";
+      if (call.name === "list_workflows") {
+        return result(
+          call,
+          SYSTEM_ASSISTANT_WORKFLOWS.map((workflow) => ({
+            id: workflow.id,
+            title: workflow.title,
+            app_url: appUrl({
+              kind: "workflow",
+              id: workflow.id,
+              workflowType: "assistant",
+            }),
+          })),
+        );
+      }
+      if (call.name === "read_workflow") {
+        const workflowId = trimmed(args.workflow_id);
+        const workflow = SYSTEM_ASSISTANT_WORKFLOWS.find(
+          (candidate) => candidate.id === workflowId,
+        );
+        return result(
+          call,
+          workflow?.skill_md ?? `Workflow '${workflowId}' not found.`,
+        );
+      }
+      const documentId = trimmed(args.document_id);
       if (
         allowedDocumentIds &&
         documentId &&
         !allowedDocumentIds.has(documentId)
       ) {
-        return result(call, {
-          ok: false,
-          error: "Document is not attached to this matter",
-        });
+        return fail(call, "Document is not attached to this matter");
       }
       if (call.name === "provider_pdf_lookup") {
-        const reference =
-          typeof args.reference_id === "string" ? args.reference_id.trim() : "";
-        const handle =
-          typeof args.handle === "string" ? args.handle.trim() : "";
+        const reference = trimmed(args.reference_id);
+        const handle = trimmed(args.handle);
         if (!reference) {
           return result(call, {
-            ok: false,
-            status: "error",
-            error: "reference_id is required",
+            ok: false, status: "error", error: "reference_id is required",
           });
         }
         try {
           const resolved = handle
             ? await rehydrateProviderPdfReference(reference, handle)
-            : await lookupProviderPdfReference(reference, {
-                locatorKind: args.locator_kind as LocalPdfLocatorKind,
-                locator: typeof args.locator === "string" ? args.locator : "",
-                endLocator:
-                  typeof args.end_locator === "string"
-                    ? args.end_locator
-                    : undefined,
-                contextBlocks:
-                  typeof args.context_blocks === "number"
-                    ? args.context_blocks
-                    : undefined,
-                page: typeof args.page === "number" ? args.page : undefined,
-                occurrence:
-                  typeof args.occurrence === "number"
-                    ? args.occurrence
-                    : undefined,
-              });
+            : await lookupProviderPdfReference(
+                reference,
+                pdfLocatorParams(args),
+              );
           if (resolved.availability !== "ready") {
             return result(call, {
               ok: false,
@@ -767,14 +771,10 @@ export async function runLocalAssistantTools(
         }
       }
       if (call.name === "library_create_docx") {
-        const title = typeof args.title === "string" ? args.title.trim() : "";
-        const markdown =
-          typeof args.markdown === "string" ? args.markdown.trim() : "";
+        const title = trimmed(args.title);
+        const markdown = trimmed(args.markdown);
         if (!title || title.length > 256 || !markdown) {
-          return result(call, {
-            ok: false,
-            error: "DOCX title or Markdown is invalid",
-          });
+          return fail(call, "DOCX title or Markdown is invalid");
         }
         try {
           const evidence = await resolveDocxEvidenceCitations(
@@ -791,9 +791,7 @@ export async function runLocalAssistantTools(
               citations: evidence.citations,
             },
           );
-          if ("error" in rendered) {
-            return result(call, { ok: false, error: rendered.error });
-          }
+          if ("error" in rendered) return fail(call, rendered.error);
           const document = await createLocalDocument({
             userId,
             kind: "file",
@@ -805,18 +803,11 @@ export async function runLocalAssistantTools(
               action: "created",
               generation: {
                 rendererVersion: "beaver.docx-markdown.v1",
-                markdownSha256: crypto
-                  .createHash("sha256")
-                  .update(markdown)
-                  .digest("hex"),
-                fieldValuesSha256: crypto
-                  .createHash("sha256")
-                  .update(JSON.stringify(args.fields ?? []))
-                  .digest("hex"),
-                sourceRegistrySha256: crypto
-                  .createHash("sha256")
-                  .update(JSON.stringify(args.sources ?? []))
-                  .digest("hex"),
+                markdownSha256: sha256(markdown),
+                fieldValuesSha256: sha256(JSON.stringify(args.fields ?? [])),
+                sourceRegistrySha256: sha256(
+                  JSON.stringify(args.sources ?? []),
+                ),
                 evidenceBindings: evidence.bindings.map((binding) => ({
                   id: binding.id,
                   handles: binding.handles,
@@ -837,19 +828,13 @@ export async function runLocalAssistantTools(
                 )
               ) {
                 await deleteLocalDocument(userId, document.id);
-                return result(call, {
-                  ok: false,
-                  error: "Matter not found",
-                });
+                return fail(call, "Matter not found");
               }
             } catch {
               await deleteLocalDocument(userId, document.id).catch(
                 () => undefined,
               );
-              return result(call, {
-                ok: false,
-                error: "Could not attach document to matter",
-              });
+              return fail(call, "Could not attach document to matter");
             }
           }
           allowedDocumentIds?.add(document.id);
@@ -864,65 +849,34 @@ export async function runLocalAssistantTools(
             file_type: document.file_type,
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
+            app_url: appUrl({
+              kind: "library-document",
+              libraryKind: "file",
+              projectId: matterId,
+            }),
           });
         } catch {
-          return result(call, { ok: false, error: "DOCX creation failed" });
+          return fail(call, "DOCX creation failed");
         }
       }
 
       if (call.name === "library_revise_docx") {
-        const versionId =
-          typeof args.version_id === "string" ? args.version_id.trim() : "";
+        const versionId = trimmed(args.version_id);
         const rawEdits = Array.isArray(args.edits) ? args.edits : [];
         if (!documentId || !versionId || !rawEdits.length) {
-          return result(call, {
-            ok: false,
-            error: "document_id, version_id, and edits are required",
-          });
+          return fail(call, "document_id, version_id, and edits are required");
         }
-        if (
-          rawEdits.length > 100 ||
-          rawEdits.some(
-            (edit) =>
-              !edit ||
-              typeof edit !== "object" ||
-              typeof (edit as Record<string, unknown>).find !== "string" ||
-              typeof (edit as Record<string, unknown>).replace !== "string" ||
-              typeof (edit as Record<string, unknown>).context_before !==
-                "string" ||
-              typeof (edit as Record<string, unknown>).context_after !==
-                "string" ||
-              ((edit as Record<string, unknown>).find as string).length >
-                100_000 ||
-              ((edit as Record<string, unknown>).replace as string).length >
-                100_000 ||
-              ((edit as Record<string, unknown>).context_before as string)
-                .length > 100_000 ||
-              ((edit as Record<string, unknown>).context_after as string)
-                .length > 100_000,
-          )
-        ) {
-          return result(call, { ok: false, error: "edits are invalid" });
+        if (rawEdits.length > 100 || rawEdits.some(invalidReviseEdit)) {
+          return fail(call, "edits are invalid");
         }
         try {
           const file = await getLocalVersionFile(userId, documentId, versionId);
-          if (!file) {
-            return result(call, {
-              ok: false,
-              error: "DOCX Library version not found",
-            });
-          }
+          if (!file) return fail(call, "DOCX Library version not found");
           if (file.document.current_version_id !== versionId) {
-            return result(call, {
-              ok: false,
-              error: "version_id is not the active version",
-            });
+            return fail(call, "version_id is not the active version");
           }
           if (file.fileType.toLowerCase() !== "docx") {
-            return result(call, {
-              ok: false,
-              error: "Revision requires a DOCX Library version",
-            });
+            return fail(call, "Revision requires a DOCX Library version");
           }
           const edits: EditInput[] = rawEdits
             .map((raw) => {
@@ -970,12 +924,7 @@ export async function runLocalAssistantTools(
               changeCount: edited.changes.length,
             },
           });
-          if (!version) {
-            return result(call, {
-              ok: false,
-              error: "version_id is no longer active",
-            });
-          }
+          if (!version) return fail(call, "version_id is no longer active");
           return result(call, {
             ok: true,
             receipt: "mike-document:v1",
@@ -988,17 +937,23 @@ export async function runLocalAssistantTools(
             file_type: version.file_type,
             source_sha256: version.source_sha256,
             change_count: edited.changes.length,
+            app_url: appUrl({
+              kind: "library-document",
+              libraryKind: file.document.library_kind,
+              projectId: matterId,
+            }),
+            next_required_action:
+              "Return the exact app_url as the edited-document link; do not substitute a prose change list.",
           });
         } catch {
-          return result(call, { ok: false, error: "DOCX revision failed" });
+          return fail(call, "DOCX revision failed");
         }
       }
 
       if (call.name === "library_list") {
         const kind =
           args.kind === "file" || args.kind === "template" ? args.kind : "all";
-        const query =
-          typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
+        const query = trimmed(args.query).toLowerCase();
         const collections =
           kind === "all"
             ? await Promise.all([
@@ -1025,42 +980,35 @@ export async function runLocalAssistantTools(
             version_number: document.active_version_number,
             version_provenance: document.version_provenance,
             updated_at: document.updated_at,
+            app_url: appUrl({
+              kind: "library-document",
+              libraryKind: document.library_kind,
+              projectId: matterId,
+            }),
           }));
         return result(call, { ok: true, documents });
       }
 
       if (call.name === "library_read" || call.name === "library_find") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
+        if (!documentId) return fail(call, "document_id is required");
         if (call.name === "library_read" && args.mode === "drafting") {
           try {
             const source = await extractLocalDraftingDocument(
               userId,
               documentId,
             );
-            return result(
-              call,
-              source
-                ? { ok: true, ...source }
-                : { ok: false, error: "Document not found" },
-            );
+            return source
+              ? result(call, { ok: true, ...source })
+              : fail(call, "Document not found");
           } catch (error) {
-            return result(call, {
-              ok: false,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Drafting source could not be read",
-            });
+            return fail(
+              call,
+              errorText(error, "Drafting source could not be read"),
+            );
           }
         }
         const document = await extractLocalDocument(userId, documentId);
-        if (!document) {
-          return result(call, { ok: false, error: "Document not found" });
-        }
+        if (!document) return fail(call, "Document not found");
         if (call.name === "library_read") {
           const maxChars = 300_000;
           return result(call, {
@@ -1070,20 +1018,12 @@ export async function runLocalAssistantTools(
             truncated: document.text.length > maxChars,
           });
         }
-        const query = typeof args.query === "string" ? args.query.trim() : "";
-        const maxResults =
-          typeof args.max_results === "number"
-            ? Math.min(Math.max(Math.trunc(args.max_results), 1), 50)
-            : 20;
-        const contextChars =
-          typeof args.context_chars === "number"
-            ? Math.min(Math.max(Math.trunc(args.context_chars), 40), 2000)
-            : 500;
+        const query = trimmed(args.query);
         const matches = findTextMatches({
           text: document.text,
           query,
-          maxResults,
-          contextChars,
+          maxResults: clampInt(args.max_results, 1, 50, 20),
+          contextChars: clampInt(args.context_chars, 40, 2000, 500),
         });
         return result(call, {
           ok: true,
@@ -1094,50 +1034,26 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "library_lookup") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        const versionId =
-          typeof args.version_id === "string" ? args.version_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
+        const versionId = trimmed(args.version_id);
+        if (!documentId) return fail(call, "document_id is required");
         const file = await getLocalVersionFile(
           userId,
           documentId,
           versionId || undefined,
         );
-        if (!file) {
-          return result(call, {
-            ok: false,
-            error: "PDF Library version not found",
-          });
-        }
+        if (!file) return fail(call, "PDF Library version not found");
         if (file.fileType.toLowerCase() !== "pdf") {
-          return result(call, {
-            ok: false,
-            error: "Exact structural lookup requires a parsed PDF version",
-          });
+          return fail(
+            call,
+            "Exact structural lookup requires a parsed PDF version",
+          );
         }
         const artifactSession = localPdfEvidenceHandles
           ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, file.path)
           : undefined;
         const lookup = await lookupLocalPdfStructure(
           file.path,
-          {
-            locatorKind: args.locator_kind as LocalPdfLocatorKind,
-            locator: typeof args.locator === "string" ? args.locator : "",
-            endLocator:
-              typeof args.end_locator === "string"
-                ? args.end_locator
-                : undefined,
-            contextBlocks:
-              typeof args.context_blocks === "number"
-                ? args.context_blocks
-                : undefined,
-            page: typeof args.page === "number" ? args.page : undefined,
-            occurrence:
-              typeof args.occurrence === "number" ? args.occurrence : undefined,
-          },
+          pdfLocatorParams(args),
           { artifactSession },
         );
         if (lookup.status === "found") {
@@ -1147,21 +1063,15 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "library_evidence") {
-        const handle =
-          typeof args.handle === "string" ? args.handle.trim() : "";
-        if (!handle) {
-          return result(call, { ok: false, error: "handle is required" });
-        }
+        const handle = trimmed(args.handle);
+        if (!handle) return fail(call, "handle is required");
         try {
           const receipt = await readLocalPdfEvidenceReceipt(handle);
           if (
             allowedDocumentIds &&
             !allowedDocumentIds.has(receipt.source.document_id)
           ) {
-            return result(call, {
-              ok: false,
-              error: "Document is not attached to this matter",
-            });
+            return fail(call, "Document is not attached to this matter");
           }
           const file = await getLocalVersionFile(
             userId,
@@ -1169,10 +1079,7 @@ export async function runLocalAssistantTools(
             receipt.source.version_id,
           );
           if (!file || file.fileType.toLowerCase() !== "pdf") {
-            return result(call, {
-              ok: false,
-              error: "PDF Library version not found",
-            });
+            return fail(call, "PDF Library version not found");
           }
           const artifactSession = localPdfEvidenceHandles
             ? localPdfArtifactSessionForTurn(localPdfEvidenceHandles, file.path)
@@ -1185,112 +1092,48 @@ export async function runLocalAssistantTools(
           localPdfEvidenceHandles?.add(handle);
           return result(call, compactPdfLookup(file.version.filename, lookup));
         } catch (error) {
-          return result(call, {
-            ok: false,
-            error: pdfEvidenceError(error),
-          });
+          return fail(call, pdfEvidenceError(error));
         }
       }
 
-      if (call.name === "library_link_docx_citations") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
-        try {
-          return result(call, await linkLocalDocxCitations(userId, documentId));
-        } catch (error) {
-          return result(call, {
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "DOCX citation linking failed",
-          });
-        }
-      }
-
-      if (call.name === "library_fix_docx_supras") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
+      const docxWorkflow = DOCX_WORKFLOWS[call.name];
+      if (docxWorkflow) {
+        if (!documentId) return fail(call, "document_id is required");
         try {
           return result(
             call,
-            await fixLocalDocxSupraCrossReferences(userId, documentId),
-          );
-        } catch (error) {
-          return result(call, {
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "DOCX supra cleanup failed",
-          });
-        }
-      }
-
-      if (call.name === "library_lint_docx_structure") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        const versionId =
-          typeof args.version_id === "string" ? args.version_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
-        try {
-          return result(
-            call,
-            await lintLocalDocxStructure(
+            await docxWorkflow.run(
               userId,
               documentId,
-              versionId || undefined,
+              trimmed(args.version_id) || undefined,
             ),
           );
         } catch (error) {
-          return result(call, {
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "DOCX structural lint failed",
-          });
+          return fail(call, errorText(error, docxWorkflow.fallback));
         }
       }
 
       if (call.name === "toa_submit_library_document") {
-        const documentId =
-          typeof args.document_id === "string" ? args.document_id.trim() : "";
-        const versionId =
-          typeof args.version_id === "string" ? args.version_id.trim() : "";
-        if (!documentId) {
-          return result(call, { ok: false, error: "document_id is required" });
-        }
+        const versionId = trimmed(args.version_id);
+        if (!documentId) return fail(call, "document_id is required");
         try {
           const file = await getLocalVersionFile(
             userId,
             documentId,
             versionId || undefined,
           );
-          if (!file) {
-            return result(call, {
-              ok: false,
-              error: "DOCX Library version not found",
-            });
-          }
+          if (!file) return fail(call, "DOCX Library version not found");
           if (file.fileType.toLowerCase() !== "docx") {
-            return result(call, {
-              ok: false,
-              error: "Table of Authorities requires a DOCX Library version",
-            });
+            return fail(
+              call,
+              "Table of Authorities requires a DOCX Library version",
+            );
           }
           const job = await submitTableOfAuthoritiesDocument({
             bytes: await readFile(file.path),
             filename: file.version.filename,
             splitFallback: args.split_fallback === "off" ? "off" : "auto",
+            projectId: matterId,
           });
           return result(call, {
             ok: true,
@@ -1299,34 +1142,27 @@ export async function runLocalAssistantTools(
             filename: file.version.filename,
             job,
             next_required_action:
-              "Use toa_job_status with this job id until detection is complete, then give the user job.open_path.",
+              "Use toa_job_status with this job id until detection is complete, then link the user to job.app_url.",
           });
         } catch (error) {
-          return result(call, {
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Table of Authorities submission failed",
-          });
+          return fail(
+            call,
+            errorText(error, "Table of Authorities submission failed"),
+          );
         }
       }
 
       if (call.name === "toa_job_status") {
-        const jobId = typeof args.job_id === "string" ? args.job_id.trim() : "";
         try {
           return result(call, {
             ok: true,
-            job: await getTableOfAuthoritiesJob(jobId),
+            job: await getTableOfAuthoritiesJob(trimmed(args.job_id)),
           });
         } catch (error) {
-          return result(call, {
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Table of Authorities status lookup failed",
-          });
+          return fail(
+            call,
+            errorText(error, "Table of Authorities status lookup failed"),
+          );
         }
       }
 
@@ -1336,12 +1172,10 @@ export async function runLocalAssistantTools(
           docType: args.doc_type === "laws" ? "laws" : "cases",
           searchType: args.search_type === "name" ? "name" : "full_text",
           language: args.search_language === "fr" ? "fr" : "en",
-          size: typeof args.size === "number" ? args.size : undefined,
-          dataset: typeof args.dataset === "string" ? args.dataset : undefined,
-          startDate:
-            typeof args.start_date === "string" ? args.start_date : undefined,
-          endDate:
-            typeof args.end_date === "string" ? args.end_date : undefined,
+          size: optionalNumber(args.size),
+          dataset: optionalString(args.dataset),
+          startDate: optionalString(args.start_date),
+          endDate: optionalString(args.end_date),
           sortResults:
             args.sort_results === "newest_first" ||
             args.sort_results === "oldest_first"
@@ -1361,7 +1195,7 @@ export async function runLocalAssistantTools(
           citation: typeof args.citation === "string" ? args.citation : "",
           docType: args.doc_type === "laws" ? "laws" : "cases",
           language: args.output_language === "fr" ? "fr" : "en",
-          section: typeof args.section === "string" ? args.section : undefined,
+          section: optionalString(args.section),
         });
         if (document?.url) a2ajDocuments?.push(document);
         const pdfFallback = document
@@ -1392,10 +1226,7 @@ export async function runLocalAssistantTools(
                 ? "section"
                 : "paragraph",
           locator: typeof args.locator === "string" ? args.locator : "",
-          contextBlocks:
-            typeof args.context_blocks === "number"
-              ? args.context_blocks
-              : undefined,
+          contextBlocks: optionalNumber(args.context_blocks),
         });
         if (lookup?.status === "found" && lookup.block) {
           a2ajLookups?.push(lookup);

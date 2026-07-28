@@ -37,6 +37,22 @@ describe("system prompt assembly", () => {
     expect(copies?.length).toBe(1);
   });
 
+  it("makes DOCX redlining action-first instead of advisory", () => {
+    const prompt = buildSystemPrompt(false);
+
+    expect(prompt).toContain("redline");
+    expect(prompt).toContain("then call edit_document");
+    expect(prompt).toContain(
+      "Do not answer an action request only with a prose list",
+    );
+    expect(prompt).toContain(
+      "include the edited artifact returned by edit_document",
+    );
+    expect(prompt).toContain(
+      "explicitly asks only for review or recommendations",
+    );
+  });
+
   it("omits the spreadsheet block when no spreadsheet is in context", () => {
     const messages = buildMessages(
       [{ role: "user", content: "Summarize the lease." }],

@@ -40,6 +40,7 @@ import {
 } from "../types";
 import { type EditInput } from "../../docxTrackedChanges";
 import { resolveDocxEvidenceCitations } from "../../docxEvidenceCitations";
+import { appUrl } from "../../appRoutes";
 import {
   citationReminder,
   generateDocx,
@@ -736,6 +737,10 @@ export async function runToolCalls(
         doc_id,
         filename: info.filename,
         file_type: info.file_type,
+        app_url: appUrl({
+          kind: "library-document",
+          projectId,
+        }),
       }));
       toolResults.push({
         role: "tool",
@@ -794,6 +799,11 @@ export async function runToolCalls(
         ? Array.from(workflowStore.entries()).map(([id, w]) => ({
             id,
             title: w.title,
+            app_url: appUrl({
+              kind: "workflow",
+              id,
+              workflowType: "assistant",
+            }),
           }))
         : [];
       toolResults.push({
@@ -862,7 +872,10 @@ export async function runToolCalls(
       toolResults.push({
         role: "tool",
         tool_call_id: tc.id,
-        content: lines.join("\n") || "No cells found.",
+        content:
+          `${tabularStore.app_url ? `Review app_url: ${tabularStore.app_url}\n\n` : ""}${
+            lines.join("\n") || "No cells found."
+          }`,
       });
     } else if (
       tc.function.name === PUBLIC_LEGAL_SOURCE_TOOL_NAMES.fetch ||

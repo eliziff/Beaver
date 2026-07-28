@@ -169,17 +169,6 @@ app.use((req, res, next) =>
   express.json({ limit: jsonLimitForPath(req.path) })(req, res, next),
 );
 
-const requirePersistentData: express.RequestHandler = (req, res, next) => {
-  if (!isAnonymousLocalMode()) return next();
-  if (req.method === "GET" && req.path === "/") {
-    res.json([]);
-    return;
-  }
-  res
-    .status(503)
-    .json({ detail: "This feature requires Supabase persistence" });
-};
-
 app.use("/chat", chatRouter);
 app.use("/projects", projectsRouter);
 app.use("/projects/:projectId/chat", projectChatRouter);
@@ -190,7 +179,7 @@ app.use("/legal-knowledge", legalKnowledgeRouter);
 app.use("/library", localLibraryRouter);
 app.use("/library", libraryRouter);
 app.use("/tabular-review", tabularRouter);
-app.use("/workflows", requirePersistentData, workflowsRouter);
+app.use("/workflows", workflowsRouter);
 app.use("/user", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);

@@ -4,7 +4,7 @@ export const PROJECT_EXTRA_TOOLS = [
     function: {
       name: "list_documents",
       description:
-        "List all documents available in the project. Returns each document's ID, filename, and file type. Call this to discover what documents are available before deciding which ones to read.",
+        "List all documents available in the project. Returns each document's ID, filename, file type, and deterministic Beaver app_url. Call this to discover what documents are available before deciding which ones to read.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -36,7 +36,7 @@ export const TABULAR_TOOLS = [
     function: {
       name: "read_table_cells",
       description:
-        "Read the extracted cell content from the tabular review. Each cell contains the value extracted for a specific column from a specific document. Pass col_indices and/or row_indices (0-based) to read a subset; omit either to read all columns or all rows.",
+        "Read the extracted cell content and Beaver app_url from the tabular review. Each cell contains the value extracted for a specific column from a specific document. Pass col_indices and/or row_indices (0-based) to read a subset; omit either to read all columns or all rows.",
       parameters: {
         type: "object",
         properties: {
@@ -64,7 +64,7 @@ export const WORKFLOW_TOOLS = [
     function: {
       name: "list_workflows",
       description:
-        "List all workflows available to the user. Returns each workflow's ID and title. Call this when the user asks to run a workflow, apply a template, or you need to discover what workflows exist.",
+        "List all workflows available to the user. Returns each workflow's ID, title, and deterministic Beaver app_url. Call this when the user asks to run a workflow, apply a template, or you need to discover what workflows exist.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -251,13 +251,13 @@ export const TOOLS = [
           markdown: {
             type: "string",
             description:
-              "Document body. Use #, ##, or ### for heading hierarchy; add {-} to an unnumbered heading or {#bookmark_id} for a bookmark. Ordinary paragraphs, *italics*, **bold**, lists, and simple pipe tables are supported. Put [^1] where a native Word footnote belongs and define it with [^1]: text. Use {{field_id}} for an editable field; a marker alone on its line becomes a rich editable clause. Use <!-- pagebreak --> only for an intentional page break.",
+              "Document body. Use #, ##, or ### for heading hierarchy. The renderer numbers plain headings; do not also type a number. For a fixed legal label such as 'Part 1' or '1. Definitions', include that label and the renderer will not add another. Put {-} at the end of the same heading line to suppress numbering, never on its own line. Put every (a), (b), or nested list item on its own line and indent nested items by two spaces. Ordinary paragraphs, *italics*, **bold**, lists, and simple pipe tables are supported. Use labelled lines and {{field_id}} controls for signatures, not a pipe table. Put [^1] where a native Word footnote belongs and define it with [^1]: text. Use lowercase {{field_id}} for an editable field; capitalization and surrounding spaces are normalized, while malformed markers fail. A marker alone on its line becomes a rich editable clause. Use <!-- pagebreak --> only for an intentional page break.",
           },
           fields: {
             type: "array",
             maxItems: 100,
             description:
-              "Optional initial values for {{field_id}} markers. Omit unresolved fields; Word will display a labelled placeholder.",
+              "Optional initial values for {{field_id}} markers. Omit unresolved fields for a labelled Word placeholder; empty values are allowed. An id without a matching marker fails.",
             items: {
               type: "object",
               properties: {
@@ -415,7 +415,7 @@ export const TOOLS = [
     function: {
       name: "edit_document",
       description:
-        "Propose edits to a user-attached .docx as tracked changes. Each edit is a precise, minimal substitution of specific words/characters, NOT a whole-line or paragraph replacement. Use read_document first unless this same document/version has already been read in the current response. Anchor each edit with short before/after context so it can be located unambiguously. Returns per-edit annotations the UI will render as Accept/Reject cards and a download link to the edited document.",
+        "Apply requested edits, revisions, or redlines to a user-attached .docx as tracked changes and return the edited Word artifact. Use this for action requests instead of replying with proposed or suggested changes in prose. Each edit is a precise, minimal substitution of specific words/characters, NOT a whole-line or paragraph replacement. Use read_document first unless this same document/version has already been read in the current response. Anchor each edit with short before/after context so it can be located unambiguously. Returns per-edit annotations the UI will render as Accept/Reject cards and a download link to the edited document.",
       parameters: {
         type: "object",
         properties: {
