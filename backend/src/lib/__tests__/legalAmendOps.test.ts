@@ -127,6 +127,24 @@ describe("parseAmendmentInstructions", () => {
     expect(ops[1].newText).not.toContain("Marginal note");
   });
 
+  it("keeps quoted blocks whole even when they contain ' by ' and seams", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(
+      "Section 3 of the Act is amended by striking subsection (u) and " +
+        "inserting the following:\n\n" +
+        "“(u) Thrifty Plan.—\n\n" +
+        "“(1) In general.—The term ‘plan’ means the diet established by " +
+        "the Secretary in subsection (b).”\n\n" +
+        "Section 8 of the Act is repealed.",
+    );
+    expect(unparsed).toEqual([]);
+    expect(ops[0].kind).toBe("replace_provision");
+    // The block's interior " by " must not split it into fake clauses,
+    // and the capture must cross the “…“ paragraph seam to the final ”.
+    expect(ops[0].newText).toContain("established by the Secretary");
+    expect(ops).toHaveLength(2);
+    expect(ops[1]).toMatchObject({ kind: "repeal_provision", target: "sec8" });
+  });
+
   it("refuses definition-scoped heads instead of replacing whole sections", () => {
     const { ops, unparsed } = parseAmendmentInstructions(
       "4 The definition general holiday in section 166 of the Canada " +
