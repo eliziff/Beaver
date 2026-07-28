@@ -21,9 +21,11 @@ export default function AssistantChatPage() {
     const [projectName, setProjectName] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
 
-    const { newChatMessages, setNewChatMessages } = useChatHistoryContext();
-
-    const initialMessages = newChatMessages ?? [];
+    const { peekPendingChatMessage, claimPendingChatMessage } =
+        useChatHistoryContext();
+    const [initialMessage] = useState(() => peekPendingChatMessage(id));
+    const pendingMessageRef = useRef(initialMessage);
+    const initialMessages = initialMessage ? [initialMessage] : [];
     const {
         messages,
         isResponseLoading,
@@ -70,14 +72,10 @@ export default function AssistantChatPage() {
         [id, router],
     );
 
-    const hasAutoSent = useRef(false);
     const hasLoaded = useRef(false);
 
     useEffect(() => {
-        if (initialMessages.length > 0) {
-            if (newChatMessages) setNewChatMessages(null);
-            return;
-        }
+        if (initialMessages.length > 0) return;
         if (hasLoaded.current || messages.length > 0) return;
         hasLoaded.current = true;
 
@@ -106,17 +104,22 @@ export default function AssistantChatPage() {
 
     useEffect(() => {
         if (
-            newChatMessages &&
-            newChatMessages.length === 1 &&
-            newChatMessages[0].role === "user" &&
-            !hasAutoSent.current &&
+            pendingMessageRef.current &&
             !isResponseLoading &&
             messages.length === 1
         ) {
-            hasAutoSent.current = true;
-            void handleChat(newChatMessages[0]);
+            const claimedMessage = claimPendingChatMessage(id);
+            if (!claimedMessage) return;
+            pendingMessageRef.current = null;
+            void handleChat(claimedMessage);
         }
-    }, [newChatMessages, messages.length, isResponseLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [
+        claimPendingChatMessage,
+        handleChat,
+        id,
+        messages.length,
+        isResponseLoading,
+    ]);
 
     useEffect(() => {
         if (isResponseLoading || !pendingProjectRouteRef.current) return;

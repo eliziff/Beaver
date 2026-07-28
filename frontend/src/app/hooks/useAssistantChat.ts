@@ -123,7 +123,7 @@ export function useAssistantChat({
     replaceChatId,
     loadChats,
     saveChat,
-    setNewChatMessages,
+    stagePendingChatMessage,
   } = useChatHistoryContext();
   const { generate: generateTitle } = useGenerateChatTitle();
 
@@ -1555,10 +1555,10 @@ export function useAssistantChat({
     transcriptPollGenerationRef.current += 1;
     setRejectedTurn(null);
     setMessages([message]);
-    setNewChatMessages([message]);
 
     const newChatId = await saveChat(projectId);
     if (newChatId) {
+      stagePendingChatMessage(newChatId, message);
       transcriptVersionRef.current = 0;
       setChatId(newChatId);
     }
