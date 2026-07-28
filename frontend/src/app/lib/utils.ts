@@ -19,3 +19,12 @@ export function formatDate(iso: string | null | undefined): string | null {
         year: "numeric",
     });
 }
+
+export function sortRows<T>(
+    rows: readonly T[],
+    compare: (a: T, b: T) => number,
+    direction: "asc" | "desc",
+): T[] {
+    const sign = direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => compare(a, b) * sign);
+}
