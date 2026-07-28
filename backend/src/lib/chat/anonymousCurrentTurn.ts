@@ -1,6 +1,4 @@
-import {
-  parseAskInputsResponsePayload,
-} from "./contextBuilders";
+import { parseAskInputsResponsePayload } from "./messageFormatting";
 import type { AskInputsResponseRequest, ChatMessage } from "./types";
 
 export type AnonymousCurrentTurn =
