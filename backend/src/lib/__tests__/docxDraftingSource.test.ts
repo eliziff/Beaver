@@ -32,7 +32,7 @@ describe("DOCX drafting source", () => {
 
     expect(source.format).toBe(DOCX_DRAFTING_SOURCE_FORMAT);
     expect(source.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
-    expect(source.html).toContain("<h1>Agreement</h1>");
+    expect(source.html).toContain("<h1><strong>Agreement</strong></h1>");
     expect(source.html).toContain("<strong>Vendor</strong>");
     expect(source.html).toContain("<ul>");
     expect(source.html).toContain("<table>");

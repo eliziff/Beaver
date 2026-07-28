@@ -74,9 +74,25 @@ describe("agreement DOCX drafting", () => {
     expect(edit.errors[0]?.reason).toContain("Word content control");
   });
 
+  it("normalizes weak-model field ids before rendering native controls", async () => {
+    const rendered = await renderMarkdownDocx(
+      "Lease",
+      "Tenant: **{{ Tenant Name }}**.",
+      [{ id: " Tenant Name ", value: "Alex" }],
+    );
+    if ("error" in rendered) throw new Error(rendered.error);
+
+    const xml = await documentXml(rendered.bytes);
+    expect(xml).toContain('<w:tag w:val="tenant_name"/>');
+    expect(xml).toContain("Alex");
+  });
+
   it("exposes concise semantic Markdown in both tool catalogs", () => {
     const generated = TOOLS.find(
       (tool) => tool.function.name === "generate_docx",
+    )!;
+    const editor = TOOLS.find(
+      (tool) => tool.function.name === "edit_document",
     )!;
     const local = LOCAL_ASSISTANT_TOOLS.find(
       (tool) => tool.function.name === "library_create_docx",
@@ -96,6 +112,12 @@ describe("agreement DOCX drafting", () => {
     expect(properties).toHaveProperty("sources");
     expect(properties).not.toHaveProperty("sections");
     expect(local.function.description).toContain("local Library");
+    expect(editor.function.description).toContain(
+      "return the edited Word artifact",
+    );
+    expect(editor.function.description).toContain(
+      "instead of replying with proposed or suggested changes",
+    );
   });
 
   it("uses structure-aware reads instead of the removed copy/edit path", () => {

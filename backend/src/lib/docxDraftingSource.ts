@@ -114,10 +114,24 @@ export async function extractDocxDraftingSource(
 
   const paths = Object.keys(zip.files);
   const warnings: string[] = [];
-  if (hasPart(paths, /^word\/header\d*\.xml$/i)) {
+  // Presence alone is not content loss: Beaver's own renderer always emits a
+  // page-number-only footer (field codes, no literal text). Only headers and
+  // footers carrying literal text are worth a review flag.
+  const partHasLiteralText = async (pattern: RegExp) => {
+    for (const path of paths) {
+      if (!pattern.test(path)) continue;
+      const xml = await zip.file(path)?.async("text");
+      for (const match of xml?.matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/giu) ??
+        []) {
+        if (match[1].trim()) return true;
+      }
+    }
+    return false;
+  };
+  if (await partHasLiteralText(/^word\/header\d*\.xml$/i)) {
     warnings.push("Headers are not included in the drafting source.");
   }
-  if (hasPart(paths, /^word\/footer\d*\.xml$/i)) {
+  if (await partHasLiteralText(/^word\/footer\d*\.xml$/i)) {
     warnings.push("Footers are not included in the drafting source.");
   }
   const endnotes = zip.file("word/endnotes.xml");

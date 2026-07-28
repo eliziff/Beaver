@@ -25,7 +25,10 @@ import {
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
 import { extractDocxDraftingSource } from "../../docxDraftingSource";
-import { renderDocxMarkdown } from "./docxMarkdown";
+import {
+  normalizeDocxControlTag,
+  renderDocxMarkdown,
+} from "./docxMarkdown";
 
 export function citationReminder(docLabel: string, filename: string): string {
   const isSpreadsheet = isSpreadsheetDocumentType(
@@ -109,9 +112,14 @@ function docxFieldValues(raw: unknown) {
       throw new Error("Each DOCX field must have an id and text value.");
     }
     const record = item as Record<string, unknown>;
-    const id = typeof record.id === "string" ? record.id.trim() : "";
-    if (!/^[a-z][a-z0-9_.-]{0,63}$/u.test(id)) {
-      throw new Error("DOCX field ids must be stable lowercase identifiers.");
+    const id =
+      typeof record.id === "string"
+        ? normalizeDocxControlTag(record.id)
+        : null;
+    if (!id) {
+      throw new Error(
+        "DOCX field ids must normalize to stable identifiers beginning with a letter.",
+      );
     }
     if (Object.hasOwn(values, id)) {
       throw new Error(`DOCX field "${id}" is duplicated.`);

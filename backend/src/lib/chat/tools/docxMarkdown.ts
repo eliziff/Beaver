@@ -49,15 +49,17 @@ export type RenderDocxMarkdownOptions = {
 };
 
 const CONTROL_TAG = "[a-z][a-z0-9_.-]{0,63}";
+const CONTROL_MARKER = "[^{}\\r\\n]+";
+const CONTROL_TAG_RE = new RegExp(`^${CONTROL_TAG}$`, "u");
 const NOTE_ID = "[A-Za-z0-9][A-Za-z0-9_.-]{0,63}";
 const CITATION_ID = "[a-z][a-z0-9_-]{0,63}";
 const BOOKMARK_ID = /^[A-Za-z][A-Za-z0-9_]{0,39}$/u;
 const CONTROL_ONLY_RE = new RegExp(
-  `^\\s*\\{\\{(${CONTROL_TAG})\\}\\}\\s*$`,
+  `^\\s*\\{\\{(${CONTROL_MARKER})\\}\\}\\s*$`,
   "u",
 );
 const CONTROL_OR_NOTE_RE = new RegExp(
-  `(\\[\\^${NOTE_ID}\\]|\\[@${CITATION_ID}\\]|\\{\\{${CONTROL_TAG}\\}\\}|\\*\\*[^*\\n]+\\*\\*|\\*[^*\\n]+\\*)`,
+  `(\\[\\^${NOTE_ID}\\]|\\[@${CITATION_ID}\\]|\\{\\{${CONTROL_MARKER}\\}\\}|\\*\\*[^*\\n]+\\*\\*|\\*[^*\\n]+\\*)`,
   "gu",
 );
 const FOOTNOTE_DEFINITION_RE = new RegExp(
@@ -66,12 +68,17 @@ const FOOTNOTE_DEFINITION_RE = new RegExp(
 );
 const FOOTNOTE_REFERENCE_RE = new RegExp(`^\\[\\^(${NOTE_ID})\\]$`, "u");
 const CITATION_RE = new RegExp(`^\\[@(${CITATION_ID})\\]$`, "u");
-const CONTROL_RE = new RegExp(`^\\{\\{(${CONTROL_TAG})\\}\\}$`, "u");
+const CONTROL_RE = new RegExp(`^\\{\\{(${CONTROL_MARKER})\\}\\}$`, "u");
 
 type ParseState = {
   controlCounts: Map<string, number>;
   referencedNotes: Set<string>;
 };
+
+export function normalizeDocxControlTag(tag: string) {
+  const normalized = tag.trim().toLowerCase().replace(/[ \t]+/gu, "_");
+  return CONTROL_TAG_RE.test(normalized) ? normalized : null;
+}
 
 function nextControl(state: ParseState, tag: string) {
   const occurrence = state.controlCounts.get(tag) ?? 0;
@@ -91,6 +98,10 @@ function assertPlainText(text: string) {
   }
 }
 
+function unescapeMarkdown(text: string) {
+  return text.replace(/\\([\\`*_{}\[\]()#+.!|>-])/gu, "$1");
+}
+
 function parseInline(
   text: string,
   state: ParseState,
@@ -104,7 +115,7 @@ function parseInline(
     if (index > cursor) {
       const plain = text.slice(cursor, index);
       assertPlainText(plain);
-      children.push({ type: "text", text: plain });
+      children.push({ type: "text", text: unescapeMarkdown(plain) });
     }
 
     const token = match[0];
@@ -120,15 +131,24 @@ function parseInline(
     } else if (citation) {
       children.push({ type: "citation", id: citation[1] });
     } else if (control) {
-      children.push(nextControl(state, control[1]));
+      const tag = normalizeDocxControlTag(control[1]);
+      if (!tag) {
+        throw new Error(`Invalid content-control marker in "${token}".`);
+      }
+      children.push(nextControl(state, tag));
     } else {
       const strong = token.startsWith("**");
       const value = token.slice(strong ? 2 : 1, strong ? -2 : -1);
-      assertPlainText(value);
-      children.push({
-        type: strong ? "strong" : "emphasis",
-        text: value,
-      });
+      for (const child of parseInline(value, state, allowFootnoteReferences)) {
+        if (child.type === "text" || child.type === "emphasis") {
+          children.push({
+            type: strong ? "strong" : "emphasis",
+            text: child.text,
+          });
+        } else {
+          children.push(child);
+        }
+      }
     }
     cursor = index + token.length;
   }
@@ -136,20 +156,88 @@ function parseInline(
   if (cursor < text.length) {
     const plain = text.slice(cursor);
     assertPlainText(plain);
-    children.push({ type: "text", text: plain });
+    children.push({ type: "text", text: unescapeMarkdown(plain) });
   }
   return children;
 }
 
 function listItem(line: string) {
-  const match = line.match(/^([ \t]*)([-+*]|\d+[.)])\s+(.+)$/u);
+  const match = line.match(
+    /^([ \t]*)([-+*]|\d+[.)]|\([a-zA-Z0-9ivxlcIVXLC]+\)|[a-zA-Z][.)])\s+(.+)$/u,
+  );
   if (!match) return null;
   const spaces = match[1].replaceAll("\t", "    ").length;
+  const marker = match[2];
+  const inferredLevel =
+    /^\([a-zA-Z]\)$/u.test(marker) || /^[a-zA-Z][.)]$/u.test(marker)
+      ? 1
+      : /^\((?:[ivxlcIVXLC]{2,}|\d+)\)$/u.test(marker)
+        ? 2
+        : 0;
   return {
-    ordered: /^\d/u.test(match[2]),
-    level: Math.min(5, Math.floor(spaces / 2)),
+    ordered: !/^[-+*]$/u.test(marker),
+    level: Math.min(5, Math.max(Math.floor(spaces / 2), inferredLevel)),
     text: match[3].trim(),
   };
+}
+
+function splitInlineLegalList(line: string) {
+  const matches = [
+    ...line.matchAll(/(?:^|;\s+)(\(([a-z])\))\s+/gu),
+  ];
+  if (matches.length < 2 || matches[0].index !== 0) return [line];
+  for (let index = 1; index < matches.length; index += 1) {
+    if (
+      matches[index][2].charCodeAt(0) !==
+      matches[index - 1][2].charCodeAt(0) + 1
+    ) {
+      return [line];
+    }
+  }
+  return matches.map((match, index) => {
+    const start = match.index! + (match[0].startsWith(";") ? 2 : 0);
+    const end = matches[index + 1]?.index ?? line.length;
+    return line.slice(start, end).replace(/;\s*$/u, "").trim();
+  });
+}
+
+function normalizeMarkdownLines(lines: string[]) {
+  const normalized = lines.flatMap(splitInlineLegalList);
+  for (let index = 0; index < normalized.length; index += 1) {
+    if (
+      normalized[index].trim() !== "{-}" &&
+      !/^#{1,3}\s+\{-\}\s*$/u.test(normalized[index])
+    ) {
+      continue;
+    }
+    let previous = index - 1;
+    while (previous >= 0 && !normalized[previous].trim()) previous -= 1;
+    if (
+      previous >= 0 &&
+      /^#{1,3}\s+\S/u.test(normalized[previous]) &&
+      !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[previous])
+    ) {
+      normalized[previous] = `${normalized[previous].trimEnd()} {-}`;
+    } else {
+      let next = index + 1;
+      while (next < normalized.length && !normalized[next].trim()) next += 1;
+      if (
+        next >= 0 &&
+        /^#{1,3}\s+\S/u.test(normalized[next]) &&
+        !/\s+\{[-#][^}]*\}\s*$/u.test(normalized[next])
+      ) {
+        normalized[next] = `${normalized[next].trimEnd()} {-}`;
+      }
+    }
+    normalized[index] = "";
+  }
+  return normalized;
+}
+
+function hasExplicitLegalNumbering(text: string) {
+  return /^(?:(?:part|article|section|schedule)\s+(?:\d+|[ivxlc]+)\b|\d+(?:\.\d+)*[.)]?\s+|\([a-z0-9ivxlc]+\)\s+)/iu.test(
+    text,
+  );
 }
 
 function splitTableRow(line: string): string[] {
@@ -226,7 +314,7 @@ function parseHeading(
   return {
     type: "heading",
     level: match[1].length as 1 | 2 | 3,
-    numbered,
+    numbered: numbered && !hasExplicitLegalNumbering(text),
     bookmark,
     children: parseInline(text, state),
   };
@@ -292,7 +380,9 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
   };
   const bookmarks = new Set<string>();
   const { definitions, body } = extractFootnotes(
-    markdown.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n"),
+    normalizeMarkdownLines(
+      markdown.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n"),
+    ),
   );
   const blocks: DocxMarkdownBlock[] = [];
 
@@ -318,7 +408,11 @@ export function parseDocxMarkdown(markdown: string): DocxMarkdownDocument {
 
     const control = line.match(CONTROL_ONLY_RE);
     if (control) {
-      blocks.push(nextControl(state, control[1]));
+      const tag = normalizeDocxControlTag(control[1]);
+      if (!tag) {
+        throw new Error(`Invalid content-control marker in "${trimmed}".`);
+      }
+      blocks.push(nextControl(state, tag));
       index += 1;
       continue;
     }
@@ -446,6 +540,22 @@ function collectCitationIds(document: DocxMarkdownDocument) {
   return ids;
 }
 
+function inlineText(children: DocxMarkdownInline[]) {
+  return children
+    .map((child) =>
+      child.type === "text" ||
+      child.type === "strong" ||
+      child.type === "emphasis"
+        ? child.text
+        : "",
+    )
+    .join("");
+}
+
+function titleKey(value: string) {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
 export async function renderDocxMarkdown(
   markdown: string,
   options: RenderDocxMarkdownOptions = {},
@@ -493,9 +603,14 @@ export async function renderDocxMarkdownDocument(
     }
   }
   let valuesLength = 0;
-  for (const [tag, value] of Object.entries(options.values ?? {})) {
-    if (!new RegExp(`^${CONTROL_TAG}$`, "u").test(tag)) {
-      throw new Error(`Invalid content-control value key "${tag}".`);
+  const values: Record<string, string> = {};
+  for (const [rawTag, value] of Object.entries(options.values ?? {})) {
+    const tag = normalizeDocxControlTag(rawTag);
+    if (!tag) {
+      throw new Error(`Invalid content-control value key "${rawTag}".`);
+    }
+    if (Object.hasOwn(values, tag)) {
+      throw new Error(`Content-control value "${tag}" is duplicated.`);
     }
     if (typeof value !== "string") {
       throw new Error(`Content-control value "${tag}" must be text.`);
@@ -514,6 +629,7 @@ export async function renderDocxMarkdownDocument(
         "Content-control values exceed 200,000 characters in total.",
       );
     }
+    values[tag] = value;
   }
 
   const {
@@ -522,6 +638,7 @@ export async function renderDocxMarkdownDocument(
     BorderStyle,
     Document,
     ExternalHyperlink,
+    Footer,
     FootnoteReferenceRun,
     HeadingLevel,
     ImportedXmlComponent,
@@ -529,10 +646,12 @@ export async function renderDocxMarkdownDocument(
     LevelSuffix,
     Packer,
     PageBreak,
+    PageNumber,
     PageOrientation,
     Paragraph,
     Table,
     TableCell,
+    TableLayoutType,
     TableRow,
     TextRun,
     WidthType,
@@ -540,6 +659,7 @@ export async function renderDocxMarkdownDocument(
 
   const font = "Times New Roman";
   const size = 22;
+  const tableWidth = options.landscape ? 12_960 : 9_360;
   const usedControlIds = new Set<number>();
   const nextId = (tag: string, occurrence: number) => {
     let id = contentControlId(`${tag}:${occurrence}`);
@@ -563,7 +683,7 @@ export async function renderDocxMarkdownDocument(
   const run = (
     text: string,
     format: { bold?: boolean; italics?: boolean } = {},
-  ) => new TextRun({ text, font, size, ...format });
+  ) => new TextRun({ text, ...format });
   const controlProperties = (
     tag: string,
     occurrence: number,
@@ -576,7 +696,7 @@ export async function renderDocxMarkdownDocument(
       ...(inline ? [imported("w:text")] : []),
     ]);
   const controlValue = (tag: string) =>
-    options.values?.[tag] ?? `[${controlLabel(tag)}]`;
+    values[tag] ?? `[${controlLabel(tag)}]`;
   const inlineControl = (tag: string, occurrence: number) => {
     const value = controlValue(tag);
     if (/[\r\n]/u.test(value)) {
@@ -588,15 +708,6 @@ export async function renderDocxMarkdownDocument(
       controlProperties(tag, occurrence, true),
       imported("w:sdtContent", undefined, [
         imported("w:r", undefined, [
-          imported("w:rPr", undefined, [
-            imported("w:rFonts", {
-              "w:ascii": font,
-              "w:hAnsi": font,
-              "w:cs": font,
-            }),
-            imported("w:sz", { "w:val": String(size) }),
-            imported("w:szCs", { "w:val": String(size) }),
-          ]),
           imported("w:t", { "xml:space": "preserve" }, [value]),
         ]),
       ]),
@@ -628,8 +739,6 @@ export async function renderDocxMarkdownDocument(
               new TextRun({
                 text: citation.text,
                 style: "Hyperlink",
-                font,
-                size,
               }),
             ],
           });
@@ -655,25 +764,34 @@ export async function renderDocxMarkdownDocument(
       new Paragraph({
         heading: HeadingLevel.TITLE,
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
         children: [run(title, { bold: true })],
       }),
     );
   }
-  const listReferences: string[] = [];
+  const listReferences = new Map<string, boolean>();
 
   for (const [blockIndex, block] of document.blocks.entries()) {
+    if (blockIndex === 0 && title && block.type === "heading") {
+      const headingKey = titleKey(inlineText(block.children));
+      const documentTitleKey = titleKey(title);
+      if (
+        headingKey.length >= 12 &&
+        (headingKey === documentTitleKey ||
+          documentTitleKey.includes(headingKey))
+      ) {
+        continue;
+      }
+    }
     if (block.type === "page-break") {
       blocks.push(new Paragraph({ children: [new PageBreak()] }));
     } else if (block.type === "heading") {
-      const children = inlines(block.children);
+      const children = inlines(block.children, true);
       blocks.push(
         new Paragraph({
           heading: headingLevels[block.level - 1],
           numbering: block.numbered
             ? { reference: headingNumbering, level: block.level - 1 }
             : undefined,
-          spacing: { before: 160, after: 100 },
           children: block.bookmark
             ? [new Bookmark({ id: block.bookmark, children })]
             : children,
@@ -682,7 +800,6 @@ export async function renderDocxMarkdownDocument(
     } else if (block.type === "paragraph") {
       blocks.push(
         new Paragraph({
-          spacing: { after: 120 },
           children: inlines(block.children),
         }),
       );
@@ -698,18 +815,12 @@ export async function renderDocxMarkdownDocument(
         ]) as unknown as InstanceType<typeof Paragraph>,
       );
     } else if (block.type === "list") {
-      const reference = `markdown-list-${blockIndex}`;
-      if (block.items.some((item) => item.ordered)) {
-        listReferences.push(reference);
-      }
       for (const item of block.items) {
+        const reference = `markdown-list-${blockIndex}-${item.ordered ? "ordered" : "bullet"}`;
+        listReferences.set(reference, item.ordered);
         blocks.push(
           new Paragraph({
-            bullet: item.ordered ? undefined : { level: item.level },
-            numbering: item.ordered
-              ? { reference, level: item.level }
-              : undefined,
-            spacing: { after: 60 },
+            numbering: { reference, level: item.level },
             children: inlines(item.children),
           }),
         );
@@ -717,24 +828,35 @@ export async function renderDocxMarkdownDocument(
     } else {
       const border = {
         style: BorderStyle.SINGLE,
-        size: 1,
-        color: "B7B7B7",
+        size: 2,
+        color: "B8B8B8",
       };
+      const columnWidth = Math.floor(tableWidth / block.headers.length);
+      const columnWidths = block.headers.map((_, index) =>
+        index === block.headers.length - 1
+          ? tableWidth - columnWidth * index
+          : columnWidth,
+      );
       const tableRows = [
         new TableRow({
           tableHeader: true,
           children: block.headers.map(
-            (cell) =>
+            (cell, index) =>
               new TableCell({
+                width: {
+                  size: columnWidths[index],
+                  type: WidthType.DXA,
+                },
                 borders: {
                   top: border,
                   bottom: border,
                   left: border,
                   right: border,
                 },
-                shading: { fill: "F2F2F2" },
+                shading: { fill: "EDEDED" },
                 children: [
                   new Paragraph({
+                    style: "LegalTableText",
                     children: inlines(cell, true),
                   }),
                 ],
@@ -745,15 +867,24 @@ export async function renderDocxMarkdownDocument(
           (row) =>
             new TableRow({
               children: row.map(
-                (cell) =>
+                (cell, index) =>
                   new TableCell({
+                    width: {
+                      size: columnWidths[index],
+                      type: WidthType.DXA,
+                    },
                     borders: {
                       top: border,
                       bottom: border,
                       left: border,
                       right: border,
                     },
-                    children: [new Paragraph({ children: inlines(cell) })],
+                    children: [
+                      new Paragraph({
+                        style: "LegalTableText",
+                        children: inlines(cell),
+                      }),
+                    ],
                   }),
               ),
             }),
@@ -761,7 +892,16 @@ export async function renderDocxMarkdownDocument(
       ];
       blocks.push(
         new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
+          width: { size: tableWidth, type: WidthType.DXA },
+          columnWidths,
+          layout: TableLayoutType.FIXED,
+          margins: {
+            marginUnitType: WidthType.DXA,
+            top: 80,
+            bottom: 80,
+            left: 120,
+            right: 120,
+          },
           rows: tableRows,
         }),
       );
@@ -773,22 +913,26 @@ export async function renderDocxMarkdownDocument(
     format: (typeof LevelFormat)[keyof typeof LevelFormat],
     text: string,
     bold = false,
+    legal = false,
   ) => ({
     level,
     format,
     text,
     alignment: AlignmentType.START,
     suffix: LevelSuffix.TAB,
-    isLegalNumberingStyle: true,
+    isLegalNumberingStyle: legal,
     style: {
-      paragraph: { indent: { left: 720 + level * 360, hanging: 360 } },
+      paragraph: {
+        indent: { left: 360 + level * 360, hanging: 360 },
+        spacing: { after: 80 },
+      },
       run: { bold, font, size },
     },
   });
   const headingLevelsConfig = [
-    numberingLevel(0, LevelFormat.DECIMAL, "%1.", true),
-    numberingLevel(1, LevelFormat.DECIMAL, "%1.%2", true),
-    numberingLevel(2, LevelFormat.DECIMAL, "%1.%2.%3", true),
+    numberingLevel(0, LevelFormat.DECIMAL, "%1.", true, true),
+    numberingLevel(1, LevelFormat.DECIMAL, "%1.%2", true, true),
+    numberingLevel(2, LevelFormat.DECIMAL, "%1.%2.%3", true, true),
   ];
   const listFormats = [
     LevelFormat.DECIMAL,
@@ -798,8 +942,13 @@ export async function renderDocxMarkdownDocument(
     LevelFormat.UPPER_ROMAN,
     LevelFormat.DECIMAL,
   ];
-  const listLevels = listFormats.map((format, level) =>
-    numberingLevel(level, format, `%${level + 1}.`),
+  const listText = ["%1.", "(%2)", "(%3)", "(%4)", "(%5)", "%6."];
+  const orderedListLevels = listFormats.map((format, level) =>
+    numberingLevel(level, format, listText[level]),
+  );
+  const bulletText = ["•", "–", "▪", "•", "–", "▪"];
+  const bulletListLevels = bulletText.map((text, level) =>
+    numberingLevel(level, LevelFormat.BULLET, text),
   );
   const footnotes = Object.fromEntries(
     document.footnotes.map((footnote, index) => [
@@ -807,6 +956,7 @@ export async function renderDocxMarkdownDocument(
       {
         children: [
           new Paragraph({
+            style: "FootnoteText",
             children: inlines(footnote.children),
           }),
         ],
@@ -814,21 +964,147 @@ export async function renderDocxMarkdownDocument(
     ]),
   );
   const docx = new Document({
+    title,
+    creator: "Beaver",
+    description: "Generated from Beaver semantic Markdown.",
+    styles: {
+      default: {
+        document: {
+          run: { font, size, color: "000000" },
+          paragraph: {
+            spacing: { line: 264, after: 80 },
+          },
+        },
+        title: {
+          run: { font, size: 28, bold: true, color: "000000" },
+          paragraph: {
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 240 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading1: {
+          run: { font, size: 26, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 240, after: 80 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading2: {
+          run: { font, size: 24, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 180, after: 60 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading3: {
+          run: { font, size: 22, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 140, after: 40 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading4: {
+          run: { font, size: 22, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 120, after: 40 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading5: {
+          run: { font, size: 22, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 100, after: 40 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        heading6: {
+          run: { font, size: 22, bold: true, color: "000000" },
+          paragraph: {
+            spacing: { before: 80, after: 40 },
+            keepNext: true,
+            keepLines: true,
+          },
+        },
+        listParagraph: {
+          run: { font, size, color: "000000" },
+          paragraph: {
+            spacing: { line: 264, after: 40 },
+          },
+        },
+        footnoteText: {
+          run: { font, size: 18, color: "000000" },
+          paragraph: {
+            spacing: { line: 240, after: 40 },
+          },
+        },
+        hyperlink: {
+          run: { color: "0563C1", underline: {} },
+        },
+      },
+      paragraphStyles: [
+        {
+          id: "LegalTableText",
+          name: "Legal Table Text",
+          basedOn: "Normal",
+          next: "LegalTableText",
+          run: { font, size: 20, color: "000000" },
+          paragraph: {
+            spacing: { line: 240, after: 20 },
+          },
+        },
+      ],
+    },
     numbering: {
       config: [
         { reference: headingNumbering, levels: headingLevelsConfig },
-        ...listReferences.map((reference) => ({
+        ...[...listReferences].map(([reference, ordered]) => ({
           reference,
-          levels: listLevels,
+          levels: ordered ? orderedListLevels : bulletListLevels,
         })),
       ],
     },
     footnotes,
     sections: [
       {
-        properties: options.landscape
-          ? { page: { size: { orientation: PageOrientation.LANDSCAPE } } }
-          : {},
+        properties: {
+          page: {
+            size: options.landscape
+              ? { orientation: PageOrientation.LANDSCAPE }
+              : undefined,
+            margin: {
+              top: 1_440,
+              right: 1_440,
+              bottom: 1_440,
+              left: 1_440,
+              header: 720,
+              footer: 720,
+            },
+          },
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [
+                  new TextRun({
+                    children: [PageNumber.CURRENT],
+                    font,
+                    size: 18,
+                    color: "666666",
+                  }),
+                ],
+              }),
+            ],
+          }),
+        },
         children: blocks,
       },
     ],

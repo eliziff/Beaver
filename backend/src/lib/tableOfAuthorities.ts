@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { appUrl } from "./appRoutes";
 import { isAnonymousLocalMode } from "./localMode";
 
 const DOCX_LIMIT = 64 * 1024 * 1024;
@@ -18,7 +19,8 @@ export type TableOfAuthoritiesJob = {
   has_review: boolean;
   split_fallback: "off" | "auto";
   files: Array<{ name: string; size: number; url: string }>;
-  open_path: string;
+  project_id: string;
+  app_url: string;
 };
 
 function port() {
@@ -148,6 +150,7 @@ function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
         ];
       })
     : [];
+  const projectId = boundedText(row.project_id, 80);
   return {
     id,
     state: boundedText(row.state, 40),
@@ -161,7 +164,12 @@ function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
     has_review: row.has_review === true,
     split_fallback: row.split_fallback === "auto" ? "auto" : "off",
     files,
-    open_path: `/table-of-authorities?job=${id}`,
+    project_id: projectId,
+    app_url: appUrl({
+      kind: "authorities",
+      jobId: id,
+      projectId: projectId || null,
+    }),
   };
 }
 
@@ -179,6 +187,7 @@ export async function submitTableOfAuthoritiesDocument(params: {
   bytes: Buffer;
   filename: string;
   splitFallback?: "off" | "auto";
+  projectId?: string | null;
 }) {
   if (params.bytes.byteLength === 0 || params.bytes.byteLength > DOCX_LIMIT) {
     throw new Error("Table of Authorities accepts DOCX files up to 64 MB.");
@@ -192,6 +201,9 @@ export async function submitTableOfAuthoritiesDocument(params: {
     filename,
     split_fallback: params.splitFallback === "auto" ? "auto" : "off",
   });
+  if (params.projectId?.trim()) {
+    query.set("project", params.projectId.trim());
+  }
   const response = await fetch(
     `${tableOfAuthoritiesUrl()}/api/jobs?${query.toString()}`,
     {
