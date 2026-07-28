@@ -54,7 +54,7 @@ import {
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
-import type { LocalCourtlistenerState } from "../lib/chat/localCourtlistenerTools";
+import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
 import {
   appendPublicLegalPinpointLinks,
   createPublicLegalSourceState,
@@ -1148,7 +1148,7 @@ export async function streamAnonymousChat(params: {
   });
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
-  const courtlistenerState: LocalCourtlistenerState = {
+  const courtlistenerState: CourtlistenerToolState = {
     casesByClusterId: new Map(),
   };
   const publicLegalState = createPublicLegalSourceState();
