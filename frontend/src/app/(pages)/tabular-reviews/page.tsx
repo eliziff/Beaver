@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import {
     createTabularReview,
     deleteTabularReview,
@@ -180,24 +179,26 @@ export default function TabularReviewsPage() {
         setSelectedIds([]);
     }
 
-    const toolbarActions =
-        selectedIds.length > 0 ? (
-            <NativeActionSelect
-                label="Actions"
-                items={[
-                    {
-                        label: "Delete",
-                        onSelect: handleDeleteSelected,
-                    },
-                ]}
-                triggerClassName="h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
-            >
-                <>
+    const toolbarActions = (
+        <span className="inline-flex h-8 w-28">
+            {selectedIds.length > 0 && (
+                <NativeActionSelect
+                    label="Actions"
+                    items={[
+                        {
+                            label: "Delete",
+                            onSelect: handleDeleteSelected,
+                        },
+                    ]}
+                    className="w-full"
+                    triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
+                >
                     Actions
-                    <ChevronDown className="h-3.5 w-3.5" />
-                </>
-            </NativeActionSelect>
-        ) : undefined;
+                    <span aria-hidden="true">&#9662;</span>
+                </NativeActionSelect>
+            )}
+        </span>
+    );
 
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
