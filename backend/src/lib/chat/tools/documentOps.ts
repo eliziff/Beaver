@@ -63,8 +63,10 @@ export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
         };
       }
     ).getDocument({
+      // Untrusted uploads: never let pdf.js compile font programs via eval.
       data: new Uint8Array(buf),
       standardFontDataUrl: STANDARD_FONT_DATA_URL,
+      isEvalSupported: false,
     }).promise;
     const parts: string[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
