@@ -626,17 +626,7 @@ export function cleanCitationQuoteText(
 
 /** Produce a reader-friendly version of the quote (replaces [[PAGE_BREAK]] with "..."). */
 export function displayCitationQuote(a: Citation): string {
-  if (a.kind === "case") {
-    return a.quotes
-      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
-      .join(" / ");
-  }
-  if (a.kind === "a2aj") {
-    return a.quotes
-      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
-      .join(" / ");
-  }
-  if (a.kind === "public_legal") {
+  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
     return a.quotes
       .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
       .join(" / ");
