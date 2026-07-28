@@ -1,0 +1,39 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["57", "57(h)"]
+    },
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": ["61", "61(1)"]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03"],
+  "required_quotations": [
+    {
+      "source_id": "SRC-001",
+      "quote": "An employer may terminate the employment of an employee without notice or with less notice than is required under section 57 or 58 if the employer,",
+      "acceptable_pinpoints": ["61", "61(1)"]
+    }
+  ],
+  "seeded_identifiers": ["SEED-CAN-CONTEXT-002-SEVBUDGET"],
+  "required_headings": ["EMPLOYMENT LAW MEMORANDUM"],
+  "definitions": {
+    "ISSUE-01": "The minimum written notice of termination under s 57 of the Employment Standards Act, 2000 on the corrected (version 2) facts: continuous employment since 2017-08-14 puts Mr. Patel at eight years or more, so at least eight weeks' notice.",
+    "ISSUE-02": "Whether the client may terminate without notice by paying termination pay in lieu under s 61 (lump-sum termination pay equal to the s 60 entitlement plus continued benefit plan contributions), added by INSTR-02.",
+    "PROP-01": "Notice of termination must be at least eight weeks where the employee's period of employment is eight years or more.",
+    "PROP-02": "An employer may terminate without notice, or with less notice than ss 57-58 require, if it pays lump-sum termination pay equal to what the employee would have received under s 60 and continues the required benefit plan contributions.",
+    "CONCLUSION-01": "On the current (version 2) facts, the client must give at least eight weeks' written notice or pay the equivalent termination pay in lieu with continued benefit contributions.",
+    "CLAIM-01": "The employee is entitled to five weeks' notice, or any notice period computed from the 2021-03-01 hire date (superseded version-1 fact; the corrected hire date is 2017-08-14).",
+    "CLAIM-02": "Termination pay is computed on an annual salary of $68,000 (superseded version-1 figure; version 2 corrected it to $82,000).",
+    "CLAIM-03": "The memorandum addresses only the minimum notice period and omits termination pay in lieu (scope instruction INSTR-01 was superseded by INSTR-02)."
+  }
+}

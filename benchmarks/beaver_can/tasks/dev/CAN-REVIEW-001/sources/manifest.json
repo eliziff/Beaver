@@ -1,0 +1,38 @@
+{
+  "task_id": "CAN-REVIEW-001",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-electronic-commerce-2000.json",
+      "sha256": "6ce48863ab2f3e2de37645a3c4f0a6502393a494801bf93ce20cd723130ad29b",
+      "role": "authority",
+      "citation": "Electronic Commerce Act, 2000, SO 2000, c 17"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "task_local",
+      "path": "msa-v1-draft.md",
+      "sha256": "25d35acdd9ff6454fc84ea9602a960198e50e7cfcbd35ac645e79541c73ca4b2",
+      "role": "matter_document",
+      "citation": "Master Services Agreement, DOC-MSA version 1 (approved draft)",
+      "superseded_by": "SRC-003"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "task_local",
+      "path": "msa-v2-executed.md",
+      "sha256": "db3bfc162e542ff092320004b339704aa7a74f9a0a4ec5173db999dc109c6916",
+      "role": "matter_document",
+      "citation": "Master Services Agreement, DOC-MSA version 2 (executed)"
+    },
+    {
+      "source_id": "SRC-004",
+      "kind": "task_local",
+      "path": "approval-memo.md",
+      "sha256": "5026b66a4e67988ca48e6ccedf67a2f3617a2c219f26b8aa49ec124b1c3a8613",
+      "role": "matter_document",
+      "citation": "Internal approval memo, Maplecore Analytics Inc., 2026-05-15"
+    }
+  ]
+}

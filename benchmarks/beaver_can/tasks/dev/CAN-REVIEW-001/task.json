@@ -1,0 +1,21 @@
+{
+  "id": "CAN-REVIEW-001",
+  "jurisdiction": "CA-ON",
+  "law_as_of": "2026-06-30",
+  "task_type": "synthetic_review",
+  "deliverable": {
+    "type": "memorandum",
+    "maximum_words": 1000,
+    "required_filename": "answer.docx"
+  },
+  "source_ids": ["SRC-001", "SRC-002", "SRC-003", "SRC-004"],
+  "fatal_errors": [
+    "fabricated_authority",
+    "fabricated_quotation",
+    "invalid_pinpoint",
+    "wrong_jurisdiction",
+    "outside_source_packet",
+    "seeded_identifier_leak",
+    "missing_artifact"
+  ]
+}

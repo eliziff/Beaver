@@ -1,0 +1,30 @@
+{
+  "task_id": "CAN-CONTEXT-002",
+  "sources": [
+    {
+      "source_id": "SRC-001",
+      "kind": "a2aj_fixture",
+      "path": "backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-laws-on-employment-standards-2000.json",
+      "sha256": "1ef02b64e9d14da8c36b9a29cc77d1ef929a9117987f352249991f9f37e16442",
+      "role": "authority",
+      "citation": "Employment Standards Act, 2000, SO 2000, c 41"
+    },
+    {
+      "source_id": "SRC-002",
+      "kind": "task_local",
+      "path": "employment-summary-v1.md",
+      "sha256": "e9f76089ff6abd3fce7a78319746c7234b38663fc51f00812d53e7024d04e4a0",
+      "role": "matter_document",
+      "citation": "Employment summary, DOC-EMPLOYMENT version 1",
+      "superseded_by": "SRC-003"
+    },
+    {
+      "source_id": "SRC-003",
+      "kind": "task_local",
+      "path": "employment-summary-v2.md",
+      "sha256": "4991785449bbbe82ac12ce0cc2070f38f2e531e9e6b15043fb268eeac0b98035",
+      "role": "matter_document",
+      "citation": "Employment summary, DOC-EMPLOYMENT version 2"
+    }
+  ]
+}

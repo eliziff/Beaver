@@ -1,0 +1,28 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["4", "11", "11(1)"]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-02", "acceptable": ["yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03"],
+  "seeded_identifiers": ["BVR-MATTER-2026-0457"],
+  "definitions": {
+    "ISSUE-01": "Which version of DOC-MSA is operative: the executed version 2 governs the parties' relationship; the approved draft version 1 is superseded.",
+    "ISSUE-02": "Whether the agreement's electronic execution is valid under Ontario law, under the Electronic Commerce Act, 2000 (electronic form does not invalidate, and a signature requirement is satisfied by an electronic signature).",
+    "ISSUE-03": "The clause changed between the approved draft and the executed version: Section 9.2's aggregate liability cap was changed from the trailing twelve months of fees to a flat $2,000,000, without the further written approval of the General Counsel that the approval memo required for any Section 9 amendment.",
+    "PROP-01": "Electronic execution does not by itself invalidate the agreement: information or a document is not invalid or unenforceable by reason only of being in electronic form, and a legal requirement that a document be signed is satisfied by an electronic signature.",
+    "CONCLUSION-01": "The executed version 2 is the operative agreement between the parties, and its electronic execution does not invalidate it under Ontario law.",
+    "CONCLUSION-02": "The change to the Section 9.2 liability cap in the executed version was not authorized by the approval memo, which approved the version 1 terms only and reserved any Section 9 amendment for further written approval.",
+    "CLAIM-01": "The agreement is invalid or unenforceable because it was signed electronically.",
+    "CLAIM-02": "The operative aggregate liability cap is the version 1 draft cap (total fees paid or payable in the preceding twelve months) — a superseded draft term presented as the executed term.",
+    "CLAIM-03": "The approval memo authorized the $2,000,000 aggregate liability cap in the executed version."
+  }
+}
