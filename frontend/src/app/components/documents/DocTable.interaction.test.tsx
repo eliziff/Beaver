@@ -46,11 +46,18 @@ function Harness({
     initialDocuments = [document],
     onActions,
     uploadDocument = async () => document,
+    moveDocument = async () => document,
+    search = "",
 }: {
     selectionFirst?: boolean;
     initialDocuments?: Document[];
     onActions?: (actions: DocTableSelectionActions | null) => void;
     uploadDocument?: (file: File) => Promise<Document>;
+    moveDocument?: (
+        documentId: string,
+        folderId: string | null,
+    ) => Promise<Document>;
+    search?: string;
 }) {
     const [documents, setDocuments] = useState(initialDocuments);
     const [folders, setFolders] = useState<DocTableFolder[]>([]);
@@ -63,7 +70,7 @@ function Harness({
             folders={folders}
             setFolders={setFolders}
             loading={false}
-            search=""
+            search={search}
             operations={{
                 uploadDocument,
                 refreshCollection: vi.fn(),
@@ -71,7 +78,7 @@ function Harness({
                 renameFolder: vi.fn(),
                 deleteFolder: vi.fn(),
                 moveFolder: vi.fn(),
-                moveDocument: vi.fn(),
+                moveDocument,
                 renameDocument: vi.fn(),
             }}
             selectionFirst={selectionFirst}
@@ -121,11 +128,17 @@ describe("DocTable Library interactions", () => {
         const file = new File(["brief"], "Brief.pdf", {
             type: "application/pdf",
         });
+        const dataTransfer = { types: ["Files"], files: [file] };
+        fireEvent.dragEnter(window, { dataTransfer });
+        expect(screen.getByText("Drop files here to upload")).toBeVisible();
         fireEvent.drop(window, {
-            dataTransfer: { types: ["Files"], files: [file] },
+            dataTransfer,
         });
 
         await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
+        expect(
+            screen.queryByText("Drop files here to upload"),
+        ).not.toBeInTheDocument();
         expect(firstUpload).not.toHaveBeenCalled();
         for (const event of dragEvents) {
             expect(registrations(addListener, event)).toBe(1);
@@ -135,6 +148,37 @@ describe("DocTable Library interactions", () => {
         for (const event of dragEvents) {
             expect(registrations(removeListener, event)).toBe(1);
         }
+    });
+
+    it("keeps internal document moves on the root drop target", async () => {
+        const moveDocument = vi.fn(async () => ({
+            ...document,
+            folder_id: null,
+        }));
+        render(
+            <Harness
+                initialDocuments={[{ ...document, folder_id: "folder-1" }]}
+                moveDocument={moveDocument}
+                search="Brief"
+            />,
+        );
+        const rootDropTarget = documentRow().parentElement!.parentElement!;
+        const rootDropSpacer = rootDropTarget.querySelector(
+            ".min-h-16",
+        ) as HTMLElement;
+        const dataTransfer = {
+            types: ["application/mike-doc"],
+            files: [],
+            getData: (type: string) =>
+                type === "application/mike-doc" ? document.id : "",
+        };
+
+        fireEvent.dragOver(rootDropSpacer, { dataTransfer });
+        fireEvent.drop(rootDropSpacer, { dataTransfer });
+
+        await waitFor(() =>
+            expect(moveDocument).toHaveBeenCalledWith(document.id, null),
+        );
     });
 
     it("selects on click without opening and keeps View visible", () => {
