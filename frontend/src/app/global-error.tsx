@@ -63,7 +63,7 @@ export default function GlobalError({
                         and our team will look into it.
                     </p>
                     <PillButton
-                        tone="blue"
+                        tone="black"
                         size="normal"
                         className="btn-back"
                         onClick={() => window.history.back()}

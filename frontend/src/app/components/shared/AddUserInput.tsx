@@ -104,7 +104,7 @@ export function AddUserInput({
                 />
                 {showAddButton && (
                     <PillButton
-                        tone="blue"
+                        tone="black"
                         size="sm"
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
