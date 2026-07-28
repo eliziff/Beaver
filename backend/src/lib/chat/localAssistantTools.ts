@@ -9,22 +9,12 @@ import {
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "../a2aj";
-import { docxToPdf } from "../convert";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
-import {
-  applyTrackedEdits,
-  extractDocxBodyText,
-  type EditInput,
-} from "../docxTrackedChanges";
-import {
-  isPresentationDocumentType,
-  isSpreadsheetDocumentType,
-  isWordDocumentType,
-} from "../documentTypes";
+import { applyTrackedEdits, type EditInput } from "../docxTrackedChanges";
 import {
   addLocalVersion,
   createLocalDocument,
@@ -59,8 +49,7 @@ import type {
   NormalizedToolResult,
   OpenAIToolSchema,
 } from "../llm";
-import { extractPresentationText } from "../officeText";
-import { spreadsheetToLLMText } from "../spreadsheet";
+import { cachedParse } from "../parseCache";
 import {
   getTableOfAuthoritiesJob,
   submitTableOfAuthoritiesDocument,
@@ -80,9 +69,9 @@ import {
 } from "../docxTextOps";
 import { TEXT_OP_NAMES } from "../textOps";
 import {
-  extractPdfText,
   findTextMatches,
   renderMarkdownDocx,
+  textParserFor,
 } from "./tools/documentOps";
 import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
@@ -394,12 +383,6 @@ function pdfLocatorParams(args: Record<string, unknown>) {
 
 const textCache = new Map<string, string>();
 
-const arrayBuffer = (bytes: Buffer): ArrayBuffer =>
-  bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-
 export async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
   if (!file) return null;
@@ -411,25 +394,16 @@ export async function extractLocalDocument(userId: string, documentId: string) {
 
   const bytes = await readFile(file.path);
   const fileType = file.fileType.toLowerCase();
-  let text = "";
-  if (fileType === "pdf") {
-    text = await extractPdfText(arrayBuffer(bytes));
-  } else if (fileType === "docx") {
-    text = await extractDocxBodyText(bytes);
-    if (!text) {
-      const mammoth = await import("mammoth");
-      text = (await mammoth.extractRawText({ buffer: bytes })).value;
-    }
-  } else if (isSpreadsheetDocumentType(fileType)) {
-    text = await spreadsheetToLLMText(bytes);
-  } else if (fileType === "pptx") {
-    text = await extractPresentationText(bytes);
-  } else if (
-    isPresentationDocumentType(fileType) ||
-    isWordDocumentType(fileType)
-  ) {
-    text = await extractPdfText(arrayBuffer(await docxToPdf(bytes)));
-  }
+  const parser = textParserFor(fileType);
+  const text = parser
+    ? await cachedParse({
+        scope: `user:${userId}`,
+        parser: parser.parser,
+        version: parser.version,
+        bytes,
+        parse: () => parser.run(bytes),
+      })
+    : "";
 
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);
