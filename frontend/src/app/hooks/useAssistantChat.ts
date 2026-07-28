@@ -122,7 +122,6 @@ export function useAssistantChat({
   const {
     replaceChatId,
     loadChats,
-    setCurrentChatId,
     saveChat,
     setNewChatMessages,
   } = useChatHistoryContext();
@@ -632,7 +631,6 @@ export function useAssistantChat({
             if (data.type === "chat_id") {
               streamedChatId = data.chatId;
               setChatId(data.chatId);
-              setCurrentChatId(data.chatId);
               if (Number.isSafeInteger(data.transcriptVersion)) {
                 transcriptVersionRef.current = data.transcriptVersion;
               }
@@ -1442,7 +1440,6 @@ export function useAssistantChat({
             message.content.trim().slice(0, 120) || "New Chat",
           );
         }
-        setCurrentChatId(finalChatId);
         const chatBasePath = projectId
           ? `/projects/${projectId}/assistant/chat`
           : `/assistant/chat`;
@@ -1564,7 +1561,6 @@ export function useAssistantChat({
     if (newChatId) {
       transcriptVersionRef.current = 0;
       setChatId(newChatId);
-      setCurrentChatId(newChatId);
     }
 
     return newChatId;

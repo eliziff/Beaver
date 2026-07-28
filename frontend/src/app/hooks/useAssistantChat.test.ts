@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   streamProjectChat: vi.fn(),
   loadChats: vi.fn(),
-  setCurrentChatId: vi.fn(),
   generateTitle: vi.fn(),
 }));
 
@@ -26,7 +25,6 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
     replaceChatId: vi.fn(),
     loadChats: mocks.loadChats,
-    setCurrentChatId: mocks.setCurrentChatId,
     saveChat: vi.fn(),
     setNewChatMessages: vi.fn(),
   }),

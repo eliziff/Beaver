@@ -120,7 +120,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const mobileExplorerButtonRef = useRef<HTMLButtonElement>(null);
 
     const {
-        setCurrentChatId,
         newChatMessages,
         setNewChatMessages,
         chats,
@@ -205,10 +204,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     useEffect(() => {
         responseLoadingRef.current = isResponseLoading;
     }, [isResponseLoading]);
-
-    useEffect(() => {
-        setCurrentChatId(chatId);
-    }, [chatId, setCurrentChatId]);
 
     useEffect(() => {
         if (hasLoaded.current) return;
