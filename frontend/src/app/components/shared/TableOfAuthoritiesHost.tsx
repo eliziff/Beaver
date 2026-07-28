@@ -4,6 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -17,12 +18,6 @@ const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const LOCAL_FRAME_URL = isAnonymousMode
-  ? new URL(
-      "?mode=mike",
-      process.env.NEXT_PUBLIC_TOA_WEB_URL ?? "http://127.0.0.1:8765/",
-    ).toString()
-  : null;
 const warmedService =
   typeof window !== "undefined" && isAnonymousMode
     ? launchTableOfAuthorities()
@@ -47,17 +42,16 @@ function ScopeReader({
   onChange: (scope: AuthoritiesScope) => void;
 }) {
   const searchParams = useSearchParams();
-  const job = active && JOB_ID.test(searchParams.get("job") || "")
+  const job = JOB_ID.test(searchParams.get("job") || "")
     ? searchParams.get("job")!
     : "";
-  const project =
-    active && PROJECT_ID.test(searchParams.get("project") || "")
-      ? searchParams.get("project")!
-      : "";
+  const project = PROJECT_ID.test(searchParams.get("project") || "")
+    ? searchParams.get("project")!
+    : "";
 
-  useEffect(() => {
-    onChange({ job, project });
-  }, [job, onChange, project]);
+  useLayoutEffect(() => {
+    if (active) onChange({ job, project });
+  }, [active, job, onChange, project]);
 
   return null;
 }
@@ -116,17 +110,14 @@ export function TableOfAuthoritiesHost({
     job: "",
     project: "",
   });
-  const [url, setUrl] = useState<string | null>(LOCAL_FRAME_URL);
+  const [url, setUrl] = useState<string | null>(null);
   const [frameReady, setFrameReady] = useState(false);
+  const [frameScope, setFrameScope] = useState("");
   const [error, setError] = useState<string | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const frameReadyRef = useRef(false);
   const sessionRef = useRef("");
-  const urlRef = useRef(LOCAL_FRAME_URL ?? "");
-  const scopeRef = useRef("");
-  const expectedOriginRef = useRef(
-    LOCAL_FRAME_URL ? new URL(LOCAL_FRAME_URL).origin : "",
-  );
+  const urlRef = useRef("");
+  const expectedOriginRef = useRef("");
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
   const serviceRef = useRef(warmedService);
@@ -185,7 +176,6 @@ export function TableOfAuthoritiesHost({
       if (data.type === "mike:table-of-authorities-ready") {
         clearWatchdog();
         setError(null);
-        frameReadyRef.current = true;
         setFrameReady(true);
       } else if (data.type === "mike:table-of-authorities-error") {
         clearWatchdog();
@@ -212,7 +202,7 @@ export function TableOfAuthoritiesHost({
   );
 
   useEffect(() => {
-    if (!enabled || (!active && urlRef.current)) return;
+    if (!enabled) return;
     let live = true;
     if (!serviceRef.current) {
       serviceRef.current = launchTableOfAuthorities();
@@ -227,9 +217,8 @@ export function TableOfAuthoritiesHost({
           : "";
         if (
           urlRef.current &&
-          scopeRef.current === signature &&
-          currentOrigin === serviceUrl.origin &&
-          (service.reused || frameReadyRef.current)
+          frameScope === signature &&
+          currentOrigin === serviceUrl.origin
         ) {
           pingFrame();
           return;
@@ -243,12 +232,11 @@ export function TableOfAuthoritiesHost({
         if (scope.project) {
           serviceUrl.searchParams.set("project", scope.project);
         }
-        scopeRef.current = signature;
+        setFrameScope(signature);
         urlRef.current = serviceUrl.toString();
         expectedOriginRef.current = serviceUrl.origin;
         attemptRef.current = attempt;
         setError(null);
-        frameReadyRef.current = false;
         setFrameReady(false);
         startWatchdog(attempt);
         setUrl(urlRef.current);
@@ -256,6 +244,8 @@ export function TableOfAuthoritiesHost({
       .catch((reason: unknown) => {
         if (!live) return;
         clearWatchdog();
+        setFrameScope(`${scope.job}:${scope.project}`);
+        setFrameReady(false);
         setError(
           reason instanceof Error
             ? reason.message
@@ -266,14 +256,20 @@ export function TableOfAuthoritiesHost({
       live = false;
     };
   }, [
-    active,
     clearWatchdog,
     enabled,
+    frameScope,
     pingFrame,
     scope.job,
     scope.project,
     startWatchdog,
   ]);
+
+  const scopeSignature = `${scope.job}:${scope.project}`;
+  const frameCurrent =
+    frameReady && frameScope === scopeSignature;
+  const visibleError =
+    frameScope === scopeSignature ? error : null;
 
   return (
     <>
@@ -282,31 +278,35 @@ export function TableOfAuthoritiesHost({
       </Suspense>
       <AuthoritiesShell
         active={active}
-        busy={active && !frameReady && !error}
+        busy={active && !frameCurrent && !visibleError}
       >
         {url && (
           <iframe
             ref={frameRef}
             src={url}
             title="Table of Authorities"
-            aria-hidden={!active || !frameReady}
-            tabIndex={active && frameReady ? 0 : -1}
+            aria-hidden={!active || !frameCurrent}
+            tabIndex={active && frameCurrent ? 0 : -1}
             onLoad={pingFrame}
-            className="absolute inset-0 h-full w-full border-0 bg-[#f3f4f6]"
+            className={`absolute inset-0 h-full w-full border-0 bg-[#f3f4f6] ${
+              frameCurrent ? "" : "invisible"
+            }`}
           />
         )}
-        {!url ? (
+        {!frameCurrent && !visibleError ? (
           <div
             data-testid="authorities-neutral-cover"
             className="absolute inset-0 bg-[#f3f4f6]"
           />
-        ) : !frameReady && error ? (
+        ) : !frameCurrent && visibleError ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white p-8">
             <div className="max-w-lg text-center">
               <h2 className="font-serif text-2xl text-gray-900">
                 Authorities unavailable
               </h2>
-              <p className="mt-3 text-sm leading-6 text-gray-600">{error}</p>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                {visibleError}
+              </p>
               <button
                 type="button"
                 className="mt-5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white"
