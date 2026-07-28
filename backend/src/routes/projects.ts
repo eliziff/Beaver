@@ -14,7 +14,6 @@ import {
 import { convertedPdfKey } from "../lib/convert";
 import { checkProjectAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
-import { deleteUserProjects } from "../lib/userDataCleanup";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import { imageValidationError } from "../lib/llm/images";
 import {
@@ -554,6 +553,7 @@ projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
   }
   const db = createServerSupabase();
   try {
+    const { deleteUserProjects } = await import("../lib/userDataCleanup");
     const deletedCount = await deleteUserProjects(db, userId, [projectId]);
     if (deletedCount === 0)
       return void res.status(404).json({ detail: "Project not found" });
