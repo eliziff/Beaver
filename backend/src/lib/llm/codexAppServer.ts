@@ -432,11 +432,29 @@ async function runTurn(
   params.abortSignal?.addEventListener("abort", onAbort, { once: true });
   try {
     const threadParams = {
+      // Codex injects ~16k tokens/turn of agentic preamble (base prompt plus a
+      // 23-tool suite). Benchmark runs can shrink that to ~10k by replacing the
+      // base prompt and switching off tool features; the ChatGPT backend honours
+      // both. The remainder (core exec tools, server-side collaboration/web.run,
+      // environment context) is not removable. Off by default for chat.
+      ...(process.env.MIKE_CODEX_BASE_INSTRUCTIONS
+        ? { baseInstructions: process.env.MIKE_CODEX_BASE_INSTRUCTIONS }
+        : {}),
       ...(modelSlug ? { model: modelSlug } : {}),
       sandbox: "read-only",
       approvalPolicy: "never",
       cwd: process.cwd(),
       config: {
+        ...(process.env.MIKE_CODEX_FEATURES_OFF
+          ? {
+              features: Object.fromEntries(
+                process.env.MIKE_CODEX_FEATURES_OFF.split(",").map((name) => [
+                  name.trim(),
+                  false,
+                ]),
+              ),
+            }
+          : {}),
         ...(bridge
           ? {
               mcp_servers: {
