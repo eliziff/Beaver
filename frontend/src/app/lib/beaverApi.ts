@@ -97,16 +97,22 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function apiBlobRequest(path: string): Promise<{
+async function apiBlobRequest(
+  path: string,
+  init?: RequestInit,
+): Promise<{
   blob: Blob;
   filename: string | null;
 }> {
   const authHeaders = await getAuthHeader();
+  const { headers: initHeaders, ...restInit } = init ?? {};
   const response = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
+    ...restInit,
     headers: {
       Accept: "application/json",
       ...authHeaders,
+      ...(initHeaders as Record<string, string> | undefined),
     },
   });
 
@@ -1176,21 +1182,13 @@ export async function getDocumentUrl(
 export async function downloadDocumentsZip(
   documentIds: string[],
 ): Promise<Blob> {
-  const authHeaders = await getAuthHeader();
-  const response = await fetch(`${API_BASE}/single-documents/download-zip`, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders,
-    },
-    body: JSON.stringify({ document_ids: documentIds }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `API error: ${response.status}`);
-  }
-  return response.blob();
+  return (
+    await apiBlobRequest("/single-documents/download-zip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_ids: documentIds }),
+    })
+  ).blob;
 }
 
 // ---------------------------------------------------------------------------
