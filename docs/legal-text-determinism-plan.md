@@ -124,6 +124,11 @@ Extend `backend/src/lib/docxTrackedChanges.ts`:
   rationale is measured, not mandated: unreasoned edits apply without a
   comment and the receipt counts them (`edits_without_reason`), so
   rationale-coverage becomes an A/B variable on markup tasks.
+- Word comments are EMPHATICALLY opt-in (default off): they make Word
+  laggy on long documents, and edit reasons already reach the user through
+  the tracked-edit receipt card. `annotate: true` only on an explicit user
+  request for in-document comments; plain tracked changes are the normal
+  deliverable.
 - `library_revise_docx` gains the `annotate` parameter, and its receipt
   auto-runs `lintLocalDocxStructure` on the new version, returning findings
   (broken xrefs, numbering gaps, defined-term defects) so the model gets
