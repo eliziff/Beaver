@@ -118,6 +118,9 @@ async function main() {
           MIKE_LOCAL_DATA_DIR: path.join(dataHome, "apps", "mike", "library"),
           SUPABASE_URL: "",
           SUPABASE_SECRET_KEY: "",
+          // Parity with Arm A's sealed sandbox: no online research tools,
+          // and no prompt sections describing them (see localAssistantTools).
+          MIKE_DISABLE_RESEARCH_TOOLS: "1",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
         },
         stdio: "inherit",
@@ -155,33 +158,10 @@ async function main() {
       `deliverables out of scope for the beaver arm: ${unsupported.join(", ")}`,
     );
 
+  if (process.env.MIKE_DISABLE_RESEARCH_TOOLS !== "1")
+    throw new Error("expected MIKE_DISABLE_RESEARCH_TOOLS=1 (see parent env)");
   const { app } = await import("../src/app");
   const request = (await import("supertest")).default;
-
-  // Hold information access constant with Arm A's sealed (--network=none)
-  // sandbox: remove the online legal-research tools from the advertised
-  // list, in place — the chat route reads this array by reference at
-  // request time. Beaver's library/docx/text orchestration stays; that is
-  // the harness under test.
-  const { LOCAL_ASSISTANT_TOOLS } = await import(
-    "../src/lib/chat/localAssistantTools"
-  );
-  const { COURTLISTENER_TOOLS } = await import(
-    "../src/lib/chat/tools/courtlistenerTools"
-  );
-  const { A2AJ_TOOLS } = await import("../src/lib/chat/tools/a2ajTools");
-  const { PUBLIC_LEGAL_SOURCE_TOOLS } = await import(
-    "../src/lib/chat/tools/publicLegalSourceTools"
-  );
-  const researchToolNames = new Set(
-    [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS].map(
-      (schema: { function: { name: string } }) => schema.function.name,
-    ),
-  );
-  for (let i = LOCAL_ASSISTANT_TOOLS.length - 1; i >= 0; i -= 1) {
-    if (researchToolNames.has(LOCAL_ASSISTANT_TOOLS[i].function.name))
-      LOCAL_ASSISTANT_TOOLS.splice(i, 1);
-  }
   const { Document, Packer, Paragraph, TextRun } = await import("docx");
   const textToDocx = (text: string) =>
     Packer.toBuffer(
@@ -228,48 +208,56 @@ async function main() {
   const answer = visibleText(events);
   const calls = toolCalls(events);
   const created = docsCreated(events);
-  if (!answer.trim()) throw new Error("empty assistant answer");
+  const askPause = events.find((event) =>
+    String(event.type ?? "").startsWith("ask_inputs"),
+  );
+  if (askPause)
+    throw new Error(
+      "Beaver paused for ask_inputs; the benchmark has no user to answer — run incomplete",
+    );
+  if (!answer.trim() && !created.length)
+    throw new Error("empty assistant answer and no documents created");
   const wallClock = (Date.now() - started) / 1000;
 
   const runDir = path.join(labRoot, "results", ...runId.split("/"));
   const outputDir = path.join(runDir, "output");
   mkdirSync(outputDir, { recursive: true });
 
-  // Prefer documents Beaver authored itself: exact filename match, then a
-  // same-extension 1:1 pairing (a user renaming on export), then the answer
-  // text as last resort.
-  const unclaimed = [...created];
+  // Save every document Beaver authored under its own filename; LAB's
+  // evaluator resolves expected deliverables against actual files with the
+  // same exact/extension/fuzzy matching reference-harness runs get. Answer
+  // text is synthesized only for a deliverable whose extension class Beaver
+  // created nothing for.
   const deliverableSources: Record<string, string> = {};
-  for (const name of deliverables) {
-    const extension = path.extname(name).toLowerCase();
-    const exact = unclaimed.findIndex((doc) => doc.filename === name);
-    const sameExt = unclaimed.filter(
-      (doc) => path.extname(doc.filename).toLowerCase() === extension,
-    );
-    const pick =
-      exact >= 0 ? exact : sameExt.length === 1 ? unclaimed.indexOf(sameExt[0]) : -1;
-    const target = path.join(outputDir, name);
-    if (pick >= 0) {
-      const doc = unclaimed.splice(pick, 1)[0];
-      const download = await request(app)
-        .get(doc.downloadUrl)
-        .buffer(true)
-        .parse((res, callback) => {
-          const chunks: Buffer[] = [];
-          res.on("data", (chunk: Buffer) => chunks.push(chunk));
-          res.on("end", () => callback(null, Buffer.concat(chunks)));
-        });
-      if (download.status !== 200)
-        throw new Error(`download ${doc.filename}: ${download.status}`);
-      writeFileSync(target, download.body as Buffer);
-      deliverableSources[name] = `library:${doc.filename}`;
-    } else if (/\.docx$/iu.test(name)) {
-      writeFileSync(target, await textToDocx(answer));
-      deliverableSources[name] = "answer_text";
-    } else {
-      writeFileSync(target, answer, "utf8");
-      deliverableSources[name] = "answer_text";
+  const saved: string[] = [];
+  for (const doc of created) {
+    const download = await request(app)
+      .get(doc.downloadUrl)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+    if (download.status !== 200)
+      throw new Error(`download ${doc.filename}: ${download.status}`);
+    let name = doc.filename;
+    for (let n = 2; saved.includes(name); n += 1) {
+      const extension = path.extname(doc.filename);
+      name = `${path.basename(doc.filename, extension)}-${n}${extension}`;
     }
+    writeFileSync(path.join(outputDir, name), download.body as Buffer);
+    saved.push(name);
+    deliverableSources[name] = "library";
+  }
+  for (const name of deliverables) {
+    if (saved.includes(name)) continue;
+    const extension = path.extname(name).toLowerCase();
+    if (saved.some((f) => path.extname(f).toLowerCase() === extension)) continue;
+    const target = path.join(outputDir, name);
+    if (/\.docx$/iu.test(name)) writeFileSync(target, await textToDocx(answer));
+    else writeFileSync(target, answer, "utf8");
+    deliverableSources[name] = "answer_text";
   }
 
   // Real usage from the context-manifest receipts (each streamChatWithTools
@@ -358,7 +346,7 @@ async function main() {
         deliverables,
         docs_created: created.map((doc) => doc.filename),
         deliverable_sources: deliverableSources,
-        research_tools_removed: [...researchToolNames].sort(),
+        research_tools_disabled: true,
         deviations: {
           uploads_wrapped_as_docx: wrappedUploads,
         },
