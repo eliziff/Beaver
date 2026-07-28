@@ -159,6 +159,20 @@ function jsonRequest<T>(path: string, method: string, body: unknown) {
   });
 }
 
+function multipartRequest<T>(
+  path: string,
+  file: File,
+  options?: { method?: string; filename?: string },
+) {
+  const form = new FormData();
+  form.append("file", file);
+  if (options?.filename) form.append("filename", options.filename);
+  return apiRequest<T>(path, {
+    method: options?.method ?? "POST",
+    body: form,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
@@ -902,12 +916,7 @@ export async function uploadLibraryDocument(
   kind: LibraryKind,
   file: File,
 ): Promise<Document> {
-  const form = new FormData();
-  form.append("file", file);
-  return apiRequest<Document>(`/library/${kind}/documents`, {
-    method: "POST",
-    body: form,
-  });
+  return multipartRequest<Document>(`/library/${kind}/documents`, file);
 }
 
 export async function createLibraryFolder(
@@ -1086,12 +1095,10 @@ export async function uploadDocumentVersion(
   file: File,
   filename?: string,
 ): Promise<DocumentVersion> {
-  const form = new FormData();
-  form.append("file", file);
-  if (filename) form.append("filename", filename);
-  return apiRequest<DocumentVersion>(
+  return multipartRequest<DocumentVersion>(
     `/single-documents/${documentId}/versions`,
-    { method: "POST", body: form },
+    file,
+    { filename },
   );
 }
 
@@ -1101,12 +1108,10 @@ export async function replaceDocumentVersionFile(
   file: File,
   filename?: string,
 ): Promise<DocumentVersion> {
-  const form = new FormData();
-  form.append("file", file);
-  if (filename) form.append("filename", filename);
-  return apiRequest<DocumentVersion>(
+  return multipartRequest<DocumentVersion>(
     `/single-documents/${documentId}/versions/${versionId}/file`,
-    { method: "PUT", body: form },
+    file,
+    { method: "PUT", filename },
   );
 }
 
@@ -1150,21 +1155,11 @@ export async function uploadProjectDocument(
   projectId: string,
   file: File,
 ): Promise<Document> {
-  const form = new FormData();
-  form.append("file", file);
-  return apiRequest<Document>(`/projects/${projectId}/documents`, {
-    method: "POST",
-    body: form,
-  });
+  return multipartRequest<Document>(`/projects/${projectId}/documents`, file);
 }
 
 export async function uploadStandaloneDocument(file: File): Promise<Document> {
-  const form = new FormData();
-  form.append("file", file);
-  return apiRequest<Document>("/single-documents", {
-    method: "POST",
-    body: form,
-  });
+  return multipartRequest<Document>("/single-documents", file);
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {
