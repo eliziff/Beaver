@@ -262,7 +262,7 @@ function ModalActionButton({
         return (
             <button
                 type="button"
-                className="px-2 py-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
                 {...props}
             >
                 {label}

@@ -131,7 +131,7 @@ export default function FeaturesPage() {
                                 type="button"
                                 onClick={() => void handleUpdateLegalResearch()}
                                 disabled={saving || !hasChanges}
-                                className="text-sm font-medium text-gray-700 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-300"
+                                className="text-sm font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-300"
                             >
                                 {saving
                                     ? "Updating..."

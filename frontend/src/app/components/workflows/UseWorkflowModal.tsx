@@ -164,7 +164,7 @@ export function UseWorkflowModal({
                           key="workflows"
                           type="button"
                           onClick={() => setScreen("select")}
-                          className="transition-colors hover:text-gray-700"
+                          className="hover:text-gray-700"
                       >
                           Workflows
                       </button>

@@ -268,7 +268,7 @@ export function ProjectExplorer({
                                         await handleDropOnTarget(folder.id, e);
                                     }
                                 }}
-                                className={`flex items-center gap-1.5 py-1.5 pr-2 rounded-sm cursor-pointer select-none transition-colors group ${
+                                className={`flex items-center gap-1.5 py-1.5 pr-2 rounded-sm cursor-pointer select-none group ${
                                     isDragTarget
                                         ? "bg-red-50 ring-1 ring-inset ring-red-200"
                                         : "hover:bg-gray-50"
@@ -332,7 +332,7 @@ export function ProjectExplorer({
                                     doc.id,
                                 )
                             }
-                            className={`flex items-center gap-2 py-1.5 pr-4 rounded-sm cursor-pointer select-none transition-colors ${
+                            className={`flex items-center gap-2 py-1.5 pr-4 rounded-sm cursor-pointer select-none ${
                                 isSelected ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                             }`}
                             style={{ paddingLeft: basePadding }}

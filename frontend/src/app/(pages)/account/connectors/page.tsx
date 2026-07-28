@@ -731,7 +731,7 @@ function ConnectorRow({
 
     return (
         <AccountSection
-            className="cursor-pointer px-4 py-3 transition-colors hover:bg-white/70"
+            className="cursor-pointer px-4 py-3 hover:bg-white/70"
             role="button"
             tabIndex={0}
             onClick={onOpen}
@@ -775,7 +775,7 @@ function ConnectorRow({
                         event.stopPropagation();
                         onOpen();
                     }}
-                    className="shrink-0 justify-self-end text-xs font-medium text-gray-500 transition-colors hover:text-gray-950"
+                    className="shrink-0 justify-self-end text-xs font-medium text-gray-500 hover:text-gray-950"
                 >
                     Details
                 </button>
@@ -946,7 +946,7 @@ function McpConnectorDetailsModal({
                                     disabled={
                                         busyKey === `refresh:${connector.id}`
                                     }
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
                                 >
                                     {busyKey === `refresh:${connector.id}` ? (
                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1056,7 +1056,7 @@ function ScrollableToolList({
                                             isExpanded ? null : tool.id,
                                         )
                                     }
-                                    className="inline-flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-800"
+                                    className="inline-flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-800"
                                     aria-label={`${
                                         isExpanded ? "Collapse" : "Expand"
                                     } ${toolLabel}`}

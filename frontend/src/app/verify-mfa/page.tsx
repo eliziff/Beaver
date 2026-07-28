@@ -191,7 +191,7 @@ function VerifyMfaContent() {
                             type="button"
                             onClick={() => void cancel()}
                             disabled={verifying}
-                            className="px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                         >
                             Cancel
                         </button>

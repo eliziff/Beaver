@@ -317,7 +317,7 @@ export function TRSidePanel({
                         type="button"
                         onClick={() => setDocumentPaneOpen((open) => !open)}
                         className={cn(
-                            "mr-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/75 hover:text-gray-700",
+                            "mr-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-white/75 hover:text-gray-700",
                             documentPaneOpen && "bg-white/55 text-gray-700",
                         )}
                         aria-label={
@@ -346,7 +346,7 @@ export function TRSidePanel({
                             }}
                             disabled={regenerating}
                             title="Regenerate"
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
                         >
                             {regenerating ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -358,7 +358,7 @@ export function TRSidePanel({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700"
                         aria-label="Close"
                     >
                         <X className="h-3.5 w-3.5" />
@@ -530,7 +530,7 @@ function CellNavigatorButton({
             aria-label={label}
             title={title ? `${label}: ${title}` : label}
             className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-md text-gray-600 transition-colors disabled:cursor-default disabled:opacity-25",
+                "flex h-7 w-7 items-center justify-center rounded-md text-gray-600 disabled:cursor-default disabled:opacity-25",
                 APP_SURFACE_HOVER_CLASS,
                 APP_SURFACE_PRESSED_CLASS,
                 className,
@@ -585,7 +585,7 @@ function CitationBadge({
                     citationRef: index + 1,
                 })
             }
-            className="inline-flex items-center justify-center rounded-full bg-gray-200 w-3.5 h-3.5 text-[9px] font-medium text-gray-700 align-super cursor-pointer hover:bg-gray-300 transition-colors"
+            className="inline-flex items-center justify-center rounded-full bg-gray-200 w-3.5 h-3.5 text-[9px] font-medium text-gray-700 align-super cursor-pointer hover:bg-gray-300"
         >
             {index + 1}
         </button>

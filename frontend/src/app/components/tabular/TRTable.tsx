@@ -352,7 +352,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         <button
                             onClick={onAddColumn}
                             disabled={savingColumn || savingColumnsConfig}
-                            className="flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors disabled:text-gray-200"
+                            className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:text-gray-200"
                         >
                             <Plus className="h-4 w-4" />
                         </button>
@@ -404,10 +404,10 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         <div
                             key={doc.id}
                             data-tr-row
-                            className={`group flex min-w-full transition-colors ${rowBg}`}
+                            className={`group flex min-w-full ${rowBg}`}
                         >
                             <div
-                                className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center transition-colors ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
+                                className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}
                             >
                                 <CheckboxControl
                                     checked={selectedDocIdSet.has(doc.id)}
@@ -431,7 +431,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                 return (
                                     <div
                                         key={col.index}
-                                        className={`${COL_W} border-b border-r border-gray-200 transition-colors ${isHighlighted ? "bg-red-100" : ""}`}
+                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-red-100" : ""}`}
                                     >
                                         {cell && (
                                             <TabularCellComponent

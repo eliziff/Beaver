@@ -107,7 +107,7 @@ export function WarningPopup({
                 <button
                     type="button"
                     onClick={onClose}
-                    className="shrink-0 text-red-700 transition-colors hover:text-red-500"
+                    className="shrink-0 text-red-700 hover:text-red-500"
                     aria-label="Dismiss warning"
                 >
                     <X className="h-3.5 w-3.5" />
@@ -131,7 +131,7 @@ function WarningPopupButton({
             onClick={action.onClick}
             disabled={action.disabled}
             className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                "rounded-lg px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40",
                 primary
                     ? "bg-gray-900 text-white hover:bg-gray-700"
                     : "text-gray-700 hover:bg-white/70",

@@ -458,7 +458,7 @@ export function AskInputPopup({
                                                 !skipped.has(activeItem.id),
                                             )
                                         }
-                                        className="min-h-9 px-2 font-sans text-sm text-gray-600 transition-colors hover:text-gray-900"
+                                        className="min-h-9 px-2 font-sans text-sm text-gray-600 hover:text-gray-900"
                                     >
                                         {skipped.has(activeItem.id)
                                             ? "Unskip"
@@ -555,7 +555,7 @@ function OptionInput({
                         type="button"
                         disabled={disabled}
                         onClick={() => onAnswer(answer)}
-                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left ${
                             isSelected
                                 ? "bg-gray-200/80 text-gray-900"
                                 : "bg-gray-100/70 text-gray-700 hover:bg-gray-200/70 disabled:hover:bg-gray-100/70"
@@ -577,7 +577,7 @@ function OptionInput({
             })}
             {item.allow_other && (
                 <div
-                    className={`min-h-11 w-full rounded-lg px-3 py-2.5 transition-colors ${
+                    className={`min-h-11 w-full rounded-lg px-3 py-2.5 ${
                         otherOpen
                             ? "bg-gray-200/80"
                             : "cursor-pointer bg-gray-100/70 hover:bg-gray-200/70"
@@ -669,7 +669,7 @@ function DocumentInput({
                                 onOpenSelector(idx);
                             }
                         }}
-                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+                        className={`min-h-11 w-full rounded-lg px-3 py-2.5 text-left ${
                             docs.length > 0
                                 ? "bg-gray-200/80 text-gray-900"
                                 : "bg-gray-100/70 text-gray-700"
@@ -714,7 +714,7 @@ function DocumentInput({
                                                                 doc.id,
                                                             );
                                                         }}
-                                                        className="ml-0.5 rounded-full p-0.5 text-gray-400 transition-colors hover:bg-gray-900/5 hover:text-gray-700"
+                                                        className="ml-0.5 rounded-full p-0.5 text-gray-400 hover:bg-gray-900/5 hover:text-gray-700"
                                                     >
                                                         <X className="h-2.5 w-2.5" />
                                                     </button>

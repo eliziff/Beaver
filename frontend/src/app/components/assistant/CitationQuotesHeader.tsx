@@ -90,7 +90,7 @@ export function CitationQuotesHeader({
                                         key={quote.id}
                                         type="button"
                                         onClick={() => onIndexChange?.(index)}
-                                        className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] transition-colors ${
+                                        className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
                                             currentIndex === index
                                                 ? "bg-white font-medium text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.22)]"
                                                 : "bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700"
@@ -109,7 +109,7 @@ export function CitationQuotesHeader({
                                     event.preventDefault();
                                     void copyCitation();
                                 }}
-                                className="flex h-6 items-center gap-1 rounded-full bg-white px-2 text-gray-600 shadow-[0_1px_3px_rgba(0,0,0,0.22)] transition-colors hover:bg-gray-50"
+                                className="flex h-6 items-center gap-1 rounded-full bg-white px-2 text-gray-600 shadow-[0_1px_3px_rgba(0,0,0,0.22)] hover:bg-gray-50"
                                 title="Copy Quote and Citation"
                             >
                                 {isCopied ? (
@@ -282,7 +282,7 @@ function QuoteItem({
         <button
             type="button"
             onClick={onClick}
-            className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${
+            className={`w-full rounded-xl px-3 py-2.5 text-left ${
                 isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"
             }`}
         >

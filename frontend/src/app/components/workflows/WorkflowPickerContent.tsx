@@ -159,7 +159,7 @@ export function WorkflowPickerContent({
                                                 isSelected ? null : workflow,
                                             )
                                         }
-                                        className={`flex min-w-0 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition-colors ${
+                                        className={`flex min-w-0 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs ${
                                             isSelected
                                                 ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
                                                 : APP_SURFACE_HOVER_CLASS
@@ -238,7 +238,7 @@ function WorkflowPreview({
                         <button
                             type="button"
                             onClick={onClear}
-                            className={`rounded-md p-1 text-gray-400 transition-colors hover:text-gray-600 ${APP_SURFACE_HOVER_CLASS}`}
+                            className={`rounded-md p-1 text-gray-400 hover:text-gray-600 ${APP_SURFACE_HOVER_CLASS}`}
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
@@ -374,7 +374,7 @@ function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
                                         isExpanded ? null : column.index,
                                     )
                                 }
-                                className={`flex min-w-0 w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs transition-colors ${
+                                className={`flex min-w-0 w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs ${
                                     isExpanded
                                         ? APP_SURFACE_ACTIVE_CLASS
                                         : APP_SURFACE_HOVER_CLASS

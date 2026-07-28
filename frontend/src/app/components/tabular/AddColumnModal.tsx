@@ -310,7 +310,7 @@ export function AddColumnModal({
                                                         )
                                                     }
                                                     aria-expanded={!isCollapsed}
-                                                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gray-300"
+                                                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
                                                 >
                                                     <ChevronDown
                                                         className={`h-4 w-4 shrink-0 text-gray-600 ${isCollapsed ? "-rotate-90" : ""}`}
@@ -325,7 +325,7 @@ export function AddColumnModal({
                                                         onClick={() =>
                                                             removeColumn(index)
                                                         }
-                                                        className="rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500"
+                                                        className="rounded-lg p-1.5 text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                                                         aria-label="Remove column"
                                                     >
                                                         <X className="h-4 w-4" />
@@ -477,7 +477,7 @@ export function AddColumnModal({
                                             !column.name.trim() ||
                                             generatingIndices.includes(index)
                                         }
-                                        className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-900 disabled:text-gray-300"
+                                        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 disabled:text-gray-300"
                                     >
                                         {generatingIndices.includes(index) ? (
                                             <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin block" />
@@ -511,7 +511,7 @@ export function AddColumnModal({
                             <button
                                 type="button"
                                 onClick={addAnotherColumn}
-                                className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-900"
+                                className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
                             >
                                 <Plus className="h-4 w-4" />
                                 Add another column

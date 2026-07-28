@@ -277,7 +277,7 @@ export function PeopleModal({
                                 return (
                                     <li
                                         key={`${entry.role}-${rowKey}`}
-                                        className="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100/70"
+                                        className="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-100/70"
                                     >
                                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
                                             {initial ? (

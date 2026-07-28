@@ -272,7 +272,7 @@ export function TableStickyCell({
                 bgClassName,
                 header
                     ? "z-[80] items-center self-stretch"
-                    : "py-2 transition-colors",
+                    : "py-2",
                 !header && hover && APP_SURFACE_GROUP_HOVER_CLASS,
                 className,
             )}

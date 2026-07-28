@@ -18,7 +18,7 @@ export function AddDocButton({
         <button
             type="button"
             onClick={onBrowseAll}
-            className={`flex items-center gap-1 px-2 h-8 rounded-lg text-sm transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 h-8 rounded-lg text-sm cursor-pointer ${
                 count > 0
                     ? "text-gray-700 hover:text-gray-900"
                     : "text-gray-400 hover:text-gray-700"

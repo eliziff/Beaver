@@ -638,7 +638,7 @@ export function DocumentSidePanel({
                             type="button"
                             onClick={() => setMobilePane("document")}
                             className={cn(
-                                "h-6 rounded-full px-2 text-[11px] font-medium transition-colors",
+                                "h-6 rounded-full px-2 text-[11px] font-medium",
                                 mobilePane === "document"
                                     ? "bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
                                     : "text-gray-500 hover:text-gray-800",
@@ -650,7 +650,7 @@ export function DocumentSidePanel({
                             type="button"
                             onClick={() => setMobilePane("details")}
                             className={cn(
-                                "h-6 rounded-full px-2 text-[11px] font-medium transition-colors",
+                                "h-6 rounded-full px-2 text-[11px] font-medium",
                                 mobilePane === "details"
                                     ? "bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
                                     : "text-gray-500 hover:text-gray-800",
