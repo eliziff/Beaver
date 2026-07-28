@@ -10,7 +10,7 @@ import {
 import path from "node:path";
 import { z } from "zod";
 import { legalDataHome } from "./legalDataPath";
-import { abortAnonymousTurnForDeletion } from "./anonymousChatTurns";
+import { abortChatTurnForDeletion } from "./chatTurns";
 import { deleteAnonymousProviderSessions } from "./anonymousProviderSessionStore";
 
 export type AnonymousChatMessage = {
@@ -332,10 +332,28 @@ export function updateAnonymousChatTitle(chat: AnonymousChat, title: string) {
   if (chat !== current) Object.assign(chat, next);
 }
 
+export function updateAnonymousChatProject(
+  chat: AnonymousChat,
+  projectId: string | null,
+) {
+  if (projectId !== null && !validId(projectId)) {
+    throw new Error("Invalid anonymous chat project ID");
+  }
+  const current = chats.get(chat.id) ?? chat;
+  const next = {
+    ...current,
+    project_id: projectId,
+    updated_at: new Date().toISOString(),
+  };
+  writeChat(next);
+  Object.assign(current, next);
+  if (chat !== current) Object.assign(chat, next);
+}
+
 export function deleteAnonymousChat(userId: string, chatId: string): boolean {
   const chat = getAnonymousChat(userId, chatId);
   if (!chat) return false;
-  abortAnonymousTurnForDeletion(chat.id);
+  abortChatTurnForDeletion(chat.id);
   rmSync(chatPath(chat.id), { force: true });
   deleteAnonymousProviderSessions(chat.id);
   chats.delete(chat.id);
@@ -347,7 +365,7 @@ export function deleteAnonymousProjectChats(
   projectId: string,
 ) {
   for (const chat of listAnonymousProjectChats(userId, projectId)) {
-    abortAnonymousTurnForDeletion(chat.id);
+    abortChatTurnForDeletion(chat.id);
     rmSync(chatPath(chat.id), { force: true });
     deleteAnonymousProviderSessions(chat.id);
     chats.delete(chat.id);

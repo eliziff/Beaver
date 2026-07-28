@@ -321,7 +321,9 @@ describe("account-free matter routes", () => {
     );
     expect(focusedInput.systemPrompt).not.toContain("spoofed");
     expect(focusedInput.messages.at(-1)?.content).toBe(
-      "[User responses to requested inputs]\n" +
+      "[The user attached the following document(s) to this message:\n" +
+        `- appeal-record.xlsx (document_id: ${source.body.id})]\n\n` +
+        "[User responses to requested inputs]\n" +
         `- Documents requested for Record: appeal-record.xlsx (document_id: ${source.body.id})`,
     );
 

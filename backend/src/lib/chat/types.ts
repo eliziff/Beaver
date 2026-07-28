@@ -34,6 +34,7 @@ export type DocIndex = Record<
 >;
 
 export type TabularCellStore = {
+  app_url?: string;
   columns: { index: number; name: string }[];
   documents: { id: string; filename: string }[];
   /** key: `${colIndex}:${docId}` */
