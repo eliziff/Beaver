@@ -41,6 +41,10 @@ import {
     horizontalDrag,
 } from "@/app/components/ui/horizontal-drag";
 import { formatBytes } from "@/app/components/projects/ProjectPageParts";
+import {
+    filenameExtensionChangeWarning,
+    hasFilenameExtensionChange,
+} from "@/app/lib/documentUploadValidation";
 
 const MIN_DOC_COLUMN_WIDTH = 420;
 const DEFAULT_DOC_COLUMN_WIDTH = 620;
@@ -341,7 +345,6 @@ export function DocumentSidePanel({
             : selectedVersion?.created_at ?? doc.updated_at;
     const viewerKey = `${doc.id}:${selectedVersionId ?? "current"}:${viewerRevision}`;
     const preferPdfRendition = selectedIsDocx;
-    const selectedExtension = filenameExtension(selectedFilename);
     const replaceFileType = replaceTargetVersion
         ? fileTypeForVersion(replaceTargetVersion, selectedFileType)
         : selectedFileType;
@@ -396,7 +399,7 @@ export function DocumentSidePanel({
             setNameError("Name is required.");
             return;
         }
-        if (hasExtensionChange(selectedFilename, trimmed)) {
+        if (hasFilenameExtensionChange(selectedFilename, trimmed)) {
             setExtensionWarningOpen(true);
             return;
         }
@@ -1110,11 +1113,7 @@ export function DocumentSidePanel({
             <WarningPopup
                 open={extensionWarningOpen}
                 onClose={() => setExtensionWarningOpen(false)}
-                message={
-                    selectedExtension
-                        ? `File extensions cannot be changed here. Keep ${selectedExtension} at the end of the name.`
-                        : "File extensions cannot be changed here."
-                }
+                message={filenameExtensionChangeWarning(selectedFilename)}
             />
             <WarningPopup
                 open={!!deleteDocumentError}
@@ -1247,22 +1246,6 @@ function fileTypeForVersion(version: DocumentVersion, fallback: string | null) {
     if (name.endsWith(".pdf")) return "pdf";
     if (name.endsWith(".doc") || name.endsWith(".docx")) return "docx";
     return fallback;
-}
-
-function filenameExtension(filename: string) {
-    const trimmed = filename.trim();
-    const dotIndex = trimmed.lastIndexOf(".");
-    if (dotIndex <= 0 || dotIndex === trimmed.length - 1) return null;
-    return trimmed.slice(dotIndex);
-}
-
-function hasExtensionChange(previous: string, next: string) {
-    const previousExtension = filenameExtension(previous);
-    if (previousExtension == null) return false;
-    return (
-        filenameExtension(next)?.toLowerCase() !==
-        previousExtension.toLowerCase()
-    );
 }
 
 function formatDateTime(iso: string) {
