@@ -126,8 +126,6 @@ export function DocPanel({
         const documentCitation = mode.citation as DocumentCitation;
         return expandCitationToEntries({
             ...documentCitation,
-            page: selectedQuote.page,
-            quote: selectedQuote.quote,
             quotes: [selectedQuote],
         });
     }, [activeCitationQuoteId, mode]);
