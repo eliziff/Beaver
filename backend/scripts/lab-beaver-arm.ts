@@ -84,6 +84,7 @@ const docsCreated = (events: SseEvent[]) =>
 async function main() {
   const task = argument("task");
   const model = argument("model", "codex:gpt-5.6-sol");
+  const effort = argument("effort", "medium");
   const labRoot = argument("lab-root", DEFAULT_LAB_ROOT);
   const timestamp = new Date()
     .toISOString()
@@ -156,6 +157,31 @@ async function main() {
 
   const { app } = await import("../src/app");
   const request = (await import("supertest")).default;
+
+  // Hold information access constant with Arm A's sealed (--network=none)
+  // sandbox: remove the online legal-research tools from the advertised
+  // list, in place — the chat route reads this array by reference at
+  // request time. Beaver's library/docx/text orchestration stays; that is
+  // the harness under test.
+  const { LOCAL_ASSISTANT_TOOLS } = await import(
+    "../src/lib/chat/localAssistantTools"
+  );
+  const { COURTLISTENER_TOOLS } = await import(
+    "../src/lib/chat/tools/courtlistenerTools"
+  );
+  const { A2AJ_TOOLS } = await import("../src/lib/chat/tools/a2ajTools");
+  const { PUBLIC_LEGAL_SOURCE_TOOLS } = await import(
+    "../src/lib/chat/tools/publicLegalSourceTools"
+  );
+  const researchToolNames = new Set(
+    [...COURTLISTENER_TOOLS, ...A2AJ_TOOLS, ...PUBLIC_LEGAL_SOURCE_TOOLS].map(
+      (schema: { function: { name: string } }) => schema.function.name,
+    ),
+  );
+  for (let i = LOCAL_ASSISTANT_TOOLS.length - 1; i >= 0; i -= 1) {
+    if (researchToolNames.has(LOCAL_ASSISTANT_TOOLS[i].function.name))
+      LOCAL_ASSISTANT_TOOLS.splice(i, 1);
+  }
   const { Document, Packer, Paragraph, TextRun } = await import("docx");
   const textToDocx = (text: string) =>
     Packer.toBuffer(
@@ -192,6 +218,7 @@ async function main() {
 
   const streamed = await request(app).post("/chat").send({
     model,
+    reasoning_effort: effort,
     expected_version: 0,
     current_turn: { kind: "message", content: instructions },
   });
@@ -277,6 +304,7 @@ async function main() {
         task,
         run_id: runId,
         harness: "beaver-chat",
+        reasoning_effort: effort,
         max_turns: 1,
         started_at: new Date(started).toISOString(),
       },
@@ -330,9 +358,9 @@ async function main() {
         deliverables,
         docs_created: created.map((doc) => doc.filename),
         deliverable_sources: deliverableSources,
+        research_tools_removed: [...researchToolNames].sort(),
         deviations: {
           uploads_wrapped_as_docx: wrappedUploads,
-          tokens_estimated: true,
         },
       },
       null,
