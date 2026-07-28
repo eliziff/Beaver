@@ -6,6 +6,7 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
@@ -26,8 +27,9 @@ interface ChatHistoryContextType {
     loadMoreChats: () => void;
     saveChat: (projectId?: string) => Promise<string | null>;
     renameChat: (chatId: string, title: string) => Promise<void>;
-    newChatMessages: Message[] | null;
-    setNewChatMessages: (messages: Message[] | null) => void;
+    stagePendingChatMessage: (chatId: string, message: Message) => void;
+    peekPendingChatMessage: (chatId: string) => Message | null;
+    claimPendingChatMessage: (chatId: string) => Message | null;
     replaceChatId: (
         oldChatId: string,
         newChatId: string,
@@ -53,9 +55,29 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     const [chats, setChats] = useState<Chat[] | null>(null);
     const [chatLimit, setChatLimit] = useState(INITIAL_CHAT_LIMIT);
     const [hasMoreChats, setHasMoreChats] = useState(false);
-    const [newChatMessages, setNewChatMessages] = useState<Message[] | null>(
-        null,
+    const pendingChatMessageRef = useRef<{
+        chatId: string;
+        message: Message;
+    } | null>(null);
+    const stagePendingChatMessage = useCallback(
+        (chatId: string, message: Message) => {
+            pendingChatMessageRef.current = { chatId, message };
+        },
+        [],
     );
+    const peekPendingChatMessage = useCallback(
+        (chatId: string) =>
+            pendingChatMessageRef.current?.chatId === chatId
+                ? pendingChatMessageRef.current.message
+                : null,
+        [],
+    );
+    const claimPendingChatMessage = useCallback((chatId: string) => {
+        if (pendingChatMessageRef.current?.chatId !== chatId) return null;
+        const { message } = pendingChatMessageRef.current;
+        pendingChatMessageRef.current = null;
+        return message;
+    }, []);
 
     const loadChats = useCallback(async () => {
         if (!user) {
@@ -174,8 +196,9 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             loadMoreChats,
             saveChat,
             renameChat: renameChatFn,
-            newChatMessages,
-            setNewChatMessages,
+            stagePendingChatMessage,
+            peekPendingChatMessage,
+            claimPendingChatMessage,
             replaceChatId,
             deleteChat: deleteChatFn,
         }),
@@ -186,7 +209,9 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             loadMoreChats,
             saveChat,
             renameChatFn,
-            newChatMessages,
+            stagePendingChatMessage,
+            peekPendingChatMessage,
+            claimPendingChatMessage,
             replaceChatId,
             deleteChatFn,
         ],
