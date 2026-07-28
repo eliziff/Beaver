@@ -253,7 +253,7 @@ export function EditCardsSection({
                 <button
                     onClick={() => setIsOpen((v) => !v)}
                     aria-label={isOpen ? "Collapse edits" : "Expand edits"}
-                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 >
                     <ChevronDown
                         className={`h-4 w-4 ${isOpen ? "" : "-rotate-90"}`}

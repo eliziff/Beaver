@@ -105,7 +105,7 @@ export function SelectAssistantProjectModal({
                     type="button"
                     aria-pressed={selectedId === null}
                     onClick={() => setSelectedId(null)}
-                    className={`mb-2 flex min-h-10 w-full items-center rounded-md border px-3 text-left text-sm transition-colors ${
+                    className={`mb-2 flex min-h-10 w-full items-center rounded-md border px-3 text-left text-sm ${
                         selectedId === null
                             ? "border-gray-900 bg-gray-900 text-white"
                             : "border-gray-300 bg-white text-gray-800 hover:bg-gray-100"

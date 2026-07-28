@@ -49,7 +49,7 @@ export function AccountToggle({
             disabled={disabled || loading}
             onClick={() => onChange(!checked)}
             className={cn(
-                "flex shrink-0 items-center rounded-full transition-colors",
+                "flex shrink-0 items-center rounded-full",
                 checked ? "bg-emerald-600" : "bg-gray-200",
                 "disabled:cursor-not-allowed disabled:opacity-40",
                 sizes.track,

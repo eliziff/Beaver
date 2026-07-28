@@ -297,7 +297,7 @@ function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
             {parent?.onClick && (
                 <button
                     onClick={parent.onClick}
-                    className="shrink-0 text-gray-400 transition-colors hover:text-gray-600 sm:hidden"
+                    className="shrink-0 text-gray-400 hover:text-gray-600 sm:hidden"
                     title={parent.title ?? "Back"}
                     aria-label={parent.title ?? "Back"}
                 >
@@ -336,7 +336,7 @@ function BreadcrumbItem({
     );
 
     const className = cn(
-        "min-w-0 truncate transition-colors",
+        "min-w-0 truncate",
         current && "w-full",
         current
             ? "text-gray-900"

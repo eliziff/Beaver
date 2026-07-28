@@ -185,7 +185,7 @@ export function OpenSourceWorkflowModal({
                             href={WORKFLOWS_REPO_URL}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-600"
+                            className="font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 hover:text-gray-600"
                         >
                             Open-Legal-Products/mike-workflows
                         </a>{" "}
@@ -310,7 +310,7 @@ export function OpenSourceWorkflowModal({
                                             href={WORKFLOWS_REPO_URL}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-600"
+                                            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:text-gray-600"
                                         >
                                             Open-Legal-Products/mike-workflows
                                         </a>{" "}

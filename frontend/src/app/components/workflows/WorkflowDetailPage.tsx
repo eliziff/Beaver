@@ -713,7 +713,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                                                 setColumns(next);
                                                                 saveColumns(next);
                                                             }}
-                                                            className="p-1 text-gray-300 hover:text-red-500 transition-colors"
+                                                            className="p-1 text-gray-300 hover:text-red-500"
                                                         >
                                                             <X className="h-3.5 w-3.5" />
                                                         </button>

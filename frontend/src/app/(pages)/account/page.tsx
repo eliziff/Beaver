@@ -185,7 +185,7 @@ export default function AccountPage() {
                                             !displayName.trim() ||
                                             saved
                                         }
-                                        className="text-xs font-medium text-gray-700 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                                        className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                                     >
                                         {isSavingName ? (
                                             "Saving..."
@@ -222,7 +222,7 @@ export default function AccountPage() {
                                                 (profile?.organisation ?? "") ||
                                             orgSaved
                                         }
-                                        className="text-xs font-medium text-gray-700 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                                        className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                                     >
                                         {isSavingOrg ? (
                                             "Saving..."
@@ -283,7 +283,7 @@ export default function AccountPage() {
                                     email.trim() === user.pendingEmail ||
                                     emailSaved
                                 }
-                                className="text-xs font-medium text-gray-700 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                                className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                             >
                                 {isSavingEmail ? (
                                     "Saving..."
@@ -320,7 +320,7 @@ export default function AccountPage() {
                 <Button
                     variant="outline"
                     onClick={handleLogout}
-                    className="w-full gap-1.5 rounded-lg border border-transparent bg-gray-950 px-3 text-white shadow-none transition-colors hover:bg-gray-900 hover:text-white active:bg-black sm:w-auto"
+                    className="w-full gap-1.5 rounded-lg border border-transparent bg-gray-950 px-3 text-white shadow-none hover:bg-gray-900 hover:text-white active:bg-black sm:w-auto"
                 >
                     <LogOut className="h-4 w-4 shrink-0" />
                     Sign Out

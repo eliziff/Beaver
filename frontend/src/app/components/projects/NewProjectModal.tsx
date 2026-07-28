@@ -271,7 +271,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                         return (
                                             <li
                                                 key={entry.email}
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100/70"
+                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-100/70"
                                             >
                                                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
                                                     {initial ? (
@@ -298,7 +298,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                                             entry.email,
                                                         )
                                                     }
-                                                    className="self-center inline-flex items-center rounded-full px-2 py-1 text-xs text-gray-500 transition-colors hover:text-red-600"
+                                                    className="self-center inline-flex items-center rounded-full px-2 py-1 text-xs text-gray-500 hover:text-red-600"
                                                     aria-label={`Remove ${entry.email}`}
                                                 >
                                                     <X className="h-3 w-3" />

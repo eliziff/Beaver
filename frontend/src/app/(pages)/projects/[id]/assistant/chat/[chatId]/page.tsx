@@ -539,7 +539,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     setProjectModalOpen(true);
                                 }}
                                 aria-label={`Change project: ${project?.name ?? "current project"}`}
-                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                             >
                                 <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                                 <span className="hidden truncate sm:inline">
@@ -646,7 +646,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploading}
                                 title="Upload documents"
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
                             >
                                 {uploading ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -658,7 +658,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 type="button"
                                 onClick={closeMobileExplorer}
                                 title="Close explorer"
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:hidden"
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden"
                             >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
@@ -666,7 +666,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 type="button"
                                 onClick={() => setExplorerCollapsed(true)}
                                 title="Collapse explorer"
-                                className="hidden rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:block"
+                                className="hidden rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:block"
                             >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
@@ -712,7 +712,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 type="button"
                                 onClick={() => setExplorerCollapsed(false)}
                                 title="Expand explorer"
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                             >
                                 <ChevronRight className="h-3.5 w-3.5" />
                             </button>

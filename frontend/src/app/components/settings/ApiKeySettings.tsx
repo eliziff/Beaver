@@ -307,7 +307,7 @@ function ApiKeyField({
                                 !dirty ||
                                 saved
                             }
-                            className="text-xs font-medium text-gray-700 transition-colors hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                            className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                         >
                             {isSaving ? (
                                 "Saving..."
@@ -322,7 +322,7 @@ function ApiKeyField({
                                 type="button"
                                 onClick={handleRemove}
                                 disabled={isSaving}
-                                className="text-xs font-medium text-red-600 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                                className="text-xs font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
                             >
                                 Remove
                             </button>
