@@ -2,6 +2,7 @@
 
 ## Start here
 
+- [User-request acceptance ledger](user-request-acceptance-ledger.md)
 - [Canonical master plan](beaver-master-plan.md) — authoritative status,
   priorities, acceptance gates, and execution order.
 - [Research reader](../frontend/public/mike-research-reader.html) — a
@@ -19,6 +20,7 @@
 
 ## Research and efficiency audits
 
+- [Book of Authorities ordering](book-of-authorities-ordering-research.md)
 - [Citators and a defensible Canadian good-law service](citator-good-law-research.md)
 - [Session compaction and context efficiency](session-compaction-and-context-efficiency.md)
 - [Context compaction research — Track A](context-compaction-research-track-a.md)

@@ -42,9 +42,11 @@ backend/src/lib/chat/*.old.harness.ts
 
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)
 .tmp-ui/
+.tmp-qa/
 test-results/
 playwright-report/
 e2e/.auth/
+mike-workflows/
 
 # Local Supabase scaffold (supabase init output) — the local stack is a test
 # harness only; CI scaffolds its own fresh copy on every run

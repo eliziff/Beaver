@@ -17,6 +17,9 @@ Keep changes small, measured, and local-first.
   import its private modules.
 - `universal-legal-pdf-engine` owns neutral PDF structure.
 - Exact evidence, versions, pinpoints, hashes, and receipts are durable state.
+- Preserve Mike's document-version semantics: an upload or one consolidated
+  assistant-edit turn creates a durable version; accept/reject decisions update
+  that working version and their edit receipts, not one new version per click.
 - URL fragments, pinpoints, and simple document mutations are deterministic
   tools, not model-generated prose.
 - Model and effort choices come from provider capabilities; do not hardcode a
@@ -36,6 +39,46 @@ Keep changes small, measured, and local-first.
   layers, or generalized frameworks without a second proven caller.
 - Record before/after build, bundle, startup, and interaction measurements.
   Revert an optimization that is not a strict win.
+
+## UI content rule
+
+- Every visible word must add information or enable an action. Delete headings,
+  badges, descriptions, counts, and status copy that merely repeat adjacent
+  content or state already obvious from selection, position, or control labels.
+- Never restate a selected filename with prefixes such as `Selected:` when the
+  filename is already visible. Do not repeat file type, capability, workflow,
+  or current location in the same surface.
+- Helper text is for a material consequence, tradeoff, recovery step, or
+  unfamiliar legal concept. It is not a second rendering of the control label.
+- When changing a surface, audit its nearby shared components for the same
+  redundancy pattern instead of patching one string.
+- Never put an arbitrarily growing collection in a dropdown. Versions,
+  projects, chats, workflows, sources, labels, and histories use a searchable
+  list or panel with bounded rendering and incremental loading.
+- Async UI must have stable first-frame geometry. Keep shared layouts mounted,
+  prefetch likely routes, show cached state while refreshing, and reserve the
+  final dimensions of lists, viewers, controls, progress, prompts, images, and
+  embedded apps.
+- Loading, empty, error, and ready states replace content inside the same
+  bounded shell. Never insert a banner, spinner, toolbar, iframe, or status row
+  into normal flow after paint. A skeleton must match the final geometry.
+- Validate route transitions and async state changes with a layout-shift
+  observer and screenshot filmstrip, not only a settled-page screenshot.
+- Horizontal scrolling is forbidden for the app shell, routes, panels, forms,
+  lists, cards, titles, controls, and ordinary tables. Reflow, wrap, truncate,
+  or change the layout instead. Inherently two-dimensional artifacts such as a
+  spreadsheet or oversized source page may pan only inside their own bounded
+  viewer; surrounding navigation and controls stay fixed.
+- Do not stretch content merely because viewport width is available. Reading,
+  chat prompts, settings, setup, forms, and linear workflows use a deliberate
+  human-scale max width and compact aligned controls. Reserve full width for
+  genuinely spatial work such as document pages, spreadsheets, comparison
+  grids, and graph canvases.
+- Interaction state must never move UI. Hover, focus, active, selected,
+  loading, and completed states may change colour or fill inside preallocated
+  geometry, but not font weight, border width, padding, label/icon occupancy,
+  control dimensions, or neighbouring positions. Assert bounding boxes before
+  and after representative clicks.
 
 ## Checks
 
