@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-    getAuthHeader: vi.fn(),
+    apiFetch: vi.fn(),
     parseAsync: vi.fn(),
     renderDocument: vi.fn(),
     useFetchDocxBytes: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
 }));
 
 vi.mock("@/app/lib/beaverApi", () => ({
-    getAuthHeader: mocks.getAuthHeader,
+    apiFetch: mocks.apiFetch,
 }));
 
 vi.mock("./PdfView", () => ({
@@ -135,7 +135,7 @@ describe("DocxView", () => {
             expect(page).not.toHaveAttribute("data-page-number");
             expect(page).not.toHaveAttribute("aria-label");
         }
-        expect(mocks.getAuthHeader).not.toHaveBeenCalled();
+        expect(mocks.apiFetch).not.toHaveBeenCalled();
     });
 
     it("opens a known PDF rendition without fetching or rendering DOCX", () => {
@@ -158,14 +158,12 @@ describe("DocxView", () => {
 
     it("reuses tracked-change IDs for the same document version", async () => {
         mocks.withTrackedChanges = true;
-        mocks.getAuthHeader.mockResolvedValue({});
-        const fetchMock = vi.fn(async () => ({
+        mocks.apiFetch.mockResolvedValue({
             ok: true,
             json: async () => ({
                 ids: [{ kind: "ins", w_id: "17" }],
             }),
-        }));
-        vi.stubGlobal("fetch", fetchMock);
+        });
 
         const firstReady = vi.fn();
         const first = render(
@@ -194,8 +192,7 @@ describe("DocxView", () => {
         );
         await waitFor(() => expect(secondReady).toHaveBeenCalledOnce());
 
-        expect(fetchMock).toHaveBeenCalledOnce();
-        expect(mocks.getAuthHeader).toHaveBeenCalledOnce();
+        expect(mocks.apiFetch).toHaveBeenCalledOnce();
         // The same bytes are parsed once and re-rendered from cache.
         expect(mocks.parseAsync).toHaveBeenCalledOnce();
         expect(mocks.renderDocument).toHaveBeenCalledTimes(2);

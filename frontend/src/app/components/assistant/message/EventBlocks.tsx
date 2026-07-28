@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
@@ -237,10 +237,7 @@ export function DocDownloadBlock({
     // Only backend-relative URLs are accepted. The download fetch carries
     // the user's bearer token, so any absolute URL from tool output is
     // refused to keep the token from leaking off-origin.
-    const API_BASE =
-        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-    const isSafeHref = download_url.startsWith("/");
-    const href = isSafeHref ? `${API_BASE}${download_url}` : null;
+    const href = download_url.startsWith("/") ? download_url : null;
     const [busy, setBusy] = useState(false);
 
     const handleDownload = async (e?: {
@@ -252,10 +249,7 @@ export function DocDownloadBlock({
         if (busy || isReloading || !href) return;
         setBusy(true);
         try {
-            const authHeaders = await getAuthHeader();
-            const resp = await fetch(href, {
-                headers: authHeaders,
-            });
+            const resp = await apiFetch(href);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             downloadBlob(await resp.blob(), filename);
         } finally {

@@ -70,18 +70,24 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const authHeaders = await getAuthHeader();
+export async function apiFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
   const { headers: initHeaders, ...restInit } = init ?? {};
-  const response = await fetch(`${API_BASE}${path}`, {
+  return fetch(`${API_BASE}${path}`, {
     cache: "no-store",
     ...restInit,
     headers: {
       Accept: "application/json",
-      ...authHeaders,
+      ...(await getAuthHeader()),
       ...(initHeaders as Record<string, string> | undefined),
     },
   });
+}
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await apiFetch(path, init);
 
   if (!response.ok) {
     throw await toApiError(response);
@@ -104,17 +110,7 @@ async function apiBlobRequest(
   blob: Blob;
   filename: string | null;
 }> {
-  const authHeaders = await getAuthHeader();
-  const { headers: initHeaders, ...restInit } = init ?? {};
-  const response = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    ...restInit,
-    headers: {
-      Accept: "application/json",
-      ...authHeaders,
-      ...(initHeaders as Record<string, string> | undefined),
-    },
-  });
+  const response = await apiFetch(path, init);
 
   if (!response.ok) {
     throw await toApiError(response);
@@ -178,12 +174,11 @@ async function streamRequest(
   body: unknown,
   options?: { signal?: AbortSignal; accept?: string },
 ) {
-  return fetch(`${API_BASE}${path}`, {
+  return apiFetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: options?.accept ?? "application/json",
-      ...(await getAuthHeader()),
     },
     body: JSON.stringify(body),
     signal: options?.signal,

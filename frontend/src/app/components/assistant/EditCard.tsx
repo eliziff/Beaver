@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getAuthHeader } from "@/app/lib/beaverApi";
+import { apiFetch } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation } from "../shared/types";
 
@@ -208,15 +208,9 @@ export function EditCard({
             console.error("[EditCard] optimistic update threw", e);
         }
         try {
-            const authHeaders = await getAuthHeader();
-            const apiBase =
-                process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-            const resp = await fetch(
-                `${apiBase}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
-                {
-                    method: "POST",
-                    headers: authHeaders,
-                },
+            const resp = await apiFetch(
+                `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
+                { method: "POST" },
             );
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = (await resp.json()) as {
