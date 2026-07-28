@@ -89,7 +89,7 @@ export function PageHeader({
     return (
         <div
             className={cn(
-                "flex min-w-0 flex-wrap items-center justify-between gap-4",
+                "flex min-w-0 flex-col items-stretch justify-between gap-4 md:flex-row md:items-center",
                 "mx-4 md:mx-6",
                 "min-h-[max(76px,4.625rem)] pb-4 pt-5.5",
                 shrink && "shrink-0",
@@ -97,7 +97,7 @@ export function PageHeader({
         >
             {headerContent}
             {hasActions && (
-                <div className="flex min-w-0 flex-1 items-center justify-end gap-3 md:flex-none">
+                <div className="flex min-w-0 items-center justify-end gap-3 md:shrink-0">
                     <PageHeaderActions
                         actions={actionItems}
                         actionsDisabled={actionsDisabled}
@@ -219,7 +219,7 @@ function PageHeaderNewActionControl({
             ) : (
                 <Plus className="h-4 w-4" />
             )}
-            {title}
+            <span className="hidden sm:inline">{title}</span>
         </PageHeaderActionButton>
     );
 }
@@ -231,7 +231,7 @@ function PageHeaderSearchActionControl({
     action: PageHeaderSearchAction;
     disabled: boolean;
 }) {
-    const placeholder = action.placeholder ?? "Search…";
+    const placeholder = action.placeholder ?? "Search\u2026";
 
     return (
         <div
@@ -294,7 +294,7 @@ function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
         .find((item) => item.onClick);
 
     return (
-        <div className="flex min-w-0 items-center gap-1.5 text-2xl font-medium font-serif">
+        <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 text-2xl font-medium font-serif md:flex-1">
             {parent?.onClick && (
                 <button
                     onClick={parent.onClick}
@@ -347,6 +347,7 @@ function BreadcrumbItem({
 
     const className = cn(
         "min-w-0 truncate transition-colors",
+        current && "w-full",
         item.cursor === "text" && "cursor-text",
         current
             ? "text-gray-900"
@@ -356,7 +357,7 @@ function BreadcrumbItem({
     );
     const wrapperClassName = cn(
         "min-w-0 items-center gap-1.5",
-        current ? "flex" : "hidden sm:flex",
+        current ? "flex flex-1" : "hidden max-w-40 sm:flex",
     );
 
     return (
@@ -370,7 +371,9 @@ function BreadcrumbItem({
             ) : (
                 <span className={className}>{content}</span>
             )}
-            {!current && <span className="shrink-0 text-gray-300">›</span>}
+            {!current && (
+                <span className="shrink-0 text-gray-300">{"\u203A"}</span>
+            )}
         </span>
     );
 }

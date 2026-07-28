@@ -316,7 +316,7 @@ function curlQuotes(text: string): TextOpResult {
 
 /** Runs of 2+ spaces collapse to one, except leading line indentation. */
 const collapseDoubleSpaces = (text: string) =>
-  text.replace(/(^ *)|( {2,})/gm, (full, indent: string | undefined) =>
+  text.replace(/(^ *)|( {2,})/gm, (_, indent: string | undefined) =>
     indent !== undefined ? indent : " ",
   );
 

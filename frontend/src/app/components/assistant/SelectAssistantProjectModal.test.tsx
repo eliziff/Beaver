@@ -48,10 +48,16 @@ describe("SelectAssistantProjectModal", () => {
             />,
         );
 
-        await user.click(
-            screen.getByRole("button", { name: /Matter One/ }),
-        );
-        await user.click(screen.getByRole("button", { name: "Continue" }));
+        const project = screen.getByRole("option", { name: /Matter One/ });
+        const continueButton = screen.getByRole("button", {
+            name: "Continue",
+        });
+        await user.click(project);
+        expect(continueButton).toBeEnabled();
+        await user.click(project);
+        expect(continueButton).toBeDisabled();
+        await user.click(project);
+        await user.click(continueButton);
 
         await waitFor(() => {
             expect(mocks.saveChat).toHaveBeenCalledWith("project-1");
@@ -79,11 +85,12 @@ describe("SelectAssistantProjectModal", () => {
                 name: "Move “Lease review” to a project",
             }),
         ).toHaveTextContent("Current location: Matter One");
-        await user.click(
-            screen.getByRole("button", {
-                name: "Assistant (no project)",
-            }),
-        );
+        const noProject = screen.getByRole("button", {
+            name: "Assistant (no project)",
+        });
+        expect(noProject).toHaveAttribute("aria-pressed", "false");
+        await user.click(noProject);
+        expect(noProject).toHaveAttribute("aria-pressed", "true");
         await user.click(screen.getByRole("button", { name: "Move chat" }));
 
         expect(onSelectProject).toHaveBeenCalledWith(null);

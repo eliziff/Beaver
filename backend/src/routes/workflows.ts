@@ -496,7 +496,7 @@ workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) 
   res.status(204).send();
 }));
 
-workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (_req, res) => {
   if (isAnonymousLocalMode()) {
     res.json([]);
     return;

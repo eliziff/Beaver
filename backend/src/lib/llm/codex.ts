@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import { abortError, throwIfAborted } from "./abort";
+import { throwIfAborted } from "./abort";
 import { startCodexToolBridge, type CodexToolBridge } from "./codexToolBridge";
 import { createLlmTrace } from "./rawStreamLog";
 import type {

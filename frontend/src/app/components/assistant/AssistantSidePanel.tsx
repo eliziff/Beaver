@@ -78,6 +78,7 @@ export type AssistantSidePanelTab =
 interface Props {
     tabs: AssistantSidePanelTab[];
     activeTabId: string | null;
+    projectId?: string;
     onActivateTab: (id: string) => void;
     onCloseTab: (id: string) => void;
     onCloseAll: () => void;
@@ -141,6 +142,7 @@ function tabTitle(tab: AssistantSidePanelTab): string {
 export function AssistantSidePanel({
     tabs,
     activeTabId,
+    projectId,
     onActivateTab,
     onCloseTab,
     onCloseAll,
@@ -372,6 +374,7 @@ export function AssistantSidePanel({
                             <DocPanel
                                 documentId={tab.documentId}
                                 filename={tab.filename}
+                                projectId={projectId}
                                 versionId={tab.versionId}
                                 versionNumber={tab.versionNumber}
                                 mode={mode}
