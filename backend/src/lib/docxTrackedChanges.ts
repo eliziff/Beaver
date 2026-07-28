@@ -565,7 +565,7 @@ interface Normalized {
     origIdx: number[];
 }
 
-function normalizeWs(input: string): Normalized {
+export function normalizeWs(input: string): Normalized {
     const s = preNormalize(input);
     const norm: string[] = [];
     const origIdx: number[] = [];
