@@ -40,10 +40,6 @@ function versionLabel(doc: Document) {
         : null;
 }
 
-export function DocFileIcon({ fileType }: { fileType: string | null }) {
-    return <FileTypeIcon fileType={fileType} className="h-3.5 w-3.5" />;
-}
-
 interface FileDirectoryProps {
     documents?: Document[];
     loading?: boolean;
@@ -296,7 +292,10 @@ export function FileDirectory({
                         onChange={() => toggle(doc)}
                     />
                 </span>
-                <DocFileIcon fileType={doc.file_type} />
+                <FileTypeIcon
+                    fileType={doc.file_type}
+                    className="h-3.5 w-3.5"
+                />
                 <span
                     className={`min-w-0 truncate ${
                         selected ? "text-gray-900" : "text-gray-700"
