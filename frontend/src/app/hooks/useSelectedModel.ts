@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ALLOWED_MODEL_IDS,
     DEFAULT_MODEL_ID,
@@ -29,7 +29,7 @@ export function useSelectedModel(): [string, (id: string) => void] {
         setModelState(readSelectedModel());
     }, []);
 
-    const setModel = useCallback((id: string) => {
+    const setModel = (id: string) => {
         const next =
             ALLOWED_MODEL_IDS.has(id) ||
             (id.startsWith("codex:") && id.length > "codex:".length)
@@ -39,7 +39,7 @@ export function useSelectedModel(): [string, (id: string) => void] {
         if (typeof window !== "undefined") {
             window.localStorage.setItem(STORAGE_KEY, next);
         }
-    }, []);
+    };
 
     return [model, setModel];
 }
@@ -64,12 +64,12 @@ export function useSelectedReasoningEffort(): [
         setEffortState(readSelectedReasoningEffort());
     }, []);
 
-    const setEffort = useCallback((value: string) => {
+    const setEffort = (value: string) => {
         const next = value.trim();
         if (!VALID_EFFORT.test(next)) return;
         setEffortState(next);
         window.localStorage.setItem(EFFORT_STORAGE_KEY, next);
-    }, []);
+    };
 
     return [effort, setEffort];
 }
