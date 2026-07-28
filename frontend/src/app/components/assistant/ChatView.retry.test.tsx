@@ -24,7 +24,7 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
         replaceChatId: vi.fn(),
         loadChats: mocks.loadChats,
         saveChat: vi.fn(),
-        setNewChatMessages: vi.fn(),
+        stagePendingChatMessage: vi.fn(),
     }),
 }));
 vi.mock("@/app/hooks/useGenerateChatTitle", () => ({

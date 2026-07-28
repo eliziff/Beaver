@@ -42,7 +42,7 @@ export function UseWorkflowModal({
     const [saving, setSaving] = useState(false);
 
     const router = useRouter();
-    const { saveChat, setNewChatMessages } = useChatHistoryContext();
+    const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
     const { loading: dirLoading, projects } = useDirectoryData(
         screen === "details",
         "projects",
@@ -95,14 +95,12 @@ export function UseWorkflowModal({
             const content = assistantPrompt.trim()
                 ? `implement workflow\n${assistantPrompt.trim()}`
                 : "implement workflow";
-            setNewChatMessages([
-                {
-                    role: "user",
-                    content,
-                    files: files.length > 0 ? files : undefined,
-                    workflow: { id: wf.id, title: wf.metadata.title },
-                },
-            ]);
+            stagePendingChatMessage(chatId, {
+                role: "user",
+                content,
+                files: files.length > 0 ? files : undefined,
+                workflow: { id: wf.id, title: wf.metadata.title },
+            });
             handleClose();
             router.push(
                 projectId

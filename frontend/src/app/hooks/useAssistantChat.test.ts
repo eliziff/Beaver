@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   streamChat: vi.fn(),
   streamProjectChat: vi.fn(),
   loadChats: vi.fn(),
+  saveChat: vi.fn(),
+  stagePendingChatMessage: vi.fn(),
   generateTitle: vi.fn(),
 }));
 
@@ -25,8 +27,8 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
     replaceChatId: vi.fn(),
     loadChats: mocks.loadChats,
-    saveChat: vi.fn(),
-    setNewChatMessages: vi.fn(),
+    saveChat: mocks.saveChat,
+    stagePendingChatMessage: mocks.stagePendingChatMessage,
   }),
 }));
 vi.mock("./useGenerateChatTitle", () => ({
@@ -71,6 +73,37 @@ beforeEach(() => {
 });
 
 describe("useAssistantChat local transcript boundary", () => {
+  it("stages a new message only after chat creation succeeds", async () => {
+    const message = { role: "user" as const, content: "Draft this" };
+    mocks.saveChat.mockResolvedValue("chat-new");
+    const { result } = renderHook(() => useAssistantChat());
+
+    await act(async () => {
+      expect(await result.current.handleNewChat(message)).toBe("chat-new");
+    });
+
+    expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith(
+      "chat-new",
+      message,
+    );
+  });
+
+  it("does not stage a message when chat creation fails", async () => {
+    mocks.saveChat.mockResolvedValue(null);
+    const { result } = renderHook(() => useAssistantChat());
+
+    await act(async () => {
+      expect(
+        await result.current.handleNewChat({
+          role: "user",
+          content: "Draft this",
+        }),
+      ).toBeNull();
+    });
+
+    expect(mocks.stagePendingChatMessage).not.toHaveBeenCalled();
+  });
+
   it("posts only the current turn and advances the server transcript version", async () => {
     mocks.streamChat
       .mockResolvedValueOnce(

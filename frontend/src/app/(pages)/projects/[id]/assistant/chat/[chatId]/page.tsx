@@ -52,7 +52,6 @@ import { useSidebar } from "@/app/contexts/SidebarContext";
 import { cn } from "@/app/lib/utils";
 import type {
     Document,
-    Message,
     Project,
 } from "@/app/components/shared/types";
 
@@ -120,13 +119,15 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const mobileExplorerButtonRef = useRef<HTMLButtonElement>(null);
 
     const {
-        newChatMessages,
-        setNewChatMessages,
+        peekPendingChatMessage,
+        claimPendingChatMessage,
         chats,
         saveChat,
         renameChat: renameChatInHistory,
     } = useChatHistoryContext();
-    const [initialMessages] = useState<Message[]>(newChatMessages ?? []);
+    const [initialMessage] = useState(() => peekPendingChatMessage(chatId));
+    const pendingMessageRef = useRef(initialMessage);
+    const initialMessages = initialMessage ? [initialMessage] : [];
     const {
         messages,
         isResponseLoading,
@@ -143,13 +144,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const pendingProjectRouteRef = useRef<{ projectId: string | null } | null>(
         null,
     );
-    const pendingInitialUserMessageRef = useRef<Message | null>(
-        initialMessages.length === 1 && initialMessages[0].role === "user"
-            ? initialMessages[0]
-            : null,
-    );
     const hasLoaded = useRef(false);
-    const hasAutoSent = useRef(false);
 
     const refreshProject = useCallback(
         () =>
@@ -240,19 +235,23 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     }, [chats, chatId]);
 
     useEffect(() => {
-        const pendingMessage = pendingInitialUserMessageRef.current;
         if (
-            pendingMessage &&
-            !hasAutoSent.current &&
+            pendingMessageRef.current &&
             !isResponseLoading &&
             messages.length === 1
         ) {
-            hasAutoSent.current = true;
-            pendingInitialUserMessageRef.current = null;
-            setNewChatMessages(null);
-            void handleChat(pendingMessage);
+            const claimedMessage = claimPendingChatMessage(chatId);
+            if (!claimedMessage) return;
+            pendingMessageRef.current = null;
+            void handleChat(claimedMessage);
         }
-    }, [handleChat, isResponseLoading, messages.length, setNewChatMessages]);
+    }, [
+        chatId,
+        claimPendingChatMessage,
+        handleChat,
+        isResponseLoading,
+        messages.length,
+    ]);
 
     const addDocuments = useCallback((documents: Document[]) => {
         setProject((current) =>
