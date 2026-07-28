@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
@@ -355,10 +355,7 @@ export function DocxView({
 
     // Stable key for the quote list so the re-highlight effect re-fires
     // only when the actual text/order of quotes changes.
-    const quoteKey = useMemo(
-        () => (quotes ?? []).map((q) => q.quote).join("||"),
-        [quotes],
-    );
+    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
 
     const { bytes, loading, error } = useFetchDocxBytes(
         showPdfRendition ? null : documentId,

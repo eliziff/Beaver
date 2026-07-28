@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Trash2, User } from "lucide-react";
 import type { ProjectPeople } from "@/app/lib/beaverApi";
 import { AddUserInput } from "../shared/AddUserInput";
@@ -52,13 +52,9 @@ export function PeopleModal({
     const [loadedRosterKey, setLoadedRosterKey] = useState<string | null>(null);
 
     const resourceId = resource?.id ?? null;
-    const sharedWith: string[] = useMemo(
-        () =>
-            Array.isArray(resource?.shared_with)
-                ? (resource.shared_with as string[])
-                : [],
-        [resource?.shared_with],
-    );
+    const sharedWith: string[] = Array.isArray(resource?.shared_with)
+        ? resource.shared_with
+        : [];
 
     useEffect(() => {
         if (!open) return;
