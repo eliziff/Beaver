@@ -42,9 +42,14 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import {
+    HORIZONTAL_RESIZE_HANDLE_CLASS,
+    horizontalDrag,
+} from "@/app/components/ui/horizontal-drag";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
+import { cn } from "@/app/lib/utils";
 import type {
     Document,
     Message,
@@ -70,47 +75,17 @@ function AssistantGreeting({ username }: { username: string }) {
 }
 
 function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
-    const dragging = useRef(false);
-    const lastX = useRef(0);
-    const [isDragging, setIsDragging] = useState(false);
-
-    const onMouseDown = (event: React.MouseEvent) => {
-        dragging.current = true;
-        setIsDragging(true);
-        lastX.current = event.clientX;
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-    };
-
-    useEffect(() => {
-        function onMouseMove(event: MouseEvent) {
-            if (!dragging.current) return;
-            onDrag(event.clientX - lastX.current);
-            lastX.current = event.clientX;
-        }
-        function onMouseUp() {
-            if (!dragging.current) return;
-            dragging.current = false;
-            setIsDragging(false);
-            document.body.style.cursor = "";
-            document.body.style.userSelect = "";
-        }
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-        return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
-        };
-    }, [onDrag]);
+    const drag = horizontalDrag(onDrag);
 
     return (
         <div className="relative z-10 hidden w-0 shrink-0 md:block">
             <div
-                onMouseDown={onMouseDown}
-                className="absolute inset-y-0 -left-2 -right-2 flex cursor-col-resize items-stretch justify-center"
-            >
-                {isDragging && <div className="w-1 bg-blue-500" />}
-            </div>
+                onPointerDown={drag}
+                className={cn(
+                    "absolute inset-y-0 -left-2 -right-2",
+                    HORIZONTAL_RESIZE_HANDLE_CLASS,
+                )}
+            />
         </div>
     );
 }

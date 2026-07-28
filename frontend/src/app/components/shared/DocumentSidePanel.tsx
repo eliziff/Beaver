@@ -36,6 +36,10 @@ import {
 import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
+import {
+    HORIZONTAL_RESIZE_HANDLE_CLASS,
+    horizontalDrag,
+} from "@/app/components/ui/horizontal-drag";
 import { formatBytes } from "@/app/components/projects/ProjectPageParts";
 
 const MIN_DOC_COLUMN_WIDTH = 420;
@@ -164,12 +168,26 @@ export function DocumentSidePanel({
     const panelRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const replaceFileInputRef = useRef<HTMLInputElement>(null);
-    const dragStartX = useRef(0);
-    const dragStartDataWidth = useRef(DEFAULT_DATA_COLUMN_WIDTH);
-    const dragStartPanelWidth = useRef(
-        DEFAULT_DOC_COLUMN_WIDTH + RESIZER_WIDTH + DEFAULT_DATA_COLUMN_WIDTH,
-    );
     const focusDocumentId = doc?.id;
+    const resizeDetails = horizontalDrag((deltaX) => {
+        setDataColumnWidth((width) => {
+            const panelWidth =
+                panelRef.current?.clientWidth ?? window.innerWidth;
+            const maxDataWidth = Math.max(
+                MIN_DATA_COLUMN_WIDTH,
+                panelWidth - MIN_DOC_COLUMN_WIDTH - RESIZER_WIDTH,
+            );
+            return Math.min(
+                maxDataWidth,
+                Math.max(MIN_DATA_COLUMN_WIDTH, width - deltaX),
+            );
+        });
+    });
+    const resizePanel = horizontalDrag((deltaX) =>
+        setPanelWidth((width) =>
+            clampPanelWidth(width - deltaX, dataColumnWidth),
+        ),
+    );
 
     useEffect(() => setMounted(true), []);
 
@@ -512,67 +530,6 @@ export function DocumentSidePanel({
         setConfirmDeleteDocumentOpen(true);
     }
 
-    function handleResizeMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-        e.preventDefault();
-        dragStartX.current = e.clientX;
-        dragStartDataWidth.current = dataColumnWidth;
-
-        const handleMouseMove = (event: MouseEvent) => {
-            const panelWidth =
-                panelRef.current?.clientWidth ?? window.innerWidth;
-            const maxDataWidth = Math.max(
-                MIN_DATA_COLUMN_WIDTH,
-                panelWidth - MIN_DOC_COLUMN_WIDTH - RESIZER_WIDTH,
-            );
-            const nextWidth =
-                dragStartDataWidth.current +
-                (dragStartX.current - event.clientX);
-            setDataColumnWidth(
-                Math.min(
-                    maxDataWidth,
-                    Math.max(MIN_DATA_COLUMN_WIDTH, nextWidth),
-                ),
-            );
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
-            document.body.style.cursor = "";
-            document.body.style.userSelect = "";
-        };
-
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleMouseUp);
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-    }
-
-    function handlePanelResizeMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-        e.preventDefault();
-        dragStartX.current = e.clientX;
-        dragStartPanelWidth.current = panelWidth;
-
-        const handleMouseMove = (event: MouseEvent) => {
-            const nextWidth =
-                dragStartPanelWidth.current +
-                (dragStartX.current - event.clientX);
-            setPanelWidth(clampPanelWidth(nextWidth, dataColumnWidth));
-        };
-
-        const handleMouseUp = () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
-            document.body.style.cursor = "";
-            document.body.style.userSelect = "";
-        };
-
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleMouseUp);
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-    }
-
     return createPortal(
         <div
             ref={panelRef}
@@ -586,12 +543,15 @@ export function DocumentSidePanel({
             style={isMobile ? undefined : { width: panelWidth }}
         >
             <div
-                onMouseDown={handlePanelResizeMouseDown}
-                className="absolute inset-y-0 left-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-400 md:block"
+                onPointerDown={resizePanel}
+                className={cn(
+                    "absolute inset-y-0 left-0 z-20 hidden w-1 md:block",
+                    HORIZONTAL_RESIZE_HANDLE_CLASS,
+                )}
                 title="Resize document view"
             />
-            <div className="mx-3 flex min-h-11 shrink-0 items-center justify-between gap-3 py-2 md:h-11 md:py-0">
-                <div className="flex min-w-0 items-center gap-2">
+            <div className="mx-3 grid min-h-11 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2 md:flex md:h-11 md:gap-3 md:py-0">
+                <div className="flex min-w-0 items-center gap-2 md:flex-1">
                     <FileTypeIcon
                         fileType={selectedFileType ?? selectedFilename}
                         className="h-4 w-4"
@@ -664,7 +624,7 @@ export function DocumentSidePanel({
                         </>
                     )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="col-span-2 row-start-2 flex shrink-0 items-center justify-between gap-1.5 md:col-auto md:row-auto md:justify-start">
                     <DocumentAutomation
                         document={doc}
                         onDocumentChanged={async (result) => {
@@ -698,16 +658,16 @@ export function DocumentSidePanel({
                             Details
                         </button>
                     </div>
-                    <button
-                        type="button"
-                        data-shortcut-close
-                        onClick={onClose}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                        aria-label="Close"
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
                 </div>
+                <button
+                    type="button"
+                    data-shortcut-close
+                    onClick={onClose}
+                    className="col-start-2 row-start-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    aria-label="Close"
+                >
+                    <X className="h-3.5 w-3.5" />
+                </button>
             </div>
 
             <div
@@ -753,9 +713,10 @@ export function DocumentSidePanel({
                 </section>
 
                 <div
-                    onMouseDown={handleResizeMouseDown}
+                    onPointerDown={resizeDetails}
                     className={cn(
-                        "relative z-10 hidden w-1.5 -translate-x-1/2 cursor-col-resize bg-transparent hover:bg-gray-400 md:block",
+                        "relative z-10 hidden w-1.5 -translate-x-1/2 md:block",
+                        HORIZONTAL_RESIZE_HANDLE_CLASS,
                     )}
                     title="Resize document panel"
                 />

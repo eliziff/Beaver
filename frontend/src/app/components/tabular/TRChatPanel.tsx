@@ -62,6 +62,10 @@ import {
     APP_SURFACE_HOVER_CLASS,
     LIQUID_PANEL_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
+import {
+    HORIZONTAL_RESIZE_HANDLE_CLASS,
+    horizontalDrag,
+} from "@/app/components/ui/horizontal-drag";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { cn } from "@/app/lib/utils";
 import {
@@ -588,38 +592,12 @@ export function TRChatPanel({
     const [isLoading, setIsLoading] = useState(false);
     const [minHeight, setMinHeight] = useState("0px");
     const [panelWidth, setPanelWidth] = useState(380);
-    const [isResizing, setIsResizing] = useState(false);
     const [inputHeight, setInputHeight] = useState(120);
-
-    const resizeStartRef = useRef({ x: 0, width: 380 });
-
-    useEffect(() => {
-        if (!isResizing) return;
-        const MIN_WIDTH = 280;
-        const MAX_WIDTH = 800;
-        function onMove(e: MouseEvent) {
-            const delta = resizeStartRef.current.x - e.clientX;
-            setPanelWidth(
-                Math.min(
-                    MAX_WIDTH,
-                    Math.max(MIN_WIDTH, resizeStartRef.current.width + delta),
-                ),
-            );
-        }
-        function onUp() {
-            setIsResizing(false);
-        }
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-        return () => {
-            document.removeEventListener("mousemove", onMove);
-            document.removeEventListener("mouseup", onUp);
-            document.body.style.cursor = "";
-            document.body.style.userSelect = "";
-        };
-    }, [isResizing]);
+    const resizePanel = horizontalDrag((deltaX) =>
+        setPanelWidth((width) =>
+            Math.min(800, Math.max(280, width - deltaX)),
+        ),
+    );
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
@@ -1389,18 +1367,12 @@ export function TRChatPanel({
                 "overflow-hidden",
             )}
         >
-            {/* Resize handle */}
             <div
-                onMouseDown={(e) => {
-                    e.preventDefault();
-                    resizeStartRef.current = { x: e.clientX, width: panelWidth };
-                    setIsResizing(true);
-                }}
-                className={`absolute top-0 left-0 h-full w-1 cursor-col-resize z-20 transition-colors hidden md:block ${
-                    isResizing
-                        ? "bg-blue-400/70"
-                        : "bg-transparent hover:bg-blue-400/70"
-                }`}
+                onPointerDown={resizePanel}
+                className={cn(
+                    "absolute left-0 top-0 z-20 hidden h-full w-1 md:block",
+                    HORIZONTAL_RESIZE_HANDLE_CLASS,
+                )}
             />
             {/* Header — fixed, overlaid on top of the messages */}
             <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between gap-2 px-2 py-2">
