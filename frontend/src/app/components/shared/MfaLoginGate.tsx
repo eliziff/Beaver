@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { FullScreenLoader } from "@/app/components/shared/FullScreenLoader";
 
 type GateState = "idle" | "checking" | "required" | "verified";
 const MFA_VERIFIED_AT_KEY = "mike:mfa-verified-at";
@@ -94,7 +93,7 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
         return gateState === "verified" ? (
             <>{children}</>
         ) : (
-            <FullScreenLoader />
+            <GateLoader />
         );
     }
 
@@ -103,18 +102,26 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
             return <>{children}</>;
         }
         if (gateState === "verified" && isVerifyPage) {
-            return <FullScreenLoader />;
+            return <GateLoader />;
         }
         if (gateState === "verified") {
             return <>{children}</>;
         }
         if (gateState === "required" && !isVerifyPage) {
-            return <FullScreenLoader />;
+            return <GateLoader />;
         }
-        return <FullScreenLoader />;
+        return <GateLoader />;
     }
 
     return <>{children}</>;
+}
+
+function GateLoader() {
+    return (
+        <div className="flex min-h-dvh items-center justify-center bg-gray-50/80">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-700" />
+        </div>
+    );
 }
 
 function safeNextPath(value: string | null) {
