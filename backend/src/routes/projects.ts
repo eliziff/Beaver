@@ -31,10 +31,6 @@ import {
   deleteAnonymousProjectChats,
   listAnonymousProjectChats,
 } from "../lib/anonymousChatStore";
-import {
-  findMissingUserEmails,
-  loadProfileUsersByEmail,
-} from "../lib/userLookup";
 import { localTabularStore } from "../lib/localTabularStore";
 import {
   normalizeDocumentFilename,
@@ -314,6 +310,7 @@ projectsRouter.post("/", requireAuth, async (req, res) => {
   }
 
   const db = createServerSupabase();
+  const { findMissingUserEmails } = await import("../lib/userLookup");
   const missingSharedUsers = await findMissingUserEmails(db, cleanedSharedWith);
   if (missingSharedUsers.length > 0) {
     return void res.status(400).json({
@@ -426,6 +423,7 @@ projectsRouter.get("/:projectId/people", requireAuth, async (req, res) => {
     return void res.status(404).json({ detail: "Project not found" });
 
   // Use the mirrored profile email so sharing checks do not scan auth.users.
+  const { loadProfileUsersByEmail } = await import("../lib/userLookup");
   const { userByEmail, userById } = await loadProfileUsersByEmail(db);
 
   const ownerInfo = userById.get(project.user_id as string);
@@ -498,6 +496,7 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
 
   const db = createServerSupabase();
   if (Array.isArray(updates.shared_with)) {
+    const { findMissingUserEmails } = await import("../lib/userLookup");
     const missingSharedUsers = await findMissingUserEmails(
       db,
       updates.shared_with as string[],

@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncProfileEmail } from "../lib/userLookup";
 
 type CreateClient = typeof import("@supabase/supabase-js").createClient;
 let createClient: CreateClient | undefined;
@@ -142,6 +141,7 @@ export async function requireAuth(
   res.locals.userId = data.user.id;
   res.locals.userEmail = data.user.email?.toLowerCase() ?? "";
   res.locals.token = token;
+  const { syncProfileEmail } = await import("../lib/userLookup");
   const syncError = await syncProfileEmail(
     admin,
     data.user.id,

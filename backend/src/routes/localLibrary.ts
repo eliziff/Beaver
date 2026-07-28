@@ -10,7 +10,6 @@ import {
   moveLocalDocument,
   renameLocalDocument,
   updateLocalFolder,
-  type LocalLibraryKind,
 } from "../lib/localDocumentStore";
 import {
   queueLocalPdfParse,
