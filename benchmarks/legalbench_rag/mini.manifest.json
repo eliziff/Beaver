@@ -1,0 +1,466 @@
+{
+  "schema_version": "1",
+  "name": "legalbench-rag-mini",
+  "upstream": {
+    "repository": "https://github.com/ZeroEntropy-AI/legalbenchrag",
+    "paper": "https://arxiv.org/abs/2408.10343",
+    "download_url": "https://www.dropbox.com/scl/fo/r7xfa5i3hdsbxex1w6amw/AID389Olvtm-ZLTKAPrw6k4?rlkey=5n8zrbk4c08lbit3iiexofmwg&st=0hu354cq&dl=1",
+    "download_zip_bytes_observed": 90591976,
+    "license": "MIT (LegalBench-RAG benchmark and repository, Copyright (c) 2025 ZeroEntropy)",
+    "license_note": "Benchmark aggregates ContractNLI, CUAD, MAUD and PrivacyQA; each source dataset retains its own upstream terms. Downloaded and derived data stay in the git-ignored data/ directory; only this manifest (URLs, derivation rule, sha256 pins) is committed."
+  },
+  "derivation": {
+    "rule": "Per source benchmark: group tests by first-snippet document path, take documents in code-unit lexicographic order until max_tests_per_source tests are accumulated, truncate to max_tests_per_source (upstream file order within a document). Mini benchmark files serialize the selected upstream test objects verbatim as JSON.stringify({tests}) + newline. Corpus files are byte-identical zip entries stored under Windows-safe names (characters <>:\"|?* replaced with _).",
+    "max_tests_per_source": 194
+  },
+  "benchmarks": [
+    {
+      "path": "mini/benchmarks/contractnli.json",
+      "sha256": "a063d714e326c2dc3a63d98dee8cbeffebefffec5fff5b6479b2af4b08f7215b",
+      "bytes": 153268,
+      "source": "contractnli",
+      "tests": 194,
+      "documents": 21
+    },
+    {
+      "path": "mini/benchmarks/cuad.json",
+      "sha256": "2a6d5385d187fb27c44b090382fc06b88731a0fbf458cc632deae5fff9315102",
+      "bytes": 178954,
+      "source": "cuad",
+      "tests": 194,
+      "documents": 24
+    },
+    {
+      "path": "mini/benchmarks/maud.json",
+      "sha256": "3a6759c5a23c6eb4613c4a0238e8487bde71d80a85d0b09959b0c6760afe2458",
+      "bytes": 323619,
+      "source": "maud",
+      "tests": 194,
+      "documents": 17
+    },
+    {
+      "path": "mini/benchmarks/privacy_qa.json",
+      "sha256": "2d07d097d57810e12082d479d5da353fc577d43335d318627bb5ff3fc44a5f44",
+      "bytes": 287470,
+      "source": "privacy_qa",
+      "tests": 194,
+      "documents": 7
+    }
+  ],
+  "corpus": [
+    {
+      "path": "mini/corpus/contractnli/01_Bosch-Automotive-Service-Solutions-Mutual-Non-Disclosure-Agreement-7-12-17.txt",
+      "sha256": "2fde4ae3dcf8c49f2c0a819ddc2d4ed33c96141fc25a0cc2d34afe5576558f79",
+      "bytes": 15363,
+      "upstream_path": "contractnli/01_Bosch-Automotive-Service-Solutions-Mutual-Non-Disclosure-Agreement-7-12-17.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/12032018_NDA_The%20Munt_EN.txt",
+      "sha256": "4a7b721fbe26c187b45a136f743905fc88cd090e88ecad8f2e692d5ac1cd0ec1",
+      "bytes": 6933,
+      "upstream_path": "contractnli/12032018_NDA_The%20Munt_EN.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/5-NSK-Confidentiality-Agreement-for-Suppliers.txt",
+      "sha256": "51bc00059fc8a1982718dde0fca6cbc0bcf65db899041a1b22c940d776ed79fd",
+      "bytes": 12526,
+      "upstream_path": "contractnli/5-NSK-Confidentiality-Agreement-for-Suppliers.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/ADVANIDE-NON-DISCLOSURE-AGREEMENT.txt",
+      "sha256": "c1e6dc2b50e0a8f05fb1ec94e9937e46a8d3d7344e18fde4d88d70cb96a00ac4",
+      "bytes": 6201,
+      "upstream_path": "contractnli/ADVANIDE-NON-DISCLOSURE-AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/AGProjects-NDA.txt",
+      "sha256": "af8288e85baeb727e176bbfa849aab989e2a8d0bc9f89a171ffec9faa4ff44e8",
+      "bytes": 8436,
+      "upstream_path": "contractnli/AGProjects-NDA.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/AfriGIS_Client-NDA_Template_2019.txt",
+      "sha256": "e813f936d17b5794f00dcf335ce2bdd23dbf4596114dfc2ecbf3fe6cf24808a9",
+      "bytes": 24308,
+      "upstream_path": "contractnli/AfriGIS_Client-NDA_Template_2019.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Aspiegel_NDA_template.txt",
+      "sha256": "35dffa175515e10f3a4c9bbe61c49bae5f8a1e6d619336613273fbe0ce0e78b1",
+      "bytes": 12931,
+      "upstream_path": "contractnli/Aspiegel_NDA_template.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/BCG-Mutual-NDA.txt",
+      "sha256": "6cd0c1665fefd68f7d01891ea6461f143dea30bf36fa8ef72d45c593f248febc",
+      "bytes": 8683,
+      "upstream_path": "contractnli/BCG-Mutual-NDA.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/BT_NDA.txt",
+      "sha256": "3515f51a7c25a9eb5991dc3a9e3421b8b6d99d50dcde21abcbeb17652d84da43",
+      "bytes": 10602,
+      "upstream_path": "contractnli/BT_NDA.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/CBP%20Non-Disclosure%20Form_October2018.txt",
+      "sha256": "e357bc04d41e4165e97d7579f04446517ad74675de15204d6988751560e6dd25",
+      "bytes": 12938,
+      "upstream_path": "contractnli/CBP%20Non-Disclosure%20Form_October2018.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/CopAcc_NDA-and-ToP-Mentors_2.0_2017.txt",
+      "sha256": "189543a6b7b162609cd8de15730b6f7084b8956a666a2befaca102013226f3d3",
+      "bytes": 14977,
+      "upstream_path": "contractnli/CopAcc_NDA-and-ToP-Mentors_2.0_2017.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/DBT%20Mutual%20NDA.txt",
+      "sha256": "c96bfb12addbdb0952834346d4efe6fa1afff775f5246b8819d30e4d46a23169",
+      "bytes": 7553,
+      "upstream_path": "contractnli/DBT%20Mutual%20NDA.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Data Use Agreement New York City.txt",
+      "sha256": "3d830d33723fdde4bfb52cf398295b597b9e5b61814641b9d93b6996a846dc00",
+      "bytes": 23456,
+      "upstream_path": "contractnli/Data Use Agreement New York City.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Data_Use_and_Non_Disclosure_Data_Disclosed_to_MDCH_Trauma_Registry_Final_465518_7.txt",
+      "sha256": "de4392dfcd5415a9cec4de1669d68072efa291ca1d324fea1d2e65a5cac99d21",
+      "bytes": 4457,
+      "upstream_path": "contractnli/Data_Use_and_Non_Disclosure_Data_Disclosed_to_MDCH_Trauma_Registry_Final_465518_7.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/DoiT-ICN-NonDisclosure-Agreement.txt",
+      "sha256": "e063b664ecf05d00ee38a68e5c29959049d2e4456f188e5c8075b3d54a06457a",
+      "bytes": 4036,
+      "upstream_path": "contractnli/DoiT-ICN-NonDisclosure-Agreement.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/EFCAConfidentialityAgreement.txt",
+      "sha256": "bb61871a9162d3dd50d148b378286a79d3dece7463a899bc705fbcd28f0cfc0e",
+      "bytes": 6770,
+      "upstream_path": "contractnli/EFCAConfidentialityAgreement.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Eskom%20Template%20Confidentiality%20and%20Non-disclosure%20Agreement%20Rev%204%20Effective%20August%202017_11.txt",
+      "sha256": "8dc0a9679b4184b334e6b0dad03d5a65a1f987a23515570067327befd16838ae",
+      "bytes": 19039,
+      "upstream_path": "contractnli/Eskom%20Template%20Confidentiality%20and%20Non-disclosure%20Agreement%20Rev%204%20Effective%20August%202017_11.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Evelozcity%20OESA%20NDA.txt",
+      "sha256": "342cbc0e10cdda7227ef401765cc90656b24cf3637a01bcaf1121938a5458acd",
+      "bytes": 7884,
+      "upstream_path": "contractnli/Evelozcity%20OESA%20NDA.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/ExcelerateStandardNDAFormat.txt",
+      "sha256": "48730c8d5d8e8a3c67cf301b8da0a8cfc26652834cc3d8091c8f95e7b87000be",
+      "bytes": 10723,
+      "upstream_path": "contractnli/ExcelerateStandardNDAFormat.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/FNHA-2019RFP-02-NDA-form.txt",
+      "sha256": "14806d16eaf7837a82cd975ef5f442a84552bb341255aa4f983d2bfa9d2380a5",
+      "bytes": 5237,
+      "upstream_path": "contractnli/FNHA-2019RFP-02-NDA-form.txt"
+    },
+    {
+      "path": "mini/corpus/contractnli/Focus-Group-APIC-Seattle-Confidentiality-Agreement-031115.txt",
+      "sha256": "d5017321972e0e683aa327e986cb708d14ea1e3e7f203561b3800924872db168",
+      "bytes": 2925,
+      "upstream_path": "contractnli/Focus-Group-APIC-Seattle-Confidentiality-Agreement-031115.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/2ThemartComInc_19990826_10-12G_EX-10.10_6700288_EX-10.10_Co-Branding Agreement_ Agency Agreement.txt",
+      "sha256": "6cdfab95eb5b30c0d2d4860c8204b96b36a54cb9e2025c5ceb1457d223afac41",
+      "bytes": 29454,
+      "upstream_path": "cuad/2ThemartComInc_19990826_10-12G_EX-10.10_6700288_EX-10.10_Co-Branding Agreement_ Agency Agreement.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ABILITYINC_06_15_2020-EX-4.25-SERVICES AGREEMENT.txt",
+      "sha256": "e335c24cfd77dd661c0c18aa9277ea3f526ac9540b7d3af96ef0deaa0fd2938a",
+      "bytes": 26346,
+      "upstream_path": "cuad/ABILITYINC_06_15_2020-EX-4.25-SERVICES AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ACCELERATEDTECHNOLOGIESHOLDINGCORP_04_24_2003-EX-10.13-JOINT VENTURE AGREEMENT.txt",
+      "sha256": "85182a8d5506adf149a0c8ea479167d6c11b979a821fa33a5da2ce1cdcd13c31",
+      "bytes": 13038,
+      "upstream_path": "cuad/ACCELERATEDTECHNOLOGIESHOLDINGCORP_04_24_2003-EX-10.13-JOINT VENTURE AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ACCURAYINC_09_01_2010-EX-10.31-DISTRIBUTOR AGREEMENT.txt",
+      "sha256": "14932c769a7ac61cb1a4d639aa2bdc3c85a88037f54b478d117d62cbc49e8321",
+      "bytes": 89564,
+      "upstream_path": "cuad/ACCURAYINC_09_01_2010-EX-10.31-DISTRIBUTOR AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADAMSGOLFINC_03_21_2005-EX-10.17-ENDORSEMENT AGREEMENT.txt",
+      "sha256": "ca9acda7d2710198107402f632ede2a69f365f8dd8417f13e9a2e463d3ecdad8",
+      "bytes": 24632,
+      "upstream_path": "cuad/ADAMSGOLFINC_03_21_2005-EX-10.17-ENDORSEMENT AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADAPTIMMUNETHERAPEUTICSPLC_04_06_2017-EX-10.11-STRATEGIC ALLIANCE AGREEMENT.txt",
+      "sha256": "f20f55c32b8c30c720f2aabb614592e0cf8beb74e9e6fa25ad78a3295bb0db56",
+      "bytes": 101190,
+      "upstream_path": "cuad/ADAPTIMMUNETHERAPEUTICSPLC_04_06_2017-EX-10.11-STRATEGIC ALLIANCE AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADIANUTRITION,INC_04_01_2005-EX-10.D2-RESELLER AGREEMENT.txt",
+      "sha256": "c757bb1d6007551134d3831a8e3ee3ef1491c59513844f80a61989cac2b0897c",
+      "bytes": 26347,
+      "upstream_path": "cuad/ADIANUTRITION,INC_04_01_2005-EX-10.D2-RESELLER AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADMA BioManufacturing, LLC -  Amendment #3 to Manufacturing Agreement .txt",
+      "sha256": "bce002bc4b17df3b0ccdeb12ce4e75d4005815a430ea0adab7845489a366c0a9",
+      "bytes": 15312,
+      "upstream_path": "cuad/ADMA BioManufacturing, LLC -  Amendment #3 to Manufacturing Agreement .txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADUROBIOTECH,INC_06_02_2020-EX-10.7-CONSULTING AGREEMENT(1).txt",
+      "sha256": "23255988c8f39e0b67d7ff8a2b316a17c3bf4cc0557141d6a7e6e9cc7d770ad3",
+      "bytes": 12027,
+      "upstream_path": "cuad/ADUROBIOTECH,INC_06_02_2020-EX-10.7-CONSULTING AGREEMENT(1).txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ADUROBIOTECH,INC_06_02_2020-EX-10.7-CONSULTING AGREEMENT.txt",
+      "sha256": "23255988c8f39e0b67d7ff8a2b316a17c3bf4cc0557141d6a7e6e9cc7d770ad3",
+      "bytes": 12027,
+      "upstream_path": "cuad/ADUROBIOTECH,INC_06_02_2020-EX-10.7-CONSULTING AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AFSALABANCORPINC_08_01_1996-EX-1.1-AGENCY AGREEMENT.txt",
+      "sha256": "ba14c927c1ceb18f63958108bc80a98fb5de63a2071808f5873dfa9940109da9",
+      "bytes": 121559,
+      "upstream_path": "cuad/AFSALABANCORPINC_08_01_1996-EX-1.1-AGENCY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AIRSPANNETWORKSINC_04_11_2000-EX-10.5-Distributor Agreement.txt",
+      "sha256": "ef5d06f1cc291342f84bfff8a40d561cdd843a025475ec71d78ebbd5b687f0b8",
+      "bytes": 70444,
+      "upstream_path": "cuad/AIRSPANNETWORKSINC_04_11_2000-EX-10.5-Distributor Agreement.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AIRTECHINTERNATIONALGROUPINC_05_08_2000-EX-10.4-FRANCHISE AGREEMENT.txt",
+      "sha256": "c9a4d1006bce3890bb04151d0bf1f791b43012e7322ac550813e855461ba3da8",
+      "bytes": 73869,
+      "upstream_path": "cuad/AIRTECHINTERNATIONALGROUPINC_05_08_2000-EX-10.4-FRANCHISE AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ALAMOGORDOFINANCIALCORP_12_16_1999-EX-1-AGENCY AGREEMENT.txt",
+      "sha256": "3c70a981a2107097efddcf6fdba26d5d4b3d7eb458d826a10002d5dcc767fad7",
+      "bytes": 143307,
+      "upstream_path": "cuad/ALAMOGORDOFINANCIALCORP_12_16_1999-EX-1-AGENCY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ALCOSTORESINC_12_14_2005-EX-10.26-AGENCY AGREEMENT.txt",
+      "sha256": "0d8be99620d364c5dc920fdbce6ccdbdec070aa58db2e9550ad6432b29f7e731",
+      "bytes": 11361,
+      "upstream_path": "cuad/ALCOSTORESINC_12_14_2005-EX-10.26-AGENCY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ALLIANCEBANCORPINCOFPENNSYLVANIA_10_18_2006-EX-1.2-AGENCY AGREEMENT.txt",
+      "sha256": "d22c5d084ff7502d7c26a83a243846a710547c26b117ec82d3a0ec60f2f896c7",
+      "bytes": 130258,
+      "upstream_path": "cuad/ALLIANCEBANCORPINCOFPENNSYLVANIA_10_18_2006-EX-1.2-AGENCY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ALLISONTRANSMISSIONHOLDINGSINC_12_15_2014-EX-99.1-COOPERATION AGREEMENT.txt",
+      "sha256": "cf7ccac86b58129ea6ba73b08f2482e87c61e9c228dd64b05291e3ee3601c104",
+      "bytes": 32826,
+      "upstream_path": "cuad/ALLISONTRANSMISSIONHOLDINGSINC_12_15_2014-EX-99.1-COOPERATION AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AMBASSADOREYEWEARGROUPINC_11_17_1997-EX-10.28-ENDORSEMENT AGREEMENT.txt",
+      "sha256": "8793df7d80cd6d2525fcacea4f92da688eae393a1e2a0ce42d72df552b608b6b",
+      "bytes": 39727,
+      "upstream_path": "cuad/AMBASSADOREYEWEARGROUPINC_11_17_1997-EX-10.28-ENDORSEMENT AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AMERICANPHYSICIANSCAPITALINC_03_31_2003-EX-10.26-AGENCY AGREEMENT.txt",
+      "sha256": "ed3202c56ebdb4ab0c8d408adcab35f678a063ca30b100329f47aacc2ba94020",
+      "bytes": 23999,
+      "upstream_path": "cuad/AMERICANPHYSICIANSCAPITALINC_03_31_2003-EX-10.26-AGENCY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/AMERICASSHOPPINGMALLINC_12_10_1999-EX-10.2-SITE DEVELOPMENT AND HOSTING AGREEMENT.txt",
+      "sha256": "800a8e3e69cecab83863c1f6ff97587419bd873245d7f98b59e460a747f03228",
+      "bytes": 19351,
+      "upstream_path": "cuad/AMERICASSHOPPINGMALLINC_12_10_1999-EX-10.2-SITE DEVELOPMENT AND HOSTING AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ANIXABIOSCIENCESINC_06_09_2020-EX-10.1-COLLABORATION AGREEMENT.txt",
+      "sha256": "b700fd09580297d2160086acfea6d5dd834598018ab652f181d972be510b5549",
+      "bytes": 40522,
+      "upstream_path": "cuad/ANIXABIOSCIENCESINC_06_09_2020-EX-10.1-COLLABORATION AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ARMSTRONGFLOORING,INC_01_07_2019-EX-10.2-INTELLECTUAL PROPERTY AGREEMENT.txt",
+      "sha256": "8ff1a7503594d70ad15a6cdad9242ff5d5d8ca9db2e75074d02834d9b1b47b3d",
+      "bytes": 69769,
+      "upstream_path": "cuad/ARMSTRONGFLOORING,INC_01_07_2019-EX-10.2-INTELLECTUAL PROPERTY AGREEMENT.txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ASHWORTHINC_01_29_1999-EX-10.(D)-PROMOTION AGREEMENT AND NANTZ COMMUNICATIONS, INC..txt",
+      "sha256": "977154e5d3a369d6eba47a390737030f8a6482bdf1a28dff81ca0427baac2ad3",
+      "bytes": 24999,
+      "upstream_path": "cuad/ASHWORTHINC_01_29_1999-EX-10.(D)-PROMOTION AGREEMENT AND NANTZ COMMUNICATIONS, INC..txt"
+    },
+    {
+      "path": "mini/corpus/cuad/ASIANDRAGONGROUPINC_08_11_2005-EX-10.5-Reseller Agreement.txt",
+      "sha256": "16bb9d1715c4e0e41dd3f47b5eff2630d3848065dd31573dc4fbe77b7415dbdd",
+      "bytes": 45002,
+      "upstream_path": "cuad/ASIANDRAGONGROUPINC_08_11_2005-EX-10.5-Reseller Agreement.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Acacia_Communications_Cisco_Systems.txt",
+      "sha256": "4cb4cc02767b7b3a6519f587cb4d7b1b62c0ae79af47419c13afe1c492d1c3ad",
+      "bytes": 332412,
+      "upstream_path": "maud/Acacia_Communications_Cisco_Systems.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Acceleron_Pharma_Inc_Merck_Co.txt",
+      "sha256": "4bf64918a45faa972f869f6fc7452e3ee39c144327a6138dc15f5325cfa43f19",
+      "bytes": 338780,
+      "upstream_path": "maud/Acceleron_Pharma_Inc_Merck_Co.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Adamas_Pharmaceuticals_Supernus_Pharmaceuticals.txt",
+      "sha256": "d0a51047afcf786af36a230bb9316d00161f61c20e067aa413f6d528d6d4f06c",
+      "bytes": 406146,
+      "upstream_path": "maud/Adamas_Pharmaceuticals_Supernus_Pharmaceuticals.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Aegion Corporation_New Mountain Capital, L.L.C..pdf__Aegion Corporation_New Mountain Capital, L.L.C. Amendments No.1 & 2.txt",
+      "sha256": "a35752057f67c9aecefdf7be028572ecabb4562512ed48cc64f7355dfec8e07a",
+      "bytes": 316850,
+      "upstream_path": "maud/Aegion Corporation_New Mountain Capital, L.L.C..pdf||Aegion Corporation_New Mountain Capital, L.L.C. Amendments No.1 & 2.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Alaska Communications Systems Group, Inc._Investment Group.txt",
+      "sha256": "245a0967275b86869d69bcd9439586ade0527e229e17fa633fbd6a62d18b63ae",
+      "bytes": 339759,
+      "upstream_path": "maud/Alaska Communications Systems Group, Inc._Investment Group.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Alexion Pharmaceuticals, Inc._AstraZeneca PLC.txt",
+      "sha256": "87bd8a9b35ea3ececa76b9cea7c1eeb2879aa862c1883a338a5570a3ae99a078",
+      "bytes": 439312,
+      "upstream_path": "maud/Alexion Pharmaceuticals, Inc._AstraZeneca PLC.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Altabancorp_Glacier Bancorp, Inc..txt",
+      "sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "bytes": 221032,
+      "upstream_path": "maud/Altabancorp_Glacier Bancorp, Inc..txt"
+    },
+    {
+      "path": "mini/corpus/maud/American_Renal_Associates_Holdings_IRC_Superman_Midco.txt",
+      "sha256": "51f709f52dd68a378da586779e29c6eee35e3b70410b87865e6a2aa9346e6273",
+      "bytes": 335802,
+      "upstream_path": "maud/American_Renal_Associates_Holdings_IRC_Superman_Midco.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Anworth Mortgage Asset Corporation_Ready Capital Corporation.txt",
+      "sha256": "221d12c62624d7822392eebc6deb5071c5822ab165aeaf8c295d78740d2cca6a",
+      "bytes": 503172,
+      "upstream_path": "maud/Anworth Mortgage Asset Corporation_Ready Capital Corporation.txt"
+    },
+    {
+      "path": "mini/corpus/maud/At Home Group Inc._Hellman_Friedman LLC (A&R).txt",
+      "sha256": "1598dde813cf4edeb621ff8eb562c19eb110d8164685e2be1f6caffab33dcacb",
+      "bytes": 317590,
+      "upstream_path": "maud/At Home Group Inc._Hellman_Friedman LLC (A&R).txt"
+    },
+    {
+      "path": "mini/corpus/maud/Bank of Commerce Holdings_Columbia Banking System, Inc..txt",
+      "sha256": "39e427ae5a36d611f9e27e5575e6766a6515e7bde3b2bf403e800abb24c84a43",
+      "bytes": 261137,
+      "upstream_path": "maud/Bank of Commerce Holdings_Columbia Banking System, Inc..txt"
+    },
+    {
+      "path": "mini/corpus/maud/BioTelemetry, Inc._Koninklijke Philips N.V..txt",
+      "sha256": "90ecf6ebf92a3c19aea73283a7f198a3c6f427cc70b87b51b13ec7ba0d0df5ac",
+      "bytes": 311742,
+      "upstream_path": "maud/BioTelemetry, Inc._Koninklijke Philips N.V..txt"
+    },
+    {
+      "path": "mini/corpus/maud/Boingo Wireless, Inc._Digital Colony Partners, LP.txt",
+      "sha256": "375502f7e8122bbac5cc202a0e81e2b1f72e716fbd338ed34ddbd2d13950e5e4",
+      "bytes": 363533,
+      "upstream_path": "maud/Boingo Wireless, Inc._Digital Colony Partners, LP.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Boston Private Financial Holdings, Inc._SVB Financial Group.txt",
+      "sha256": "026af6330efe076f516d1c9ce083ba9b244035de95b2f853b8150fe0477568a1",
+      "bytes": 307669,
+      "upstream_path": "maud/Boston Private Financial Holdings, Inc._SVB Financial Group.txt"
+    },
+    {
+      "path": "mini/corpus/maud/Bryn Mawr Bank Corporation_WSFS Financial Corporation.txt",
+      "sha256": "1e88c9795d6730eb050565b10fb6e81321822fec998d56fb8377796c98e772ac",
+      "bytes": 325544,
+      "upstream_path": "maud/Bryn Mawr Bank Corporation_WSFS Financial Corporation.txt"
+    },
+    {
+      "path": "mini/corpus/maud/CAI International, Inc._Mitsubishi HC Capital Inc..txt",
+      "sha256": "78e54db373b1c4e890228b37809ec7d9f927f88d05dcb74ec63776c9e8df6df9",
+      "bytes": 292408,
+      "upstream_path": "maud/CAI International, Inc._Mitsubishi HC Capital Inc..txt"
+    },
+    {
+      "path": "mini/corpus/maud/CIT Group Inc._First Citizens BancShares, Inc..txt",
+      "sha256": "91c9c7ddedb67d0f92949903d0b171dc71b2f1716f97f0c80ef2ae303fd497aa",
+      "bytes": 359498,
+      "upstream_path": "maud/CIT Group Inc._First Citizens BancShares, Inc..txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/23andMe.txt",
+      "sha256": "ed183f97d2ac4dfd0d9ce4d294ee8c581a4cc8b2ffb2698d8dd7ba02653be17d",
+      "bytes": 54158,
+      "upstream_path": "privacy_qa/23andMe.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/Fiverr.txt",
+      "sha256": "ec00856006e0881345a21f133d79d374e00169325f2ddf37dc3e824f06398ac3",
+      "bytes": 25422,
+      "upstream_path": "privacy_qa/Fiverr.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/Groupon.txt",
+      "sha256": "578cb23d14675062b43c7855729c3f6ef5b4e480a93b7e992d6c9e7f2b8b4c91",
+      "bytes": 27447,
+      "upstream_path": "privacy_qa/Groupon.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/Keep.txt",
+      "sha256": "e2b4782b7611593798332c228b084ee72ed2fa81c5170818116b9092dfa7d8d2",
+      "bytes": 10904,
+      "upstream_path": "privacy_qa/Keep.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/TickTick_ To Do List with Reminder, Day Planner.txt",
+      "sha256": "4d18f883fae1f6b65514c00e8d890e5621c833081a7047db30f7fb575502e778",
+      "bytes": 3179,
+      "upstream_path": "privacy_qa/TickTick: To Do List with Reminder, Day Planner.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/Viber Messenger.txt",
+      "sha256": "6c92fa4cadaef3b1f37d0d34ea81cbccfcf3576d321e63fb916c24e64e100767",
+      "bytes": 27664,
+      "upstream_path": "privacy_qa/Viber Messenger.txt"
+    },
+    {
+      "path": "mini/corpus/privacy_qa/Wordscapes.txt",
+      "sha256": "a7bb1583086f407bf110fe1fd43b2a4fcbc60cfc7c8e09e1188f612725fd2295",
+      "bytes": 28090,
+      "upstream_path": "privacy_qa/Wordscapes.txt"
+    }
+  ]
+}
