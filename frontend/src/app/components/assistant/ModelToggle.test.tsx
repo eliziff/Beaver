@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
     getCodexModelCatalog,
+    type ApiKeyState,
     type CodexModelCatalog,
 } from "@/app/lib/beaverApi";
 import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
@@ -13,6 +14,14 @@ vi.mock("@/app/lib/beaverApi", () => ({
 }));
 
 const getCatalogMock = vi.mocked(getCodexModelCatalog);
+const configuredApiKeys: ApiKeyState = {
+    claude: { configured: true, source: "env" },
+    gemini: { configured: true, source: "env" },
+    openai: { configured: true, source: "env" },
+    deepseek: { configured: true, source: "env" },
+    openrouter: { configured: true, source: "env" },
+    courtlistener: { configured: true, source: "env" },
+};
 
 function catalog(
     models: CodexModelCatalog["models"],
@@ -99,7 +108,11 @@ describe("ModelToggle", () => {
         );
 
         render(
-            <ModelToggle value="codex:gpt-5.6-luna" onChange={vi.fn()} />,
+            <ModelToggle
+                value="codex:gpt-5.6-luna"
+                onChange={vi.fn()}
+                apiKeys={configuredApiKeys}
+            />,
         );
         const trigger = await screen.findByRole("combobox", {
             name: /GPT-5.6-Luna/,
@@ -130,7 +143,11 @@ describe("ModelToggle", () => {
         const user = userEvent.setup();
         getCatalogMock.mockResolvedValue(catalog([luna()]));
         render(
-            <ModelToggle value="codex:gpt-5.6-luna" onChange={onChange} />,
+            <ModelToggle
+                value="codex:gpt-5.6-luna"
+                onChange={onChange}
+                apiKeys={configuredApiKeys}
+            />,
         );
 
         await user.click(
@@ -170,7 +187,11 @@ describe("ModelToggle", () => {
     it("exposes both current DeepSeek V4 models in normal chat", async () => {
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
-            <ModelToggle value="deepseek-v4-flash" onChange={vi.fn()} />,
+            <ModelToggle
+                value="deepseek-v4-flash"
+                onChange={vi.fn()}
+                apiKeys={configuredApiKeys}
+            />,
         );
 
         const trigger = screen.getByRole("combobox", {
@@ -189,6 +210,7 @@ describe("ModelToggle", () => {
             <ModelToggle
                 value="meta/muse-spark-1.1"
                 onChange={vi.fn()}
+                apiKeys={configuredApiKeys}
             />,
         );
 
@@ -203,7 +225,11 @@ describe("ModelToggle", () => {
         const onChange = vi.fn();
         getCatalogMock.mockResolvedValue(catalog([luna()]));
         render(
-            <ModelToggle value="codex:gpt-5.6-luna" onChange={onChange} />,
+            <ModelToggle
+                value="codex:gpt-5.6-luna"
+                onChange={onChange}
+                apiKeys={configuredApiKeys}
+            />,
         );
 
         const trigger = await screen.findByRole("combobox", {
