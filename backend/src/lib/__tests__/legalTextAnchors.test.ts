@@ -1,0 +1,237 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  anchorCoverage,
+  extractAnchors,
+  numeralWordPairs,
+  wordPhraseToNumber,
+} from "../legalTextAnchors";
+
+const norms = (text: string, cls?: string) =>
+  extractAnchors(text)
+    .filter((hit) => !cls || hit.cls === cls)
+    .map((hit) => hit.norm);
+
+describe("extractAnchors: money", () => {
+  it("canonicalizes written-out and numeral forms to the same key", () => {
+    expect(norms("a fee of $2.25 million")).toEqual(["money:dlr:2250000"]);
+    expect(norms("a fee of $2,250,000")).toEqual(["money:dlr:2250000"]);
+    expect(norms("2,250,000 dollars")).toEqual(["money:dlr:2250000"]);
+    expect(norms("40 million dollars")).toEqual(["money:dlr:40000000"]);
+  });
+
+  it("inherits the multiplier across a range", () => {
+    expect(norms("$40–$50 million of pricing opportunity")).toEqual([
+      "money:dlr:40000000",
+      "money:dlr:50000000",
+    ]);
+    expect(norms("$40 to $50 million")).toEqual([
+      "money:dlr:40000000",
+      "money:dlr:50000000",
+    ]);
+  });
+
+  it("does not inherit across ordinary prose", () => {
+    expect(norms("$40 fee and later $50 million")).toEqual([
+      "money:dlr:40",
+      "money:dlr:50000000",
+    ]);
+  });
+
+  it("does not let a fully written amount borrow a range multiplier", () => {
+    expect(norms("costs of $500,000–$2 million per platform")).toEqual([
+      "money:dlr:500000",
+      "money:dlr:2000000",
+    ]);
+  });
+
+  it("reads attached finance suffixes", () => {
+    expect(norms("liquidity of $20.0M")).toEqual(["money:dlr:20000000"]);
+    expect(norms("the $2.25M filing fee")).toEqual(["money:dlr:2250000"]);
+    expect(norms("$50MM revolver and $3B notes and $500K deposit")).toEqual([
+      "money:dlr:50000000",
+      "money:dlr:3000000000",
+      "money:dlr:500000",
+    ]);
+  });
+});
+
+describe("extractAnchors: percent and ratio", () => {
+  it("extracts percentages", () => {
+    expect(norms("approximately 81% of the market")).toEqual(["pct:81"]);
+    expect(norms("a margin of 0.50%")).toEqual(["pct:0.5"]);
+  });
+
+  it("unifies x-multiples and to-1.00 ratio forms", () => {
+    expect(norms("not to exceed 4.50x", "ratio")).toEqual(["ratio:4.5"]);
+    expect(norms("not to exceed 4.50 to 1.00", "ratio")).toEqual(["ratio:4.5"]);
+    expect(norms("of 1.15:1.00 as of", "ratio")).toEqual(["ratio:1.15"]);
+  });
+
+  it("does not read an increase 'to 1.5' as a ratio", () => {
+    expect(norms("steps up to 1.5 next year", "ratio")).toEqual([]);
+  });
+});
+
+describe("extractAnchors: dates", () => {
+  it("canonicalizes all full-date forms to one key", () => {
+    expect(norms("matures on March 15, 2027")).toEqual(["date:2027-03-15"]);
+    expect(norms("matures on 3/15/2027")).toEqual(["date:2027-03-15"]);
+    expect(norms("matures on 15 March 2027")).toEqual(["date:2027-03-15"]);
+  });
+
+  it("deliberately ignores month-year mentions", () => {
+    expect(norms("the March 2027 maturity")).toEqual([]);
+  });
+
+  it("swaps obviously day-first numeric dates", () => {
+    expect(norms("dated 15/3/2027")).toEqual(["date:2027-03-15"]);
+  });
+});
+
+describe("extractAnchors: durations and statutes", () => {
+  it("normalizes duration units and plurality", () => {
+    expect(norms("within 5 Business Days")).toEqual(["dur:5:business_day"]);
+    expect(norms("within 1 business day")).toEqual(["dur:1:business_day"]);
+    expect(norms("a period of 30 days")).toEqual(["dur:30:day"]);
+  });
+
+  it("reads the numeral of a words-and-numerals pair", () => {
+    expect(norms("thirty (30) days", "duration")).toEqual(["dur:30:day"]);
+  });
+
+  it("extracts reporter-style and named-act citations", () => {
+    expect(norms("under 6 Del. C. § 8106", "statute")).toEqual([
+      "stat:6delc:8106",
+    ]);
+    expect(norms("15 U.S.C. § 18 applies", "statute")).toEqual([
+      "stat:15usc:18",
+    ]);
+    expect(norms("Section 7 of the Clayton Act prohibits", "statute")).toEqual([
+      "stat:claytonact:s7",
+    ]);
+  });
+});
+
+describe("extractAnchors: currencies and Canadian forms", () => {
+  it("tags currencies distinctly", () => {
+    expect(norms("EU turnover of €870 million")).toEqual([
+      "money:eur:870000000",
+    ]);
+    expect(norms("a £5,000 deposit")).toEqual(["money:gbp:5000"]);
+  });
+
+  it("extracts Canadian statute citations", () => {
+    expect(norms("R.S.C. 1985, c. C-46, s. 231", "statute")).toEqual([
+      "stat:rsc1985:cc-46:s231",
+    ]);
+    expect(norms("S.O. 2002, c. 24, Sched. B", "statute")).toEqual([
+      "stat:so2002:c24:schedb",
+    ]);
+    expect(norms("C.C.S.M. c. F158", "statute")).toEqual(["stat:ccsm:cf158"]);
+  });
+
+  it("extracts named-Code references", () => {
+    expect(norms("section 231 of the Criminal Code", "statute")).toEqual([
+      "stat:criminalcode:s231",
+    ]);
+  });
+
+  it("extracts neutral and US reporter case citations", () => {
+    expect(norms("R v Smith, 2015 SCC 5 at para 12", "cite")).toEqual([
+      "cite:2015scc5",
+    ]);
+    expect(norms("Gideon v. Wainwright, 372 U.S. 335 (1963)", "cite")).toEqual([
+      "cite:372us335",
+    ]);
+  });
+});
+
+describe("numeralWordPairs", () => {
+  it("passes agreeing pairs and flags disagreeing ones", () => {
+    const ok = numeralWordPairs("terminates after thirty (30) days");
+    expect(ok.checked).toBe(1);
+    expect(ok.mismatches).toEqual([]);
+
+    const bad = numeralWordPairs("terminates after thirty (20) days");
+    expect(bad.checked).toBe(1);
+    expect(bad.mismatches).toHaveLength(1);
+    expect(bad.mismatches[0].wordsValue).toBe(30);
+    expect(bad.mismatches[0].numeral).toBe(20);
+  });
+
+  it("parses only the trailing number-word phrase", () => {
+    const result = numeralWordPairs("the panel shall be three (3) arbitrators");
+    expect(result.checked).toBe(1);
+    expect(result.mismatches).toEqual([]);
+  });
+
+  it("ignores parentheticals that are not numerals or lack number words", () => {
+    expect(numeralWordPairs("as set out in clause (i)").checked).toBe(0);
+    expect(numeralWordPairs("under Section 8.01 (2) hereof").checked).toBe(0);
+  });
+
+  it("handles compound number words", () => {
+    expect(wordPhraseToNumber("one hundred twenty")).toBe(120);
+    expect(wordPhraseToNumber("forty-five")).toBe(45);
+    expect(wordPhraseToNumber("shall")).toBeNull();
+    const compound = numeralWordPairs("one hundred twenty (120) days");
+    expect(compound.checked).toBe(1);
+    expect(compound.mismatches).toEqual([]);
+  });
+});
+
+describe("anchorCoverage", () => {
+  const sources = [
+    {
+      name: "credit-agreement.docx",
+      text:
+        "The Term Loan A matures on March 15, 2027. Outstanding balance of " +
+        "$218.75 million. Interest defaults cure within 5 Business Days. " +
+        "Leverage shall not exceed 4.50x.",
+    },
+  ];
+  const drafts = [
+    {
+      name: "memo.docx",
+      text:
+        "The facility matures in March 2027 with a balance of $218,750,000. " +
+        "We compute leverage of 3.68x against the 4.50x covenant.",
+    },
+  ];
+
+  it("reports omissions, matches, and grounding candidates by class", () => {
+    const report = anchorCoverage(sources, drafts);
+
+    const dates = report.classes.date;
+    expect(dates.source_only.map((row) => row.norm)).toEqual([
+      "date:2027-03-15",
+    ]);
+    expect(dates.source_only[0].documents).toEqual(["credit-agreement.docx"]);
+
+    const money = report.classes.money;
+    expect(money.matched).toBe(1);
+    expect(money.source_only).toEqual([]);
+
+    const durations = report.classes.duration;
+    expect(durations.source_only.map((row) => row.norm)).toEqual([
+      "dur:5:business_day",
+    ]);
+
+    const ratios = report.classes.ratio;
+    expect(ratios.matched).toBe(1); // 4.50x
+    expect(ratios.draft_only.map((row) => row.norm)).toEqual(["ratio:3.68"]);
+  });
+
+  it("caps rows per class and reports truncation", () => {
+    const manyMoney = {
+      name: "s",
+      text: "$1 million and $2 million and $3 million",
+    };
+    const report = anchorCoverage([manyMoney], [{ name: "d", text: "none" }], {
+      maxRowsPerClass: 1,
+    });
+    expect(report.classes.money.source_only).toHaveLength(1);
+    expect(report.classes.money.source_only_truncated).toBe(true);
+  });
+});

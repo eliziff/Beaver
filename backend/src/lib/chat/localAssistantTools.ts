@@ -6,6 +6,7 @@ import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import { linkLocalDocxCitations } from "../docxCitationLinking";
 import { fixLocalDocxSupraCrossReferences } from "../docxDeterministicCleanup";
 import { lintLocalDocxStructure } from "../docxStructuralLint";
+import { anchorCoverage } from "../legalTextAnchors";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { applyTrackedEdits, type EditInput } from "../docxTrackedChanges";
@@ -263,6 +264,34 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     },
   ),
   tool(
+    "library_anchor_coverage",
+    "Deterministically diff typed anchors (money, percentages, ratio multiples, full dates, durations, statutory and case citations) between source Library documents and draft deliverables. Canonical value matching: $2.25 million equals $2,250,000 and March 15, 2027 equals 3/15/2027. source_only rows are omission candidates the drafts never state in any form; draft_only rows are grounding candidates no source contains; words-vs-numerals mismatches are drafting defects. Purely mechanical — triage the rows for task relevance before acting on them.",
+    {
+      type: "object",
+      properties: {
+        source_document_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Library document_ids of the task's source documents.",
+        },
+        draft_document_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Library document_ids of the draft deliverables to audit.",
+        },
+        max_rows_per_class: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description:
+            "Cap on reported rows per anchor class and direction. Defaults to 40.",
+        },
+      },
+      required: ["source_document_ids", "draft_document_ids"],
+    },
+  ),
+  tool(
     "toa_submit_library_document",
     "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
     {
@@ -367,6 +396,14 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
 
 const trimmed = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const stringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 const optionalString = (value: unknown) =>
   typeof value === "string" ? value : undefined;
 const optionalNumber = (value: unknown) =>
@@ -1260,6 +1297,45 @@ export async function runLocalAssistantTools(
           query,
           ...matches,
         });
+      }
+
+      if (call.name === "library_anchor_coverage") {
+        const sourceIds = stringArray(args.source_document_ids);
+        const draftIds = stringArray(args.draft_document_ids);
+        if (!sourceIds.length) {
+          return fail(call, "source_document_ids is required");
+        }
+        if (!draftIds.length) return fail(call, "draft_document_ids is required");
+        const outside = [...sourceIds, ...draftIds].find(
+          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
+        );
+        if (outside) {
+          return fail(call, `Document ${outside} is not attached to this matter`);
+        }
+        try {
+          const load = (ids: string[], side: "source" | "draft") =>
+            Promise.all(
+              ids.map(async (id) => {
+                const document = await extractLocalDocument(userId, id);
+                if (!document) {
+                  throw new Error(`${side} document ${id} not found`);
+                }
+                return { name: document.filename, text: document.text };
+              }),
+            );
+          const [sources, drafts] = await Promise.all([
+            load(sourceIds, "source"),
+            load(draftIds, "draft"),
+          ]);
+          return result(call, {
+            ok: true,
+            ...anchorCoverage(sources, drafts, {
+              maxRowsPerClass: clampInt(args.max_rows_per_class, 1, 100, 40),
+            }),
+          });
+        } catch (error) {
+          return fail(call, errorText(error, "Anchor coverage failed"));
+        }
       }
 
       if (call.name === "library_lookup") {
