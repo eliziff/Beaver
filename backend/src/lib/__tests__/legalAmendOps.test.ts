@@ -1,0 +1,215 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  applyAmendOps,
+  consolidateAmendment,
+  parseAmendmentInstructions,
+} from "../legalAmendOps";
+
+const STATUTE = [
+  "PART I",
+  "INTERPRETATION",
+  "",
+  "1. In this Act, “Minister” means the Minister of Justice.",
+  "",
+  "5. (1) A person may apply to the Minister for a permit.",
+  "",
+  "(2) The Minister shall respond within sixty days after the application.",
+  "",
+  "8. This Act binds His Majesty in right of Canada.",
+].join("\n");
+
+const AGREEMENT = [
+  "ARTICLE I",
+  "COVENANTS",
+  "",
+  "Section 1.01 Payment Terms. The Borrower shall pay each invoice within " +
+    "thirty days of demand by the Administrative Agent.",
+  "",
+  "Section 1.02 Notices. Notices shall be delivered to the Administrative " +
+    "Agent at its Toronto office, with a copy to the Administrative Agent " +
+    "at its New York office.",
+].join("\n");
+
+describe("parseAmendmentInstructions", () => {
+  it("compiles US cut-and-bite substitute clauses", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(
+      "Section 1.01 of the Credit Agreement is amended by striking " +
+        "“thirty days” and inserting “sixty days”.",
+    );
+    expect(unparsed).toEqual([]);
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toMatchObject({
+      kind: "substitute_text",
+      target: "sec1.01",
+      oldText: "thirty days",
+      newText: "sixty days",
+    });
+  });
+
+  it("threads in-subsection context across a dash list", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 5 of the Act is amended— (1) in subsection (1), by striking " +
+        "“person” and inserting “corporation”; and (2) in subsection (2), " +
+        "by striking “sixty” and inserting “ninety”.",
+    );
+    expect(ops.map((op) => [op.kind, op.target, op.oldText])).toEqual([
+      ["substitute_text", "sec5(1)", "person"],
+      ["substitute_text", "sec5(2)", "sixty"],
+    ]);
+  });
+
+  it("compiles Canadian replace-style and repeal heads", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Subsection 5(1) of the Act is replaced by the following:\n\n" +
+        "“(1) A corporation may apply to the Minister for a licence.”\n\n" +
+        "Section 8 of the Act is repealed.",
+    );
+    expect(ops.map((op) => [op.kind, op.target])).toEqual([
+      ["replace_provision", "sec5(1)"],
+      ["repeal_provision", "sec8"],
+    ]);
+    expect(ops[0].newText).toContain("apply to the Minister for a licence");
+  });
+
+  it("compiles striking-out/substituting (older Canadian) as substitute", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 1 of the Act is amended by striking out “Minister of " +
+        "Justice” and substituting “Minister of Public Safety”.",
+    );
+    expect(ops[0]).toMatchObject({
+      kind: "substitute_text",
+      oldText: "Minister of Justice",
+      newText: "Minister of Public Safety",
+    });
+  });
+
+  it("compiles add-at-end, add-after, and every-occurrence flags", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 5 of the Act is amended by adding at the end the following: " +
+        "“(3) A refusal must include reasons.”\n\n" +
+        "Section 1.02 of the Agreement is amended by striking “Administrative " +
+        "Agent” each place it appears and inserting “Collateral Agent”.",
+    );
+    expect(ops[0]).toMatchObject({ kind: "add_at_end", target: "sec5" });
+    expect(ops[1]).toMatchObject({
+      kind: "substitute_text",
+      everyOccurrence: true,
+    });
+  });
+
+  it("refuses portion/heading-scoped heads instead of guessing", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(
+      "The portion of subsection 5(1) of the Act before paragraph (a) is " +
+        "replaced by the following:\n\n“(1) An applicant”",
+    );
+    expect(ops).toEqual([]);
+    expect(unparsed).toHaveLength(1);
+    expect(unparsed[0].reason).toContain("scoped amendment");
+  });
+
+  it("parses redesignation with a new label", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 5 of the Act is amended by redesignating subsection (2) as " +
+        "subsection (3).",
+    );
+    expect(ops[0]).toMatchObject({
+      kind: "redesignate",
+      target: "sec5(2)",
+      newLabel: "(3)",
+    });
+  });
+});
+
+describe("applyAmendOps", () => {
+  it("applies a substitute inside the addressed provision only", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Subsection 5(2) of the Act is amended by striking out “sixty days” " +
+        "and substituting “ninety days”.",
+    );
+    const result = applyAmendOps(STATUTE, ops);
+    expect(result.failures).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    expect(result.text).toContain("respond within ninety days");
+    expect(result.verification.oldTextGone).toBe(1);
+    expect(result.verification.newTextPresent).toBe(1);
+  });
+
+  it("replaces a whole provision Canadian-style", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Subsection 5(1) of the Act is replaced by the following:\n\n" +
+        "“(1) A corporation may apply to the Minister for a licence.”",
+    );
+    const result = applyAmendOps(STATUTE, ops);
+    expect(result.failures).toEqual([]);
+    expect(result.text).toContain("corporation may apply to the Minister for a licence");
+    expect(result.text).not.toContain("A person may apply");
+    // (2) must survive the replacement of (1).
+    expect(result.text).toContain("respond within sixty days");
+  });
+
+  it("fails loudly when the quoted text is not in the target", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Subsection 5(1) of the Act is amended by striking out “ninety days” " +
+        "and substituting “thirty days”.",
+    );
+    const result = applyAmendOps(STATUTE, ops);
+    expect(result.applied).toEqual([]);
+    expect(result.failures[0].code).toBe("old_text_not_found");
+  });
+
+  it("fails loudly on a target the skeleton cannot resolve", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 99 of the Act is repealed.",
+    );
+    const result = applyAmendOps(STATUTE, ops);
+    expect(result.failures[0].code).toBe("target_not_found");
+  });
+
+  it("flags ambiguity instead of picking an occurrence", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 1.02 of the Agreement is amended by striking “Agent” and " +
+        "inserting “Trustee”.",
+    );
+    const result = applyAmendOps(AGREEMENT, ops);
+    expect(result.applied).toEqual([]);
+    expect(result.failures[0].code).toBe("old_text_ambiguous");
+  });
+
+  it("applies every-occurrence substitutions across the target", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Section 1.02 of the Agreement is amended by striking “Administrative " +
+        "Agent” each place it appears and inserting “Collateral Agent”.",
+    );
+    const result = applyAmendOps(AGREEMENT, ops);
+    expect(result.failures).toEqual([]);
+    expect(result.applied).toHaveLength(2);
+    expect(result.text.match(/Collateral Agent/gu)).toHaveLength(2);
+    // Section 1.01's occurrence is outside the addressed provision.
+    expect(result.text.match(/Administrative Agent/gu)).toHaveLength(1);
+  });
+
+  it("repeals a provision without touching its neighbours", () => {
+    const { ops } = parseAmendmentInstructions("Section 8 of the Act is repealed.");
+    const result = applyAmendOps(STATUTE, ops);
+    expect(result.failures).toEqual([]);
+    expect(result.text).not.toContain("binds His Majesty");
+    expect(result.text).toContain("A person may apply");
+  });
+});
+
+describe("consolidateAmendment", () => {
+  it("runs parse + apply + verification as one gate", () => {
+    const result = consolidateAmendment(
+      STATUTE,
+      "Section 5 of the Act is amended— (1) in subsection (2), by striking " +
+        "“sixty” and inserting “ninety”; and (2) by adding at the end the " +
+        "following: “(3) A refusal must include reasons.”",
+    );
+    expect(result.parse.unparsed).toEqual([]);
+    expect(result.failures).toEqual([]);
+    expect(result.text).toContain("within ninety days");
+    expect(result.text).toContain("(3) A refusal must include reasons.");
+    expect(result.verification.newTextMissing).toBe(0);
+  });
+});
