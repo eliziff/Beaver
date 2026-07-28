@@ -29,12 +29,9 @@ const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
 };
 
-function courtlistenerBulkDataEnabled() {
-  return (
-    courtlistenerLocalBulkAvailable() ||
-    process.env.COURTLISTENER_BULK_DATA_ENABLED === "true"
-  );
-}
+const courtlistenerBulkDataEnabled = () =>
+  courtlistenerLocalBulkAvailable() ||
+  process.env.COURTLISTENER_BULK_DATA_ENABLED === "true";
 
 function courtlistenerHeaders(apiToken?: string | null): HeadersInit {
   const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
@@ -43,10 +40,7 @@ function courtlistenerHeaders(apiToken?: string | null): HeadersInit {
       "COURTLISTENER_API_TOKEN must be set to use CourtListener tools.",
     );
   }
-  return {
-    Accept: "application/json",
-    Authorization: `Token ${token}`,
-  };
+  return { Accept: "application/json", Authorization: `Token ${token}` };
 }
 
 function parseCourtlistenerError(status: number, detail: string): string {
@@ -85,11 +79,8 @@ async function courtlistenerFetch<T>(
   const url = pathOrUrl.startsWith("http")
     ? pathOrUrl
     : `${COURTLISTENER_BASE}${pathOrUrl}`;
-  devLog("[courtlistener/api] request", {
-    method: init?.method ?? "GET",
-    path: pathOrUrl,
-    url,
-  });
+  const method = init?.method ?? "GET";
+  devLog("[courtlistener/api] request", { method, path: pathOrUrl, url });
   const response = await fetch(url, {
     ...init,
     signal: init?.signal ?? AbortSignal.timeout(15_000),
@@ -99,9 +90,7 @@ async function courtlistenerFetch<T>(
     },
   });
   devLog("[courtlistener/api] response", {
-    method: init?.method ?? "GET",
-    path: pathOrUrl,
-    status: response.status,
+    method, path: pathOrUrl, status: response.status,
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -110,12 +99,18 @@ async function courtlistenerFetch<T>(
   return response.json() as Promise<T>;
 }
 
-function asString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
+const asString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value : null;
 
-function asNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+const asNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+function firstString(record: JsonRecord, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = asString(record[key]);
+    if (value) return value;
+  }
+  return null;
 }
 
 function absoluteWebUrl(path: unknown): string | null {
@@ -144,23 +139,15 @@ function citationLabel(citation: unknown): string | null {
 function compactCluster(raw: unknown) {
   if (!raw || typeof raw !== "object") {
     return {
-      id: null,
-      caseName: null,
-      dateFiled: null,
-      court: null,
-      citations: [],
-      url: null,
-      subOpinions: [],
+      id: null, caseName: null, dateFiled: null, court: null,
+      citations: [], url: null, subOpinions: [],
     };
   }
   const cluster = raw as JsonRecord;
   return {
     id: asNumber(cluster.id),
-    caseName:
-      asString(cluster.case_name) ??
-      asString(cluster.caseName) ??
-      asString(cluster.name),
-    dateFiled: asString(cluster.date_filed) ?? asString(cluster.dateFiled),
+    caseName: firstString(cluster, "case_name", "caseName", "name"),
+    dateFiled: firstString(cluster, "date_filed", "dateFiled"),
     court:
       asString((cluster.docket as JsonRecord | undefined)?.court_id) ??
       asString(cluster.court) ??
@@ -178,13 +165,27 @@ function compactCluster(raw: unknown) {
   };
 }
 
+function attachOpinionStructure(
+  compacted: object,
+  text: string | null,
+  markup: string | null,
+) {
+  if (!text) return;
+  opinionDocumentTexts.set(compacted, text);
+  opinionStructures.set(
+    compacted,
+    buildLegalSourceStructure({
+      provider: "courtlistener",
+      text,
+      markup,
+      docType: "cases",
+    }),
+  );
+}
+
 function compactOpinion(opinion: JsonRecord, maxChars: number) {
-  const rawHtml =
-    asString(opinion.html_with_citations) ??
-    asString(opinion.html) ??
-    asString(opinion.xml_harvard) ??
-    null;
-  const rawText = asString(opinion.plain_text) ?? rawHtml ?? null;
+  const rawHtml = firstString(opinion, "html_with_citations", "html", "xml_harvard");
+  const rawText = asString(opinion.plain_text) ?? rawHtml;
   const text = stripOpinionMarkup(rawText);
   const html = sanitizeOpinionHtml(rawHtml);
   const compacted = {
@@ -199,24 +200,12 @@ function compactOpinion(opinion: JsonRecord, maxChars: number) {
     text: truncate(text, maxChars),
     html: truncate(html, maxChars),
   };
-  if (text) {
-    opinionDocumentTexts.set(compacted, text);
-    opinionStructures.set(
-      compacted,
-      buildLegalSourceStructure({
-        provider: "courtlistener",
-        text,
-        markup:
-          asString(opinion.xml_harvard) ??
-          asString(opinion.html_with_citations) ??
-          asString(opinion.html) ??
-          asString(opinion.html_lawbox) ??
-          asString(opinion.html_columbia) ??
-          asString(opinion.html_anon_2020),
-        docType: "cases",
-      }),
-    );
-  }
+  attachOpinionStructure(
+    compacted,
+    text,
+    firstString(opinion, "xml_harvard", "html_with_citations", "html",
+      "html_lawbox", "html_columbia", "html_anon_2020"),
+  );
   return compacted;
 }
 
@@ -256,9 +245,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   while (nextUrl && pages < MAX_OPINION_PAGES && remainingChars > 0) {
     pages += 1;
     devLog("[courtlistener/opinions-endpoint] fetching page", {
-      clusterId: args.clusterId,
-      path: nextUrl,
-      page: pages,
+      clusterId: args.clusterId, path: nextUrl, page: pages,
     });
     const data = await courtlistenerFetch<JsonRecord>(
       nextUrl,
@@ -354,48 +341,15 @@ function safeCourtlistenerHref(rawHref: string | null): string | null {
   return null;
 }
 
-const SAFE_OPINION_HTML_TAGS = new Set([
-  "a",
-  "blockquote",
-  "br",
-  "code",
-  "div",
-  "em",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "i",
-  "li",
-  "ol",
-  "p",
-  "pre",
-  "small",
-  "span",
-  "strong",
-  "sub",
-  "sup",
-  "table",
-  "tbody",
-  "td",
-  "th",
-  "thead",
-  "tr",
-  "u",
-  "ul",
-]);
+const SAFE_OPINION_HTML_TAGS = new Set(
+  "a blockquote br code div em h1 h2 h3 h4 h5 h6 i li ol p pre small span strong sub sup table tbody td th thead tr u ul".split(
+    " ",
+  ),
+);
 
-const SAFE_OPINION_ATTRS = new Set([
-  "aria-label",
-  "class",
-  "colspan",
-  "href",
-  "id",
-  "rowspan",
-  "title",
-]);
+const SAFE_OPINION_ATTRS = new Set(
+  "aria-label class colspan href id rowspan title".split(" "),
+);
 
 const VOID_OPINION_TAGS = new Set(["br"]);
 
@@ -506,10 +460,10 @@ function parseCitationParts(value: string) {
   };
 }
 
-function citationPartsLabel(parts: ReturnType<typeof parseCitationParts>) {
-  if (!parts) return null;
-  return [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ");
-}
+const citationPartsLabel = (parts: ReturnType<typeof parseCitationParts>) =>
+  parts
+    ? [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ")
+    : null;
 
 function clusterUrl(cluster: JsonRecord): string | null {
   const id = asNumber(cluster.id);
@@ -523,10 +477,7 @@ function clusterUrl(cluster: JsonRecord): string | null {
 function compactBulkCluster(cluster: JsonRecord, citations: string[] = []) {
   return {
     id: asNumber(cluster.id),
-    caseName:
-      asString(cluster.case_name) ??
-      asString(cluster.case_name_full) ??
-      asString(cluster.case_name_short),
+    caseName: firstString(cluster, "case_name", "case_name_full", "case_name_short"),
     dateFiled: asString(cluster.date_filed),
     court: null,
     citations,
@@ -622,16 +573,7 @@ async function getBulkCitationLookup(args: {
     hasDb: !!args.db,
     allowPartial: !!args.allowPartial,
     count: parsed.length,
-    candidates: parsed.map((row) => ({
-      citation: row.citation,
-      parsed: row.parts
-        ? {
-            volume: row.parts.volume,
-            reporter: row.parts.reporter,
-            page: row.parts.page,
-          }
-        : null,
-    })),
+    candidates: parsed.map((r) => ({ citation: r.citation, parsed: r.parts })),
   });
   if (!parsed.length) return null;
   if (courtlistenerLocalBulkAvailable()) {
@@ -646,12 +588,7 @@ async function getBulkCitationLookup(args: {
         };
       }
       const citation = citationPartsLabel(parts);
-      const matches =
-        lookupLocalCourtlistenerCitation({
-          volume: parts.volume,
-          reporter: parts.reporter,
-          page: parts.page,
-        }) ?? [];
+      const matches = lookupLocalCourtlistenerCitation(parts) ?? [];
       return {
         citation,
         status: matches.length ? "ok" : "not_found",
@@ -674,47 +611,46 @@ async function getBulkCitationLookup(args: {
   if (!args.allowPartial && parsed.some((row) => !row.parts)) {
     devLog("[courtlistener/bulk-citation-lookup] skipped", {
       reason: "unparseable_candidate",
-      unparseable: parsed
-        .filter((row) => !row.parts)
-        .map((row) => row.citation),
+      unparseable: parsed.filter((r) => !r.parts).map((r) => r.citation),
     });
     return null;
   }
 
   const results: CitationLookupRow[] = [];
+  const failRow = (
+    citation: string | null,
+    status: string,
+    message: string,
+  ) => {
+    results.push({ citation, status, message, clusters: [] });
+  };
 
   for (const row of parsed) {
     const parts = row.parts;
     if (!parts) {
       devLog("[courtlistener/bulk-citation-lookup] skipped candidate", {
-        citation: row.citation,
-        reason: "unparseable_candidate",
+        citation: row.citation, reason: "unparseable_candidate",
       });
       if (!args.allowPartial) return null;
-      results.push({
-        citation: row.citation,
-        status: "invalid",
-        message: "Citation could not be parsed for bulk lookup.",
-        clusters: [],
-      });
+      failRow(
+        row.citation,
+        "invalid",
+        "Citation could not be parsed for bulk lookup.",
+      );
       continue;
     }
     const verifiedCitation = citationPartsLabel(parts);
     if (!verifiedCitation) {
       if (!args.allowPartial) return null;
-      results.push({
-        citation: row.citation,
-        status: "invalid",
-        message: "Citation could not be normalized for bulk lookup.",
-        clusters: [],
-      });
+      failRow(
+        row.citation,
+        "invalid",
+        "Citation could not be normalized for bulk lookup.",
+      );
       continue;
     }
     devLog("[courtlistener/bulk-citation-lookup] citation query", {
-      citation: row.citation,
-      volume: parts.volume,
-      reporter: parts.reporter,
-      page: parts.page,
+      citation: row.citation, ...parts,
     });
     const { data: citationRows, error } = await args.db
       .from("courtlistener_citation_index")
@@ -730,12 +666,7 @@ async function getBulkCitationLookup(args: {
     });
     if (error) {
       if (!args.allowPartial) return null;
-      results.push({
-        citation: verifiedCitation,
-        status: "error",
-        message: error.message,
-        clusters: [],
-      });
+      failRow(verifiedCitation, "error", error.message);
       continue;
     }
     const clusterIds = [
@@ -751,18 +682,16 @@ async function getBulkCitationLookup(args: {
     ];
     if (!clusterIds.length) {
       if (!args.allowPartial) return null;
-      results.push({
-        citation: verifiedCitation,
-        status: "not_found",
-        message: "Citation was not found in the bulk citation index.",
-        clusters: [],
-      });
+      failRow(
+        verifiedCitation,
+        "not_found",
+        "Citation was not found in the bulk citation index.",
+      );
       continue;
     }
 
     devLog("[courtlistener/bulk-citation-lookup] cluster query", {
-      citation: row.citation,
-      clusterIds,
+      citation: row.citation, clusterIds,
     });
     const { data: clusters, error: clusterError } = await args.db
       .from("courtlistener_opinion_cluster_index")
@@ -778,33 +707,19 @@ async function getBulkCitationLookup(args: {
     });
     if (clusterError) {
       if (!args.allowPartial) return null;
-      results.push({
-        citation: verifiedCitation,
-        status: "error",
-        message: clusterError.message,
-        clusters: [],
-      });
+      failRow(verifiedCitation, "error", clusterError.message);
       continue;
     }
-    const clustersById = new Map(
-      (clusters ?? [])
-        .map((cluster) => {
-          const compact = compactBulkCluster(cluster as JsonRecord, [
-            verifiedCitation,
-          ]);
-          return typeof compact.id === "number"
-            ? ([compact.id, compact] as const)
-            : null;
-        })
-        .filter(
-          (
-            entry,
-          ): entry is readonly [
-            number,
-            ReturnType<typeof compactBulkCluster>,
-          ] => !!entry,
-        ),
-    );
+    const clustersById = new Map<
+      number,
+      ReturnType<typeof compactBulkCluster>
+    >();
+    for (const cluster of clusters ?? []) {
+      const compact = compactBulkCluster(cluster as JsonRecord, [
+        verifiedCitation,
+      ]);
+      if (typeof compact.id === "number") clustersById.set(compact.id, compact);
+    }
     const matchedClusters = clusterIds
       .map((clusterId) => clustersById.get(clusterId))
       .filter(
@@ -831,13 +746,12 @@ async function getBulkCitationLookup(args: {
     });
   }
 
-  const payload = {
+  return {
     citationsSubmitted: args.citations.length || undefined,
     citationLinks: buildCitationLinks(results),
     results,
     source: "bulk",
   };
-  return payload;
 }
 
 async function fetchCourtlistenerCitationLookup(args: {
@@ -845,15 +759,12 @@ async function fetchCourtlistenerCitationLookup(args: {
   citationsSubmitted?: number;
   apiToken?: string | null;
 }): Promise<CitationLookupPayload> {
-  const body = new URLSearchParams();
-  body.set("text", args.text.slice(0, 64000));
+  const body = new URLSearchParams({ text: args.text.slice(0, 64000) });
   const results = await courtlistenerFetch<unknown[]>(
     "/citation-lookup/",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     },
     args.apiToken,
@@ -891,12 +802,8 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 }) {
   const local = getLocalCourtlistenerCase(args.clusterId);
   if (local) {
-    const compactCluster = compactLocalBulkCluster(
-      local.cluster,
-      local.citations,
-    );
     return {
-      ...compactCluster,
+      ...compactLocalBulkCluster(local.cluster, local.citations),
       opinions: local.opinions.map((opinion) =>
         compactLocalOpinion(opinion, args.maxChars),
       ),
@@ -912,53 +819,31 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 
   const prefix = `${COURTLISTENER_R2_OPINIONS_PREFIX}/${args.clusterId}/`;
   devLog("[courtlistener/r2-opinions] listing", {
-    clusterId: args.clusterId,
-    prefix,
+    clusterId: args.clusterId, prefix,
   });
   const opinionKeys = (await listFiles(prefix))
     .filter((key) => key.endsWith(".json"))
     .sort();
   devLog("[courtlistener/r2-opinions] listed", {
-    clusterId: args.clusterId,
-    count: opinionKeys.length,
-    keys: opinionKeys,
+    clusterId: args.clusterId, count: opinionKeys.length, keys: opinionKeys,
   });
   if (!opinionKeys.length) return null;
 
   const rawOpinions = (
     await Promise.all(
       opinionKeys.map(async (key) => {
-        devLog("[courtlistener/r2-opinions] downloading", {
-          clusterId: args.clusterId,
-          key,
-        });
         const bytes = await downloadFile(key);
         if (!bytes) {
           devLog("[courtlistener/r2-opinions] download missing", {
-            clusterId: args.clusterId,
-            key,
+            clusterId: args.clusterId, key,
           });
           return null;
         }
         try {
-          const parsed = JSON.parse(
-            Buffer.from(bytes).toString("utf8"),
-          ) as JsonRecord;
-          devLog("[courtlistener/r2-opinions] downloaded", {
-            clusterId: args.clusterId,
-            key,
-            bytes: bytes.byteLength,
-            opinionId:
-              asNumber(parsed.opinionId) ??
-              asNumber(parsed.id) ??
-              asNumber(parsed.opinion_id),
-          });
-          return parsed;
+          return JSON.parse(Buffer.from(bytes).toString("utf8")) as JsonRecord;
         } catch {
           devLog("[courtlistener/r2-opinions] parse failed", {
-            clusterId: args.clusterId,
-            key,
-            bytes: bytes.byteLength,
+            clusterId: args.clusterId, key, bytes: bytes.byteLength,
           });
           return null;
         }
@@ -966,17 +851,13 @@ async function getBulkCourtlistenerCaseOpinions(args: {
     )
   ).filter((opinion): opinion is JsonRecord => !!opinion);
   devLog("[courtlistener/r2-opinions] parsed", {
-    clusterId: args.clusterId,
-    count: rawOpinions.length,
+    clusterId: args.clusterId, count: rawOpinions.length,
   });
   if (!rawOpinions.length) return null;
 
   let compactCluster:
     | ReturnType<typeof compactBulkCluster>
-    | {
-        id: number;
-        url: string | null;
-      } = {
+    | { id: number; url: string | null } = {
     id: args.clusterId,
     url:
       absoluteWebUrl(rawOpinions[0]?.url) ??
@@ -993,8 +874,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
       .maybeSingle();
     if (error) {
       devLog("[courtlistener/r2-opinions] cluster metadata query failed", {
-        clusterId: args.clusterId,
-        error: error.message,
+        clusterId: args.clusterId, error: error.message,
       });
     } else if (cluster) {
       const { data: citationRows } = await args.db
@@ -1023,26 +903,13 @@ async function getBulkCourtlistenerCaseOpinions(args: {
           !!opinion && typeof opinion === "object" && !Array.isArray(opinion),
       )
       .map((opinion) => {
-        const rawHtml =
-          asString(opinion.htmlWithCitations) ??
-          asString(opinion.html_with_citations) ??
-          asString(opinion.html) ??
-          asString(opinion.htmlLawbox) ??
-          asString(opinion.html_lawbox) ??
-          asString(opinion.htmlColumbia) ??
-          asString(opinion.html_columbia) ??
-          asString(opinion.htmlWithCitationsLawbox) ??
-          asString(opinion.html_with_citations_lawbox) ??
-          asString(opinion.xmlHarvard) ??
-          asString(opinion.xml_harvard) ??
-          asString(opinion.xmlLawbox) ??
-          asString(opinion.xml_lawbox) ??
-          null;
+        const rawHtml = firstString(opinion,
+          "htmlWithCitations", "html_with_citations", "html",
+          "htmlLawbox", "html_lawbox", "htmlColumbia", "html_columbia",
+          "htmlWithCitationsLawbox", "html_with_citations_lawbox",
+          "xmlHarvard", "xml_harvard", "xmlLawbox", "xml_lawbox");
         const rawText =
-          asString(opinion.plainText) ??
-          asString(opinion.plain_text) ??
-          rawHtml ??
-          null;
+          asString(opinion.plainText) ?? asString(opinion.plain_text) ?? rawHtml;
         const text = stripOpinionMarkup(rawText);
         const compacted = {
           opinionId:
@@ -1057,27 +924,14 @@ async function getBulkCourtlistenerCaseOpinions(args: {
           text: truncate(text, args.maxChars),
           html: truncate(sanitizeOpinionHtml(rawHtml), args.maxChars),
         };
-        if (text) {
-          opinionDocumentTexts.set(compacted, text);
-          opinionStructures.set(
-            compacted,
-            buildLegalSourceStructure({
-              provider: "courtlistener",
-              text,
-              markup:
-                asString(opinion.xmlHarvard) ??
-                asString(opinion.xml_harvard) ??
-                asString(opinion.htmlWithCitations) ??
-                asString(opinion.html_with_citations) ??
-                asString(opinion.html) ??
-                asString(opinion.htmlLawbox) ??
-                asString(opinion.html_lawbox) ??
-                asString(opinion.htmlColumbia) ??
-                asString(opinion.html_columbia),
-              docType: "cases",
-            }),
-          );
-        }
+        attachOpinionStructure(
+          compacted,
+          text,
+          firstString(opinion,
+            "xmlHarvard", "xml_harvard", "htmlWithCitations",
+            "html_with_citations", "html", "htmlLawbox", "html_lawbox",
+            "htmlColumbia", "html_columbia"),
+        );
         return compacted;
       }),
     source: "bulk",
@@ -1127,23 +981,18 @@ export async function verifyCourtlistenerCitations(args: {
     return { error: "Provide at least one citation or case name." };
   }
 
-  const bulkCandidates = citations;
   const bulk = await getBulkCitationLookup({
     db: args.db,
-    citations: bulkCandidates,
+    citations,
     allowPartial: true,
   });
   devLog("[courtlistener/bulk-citation-lookup] result", {
     hit: !!bulk,
     citationsSubmitted: citations.length || undefined,
-    candidateCount: bulkCandidates.length,
-    resultCount: Array.isArray(bulk?.results) ? bulk.results.length : 0,
-    citationLinkCount: Array.isArray(bulk?.citationLinks)
-      ? bulk.citationLinks.length
-      : 0,
-    statuses: Array.isArray(bulk?.results)
-      ? bulk.results.map((result) => result.status)
-      : [],
+    candidateCount: citations.length,
+    resultCount: bulk?.results.length ?? 0,
+    citationLinkCount: bulk?.citationLinks.length ?? 0,
+    statuses: bulk?.results.map((r) => r.status) ?? [],
     source: bulk?.source ?? null,
   });
   if (bulk) {
@@ -1160,8 +1009,7 @@ export async function verifyCourtlistenerCitations(args: {
     if (!apiFallbackInputs.length) return bulk;
 
     devLog("[courtlistener/bulk-citation-lookup] api fallback", {
-      candidateCount: apiFallbackInputs.length,
-      candidates: apiFallbackInputs,
+      candidateCount: apiFallbackInputs.length, candidates: apiFallbackInputs,
     });
     try {
       const apiFallback = await fetchCourtlistenerCitationLookup({
@@ -1234,15 +1082,10 @@ export async function searchCourtlistenerCaseLaw(args: {
       }),
     };
   }
-  const params = new URLSearchParams({
-    type: "o",
-    q: query,
-  });
+  const params = new URLSearchParams({ type: "o", q: query });
   if (args.court?.trim()) params.set("court", args.court.trim());
-  if (args.filedAfter?.trim())
-    params.set("filed_after", args.filedAfter.trim());
-  if (args.filedBefore?.trim())
-    params.set("filed_before", args.filedBefore.trim());
+  if (args.filedAfter?.trim()) params.set("filed_after", args.filedAfter.trim());
+  if (args.filedBefore?.trim()) params.set("filed_before", args.filedBefore.trim());
 
   const data = await courtlistenerFetch<JsonRecord>(
     `/search/?${params}`,
@@ -1258,20 +1101,14 @@ export async function searchCourtlistenerCaseLaw(args: {
         clusterId:
           asNumber(r.cluster_id) ??
           asNumber((r.cluster as JsonRecord | undefined)?.id),
-        caseName:
-          asString(r.caseName) ??
-          asString(r.case_name) ??
-          asString(r.caseNameFull),
+        caseName: firstString(r, "caseName", "case_name", "caseNameFull"),
         citation:
           asString(r.citation) ??
           (Array.isArray(r.citation)
             ? r.citation.map(citationLabel).filter(Boolean).join("; ")
             : null),
-        court:
-          asString(r.court) ??
-          asString(r.court_id) ??
-          asString(r.court_citation_string),
-        dateFiled: asString(r.dateFiled) ?? asString(r.date_filed),
+        court: firstString(r, "court", "court_id", "court_citation_string"),
+        dateFiled: firstString(r, "dateFiled", "date_filed"),
         snippet: asString(r.snippet),
         url: absoluteWebUrl(r.absolute_url),
       };
@@ -1346,9 +1183,7 @@ export async function getCourtlistenerCases(args: {
           id: clusterId,
           opinions: [],
           error:
-            err instanceof Error
-              ? err.message
-              : "CourtListener case fetch failed.",
+            err instanceof Error ? err.message : "CourtListener case fetch failed.",
         };
       }
     }),
