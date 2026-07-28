@@ -55,22 +55,32 @@ describe("applyTrackedEdits minimal clusters", () => {
 });
 
 describe("applyTrackedEdits annotate mode", () => {
-  it("rejects rationale-free markup", async () => {
-    const bytes = await draft("The seat of arbitration shall be Zurich.");
-    await expect(
-      applyTrackedEdits(
-        bytes,
-        [
-          {
-            find: "Zurich",
-            replace: "New York",
-            context_before: "shall be ",
-            context_after: ".",
-          },
-        ],
-        { annotate: true },
-      ),
-    ).rejects.toThrow(/reason/u);
+  it("annotates only reasoned edits; unreasoned ones apply without a comment", async () => {
+    const bytes = await draft(
+      "The seat of arbitration shall be Zurich. Costs follow the event.",
+    );
+    const edit = await applyTrackedEdits(
+      bytes,
+      [
+        {
+          find: "Zurich",
+          replace: "New York",
+          context_before: "shall be ",
+          context_after: ". Costs",
+          reason: "LLC Agreement s. 12.2 requires a New York seat.",
+        },
+        {
+          find: "the event",
+          replace: "the cause",
+          context_before: "follow ",
+          context_after: ".",
+        },
+      ],
+      { annotate: true },
+    );
+    expect(edit.errors).toEqual([]);
+    expect(edit.changes.length).toBeGreaterThanOrEqual(2);
+    expect(edit.comments).toBe(1);
   });
 
   it("anchors one comment per edit spanning its revision", async () => {

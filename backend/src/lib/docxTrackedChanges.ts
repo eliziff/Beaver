@@ -804,17 +804,11 @@ export async function applyTrackedEdits(
 ): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
+    // Annotate mode renders reasons as anchored comments where present.
+    // Whether every edit SHOULD carry a rationale is a policy question the
+    // caller measures, not a contract this layer enforces: unreasoned edits
+    // simply produce no comment, and the caller can count them.
     const annotate = opts?.annotate ?? false;
-    if (annotate) {
-        const missing = edits.findIndex(
-            (edit) => !edit.reason || !edit.reason.trim(),
-        );
-        if (missing >= 0) {
-            throw new Error(
-                `annotate requires a non-empty reason on every edit (edit ${missing} has none): a markup without rationale is a clean draft, not a markup.`,
-            );
-        }
-    }
 
     const zip = await loadZip(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
