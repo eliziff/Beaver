@@ -43,7 +43,9 @@ import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import {
+    filenameExtensionChangeWarning,
     formatUnsupportedDocumentWarning,
+    hasFilenameExtensionChange,
     partitionSupportedDocumentFiles,
     SUPPORTED_DOCUMENT_ACCEPT,
 } from "@/app/lib/documentUploadValidation";
@@ -475,7 +477,9 @@ export function DocTable({
             (filename == null ||
                 hasFilenameExtensionChange(previousFilename, filename))
         ) {
-            setDocumentRenameWarning(extensionChangeWarning(previousFilename));
+            setDocumentRenameWarning(
+                filenameExtensionChangeWarning(previousFilename),
+            );
             return;
         }
 
@@ -888,7 +892,9 @@ export function DocTable({
             return;
         }
         if (hasFilenameExtensionChange(previous.filename, trimmed)) {
-            setDocumentRenameWarning(extensionChangeWarning(previous.filename));
+            setDocumentRenameWarning(
+                filenameExtensionChangeWarning(previous.filename),
+            );
             return;
         }
 
@@ -2615,27 +2621,4 @@ export function DocTable({
 
         </div>
     );
-}
-
-function filenameExtension(filename: string) {
-    const trimmed = filename.trim();
-    const dotIndex = trimmed.lastIndexOf(".");
-    if (dotIndex <= 0 || dotIndex === trimmed.length - 1) return null;
-    return trimmed.slice(dotIndex);
-}
-
-function hasFilenameExtensionChange(previous: string, next: string) {
-    const previousExtension = filenameExtension(previous);
-    if (previousExtension == null) return false;
-    return (
-        filenameExtension(next)?.toLowerCase() !==
-        previousExtension.toLowerCase()
-    );
-}
-
-function extensionChangeWarning(filename: string) {
-    const extension = filenameExtension(filename);
-    return extension
-        ? `File extensions cannot be changed here. Keep ${extension} at the end of the name.`
-        : "File extensions cannot be changed here.";
 }
