@@ -38,12 +38,37 @@ export type LibraryCollection = {
 
 export type Chat = { id: string; title?: string | null; updated_at?: string };
 
+export type StreamEvent = { type?: string; text?: string; chatId?: string; error?: string };
+
+async function* stream(path: string, body: unknown): AsyncGenerator<StreamEvent> {
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "POST",
+    headers: { Accept: "text/event-stream", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok || !response.body) throw new Error((await response.text()) || `HTTP ${response.status}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const part = await reader.read();
+    buffer += decoder.decode(part.value ?? new Uint8Array(), { stream: !part.done });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.split("\n").find((value) => value.startsWith("data: "));
+      if (!line) continue;
+      const data = line.slice(6);
+      if (data === "[DONE]") return;
+      try { yield JSON.parse(data) as StreamEvent; } catch { /* ignore malformed frames */ }
+    }
+    if (part.done) return;
+  }
+}
+
 export const api = {
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
   chats: () => request<Chat[]>("/chat?limit=20"),
-  createChat: (content: string) =>
-    request<{ id: string }>("/chat/create", {
-      method: "POST",
-      body: JSON.stringify({}),
-    }).then(({ id }) => ({ id, content })),
+  streamChat: (messages: { role: string; content: string }[]) =>
+    stream("/chat", { messages }),
 };

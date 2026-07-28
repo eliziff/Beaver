@@ -22,7 +22,13 @@ h2 { font-size: 1.1rem; margin: 0; }
 .prompt { display: grid; gap: 10px; margin-top: 28px; }
 textarea { width: 100%; resize: vertical; border: 1px solid #a8a8a2; border-radius: 6px; padding: 14px; background: #fff; min-height: 92px; }
 textarea:focus { outline: 3px solid #f4bbb5; border-color: #a72219; }
+.transcript { padding: 2px 16px; }
+.message { padding: 14px 0; }
+.message + .message { border-top: 1px solid #e4e4df; }
+.message strong { font-size: .82rem; color: #9f2017; }
+.message p { white-space: pre-wrap; margin: 5px 0 0; }
 .primary, .upload { width: fit-content; border: 0; border-radius: 5px; background: #d52b1e; color: #fff; padding: 10px 16px; font-weight: 700; }
+.primary:disabled { opacity: .65; cursor: wait; }
 .primary:hover, .upload:hover { background: #a72219; }
 .panel { background: #fff; border: 1px solid #d5d5d0; border-radius: 7px; overflow: hidden; }
 .panel-heading, .row { min-height: 52px; display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
