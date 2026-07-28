@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
 import { generateTabularColumnPrompt } from "@/app/lib/beaverApi";
@@ -29,6 +29,11 @@ const EMPTY_DRAFT: ColumnDraft = {
     tagInput: "",
 };
 
+const PRESET_OPTIONS = [
+    { value: "", label: "Custom column" },
+    ...PROMPT_PRESETS.map(({ name }) => ({ value: name, label: name })),
+];
+
 interface Props {
     open: boolean;
     existingCount: number;
@@ -54,10 +59,6 @@ export function AddColumnModal({
     const [collapsedIndices, setCollapsedIndices] = useState<number[]>([]);
     const [generatingIndices, setGeneratingIndices] = useState<number[]>([]);
     const [submitting, setSubmitting] = useState(false);
-    const [presetsOpenIndex, setPresetsOpenIndex] = useState<number | null>(
-        null,
-    );
-    const presetsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -75,21 +76,6 @@ export function AddColumnModal({
         setCollapsedIndices([]);
     }, [editingColumn, open]);
 
-    useEffect(() => {
-        if (presetsOpenIndex === null) return;
-        function handleClickOutside(e: MouseEvent) {
-            if (
-                presetsRef.current &&
-                !presetsRef.current.contains(e.target as Node)
-            ) {
-                setPresetsOpenIndex(null);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
-    }, [presetsOpenIndex]);
-
     if (!open) return null;
 
     function resetForm() {
@@ -106,6 +92,22 @@ export function AddColumnModal({
     function updateColumn(index: number, patch: Partial<ColumnDraft>) {
         setColumns((prev) =>
             prev.map((col, i) => (i === index ? { ...col, ...patch } : col)),
+        );
+    }
+
+    function applyPreset(index: number, name: string) {
+        const preset = PROMPT_PRESETS.find((item) => item.name === name);
+        updateColumn(
+            index,
+            preset
+                ? {
+                      name,
+                      prompt: preset.prompt,
+                      format: preset.format,
+                      tags: preset.tags ?? [],
+                      tagInput: "",
+                  }
+                : { ...EMPTY_DRAFT },
         );
     }
 
@@ -136,7 +138,6 @@ export function AddColumnModal({
                 ? prev.filter((collapsedIndex) => collapsedIndex !== index)
                 : [...prev, index],
         );
-        setPresetsOpenIndex(null);
     }
 
     function commitTag(index: number) {
@@ -285,11 +286,18 @@ export function AddColumnModal({
                             >
                                 {(() => {
                                     const nameInputId = `column-${index}-name`;
+                                    const presetInputId = `column-${index}-preset`;
                                     const formatInputId = `column-${index}-format`;
                                     const tagInputId = `column-${index}-tag`;
                                     const promptInputId = `column-${index}-prompt`;
                                     const isCollapsed =
                                         collapsedIndices.includes(index);
+                                    const presetName = PROMPT_PRESETS.some(
+                                        (preset) =>
+                                            preset.name === column.name,
+                                    )
+                                        ? column.name
+                                        : "";
 
                                     return (
                                         <>
@@ -326,108 +334,52 @@ export function AddColumnModal({
                                             </div>
                                             {!isCollapsed && (
                                                 <>
-                                            <ModalFieldLabel htmlFor={nameInputId}>
+                                            <ModalFieldLabel htmlFor={presetInputId}>
+                                                Start from
+                                            </ModalFieldLabel>
+                                            <ModalSelect
+                                                id={presetInputId}
+                                                value={presetName}
+                                                options={PRESET_OPTIONS}
+                                                onChange={(name) =>
+                                                    applyPreset(index, name)
+                                                }
+                                                searchable
+                                                ariaLabel="Choose column preset"
+                                            />
+                                            <ModalFieldLabel
+                                                htmlFor={nameInputId}
+                                                className="mt-4"
+                                            >
                                                 Column title
                                             </ModalFieldLabel>
-                                {/* Name row */}
-                                <div className="flex items-start gap-2">
-                                    {/* Input + preset dropdown anchored to this wrapper */}
-                                    <div
-                                        className="relative flex flex-1 items-start"
-                                        ref={
-                                            presetsOpenIndex === index
-                                                ? presetsRef
-                                                : null
-                                        }
-                                    >
-                                        <ModalTextInput
-                                            id={nameInputId}
-                                            type="text"
-                                            variant="minimal"
-                                            value={column.name}
-                                            onChange={(e) => {
-                                                const name = e.target.value;
-                                                const preset =
-                                                    getPresetConfig(name);
-                                                updateColumn(index, {
-                                                    name,
-                                                    ...(preset
-                                                        ? {
-                                                              prompt: preset.prompt,
-                                                              format: preset.format,
-                                                              tags:
-                                                                  preset.tags ??
-                                                                  [],
-                                                              tagInput: "",
-                                                          }
-                                                        : {}),
-                                                });
-                                            }}
-                                            placeholder="Column name"
-                                            className="flex-1"
-                                            autoFocus={index === 0}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setPresetsOpenIndex(
-                                                    presetsOpenIndex === index
-                                                        ? null
-                                                        : index,
-                                                )
-                                            }
-                                            title="Column presets"
-                                            className="mt-1.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                                        >
-                                            <ChevronDown
-                                                className={`h-4 w-4 ${presetsOpenIndex === index ? "rotate-180" : ""}`}
+                                            <ModalTextInput
+                                                id={nameInputId}
+                                                type="text"
+                                                variant="minimal"
+                                                value={column.name}
+                                                onChange={(e) => {
+                                                    const name = e.target.value;
+                                                    const preset =
+                                                        getPresetConfig(name);
+                                                    updateColumn(index, {
+                                                        name,
+                                                        ...(preset
+                                                            ? {
+                                                                  prompt: preset.prompt,
+                                                                  format: preset.format,
+                                                                  tags:
+                                                                      preset.tags ??
+                                                                      [],
+                                                                  tagInput: "",
+                                                              }
+                                                            : {}),
+                                                    });
+                                                }}
+                                                placeholder="Column name"
+                                                className="flex-1"
+                                                autoFocus={index === 0}
                                             />
-                                        </button>
-                                        {presetsOpenIndex === index && (
-                                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-gray-100 bg-white shadow-lg overflow-y-auto max-h-64">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        updateColumn(index, { ...EMPTY_DRAFT });
-                                                        setPresetsOpenIndex(null);
-                                                    }}
-                                                    className="w-full px-3 py-2 text-left text-sm text-gray-400 hover:bg-gray-50 transition-colors border-b border-gray-100"
-                                                >
-                                                    No Preset
-                                                </button>
-                                                {PROMPT_PRESETS.map(
-                                                    (preset) => (
-                                                        <button
-                                                            key={preset.name}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                updateColumn(
-                                                                    index,
-                                                                    {
-                                                                        name: preset.name,
-                                                                        prompt: preset.prompt,
-                                                                        format: preset.format,
-                                                                        tags:
-                                                                            preset.tags ??
-                                                                            [],
-                                                                        tagInput:
-                                                                            "",
-                                                                    },
-                                                                );
-                                                                setPresetsOpenIndex(
-                                                                    null,
-                                                                );
-                                                            }}
-                                                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                        >
-                                                            {preset.name}
-                                                        </button>
-                                                    ),
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
 
                                 <div className="mt-4">
                                     <ModalFieldLabel htmlFor={formatInputId}>
