@@ -55,7 +55,7 @@ export const EVAL_ARMS = [
 ] as const;
 export type EvalArm = (typeof EVAL_ARMS)[number];
 
-export const SCORING_VERSION = "beaver-can-arm-scoring-2";
+export const SCORING_VERSION = "beaver-can-arm-scoring-3";
 
 const REPO_ROOT = path.join(__dirname, "..", "..", "..");
 const repoRelative = (file: string) =>
@@ -86,15 +86,32 @@ export type BeaverCanScore = {
   numeric: Record<string, number>;
 };
 
+const normalizeCitation = (text: string) =>
+  text.toLowerCase().replaceAll(/[.,]/gu, "").replaceAll(/\s+/gu, " ");
+const NEUTRAL_CITATION =
+  /\[\d{4}\]\s+\d+\s+[A-Z]{2,4}\s+\d+|\b\d{4}\s+[A-Z]{2,6}\s+\d+\b/u;
+
 export function scoreBeaverCanOutput(
   loaded: LoadedBeaverCanTask,
   outputText: string,
 ): BeaverCanScore {
   const { task, gold } = loaded;
+  // Real memoranda cite authorities by citation ("R. v. Latimer, 2001 SCC 1"),
+  // not by packet id, so a source also counts as cited when its manifest
+  // citation — or the neutral/report citation inside it — appears in the
+  // output, punctuation- and whitespace-insensitively.
+  const normalizedOutput = normalizeCitation(outputText);
   const citedSourceIds = [
-    ...new Set(
-      (outputText.match(/SRC-\d{3}/giu) ?? []).map((id) => id.toUpperCase()),
-    ),
+    ...new Set([
+      ...(outputText.match(/SRC-\d{3}/giu) ?? []).map((id) => id.toUpperCase()),
+      ...loaded.sources
+        .filter((source) =>
+          [source.citation, source.citation.match(NEUTRAL_CITATION)?.[0]]
+            .filter((key): key is string => Boolean(key))
+            .some((key) => normalizedOutput.includes(normalizeCitation(key))),
+        )
+        .map((source) => source.source_id),
+    ]),
   ];
   const outsidePacket = forbiddenSources(citedSourceIds, task.source_ids);
   const leaks = gold.seeded_identifiers
