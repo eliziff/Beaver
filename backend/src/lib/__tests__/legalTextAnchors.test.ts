@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   anchorCoverage,
+  bilingualConcordance,
   extractAnchors,
   numeralWordPairs,
   wordPhraseToNumber,
@@ -169,6 +170,100 @@ describe("extractAnchors: currencies and Canadian forms", () => {
     ]);
     expect(norms("Gideon v. Wainwright, 372 U.S. 335 (1963)", "cite")).toEqual([
       "cite:372us335",
+    ]);
+  });
+});
+
+describe("extractAnchors: French productions", () => {
+  it("normalizes French dates to the same keys as English", () => {
+    expect(norms("le 15 mars 2027")).toEqual(["date:2027-03-15"]);
+    expect(norms("le 1er juin 2020")).toEqual(["date:2020-06-01"]);
+    expect(norms("le 3 février 2026")).toEqual(["date:2026-02-03"]);
+    expect(norms("le 3 fevrier 2026")).toEqual(["date:2026-02-03"]); // OCR-stripped accent
+  });
+
+  it("reads trailing-sign and worded French money", () => {
+    expect(norms("une somme de 2 250 000 $")).toEqual(["money:dlr:2250000"]);
+    expect(norms("des frais de 50 $", "money")).toEqual(["money:dlr:50"]);
+    expect(norms("40 millions de dollars")).toEqual(["money:dlr:40000000"]);
+    expect(norms("870 millions d'euros")).toEqual(["money:eur:870000000"]);
+    expect(norms("2,5 milliards de dollars")).toEqual(["money:dlr:2500000000"]);
+  });
+
+  it("reads French decimal-comma percentages", () => {
+    expect(norms("environ 0,5 %", "percent")).toEqual(["pct:0.5"]);
+    expect(norms("81 % du marché", "percent")).toEqual(["pct:81"]);
+  });
+
+  it("normalizes French duration units to English keys", () => {
+    expect(norms("dans les trente (30) jours", "duration")).toEqual(["dur:30:day"]);
+    expect(norms("un délai de 5 jours ouvrables", "duration")).toEqual([
+      "dur:5:business_day",
+    ]);
+    expect(norms("un préavis de 60 jours francs", "duration")).toEqual([
+      "dur:60:clear_day",
+    ]);
+    expect(norms("une période de 12 mois", "duration")).toEqual(["dur:12:month"]);
+  });
+
+  it("normalizes French statute citations to the English keys", () => {
+    expect(norms("L.R.C. (1985), ch. C-46, art. 231", "statute")).toEqual([
+      "stat:rsc1985:cc-46:s231",
+    ]);
+    expect(norms("la Loi, L.C. 1991, ch. 46, art. 427", "statute")).toEqual([
+      "stat:sc1991:c46:s427",
+    ]);
+    expect(norms("sous le régime du RLRQ, c. S-2.1", "statute")).toEqual([
+      "stat:cqlr:cs-2.1",
+    ]);
+    expect(norms("DORS/2005-407 et TR/2004-121", "statute")).toEqual([
+      "stat:sor:2005-407",
+      "stat:si:2004-121",
+    ]);
+  });
+
+  it("maps French neutral-citation courts onto English twins", () => {
+    expect(norms("R c Smith, 2015 CSC 5", "cite")).toEqual(["cite:2015scc5"]);
+    expect(norms("2020 CAF 112", "cite")).toEqual(["cite:2020fca112"]);
+  });
+});
+
+describe("bilingualConcordance", () => {
+  const en = {
+    name: "en",
+    text:
+      "The fee is $2,250,000, payable within 30 days of March 15, 2027, " +
+      "under R.S.C. 1985, c. C-46, s. 231 and SOR/2005-407.",
+  };
+  const fr = {
+    name: "fr",
+    text:
+      "Les droits sont de 2 250 000 $, payables dans les 30 jours suivant " +
+      "le 15 mars 2027, sous le régime de la L.R.C. (1985), ch. C-46, " +
+      "art. 231 et du DORS/2005-407.",
+  };
+
+  it("reports full concordance when both versions carry the same anchors", () => {
+    const report = bilingualConcordance(en, fr);
+    expect(report.discordant).toBe(0);
+    expect(report.classes.money.matched).toBe(1);
+    expect(report.classes.date.matched).toBe(1);
+    expect(report.classes.duration.matched).toBe(1);
+    expect(report.classes.statute.matched).toBe(2);
+  });
+
+  it("surfaces version drift as english_only/french_only rows", () => {
+    const frDrifted = {
+      name: "fr",
+      text: fr.text.replace("2 250 000 $", "2 500 000 $"),
+    };
+    const report = bilingualConcordance(en, frDrifted);
+    expect(report.discordant).toBe(2);
+    expect(report.classes.money.english_only.map((row) => row.norm)).toEqual([
+      "money:dlr:2250000",
+    ]);
+    expect(report.classes.money.french_only.map((row) => row.norm)).toEqual([
+      "money:dlr:2500000",
     ]);
   });
 });
