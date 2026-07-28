@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+import { createSupabaseStub, type SupabaseResult } from "../helpers/supabaseStub";
 
 // ---------------------------------------------------------------------------
 // Hoisted mock fns reconfigured per-test. Access helpers + model settings are
@@ -28,11 +29,9 @@ const {
 // per-table result, rpc() resolves to a per-call result. Insert payloads are
 // recorded so tests can assert on what got persisted.
 // ---------------------------------------------------------------------------
-type QueryResult = { data: unknown; error: unknown };
-
 let supabaseState: {
-    rpc: QueryResult;
-    tables: Record<string, QueryResult>;
+    rpc: SupabaseResult;
+    tables: Record<string, SupabaseResult>;
     inserts: { table: string; payload: unknown }[];
 };
 
@@ -45,38 +44,12 @@ function resetSupabaseState() {
 }
 resetSupabaseState();
 
-function resultForTable(table: string): QueryResult {
-    return supabaseState.tables[table] ?? { data: null, error: null };
-}
-
-function makeQuery(table: string) {
-    const q: Record<string, unknown> = {};
-    const chain = [
-        "select", "update", "delete", "upsert",
-        "eq", "neq", "in", "is", "or", "not", "lt", "gt", "gte", "lte",
-        "filter", "order", "limit", "range", "contains",
-    ];
-    for (const m of chain) q[m] = vi.fn(() => q);
-    q.insert = vi.fn((payload: unknown) => {
-        supabaseState.inserts.push({ table, payload });
-        return q;
-    });
-    q.single = vi.fn(() => Promise.resolve(resultForTable(table)));
-    q.maybeSingle = vi.fn(() => Promise.resolve(resultForTable(table)));
-    q.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(resultForTable(table)).then(resolve, reject);
-    return q;
-}
-
 function mockSupabase() {
-    return {
-        from: vi.fn((table: string) => makeQuery(table)),
-        rpc: vi.fn(() => Promise.resolve(supabaseState.rpc)),
-        auth: {
-            getUser: () =>
-                Promise.resolve({ data: { user: { id: "u1" } }, error: null }),
-        },
-    };
+    return createSupabaseStub({
+        result: (table) => supabaseState.tables[table] ?? { data: null, error: null },
+        rpc: () => supabaseState.rpc,
+        onInsert: (table, payload) => supabaseState.inserts.push({ table, payload }),
+    });
 }
 
 vi.mock("../../lib/supabase", () => ({
