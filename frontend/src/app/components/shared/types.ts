@@ -519,21 +519,6 @@ function formatCellLocatorReadable(sheet?: string, cell?: string): string {
   return sheet ? `${sheet}, ${cellPart}` : cellPart;
 }
 
-/** `{sheet, cell}` locators for a citation's quotes (spreadsheet sources). */
-export function getCitationCells(
-  a: Citation,
-): { sheet?: string; cell?: string }[] {
-  if (
-    a.kind === "case" ||
-    a.kind === "a2aj" ||
-    a.kind === "public_legal"
-  )
-    return [];
-  return getDocumentCitationQuotes(a)
-    .filter((q) => q.cell || q.sheet)
-    .map((q) => ({ sheet: q.sheet, cell: q.cell }));
-}
-
 function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[] {
   const rangeMatch =
     typeof entry.page === "string"

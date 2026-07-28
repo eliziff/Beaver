@@ -18,14 +18,6 @@ import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePri
 
 export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
 
-export type ProjectContextMenu = {
-    x: number;
-    y: number;
-    docId?: string | null;
-    folderId: string | null;
-    showFolderActions: boolean;
-};
-
 export const NAME_COL_W = TABLE_PRIMARY_CELL_WIDTH_CLASS;
 export const DOC_NAME_COL_W = "min-w-0 flex-1";
 
@@ -185,4 +177,3 @@ export function ProjectPageHeader({
         />
     );
 }
-
