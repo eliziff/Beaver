@@ -413,7 +413,7 @@ async function extractLocalDocument(userId: string, documentId: string) {
       text = (await mammoth.extractRawText({ buffer: bytes })).value;
     }
   } else if (isSpreadsheetDocumentType(fileType)) {
-    text = spreadsheetToLLMText(bytes);
+    text = await spreadsheetToLLMText(bytes);
   } else if (fileType === "pptx") {
     text = await extractPresentationText(bytes);
   } else if (
