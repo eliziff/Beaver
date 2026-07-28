@@ -28,7 +28,6 @@ import { providerForModel } from "../lib/llm/models";
 import {
   LOCAL_ASSISTANT_TOOLS,
   RESEARCH_TOOLS_DISABLED,
-  extractLocalDocument,
   runLocalAssistantTools,
 } from "../lib/chat/localAssistantTools";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
@@ -855,38 +854,19 @@ export async function streamAnonymousChat(params: {
     filename: turnDocumentById.get(documentId)!.filename,
     document_id: documentId,
   }));
-  const attachedText = (
-    await Promise.all(
-      canonicalTurnFiles.map(async (file) => {
-        const extracted = await extractLocalDocument(
-          userId,
-          file.document_id,
-        ).catch(() => null);
-        const text =
-          extracted?.text.trim() ||
-          "(No extractable text; use library_read for the source file.)";
-        return `[Attached document "${file.filename}" (document_id: ${file.document_id}) full text:\n${text}]`;
-      }),
-    )
-  ).join("\n\n");
-  const providerContent = [
-    params.currentTurn.kind === "message"
-      ? params.currentTurn.message.content
-      : params.currentTurn.content,
-    attachedText,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  // Attachments are announced, not preloaded: formatChatMessageContent
+  // prepends the attached-document manifest (filename + document_id) when the
+  // message reaches the provider, and the model pulls content through the
+  // Library tools only when it needs it.
   const currentProviderMessage: ChatMessage =
     params.currentTurn.kind === "message"
       ? {
           ...params.currentTurn.message,
-          content: providerContent,
           files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
         }
       : {
           role: "user",
-          content: providerContent,
+          content: params.currentTurn.content,
           files: canonicalTurnFiles.length ? canonicalTurnFiles : undefined,
         };
   const withinMatter = (message: ChatMessage): ChatMessage => ({
