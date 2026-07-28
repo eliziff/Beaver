@@ -5,7 +5,7 @@
     "scripts": {
         "dev": "next dev",
         "prebuild": "node scripts/guard-live-build.mjs",
-        "build": "next build",
+        "build": "node scripts/build.mjs",
         "start": "next start",
         "lint": "eslint",
         "test": "vitest run && node --test scripts/guard-live-build.test.mjs",
