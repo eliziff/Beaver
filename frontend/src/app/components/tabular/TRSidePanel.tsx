@@ -1,7 +1,6 @@
 "use client";
 
 import {
-    type PointerEvent as ReactPointerEvent,
     type ReactNode,
     useEffect,
     useRef,
@@ -35,6 +34,10 @@ import {
     APP_SURFACE_PRESSED_CLASS,
     LIQUID_PANEL_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
+import {
+    HORIZONTAL_RESIZE_HANDLE_CLASS,
+    horizontalDrag,
+} from "@/app/components/ui/horizontal-drag";
 
 function isDocxDocument(d: {
     file_type?: string | null;
@@ -132,9 +135,6 @@ export function TRSidePanel({
         DEFAULT_DOCUMENT_PANE_WIDTH,
     );
     const panelRef = useRef<HTMLDivElement>(null);
-    const resizePointerId = useRef<number | null>(null);
-    const resizeStartX = useRef(0);
-    const resizeStartWidth = useRef(DEFAULT_DOCUMENT_PANE_WIDTH);
 
     // Internal state — initialised from props, also toggled by badge clicks inside the panel
     const [docCitation, setDocCitation] = useState<TRPanelCitation | undefined>(
@@ -173,14 +173,6 @@ export function TRSidePanel({
         citationSheet,
     ]);
 
-    useEffect(
-        () => () => {
-            document.body.style.cursor = "";
-            document.body.style.userSelect = "";
-        },
-        [],
-    );
-
     useEffect(() => {
         const handleOutsidePointerDown = (event: PointerEvent) => {
             const target = event.target;
@@ -201,47 +193,20 @@ export function TRSidePanel({
             );
     }, [onClose]);
 
-    function handleDocumentResizePointerDown(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
-        event.preventDefault();
-        resizePointerId.current = event.pointerId;
-        resizeStartX.current = event.clientX;
-        resizeStartWidth.current = documentPaneWidth;
-        event.currentTarget.setPointerCapture(event.pointerId);
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-    }
-
-    function handleDocumentResizePointerMove(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
-        if (resizePointerId.current !== event.pointerId) return;
-
-        const viewportMax = window.innerWidth - INFO_PANE_WIDTH - 2 * 12 - 24;
-        const maxWidth = Math.max(
-            MIN_DOCUMENT_PANE_WIDTH,
-            Math.min(MAX_DOCUMENT_PANE_WIDTH, viewportMax),
-        );
-        const nextWidth =
-            resizeStartWidth.current + (resizeStartX.current - event.clientX);
-
-        setDocumentPaneWidth(
-            Math.min(maxWidth, Math.max(MIN_DOCUMENT_PANE_WIDTH, nextWidth)),
-        );
-    }
-
-    function handleDocumentResizePointerEnd(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
-        if (resizePointerId.current !== event.pointerId) return;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-            event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        resizePointerId.current = null;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-    }
+    const resizeDocument = horizontalDrag((deltaX) => {
+        setDocumentPaneWidth((width) => {
+            const viewportMax =
+                window.innerWidth - INFO_PANE_WIDTH - 2 * 12 - 24;
+            const maxWidth = Math.max(
+                MIN_DOCUMENT_PANE_WIDTH,
+                Math.min(MAX_DOCUMENT_PANE_WIDTH, viewportMax),
+            );
+            return Math.min(
+                maxWidth,
+                Math.max(MIN_DOCUMENT_PANE_WIDTH, width - deltaX),
+            );
+        });
+    });
 
     function handleCitationOpen(citation: TRPanelCitation) {
         setDocCitation(citation);
@@ -269,11 +234,11 @@ export function TRSidePanel({
                     style={{ width: documentPaneWidth }}
                 >
                     <div
-                        onPointerDown={handleDocumentResizePointerDown}
-                        onPointerMove={handleDocumentResizePointerMove}
-                        onPointerUp={handleDocumentResizePointerEnd}
-                        onPointerCancel={handleDocumentResizePointerEnd}
-                        className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-col-resize touch-none bg-transparent transition-colors hover:bg-blue-400/60"
+                        onPointerDown={resizeDocument}
+                        className={cn(
+                            "absolute inset-y-0 left-0 z-20 w-1.5",
+                            HORIZONTAL_RESIZE_HANDLE_CLASS,
+                        )}
                         title="Resize document pane"
                     />
                     {/* Doc header */}

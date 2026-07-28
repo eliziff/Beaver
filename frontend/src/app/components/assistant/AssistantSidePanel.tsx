@@ -1,12 +1,6 @@
 "use client";
 
-import {
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-    type CSSProperties,
-} from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
@@ -24,19 +18,11 @@ import {
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
+import {
+    HORIZONTAL_RESIZE_HANDLE_CLASS,
+    horizontalDrag,
+} from "@/app/components/ui/horizontal-drag";
 import { AutomationRunPanel } from "./AutomationRun";
-
-// ---------------------------------------------------------------------------
-// Tab data
-// ---------------------------------------------------------------------------
-//
-// Each tab represents ONE of:
-//   - a document view (no specific annotation),
-//   - a single citation quote,
-//   - a single tracked change.
-// There is no selector UI inside the panel — the user picks what to view
-// by clicking a different tab (or opening a new one from a citation pill,
-// an EditCard's View button, or the download card).
 
 type CommonTab = {
     id: string;
@@ -154,7 +140,6 @@ export function AssistantSidePanel({
     onWarningDismiss,
     onScrollChange,
 }: Props) {
-    const panelRef = useRef<HTMLDivElement>(null);
     const [panelWidth, setPanelWidth] = useState(() =>
         typeof window !== "undefined"
             ? Math.min(
@@ -163,39 +148,10 @@ export function AssistantSidePanel({
               )
             : 600,
     );
-
-    const dragStartX = useRef<number>(0);
-    const dragStartWidth = useRef<number>(0);
-
-    const onMouseDown = useCallback(
-        (e: React.MouseEvent) => {
-            e.preventDefault();
-            dragStartX.current = e.clientX;
-            dragStartWidth.current =
-                panelRef.current?.offsetWidth ?? panelWidth;
-
-            const onMouseMove = (ev: MouseEvent) => {
-                const delta = dragStartX.current - ev.clientX;
-                setPanelWidth(
-                    Math.min(
-                        maxPanelWidth(),
-                        Math.max(MIN_WIDTH, dragStartWidth.current + delta),
-                    ),
-                );
-            };
-            const onMouseUp = () => {
-                document.removeEventListener("mousemove", onMouseMove);
-                document.removeEventListener("mouseup", onMouseUp);
-                document.body.style.cursor = "";
-                document.body.style.userSelect = "";
-            };
-
-            document.addEventListener("mousemove", onMouseMove);
-            document.addEventListener("mouseup", onMouseUp);
-            document.body.style.cursor = "col-resize";
-            document.body.style.userSelect = "none";
-        },
-        [panelWidth],
+    const resizePanel = horizontalDrag((deltaX) =>
+        setPanelWidth((width) =>
+            Math.min(maxPanelWidth(), Math.max(MIN_WIDTH, width - deltaX)),
+        ),
     );
 
     useEffect(() => {
@@ -214,7 +170,6 @@ export function AssistantSidePanel({
 
     return (
         <div
-            ref={panelRef}
             className={cn(
                 "relative flex h-full w-full shrink-0 flex-col md:my-3 md:mr-3 md:h-[calc(100%-1.5rem)] md:w-[var(--assistant-panel-width)]",
                 LIQUID_PANEL_SURFACE_CLASS,
@@ -225,8 +180,11 @@ export function AssistantSidePanel({
             } as CSSProperties}
         >
             <div
-                onMouseDown={onMouseDown}
-                className="absolute left-0 top-0 z-10 hidden h-full w-1 cursor-col-resize hover:bg-gray-400 md:block"
+                onPointerDown={resizePanel}
+                className={cn(
+                    "absolute left-0 top-0 z-10 hidden h-full w-1 md:block",
+                    HORIZONTAL_RESIZE_HANDLE_CLASS,
+                )}
                 style={{ marginLeft: -2 }}
             />
 
