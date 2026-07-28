@@ -15,3 +15,11 @@ export function normalizeDocumentFilename(
   const ext = currentName.match(/\.[a-z0-9]{1,6}$/i)?.[0] ?? "";
   return `${trimmed}${ext}`;
 }
+
+export type LibraryKind = "file" | "template";
+
+export function normalizeLibraryKind(value: unknown): LibraryKind | null {
+  if (value === "file" || value === "files") return "file";
+  if (value === "template" || value === "templates") return "template";
+  return null;
+}
