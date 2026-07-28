@@ -40,6 +40,7 @@ import {
     TableRow,
     TableScrollArea,
     TableSelectionPlaceholder,
+    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
     type TableSortDirection,
     TableStickyCell,
 } from "../shared/TablePrimitive";
@@ -59,6 +60,14 @@ const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
 ];
+const WORKFLOW_COLUMN = {
+    type: "hidden w-24 sm:flex",
+    practice: "hidden w-32 lg:flex",
+    jurisdiction: "hidden w-32 xl:flex",
+    language: "hidden w-24 2xl:flex",
+    source: "hidden w-28 lg:flex",
+    actions: "w-8",
+} as const;
 
 export function WorkflowList() {
     const router = useRouter();
@@ -426,7 +435,10 @@ export function WorkflowList() {
             <TableScrollArea
                 header={
                     <TableHeaderRow>
-                        <TableStickyCell header>
+                        <TableStickyCell
+                            header
+                            widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                        >
                             {!isAnonymousMode &&
                                 (loading ? (
                                     <TableSelectionPlaceholder />
@@ -444,37 +456,45 @@ export function WorkflowList() {
                             <span className="mr-1">Name</span>
                             {nameFilterButton}
                         </TableStickyCell>
-                        <TableHeaderCell className="ml-auto w-28">
+                        <TableHeaderCell
+                            className={`ml-auto ${WORKFLOW_COLUMN.type}`}
+                        >
                             <div className="flex items-center gap-1">
                                 <span>Type</span>
                                 {typeFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-40">
+                        <TableHeaderCell className={WORKFLOW_COLUMN.practice}>
                             <div className="flex items-center gap-1">
                                 <span>Practice</span>
                                 {practiceFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-40">
+                        <TableHeaderCell
+                            className={WORKFLOW_COLUMN.jurisdiction}
+                        >
                             <div className="flex items-center gap-1">
                                 <span>Jurisdiction</span>
                                 {jurisdictionFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-28">
+                        <TableHeaderCell className={WORKFLOW_COLUMN.language}>
                             <div className="flex items-center gap-1">
                                 <span>Language</span>
                                 {languageFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-44">
+                        <TableHeaderCell className={WORKFLOW_COLUMN.source}>
                             <div className="flex items-center gap-1">
                                 <span>Source</span>
                                 {sourceFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-8" />
+                        {!isAnonymousMode && (
+                            <TableHeaderCell
+                                className={WORKFLOW_COLUMN.actions}
+                            />
+                        )}
                     </TableHeaderRow>
                 }
             >
@@ -488,6 +508,7 @@ export function WorkflowList() {
                                 >
                                     <TableStickyCell
                                         hover={false}
+                                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                                     >
                                         <div className="flex items-center">
                                             {!isAnonymousMode && (
@@ -496,25 +517,33 @@ export function WorkflowList() {
                                             <SkeletonLine className="h-3.5 w-48" />
                                         </div>
                                     </TableStickyCell>
-                                    <TableCell className="ml-auto w-28">
+                                    <TableCell
+                                        className={`ml-auto ${WORKFLOW_COLUMN.type}`}
+                                    >
                                         <SkeletonLine className="w-16" />
                                     </TableCell>
-                                    <TableCell className="w-40">
+                                    <TableCell className={WORKFLOW_COLUMN.practice}>
                                         <div className="flex items-center gap-1.5">
                                             <SkeletonDot className="rounded-full" />
                                             <SkeletonLine className="w-24" />
                                         </div>
                                     </TableCell>
-                                    <TableCell className="w-40">
+                                    <TableCell
+                                        className={WORKFLOW_COLUMN.jurisdiction}
+                                    >
                                         <SkeletonLine className="w-24" />
                                     </TableCell>
-                                    <TableCell className="w-28">
+                                    <TableCell className={WORKFLOW_COLUMN.language}>
                                         <SkeletonLine className="w-16" />
                                     </TableCell>
-                                    <TableCell className="w-44">
+                                    <TableCell className={WORKFLOW_COLUMN.source}>
                                         <SkeletonLine className="w-14" />
                                     </TableCell>
-                                    <TableCell className="w-8" />
+                                    {!isAnonymousMode && (
+                                        <TableCell
+                                            className={WORKFLOW_COLUMN.actions}
+                                        />
+                                    )}
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -577,7 +606,9 @@ export function WorkflowList() {
                                 onClick={() => setSelected(wf)}
                             >
                                 {isAnonymousMode ? (
-                                    <TableStickyCell>
+                                    <TableStickyCell
+                                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                                    >
                                         <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                                             {wf.metadata.title}
                                         </span>
@@ -585,18 +616,21 @@ export function WorkflowList() {
                                 ) : (
                                     <TablePrimaryCell
                                         selected={selectedIds.includes(wf.id)}
+                                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                                         onSelectionChange={() => toggleOne(wf.id)}
                                         label={wf.metadata.title}
                                     />
                                 )}
-                                <TableCell className="ml-auto w-28">
+                                <TableCell
+                                    className={`ml-auto ${WORKFLOW_COLUMN.type}`}
+                                >
                                     <span className="text-xs font-medium text-gray-700">
                                         {wf.metadata.type === "tabular"
                                             ? "Tabular"
                                             : "Assistant"}
                                     </span>
                                 </TableCell>
-                                <TableCell className="w-40">
+                                <TableCell className={WORKFLOW_COLUMN.practice}>
                                     {wf.metadata.practice ? (
                                         <span className="text-xs font-medium text-gray-600">
                                             {wf.metadata.practice}
@@ -607,7 +641,9 @@ export function WorkflowList() {
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-40">
+                                <TableCell
+                                    className={WORKFLOW_COLUMN.jurisdiction}
+                                >
                                     {wf.metadata.jurisdictions &&
                                     wf.metadata.jurisdictions.length > 0 ? (
                                         <span className="truncate max-w-full text-xs font-medium text-gray-600">
@@ -619,7 +655,7 @@ export function WorkflowList() {
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-28">
+                                <TableCell className={WORKFLOW_COLUMN.language}>
                                     {wf.metadata.language ? (
                                         <span className="text-xs font-medium text-gray-600">
                                             {wf.metadata.language}
@@ -630,7 +666,7 @@ export function WorkflowList() {
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-44">
+                                <TableCell className={WORKFLOW_COLUMN.source}>
                                     {wf.is_system ? (
                                         <span className="text-xs font-medium text-gray-600">
                                             System
@@ -645,40 +681,47 @@ export function WorkflowList() {
                                         </span>
                                     )}
                                 </TableCell>
-                                <div
-                                    className="w-8 shrink-0 flex justify-end"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    {!isAnonymousMode && (wf.is_system ? (
-                                        isHiddenSystem ? (
+                                {!isAnonymousMode && (
+                                    <div
+                                        className={`${WORKFLOW_COLUMN.actions} shrink-0 justify-end`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {wf.is_system ? (
+                                            isHiddenSystem ? (
+                                                <RowActions
+                                                    onUnhide={() =>
+                                                        handleUnhideWorkflow(
+                                                            wf.id,
+                                                        )
+                                                    }
+                                                />
+                                            ) : (
+                                                <RowActions
+                                                    onHide={() =>
+                                                        handleHideWorkflow(
+                                                            wf.id,
+                                                        )
+                                                    }
+                                                />
+                                            )
+                                        ) : wf.is_owner === false ? null : (
                                             <RowActions
-                                                onUnhide={() =>
-                                                    handleUnhideWorkflow(wf.id)
+                                                onEditDetails={() =>
+                                                    setEditingWorkflow(wf)
                                                 }
+                                                onDelete={async () => {
+                                                    await deleteWorkflow(wf.id);
+                                                    setWorkflows((prev) =>
+                                                        prev.filter(
+                                                            (w) =>
+                                                                w.id !== wf.id,
+                                                        ),
+                                                    );
+                                                }}
                                             />
-                                        ) : (
-                                            <RowActions
-                                                onHide={() =>
-                                                    handleHideWorkflow(wf.id)
-                                                }
-                                            />
-                                        )
-                                    ) : wf.is_owner === false ? null : (
-                                        <RowActions
-                                            onEditDetails={() =>
-                                                setEditingWorkflow(wf)
-                                            }
-                                            onDelete={async () => {
-                                                await deleteWorkflow(wf.id);
-                                                setWorkflows((prev) =>
-                                                    prev.filter(
-                                                        (w) => w.id !== wf.id,
-                                                    ),
-                                                );
-                                            }}
-                                        />
-                                    ))}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </TableRow>
                             );
                         })}

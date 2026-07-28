@@ -183,7 +183,7 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = await screen.findByTitle("Table of Authorities");
     const host = screen.getByTestId("authorities-host");
-    expect(host).toHaveClass("invisible", "pointer-events-none");
+    expect(host).toHaveClass("opacity-0", "pointer-events-none");
     expect(host).toHaveAttribute("inert");
     expect(frame).toHaveAttribute("aria-hidden", "true");
 
@@ -191,7 +191,7 @@ describe("TableOfAuthoritiesHost", () => {
     view.rerender(<TableOfAuthoritiesHost active enabled />);
 
     expect(screen.getByTitle("Table of Authorities")).toBe(frame);
-    expect(host).toHaveClass("visible");
+    expect(host).not.toHaveClass("opacity-0");
     expect(host).not.toHaveAttribute("inert");
     expect(frame).toHaveAttribute("aria-hidden", "false");
     expect(frame).toHaveAttribute("tabindex", "0");

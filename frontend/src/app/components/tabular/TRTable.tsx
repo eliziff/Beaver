@@ -8,14 +8,13 @@ import {
     useMemo,
     useRef,
 } from "react";
-import { Loader2, Plus, Upload } from "lucide-react";
+import { Loader2, Pencil, Plus, Upload } from "lucide-react";
 import type {
     ColumnConfig,
     Document,
     TabularCell,
 } from "../shared/types";
 import { TabularCell as TabularCellComponent } from "./TabularCell";
-import { TREditColumnMenu } from "./TREditColumnMenu";
 import {
     SkeletonLine,
     TableScrollArea,
@@ -34,15 +33,11 @@ import {
 const SKELETON_COLS = 4;
 const SKELETON_ROWS = 5;
 
-const COL_W = "w-[240px] shrink-0";
-const DOC_COL_W = "w-[332px] shrink-0";
+const COL_W = "w-[142px] sm:w-[220px] lg:w-[240px] shrink-0";
+const DOC_COL_W =
+    "w-[112px] sm:w-[220px] md:w-[280px] xl:w-[332px] shrink-0";
 const TR_STICKY_CELL_BG = "bg-app-surface";
 const TR_HEADER_BG = "bg-app-surface";
-
-// Pixel widths matching the CSS constants above
-const DOC_COL_W_PX = 332;
-const DATA_COL_W_PX = 240;
-const STICKY_LEFT_PX = DOC_COL_W_PX;
 
 export interface TRTableHandle {
     scrollToCell: (colIdx: number, rowIdx: number) => void;
@@ -69,8 +64,7 @@ interface Props {
         sheet?: string,
         citationCell?: string,
     ) => void;
-    onUpdateColumn: (col: ColumnConfig) => void;
-    onDeleteColumn: (colIndex: number) => void;
+    onEditColumn: (col: ColumnConfig) => void;
     onAddColumn: () => void;
     onAddDocuments: () => void;
 }
@@ -90,8 +84,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         onSelectionChange,
         onExpand,
         onCitationClick,
-        onUpdateColumn,
-        onDeleteColumn,
+        onEditColumn,
         onAddColumn,
         onAddDocuments,
     },
@@ -176,19 +169,13 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         };
     }, []);
 
-    const totalContentWidth =
-        DOC_COL_W_PX + sortedColumns.length * DATA_COL_W_PX + 32;
-    const skeletonContentWidth =
-        DOC_COL_W_PX + SKELETON_COLS * DATA_COL_W_PX + 32;
     useImperativeHandle(ref, () => ({
         scrollToCell(colIdx: number, rowIdx: number) {
             const container = scrollContainerRef.current;
             if (!container) return;
 
-            // Vertical: find actual row via DOM (handles variable row heights)
-            const allRows = container.querySelectorAll<HTMLElement>(
-                ":scope > div.flex.min-w-full",
-            );
+            const allRows =
+                container.querySelectorAll<HTMLElement>("[data-tr-row]");
             const targetRow = allRows[rowIdx];
             if (targetRow) {
                 container.scrollTo({
@@ -197,13 +184,21 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                 });
             }
 
-            // Horizontal: fixed column widths — center the target column in view
-            const targetScrollLeft =
-                STICKY_LEFT_PX +
-                colIdx * DATA_COL_W_PX -
-                container.clientWidth / 2 +
-                DATA_COL_W_PX / 2;
-            container.scrollLeft = Math.max(0, targetScrollLeft);
+            const surface = container.parentElement;
+            const targetColumn = surface?.querySelectorAll<HTMLElement>(
+                "[data-tr-col-header]",
+            )[colIdx];
+            const documentColumn = surface?.querySelector<HTMLElement>(
+                "[data-tr-doc-header]",
+            );
+            if (targetColumn && documentColumn) {
+                container.scrollLeft = Math.max(
+                    0,
+                    targetColumn.offsetLeft +
+                        targetColumn.offsetWidth / 2 -
+                        (container.clientWidth + documentColumn.offsetWidth) / 2,
+                );
+            }
         },
     }));
 
@@ -238,8 +233,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             <TableScrollArea
                 header={
                     <div
-                        className={`flex h-10 shrink-0 ${TR_HEADER_BG}`}
-                        style={{ minWidth: skeletonContentWidth }}
+                        className={`flex h-10 min-w-full shrink-0 ${TR_HEADER_BG}`}
                     >
                         <div
                             className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs font-medium text-gray-500`}
@@ -262,8 +256,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     {Array.from({ length: SKELETON_ROWS }).map((_, row) => (
                         <div
                             key={row}
-                            className="flex h-8"
-                            style={{ minWidth: skeletonContentWidth }}
+                            className="flex h-8 min-w-full"
                         >
                             <div className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} flex items-center border-b border-r border-gray-200 py-2 pl-4 pr-2`}>
                                 <TableSelectionPlaceholder />
@@ -347,10 +340,10 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             onScroll={handleRowsScroll}
             header={
                 <div
-                    className={`z-[70] flex h-10 shrink-0 ${TR_HEADER_BG}`}
-                    style={{ minWidth: totalContentWidth }}
+                    className={`z-[70] flex h-10 min-w-full shrink-0 ${TR_HEADER_BG}`}
                 >
                     <div
+                        data-tr-doc-header
                         className={`sticky left-0 z-[80] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 flex items-center py-2 pl-4 pr-2 text-left text-xs font-medium text-gray-500 select-none`}
                     >
                         <CheckboxControl
@@ -371,12 +364,16 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                         >
                             <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                                 <span className="truncate">{col.name}</span>
-                                <TREditColumnMenu
-                                    column={col}
+                                <button
+                                    type="button"
+                                    aria-label={`Edit ${col.name}`}
+                                    title="Edit column"
                                     disabled={savingColumn || savingColumnsConfig}
-                                    onSave={onUpdateColumn}
-                                    onDelete={onDeleteColumn}
-                                />
+                                    onClick={() => onEditColumn(col)}
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
+                                >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -399,8 +396,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     {uploadingFilenames.map((filename) => (
                     <div
                         key={`uploading-${filename}`}
-                        className="flex h-8"
-                        style={{ minWidth: totalContentWidth }}
+                        className="flex h-8 min-w-full"
                     >
                         <div
                             className={`sticky left-0 z-[60] ${DOC_COL_W} ${TR_STICKY_CELL_BG} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-400 flex items-center`}
@@ -436,8 +432,8 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     return (
                         <div
                             key={doc.id}
-                            className={`group flex transition-colors ${rowBg}`}
-                            style={{ minWidth: totalContentWidth }}
+                            data-tr-row
+                            className={`group flex min-w-full transition-colors ${rowBg}`}
                         >
                             <div
                                 className={`sticky left-0 z-[60] ${DOC_COL_W} border-b border-r border-gray-200 py-2 pl-4 pr-2 text-xs text-gray-800 flex items-center transition-colors ${stickyRowBg} ${isSelected ? "" : APP_SURFACE_GROUP_HOVER_CLASS}`}

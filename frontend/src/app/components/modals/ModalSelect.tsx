@@ -145,7 +145,7 @@ function SearchableModalSelect({
                 onClose={close}
                 breadcrumbs={["Choose option"]}
                 size="sm"
-                className="!h-[min(20rem,calc(100dvh-2rem))] max-w-[calc(100vw-2rem)]"
+                className="!h-[min(20rem,calc(100dvh-2rem))]"
             >
                 <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
                     <Search

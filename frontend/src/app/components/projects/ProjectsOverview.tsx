@@ -30,6 +30,7 @@ import {
     TableRow,
     TableScrollArea,
     TableSelectionPlaceholder,
+    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
     type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
@@ -68,6 +69,17 @@ const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
 ];
+
+const PROJECT_COLUMN = {
+    cm: "hidden w-24 sm:flex",
+    practice: "hidden w-32 xl:flex",
+    owner: "hidden w-28 2xl:flex",
+    files: "hidden w-20 lg:flex",
+    chats: "hidden w-20 lg:flex",
+    reviews: "hidden w-28 xl:flex",
+    created: "hidden w-28 2xl:flex",
+    actions: "w-8",
+} as const;
 
 export function ProjectsOverview() {
     const [projects, setProjects] = useState<Project[]>([]);
@@ -514,7 +526,11 @@ export function ProjectsOverview() {
                 className="[&>div]:bg-white"
                 header={
                     <TableHeaderRow className="bg-white">
-                        <TableStickyCell header className="bg-white">
+                        <TableStickyCell
+                            header
+                            className="bg-white"
+                            widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                        >
                             {loading ? (
                                 <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
                             ) : (
@@ -534,49 +550,49 @@ export function ProjectsOverview() {
                             <span className="mr-1">Name</span>
                             {nameFilterButton}
                         </TableStickyCell>
-                        <TableHeaderCell className="ml-auto w-32">
+                        <TableHeaderCell className={`ml-auto ${PROJECT_COLUMN.cm}`}>
                             <div className="flex items-center gap-1">
                                 <span>CM</span>
                                 {cmFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-36">
+                        <TableHeaderCell className={PROJECT_COLUMN.practice}>
                             <div className="flex items-center gap-1">
                                 <span>Practice</span>
                                 {practiceFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-32">
+                        <TableHeaderCell className={PROJECT_COLUMN.owner}>
                             <div className="flex items-center gap-1">
                                 <span>Owner</span>
                                 {ownerFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-24">
+                        <TableHeaderCell className={PROJECT_COLUMN.files}>
                             <div className="flex items-center gap-1">
                                 <span>Files</span>
                                 {filesFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-24">
+                        <TableHeaderCell className={PROJECT_COLUMN.chats}>
                             <div className="flex items-center gap-1">
                                 <span>Chats</span>
                                 {chatsFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-36">
+                        <TableHeaderCell className={PROJECT_COLUMN.reviews}>
                             <div className="flex items-center gap-1">
-                                <span>Tabular Reviews</span>
+                                <span>Reviews</span>
                                 {reviewsFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-32">
+                        <TableHeaderCell className={PROJECT_COLUMN.created}>
                             <div className="flex items-center gap-1">
                                 <span>Created</span>
                                 {createdFilterButton}
                             </div>
                         </TableHeaderCell>
-                        <TableHeaderCell className="w-8" />
+                        <TableHeaderCell className={PROJECT_COLUMN.actions} />
                     </TableHeaderRow>
                 }
             >
@@ -591,33 +607,34 @@ export function ProjectsOverview() {
                                 <TableStickyCell
                                     hover={false}
                                     bgClassName="bg-transparent"
+                                    widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                                 >
                                     <TableSelectionPlaceholder />
                                     <div className="mr-2 h-5 w-5 shrink-0 rounded bg-gray-100" />
                                     <SkeletonLine className="h-3.5 w-48" />
                                 </TableStickyCell>
-                                <TableCell className="ml-auto w-32">
+                                <TableCell className={`ml-auto ${PROJECT_COLUMN.cm}`}>
                                     <SkeletonLine className="w-20" />
                                 </TableCell>
-                                <TableCell className="w-36">
+                                <TableCell className={PROJECT_COLUMN.practice}>
                                     <SkeletonLine className="w-20" />
                                 </TableCell>
-                                <TableCell className="w-32">
+                                <TableCell className={PROJECT_COLUMN.owner}>
                                     <SkeletonLine className="w-16" />
                                 </TableCell>
-                                <TableCell className="w-24">
+                                <TableCell className={PROJECT_COLUMN.files}>
                                     <SkeletonLine className="w-8" />
                                 </TableCell>
-                                <TableCell className="w-24">
+                                <TableCell className={PROJECT_COLUMN.chats}>
                                     <SkeletonLine className="w-8" />
                                 </TableCell>
-                                <TableCell className="w-36">
+                                <TableCell className={PROJECT_COLUMN.reviews}>
                                     <SkeletonLine className="w-8" />
                                 </TableCell>
-                                <TableCell className="w-32">
+                                <TableCell className={PROJECT_COLUMN.created}>
                                     <SkeletonLine className="w-20" />
                                 </TableCell>
-                                <TableCell className="w-8" />
+                                <TableCell className={PROJECT_COLUMN.actions} />
                             </TableRow>
                         ))}
                     </TableBody>
@@ -657,6 +674,7 @@ export function ProjectsOverview() {
                             >
                                 <TablePrimaryCell
                                     selected={selectedIds.includes(project.id)}
+                                    widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                                     onSelectionChange={() =>
                                         toggleOne(project.id)
                                     }
@@ -670,38 +688,38 @@ export function ProjectsOverview() {
                                     </span>
                                 </TablePrimaryCell>
 
-                                <TableCell className="ml-auto w-32 text-gray-700">
+                                <TableCell className={`ml-auto text-gray-700 ${PROJECT_COLUMN.cm}`}>
                                     {project.cm_number ?? (
                                         <span className="text-gray-500">
                                             —
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-36 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.practice}`}>
                                     {project.practice ?? (
                                         <span className="text-gray-500">
                                             —
                                         </span>
                                     )}
                                 </TableCell>
-                                <TableCell className="w-32 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.owner}`}>
                                     {getProjectOwnerLabel(project, user?.id)}
                                 </TableCell>
-                                <TableCell className="w-24 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.files}`}>
                                     {project.document_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-24 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.chats}`}>
                                     {project.chat_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-36 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.reviews}`}>
                                     {project.review_count ?? 0}
                                 </TableCell>
-                                <TableCell className="w-32 text-gray-700">
+                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.created}`}>
                                     {formatDate(project.created_at)}
                                 </TableCell>
 
                                 <div
-                                    className="w-8 shrink-0 flex justify-end"
+                                    className={`${PROJECT_COLUMN.actions} shrink-0 justify-end`}
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     {(project.is_owner ??
