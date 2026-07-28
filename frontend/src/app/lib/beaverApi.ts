@@ -15,7 +15,6 @@ import type {
   Message,
   OpenSourceWorkflowContributorMode,
   OpenSourceWorkflowResponse,
-  PdfParseState,
   Project,
   Workflow,
   WorkflowContributor,
@@ -235,7 +234,7 @@ export async function launchTableOfAuthorities(): Promise<{
   return apiRequest("/table-of-authorities/launch", { method: "POST" });
 }
 
-export interface CodexReasoningLevel {
+interface CodexReasoningLevel {
   effort: string;
   description?: string;
 }
@@ -303,7 +302,7 @@ export type ApiKeyProvider =
   | "deepseek"
   | "openrouter"
   | "courtlistener";
-export type ApiKeySource = "user" | "env" | null;
+type ApiKeySource = "user" | "env" | null;
 export type ApiKeyState = Record<
   ApiKeyProvider,
   {
@@ -312,13 +311,9 @@ export type ApiKeyState = Record<
   }
 >;
 
-export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
+type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
   sources?: Partial<Record<ApiKeyProvider, ApiKeySource>>;
 };
-
-export async function getApiKeyStatus(): Promise<ApiKeyStatus> {
-  return apiRequest<ApiKeyStatus>("/user/api-keys");
-}
 
 export async function saveApiKey(
   provider: ApiKeyProvider,
@@ -331,7 +326,7 @@ export async function saveApiKey(
   });
 }
 
-export interface McpToolSummary {
+interface McpToolSummary {
   id: string;
   toolName: string;
   openaiToolName: string;
@@ -570,32 +565,18 @@ export async function renameProjectDocument(
 
 export type LibraryKind = "files" | "templates";
 
-export interface LibraryCollection {
+interface LibraryCollection {
   documents: Document[];
   folders: LibraryFolder[];
 }
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 
-export interface LegalSourcePdfFallback {
+interface LegalSourcePdfFallback {
   provider: "a2aj";
   identity: string;
   reference_id: string;
   status_url: string;
-}
-
-export interface LegalSourcePdfStatus {
-  provider: "a2aj" | "courtlistener" | "govinfo" | "govuk-et" | "tna";
-  identity: string;
-  request_reference: string;
-  reference_id: string;
-  source_reference: string | null;
-  download_status: "not_queued" | "queued" | "downloaded" | "failed";
-  source_sha256: string | null;
-  parse_status: "queued" | "parsing" | "ready" | "degraded" | "failed" | null;
-  freshness_status: "immutable" | "versioned" | "current" | "stale";
-  fetched_at: string | null;
-  checked_at: string | null;
 }
 
 export interface LegalSourceReference {
@@ -795,12 +776,6 @@ export async function deleteLegalSource(referenceId: string): Promise<void> {
   );
 }
 
-export function getLegalSourcePdfStatus(referenceId: string) {
-  return apiRequest<LegalSourcePdfStatus>(
-    `/library/legal/${encodeURIComponent(referenceId)}/pdf-status`,
-  );
-}
-
 const legalSourceDocumentRequests = new Map<
   string,
   Promise<LegalSourceViewerPayload>
@@ -829,15 +804,6 @@ export function getLegalSourceDocument(referenceId: string) {
   return cachedLegalSourceDocument(
     `/library/legal/${encodeURIComponent(referenceId)}/document`,
   );
-}
-
-export function getA2AJLegalSourceDocument(args: {
-  citation: string;
-  docType?: LegalDocumentType | "auto";
-  language?: "en" | "fr";
-  dataset?: string | null;
-}) {
-  return getDirectLegalSourceDocument({ ...args, provider: "a2aj" });
 }
 
 export function getDirectLegalSourceDocument(args: {
@@ -882,7 +848,7 @@ export interface LegalResearchEdge {
   order: number;
 }
 
-export interface LegalSourceMark {
+interface LegalSourceMark {
   source_id: string;
   project_id: string;
   label_ids: string[];
@@ -972,49 +938,6 @@ export async function uploadLibraryDocument(
   });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<Document>;
-}
-
-export async function getLibraryPdfParseState(
-  documentId: string,
-  versionId?: string | null,
-  signal?: AbortSignal,
-): Promise<PdfParseState | null> {
-  const query = versionId
-    ? `?version_id=${encodeURIComponent(versionId)}`
-    : "";
-  try {
-    return await apiRequest<PdfParseState>(
-      `/library/files/documents/${encodeURIComponent(documentId)}/pdf-parse${query}`,
-      { signal },
-    );
-  } catch (error) {
-    if (error instanceof BeaverApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
-export function retryLibraryPdfParse(
-  documentId: string,
-  versionId?: string | null,
-  options?: {
-    ocrProvider?: "tesseract";
-    repair?: { model: string; effort: string };
-  },
-) {
-  return apiRequest<PdfParseState>(
-    `/library/files/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...(versionId ? { version_id: versionId } : {}),
-        ...(options?.ocrProvider
-          ? { ocr_provider: options.ocrProvider }
-          : {}),
-        ...(options?.repair ? { repair: options.repair } : {}),
-      }),
-    },
-  );
 }
 
 export async function createLibraryFolder(
@@ -1314,10 +1237,6 @@ export async function uploadStandaloneDocument(file: File): Promise<Document> {
   });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<Document>;
-}
-
-export async function listStandaloneDocuments(): Promise<Document[]> {
-  return apiRequest<Document[]>("/single-documents");
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {
@@ -1764,7 +1683,7 @@ interface RawTRMessage {
   created_at: string;
 }
 
-export interface TRDisplayMessage {
+interface TRDisplayMessage {
   role: "user" | "assistant";
   content: string;
   events?: AssistantEvent[];
