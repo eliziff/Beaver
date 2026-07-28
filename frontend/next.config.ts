@@ -7,6 +7,10 @@ const apiBase =
 const nextConfig: NextConfig = {
     /* config options here */
     reactCompiler: true,
+    typescript: {
+        ignoreBuildErrors:
+            process.env.BEAVER_TYPES_VERIFIED_BY === String(process.ppid),
+    },
     experimental: {
         turbopackFileSystemCacheForBuild: true,
     },
