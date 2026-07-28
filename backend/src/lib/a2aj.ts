@@ -51,10 +51,9 @@ type PersistentResponse = {
 
 export type A2AJLocatorKind = Exclude<SourceDocLocatorKind, "footnote">;
 
-export type { A2AJStructureSummary };
 
 /** The compiled index as the viewer route serves it: blocks without text. */
-export type A2AJStructureView = A2AJStructureSummary & {
+type A2AJStructureView = A2AJStructureSummary & {
   blocks: Array<{
     kind: SourceDocLocatorKind;
     label: string;

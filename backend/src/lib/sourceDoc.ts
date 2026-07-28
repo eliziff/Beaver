@@ -24,7 +24,7 @@ export type SourceDocLocatorKind =
   | "footnote";
 
 /** Where a block boundary came from, not how confident we are in its text. */
-export type SourceDocOrigin = "native" | "heuristic";
+type SourceDocOrigin = "native" | "heuristic";
 
 export type WordSpan = { word: string; start: number; end: number };
 
@@ -44,7 +44,7 @@ export type SourceDocBlock = {
  * the bare counts the old summary carried: a count of 313 says nothing about
  * whether paragraph 12 exists, a range does.
  */
-export type SourceDocLocatorRange = {
+type SourceDocLocatorRange = {
   kind: SourceDocLocatorKind;
   count: number;
   first: string | null;
@@ -124,7 +124,7 @@ export function sourceDocQuoteWords(quote: string) {
   return tokenizeSourceText(sourceDocQuoteText(quote)).map(({ word }) => word);
 }
 
-export function sourceDocRevision(text: string) {
+function sourceDocRevision(text: string) {
   return crypto.createHash("sha256").update(text).digest("hex");
 }
 
@@ -330,7 +330,7 @@ function materialize(doc: SourceDoc, block: SourceDocBlock) {
   return { ...block, text: sourceDocBlockText(doc, block) };
 }
 
-export function sourceDocBlocksOfKind(
+function sourceDocBlocksOfKind(
   doc: SourceDoc,
   kind: SourceDocLocatorKind,
 ) {
@@ -637,7 +637,7 @@ export function sourceDocPhraseSpans(
   return spans;
 }
 
-export function sourceDocQuoteSpans(
+function sourceDocQuoteSpans(
   doc: SourceDoc,
   quote: string,
   block?: SourceDocBlock,
