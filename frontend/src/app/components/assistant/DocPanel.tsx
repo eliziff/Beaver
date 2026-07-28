@@ -5,9 +5,7 @@ import { Download, Loader2 } from "lucide-react";
 import { getAuthHeader } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { PdfView } from "../shared/views/PdfView";
-import { DocxView } from "../shared/views/DocxView";
-import { SpreadsheetView } from "../shared/views/SpreadsheetView";
+import { DocumentViewer } from "../shared/views/DocumentViewer";
 import {
     CitationQuotesHeader,
     type CitationQuoteHeaderItem,
@@ -210,34 +208,19 @@ export function DocPanel({
             )}
 
             <div className="flex flex-1 min-h-0 flex-col px-3 py-3">
-                {useDocxView ? (
-                    <DocxView
-                        documentId={documentId}
-                        versionId={actionVersionId ?? undefined}
-                        quotes={quotes}
-                        quoteFocusKey={quoteFocusKey}
-                        highlightEdit={highlightEdit}
-                        warning={warning ?? null}
-                        onWarningDismiss={onWarningDismiss}
-                        initialScrollTop={initialScrollTop ?? null}
-                        onScrollChange={onScrollChange}
-                    />
-                ) : useSheetView ? (
-                    <SpreadsheetView
-                        documentId={documentId}
-                        versionId={actionVersionId}
-                        highlightCells={highlightCells}
-                    />
-                ) : (
-                    <PdfView
-                        doc={{
-                            document_id: documentId,
-                            version_id: actionVersionId,
-                        }}
-                        quotes={quotes}
-                        quoteFocusKey={quoteFocusKey}
-                    />
-                )}
+                <DocumentViewer
+                    documentId={documentId}
+                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}
+                    versionId={actionVersionId}
+                    quotes={quotes}
+                    quoteFocusKey={quoteFocusKey}
+                    highlightEdit={highlightEdit}
+                    highlightCells={highlightCells}
+                    warning={warning ?? null}
+                    onWarningDismiss={onWarningDismiss}
+                    initialScrollTop={initialScrollTop ?? null}
+                    onScrollChange={onScrollChange}
+                />
             </div>
         </div>
     );
