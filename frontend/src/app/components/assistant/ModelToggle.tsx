@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     type ApiKeyState,
     type CodexModelCatalog,
@@ -107,16 +107,14 @@ export function ModelToggle({
     apiKeys,
 }: Props) {
     const codexCatalog = useCodexCatalog();
-    const allModels = useMemo(() => {
-        const dynamicModels: ModelOption[] = (codexCatalog?.models ?? [])
-            .filter((model) => model.supportedInApi !== false)
-            .map((model) => ({
-                id: `codex:${model.slug}`,
-                label: model.displayName,
-                group: "Codex",
-            }));
-        return [...dynamicModels, ...MODELS];
-    }, [codexCatalog]);
+    const dynamicModels: ModelOption[] = (codexCatalog?.models ?? [])
+        .filter((model) => model.supportedInApi !== false)
+        .map((model) => ({
+            id: `codex:${model.slug}`,
+            label: model.displayName,
+            group: "Codex",
+        }));
+    const allModels = [...dynamicModels, ...MODELS];
     const selected = allModels.find((m) => m.id === value);
     const selectedLabel =
         selected?.label ?? fallbackCodexLabel(value) ?? "Model";

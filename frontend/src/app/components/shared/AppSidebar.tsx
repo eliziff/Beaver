@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname } from "next/navigation";
@@ -79,23 +79,14 @@ export function AppSidebar({
   const { chats, hasMoreChats, loadMoreChats, loadChats } =
     useChatHistoryContext();
   const pathname = usePathname();
-  const routeChatId = useMemo(() => {
-    if (pathname.startsWith("/assistant/chat/")) {
-      return pathname.split("/").pop() ?? null;
-    }
-
-    const projectChatMatch = pathname.match(
-      /^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/,
-    );
-    return projectChatMatch?.[1] ?? null;
-  }, [pathname]);
-  const assistantChats = useMemo(
-    () =>
-      chats?.filter(
-        (chat) => !chat.project_id && !movingChatIds.has(chat.id),
-      ) ?? chats,
-    [chats, movingChatIds],
-  );
+  const routeChatId = pathname.startsWith("/assistant/chat/")
+    ? pathname.split("/").pop() ?? null
+    : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??
+      null);
+  const assistantChats =
+    chats?.filter(
+      (chat) => !chat.project_id && !movingChatIds.has(chat.id),
+    ) ?? chats;
 
   async function moveChatToProject(projectId: string | null) {
     const chat = chatProjectTarget;
