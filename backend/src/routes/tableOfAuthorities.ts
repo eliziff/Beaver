@@ -87,6 +87,10 @@ tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
         bytes: await readFile(file.path),
         filename: file.version.filename,
         splitFallback: req.body?.split_fallback === "off" ? "off" : "auto",
+        projectId:
+          typeof req.body?.project_id === "string"
+            ? req.body.project_id
+            : null,
       }),
     );
   } catch (error) {
