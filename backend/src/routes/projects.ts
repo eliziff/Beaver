@@ -37,7 +37,6 @@ import {
   loadProfileUsersByEmail,
 } from "../lib/userLookup";
 import { localTabularStore } from "../lib/localTabularStore";
-import { handleDocumentUpload } from "./documents";
 
 export const projectsRouter = Router();
 
@@ -969,6 +968,7 @@ projectsRouter.post(
     if (!access.ok)
       return void res.status(404).json({ detail: "Project not found" });
 
+    const { handleDocumentUpload } = await import("./documents");
     await handleDocumentUpload(req, res, userId, projectId, db);
   },
 );

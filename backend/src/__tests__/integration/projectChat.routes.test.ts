@@ -54,8 +54,9 @@ vi.mock("../../middleware/auth", () => ({
         next(),
 }));
 
-vi.mock("../../lib/chat", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../lib/chat")>();
+vi.mock("../../lib/chat/contextBuilders", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("../../lib/chat/contextBuilders")>();
     return {
         ...actual,
         buildProjectDocContext: vi.fn(async () => ({
@@ -66,6 +67,14 @@ vi.mock("../../lib/chat", async (importOriginal) => {
         enrichWithPriorEvents: vi.fn(async (messages: unknown) => messages),
         buildWorkflowStore: vi.fn(async () => new Map()),
         buildMessages: vi.fn(() => []),
+    };
+});
+
+vi.mock("../../lib/chat/streaming", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("../../lib/chat/streaming")>();
+    return {
+        ...actual,
         runLLMStream: (...args: unknown[]) => runLLMStream(...args),
     };
 });
@@ -90,9 +99,12 @@ vi.mock("../../lib/access", () => ({
 
 import { app } from "../../app";
 
-const VALID_BODY = { messages: [{ role: "user", content: "hello" }] };
+const VALID_BODY = {
+    project_id: "p1",
+    messages: [{ role: "user", content: "hello" }],
+};
 
-describe("POST /projects/:projectId/chat", () => {
+describe("POST /chat with a project", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         runLLMStream.mockResolvedValue({
@@ -111,7 +123,7 @@ describe("POST /projects/:projectId/chat", () => {
         checkProjectAccess.mockResolvedValue({ ok: false });
 
         const res = await request(app)
-            .post("/projects/p1/chat")
+            .post("/chat")
             .set("Authorization", "Bearer test")
             .send(VALID_BODY);
 
@@ -123,7 +135,7 @@ describe("POST /projects/:projectId/chat", () => {
 
     it("streams SSE on the happy path with project access granted", async () => {
         const res = await request(app)
-            .post("/projects/p1/chat")
+            .post("/chat")
             .set("Authorization", "Bearer test")
             .send(VALID_BODY);
 
@@ -137,7 +149,7 @@ describe("POST /projects/:projectId/chat", () => {
         runLLMStream.mockRejectedValue(new Error("upstream LLM failure"));
 
         const res = await request(app)
-            .post("/projects/p1/chat")
+            .post("/chat")
             .set("Authorization", "Bearer test")
             .send(VALID_BODY);
 

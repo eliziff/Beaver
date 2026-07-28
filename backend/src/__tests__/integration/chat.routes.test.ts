@@ -63,14 +63,23 @@ vi.mock("../../middleware/auth", () => ({
 // Keep the real error helpers (the failure-path test relies on genuine
 // isAbortError + AssistantStreamError behavior) but stub the functions that
 // would otherwise hit the DB or the LLM.
-vi.mock("../../lib/chat", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../lib/chat")>();
+vi.mock("../../lib/chat/contextBuilders", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("../../lib/chat/contextBuilders")>();
     return {
         ...actual,
         buildDocContext: vi.fn(async () => ({ docIndex: {}, docStore: new Map() })),
         enrichWithPriorEvents: vi.fn(async (messages: unknown) => messages),
         buildWorkflowStore: vi.fn(async () => new Map()),
         buildMessages: vi.fn(() => []),
+    };
+});
+
+vi.mock("../../lib/chat/streaming", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("../../lib/chat/streaming")>();
+    return {
+        ...actual,
         runLLMStream: (...args: unknown[]) => runLLMStream(...args),
     };
 });

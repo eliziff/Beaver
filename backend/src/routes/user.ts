@@ -4,7 +4,6 @@ import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import {
     createServerSupabase,
 } from "../lib/supabase";
-import { isAnonymousLocalMode } from "../lib/localMode";
 import {
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
@@ -15,24 +14,11 @@ import {
 } from "../lib/llm";
 import {
     type ApiKeyStatus,
-    getEnvironmentApiKeyStatus,
     getUserApiKeyStatus,
     hasEnvApiKey,
     normalizeApiKeyProvider,
     saveUserApiKey,
 } from "../lib/userApiKeys";
-import {
-    completeUserMcpConnectorOAuth,
-    createUserMcpConnector,
-    deleteUserMcpConnector,
-    getUserMcpConnector,
-    listUserMcpConnectors,
-    McpOAuthRequiredError,
-    refreshUserMcpConnectorTools,
-    setUserMcpToolEnabled,
-    startUserMcpConnectorOAuth,
-    updateUserMcpConnector,
-} from "../lib/mcpConnectors";
 import {
     deleteAllUserChats,
     deleteAllUserTabularReviews,
@@ -48,21 +34,9 @@ import {
 import { findProfileUserByEmail } from "../lib/userLookup";
 
 export const userRouter = Router();
+const loadMcpConnectors = () => import("../lib/mcpConnectors");
 
 const MONTHLY_CREDIT_LIMIT = 999999;
-
-userRouter.use((req, res, next) => {
-    if (!isAnonymousLocalMode()) return next();
-    if (
-        req.method === "GET" &&
-        (req.path === "/profile" || req.path === "/api-keys")
-    ) {
-        return next();
-    }
-    res.status(501).json({
-        detail: "This account feature is unavailable in account-free local mode.",
-    });
-});
 
 type UserProfileRow = {
     display_name: string | null;
@@ -217,35 +191,6 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         legalResearchUs: row.legal_research_us !== false,
         ...(apiKeyStatus ? { apiKeyStatus } : {}),
     };
-}
-
-function localAnonymousProfile(): ReturnType<typeof serializeProfile> {
-    const reset = new Date();
-    reset.setDate(reset.getDate() + 30);
-    const apiKeyStatus = getEnvironmentApiKeyStatus();
-    const tabularModel = apiKeyStatus.gemini
-        ? DEFAULT_TABULAR_MODEL
-        : apiKeyStatus.openai
-          ? OPENAI_LOW_MODELS[0]
-          : apiKeyStatus.deepseek
-            ? DEEPSEEK_MAIN_MODELS[0]
-            : apiKeyStatus.claude
-              ? "claude-sonnet-4-5"
-              : DEFAULT_TABULAR_MODEL;
-    return serializeProfile(
-        {
-            display_name: null,
-            organisation: null,
-            message_credits_used: 0,
-            credits_reset_date: reset.toISOString(),
-            tier: "Free",
-            title_model: null,
-            tabular_model: tabularModel,
-            mfa_on_login: false,
-            legal_research_us: true,
-        },
-        apiKeyStatus,
-    );
 }
 
 function validateProfilePayload(body: unknown):
@@ -471,10 +416,6 @@ userRouter.get("/lookup", requireAuth, async (req, res) => {
 });
 
 userRouter.get("/profile", requireAuth, async (_req, res) => {
-    if (isAnonymousLocalMode()) {
-        res.json(localAnonymousProfile());
-        return;
-    }
     try {
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
@@ -561,10 +502,6 @@ userRouter.patch(
 );
 
 userRouter.get("/api-keys", requireAuth, async (_req, res) => {
-    if (isAnonymousLocalMode()) {
-        res.json(getEnvironmentApiKeyStatus());
-        return;
-    }
     const userId = res.locals.userId as string;
     const db = createServerSupabase();
     const status = await getUserApiKeyStatus(userId, db);
@@ -611,7 +548,11 @@ userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
     const db = createServerSupabase();
     try {
         res.json(
-            await listUserMcpConnectors(userId, db, { includeTools: false }),
+            await (await loadMcpConnectors()).listUserMcpConnectors(
+                userId,
+                db,
+                { includeTools: false },
+            ),
         );
     } catch (err) {
         const detail = errorMessage(err);
@@ -631,7 +572,11 @@ userRouter.get(
         const db = createServerSupabase();
         try {
             res.json(
-                await getUserMcpConnector(userId, req.params.connectorId, db),
+                await (await loadMcpConnectors()).getUserMcpConnector(
+                    userId,
+                    req.params.connectorId,
+                    db,
+                ),
             );
         } catch (err) {
             const detail = errorMessage(err);
@@ -666,7 +611,9 @@ userRouter.post(
                 : undefined;
         const db = createServerSupabase();
         try {
-            const connector = await createUserMcpConnector(
+            const connector = await (
+                await loadMcpConnectors()
+            ).createUserMcpConnector(
                 userId,
                 { name, serverUrl, bearerToken, headers },
                 db,
@@ -692,7 +639,9 @@ userRouter.patch(
         const db = createServerSupabase();
         const body = req.body ?? {};
         try {
-            const connector = await updateUserMcpConnector(
+            const connector = await (
+                await loadMcpConnectors()
+            ).updateUserMcpConnector(
                 userId,
                 req.params.connectorId,
                 {
@@ -750,7 +699,11 @@ userRouter.delete(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            await deleteUserMcpConnector(userId, req.params.connectorId, db);
+            await (await loadMcpConnectors()).deleteUserMcpConnector(
+                userId,
+                req.params.connectorId,
+                db,
+            );
             res.status(204).send();
         } catch (err) {
             const detail = errorMessage(err);
@@ -773,7 +726,9 @@ userRouter.post(
         const db = createServerSupabase();
         try {
             const redirectUri = `${backendPublicUrl(req)}/user/mcp-connectors/oauth/callback`;
-            const result = await startUserMcpConnectorOAuth(
+            const result = await (
+                await loadMcpConnectors()
+            ).startUserMcpConnectorOAuth(
                 userId,
                 req.params.connectorId,
                 redirectUri,
@@ -803,7 +758,9 @@ userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
         if (error) throw new Error(error);
         if (!state || !code)
             throw new Error("OAuth callback is missing state or code.");
-        const result = await completeUserMcpConnectorOAuth(state, code, db);
+        const result = await (
+            await loadMcpConnectors()
+        ).completeUserMcpConnectorOAuth(state, code, db);
         res.set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
             .type("html")
             .send(
@@ -844,7 +801,9 @@ userRouter.post(
         const userId = res.locals.userId as string;
         const db = createServerSupabase();
         try {
-            const connector = await refreshUserMcpConnectorTools(
+            const connector = await (
+                await loadMcpConnectors()
+            ).refreshUserMcpConnectorTools(
                 userId,
                 req.params.connectorId,
                 db,
@@ -857,9 +816,9 @@ userRouter.post(
                 connectorId: req.params.connectorId,
                 error: detail,
             });
-            if (err instanceof McpOAuthRequiredError) {
+            if (err instanceof Error && err.name === "McpOAuthRequiredError") {
                 return void res.status(401).json({
-                    code: err.code,
+                    code: "oauth_required",
                     detail,
                 });
             }
@@ -880,7 +839,9 @@ userRouter.patch(
 
         const db = createServerSupabase();
         try {
-            const connector = await setUserMcpToolEnabled(
+            const connector = await (
+                await loadMcpConnectors()
+            ).setUserMcpToolEnabled(
                 userId,
                 req.params.connectorId,
                 req.params.toolId,
