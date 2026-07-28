@@ -120,9 +120,9 @@ describe("account-free startup", () => {
         expect(
             await screen.findByText("false:cloud@example.com:true"),
         ).toBeInTheDocument();
+        await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
         expect(mocks.supabaseLoads).toBe(1);
         expect(mocks.onAuthStateChange).toHaveBeenCalledOnce();
-        expect(mocks.getUserProfile).toHaveBeenCalledOnce();
         view.unmount();
         expect(mocks.unsubscribe).toHaveBeenCalledOnce();
     });

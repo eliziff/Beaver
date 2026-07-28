@@ -13,6 +13,7 @@ import { TableOfAuthoritiesHost } from "@/app/components/shared/TableOfAuthoriti
 vi.mock("@/app/lib/beaverApi", () => ({
   launchTableOfAuthorities: vi.fn(),
 }));
+vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 
 const navigation = vi.hoisted(() => ({ search: "" }));
 
@@ -21,7 +22,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 function attemptFor(frame: HTMLElement) {
-  return new URL(frame.getAttribute("src")!).searchParams.get("attempt");
+  return (
+    new URL(frame.getAttribute("src")!).searchParams.get("attempt") ?? ""
+  );
 }
 
 function signal(
@@ -59,34 +62,22 @@ describe("TableOfAuthoritiesHost", () => {
     vi.useRealTimers();
   });
 
-  it("uses a stable Beaver session for this browser tab", async () => {
+  it("emits the local frame before the launch handshake", async () => {
     const first = render(<TableOfAuthoritiesHost active enabled />);
-    await waitFor(() =>
-      expect(
-        screen.getByTitle("Table of Authorities").getAttribute("src"),
-      ).toContain("127.0.0.1:8765"),
-    );
     const firstFrame = screen.getByTitle("Table of Authorities");
     const firstUrl = new URL(firstFrame.getAttribute("src")!);
     expect(firstUrl.searchParams.get("mode")).toBe("mike");
-    expect(firstUrl.searchParams.get("session")).toMatch(/^[0-9a-f]{32}$/);
-    expect(firstUrl.searchParams.get("attempt")).toMatch(
-      /^[0-9a-f-]{36}$/,
-    );
+    expect(firstUrl.searchParams.has("session")).toBe(false);
+    expect(firstUrl.searchParams.get("attempt")).toBe("");
     expect(firstUrl.searchParams.has("job")).toBe(false);
+    await waitFor(() =>
+      expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1),
+    );
 
     first.unmount();
     render(<TableOfAuthoritiesHost active enabled />);
-    await waitFor(() =>
-      expect(
-        screen.getByTitle("Table of Authorities").getAttribute("src"),
-      ).toContain("127.0.0.1:8765"),
-    );
     const secondFrame = screen.getByTitle("Table of Authorities");
-    const secondUrl = new URL(secondFrame.getAttribute("src")!);
-    expect(secondUrl.searchParams.get("session")).toBe(
-      firstUrl.searchParams.get("session"),
-    );
+    expect(secondFrame.getAttribute("src")).toBe(firstFrame.getAttribute("src"));
   });
 
   it("forwards only a valid explicitly requested durable job", async () => {
@@ -96,12 +87,12 @@ describe("TableOfAuthoritiesHost", () => {
 
     render(<TableOfAuthoritiesHost active enabled />);
 
+    const frame = screen.getByTitle("Table of Authorities");
     await waitFor(() =>
       expect(
-        screen.getByTitle("Table of Authorities").getAttribute("src"),
-      ).toContain("127.0.0.1:8765"),
+        new URL(frame.getAttribute("src")!).searchParams.get("job"),
+      ).toBe(job),
     );
-    const frame = screen.getByTitle("Table of Authorities");
     const serviceUrl = new URL(frame.getAttribute("src")!);
     expect(serviceUrl.searchParams.get("job")).toBe(job);
   });
@@ -117,34 +108,23 @@ describe("TableOfAuthoritiesHost", () => {
 
     render(<TableOfAuthoritiesHost active enabled />);
 
+    const frame = screen.getByTitle("Table of Authorities");
     await waitFor(() =>
       expect(
-        screen.getByTitle("Table of Authorities").getAttribute("src"),
-      ).toContain("127.0.0.1:8765"),
+        new URL(frame.getAttribute("src")!).searchParams.get("project"),
+      ).toBe(project),
     );
-    const frame = screen.getByTitle("Table of Authorities");
-    expect(
-      new URL(frame.getAttribute("src")!).searchParams.get("project"),
-    ).toBe(project);
   });
 
-  it("shows the real embedded surface while readiness is confirmed", async () => {
+  it("shows the local embedded surface on the first render", async () => {
     render(<TableOfAuthoritiesHost active enabled />);
 
-    expect(screen.queryByTitle("Table of Authorities")).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId("authorities-neutral-cover"),
-    ).toBeInTheDocument();
-
-    await waitFor(() =>
-      expect(
-        screen.getByTitle("Table of Authorities").getAttribute("src"),
-      ).toContain("127.0.0.1:8765"),
-    );
     const frame = screen.getByTitle("Table of Authorities");
-    expect(frame).toHaveAttribute("tabindex", "-1");
-    expect(frame).toHaveClass("invisible");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+    expect(frame).toHaveAttribute("tabindex", "0");
+    expect(frame).not.toHaveClass("invisible");
+    expect(
+      screen.queryByTestId("authorities-neutral-cover"),
+    ).not.toBeInTheDocument();
 
     fireEvent.load(frame);
     signal(frame, "mike:table-of-authorities-ready");
@@ -205,7 +185,7 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).toHaveAttribute("tabindex", "-1");
   });
 
-  it("finishes one session-bound boot while hidden without reloading on activation", async () => {
+  it("finishes one preloaded boot while hidden without reloading on activation", async () => {
     vi.mocked(launchTableOfAuthorities).mockResolvedValue({
       ok: true,
       url: "http://127.0.0.1:8765/",
@@ -217,15 +197,17 @@ describe("TableOfAuthoritiesHost", () => {
     const frame = await screen.findByTitle("Table of Authorities");
     const source = frame.getAttribute("src");
 
-    expect(source).toContain("session=");
+    expect(source).not.toContain("session=");
     expect(source).toContain("attempt=");
-    expect(frame).toHaveClass("invisible");
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
+    expect(frame).not.toHaveClass("invisible");
+    expect(
+      screen.queryByTestId("authorities-neutral-cover"),
+    ).not.toBeInTheDocument();
 
     view.rerender(<TableOfAuthoritiesHost active enabled />);
 
     expect(frame).toHaveAttribute("src", source);
-    expect(frame).toHaveClass("invisible");
+    expect(frame).not.toHaveClass("invisible");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
 
     signal(frame, "mike:table-of-authorities-ready");
@@ -241,6 +223,11 @@ describe("TableOfAuthoritiesHost", () => {
     navigation.search = `?job=${job}`;
     const view = render(<TableOfAuthoritiesHost active enabled />);
     const frame = await screen.findByTitle("Table of Authorities");
+    await waitFor(() =>
+      expect(
+        new URL(frame.getAttribute("src")!).searchParams.get("job"),
+      ).toBe(job),
+    );
     const source = frame.getAttribute("src");
     signal(frame, "mike:table-of-authorities-ready");
 
@@ -289,6 +276,11 @@ describe("TableOfAuthoritiesHost", () => {
     navigation.search = `?job=${firstJob}`;
     const view = render(<TableOfAuthoritiesHost active enabled />);
     const frame = await screen.findByTitle("Table of Authorities");
+    await waitFor(() =>
+      expect(
+        new URL(frame.getAttribute("src")!).searchParams.get("job"),
+      ).toBe(firstJob),
+    );
     const firstAttempt = attemptFor(frame);
 
     navigation.search = `?job=${secondJob}`;
