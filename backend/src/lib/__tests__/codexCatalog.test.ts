@@ -8,6 +8,7 @@ const luna = {
   supported_reasoning_levels: [
     { effort: "low" },
     { effort: "max" },
+    { effort: "LOW" },
   ],
 };
 
