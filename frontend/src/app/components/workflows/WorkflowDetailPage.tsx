@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     Check,
-    ChevronDown,
     Play,
     Plus,
     Users,
@@ -119,20 +118,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
     const [openSourceOpen, setOpenSourceOpen] = useState(false);
-
-    // Column actions dropdown
-    const [colActionsOpen, setColActionsOpen] = useState(false);
-    const colActionsRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (colActionsRef.current && !colActionsRef.current.contains(e.target as Node)) {
-                setColActionsOpen(false);
-            }
-        }
-        if (colActionsOpen) document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [colActionsOpen]);
 
     // Load workflow
     useEffect(() => {
@@ -304,7 +289,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         setColumns(next);
         saveColumns(next);
         setSelectedColIndices([]);
-        setColActionsOpen(false);
     }
 
     function handleColumnSaved(updated: ColumnConfig) {
@@ -535,47 +519,19 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                             <TableToolbar
                                 actions={
                                     <div className="flex items-center gap-2">
-                                        {columns.length > 0 &&
-                                            selectedColIndices.length > 0 && (
-                                                <>
-                                                    <div
-                                                        ref={colActionsRef}
-                                                        className="relative max-md:hidden"
-                                                    >
-                                                        <TabPillButton
-                                                            onClick={() =>
-                                                                setColActionsOpen(
-                                                                    (open) =>
-                                                                        !open,
-                                                                )
-                                                            }
-                                                        >
-                                                            Actions
-                                                            <ChevronDown className="h-3.5 w-3.5" />
-                                                        </TabPillButton>
-                                                        {colActionsOpen && (
-                                                            <div className="absolute top-full right-0 mt-1 w-36 rounded-lg border border-gray-100 bg-white shadow-lg z-50 overflow-hidden">
-                                                                <button
-                                                                    onClick={
-                                                                        handleDeleteSelectedColumns
-                                                                    }
-                                                                    className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 transition-colors"
-                                                                >
-                                                                    Delete
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <TabPillButton
-                                                        onClick={
-                                                            handleDeleteSelectedColumns
-                                                        }
-                                                        className="text-red-600 md:hidden"
-                                                    >
-                                                        Delete
-                                                    </TabPillButton>
-                                                </>
-                                            )}
+                                        <TabPillButton
+                                            onClick={handleDeleteSelectedColumns}
+                                            disabled={
+                                                selectedColIndices.length === 0
+                                            }
+                                            className={`w-28 text-red-700 ${
+                                                selectedColIndices.length === 0
+                                                    ? "invisible"
+                                                    : ""
+                                            }`}
+                                        >
+                                            Delete selected
+                                        </TabPillButton>
                                         <TabPillButton
                                             onClick={() =>
                                                 setAddColumnOpen(true)
