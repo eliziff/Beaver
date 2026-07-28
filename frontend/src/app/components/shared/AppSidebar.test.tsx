@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   pathname: "/assistant/chat/assistant-chat",
   anonymousMode: true,
   profile: null as { displayName: string; tier: string } | null,
-  setCurrentChatId: vi.fn(),
   loadChats: vi.fn(),
   replace: vi.fn(),
   updateChatProject: vi.fn(),
@@ -81,7 +80,6 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     hasMoreChats: false,
     loadMoreChats: vi.fn(),
     loadChats: mocks.loadChats,
-    setCurrentChatId: mocks.setCurrentChatId,
     renameChat: vi.fn(),
     deleteChat: vi.fn(),
   }),
@@ -189,14 +187,10 @@ describe("AppSidebar", () => {
         .getByRole("link", { name: "Projects" })
         .querySelector("svg.lucide-folder"),
     ).not.toBeNull();
-    expect(mocks.setCurrentChatId).toHaveBeenCalledWith("assistant-chat");
-
-    mocks.setCurrentChatId.mockClear();
     fireEvent.click(
       within(history).getByRole("link", { name: "Assistant matter" }),
     );
     expect(onToggle).toHaveBeenCalledOnce();
-    expect(mocks.setCurrentChatId).not.toHaveBeenCalled();
   });
 
   it("keeps primary navigation fixed when navigating to Authorities", () => {

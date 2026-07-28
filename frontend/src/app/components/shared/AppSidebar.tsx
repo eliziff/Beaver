@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname } from "next/navigation";
@@ -60,7 +60,7 @@ export function AppSidebar({
   const [movingChatIds, setMovingChatIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const { chats, hasMoreChats, loadMoreChats, loadChats, setCurrentChatId } =
+  const { chats, hasMoreChats, loadMoreChats, loadChats } =
     useChatHistoryContext();
   const pathname = usePathname();
   const routeChatId = useMemo(() => {
@@ -80,10 +80,6 @@ export function AppSidebar({
       ) ?? chats,
     [chats, movingChatIds],
   );
-
-  useEffect(() => {
-    setCurrentChatId(routeChatId);
-  }, [routeChatId, setCurrentChatId]);
 
   async function moveChatToProject(projectId: string | null) {
     const chat = chatProjectTarget;
