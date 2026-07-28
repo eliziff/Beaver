@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -21,9 +21,28 @@ export default function BeaverLayout({
     const router = useRouter();
     const pathname = usePathname();
     const authoritiesActive = pathname === "/table-of-authorities";
+    const [authoritiesOrigin, setAuthoritiesOrigin] = useState<string | null>(
+        null,
+    );
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
     const handleSidebarToggle = () => setMobileSidebarOpen((open) => !open);
+    const handleAuthoritiesNavigate = () => {
+        if (pathname === "/table-of-authorities") return;
+        setAuthoritiesOrigin(pathname);
+    };
+
+    const authoritiesIntent = authoritiesOrigin === pathname;
+    const authoritiesVisible = authoritiesActive || authoritiesIntent;
+
+    useEffect(() => {
+        if (authoritiesOrigin === null) return;
+        const rollback = window.setTimeout(
+            () => setAuthoritiesOrigin(null),
+            pathname === authoritiesOrigin ? 2_000 : 0,
+        );
+        return () => window.clearTimeout(rollback);
+    }, [authoritiesOrigin, pathname]);
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -50,6 +69,7 @@ export default function BeaverLayout({
                         <AppSidebar
                             mobileOpen={mobileSidebarOpen}
                             onToggle={handleSidebarToggle}
+                            onAuthoritiesNavigate={handleAuthoritiesNavigate}
                         />
                         <div className="flex-1 flex flex-col h-dvh lg:overflow-hidden relative w-full">
                             <div className="relative z-20 flex shrink-0 items-center px-4 pb-2 pt-3 lg:hidden">
@@ -82,7 +102,7 @@ export default function BeaverLayout({
                                                 locally yet.
                                             </p>
                                         </div>
-                                    ) : authoritiesActive ? null : (
+                                    ) : authoritiesVisible ? null : (
                                         children
                                     )}
                                 </main>
@@ -92,11 +112,13 @@ export default function BeaverLayout({
                                         !authLoading &&
                                         isAuthenticated
                                     }
+                                    pending={authoritiesIntent}
                                     enabled={
                                         !authLoading &&
                                         isAuthenticated &&
                                         (isAnonymousMode ||
-                                            authoritiesActive)
+                                            authoritiesActive ||
+                                            authoritiesIntent)
                                     }
                                 />
                             </div>

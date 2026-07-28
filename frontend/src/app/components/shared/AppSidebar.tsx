@@ -46,9 +46,14 @@ const NAV_ITEMS = [
 interface AppSidebarProps {
   mobileOpen: boolean;
   onToggle: () => void;
+  onAuthoritiesNavigate: () => void;
 }
 
-export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
+export function AppSidebar({
+  mobileOpen,
+  onToggle,
+  onAuthoritiesNavigate,
+}: AppSidebarProps) {
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
@@ -160,6 +165,11 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
               <div key={href} className="px-2.5 py-0.5">
                 <Link
                   href={href}
+                  onNavigate={
+                    href === "/table-of-authorities"
+                      ? onAuthoritiesNavigate
+                      : undefined
+                  }
                   onClick={mobileOpen ? onToggle : undefined}
                   title={label}
                   aria-current={isActive ? "page" : undefined}

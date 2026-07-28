@@ -17,7 +17,17 @@ const mocks = vi.hoisted(() => ({
   loadChats: vi.fn(),
   replace: vi.fn(),
   updateChatProject: vi.fn(),
+  onAuthoritiesNavigate: vi.fn(),
 }));
+function sidebar(mobileOpen: boolean, onToggle = vi.fn()) {
+  return (
+    <AppSidebar
+      mobileOpen={mobileOpen}
+      onToggle={onToggle}
+      onAuthoritiesNavigate={mocks.onAuthoritiesNavigate}
+    />
+  );
+}
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -26,14 +36,15 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({
   default: ({
     children,
-    prefetch: _prefetch,
     onClick,
+    onNavigate,
     ...props
-  }: React.ComponentProps<"a"> & { prefetch?: boolean }) => (
+  }: React.ComponentProps<"a"> & { onNavigate?: () => void }) => (
     <a
       {...props}
       onClick={(event) => {
         event.preventDefault();
+        onNavigate?.();
         onClick?.(event);
       }}
     >
@@ -153,7 +164,7 @@ describe("AppSidebar", () => {
 
   it("gives Assistant history the remaining height after primary navigation", () => {
     const onToggle = vi.fn();
-    render(<AppSidebar mobileOpen onToggle={onToggle} />);
+    render(sidebar(true, onToggle));
 
     const history = screen.getByRole("region", {
       name: "Assistant history",
@@ -190,9 +201,7 @@ describe("AppSidebar", () => {
 
   it("keeps primary navigation fixed when navigating to Authorities", () => {
     const onToggle = vi.fn();
-    const { rerender } = render(
-      <AppSidebar mobileOpen={false} onToggle={onToggle} />,
-    );
+    const { rerender } = render(sidebar(false, onToggle));
     const labelsBefore = within(
       screen.getByRole("navigation", { name: "Primary" }),
     )
@@ -202,10 +211,11 @@ describe("AppSidebar", () => {
     const authorities = screen.getByRole("link", { name: "Authorities" });
     expect(authorities).toHaveAttribute("href", "/table-of-authorities");
     fireEvent.click(authorities);
+    expect(mocks.onAuthoritiesNavigate).toHaveBeenCalledOnce();
     expect(onToggle).not.toHaveBeenCalled();
 
     mocks.pathname = "/table-of-authorities";
-    rerender(<AppSidebar mobileOpen={false} onToggle={onToggle} />);
+    rerender(sidebar(false, onToggle));
 
     const labelsAfter = within(
       screen.getByRole("navigation", { name: "Primary" }),
@@ -226,7 +236,7 @@ describe("AppSidebar", () => {
   it("moves an Assistant chat through the shared project chooser", async () => {
     const moved = vi.fn();
     window.addEventListener("beaver:chat-project-moved", moved);
-    render(<AppSidebar mobileOpen={false} onToggle={vi.fn()} />);
+    render(sidebar(false));
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -256,7 +266,7 @@ describe("AppSidebar", () => {
   });
 
   it("exposes local tools and read-only starter workflows", () => {
-    render(<AppSidebar mobileOpen={false} onToggle={vi.fn()} />);
+    render(sidebar(false));
 
     expect(
       screen.getByRole("link", { name: "Tabular Review" }),
@@ -273,7 +283,7 @@ describe("AppSidebar", () => {
     mocks.anonymousMode = false;
     mocks.profile = null;
     const onToggle = vi.fn();
-    render(<AppSidebar mobileOpen onToggle={onToggle} />);
+    render(sidebar(true, onToggle));
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(
