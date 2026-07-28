@@ -306,6 +306,82 @@ const durationUnit = (unit: string) => {
   return FR_DURATION_UNITS[key] ?? key.replace(/s$/u, "");
 };
 
+// Statutory drafting writes durations in WORDS ("eighteen months",
+// "dix-huit mois") — the CBCA s. 133 probe showed both language versions
+// carry zero digit durations, so a digit-only grammar is blind exactly
+// where the concordance gate matters most.
+const WORDED_DURATION_RE = new RegExp(
+  String.raw`\b([A-Za-z][A-Za-z\s\-]{1,40}?)[\s\-](${DURATION_UNITS})\b`,
+  "giu",
+);
+const FR_NUMBER_WORDS: Record<string, number> = {
+  un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7,
+  huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12, treize: 13, quatorze: 14,
+  quinze: 15, seize: 16, vingt: 20, vingts: 20, trente: 30, quarante: 40,
+  cinquante: 50, soixante: 60, cent: 100, cents: 100,
+};
+
+/**
+ * French number words compose by summation once quatre-vingt(s) is atomic:
+ * "dix-huit" 10+8, "soixante-dix" 60+10, "vingt et un" 20+1,
+ * "quatre-vingt-dix" 80+10.
+ */
+export function frenchWordPhraseToNumber(phrase: string): number | null {
+  const compacted = phrase
+    .toLowerCase()
+    .replace(/quatre[\s\-]vingts?/gu, "qv");
+  const tokens = compacted
+    .split(/[\s\-]+/u)
+    .filter((token) => token && token !== "et");
+  if (!tokens.length) return null;
+  let total = 0;
+  for (const token of tokens) {
+    if (token === "qv") {
+      total += 80;
+      continue;
+    }
+    const value = FR_NUMBER_WORDS[token];
+    if (value === undefined) return null;
+    total += value;
+  }
+  return total;
+}
+
+/** Trailing run of number words (either language) in a captured phrase. */
+function durationWordSuffix(phrase: string): string | null {
+  const tokens = phrase.split(/[\s\-]+/u).filter(Boolean);
+  let start = tokens.length;
+  while (start > 0) {
+    const token = tokens[start - 1].toLowerCase();
+    const known =
+      token in NUMBER_WORDS ||
+      token in FR_NUMBER_WORDS ||
+      token === "and" ||
+      token === "et" ||
+      /^quatre$/u.test(token);
+    if (!known) break;
+    start -= 1;
+  }
+  if (start === tokens.length) return null;
+  return tokens.slice(start).join(" ");
+}
+
+function pushWordedDurations(text: string, hits: AnchorHit[]) {
+  for (const match of text.matchAll(WORDED_DURATION_RE)) {
+    const suffix = durationWordSuffix(match[1]);
+    if (!suffix) continue;
+    const value =
+      wordPhraseToNumber(suffix) ?? frenchWordPhraseToNumber(suffix);
+    if (value === null || value <= 0) continue;
+    hits.push({
+      cls: "duration",
+      raw: match[0].trim(),
+      norm: `dur:${value}:${durationUnit(match[2])}`,
+      index: match.index ?? 0,
+    });
+  }
+}
+
 function pushMoneyMatches(text: string, hits: AnchorHit[]) {
   type Pending = {
     raw: string;
@@ -360,6 +436,7 @@ export function extractAnchors(text: string): AnchorHit[] {
   const hits: AnchorHit[] = [];
   pushMoneyMatches(text, hits);
   pushFrenchMoney(text, hits);
+  pushWordedDurations(text, hits);
   for (const match of text.matchAll(STATUTE_CANADIAN_FR_RE)) {
     const series =
       FR_STATUTE_SERIES[match[1].replace(/\./gu, "").toUpperCase()] ??
