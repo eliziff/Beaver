@@ -165,6 +165,7 @@ Recorded strict wins on the same Windows/i3-1315U machine:
 | Delete remaining no-caller frontend helpers | Same build/chunk method; full Vitest | 7,864,904 JS B; 135,251 CSS B | 7,864,658 JS B (`-246`); 135,110 CSS B (`-141`); 113 fewer production lines; 168/168 tests |
 | Consolidate document selection, removal, and tabular streaming | Same build/chunk method; full Vitest; five project-modal opens at 6× CPU | 7,864,658 JS B; 135,110 CSS B; 50,361 production lines; 313.3 ms modal median and one project fetch/open | 7,859,667 JS B (`-4,991`); 135,087 CSS B (`-23`); 50,112 lines (`-243`, 69 below OG Mike); 278.1 ms (`-11.2%`) and zero project fetches; 173/173 tests |
 | Delete the one-caller Tabular workflow wrapper | Same build/chunk method; full Vitest | 7,859,667 JS B; Tabular detail 1,164,368 JS B; 50,112 production lines | 7,859,357 JS B (`-310`); Tabular detail 1,164,058 B (`-310`); 50,082 lines (`-30`, 99 below OG Mike); 173/173 tests |
+| Remove Tabular model/effort prop relay | Same build/chunk method; focused payload assertion; full Vitest | 7,859,357 JS B; Tabular detail 1,164,058 JS B; 50,082 production lines | 7,859,235 JS B (`-122`); Tabular detail 1,163,936 B (`-122`); 50,069 lines (`-13`, 112 below OG Mike); 173/173 tests |
 
 The Assistant and workflow-modal lazy-load experiments were reverted after
 6×-CPU interaction tests regressed fast send by about 307 ms and modal open by

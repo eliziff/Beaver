@@ -317,24 +317,18 @@ function TRChatInput({
     isLoading,
     onSubmit,
     onCancel,
-    model,
-    onModelChange,
-    reasoningEffort,
-    onReasoningEffortChange,
     apiKeys,
     onHeightChange,
 }: {
     isLoading: boolean;
-    onSubmit: (value: string) => void;
+    onSubmit: (value: string, model: string, effort?: string) => void;
     onCancel: () => void;
-    model: string;
-    onModelChange: (id: string) => void;
-    reasoningEffort?: string;
-    onReasoningEffortChange: (value: string) => void;
     apiKeys?: ApiKeyState;
     onHeightChange: (height: number) => void;
 }) {
     const [value, setValue] = useState("");
+    const [model, setModel] = useSelectedModel();
+    const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const rootRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -375,7 +369,7 @@ function TRChatInput({
         if (!trimmed) return;
         setValue("");
         resetTextarea();
-        onSubmit(trimmed);
+        onSubmit(trimmed, model, reasoningEffort);
     }
 
     return (
@@ -405,11 +399,11 @@ function TRChatInput({
                     <ReasoningEffortToggle
                         model={model}
                         value={reasoningEffort}
-                        onChange={onReasoningEffortChange}
+                        onChange={setReasoningEffort}
                     />
                     <ModelToggle
                         value={model}
-                        onChange={onModelChange}
+                        onChange={setModel}
                         apiKeys={apiKeys}
                     />
                     <button
@@ -580,9 +574,6 @@ export function TRChatPanel({
 }: Props) {
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
-    const [currentModel, setCurrentModel] = useSelectedModel();
-    const [reasoningEffort, setReasoningEffort] =
-        useSelectedReasoningEffort();
     const [apiKeyModalProvider, setApiKeyModalProvider] =
         useState<ModelProvider | null>(null);
     const [chats, setChats] = useState<TRChat[]>([]);
@@ -820,10 +811,10 @@ export function TRChatPanel({
         abortRef.current?.abort();
     }
 
-    async function handleSubmit(trimmed: string) {
+    async function handleSubmit(trimmed: string, model: string, effort?: string) {
         if (!trimmed || isLoading) return;
-        if (apiKeys && !isModelAvailable(currentModel, apiKeys)) {
-            setApiKeyModalProvider(getModelProvider(currentModel));
+        if (apiKeys && !isModelAvailable(model, apiKeys)) {
+            setApiKeyModalProvider(getModelProvider(model));
             return;
         }
 
@@ -861,8 +852,8 @@ export function TRChatPanel({
                 {
                     reviewTitle,
                     projectName,
-                    model: currentModel,
-                    reasoningEffort,
+                    model,
+                    reasoningEffort: effort,
                 },
             );
             if (!response.body) throw new Error("No response body");
@@ -1513,10 +1504,6 @@ export function TRChatPanel({
                 isLoading={isLoading}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
-                model={currentModel}
-                onModelChange={setCurrentModel}
-                reasoningEffort={reasoningEffort}
-                onReasoningEffortChange={setReasoningEffort}
                 apiKeys={apiKeys}
                 onHeightChange={setInputHeight}
             />
