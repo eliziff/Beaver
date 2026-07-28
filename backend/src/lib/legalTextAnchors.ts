@@ -142,6 +142,12 @@ const STATUTE_CANADIAN_RE = new RegExp(
     String.raw`(?:,\s*ss?\.\s*(\d[\w().]*))?`,
   "gu",
 );
+// Canadian federal delegated instruments: "SOR/2005-407", "SI/2004-121",
+// two-digit-year form "SOR/83-593". No US analogue — a register prefix and
+// a hyphenated pair that a US-shaped grammar reads as a fraction or date,
+// so it fails silently without its own production (generalization-corpus
+// anchor-forms inventory, 2026-07-28).
+const STATUTE_INSTRUMENT_RE = /\b(SOR|SI)\/(\d{2}|\d{4})-(\d{1,5})\b/gu;
 // Neutral Canadian case citations ("2015 SCC 5") and the common US reporter
 // forms ("372 U.S. 335", "550 F. Supp. 2d 191"): dropped citations are a
 // real omission class in legal drafting, and both grammars are regex-clean.
@@ -299,6 +305,19 @@ export function extractAnchors(text: string): AnchorHit[] {
       cls: "statute",
       raw: match[0].trim(),
       norm: parts.join(":"),
+      index: match.index ?? 0,
+    });
+  }
+  for (const match of text.matchAll(STATUTE_INSTRUMENT_RE)) {
+    const yearDigits = Number(match[2]);
+    const year =
+      match[2].length === 2
+        ? (yearDigits >= 47 ? 1900 : 2000) + yearDigits
+        : yearDigits;
+    hits.push({
+      cls: "statute",
+      raw: match[0],
+      norm: `stat:${match[1].toLowerCase()}:${year}-${Number(match[3])}`,
       index: match.index ?? 0,
     });
   }
