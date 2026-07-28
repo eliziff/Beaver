@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import {
     ChevronDown,
-    Eye,
-    EyeOff,
     Loader2,
     Plus,
     RefreshCw,
 } from "lucide-react";
-import { Input } from "@/app/components/ui/input";
 import { Modal } from "@/app/components/modals/Modal";
-import { NewMcpModal } from "@/app/components/account/NewMcpModal";
+import {
+    McpConnectorFields,
+    NewMcpModal,
+    type McpConnectorDraft,
+} from "@/app/components/account/NewMcpModal";
 import {
     MfaVerificationPopup,
     needsMfaVerification,
@@ -30,8 +31,6 @@ import {
     updateMcpConnector,
 } from "@/app/lib/beaverApi";
 import {
-    accountGlassIconButtonClassName,
-    accountGlassInputClassName,
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
@@ -51,20 +50,13 @@ type PendingMfaAction =
           enabled: boolean;
       };
 
-type AddDraft = {
-    name: string;
-    serverUrl: string;
-    bearerToken: string;
-    customHeaders: string;
-};
-
-type DetailDraft = AddDraft & {
+type DetailDraft = McpConnectorDraft & {
     clearBearerToken: boolean;
 };
 
 type AddStep = "form" | "working" | "auth" | "success";
 
-const emptyAddDraft: AddDraft = {
+const emptyAddDraft: McpConnectorDraft = {
     name: "",
     serverUrl: "",
     bearerToken: "",
@@ -117,7 +109,8 @@ export default function ConnectorsPage() {
     const [pendingMfaAction, setPendingMfaAction] =
         useState<PendingMfaAction | null>(null);
     const [addOpen, setAddOpen] = useState(false);
-    const [addDraft, setAddDraft] = useState<AddDraft>(emptyAddDraft);
+    const [addDraft, setAddDraft] =
+        useState<McpConnectorDraft>(emptyAddDraft);
     const [addStep, setAddStep] = useState<AddStep>("form");
     const [addResult, setAddResult] = useState<McpConnectorSummary | null>(
         null,
@@ -896,7 +889,7 @@ function McpConnectorDetailsModal({
         >
             {connector && (
                 <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4">
-                    <ConnectorForm
+                    <McpConnectorFields
                         draft={draft}
                         showToken={showToken}
                         showAdvanced={showAdvanced}
@@ -978,190 +971,6 @@ function McpConnectorDetailsModal({
                 </div>
             )}
         </Modal>
-    );
-}
-
-function ConnectorForm({
-    draft,
-    showToken,
-    showAdvanced,
-    showTokenNote = false,
-    tokenPlaceholder,
-    tokenAction,
-    disabled = false,
-    onDraftChange,
-    onShowTokenChange,
-    onShowAdvancedChange,
-}: {
-    draft: AddDraft;
-    showToken: boolean;
-    showAdvanced: boolean;
-    showTokenNote?: boolean;
-    tokenPlaceholder: string;
-    tokenAction?: {
-        label: string;
-        active?: boolean;
-        loading?: boolean;
-        cleared?: boolean;
-        onClick: () => void;
-    };
-    disabled?: boolean;
-    onDraftChange: (draft: AddDraft) => void;
-    onShowTokenChange: (show: boolean) => void;
-    onShowAdvancedChange: (show: boolean) => void;
-}) {
-    return (
-        <div className="grid gap-3 pt-1">
-            <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                <span className="text-xs font-medium text-gray-500">
-                    Label
-                </span>
-                <Input
-                    value={draft.name}
-                    onChange={(event) =>
-                        onDraftChange({ ...draft, name: event.target.value })
-                    }
-                    placeholder="Connector label"
-                    className={`h-8 text-sm ${accountGlassInputClassName}`}
-                    disabled={disabled}
-                />
-            </label>
-            <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                <span className="text-xs font-medium text-gray-500">
-                    URL endpoint
-                </span>
-                <Input
-                    value={draft.serverUrl}
-                    onChange={(event) =>
-                        onDraftChange({
-                            ...draft,
-                            serverUrl: event.target.value,
-                        })
-                    }
-                    placeholder="https://mcp.example.com/mcp"
-                    className={`h-8 text-sm ${accountGlassInputClassName}`}
-                    disabled={disabled}
-                />
-            </label>
-            <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-start">
-                <span className="pt-2 text-xs font-medium text-gray-500">
-                    Bearer token
-                </span>
-                <div className="min-w-0">
-                    <div className="relative">
-                        <Input
-                            value={draft.bearerToken}
-                            onChange={(event) =>
-                                onDraftChange({
-                                    ...draft,
-                                    bearerToken: event.target.value,
-                                })
-                            }
-                            type={showToken ? "text" : "password"}
-                            placeholder={tokenPlaceholder}
-                            className={`h-8 ${
-                                tokenAction
-                                    ? draft.bearerToken
-                                        ? "pr-[6.5rem]"
-                                        : "pr-16"
-                                    : "pr-10"
-                            } text-sm ${accountGlassInputClassName}`}
-                            autoComplete="off"
-                            spellCheck={false}
-                            disabled={disabled}
-                        />
-                        {draft.bearerToken && (
-                            <button
-                                type="button"
-                                className={`absolute inset-y-1 ${
-                                    tokenAction ? "right-[3.75rem]" : "right-1.5"
-                                } flex items-center ${accountGlassIconButtonClassName}`}
-                                onClick={() => onShowTokenChange(!showToken)}
-                                aria-label={
-                                    showToken ? "Hide token" : "Show token"
-                                }
-                                disabled={disabled}
-                            >
-                                {showToken ? (
-                                    <EyeOff className="h-4 w-4" />
-                                ) : (
-                                    <Eye className="h-4 w-4" />
-                                )}
-                            </button>
-                        )}
-                        {tokenAction && (
-                            <button
-                                type="button"
-                                onClick={tokenAction.onClick}
-                                disabled={
-                                    disabled ||
-                                    tokenAction.loading ||
-                                    tokenAction.cleared
-                                }
-                                className={`absolute inset-y-1 right-1.5 px-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:text-gray-300 ${
-                                    tokenAction.active || tokenAction.cleared
-                                        ? "text-red-600 hover:text-red-700"
-                                        : "text-gray-500 hover:text-gray-900"
-                                }`}
-                            >
-                                <span className="inline-flex items-center gap-1">
-                                    {tokenAction.label}
-                                    {tokenAction.loading && (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                    )}
-                                </span>
-                            </button>
-                        )}
-                    </div>
-                    {showTokenNote && (
-                        <p className="mt-1 text-right text-xs text-gray-500">
-                            Tokens are stored encrypted.
-                        </p>
-                    )}
-                </div>
-            </div>
-            <div className="grid gap-2">
-                <button
-                    type="button"
-                    onClick={() => onShowAdvancedChange(!showAdvanced)}
-                    className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
-                    disabled={disabled}
-                >
-                    Advanced
-                    <ChevronDown
-                        className={`h-3.5 w-3.5 ${
-                            showAdvanced ? "" : "-rotate-90"
-                        }`}
-                    />
-                </button>
-                {showAdvanced && (
-                    <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-start">
-                        <span className="text-xs font-medium text-gray-500">
-                            Custom headers
-                        </span>
-                        <div className="min-w-0">
-                            <textarea
-                                value={draft.customHeaders}
-                                onChange={(event) =>
-                                    onDraftChange({
-                                        ...draft,
-                                        customHeaders: event.target.value,
-                                    })
-                                }
-                                placeholder='{"X-API-Key":"secret"}'
-                                className={`min-h-20 w-full resize-y rounded-lg px-3 py-2 text-sm outline-none ${accountGlassInputClassName}`}
-                                autoComplete="off"
-                                spellCheck={false}
-                                disabled={disabled}
-                            />
-                            <p className="mt-1 text-right text-xs text-gray-500">
-                                Secrets are stored encrypted.
-                            </p>
-                        </div>
-                    </label>
-                )}
-            </div>
-        </div>
     );
 }
 

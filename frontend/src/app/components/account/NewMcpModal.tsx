@@ -9,7 +9,7 @@ import {
     accountGlassInputClassName,
 } from "@/app/(pages)/account/accountStyles";
 
-export type NewMcpDraft = {
+export type McpConnectorDraft = {
     name: string;
     serverUrl: string;
     bearerToken: string;
@@ -20,14 +20,14 @@ export type NewMcpStep = "form" | "working" | "auth" | "success";
 
 interface NewMcpModalProps {
     open: boolean;
-    draft: NewMcpDraft;
+    draft: McpConnectorDraft;
     step: NewMcpStep;
     result: McpConnectorSummary | null;
     error: string | null;
     authMessage: string | null;
     showToken: boolean;
     showAdvanced: boolean;
-    onDraftChange: (draft: NewMcpDraft) => void;
+    onDraftChange: (draft: McpConnectorDraft) => void;
     onShowTokenChange: (show: boolean) => void;
     onShowAdvancedChange: (show: boolean) => void;
     onClose: () => void;
@@ -122,10 +122,11 @@ export function NewMcpModal({
                         The assistant will have access to this MCP server and
                         its enabled tools.
                     </p>
-                    <NewMcpForm
+                    <McpConnectorFields
                         draft={draft}
                         showToken={showToken}
                         showAdvanced={showAdvanced}
+                        showTokenNote
                         disabled={step === "working"}
                         onDraftChange={onDraftChange}
                         onShowTokenChange={onShowTokenChange}
@@ -137,20 +138,32 @@ export function NewMcpModal({
     );
 }
 
-function NewMcpForm({
+export function McpConnectorFields({
     draft,
     showToken,
     showAdvanced,
-    disabled,
+    showTokenNote = false,
+    tokenPlaceholder = "Bearer token",
+    tokenAction,
+    disabled = false,
     onDraftChange,
     onShowTokenChange,
     onShowAdvancedChange,
 }: {
-    draft: NewMcpDraft;
+    draft: McpConnectorDraft;
     showToken: boolean;
     showAdvanced: boolean;
-    disabled: boolean;
-    onDraftChange: (draft: NewMcpDraft) => void;
+    showTokenNote?: boolean;
+    tokenPlaceholder?: string;
+    tokenAction?: {
+        label: string;
+        active?: boolean;
+        loading?: boolean;
+        cleared?: boolean;
+        onClick: () => void;
+    };
+    disabled?: boolean;
+    onDraftChange: (draft: McpConnectorDraft) => void;
     onShowTokenChange: (show: boolean) => void;
     onShowAdvancedChange: (show: boolean) => void;
 }) {
@@ -202,8 +215,14 @@ function NewMcpForm({
                                 })
                             }
                             type={showToken ? "text" : "password"}
-                            placeholder="Bearer token"
-                            className={`h-8 pr-10 text-sm ${accountGlassInputClassName}`}
+                            placeholder={tokenPlaceholder}
+                            className={`h-8 ${
+                                tokenAction
+                                    ? draft.bearerToken
+                                        ? "pr-[6.5rem]"
+                                        : "pr-16"
+                                    : "pr-10"
+                            } text-sm ${accountGlassInputClassName}`}
                             autoComplete="off"
                             spellCheck={false}
                             disabled={disabled}
@@ -211,7 +230,9 @@ function NewMcpForm({
                         {draft.bearerToken && (
                             <button
                                 type="button"
-                                className={`absolute inset-y-1 right-1.5 flex items-center ${accountGlassIconButtonClassName}`}
+                                className={`absolute inset-y-1 ${
+                                    tokenAction ? "right-[3.75rem]" : "right-1.5"
+                                } flex items-center ${accountGlassIconButtonClassName}`}
                                 onClick={() => onShowTokenChange(!showToken)}
                                 aria-label={
                                     showToken ? "Hide token" : "Show token"
@@ -225,10 +246,35 @@ function NewMcpForm({
                                 )}
                             </button>
                         )}
+                        {tokenAction && (
+                            <button
+                                type="button"
+                                onClick={tokenAction.onClick}
+                                disabled={
+                                    disabled ||
+                                    tokenAction.loading ||
+                                    tokenAction.cleared
+                                }
+                                className={`absolute inset-y-1 right-1.5 px-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:text-gray-300 ${
+                                    tokenAction.active || tokenAction.cleared
+                                        ? "text-red-600 hover:text-red-700"
+                                        : "text-gray-500 hover:text-gray-900"
+                                }`}
+                            >
+                                <span className="inline-flex items-center gap-1">
+                                    {tokenAction.label}
+                                    {tokenAction.loading && (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    )}
+                                </span>
+                            </button>
+                        )}
                     </div>
-                    <p className="mt-1 text-right text-xs text-gray-500">
-                        Tokens are stored encrypted.
-                    </p>
+                    {showTokenNote && (
+                        <p className="mt-1 text-right text-xs text-gray-500">
+                            Tokens are stored encrypted.
+                        </p>
+                    )}
                 </div>
             </div>
             <div className="grid gap-2">

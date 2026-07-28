@@ -1,12 +1,6 @@
 "use client";
 
-import {
-    useEffect,
-    useRef,
-    useState,
-    type ClipboardEvent,
-    type KeyboardEvent,
-} from "react";
+import { useEffect, useState } from "react";
 import { Copy, Loader2 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "@/app/components/ui/button";
@@ -16,6 +10,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import {
     MfaVerificationPopup,
     needsMfaVerification,
+    VerificationCodeInput,
 } from "@/app/components/popups/MfaVerificationPopup";
 import {
     accountGlassPrimaryButtonClassName,
@@ -50,87 +45,6 @@ function isDuplicateFriendlyNameError(error: unknown) {
     return message
         .toLowerCase()
         .includes("a factor with the friendly name");
-}
-
-function VerificationCodeInput({
-    value,
-    onChange,
-    disabled,
-}: {
-    value: string;
-    onChange: (value: string) => void;
-    disabled?: boolean;
-}) {
-    const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
-    const digits = Array.from({ length: 6 }, (_, index) => value[index] ?? "");
-
-    function updateDigit(index: number, nextValue: string) {
-        const digit = nextValue.replace(/\D/g, "").slice(-1);
-        const nextDigits = [...digits];
-        nextDigits[index] = digit;
-        onChange(nextDigits.join(""));
-        if (digit && index < inputsRef.current.length - 1) {
-            inputsRef.current[index + 1]?.focus();
-        }
-    }
-
-    function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
-        event.preventDefault();
-        const pasted = event.clipboardData
-            .getData("text")
-            .replace(/\D/g, "")
-            .slice(0, 6);
-        if (!pasted) return;
-        onChange(pasted);
-        inputsRef.current[Math.min(pasted.length, 6) - 1]?.focus();
-    }
-
-    function handleKeyDown(
-        event: KeyboardEvent<HTMLInputElement>,
-        index: number,
-    ) {
-        if (event.key === "Backspace" && !digits[index] && index > 0) {
-            inputsRef.current[index - 1]?.focus();
-        }
-        if (event.key === "ArrowLeft" && index > 0) {
-            event.preventDefault();
-            inputsRef.current[index - 1]?.focus();
-        }
-        if (event.key === "ArrowRight" && index < digits.length - 1) {
-            event.preventDefault();
-            inputsRef.current[index + 1]?.focus();
-        }
-    }
-
-    return (
-        <div
-            className="flex justify-center gap-2"
-            role="group"
-            aria-label="Six digit verification code"
-        >
-            {digits.map((digit, index) => (
-                <input
-                    key={index}
-                    ref={(element) => {
-                        inputsRef.current[index] = element;
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    value={digit}
-                    disabled={disabled}
-                    onChange={(event) =>
-                        updateDigit(index, event.target.value)
-                    }
-                    onPaste={handlePaste}
-                    onKeyDown={(event) => handleKeyDown(event, index)}
-                    className="h-11 w-10 rounded-lg border border-transparent bg-gray-100 text-center text-lg font-medium text-gray-950 shadow-none outline-none transition-colors focus:border-gray-200 focus:ring-2 focus:ring-gray-300/45 disabled:cursor-not-allowed disabled:opacity-45"
-                    aria-label={`Verification code digit ${index + 1}`}
-                    maxLength={1}
-                />
-            ))}
-        </div>
-    );
 }
 
 function MfaSettingsSkeleton() {

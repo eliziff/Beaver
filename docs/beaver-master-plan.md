@@ -161,6 +161,7 @@ Recorded strict wins on the same Windows/i3-1315U machine:
 | Stop global logo from prefetching Assistant on Library | `npm run build --prefix frontend`; production Next server; cache-disabled Chromium; 6× CPU; three-run median | 1,667,888 decoded JS bytes; 1,928 ms FCP; 1,608 ms long tasks | 903,634 bytes; 1,400 ms; 1,271 ms |
 | Same prefetch removal on Authorities | Same frontend method | 1,486,012 decoded JS bytes; 1,476 ms FCP; 1,978 ms long tasks | 721,758 bytes; 996 ms; 905 ms |
 | Defer cloud-only MFA SDK and remove duplicate Tabular UI | `npm run build --prefix frontend`; `.next` route-manifest decoded JS + CSS | Projects 1,146,769 B; Authorities 1,089,077 B; Tabular detail 1,474,644 B | 934,566 B (`-18.5%`); 876,473 B (`-19.5%`); 1,256,484 B (`-14.8%`) |
+| Share MCP/MFA fields and remove dead frontend API declarations | `npm run build --prefix frontend`; all `.next` chunks; full Vitest | 7,870,663 JS B; 135,316 CSS B | 7,864,904 JS B (`-5,759`); 135,251 CSS B (`-65`); primary-route JS unchanged; 312 fewer production lines; 174/174 tests |
 
 The Assistant and workflow-modal lazy-load experiments were reverted after
 6×-CPU interaction tests regressed fast send by about 307 ms and modal open by
