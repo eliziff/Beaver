@@ -128,7 +128,7 @@ describe("TableOfAuthoritiesHost", () => {
     ).toBe(project);
   });
 
-  it("keeps a neutral cover until the embedded app signals readiness", async () => {
+  it("shows the real embedded surface while readiness is confirmed", async () => {
     render(<TableOfAuthoritiesHost active enabled />);
 
     expect(screen.queryByTitle("Table of Authorities")).not.toBeInTheDocument();
@@ -143,11 +143,11 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = screen.getByTitle("Table of Authorities");
     expect(frame).toHaveAttribute("tabindex", "-1");
+    expect(
+      screen.queryByTestId("authorities-neutral-cover"),
+    ).not.toBeInTheDocument();
 
     fireEvent.load(frame);
-    expect(
-      screen.getByTestId("authorities-neutral-cover"),
-    ).toBeInTheDocument();
     signal(frame, "mike:table-of-authorities-ready");
 
     expect(
@@ -222,15 +222,16 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const secondAttempt = attemptFor(frame);
     expect(secondAttempt).not.toBe(firstAttempt);
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
-
-    signal(frame, "mike:table-of-authorities-ready", firstAttempt);
-    expect(screen.getByTestId("authorities-neutral-cover")).toBeInTheDocument();
-
-    signal(frame, "mike:table-of-authorities-ready", secondAttempt);
+    expect(frame).toHaveAttribute("tabindex", "-1");
     expect(
       screen.queryByTestId("authorities-neutral-cover"),
     ).not.toBeInTheDocument();
+
+    signal(frame, "mike:table-of-authorities-ready", firstAttempt);
+    expect(frame).toHaveAttribute("tabindex", "-1");
+
+    signal(frame, "mike:table-of-authorities-ready", secondAttempt);
+    expect(frame).toHaveAttribute("tabindex", "0");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
   });
 

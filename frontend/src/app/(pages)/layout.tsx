@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -10,10 +10,7 @@ import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
 import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
-import {
-    TableOfAuthoritiesFallback,
-    TableOfAuthoritiesHost,
-} from "@/app/components/shared/TableOfAuthoritiesHost";
+import { TableOfAuthoritiesHost } from "@/app/components/shared/TableOfAuthoritiesHost";
 
 export default function BeaverLayout({
     children,
@@ -89,31 +86,19 @@ export default function BeaverLayout({
                                         children
                                     )}
                                 </main>
-                                <Suspense
-                                    fallback={
-                                        <TableOfAuthoritiesFallback
-                                            active={
-                                                authoritiesActive &&
-                                                !authLoading &&
-                                                isAuthenticated
-                                            }
-                                        />
+                                <TableOfAuthoritiesHost
+                                    active={
+                                        authoritiesActive &&
+                                        !authLoading &&
+                                        isAuthenticated
                                     }
-                                >
-                                    <TableOfAuthoritiesHost
-                                        active={
-                                            authoritiesActive &&
-                                            !authLoading &&
-                                            isAuthenticated
-                                        }
-                                        enabled={
-                                            !authLoading &&
-                                            isAuthenticated &&
-                                            (isAnonymousMode ||
-                                                authoritiesActive)
-                                        }
-                                    />
-                                </Suspense>
+                                    enabled={
+                                        !authLoading &&
+                                        isAuthenticated &&
+                                        (isAnonymousMode ||
+                                            authoritiesActive)
+                                    }
+                                />
                             </div>
                         </div>
                     </div>
