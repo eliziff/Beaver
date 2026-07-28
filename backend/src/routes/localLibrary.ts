@@ -31,6 +31,7 @@ import { singleFileUpload } from "../lib/upload";
 import { imageValidationError } from "../lib/llm/images";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
 import { asyncRoute } from "../lib/asyncRoute";
+import { normalizeDocumentFilename } from "../lib/normalize";
 
 export const localLibraryRouter = Router();
 
@@ -38,13 +39,6 @@ function libraryKind(value: unknown): LocalLibraryKind | null {
   if (value === "file" || value === "files") return "file";
   if (value === "template" || value === "templates") return "template";
   return null;
-}
-
-function renamedFilename(value: unknown, current: string) {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const trimmed = value.trim().slice(0, 200);
-  if (/\.[a-z0-9]{1,6}$/i.test(trimmed)) return trimmed;
-  return `${trimmed}${current.match(/\.[a-z0-9]{1,6}$/i)?.[0] ?? ""}`;
 }
 
 localLibraryRouter.use((_req, _res, next) => {
@@ -556,7 +550,10 @@ localLibraryRouter.patch(
     );
     if (!current)
       return void res.status(404).json({ detail: "Document not found" });
-    const filename = renamedFilename(req.body?.filename, current.filename);
+    const filename = normalizeDocumentFilename(
+      req.body?.filename,
+      current.filename,
+    );
     if (!filename)
       return void res.status(400).json({ detail: "filename is required" });
     const document = await renameLocalDocument(
