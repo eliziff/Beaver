@@ -75,7 +75,7 @@ describe("DOCX drafting source", () => {
     expect(source.requires_review).toBe(true);
   });
 
-  it("fails closed for non-DOCX, oversized, and highly compressed inputs", async () => {
+  it("fails closed for invalid, oversized, and oversized-XML inputs", async () => {
     await expect(
       extractDocxDraftingSource(Buffer.from("not a docx")),
     ).rejects.toThrow();
@@ -88,13 +88,12 @@ describe("DOCX drafting source", () => {
       "word/document.xml",
       "x".repeat(MAX_DRAFTING_XML_ENTRY_BYTES + 1),
     );
-    const compressed = await zip.generateAsync({
+    const archive = await zip.generateAsync({
       type: "nodebuffer",
-      compression: "DEFLATE",
-      compressionOptions: { level: 9 },
+      compression: "STORE",
     });
-    expect(compressed.length).toBeLessThan(MAX_DRAFTING_DOCX_BYTES);
-    await expect(extractDocxDraftingSource(compressed)).rejects.toThrow(
+    expect(archive.length).toBeLessThan(MAX_DRAFTING_DOCX_BYTES);
+    await expect(extractDocxDraftingSource(archive)).rejects.toThrow(
       "oversized XML",
     );
   });

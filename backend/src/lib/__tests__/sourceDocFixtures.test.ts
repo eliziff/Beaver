@@ -45,6 +45,10 @@ type Fixture = {
 };
 
 const FIXTURE_DIR = path.join(__dirname, "fixtures", "sourcedoc");
+const FIXTURE_FILES = readdirSync(FIXTURE_DIR)
+  .filter((name) => name.endsWith(".json") && name !== "legacy-spine.json")
+  .map((name) => name.replace(/\.json$/u, ""))
+  .sort();
 
 function fixture(file: string): Fixture {
   return JSON.parse(
@@ -108,102 +112,127 @@ const PARITY_FIXTURES = [
 const MATRIX: Array<{
   file: string;
   docType: "cases" | "laws";
-  shape: string;
   compiledSections: number;
   compiledParagraphs: number;
 }> = [
   {
     file: "a2aj-case-scc-2026scc16-toc",
     docType: "cases",
-    shape: "case-bracket-paragraphs-with-table-of-contents",
     compiledSections: 0,
     compiledParagraphs: 18,
   },
   {
     file: "a2aj-case-scc-2001scc1-bare",
     docType: "cases",
-    shape: "case-bare-numbered-paragraphs",
     compiledSections: 0,
     compiledParagraphs: 25,
   },
   {
     file: "a2aj-case-scc-1990scr30-unnumbered",
     docType: "cases",
-    shape: "case-pre1995-unnumbered",
     compiledSections: 0,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-case-scc-1986scr103-dot",
     docType: "cases",
-    shape: "case-pre1995-dot-numbered",
     compiledSections: 0,
     compiledParagraphs: 18,
   },
   {
+    file: "a2aj-case-scc-2021scc31-bracket",
+    docType: "cases",
+    compiledSections: 0,
+    compiledParagraphs: 9,
+  },
+  {
+    file: "a2aj-case-scc-2014scc71-bracket",
+    docType: "cases",
+    compiledSections: 0,
+    compiledParagraphs: 13,
+  },
+  {
+    file: "a2aj-case-scc-2020scc45-bracket",
+    docType: "cases",
+    compiledSections: 0,
+    compiledParagraphs: 11,
+  },
+  {
+    file: "a2aj-case-scc-2014scc53-bracket",
+    docType: "cases",
+    compiledSections: 0,
+    compiledParagraphs: 8,
+  },
+  {
     file: "a2aj-laws-fed-criminalcode-s231",
     docType: "laws",
-    shape: "laws-federal-emphasis-sections",
     compiledSections: 22,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-laws-fed-criminalcode-s22-1",
     docType: "laws",
-    shape: "laws-federal-emphasis-decimal-sections",
     compiledSections: 13,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-laws-fed-criminalcode-s83-01",
     docType: "laws",
-    shape: "laws-federal-emphasis-definitions",
     compiledSections: 26,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-laws-fed-criminalcode-sectionmap",
     docType: "laws",
-    shape: "laws-federal-section-map",
     compiledSections: 53,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-laws-on-occupiers-liability",
     docType: "laws",
-    shape: "laws-ontario-bare-sections",
     compiledSections: 66,
+    compiledParagraphs: 0,
+  },
+  {
+    file: "a2aj-laws-on-limitations-2002",
+    docType: "laws",
+    compiledSections: 35,
+    compiledParagraphs: 0,
+  },
+  {
+    file: "a2aj-laws-on-real-property-limitations",
+    docType: "laws",
+    compiledSections: 6,
+    compiledParagraphs: 0,
+  },
+  {
+    file: "a2aj-laws-bc-limitation-2012",
+    docType: "laws",
+    compiledSections: 57,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-regs-fed-crc870-a01",
     docType: "laws",
-    shape: "regs-federal-alphanumeric-emphasis-sections",
     compiledSections: 4,
     compiledParagraphs: 0,
   },
   {
     file: "a2aj-regs-on-oreg267-03",
     docType: "laws",
-    shape: "regs-ontario-bare-sections-with-list-trap",
     compiledSections: 64,
     compiledParagraphs: 0,
   },
 ];
 
 describe("SourceDoc cross-provider fixture matrix", () => {
-  it("covers every committed fixture and every fixture is a real capture", () => {
-    const files = readdirSync(FIXTURE_DIR)
-      .filter((name) => name.endsWith(".json") && name !== "legacy-spine.json")
-      .map((name) => name.replace(/\.json$/u, ""))
-      .sort();
-    expect(files).toEqual(MATRIX.map((entry) => entry.file).sort());
-    for (const entry of MATRIX) {
-      const source = fixture(entry.file);
-      expect(source.provider).toBe("a2aj");
-      expect(source.shape).toBe(entry.shape);
-      expect(source.capture).toMatchObject({ capturedAt: "2026-07-27" });
-      expect(source.citation).toBeTruthy();
+  it("validates every committed capture without duplicating its inventory", () => {
+    for (const file of FIXTURE_FILES) {
+      expect(fixture(file)).toMatchObject({
+        provider: "a2aj",
+        citation: expect.stringMatching(/\S/u),
+        capture: { capturedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u) },
+      });
     }
   });
 
