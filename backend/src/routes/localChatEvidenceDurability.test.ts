@@ -797,6 +797,50 @@ describe("anonymous chat PDF evidence durability", () => {
     ).toBeNull();
   });
 
+  it("moves chats through the Recycling bin before permanent deletion", async () => {
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    expect(
+      (await request(loaded.app).delete(`/chat/${created.body.id}`)).status,
+    ).toBe(204);
+    expect(
+      (await request(loaded.app).get(`/chat/${created.body.id}`)).status,
+    ).toBe(404);
+    expect((await request(loaded.app).get("/chat")).body).toEqual([]);
+    expect(
+      (await request(loaded.app).get("/chat/recycling-bin")).body,
+    ).toEqual([
+      expect.objectContaining({
+        id: created.body.id,
+        deleted_at: expect.any(String),
+      }),
+    ]);
+
+    expect(
+      (
+        await request(loaded.app).post(
+          `/chat/${created.body.id}/restore`,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request(loaded.app).get(`/chat/${created.body.id}`)).status,
+    ).toBe(200);
+
+    await request(loaded.app).delete(`/chat/${created.body.id}`);
+    expect(
+      (
+        await request(loaded.app).delete(
+          `/chat/${created.body.id}/permanent`,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request(loaded.app).get("/chat/recycling-bin")).body,
+    ).toEqual([]);
+  });
+
   it("persists project association changes across reload", async () => {
     mocks.matterDocuments = [];
     let loaded = await loadApp();

@@ -38,7 +38,11 @@ import {
     parseAnonymousCurrentTurn,
     parseExpectedTranscriptVersion,
 } from "../lib/chat/anonymousCurrentTurn";
-import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
+import {
+    beginChatTurn,
+    chatTurnWasDeleted,
+    finishChatTurn,
+} from "../lib/chatTurns";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -177,6 +181,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
             .from("chats")
             .select("id, title, project_id")
             .eq("id", chatId)
+            .is("deleted_at", null)
             .single();
         const canUse = !!existing && existing.project_id === projectId;
         if (!canUse) chatId = null;
@@ -340,34 +345,44 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         });
 
         const persistedEvents = stripTransientAssistantEvents(events);
-        if (askInputsResponse) {
-            await appendAssistantEventsToLastAssistantMessage(
-                db,
-                chatId,
-                persistedEvents,
-                citations,
-            );
-        } else {
-            await db.from("chat_messages").insert({
-                chat_id: chatId,
-                role: "assistant",
-                content: persistedEvents.length ? persistedEvents : null,
-                citations: citations.length ? citations : null,
-            });
+        if (!chatTurnWasDeleted(chatId)) {
+            if (askInputsResponse) {
+                await appendAssistantEventsToLastAssistantMessage(
+                    db,
+                    chatId,
+                    persistedEvents,
+                    citations,
+                );
+            } else {
+                await db.from("chat_messages").insert({
+                    chat_id: chatId,
+                    role: "assistant",
+                    content: persistedEvents.length ? persistedEvents : null,
+                    citations: citations.length ? citations : null,
+                });
+            }
         }
 
-        if (!chatTitle && lastUser?.content) {
+        if (
+            !chatTurnWasDeleted(chatId) &&
+            !chatTitle &&
+            lastUser?.content
+        ) {
             await db
                 .from("chats")
                 .update({ title: lastUser.content.slice(0, 120) })
-                .eq("id", chatId);
+                .eq("id", chatId)
+                .is("deleted_at", null);
         }
     } catch (err) {
         if (isAbortError(err)) {
             console.log("[project-chat/stream] client aborted stream", {
                 chatId,
             });
-            if (err instanceof AssistantStreamError) {
+            if (
+                err instanceof AssistantStreamError &&
+                !chatTurnWasDeleted(chatId)
+            ) {
                 const partial = buildCancelledAssistantMessage({
                     fullText: err.fullText,
                     events: err.events,
@@ -413,6 +428,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         const errorFullText =
             err instanceof AssistantStreamError ? err.fullText : "";
         try {
+            if (chatTurnWasDeleted(chatId)) return;
             const citations = extractCitations(
                 errorFullText,
                 docIndex,
