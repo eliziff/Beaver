@@ -11,16 +11,11 @@ import {
   uploadFile,
   storageKey,
 } from "../lib/storage";
-import { docxToPdf, convertedPdfKey } from "../lib/convert";
+import { convertedPdfKey } from "../lib/convert";
 import { checkProjectAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
 import { deleteUserProjects } from "../lib/userDataCleanup";
-import {
-  ALLOWED_DOCUMENT_TYPES,
-  ALLOWED_DOCUMENT_TYPES_LABEL,
-  contentTypeForDocumentType,
-  shouldConvertToPdf,
-} from "../lib/documentTypes";
+import { contentTypeForDocumentType } from "../lib/documentTypes";
 import { imageValidationError } from "../lib/llm/images";
 import {
   createLocalDocument,
@@ -42,6 +37,7 @@ import {
   loadProfileUsersByEmail,
 } from "../lib/userLookup";
 import { localTabularStore } from "../lib/localTabularStore";
+import { handleDocumentUpload } from "./documents";
 
 export const projectsRouter = Router();
 
@@ -1212,146 +1208,6 @@ async function loadProjectFolder(
   return (data as { id: string; parent_folder_id: string | null } | null) ?? null;
 }
 
-async function handleDocumentUpload(
-  req: import("express").Request,
-  res: import("express").Response,
-  userId: string,
-  projectId: string | null,
-  db: ReturnType<typeof createServerSupabase>,
-) {
-  const file = req.file;
-  if (!file) return void res.status(400).json({ detail: "file is required" });
-
-  const filename = file.originalname;
-  const suffix = filename.includes(".")
-    ? filename.split(".").pop()!.toLowerCase()
-    : "";
-  if (!ALLOWED_DOCUMENT_TYPES.has(suffix))
-    return void res
-      .status(400)
-      .json({
-        detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
-      });
-  const imageError = imageValidationError(filename, file.buffer);
-  if (imageError) return void res.status(400).json({ detail: imageError });
-
-  const content = file.buffer;
-  const { data: doc, error: insertErr } = await db
-    .from("documents")
-    .insert({
-      project_id: projectId,
-      user_id: userId,
-      status: "processing",
-    })
-    .select("*")
-    .single();
-
-  if (insertErr || !doc)
-    return void res
-      .status(500)
-      .json({ detail: "Failed to create document record" });
-
-  try {
-    const docId = doc.id as string;
-    const key = storageKey(userId, docId, filename);
-    const contentType = contentTypeForDocumentType(suffix);
-    await uploadFile(
-      key,
-      content.buffer.slice(
-        content.byteOffset,
-        content.byteOffset + content.byteLength,
-      ) as ArrayBuffer,
-      contentType,
-    );
-
-    const rawBuf = content.buffer.slice(
-      content.byteOffset,
-      content.byteOffset + content.byteLength,
-    ) as ArrayBuffer;
-    const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
-
-    // Convert Office files → PDF for display. PDFs are their own rendition.
-    let pdfStoragePath: string | null = null;
-    if (shouldConvertToPdf(suffix)) {
-      try {
-        const pdfBuf = await docxToPdf(content);
-        const pdfKey = convertedPdfKey(userId, docId);
-        await uploadFile(
-          pdfKey,
-          pdfBuf.buffer.slice(
-            pdfBuf.byteOffset,
-            pdfBuf.byteOffset + pdfBuf.byteLength,
-          ) as ArrayBuffer,
-          "application/pdf",
-        );
-        pdfStoragePath = pdfKey;
-      } catch (err) {
-        console.error(
-          `[upload] Office→PDF conversion failed for ${filename}:`,
-          err,
-        );
-      }
-    } else if (suffix === "pdf") {
-      pdfStoragePath = key;
-    }
-
-    // Storage paths live on document_versions — create the V1 row and
-    // point documents.current_version_id at it.
-    const { data: versionRow, error: verErr } = await db
-      .from("document_versions")
-      .insert({
-        document_id: docId,
-        storage_path: key,
-        pdf_storage_path: pdfStoragePath,
-        source: "upload",
-        version_number: 1,
-        filename,
-        file_type: suffix,
-        size_bytes: content.byteLength,
-        page_count: pageCount,
-      })
-      .select("id")
-      .single();
-    if (verErr || !versionRow) {
-      throw new Error(
-        `Failed to record upload version: ${verErr?.message ?? "unknown"}`,
-      );
-    }
-
-    await db
-      .from("documents")
-      .update({
-        current_version_id: versionRow.id,
-        status: "ready",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", docId);
-
-    const { data: updated } = await db
-      .from("documents")
-      .select("*")
-      .eq("id", docId)
-      .single();
-    const responseDoc = updated
-        ? {
-            ...updated,
-            filename,
-            storage_path: key,
-            pdf_storage_path: pdfStoragePath,
-            file_type: suffix,
-            size_bytes: content.byteLength,
-            page_count: pageCount,
-            active_version_number: 1,
-        }
-      : updated;
-    return void res.status(201).json(responseDoc);
-  } catch (e) {
-    await db.from("documents").update({ status: "error" }).eq("id", doc.id);
-    return void res
-      .status(500)
-      .json({ detail: `Document processing failed: ${String(e)}` });
-  }
-}
 
 async function countPdfPages(buf: ArrayBuffer): Promise<number | null> {
   try {
