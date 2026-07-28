@@ -84,13 +84,9 @@ export function TabularReviewsTable({
         direction: TableSortDirection;
     } | null>(null);
     const showProject = projects !== undefined;
-    const projectNameById = useMemo(
-        () =>
-            showProject
-                ? new Map(projects.map((project) => [project.id, project.name]))
-                : null,
-        [projects, showProject],
-    );
+    const projectNameById = projects
+        ? new Map(projects.map((project) => [project.id, project.name]))
+        : null;
     const visibleReviews = useMemo(() => {
         if (!sort) return filteredReviews;
 
