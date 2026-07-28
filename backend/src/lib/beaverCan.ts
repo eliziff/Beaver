@@ -41,7 +41,13 @@ export const beaverCanTaskSchema = z.strictObject({
   id: z.string().regex(TASK_ID, "CAN-TRACK-000"),
   jurisdiction: z.string().regex(/^CA(-[A-Z]{2})?$/u, "CA or CA-XX"),
   law_as_of: z.iso.date(),
-  task_type: z.enum(["closed_source_research", "retrieval", "long_thread"]),
+  task_type: z.enum([
+    "closed_source_research",
+    "retrieval",
+    "long_thread",
+    "citation_mechanics",
+    "synthetic_review",
+  ]),
   deliverable: z.strictObject({
     type: z.enum(["memorandum", "ranked_authorities"]),
     maximum_words: z.int().positive().optional(),

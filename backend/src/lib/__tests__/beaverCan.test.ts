@@ -51,9 +51,17 @@ function editJson(
 }
 
 describe("beaver-can fixtures", () => {
-  it("ships exactly the three vertical-slice development tasks", () => {
-    expect(listBeaverCanDevTaskDirs().map((dir) => path.basename(dir))).toEqual(
-      ["CAN-CONTEXT-001", "CAN-RESEARCH-001", "CAN-RETRIEVAL-001"],
+  it("ships the original vertical-slice development tasks", () => {
+    // Issue 6 grows the dev set beyond the vertical slice; the slice itself
+    // must never disappear.
+    expect(
+      listBeaverCanDevTaskDirs().map((dir) => path.basename(dir)),
+    ).toEqual(
+      expect.arrayContaining([
+        "CAN-CONTEXT-001",
+        "CAN-RESEARCH-001",
+        "CAN-RETRIEVAL-001",
+      ]),
     );
   });
 

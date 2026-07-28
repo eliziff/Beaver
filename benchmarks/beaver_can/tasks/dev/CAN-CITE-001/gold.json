@@ -1,0 +1,42 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02"],
+  "required_authorities": [
+    {
+      "source_id": "SRC-001",
+      "proposition_id": "PROP-01",
+      "acceptable_pinpoints": ["231(5)", "231(5)(e)"]
+    },
+    {
+      "source_id": "SRC-002",
+      "proposition_id": "PROP-02",
+      "acceptable_pinpoints": [21, 24]
+    }
+  ],
+  "acceptable_alternative_authorities": [],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["no"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02"],
+  "required_quotations": [
+    {
+      "source_id": "SRC-001",
+      "quote": "section 279 (kidnapping and forcible confinement)",
+      "acceptable_pinpoints": ["231(5)", "231(5)(e)"]
+    },
+    {
+      "source_id": "SRC-002",
+      "quote": "the learned trial judge took too much upon himself in bypassing the judgment of this Court, the direction of Parliament, and the executive power of clemency",
+      "acceptable_pinpoints": [24]
+    }
+  ],
+  "required_headings": ["Table of Authorities"],
+  "definitions": {
+    "ISSUE-01": "Faithful verbatim quotation and section-level pinpoint of the constructive first degree murder provision covering killings during kidnapping or forcible confinement.",
+    "ISSUE-02": "Faithful verbatim quotation and paragraph pinpoint of the appellate reversal of the trial judge's constitutional exemption from the murder mandatory minimum, as recounted in R. v. Latimer.",
+    "PROP-01": "Irrespective of planning and deliberation, murder is first degree murder when the death is caused while committing or attempting an offence under s 279 (kidnapping and forcible confinement).",
+    "PROP-02": "The Saskatchewan Court of Appeal reversed the trial judge's constitutional exemption and imposed the mandatory minimum sentence of life imprisonment without parole eligibility for 10 years, and the Supreme Court upheld that disposition.",
+    "CONCLUSION-01": "The packet authorities permit a sentencing court to exempt an offender from the mandatory minimum sentence for murder on compassionate grounds.",
+    "CLAIM-01": "R. v. Latimer upheld the trial judge's one-year constitutional exemption from the mandatory minimum sentence.",
+    "CLAIM-02": "Murder committed during forcible confinement requires planning and deliberation before it can be classified as first degree murder."
+  }
+}
