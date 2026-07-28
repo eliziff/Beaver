@@ -387,7 +387,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
             annotate: {
               type: "boolean",
               description:
-                "Markup mode: render each edit's reason as an anchored Word comment on its tracked change, so the rationale is visible in the deliverable. Edits without a reason get no comment and are counted in the receipt; the new version is auto-checked by the structural lint.",
+                "OFF BY DEFAULT and stays off unless the user EXPLICITLY asks for in-document Word comments. Word comments make large documents laggy, and edit reasons already reach the user through the tracked-edit card, so plain tracked changes are the normal deliverable. When true: each reasoned edit gets an anchored comment, unreasoned edits are counted in the receipt, and the new version is auto-checked by the structural lint.",
             },
           },
           required: ["document_id", "version_id", "edits"],
