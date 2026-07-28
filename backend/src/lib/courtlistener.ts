@@ -79,6 +79,15 @@ async function courtlistenerFetch<T>(
   const url = pathOrUrl.startsWith("http")
     ? pathOrUrl
     : `${COURTLISTENER_BASE}${pathOrUrl}`;
+  // Absolute URLs come from API payloads (pagination `next`, opinion links).
+  // The Authorization token rides on every request, so never follow one off
+  // the CourtListener origins - a poisoned link would exfiltrate the token.
+  if (
+    !url.startsWith(`${COURTLISTENER_WEB_BASE}/`) &&
+    !url.startsWith(`${COURTLISTENER_STORAGE_BASE}/`)
+  ) {
+    throw new Error("Refusing CourtListener request to a foreign origin.");
+  }
   const method = init?.method ?? "GET";
   devLog("[courtlistener/api] request", { method, path: pathOrUrl, url });
   const response = await fetch(url, {
