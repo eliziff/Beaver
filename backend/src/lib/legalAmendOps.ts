@@ -143,18 +143,28 @@ function lastContext(segment: string | undefined): string | undefined {
  * dominant list style — "(1) in subsection (a), by striking …; (2) in
  * subsection (b), by inserting …" — the scoping "in <provision>" segment
  * precedes each "by", so a trailing context in one part scopes the NEXT
- * clause. Parts that do not start with an amendment verb are quoted-block
- * content, not clauses, and are skipped without noise.
+ * clause. Split boundaries and context scanning run on the MASKED body
+ * (quoted-run interiors blanked) so a " by " or "in section …" inside a
+ * quoted block can neither fragment the block nor leak scope; clause
+ * text is always sliced from the original. Parts that do not start with
+ * an amendment verb are quoted-block content, not clauses, skipped
+ * without noise.
  */
 function splitClauses(body: string): Clause[] {
+  const masked = maskQuotedRuns(body);
+  const boundaries = [...masked.matchAll(/\bby\b\s+/giu)];
   const clauses: Clause[] = [];
-  const parts = body.split(/\bby\b\s+/giu);
-  let pending = lastContext(parts[0]);
-  for (const part of parts.slice(1)) {
+  let pending = boundaries.length
+    ? lastContext(masked.slice(0, boundaries[0].index ?? 0))
+    : undefined;
+  for (let i = 0; i < boundaries.length; i += 1) {
+    const start = (boundaries[i].index ?? 0) + boundaries[i][0].length;
+    const end = i + 1 < boundaries.length ? boundaries[i + 1].index ?? masked.length : masked.length;
+    const part = body.slice(start, end);
     if (CLAUSE_VERB_RE.test(part.trimStart())) {
       clauses.push({ text: part, context: pending });
     }
-    const trailing = lastContext(part);
+    const trailing = lastContext(masked.slice(start, end));
     if (trailing) pending = trailing;
   }
   if (
@@ -193,6 +203,22 @@ function opFromClause(
     /strik(?:ing|e)(?:\s+out)?\s+/iu.exec(text);
   if (m) {
     const afterStrike = text.slice(m.index + m[0].length);
+    // A provision ref directly after "striking" wins over any quoted
+    // text further along ("striking subsection (u) and inserting the
+    // following: “…”" strikes the PROVISION; the quote is the block).
+    const provisionFirst = new RegExp(`^(?:the\\s+)?${PROVISION_REF}`, "iu").exec(afterStrike);
+    if (provisionFirst?.[1]) {
+      const childTarget = joinLocator(head.label, compactLabel(provisionFirst[1]));
+      if (/insert(?:ing)?\s+the\s+following/iu.test(afterStrike)) {
+        return {
+          kind: "replace_provision",
+          target: childTarget,
+          newText: quotedBlockAt(afterStrike),
+          raw,
+        };
+      }
+      return { kind: "strike_provision", target: childTarget, raw };
+    }
     const struckQuote = q(0, afterStrike);
     const insertVerb = /\b(?:and\s+)?(?:insert(?:ing)?|substitut(?:ing|e))\b/iu.exec(afterStrike);
     if (struckQuote !== undefined) {
@@ -236,7 +262,7 @@ function opFromClause(
     if (provision?.[1]) {
       const childTarget = joinLocator(head.label, compactLabel(provision[1]));
       if (/insert(?:ing)?\s+the\s+following/iu.test(afterStrike)) {
-        const block = q(0, afterStrike);
+        const block = quotedBlockAt(afterStrike);
         return { kind: "replace_provision", target: childTarget, newText: block, raw };
       }
       return { kind: "strike_provision", target: childTarget, raw };
@@ -309,7 +335,7 @@ function opFromClause(
         afterChild: joinLocator(head.label, compactLabel(provision[1])),
         // Unquoted-block fallback works clause-level unless the block
         // itself contains " by " (clause splitting boundary).
-        newText: q(0, text) ?? unquotedBlock(text),
+        newText: quotedBlockAt(text) ?? unquotedBlock(text),
         raw,
       };
     }
@@ -321,7 +347,7 @@ function opFromClause(
     return {
       kind: "add_at_end",
       target,
-      newText: q(0, text) ?? unquotedBlock(text),
+      newText: quotedBlockAt(text) ?? unquotedBlock(text),
       raw,
     };
   }
@@ -381,7 +407,7 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
     if (head.verbTail === "replaced") {
       // "is replaced by the following:" — quoted block (US-style) or the
       // unquoted indented block Canadian drafting uses.
-      const block = firstQuotedBlock(body) ?? unquotedBlock(body);
+      const block = quotedBlockAt(body) ?? unquotedBlock(body);
       if (block !== undefined) {
         ops.push({ kind: "replace_provision", target, newText: block, raw });
       } else {
@@ -400,7 +426,7 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
     }
     // "is amended …": read-as-follows, or clause list.
     if (/to\s+read\s+as\s+follows/iu.test(body.slice(0, 80))) {
-      const block = firstQuotedBlock(body) ?? unquotedBlock(body);
+      const block = quotedBlockAt(body) ?? unquotedBlock(body);
       if (block !== undefined) {
         ops.push({ kind: "replace_provision", target, newText: block, raw });
         continue;
@@ -431,6 +457,64 @@ function firstQuotedBlock(body: string): string | undefined {
   const match = new RegExp(QUOTED, "u").exec(body);
   if (!match) return undefined;
   return quotedValue(match[1], match[2], match[3], match[4]);
+}
+
+/**
+ * GPO/USLM quoted blocks span paragraphs: every quoted paragraph
+ * re-opens with “ and only the block's final one closes with ”. A
+ * single-pair capture truncates at the first interior ”, so extend
+ * across ”…“ paragraph seams (optionally separated by punctuation and
+ * whitespace). Interior nested quotes are retained verbatim.
+ */
+function endOfTypographicRun(body: string, open: number): number {
+  const limit = Math.min(body.length, open + 60_000);
+  let cursor = open;
+  let close = -1;
+  while (cursor < limit) {
+    const next = body.indexOf("”", cursor + 1);
+    if (next === -1 || next > limit) break;
+    close = next;
+    if (!/^[\s.;,]{0,6}“/u.test(body.slice(next + 1, next + 9))) break;
+    cursor = next + 1;
+  }
+  return close;
+}
+
+function typographicBlock(body: string): string | undefined {
+  const open = body.indexOf("“");
+  if (open === -1) return undefined;
+  const close = endOfTypographicRun(body, open);
+  if (close === -1) return undefined;
+  return body.slice(open + 1, close);
+}
+
+/**
+ * Mask quoted-run interiors (length-preserving) so clause splitting and
+ * context scanning cannot fire on words like " by " INSIDE a quoted
+ * block — the mechanism that silently fragmented USLM blocks.
+ */
+function maskQuotedRuns(body: string): string {
+  const chars = body.split("");
+  let i = 0;
+  while (i < body.length) {
+    if (body[i] === "“") {
+      const close = endOfTypographicRun(body, i);
+      if (close !== -1) {
+        for (let j = i + 1; j < close; j += 1) {
+          if (chars[j] !== "\n") chars[j] = "x";
+        }
+        i = close + 1;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return chars.join("");
+}
+
+/** Block after "the following:" — GPO multi-paragraph form first. */
+function quotedBlockAt(body: string): string | undefined {
+  return typographicBlock(body) ?? firstQuotedBlock(body);
 }
 
 /**
