@@ -23,9 +23,7 @@ import type { ColumnConfig, Document, TabularCell } from "../shared/types";
 import { isSpreadsheetFilename } from "../shared/types";
 import { preprocessCitations, type ParsedCitation } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
-import { PdfView } from "../shared/views/PdfView";
-import { SpreadsheetView } from "../shared/views/SpreadsheetView";
-import { DocxView } from "../shared/views/DocxView";
+import { DocumentViewer } from "../shared/views/DocumentViewer";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { CitationQuotesHeader } from "../assistant/CitationQuotesHeader";
 import { cn } from "@/app/lib/utils";
@@ -278,49 +276,36 @@ export function TRSidePanel({
                             />
                         </div>
                     )}
-                    {isDocxDocument(doc) && !doc.pdf_storage_path ? (
-                        <DocxView
-                            documentId={doc.id}
-                            quotes={
-                                docCitation
-                                    ? [
-                                          {
-                                              page: docCitation.page,
-                                              quote: docCitation.quote,
-                                          },
-                                      ]
-                                    : undefined
-                            }
-                        />
-                    ) : isSpreadsheetFilename(doc.filename ?? "") ? (
-                        <SpreadsheetView
-                            documentId={doc.id}
-                            highlightCells={
-                                docCitation?.sheet || docCitation?.cell
-                                    ? [
-                                          {
-                                              sheet: docCitation.sheet,
-                                              cell: docCitation.cell,
-                                          },
-                                      ]
-                                    : undefined
-                            }
-                        />
-                    ) : (
-                        <PdfView
-                            doc={{ document_id: doc.id }}
-                            quotes={
-                                docCitation
-                                    ? [
-                                          {
-                                              page: docCitation.page,
-                                              quote: docCitation.quote,
-                                          },
-                                      ]
-                                    : undefined
-                            }
-                        />
-                    )}
+                    <DocumentViewer
+                        documentId={doc.id}
+                        kind={
+                            isDocxDocument(doc) && !doc.pdf_storage_path
+                                ? "docx"
+                                : isSpreadsheetFilename(doc.filename ?? "")
+                                  ? "spreadsheet"
+                                  : "pdf"
+                        }
+                        quotes={
+                            docCitation
+                                ? [
+                                      {
+                                          page: docCitation.page,
+                                          quote: docCitation.quote,
+                                      },
+                                  ]
+                                : undefined
+                        }
+                        highlightCells={
+                            docCitation?.sheet || docCitation?.cell
+                                ? [
+                                      {
+                                          sheet: docCitation.sheet,
+                                          cell: docCitation.cell,
+                                      },
+                                  ]
+                                : undefined
+                        }
+                    />
                 </div>
             )}
 

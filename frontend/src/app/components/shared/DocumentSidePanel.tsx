@@ -23,9 +23,7 @@ import {
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
-import { PdfView } from "@/app/components/shared/views/PdfView";
-import { DocxView } from "@/app/components/shared/views/DocxView";
-import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
+import { DocumentViewer } from "@/app/components/shared/views/DocumentViewer";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import type { Document } from "@/app/components/shared/types";
@@ -688,30 +686,21 @@ export function DocumentSidePanel({
                     )}
                 >
                     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                        {isSpreadsheetFilename(selectedFilename) ? (
-                            <SpreadsheetView
-                                key={viewerKey}
-                                documentId={doc.id}
-                                versionId={selectedVersionId}
-                            />
-                        ) : selectedIsDocx ? (
-                            <DocxView
-                                key={viewerKey}
-                                documentId={doc.id}
-                                versionId={selectedVersionId}
-                                preferPdfRendition={preferPdfRendition}
-                                refetchKey={viewerRevision ?? undefined}
-                            />
-                        ) : (
-                            <PdfView
-                                key={viewerKey}
-                                doc={{
-                                    document_id: doc.id,
-                                    version_id: selectedVersionId,
-                                }}
-                                revision={viewerRevision}
-                            />
-                        )}
+                        <DocumentViewer
+                            key={viewerKey}
+                            documentId={doc.id}
+                            kind={
+                                isSpreadsheetFilename(selectedFilename)
+                                    ? "spreadsheet"
+                                    : selectedIsDocx
+                                      ? "docx"
+                                      : "pdf"
+                            }
+                            versionId={selectedVersionId}
+                            preferPdfRendition={preferPdfRendition}
+                            refetchKey={viewerRevision ?? undefined}
+                            revision={viewerRevision}
+                        />
                     </div>
                 </section>
 
