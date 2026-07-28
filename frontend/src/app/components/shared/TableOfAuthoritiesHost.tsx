@@ -77,7 +77,7 @@ function AuthoritiesShell({
       aria-hidden={!active}
       inert={!active}
       className={`absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f3f4f6] ${
-        active ? "visible" : "invisible pointer-events-none"
+        active ? "" : "pointer-events-none opacity-0"
       }`}
     >
       <PageHeader shrink>

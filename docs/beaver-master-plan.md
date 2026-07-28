@@ -160,10 +160,13 @@ Recorded strict wins on the same Windows/i3-1315U machine:
 | Defer cloud-storage SDK in local startup | `npm run build --prefix backend`; seven alternating fresh-Node imports of `dist/app.js`, median | 2,193.0 ms; 958 modules; 88.9 MiB RSS delta | 1,768.6 ms; 833 modules; 77.2 MiB (`-19.4%`, `-13.0%`, `-13.2%`) |
 | Stop global logo from prefetching Assistant on Library | `npm run build --prefix frontend`; production Next server; cache-disabled Chromium; 6× CPU; three-run median | 1,667,888 decoded JS bytes; 1,928 ms FCP; 1,608 ms long tasks | 903,634 bytes; 1,400 ms; 1,271 ms |
 | Same prefetch removal on Authorities | Same frontend method | 1,486,012 decoded JS bytes; 1,476 ms FCP; 1,978 ms long tasks | 721,758 bytes; 996 ms; 905 ms |
+| Defer cloud-only MFA SDK and remove duplicate Tabular UI | `npm run build --prefix frontend`; `.next` route-manifest decoded JS + CSS | Projects 1,146,769 B; Authorities 1,089,077 B; Tabular detail 1,474,644 B | 934,566 B (`-18.5%`); 876,473 B (`-19.5%`); 1,256,484 B (`-14.8%`) |
 
 The Assistant and workflow-modal lazy-load experiments were reverted after
 6×-CPU interaction tests regressed fast send by about 307 ms and modal open by
-about 1.07 seconds. No build-time improvement is claimed yet.
+about 1.07 seconds. No build-time improvement is claimed yet. The warmed
+Authorities route passed 110/110 internal transitions at 1440, 390, and 320
+CSS pixels with zero changed pixels through two animation frames and 500 ms.
 
 ### P0.3 Account-free local parity
 

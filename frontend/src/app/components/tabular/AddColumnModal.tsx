@@ -33,18 +33,27 @@ interface Props {
     open: boolean;
     existingCount: number;
     onClose: () => void;
-    onAdd: (cols: ColumnConfig[]) => void;
+    onAdd: (cols: ColumnConfig[]) => void | Promise<void>;
     editingColumn?: ColumnConfig;
-    onSave?: (col: ColumnConfig) => void;
-    onDelete?: () => void;
+    onSave?: (col: ColumnConfig) => void | Promise<void>;
+    onDelete?: () => void | Promise<void>;
 }
 
-export function AddColumnModal({ open, existingCount, onClose, onAdd, editingColumn, onSave, onDelete }: Props) {
+export function AddColumnModal({
+    open,
+    existingCount,
+    onClose,
+    onAdd,
+    editingColumn,
+    onSave,
+    onDelete,
+}: Props) {
     const isEditing = !!editingColumn;
     const formId = "add-column-modal-form";
     const [columns, setColumns] = useState<ColumnDraft[]>([{ ...EMPTY_DRAFT }]);
     const [collapsedIndices, setCollapsedIndices] = useState<number[]>([]);
     const [generatingIndices, setGeneratingIndices] = useState<number[]>([]);
+    const [submitting, setSubmitting] = useState(false);
     const [presetsOpenIndex, setPresetsOpenIndex] = useState<number | null>(
         null,
     );
@@ -64,7 +73,7 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
             setColumns([{ ...EMPTY_DRAFT }]);
         }
         setCollapsedIndices([]);
-    }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [editingColumn, open]);
 
     useEffect(() => {
         if (presetsOpenIndex === null) return;
@@ -181,32 +190,49 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
         }
     }
 
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (columns.some((col) => !col.name.trim() || !col.prompt.trim()))
             return;
-        if (isEditing && onSave && editingColumn) {
-            const col = columns[0]!;
-            onSave({
-                index: editingColumn.index,
-                name: col.name.trim(),
-                prompt: col.prompt.trim(),
-                format: col.format,
-                tags: col.format === "tag" ? col.tags : undefined,
-            });
-        } else {
-            onAdd(
-                columns.map((col, i) => ({
-                    index: existingCount + i,
+        setSubmitting(true);
+        try {
+            if (isEditing && onSave && editingColumn) {
+                const col = columns[0]!;
+                await onSave({
+                    index: editingColumn.index,
                     name: col.name.trim(),
                     prompt: col.prompt.trim(),
                     format: col.format,
                     tags: col.format === "tag" ? col.tags : undefined,
-                })),
-            );
+                });
+            } else {
+                await onAdd(
+                    columns.map((col, i) => ({
+                        index: existingCount + i,
+                        name: col.name.trim(),
+                        prompt: col.prompt.trim(),
+                        format: col.format,
+                        tags: col.format === "tag" ? col.tags : undefined,
+                    })),
+                );
+            }
+            resetForm();
+            onClose();
+        } finally {
+            setSubmitting(false);
         }
-        resetForm();
-        onClose();
+    }
+
+    async function handleDelete() {
+        if (!onDelete) return;
+        setSubmitting(true);
+        try {
+            await onDelete();
+            resetForm();
+            onClose();
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     return (
@@ -215,20 +241,33 @@ export function AddColumnModal({ open, existingCount, onClose, onAdd, editingCol
             onClose={handleClose}
             breadcrumbs={[isEditing ? "Edit column" : "New columns"]}
             primaryAction={{
-                label: isEditing ? "Save changes" : "Add columns",
+                label: submitting
+                    ? isEditing
+                        ? "Saving\u2026"
+                        : "Adding\u2026"
+                    : isEditing
+                      ? "Save changes"
+                      : "Add columns",
                 type: "submit",
                 form: formId,
-                disabled: columns.some(
-                    (col) => !col.name.trim() || !col.prompt.trim(),
-                ),
+                disabled:
+                    submitting ||
+                    columns.some(
+                        (col) => !col.name.trim() || !col.prompt.trim(),
+                    ),
             }}
-            cancelAction={{ label: "Cancel", onClick: handleClose }}
+            cancelAction={{
+                label: "Cancel",
+                onClick: handleClose,
+                disabled: submitting,
+            }}
             secondaryAction={
                 isEditing && onDelete
                     ? {
                           label: "Delete",
                           variant: "danger",
-                          onClick: onDelete,
+                          onClick: handleDelete,
+                          disabled: submitting,
                       }
                     : undefined
             }
