@@ -289,7 +289,7 @@ function pinpointBlockText(
 /** Cross-checks between gold, its task, and the loaded source packet. */
 export function checkBeaverCanGold(
   taskDir: string,
-  task: BeaverCanTask,
+  _task: BeaverCanTask,
   gold: BeaverCanGold,
   sources: LoadedBeaverCanSource[],
 ): void {

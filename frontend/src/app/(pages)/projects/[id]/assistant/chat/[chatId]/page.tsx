@@ -12,97 +12,55 @@ import { useRouter } from "next/navigation";
 import {
     ChevronLeft,
     ChevronRight,
-    FileText,
     Loader2,
     Upload,
-    X,
 } from "lucide-react";
 import {
+    createProjectFolder,
     deleteChat,
+    deleteProjectFolder,
     getChat,
     getProject,
-    uploadProjectDocument,
-    createProjectFolder,
-    renameProjectFolder,
-    deleteProjectFolder,
     moveDocumentToFolder,
     moveSubfolderToFolder,
     removeProjectDocument,
+    renameProjectFolder,
     updateChatProject,
+    uploadProjectDocument,
 } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { UserMessage } from "@/app/components/assistant/UserMessage";
-import { AssistantMessage } from "@/app/components/assistant/AssistantMessage";
-import { ChatInput } from "@/app/components/assistant/ChatInput";
-import type { ChatInputHandle } from "@/app/components/assistant/ChatInput";
-import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
-import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import {
-    AutomationRunPanel,
-    automationRunKey,
-} from "@/app/components/assistant/AutomationRun";
-import { PdfView } from "@/app/components/shared/views/PdfView";
-import { SpreadsheetView } from "@/app/components/shared/views/SpreadsheetView";
+    ChatView,
+    type ChatViewHandle,
+} from "@/app/components/assistant/ChatView";
+import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
-import { WarningPopup } from "@/app/components/popups/WarningPopup";
-import { DocxView } from "@/app/components/shared/views/DocxView";
-import { BeaverIcon } from "@/app/components/chat/beaver-icon";
-import { useAuth } from "@/app/contexts/AuthContext";
-import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { useSidebar } from "@/app/contexts/SidebarContext";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { useSidebar } from "@/app/contexts/SidebarContext";
 import type {
-    AutomationRunEvent,
-    CitationQuote,
-    Citation,
     Document,
-    EditAnnotation,
     Message,
     Project,
-} from "@/app/components/shared/types";
-import {
-    expandCitationToEntries,
-    isDocxFilename,
-    isSpreadsheetFilename,
 } from "@/app/components/shared/types";
 
 interface Props {
     params: Promise<{ id: string; chatId: string }>;
 }
 
-type DocTab = {
-    documentId: string;
-    filename: string;
-    quotes?: CitationQuote[];
-    versionId?: string | null;
-    refetchKey?: number;
-    warning?: string | null;
-    scrollTop?: number;
-};
-
-type EditScrollTarget = {
-    key: string;
-    documentId: string;
-    inserted_text?: string;
-    deleted_text?: string;
-    ins_w_id?: string | null;
-    del_w_id?: string | null;
-};
-
 const EXPLORER_MIN = 160;
 const EXPLORER_DEFAULT = 280;
-const CHAT_MIN = 320;
-const CHAT_DEFAULT = 420;
-const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 
 function AssistantGreeting({ username }: { username: string }) {
     return (
-        <div className="flex flex-1 items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-3">
             <BeaverIcon size={28} />
             <h1 className="text-center font-serif text-3xl font-light text-gray-900">
                 Hi, {username}
@@ -111,25 +69,24 @@ function AssistantGreeting({ username }: { username: string }) {
     );
 }
 
-/** Drag-handle divider for resizing panels */
 function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
     const dragging = useRef(false);
     const lastX = useRef(0);
     const [isDragging, setIsDragging] = useState(false);
 
-    const onMouseDown = (e: React.MouseEvent) => {
+    const onMouseDown = (event: React.MouseEvent) => {
         dragging.current = true;
         setIsDragging(true);
-        lastX.current = e.clientX;
+        lastX.current = event.clientX;
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
     };
 
     useEffect(() => {
-        function onMouseMove(e: MouseEvent) {
+        function onMouseMove(event: MouseEvent) {
             if (!dragging.current) return;
-            onDrag(e.clientX - lastX.current);
-            lastX.current = e.clientX;
+            onDrag(event.clientX - lastX.current);
+            lastX.current = event.clientX;
         }
         function onMouseUp() {
             if (!dragging.current) return;
@@ -147,14 +104,12 @@ function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
     }, [onDrag]);
 
     return (
-        <div className="relative w-0 shrink-0 z-10">
+        <div className="relative z-10 hidden w-0 shrink-0 md:block">
             <div
                 onMouseDown={onMouseDown}
-                className="absolute inset-y-0 -left-2 -right-2 cursor-col-resize flex items-stretch justify-center"
+                className="absolute inset-y-0 -left-2 -right-2 flex cursor-col-resize items-stretch justify-center"
             >
-                {isDragging && (
-                    <div className="w-1 bg-blue-500 transition-colors" />
-                )}
+                {isDragging && <div className="w-1 bg-blue-500" />}
             </div>
         </div>
     );
@@ -163,7 +118,6 @@ function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
 export default function ProjectAssistantChatPage({ params }: Props) {
     const { id: projectId, chatId } = use(params);
     const router = useRouter();
-
     const { setSidebarOpen } = useSidebar();
     const { user } = useAuth();
     const { profile } = useUserProfile();
@@ -173,46 +127,22 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const [project, setProject] = useState<Project | null>(null);
     const [chatTitle, setChatTitle] = useState<string | null>(null);
     const [chatOwnerId, setChatOwnerId] = useState<string | null>(null);
-    const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const [chatLoaded, setChatLoaded] = useState(false);
     const [creatingChat, setCreatingChat] = useState(false);
     const [deletingChat, setDeletingChat] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
-
-    // Panel widths
     const [explorerWidth, setExplorerWidth] = useState(EXPLORER_DEFAULT);
-    const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
     const [explorerCollapsed, setExplorerCollapsed] = useState(false);
-
-    // Upload state
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = useState(false);
+    const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false);
     const [explorerDragOver, setExplorerDragOver] = useState(false);
-
-    // Tabs
-    const [tabs, setTabs] = useState<DocTab[]>([]);
-    const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [automationRun, setAutomationRun] =
-        useState<AutomationRunEvent | null>(null);
-    const [activeQuotes, setActiveQuotes] = useState<CitationQuote[] | null>(
-        null,
-    );
+    const [uploading, setUploading] = useState(false);
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-    const [editScrollTarget, setEditScrollTarget] =
-        useState<EditScrollTarget | null>(null);
-    const [reloadingDocIds, setReloadingDocIds] = useState<Set<string>>(
-        () => new Set(),
-    );
-
-    const activeTab = tabs.find((t) => t.documentId === activeTabId) ?? null;
-    const tabItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-    const chatInputRef = useRef<ChatInputHandle | null>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const messagesContainerRef = useRef<HTMLDivElement>(null);
-    const latestUserMessageRef = useRef<HTMLDivElement>(null);
-    const [minHeight, setMinHeight] = useState("0px");
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const chatViewRef = useRef<ChatViewHandle>(null);
+    const mobileExplorerRef = useRef<HTMLDivElement>(null);
+    const mobileExplorerButtonRef = useRef<HTMLButtonElement>(null);
 
     const {
         setCurrentChatId,
@@ -234,96 +164,72 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         retryRejectedTurn,
         cancel,
     } = useAssistantChat({ initialMessages, chatId, projectId });
+
     const responseLoadingRef = useRef(isResponseLoading);
     const pendingProjectRouteRef = useRef<{ projectId: string | null } | null>(
         null,
-    );
-    useEffect(() => {
-        responseLoadingRef.current = isResponseLoading;
-    }, [isResponseLoading]);
-    const mergeAutomationRun = useCallback(
-        (run: AutomationRunEvent) => {
-            const key = automationRunKey(run);
-            let merged = run;
-            for (const message of messages) {
-                for (const event of message.events ?? []) {
-                    if (
-                        event.type === "automation_run" &&
-                        automationRunKey(event) === key
-                    ) {
-                        merged = { ...merged, ...event };
-                    }
-                }
-            }
-            return merged;
-        },
-        [messages],
     );
     const pendingInitialUserMessageRef = useRef<Message | null>(
         initialMessages.length === 1 && initialMessages[0].role === "user"
             ? initialMessages[0]
             : null,
     );
-
     const hasLoaded = useRef(false);
     const hasAutoSent = useRef(false);
-    const hasInitialScrolled = useRef(false);
 
-    useEffect(() => {
-        if (!automationRun) return;
-        const latest = mergeAutomationRun(automationRun);
-        if (latest.id !== automationRun.id) setAutomationRun(latest);
-    }, [automationRun, mergeAutomationRun]);
+    const refreshProject = useCallback(
+        () =>
+            getProject(projectId)
+                .then(setProject)
+                .catch(() => {}),
+        [projectId],
+    );
 
-    useEffect(() => {
-        setSidebarOpen(false);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        getProject(projectId)
-            .then(setProject)
-            .catch(() => {});
-    }, [projectId]);
-
-    // Whenever the assistant creates or edits a project document, refresh
-    // the project so the explorer picks up the new/changed files
-    // without a manual reload. Keyed by completed mutation events only, so
-    // we refetch once the backend has finished persisting the change.
     const projectMutationSignature = useMemo(() => {
         const created: string[] = [];
         const editedPerDoc: Record<string, number> = {};
-        for (const msg of messages) {
-            for (const ev of msg.events ?? []) {
-                if ("isStreaming" in ev && ev.isStreaming) continue;
-                if (ev.type === "doc_created" && ev.document_id) {
+        for (const message of messages) {
+            for (const event of message.events ?? []) {
+                if ("isStreaming" in event && event.isStreaming) continue;
+                if (event.type === "doc_created" && event.document_id) {
                     created.push(
-                        `${ev.document_id}:${ev.version_id ?? ""}:${ev.filename}`,
+                        `${event.document_id}:${event.version_id ?? ""}:${event.filename}`,
                     );
-                    continue;
-                }
-                if (ev.type === "doc_edited") {
-                    editedPerDoc[ev.document_id] = Math.max(
-                        editedPerDoc[ev.document_id] ?? 0,
-                        (ev.version_number as number | null | undefined) ?? 0,
+                } else if (event.type === "doc_edited") {
+                    editedPerDoc[event.document_id] = Math.max(
+                        editedPerDoc[event.document_id] ?? 0,
+                        event.version_number ?? 0,
                     );
                 }
             }
         }
+        if (created.length === 0 && Object.keys(editedPerDoc).length === 0) {
+            return "";
+        }
         return [
             `created=${created.sort().join(",")}`,
             `edited=${Object.entries(editedPerDoc)
-                .map(([k, v]) => `${k}=${v}`)
+                .map(([id, version]) => `${id}=${version}`)
                 .sort()
                 .join(",")}`,
         ].join("|");
     }, [messages]);
 
     useEffect(() => {
-        if (!projectMutationSignature) return;
-        getProject(projectId)
-            .then(setProject)
-            .catch(() => {});
-    }, [projectMutationSignature, projectId]);
+        setSidebarOpen(false);
+    }, [setSidebarOpen]);
+
+    useEffect(() => {
+        void refreshProject();
+    }, [refreshProject]);
+
+    useEffect(() => {
+        if (projectMutationSignature) void refreshProject();
+    }, [projectMutationSignature, refreshProject]);
+
+    useEffect(() => {
+        responseLoadingRef.current = isResponseLoading;
+    }, [isResponseLoading]);
 
     useEffect(() => {
         setCurrentChatId(chatId);
@@ -359,7 +265,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     }, [chatId, isResponseLoading, router]);
 
     useEffect(() => {
-        const match = chats?.find((c) => c.id === chatId);
+        const match = chats?.find((chat) => chat.id === chatId);
         if (match?.title) setChatTitle(match.title);
     }, [chats, chatId]);
 
@@ -376,240 +282,22 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             setNewChatMessages(null);
             void handleChat(pendingMessage);
         }
-    }, [messages.length, isResponseLoading, handleChat, setNewChatMessages]);
+    }, [handleChat, isResponseLoading, messages.length, setNewChatMessages]);
 
-    const scrollLatestUserToTop = useCallback(() => {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                const container = messagesContainerRef.current;
-                const element = latestUserMessageRef.current;
-                if (!container || !element) return;
-                container.scrollTo({
-                    top: element.offsetTop - 24,
-                    behavior: "smooth",
-                });
-            });
-        });
+    const addDocuments = useCallback((documents: Document[]) => {
+        setProject((current) =>
+            current
+                ? {
+                      ...current,
+                      documents: [
+                          ...(current.documents ?? []),
+                          ...documents,
+                      ],
+                  }
+                : current,
+        );
     }, []);
 
-    useEffect(() => {
-        const last = messages[messages.length - 1];
-        if (last?.role === "user") scrollLatestUserToTop();
-    }, [messages, scrollLatestUserToTop]);
-
-    useEffect(() => {
-        if (!chatLoaded || hasInitialScrolled.current || messages.length === 0)
-            return;
-        const container = messagesContainerRef.current;
-        const el = latestUserMessageRef.current;
-        if (!container || !el) return;
-        hasInitialScrolled.current = true;
-        setTimeout(() => {
-            container.scrollTo({
-                top: el.offsetTop - 16,
-                behavior: "auto",
-            });
-        }, 100);
-    }, [chatLoaded, messages.length]);
-
-    useEffect(() => {
-        if (isResponseLoading) scrollLatestUserToTop();
-    }, [isResponseLoading, scrollLatestUserToTop]);
-
-    useEffect(() => {
-        const userEl = latestUserMessageRef.current;
-        const containerEl = messagesContainerRef.current;
-        if (!userEl || !containerEl) return;
-        const messageGap = window.innerWidth < 768 ? 24 : 32;
-        setMinHeight(
-            `${Math.max(
-                0,
-                containerEl.clientHeight -
-                    messageGap * 3 -
-                    userEl.offsetHeight -
-                    DEFAULT_ASSISTANT_BOTTOM_PADDING,
-            )}px`,
-        );
-    }, [messages.length]);
-
-    useEffect(() => {
-        if (!activeTabId) return;
-        const el = tabItemRefs.current[activeTabId];
-        if (!el) return;
-        el.scrollIntoView({
-            block: "nearest",
-        });
-    }, [activeTabId, tabs.length]);
-
-    // ── Tabs ──────────────────────────────────────────────────────────────────
-    function openTab(
-        docId: string,
-        filename: string,
-        quotes?: CitationQuote[],
-        versionId?: string | null,
-    ) {
-        setTabs((prev) => {
-            const existing = prev.find((t) => t.documentId === docId);
-            if (existing) {
-                if (
-                    versionId !== undefined &&
-                    existing.versionId !== versionId
-                ) {
-                    return prev.map((t) =>
-                        t.documentId === docId ? { ...t, versionId } : t,
-                    );
-                }
-                return prev;
-            }
-            return [
-                ...prev,
-                { documentId: docId, filename, quotes, versionId },
-            ];
-        });
-        setActiveTabId(docId);
-        setAutomationRun(null);
-        setActiveQuotes(quotes && quotes.length ? quotes : null);
-        setSelectedDocId(docId);
-    }
-
-    function closeTab(docId: string) {
-        setTabs((prev) => {
-            const next = prev.filter((t) => t.documentId !== docId);
-            if (activeTabId === docId) {
-                const idx = prev.findIndex((t) => t.documentId === docId);
-                const fallback = next[idx] ?? next[idx - 1] ?? null;
-                setActiveTabId(fallback?.documentId ?? null);
-                setActiveQuotes(null);
-                setSelectedDocId(fallback?.documentId ?? null);
-            }
-            return next;
-        });
-    }
-
-    function switchTab(docId: string) {
-        setActiveTabId(docId);
-        setAutomationRun(null);
-        setActiveQuotes(null);
-        setSelectedDocId(docId);
-    }
-
-    // ── Handlers ──────────────────────────────────────────────────────────────
-    const handleSubmit = useCallback(
-        (message: Message) => {
-            if (!activeTab) return handleChat(message);
-            return handleChat(message, {
-                displayedDoc: {
-                    filename: activeTab.filename,
-                    documentId: activeTab.documentId,
-                },
-            });
-        },
-        [activeTab, handleChat],
-    );
-
-    const handleDocClick = (doc: Document) => {
-        openTab(
-            doc.id,
-            doc.filename,
-            undefined,
-            doc.current_version_id ?? null,
-        );
-    };
-
-    const handleCitationClick = (citation: Citation) => {
-        if (citation.kind === "case") return;
-        if (citation.kind === "a2aj") {
-            if (citation.url) {
-                window.open(citation.url, "_blank", "noopener,noreferrer");
-            }
-            return;
-        }
-        if (citation.kind === "public_legal") {
-            if (citation.url) {
-                window.open(citation.url, "_blank", "noopener,noreferrer");
-            }
-            return;
-        }
-        openTab(
-            citation.document_id,
-            citation.filename,
-            expandCitationToEntries(citation),
-        );
-    };
-
-    const handleOpenDocument = (args: {
-        documentId: string;
-        filename: string;
-        versionId: string | null;
-        versionNumber: number | null;
-    }) => {
-        openTab(args.documentId, args.filename, undefined, args.versionId);
-    };
-
-    const handleEditViewClick = (ann: EditAnnotation, filename: string) => {
-        openTab(ann.document_id, filename, undefined, ann.version_id ?? null);
-        setEditScrollTarget({
-            key: `${ann.edit_id}-${Date.now()}`,
-            documentId: ann.document_id,
-            inserted_text: ann.inserted_text,
-            deleted_text: ann.deleted_text,
-            ins_w_id: ann.ins_w_id ?? null,
-            del_w_id: ann.del_w_id ?? null,
-        });
-    };
-
-    const handleEditResolved = (_args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => {
-        // Re-render after accept/reject is disabled while we verify the
-        // client-side optimistic mutation works on its own. Re-enable by
-        // bumping versionId + refetchKey on the matching tab and marking
-        // it reloading like before.
-        void _args;
-    };
-
-    const patchTab = (documentId: string, patch: Partial<DocTab>) => {
-        setTabs((prev) =>
-            prev.map((t) =>
-                t.documentId === documentId ? { ...t, ...patch } : t,
-            ),
-        );
-    };
-
-    const handleEditError = (args: { documentId: string; message: string }) => {
-        patchTab(args.documentId, { warning: args.message });
-    };
-
-    const dismissTabWarning = (documentId: string) => {
-        patchTab(documentId, { warning: null });
-    };
-
-    const handleTabScrollChange = (documentId: string, scrollTop: number) => {
-        patchTab(documentId, { scrollTop });
-    };
-
-    const handleDocxReady = (documentId: string) => {
-        setReloadingDocIds((prev) => {
-            if (!prev.has(documentId)) return prev;
-            const next = new Set(prev);
-            next.delete(documentId);
-            return next;
-        });
-    };
-
-    const handleChatDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        const docId = e.dataTransfer.getData("application/mike-doc");
-        if (!docId) return;
-        const doc = project?.documents?.find((d) => d.id === docId);
-        if (doc) chatInputRef.current?.addDoc(doc);
-    };
-
-    // ── Chat actions ──────────────────────────────────────────────────────────
     async function handleNewChat() {
         setCreatingChat(true);
         try {
@@ -654,163 +342,167 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         await renameChatInHistory(chatId, trimmed);
     }
 
-    // ── Upload ────────────────────────────────────────────────────────────────
     async function uploadFiles(files: File[]) {
-        if (!files.length) return;
+        if (files.length === 0) return;
         setUploading(true);
         try {
-            const uploaded = await Promise.all(
-                files.map((f) => uploadProjectDocument(projectId, f)),
+            addDocuments(
+                await Promise.all(
+                    files.map((file) =>
+                        uploadProjectDocument(projectId, file),
+                    ),
+                ),
             );
-            setProject((prev) => {
-                if (!prev) return prev;
-                return {
-                    ...prev,
-                    documents: [...(prev.documents ?? []), ...uploaded],
-                };
-            });
-        } catch (err) {
-            console.error("Upload failed:", err);
+        } catch (error) {
+            console.error("Upload failed:", error);
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
 
-    const handleExplorerFileDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setExplorerDragOver(false);
-        const files = Array.from(e.dataTransfer.files);
-        if (files.length) {
-            await uploadFiles(files);
-        }
-        // Internal doc/folder moves are handled inside ProjectExplorer (stopPropagation)
-    };
-
-    // ── Folder handlers ───────────────────────────────────────────────────────
-    const handleCreateFolder = async (
+    async function handleCreateFolder(
         parentId: string | null,
         name: string,
-    ) => {
+    ) {
         const folder = await createProjectFolder(
             projectId,
             name,
             parentId ?? undefined,
         );
-        setProject((prev) =>
-            prev
-                ? { ...prev, folders: [...(prev.folders ?? []), folder] }
-                : prev,
-        );
-    };
-
-    const handleRenameFolder = async (folderId: string, name: string) => {
-        await renameProjectFolder(projectId, folderId, name);
-        setProject((prev) =>
-            prev
+        setProject((current) =>
+            current
                 ? {
-                      ...prev,
-                      folders: (prev.folders ?? []).map((f) =>
-                          f.id === folderId ? { ...f, name } : f,
+                      ...current,
+                      folders: [...(current.folders ?? []), folder],
+                  }
+                : current,
+        );
+    }
+
+    async function handleRenameFolder(folderId: string, name: string) {
+        await renameProjectFolder(projectId, folderId, name);
+        setProject((current) =>
+            current
+                ? {
+                      ...current,
+                      folders: (current.folders ?? []).map((folder) =>
+                          folder.id === folderId
+                              ? { ...folder, name }
+                              : folder,
                       ),
                   }
-                : prev,
+                : current,
         );
-    };
+    }
 
-    const handleDeleteFolder = async (folderId: string) => {
+    async function handleDeleteFolder(folderId: string) {
         const toDelete = new Set<string>();
         function collectIds(id: string) {
             toDelete.add(id);
             (project?.folders ?? [])
-                .filter((f) => f.parent_folder_id === id)
-                .forEach((f) => collectIds(f.id));
+                .filter((folder) => folder.parent_folder_id === id)
+                .forEach((folder) => collectIds(folder.id));
         }
         collectIds(folderId);
         await deleteProjectFolder(projectId, folderId);
-        setProject((prev) =>
-            prev
+        setProject((current) =>
+            current
                 ? {
-                      ...prev,
-                      folders: (prev.folders ?? []).filter(
-                          (f) => !toDelete.has(f.id),
+                      ...current,
+                      folders: (current.folders ?? []).filter(
+                          (folder) => !toDelete.has(folder.id),
                       ),
-                      documents: (prev.documents ?? []).map((d) =>
-                          d.folder_id && toDelete.has(d.folder_id)
-                              ? { ...d, folder_id: null }
-                              : d,
+                      documents: (current.documents ?? []).map((document) =>
+                          document.folder_id &&
+                          toDelete.has(document.folder_id)
+                              ? { ...document, folder_id: null }
+                              : document,
                       ),
                   }
-                : prev,
+                : current,
         );
-    };
+    }
 
-    const handleMoveDoc = async (
-        docId: string,
+    async function handleMoveDoc(
+        documentId: string,
         targetFolderId: string | null,
-    ) => {
-        setProject((prev) =>
-            prev
+    ) {
+        setProject((current) =>
+            current
                 ? {
-                      ...prev,
-                      documents: (prev.documents ?? []).map((d) =>
-                          d.id === docId
-                              ? { ...d, folder_id: targetFolderId }
-                              : d,
+                      ...current,
+                      documents: (current.documents ?? []).map((document) =>
+                          document.id === documentId
+                              ? { ...document, folder_id: targetFolderId }
+                              : document,
                       ),
                   }
-                : prev,
+                : current,
         );
-        await moveDocumentToFolder(projectId, docId, targetFolderId);
-    };
+        await moveDocumentToFolder(projectId, documentId, targetFolderId);
+    }
 
-    const handleMoveFolder = async (
+    async function handleMoveFolder(
         folderId: string,
         targetFolderId: string | null,
-    ) => {
-        setProject((prev) =>
-            prev
+    ) {
+        setProject((current) =>
+            current
                 ? {
-                      ...prev,
-                      folders: (prev.folders ?? []).map((f) =>
-                          f.id === folderId
-                              ? { ...f, parent_folder_id: targetFolderId }
-                              : f,
+                      ...current,
+                      folders: (current.folders ?? []).map((folder) =>
+                          folder.id === folderId
+                              ? {
+                                    ...folder,
+                                    parent_folder_id: targetFolderId,
+                                }
+                              : folder,
                       ),
                   }
-                : prev,
+                : current,
         );
         await moveSubfolderToFolder(projectId, folderId, targetFolderId);
-    };
+    }
 
-    const handleDeleteDoc = async (docId: string) => {
-        await removeProjectDocument(projectId, docId);
-        setProject((prev) =>
-            prev
+    async function handleDeleteDoc(documentId: string) {
+        await removeProjectDocument(projectId, documentId);
+        chatViewRef.current?.closeDocument(documentId);
+        setProject((current) =>
+            current
                 ? {
-                      ...prev,
-                      documents: (prev.documents ?? []).filter(
-                          (d) => d.id !== docId,
+                      ...current,
+                      documents: (current.documents ?? []).filter(
+                          (document) => document.id !== documentId,
                       ),
                   }
-                : prev,
+                : current,
         );
-        setTabs((prev) => prev.filter((t) => t.documentId !== docId));
-        if (activeTabId === docId) {
-            setActiveTabId(null);
-            setActiveQuotes(null);
-            setSelectedDocId(null);
-            setEditScrollTarget(null);
-        }
-    };
+    }
 
-    // ── Resize handlers ───────────────────────────────────────────────────────
-    const onExplorerDividerDrag = useCallback((dx: number) => {
-        setExplorerWidth((w) => Math.max(EXPLORER_MIN, w + dx));
+    function handleChatDrop(event: React.DragEvent) {
+        event.preventDefault();
+        const documentId = event.dataTransfer.getData(
+            "application/mike-doc",
+        );
+        const document = project?.documents?.find(
+            (item) => item.id === documentId,
+        );
+        if (document) chatViewRef.current?.attachDocument(document);
+    }
+
+    const resizeExplorer = useCallback((dx: number) => {
+        setExplorerWidth((width) => Math.max(EXPLORER_MIN, width + dx));
     }, []);
 
-    const onChatDividerDrag = useCallback((dx: number) => {
-        setChatWidth((w) => Math.max(CHAT_MIN, w - dx));
+    const closeMobileExplorer = useCallback(() => {
+        setMobileExplorerOpen(false);
+        requestAnimationFrame(() => mobileExplorerButtonRef.current?.focus());
+    }, []);
+
+    const openMobileExplorer = useCallback(() => {
+        setMobileExplorerOpen(true);
+        requestAnimationFrame(() => mobileExplorerRef.current?.focus());
     }, []);
 
     async function changeProject(nextProjectId: string | null) {
@@ -819,18 +511,17 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             pendingProjectRouteRef.current = {
                 projectId: updated.project_id,
             };
-        } else {
-            router.replace(
-                updated.project_id
-                    ? `/projects/${updated.project_id}/assistant/chat/${chatId}`
-                    : `/assistant/chat/${chatId}`,
-            );
+            return;
         }
+        router.replace(
+            updated.project_id
+                ? `/projects/${updated.project_id}/assistant/chat/${chatId}`
+                : `/assistant/chat/${chatId}`,
+        );
     }
 
     return (
-        <div className="flex flex-col h-full">
-            {/* Page header */}
+        <div className="flex h-full flex-col">
             <PageHeader
                 shrink
                 breadcrumbs={[
@@ -853,9 +544,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                               title: "Back to project",
                           },
                     chatLoaded
-                        ? {
-                              label: chatTitle ?? "Untitled New Chat",
-                          }
+                        ? { label: chatTitle ?? "Untitled New Chat" }
                         : {
                               loading: true,
                               skeletonClassName: "w-40",
@@ -884,7 +573,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
                             >
                                 <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate">
+                                <span className="hidden truncate sm:inline">
                                     {project?.name ?? "Project"}
                                 </span>
                             </button>
@@ -913,7 +602,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         render: (
                             <button
                                 type="button"
-                                onClick={() => void handleDeleteChat()}
+                                onClick={handleDeleteChat}
                                 disabled={deletingChat}
                                 className="inline-flex h-8 items-center rounded-md border border-red-300 bg-white px-3 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -924,142 +613,137 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 ]}
             />
 
-            {/* Three-panel body */}
-            <div className="flex flex-1 min-h-0 border-t border-gray-200 overflow-hidden">
-                {/* LEFT: Project Explorer */}
-                {!explorerCollapsed && (
-                    <>
-                        <div
-                            style={{ width: explorerWidth }}
-                            className="shrink-0 flex flex-col border-r border-gray-200"
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                // Only show the upload overlay for external file drags, not internal moves
-                                const isInternal =
-                                    Array.from(e.dataTransfer.types).includes(
-                                        "application/mike-doc",
-                                    ) ||
-                                    Array.from(e.dataTransfer.types).includes(
-                                        "application/mike-folder",
-                                    );
-                                if (!isInternal) setExplorerDragOver(true);
-                            }}
-                            onDragLeave={(e) => {
-                                if (
-                                    !e.currentTarget.contains(
-                                        e.relatedTarget as Node,
+            <div className="relative flex min-h-0 flex-1 overflow-hidden border-t border-gray-200">
+                <div
+                    ref={mobileExplorerRef}
+                    id="project-chat-explorer"
+                    tabIndex={-1}
+                    style={{ width: explorerWidth }}
+                    className={`shrink-0 flex-col border-r border-gray-200 bg-white ${
+                        mobileExplorerOpen
+                            ? "absolute inset-y-0 left-0 z-40 flex shadow-lg"
+                            : "hidden"
+                    } ${
+                        explorerCollapsed
+                            ? "md:hidden"
+                            : "md:relative md:inset-auto md:z-auto md:flex md:shadow-none"
+                    }`}
+                    onKeyDown={(event) => {
+                        if (event.key === "Escape") closeMobileExplorer();
+                    }}
+                    onDragOver={(event) => {
+                        event.preventDefault();
+                        const types = Array.from(event.dataTransfer.types);
+                        if (
+                            !types.includes("application/mike-doc") &&
+                            !types.includes("application/mike-folder")
+                        ) {
+                            setExplorerDragOver(true);
+                        }
+                    }}
+                    onDragLeave={(event) => {
+                        if (
+                            !event.currentTarget.contains(
+                                event.relatedTarget as Node,
+                            )
+                        ) {
+                            setExplorerDragOver(false);
+                        }
+                    }}
+                    onDrop={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setExplorerDragOver(false);
+                        void uploadFiles(Array.from(event.dataTransfer.files));
+                    }}
+                >
+                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-200 px-3">
+                        <span className="text-xs text-gray-700">Explorer</span>
+                        <div className="flex items-center gap-1">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+                                multiple
+                                className="hidden"
+                                onChange={(event) =>
+                                    void uploadFiles(
+                                        Array.from(event.target.files ?? []),
                                     )
-                                )
-                                    setExplorerDragOver(false);
-                            }}
-                            onDrop={handleExplorerFileDrop}
-                        >
-                            {/* Explorer header */}
-                            <div className="h-10 flex items-center justify-between px-3 border-b border-gray-200 shrink-0">
-                                <span className="text-xs text-gray-700">
-                                    Explorer
-                                </span>
-                                <div className="flex items-center gap-1">
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
-                                        multiple
-                                        className="hidden"
-                                        onChange={(e) =>
-                                            uploadFiles(
-                                                Array.from(
-                                                    e.target.files ?? [],
-                                                ),
-                                            )
-                                        }
-                                    />
-                                    <button
-                                        onClick={() =>
-                                            fileInputRef.current?.click()
-                                        }
-                                        disabled={uploading}
-                                        title="Upload documents"
-                                        className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-40"
-                                    >
-                                        {uploading ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <Upload className="h-3.5 w-3.5" />
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            setExplorerCollapsed(true)
-                                        }
-                                        title="Collapse explorer"
-                                        className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                                    >
-                                        <ChevronLeft className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Drop overlay */}
-                            <div
-                                className={`flex-1 overflow-y-auto relative h-full ${explorerDragOver ? "bg-blue-50" : ""}`}
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                }}
-                                onDrop={async (e) => {
-                                    e.preventDefault();
-                                    const docId = e.dataTransfer.getData(
-                                        "application/mike-doc",
-                                    );
-                                    const folderId = e.dataTransfer.getData(
-                                        "application/mike-folder",
-                                    );
-                                    if (docId) {
-                                        e.stopPropagation();
-                                        await handleMoveDoc(docId, null);
-                                    } else if (folderId) {
-                                        e.stopPropagation();
-                                        await handleMoveFolder(folderId, null);
-                                    }
-                                    // External file drops are not stopped — they bubble to handleExplorerFileDrop
-                                }}
-                            >
-                                {explorerDragOver && (
-                                    <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                                        <p className="text-xs text-blue-500 font-medium">
-                                            Drop to upload
-                                        </p>
-                                    </div>
-                                )}
-                                <ProjectExplorer
-                                    documents={project?.documents ?? []}
-                                    folders={project?.folders ?? []}
-                                    selectedDocId={selectedDocId}
-                                    onDocClick={handleDocClick}
-                                    onCreateFolder={handleCreateFolder}
-                                    onRenameFolder={handleRenameFolder}
-                                    onDeleteFolder={handleDeleteFolder}
-                                    onDeleteDoc={handleDeleteDoc}
-                                    documentRemovalMode={
-                                        isAnonymousMode ? "detach" : "delete"
-                                    }
-                                    onMoveDoc={handleMoveDoc}
-                                    onMoveFolder={handleMoveFolder}
-                                />
-                            </div>
-                        </div>
-                        <Divider onDrag={onExplorerDividerDrag} />
-                    </>
-                )}
-
-                {/* Collapsed explorer toggle */}
-                {explorerCollapsed && (
-                    <div className="shrink-0 flex flex-col border-r border-gray-200">
-                        <div className="h-10 flex items-center justify-center border-b border-gray-200 shrink-0 px-1">
+                                }
+                            />
                             <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                title="Upload documents"
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+                            >
+                                {uploading ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Upload className="h-3.5 w-3.5" />
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={closeMobileExplorer}
+                                title="Close explorer"
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:hidden"
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setExplorerCollapsed(true)}
+                                title="Collapse explorer"
+                                className="hidden rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:block"
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                    <div
+                        className={`relative h-full flex-1 overflow-y-auto ${
+                            explorerDragOver ? "bg-blue-50" : ""
+                        }`}
+                    >
+                        {explorerDragOver && (
+                            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                                <p className="text-xs font-medium text-blue-500">
+                                    Drop to upload
+                                </p>
+                            </div>
+                        )}
+                        <ProjectExplorer
+                            documents={project?.documents ?? []}
+                            folders={project?.folders ?? []}
+                            selectedDocId={selectedDocId}
+                            onDocClick={(document) => {
+                                chatViewRef.current?.openDocument(document);
+                                setMobileExplorerOpen(false);
+                            }}
+                            onCreateFolder={handleCreateFolder}
+                            onRenameFolder={handleRenameFolder}
+                            onDeleteFolder={handleDeleteFolder}
+                            onDeleteDoc={handleDeleteDoc}
+                            documentRemovalMode={
+                                isAnonymousMode ? "detach" : "delete"
+                            }
+                            onMoveDoc={handleMoveDoc}
+                            onMoveFolder={handleMoveFolder}
+                        />
+                    </div>
+                </div>
+                {!explorerCollapsed && <Divider onDrag={resizeExplorer} />}
+                {explorerCollapsed && (
+                    <div className="hidden shrink-0 flex-col border-r border-gray-200 md:flex">
+                        <div className="flex h-10 shrink-0 items-center justify-center border-b border-gray-200 px-1">
+                            <button
+                                type="button"
                                 onClick={() => setExplorerCollapsed(false)}
                                 title="Expand explorer"
-                                className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                             >
                                 <ChevronRight className="h-3.5 w-3.5" />
                             </button>
@@ -1067,382 +751,58 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     </div>
                 )}
 
-                {/* CENTER: Document Panel */}
-                <div className="flex-1 flex flex-col min-w-0 border-r border-gray-200">
-                    {/* Tab bar */}
-                    <div className="flex max-h-32 min-w-0 shrink-0 flex-wrap items-stretch overflow-y-auto border-b border-gray-200">
-                        {tabs.length === 0 && !automationRun ? (
-                            <span className="px-4 self-center text-xs text-gray-700">
-                                Document Viewer
-                            </span>
-                        ) : (
-                            <>
-                            {tabs.map((tab) => {
-                                const isActive =
-                                    !automationRun &&
-                                    tab.documentId === activeTabId;
-                                const ext = tab.filename
-                                    .split(".")
-                                    .pop()
-                                    ?.toLowerCase();
-                                const iconColor =
-                                    ext === "pdf"
-                                        ? "text-red-500"
-                                        : ext === "doc" || ext === "docx"
-                                          ? "text-blue-500"
-                                          : "text-gray-400";
-                                const versionNumber = (
-                                    project?.documents ?? []
-                                ).find((d) => d.id === tab.documentId)
-                                    ?.active_version_number;
-                                const showVersionBadge =
-                                    typeof versionNumber === "number" &&
-                                    Number.isFinite(versionNumber) &&
-                                    versionNumber > 1;
-                                return (
-                                    <div
-                                        key={tab.documentId}
-                                        ref={(el) => {
-                                            tabItemRefs.current[
-                                                tab.documentId
-                                            ] = el;
-                                        }}
-                                        onClick={() =>
-                                            switchTab(tab.documentId)
-                                        }
-                                        className={`group flex min-h-10 min-w-0 basis-56 flex-1 cursor-pointer items-center gap-1.5 border-r border-gray-200 px-3 ${
-                                            isActive
-                                                ? "bg-gray-100"
-                                                : "bg-white hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        <FileText
-                                            className={`h-3.5 w-3.5 shrink-0 ${iconColor}`}
-                                        />
-                                        <span
-                                            className={`min-w-0 py-2 text-left text-xs leading-tight whitespace-normal ${isActive ? "text-gray-900 font-medium" : "text-gray-600"}`}
-                                        >
-                                            {tab.filename}
-                                        </span>
-                                        {showVersionBadge && (
-                                            <span
-                                                className={`shrink-0 inline-flex items-center rounded border px-1 py-px text-[9px] font-medium ${
-                                                    isActive
-                                                        ? "border-gray-200 bg-white text-gray-600"
-                                                        : "border-gray-200 bg-gray-50 text-gray-500"
-                                                }`}
-                                            >
-                                                V{versionNumber}
-                                            </span>
-                                        )}
-                                        {isActive && (
-                                            <span
-                                                className="ml-auto shrink-0"
-                                                onClick={(event) =>
-                                                    event.stopPropagation()
-                                                }
-                                            >
-                                                <DocumentAutomation
-                                                    document={{
-                                                        id: tab.documentId,
-                                                        filename: tab.filename,
-                                                        project_id: projectId,
-                                                    }}
-                                                    onDocumentChanged={(
-                                                        result,
-                                                    ) =>
-                                                        patchTab(
-                                                            tab.documentId,
-                                                            {
-                                                                versionId:
-                                                                    result.version_id,
-                                                                refetchKey:
-                                                                    (tab.refetchKey ??
-                                                                        0) + 1,
-                                                            },
-                                                        )
-                                                    }
-                                                />
-                                            </span>
-                                        )}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                closeTab(tab.documentId);
-                                            }}
-                                            className={`shrink-0 ${isActive ? "text-gray-600 hover:text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
-                                            aria-label={`Close ${tab.filename}`}
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                            {automationRun && (
-                                <div className="flex min-h-10 min-w-0 basis-56 flex-1 items-center gap-2 border-r border-gray-300 bg-gray-100 px-3">
-                                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-950">
-                                        Automation
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setAutomationRun(null)}
-                                        aria-label="Close Automation"
-                                        className="text-gray-600 hover:text-gray-950"
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            )}
-                            </>
-                        )}
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                        {automationRun ? (
-                            <div className="h-full overflow-y-auto bg-white">
-                                <AutomationRunPanel run={automationRun} />
-                            </div>
-                        ) : activeTab ? (
-                            isDocxFilename(activeTab.filename) ? (
-                                <DocxView
-                                    key={activeTab.documentId}
-                                    documentId={activeTab.documentId}
-                                    versionId={activeTab.versionId}
-                                    refetchKey={activeTab.refetchKey}
-                                    quotes={activeQuotes ?? undefined}
-                                    highlightEdit={
-                                        editScrollTarget &&
-                                        editScrollTarget.documentId ===
-                                            activeTab.documentId
-                                            ? editScrollTarget
-                                            : null
-                                    }
-                                    onReady={() =>
-                                        handleDocxReady(activeTab.documentId)
-                                    }
-                                    warning={activeTab.warning ?? null}
-                                    onWarningDismiss={() =>
-                                        dismissTabWarning(activeTab.documentId)
-                                    }
-                                    initialScrollTop={
-                                        activeTab.scrollTop ?? null
-                                    }
-                                    onScrollChange={(top) =>
-                                        handleTabScrollChange(
-                                            activeTab.documentId,
-                                            top,
-                                        )
-                                    }
-                                    rounded={false}
-                                />
-                            ) : isSpreadsheetFilename(activeTab.filename) ? (
-                                <SpreadsheetView
-                                    key={activeTab.documentId}
-                                    documentId={activeTab.documentId}
-                                    versionId={activeTab.versionId}
-                                    rounded={false}
-                                />
-                            ) : (
-                                <PdfView
-                                    key={activeTab.documentId}
-                                    doc={{
-                                        document_id: activeTab.documentId,
-                                        version_id: activeTab.versionId,
-                                    }}
-                                    quotes={activeQuotes ?? undefined}
-                                    rounded={false}
-                                />
-                            )
-                        ) : (
-                            <div className="flex items-center justify-center h-full px-8 bg-gray-100">
-                                <div className="text-center space-y-3">
-                                    <p className="font-serif text-gray-700 text-xl">
-                                        Click on a document to display here.
-                                    </p>
-                                    <p className="font-serif text-base text-gray-500">
-                                        Pro tip: Drag a document from the
-                                        Project Explorer to the Assistant to
-                                        direct it to read or edit.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <Divider onDrag={onChatDividerDrag} />
-
-                {/* RIGHT: Assistant Panel */}
                 <div
-                    style={{ width: chatWidth }}
-                    className="relative shrink-0 flex flex-col"
-                    onDragOver={(e) => e.preventDefault()}
+                    className="relative min-w-0 flex-1"
+                    onDragOver={(event) => event.preventDefault()}
                     onDrop={handleChatDrop}
                 >
-                    <div className="h-10 flex items-center px-4 border-b border-gray-200 shrink-0">
-                        <span className="text-xs text-gray-700">
-                            Project Assistant
-                        </span>
-                    </div>
-
-                    {/* Messages / greeting / shimmer */}
+                    <button
+                        ref={mobileExplorerButtonRef}
+                        type="button"
+                        aria-controls="project-chat-explorer"
+                        aria-expanded={mobileExplorerOpen}
+                        onClick={openMobileExplorer}
+                        className="absolute left-2 top-2 z-20 inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 shadow-sm md:hidden"
+                    >
+                        <FolderSvgIcon className="h-3.5 w-3.5" />
+                        Files
+                    </button>
+                    <ChatView
+                        ref={chatViewRef}
+                        chatId={chatId}
+                        messages={messages}
+                        isResponseLoading={isResponseLoading}
+                        handleChat={handleChat}
+                        cancel={cancel}
+                        rejectedTurn={rejectedTurn}
+                        onRejectedTurnRestored={clearRejectedTurn}
+                        onRetryRejectedTurn={() => void retryRejectedTurn()}
+                        projectId={projectId}
+                        projectName={project?.name}
+                        projectCmNumber={project?.cm_number}
+                        hideAddDocButton
+                        useDisplayedDocumentContext
+                        onDocumentsUploaded={addDocuments}
+                        onActiveDocumentChange={setSelectedDocId}
+                    />
                     {!chatLoaded ? (
-                        <div className="flex-1 px-4 py-4 space-y-4">
-                            <div className="flex justify-end">
-                                <div className="bg-gray-100 rounded-2xl p-4 w-3/4">
-                                    <div className="h-3 rounded bg-gray-200 w-full" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                {[1, 2, 3].map((i) => (
-                                    <div
-                                        key={i}
-                                        className={`h-3 rounded bg-gray-200 ${i === 3 ? "w-4/6" : "w-full"}`}
-                                    />
-                                ))}
-                            </div>
+                        <div className="absolute inset-0 z-40 space-y-4 bg-white px-8 py-8">
+                            <div className="ml-auto h-12 w-3/5 rounded-2xl bg-gray-100" />
+                            <div className="h-3 w-full rounded bg-gray-200" />
+                            <div className="h-3 w-4/6 rounded bg-gray-200" />
                         </div>
                     ) : messages.length === 0 ? (
-                        <div className="flex-1 flex flex-col min-h-0">
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center pb-24">
                             <AssistantGreeting username={username} />
                         </div>
-                    ) : (
-                        <div
-                            ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-4 pt-6 md:pt-8 space-y-6 md:space-y-8 min-h-0"
-                            style={{
-                                paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
-                                scrollbarGutter: "stable",
-                            }}
-                        >
-                            {(() => {
-                                const lastUserIdx = messages
-                                    .map((m) => m.role)
-                                    .lastIndexOf("user");
-                                const lastAssistantIdx = messages
-                                    .map((m) => m.role)
-                                    .lastIndexOf("assistant");
-                                return messages.map((msg, i) =>
-                                    msg.role === "user" ? (
-                                        <div
-                                            key={i}
-                                            ref={
-                                                i === lastUserIdx
-                                                    ? latestUserMessageRef
-                                                    : null
-                                            }
-                                        >
-                                            <UserMessage
-                                                content={msg.content ?? ""}
-                                                files={msg.files}
-                                                workflow={msg.workflow}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <AssistantMessage
-                                            key={i}
-                                            events={msg.events}
-                                            isStreaming={
-                                                i === messages.length - 1 &&
-                                                isResponseLoading
-                                            }
-                                            isError={!!msg.error}
-                                            citations={msg.citations}
-                                            citationStatus={
-                                                msg.citationStatus
-                                            }
-                                            onCitationClick={
-                                                handleCitationClick
-                                            }
-                                            onAutomationClick={(run) =>
-                                                setAutomationRun(
-                                                    mergeAutomationRun(run),
-                                                )
-                                            }
-                                            minHeight={
-                                                i === lastAssistantIdx
-                                                    ? minHeight
-                                                    : "0px"
-                                            }
-                                            onEditViewClick={
-                                                handleEditViewClick
-                                            }
-                                            onOpenDocument={handleOpenDocument}
-                                            onEditResolved={handleEditResolved}
-                                            onEditError={handleEditError}
-                                            isDocReloading={(docId) =>
-                                                reloadingDocIds.has(docId)
-                                            }
-                                        />
-                                    ),
-                                );
-                            })()}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
-
-                    {/* ChatInput */}
-                    <div className="absolute bottom-2 left-0 right-0 z-30 w-full md:bottom-3">
-                        <div className="pointer-events-none absolute -bottom-2 left-4 right-4 z-0 h-7 bg-white md:-bottom-3" />
-                        <div className="relative z-20 w-full px-4">
-                            <ChatInput
-                                ref={chatInputRef}
-                                onSubmit={handleSubmit}
-                                onCancel={cancel}
-                                isLoading={isResponseLoading}
-                                restoreDraft={
-                                    rejectedTurn?.options?.askInputsResponse
-                                        ? null
-                                        : rejectedTurn?.message
-                                }
-                                hideAddDocButton
-                                projectId={projectId}
-                                onDocumentsUploaded={(documents) =>
-                                    setProject((prev) =>
-                                        prev
-                                            ? {
-                                                  ...prev,
-                                                  documents: [
-                                                      ...(prev.documents ?? []),
-                                                      ...documents,
-                                                  ],
-                                              }
-                                            : prev,
-                                    )
-                                }
-                                projectName={project?.name}
-                                projectCmNumber={project?.cm_number}
-                            />
-                        </div>
-                    </div>
+                    ) : null}
                 </div>
             </div>
+
             <OwnerOnlyPopup
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}
                 onClose={() => setOwnerOnlyAction(null)}
-            />
-            <WarningPopup
-                open={!!rejectedTurn}
-                title={
-                    rejectedTurn?.options?.askInputsResponse
-                        ? "Inputs not sent"
-                        : "Response interrupted"
-                }
-                message={
-                    rejectedTurn?.options?.askInputsResponse
-                        ? "Your selections were kept. Retry them after reviewing the latest response."
-                        : "Retry the original request, or dismiss this notice to edit the restored draft."
-                }
-                onClose={clearRejectedTurn}
-                primaryAction={{
-                    label: "Retry",
-                    onClick: () => {
-                        if (!rejectedTurn?.options?.askInputsResponse) {
-                            chatInputRef.current?.clearDraft();
-                        }
-                        void retryRejectedTurn();
-                    },
-                }}
             />
             <ChatDeleteWarning
                 open={deleteConfirmOpen}

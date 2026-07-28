@@ -1,9 +1,9 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Message } from "../shared/types";
-import { ChatView } from "./ChatView";
+import type { Document, Message } from "../shared/types";
+import { ChatView, type ChatViewHandle } from "./ChatView";
 
 vi.stubGlobal(
     "ResizeObserver",
@@ -107,5 +107,60 @@ describe("ChatView displayed document context", () => {
                 },
             ],
         });
+    });
+
+    it("keeps project document context separate from attachments", async () => {
+        const user = userEvent.setup();
+        const handleChat = vi.fn();
+        const onActiveDocumentChange = vi.fn();
+        const ref = React.createRef<ChatViewHandle>();
+        render(
+            <ChatView
+                ref={ref}
+                messages={[]}
+                isResponseLoading={false}
+                handleChat={handleChat}
+                cancel={vi.fn()}
+                useDisplayedDocumentContext
+                onActiveDocumentChange={onActiveDocumentChange}
+            />,
+        );
+
+        act(() =>
+            ref.current?.openDocument({
+                id: "document-1",
+                filename: "Lease.docx",
+                current_version_id: "version-1",
+                active_version_number: 1,
+            } as Document),
+        );
+        await waitFor(() =>
+            expect(onActiveDocumentChange).toHaveBeenLastCalledWith(
+                "document-1",
+            ),
+        );
+        await user.click(screen.getByRole("button", { name: "Run workflow" }));
+
+        expect(handleChat).toHaveBeenCalledWith(
+            {
+                role: "user",
+                content: "extract key terms",
+                workflow: {
+                    id: "builtin-extract-key-terms",
+                    title: "Extract Key Terms",
+                },
+            },
+            {
+                displayedDoc: {
+                    filename: "Lease.docx",
+                    documentId: "document-1",
+                },
+            },
+        );
+
+        act(() => ref.current?.closeDocument("document-1"));
+        await waitFor(() =>
+            expect(onActiveDocumentChange).toHaveBeenLastCalledWith(null),
+        );
     });
 });

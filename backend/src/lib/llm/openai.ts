@@ -1,4 +1,4 @@
-import { abortError, throwIfAborted } from "./abort";
+import { throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
 import type {
   LlmMessage,

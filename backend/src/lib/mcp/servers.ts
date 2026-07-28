@@ -629,7 +629,6 @@ export async function buildUserMcpTools(
             return [];
         }
         const toolName = String(raw.tool_name);
-        const title = typeof raw.title === "string" ? raw.title : toolName;
         const description =
             typeof raw.description === "string" && raw.description.trim()
                 ? raw.description

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { legalDataHome } from "../legalDataPath";
