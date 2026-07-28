@@ -15,12 +15,14 @@ export function NativeActionSelect({
     children,
     className,
     triggerClassName,
+    placeholder = label,
 }: {
     label: string;
     items: NativeAction[];
     children: ReactNode;
     className?: string;
     triggerClassName?: string;
+    placeholder?: string;
 }) {
     if (process.env.NODE_ENV !== "production" && items.length > 8) {
         throw new Error(
@@ -47,7 +49,7 @@ export function NativeActionSelect({
                 }}
             >
                 <option value="" disabled>
-                    {label}
+                    {placeholder}
                 </option>
                 {items.map((item, index) => (
                     <option
