@@ -290,6 +290,7 @@ export async function runLLMStream({
   };
 
   const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
+  const isCodex = selectedModel.startsWith("codex:");
 
   try {
     throwIfAborted(signal);
@@ -308,6 +309,7 @@ export async function runLLMStream({
           iterText += delta;
           splitter.push(delta);
         },
+        onContentBlockEnd: () => flushText(),
         onReasoningDelta: (delta) => {
           iterReasoning += delta;
           emit({ type: "reasoning_delta", text: delta });
@@ -325,7 +327,7 @@ export async function runLLMStream({
         // the tool executes — avoids the dead gap between message_stop
         // and the first tool-specific event.
         onToolCallStart: (call) => {
-          flushText();
+          if (!isCodex) flushText();
           emit({ type: "tool_call_start", name: call.name });
         },
       },
@@ -333,7 +335,7 @@ export async function runLLMStream({
         throwIfAborted(signal);
         // Emit any text the model produced before this tool turn so the
         // UI sees it before the tool results stream in.
-        flushText();
+        if (!isCodex) flushText();
 
         const toolCalls: ToolCall[] = calls.map((c) => ({
           id: c.id,
@@ -486,6 +488,7 @@ export async function runLLMStream({
     events.push({ type: "content", text: linkDelta });
     emit({ type: "content_delta", text: linkDelta });
   }
+  emit({ type: "content_final", text: linkedText });
   devLog("[chat/stream] final citations", {
     hasCitationsBlock: citationDiagnostics.hasBlock,
     citationsBlockLength: citationDiagnostics.rawLength,

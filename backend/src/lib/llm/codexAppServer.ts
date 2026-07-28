@@ -377,10 +377,12 @@ async function runTurn(
           : seen
             ? ""
             : item.text;
-        if (!remainder) return;
-        fullText += remainder;
-        progress.streamed = true;
-        callbacks.onContentDelta(remainder);
+        if (remainder) {
+          fullText += remainder;
+          progress.streamed = true;
+          callbacks.onContentDelta(remainder);
+        }
+        callbacks.onContentBlockEnd?.();
         return;
       }
       case "thread/tokenUsage/updated":

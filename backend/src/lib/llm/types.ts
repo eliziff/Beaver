@@ -47,6 +47,7 @@ export type StreamCallbacks = {
   onReasoningDelta?: (text: string) => void;
   onReasoningBlockEnd?: () => void;
   onContentDelta?: (text: string) => void;
+  onContentBlockEnd?: () => void;
   onToolCallStart?: (call: NormalizedToolCall) => void;
 };
 

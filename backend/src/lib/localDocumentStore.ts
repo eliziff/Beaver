@@ -20,8 +20,22 @@ import {
 } from "./localPdfIngestion";
 import { legalKnowledgeGraphStore } from "./legalKnowledgeGraphStore";
 import { removeDocumentFromLocalTabularReviews } from "./localTabularStore";
+import { resolveTrackedChange } from "./docxTrackedChanges";
 
 export type LocalLibraryKind = "file" | "template";
+
+export type LocalTrackedEdit = {
+  id: string;
+  changeId: string;
+  delWId?: string;
+  insWId?: string;
+  deletedText: string;
+  insertedText: string;
+  contextBefore: string;
+  contextAfter: string;
+  reason?: string;
+  status: "pending" | "accepted" | "rejected";
+};
 
 export type LocalLegalSourcePdfFallback = {
   provider: "a2aj";
@@ -55,6 +69,7 @@ type LocalVersion = {
     action: "created" | "revised";
     parentVersionId?: string;
     changeCount?: number;
+    trackedEdits?: LocalTrackedEdit[];
     generation?: {
       rendererVersion: "beaver.docx-markdown.v1";
       markdownSha256: string;
@@ -580,6 +595,115 @@ export async function replaceLocalVersion(params: {
     saved.version,
     localVersionResponse(saved.version),
   );
+}
+
+export async function resolveLocalTrackedEdit(params: {
+  userId: string;
+  documentId: string;
+  editId: string;
+  mode: "accept" | "reject";
+}) {
+  const saved = await mutateStore(async (store) => {
+    const document = store.documents.find(
+      (item) =>
+        item.id === params.documentId && item.userId === params.userId,
+    );
+    if (!document) return { status: "missing" as const };
+    const version = activeVersion(document);
+    const edit = version.provenance?.trackedEdits?.find(
+      (item) => item.id === params.editId,
+    );
+    if (!edit) return { status: "missing" as const };
+    const nextStatus =
+      params.mode === "accept" ? ("accepted" as const) : ("rejected" as const);
+    if (edit.status !== "pending") {
+      return edit.status === nextStatus
+        ? { status: "unchanged" as const, document, version, edit }
+        : { status: "conflict" as const, edit };
+    }
+    const changeIds = [edit.delWId, edit.insWId].filter(
+      (item): item is string => !!item,
+    );
+    if (!changeIds.length) return { status: "invalid" as const };
+
+    const previousPaths = new Set(
+      [version.storagePath, version.pdfStoragePath].filter(
+        (item): item is string => !!item,
+      ),
+    );
+    const resolved = await resolveTrackedChange(
+      await readFile(absoluteDataPath(version.storagePath)),
+      changeIds,
+      params.mode,
+    );
+    if (!resolved.found) return { status: "invalid" as const };
+    const files = await writeVersionFiles(
+      document.id,
+      version.id,
+      version.filename,
+      resolved.bytes,
+    );
+    version.sizeBytes = resolved.bytes.byteLength;
+    version.storagePath = files.relativeSource;
+    version.pdfStoragePath = files.relativePdf;
+    version.sourceSha256 = files.sourceSha256;
+    edit.status = nextStatus;
+    document.updatedAt = new Date().toISOString();
+
+    const nextPaths = new Set(
+      [version.storagePath, version.pdfStoragePath].filter(
+        (item): item is string => !!item,
+      ),
+    );
+    await Promise.all(
+      [...previousPaths]
+        .filter((item) => !nextPaths.has(item))
+        .flatMap((item) => {
+          const absolute = absoluteDataPath(item);
+          return [
+            rm(absolute, { force: true }),
+            removeLocalPdfParseArtifacts(absolute),
+          ];
+        }),
+    );
+    return { status: "resolved" as const, document, version, edit };
+  });
+  if (
+    saved.status !== "resolved" &&
+    saved.status !== "unchanged"
+  ) {
+    return saved;
+  }
+  return {
+    status: saved.status,
+    edit: saved.edit,
+    document: localDocumentResponse(saved.document),
+    version: localVersionResponse(saved.version),
+  };
+}
+
+export async function localTrackedEditStatuses(
+  userId: string,
+  documentIds: Iterable<string>,
+) {
+  const wanted = new Set(documentIds);
+  const store = await currentStore();
+  return store.documents
+    .filter(
+      (document) =>
+        document.userId === userId && wanted.has(document.id),
+    )
+    .flatMap((document) =>
+      document.versions.flatMap((version) =>
+        (version.provenance?.trackedEdits ?? []).map((edit) => ({
+          documentId: document.id,
+          versionId: version.id,
+          versionNumber: version.versionNumber,
+          editId: edit.id,
+          status: edit.status,
+        })),
+      ),
+    );
 }
 
 export async function deleteLocalVersion(
