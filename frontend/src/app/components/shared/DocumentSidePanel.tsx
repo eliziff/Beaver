@@ -38,7 +38,7 @@ import {
     HORIZONTAL_RESIZE_HANDLE_CLASS,
     horizontalDrag,
 } from "@/app/components/ui/horizontal-drag";
-import { formatBytes } from "@/app/components/projects/ProjectPageParts";
+import { formatBytes } from "@/app/lib/utils";
 import {
     filenameExtensionChangeWarning,
     hasFilenameExtensionChange,
@@ -1165,7 +1165,7 @@ export function DocumentSidePanel({
     );
 }
 
-function DataRow({ label, value }: { label: string; value: string }) {
+function DataRow({ label, value }: { label: string; value: string | null }) {
     return (
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-2 text-xs">
             <span className="text-gray-600">{label}</span>

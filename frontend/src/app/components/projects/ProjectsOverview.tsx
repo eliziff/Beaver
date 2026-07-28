@@ -37,14 +37,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-
-function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
-}
+import { formatDate } from "@/app/lib/utils";
 
 function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
     if (project.is_owner ?? project.user_id === currentUserId) return "Me";

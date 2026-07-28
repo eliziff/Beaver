@@ -24,7 +24,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
-import { formatDate } from "./ProjectPageParts";
+import { formatDate } from "@/app/lib/utils";
 
 function creatorLabel(chat: Chat, currentUserId?: string | null) {
     if (currentUserId && chat.user_id === currentUserId) return "Me";
