@@ -25,6 +25,7 @@ import {
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
 import { extractDocxDraftingSource } from "../../docxDraftingSource";
+import { cachedParse } from "../../parseCache";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
@@ -80,6 +81,59 @@ export async function extractPdfText(buf: ArrayBuffer): Promise<string> {
   } catch {
     return "";
   }
+}
+
+const toArrayBuffer = (b: Buffer): ArrayBuffer =>
+  b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+
+const mammothRawText = async (bytes: Buffer) =>
+  (await (await import("mammoth")).extractRawText({ buffer: bytes })).value;
+
+/**
+ * Per-format text parser identity for the content-addressed parse cache.
+ * Bump a parser's version whenever its output for the same bytes changes.
+ */
+export function textParserFor(fileType: string): {
+  parser: string;
+  version: number;
+  run: (bytes: Buffer) => Promise<string>;
+} | null {
+  if (fileType === "pdf")
+    return {
+      parser: "pdfjs-text",
+      version: 1,
+      run: (b) => extractPdfText(toArrayBuffer(b)),
+    };
+  if (fileType === "docx")
+    return {
+      parser: "docx-body-text",
+      version: 1,
+      // Same flattening as the edit_document matcher so the LLM sees exactly
+      // the characters it can anchor against; mammoth as fallback.
+      run: async (b) => (await extractDocxBodyText(b)) || mammothRawText(b),
+    };
+  if (isSpreadsheetDocumentType(fileType))
+    return {
+      parser: "spreadsheet-llm-text",
+      version: 1,
+      // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
+      // cell-addressed markdown view with Excel-formatted values.
+      run: (b) => spreadsheetToLLMText(b),
+    };
+  if (fileType === "pptx")
+    return {
+      parser: "pptx-text",
+      version: 1,
+      run: (b) => extractPresentationText(b),
+    };
+  if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType))
+    return {
+      parser: "office-pdf-text",
+      version: 1,
+      // Legacy Office formats go through a PDF detour for text extraction.
+      run: async (b) => extractPdfText(toArrayBuffer(await docxToPdf(b))),
+    };
+  return null;
 }
 
 async function generatedDocxResult(title: string, bytes: Buffer) {
@@ -1149,41 +1203,20 @@ export async function readDocumentContent(
         ...source,
       });
     }
-    const mammothText = async () =>
-      (
-        await (
-          await import("mammoth")
-        ).extractRawText({ buffer: Buffer.from(raw!) })
-      ).value;
-    let text: string;
-    if (fileType === "pdf") {
-      text = await extractPdfText(raw);
-    } else if (fileType === "docx") {
-      // Use the same flattening as the edit_document matcher so the
-      // LLM sees exactly the characters it can anchor against.
-      text = await extractDocxBodyText(Buffer.from(raw));
-      if (!text) text = await mammothText();
-    } else if (isSpreadsheetDocumentType(fileType)) {
-      // SheetJS reads .xlsx/.xlsm/.xls directly (no PDF detour), emitting a
-      // cell-addressed markdown view with Excel-formatted values.
-      text = await spreadsheetToLLMText(Buffer.from(raw));
-    } else if (fileType === "pptx") {
-      text = await extractPresentationText(Buffer.from(raw));
-    } else if (
-      isPresentationDocumentType(fileType) ||
-      isWordDocumentType(fileType)
-    ) {
-      // Legacy Office formats go through a PDF detour for text extraction.
-      const pdfBuf = await docxToPdf(Buffer.from(raw));
-      text = await extractPdfText(
-        pdfBuf.buffer.slice(
-          pdfBuf.byteOffset,
-          pdfBuf.byteOffset + pdfBuf.byteLength,
-        ) as ArrayBuffer,
-      );
-    } else {
-      text = await mammothText();
-    }
+    const parser = textParserFor(fileType) ?? {
+      parser: "mammoth-raw",
+      version: 1,
+      run: mammothRawText,
+    };
+    const bytes = Buffer.from(raw);
+    const text = await cachedParse({
+      // Scoped to the owning document so matter content never crosses scopes.
+      scope: `doc:${documentId ?? docInfo.storage_path}`,
+      parser: parser.parser,
+      version: parser.version,
+      bytes,
+      parse: () => parser.run(bytes),
+    });
     emitDocRead();
     return text;
   } catch (err) {
