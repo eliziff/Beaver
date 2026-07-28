@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
@@ -20,9 +21,20 @@ import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-import { RecyclingBinModal } from "@/app/components/assistant/RecyclingBinModal";
-import { AppSettingsModal } from "@/app/components/settings/AppSettingsModal";
-import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
+const loadRecyclingBinModal = () =>
+  import("@/app/components/assistant/RecyclingBinModal").then(
+    (module) => module.RecyclingBinModal,
+  );
+const loadSettingsModal = () =>
+  import("@/app/components/settings/AppSettingsModal").then(
+    (module) => module.AppSettingsModal,
+  );
+const RecyclingBinModal = lazy(async () => ({
+  default: await loadRecyclingBinModal(),
+}));
+const AppSettingsModal = lazy(async () => ({
+  default: await loadSettingsModal(),
+}));
 import { updateChatProject } from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
 
@@ -256,6 +268,7 @@ export function AppSidebar({
             <div className="shrink-0 px-2.5 pt-1">
               <button
                 type="button"
+                onPointerEnter={() => void loadRecyclingBinModal()}
                 onClick={() => {
                   setRecyclingOpen(true);
                   if (mobileOpen) onToggle();
@@ -275,6 +288,7 @@ export function AppSidebar({
         <div className="mt-auto p-1">
           <button
             type="button"
+            onPointerEnter={() => void loadSettingsModal()}
             onClick={() => {
               setSettingsOpen(true);
               if (mobileOpen) onToggle();
@@ -289,26 +303,28 @@ export function AppSidebar({
           </button>
         </div>
       </aside>
-      {chatProjectTarget && (
-        <SelectAssistantProjectModal
-          open
-          onClose={() => setChatProjectTarget(null)}
-          chatTitle={chatProjectTarget.title}
-          currentLocation="Assistant"
-          currentProjectId={chatProjectTarget.project_id}
-          onSelectProject={moveChatToProject}
-        />
-      )}
-      {recyclingOpen && (
-        <RecyclingBinModal
-          open
-          onClose={() => setRecyclingOpen(false)}
-          onRestored={loadChats}
-        />
-      )}
-      {settingsOpen && (
-        <AppSettingsModal open onClose={() => setSettingsOpen(false)} />
-      )}
+      <Suspense fallback={null}>
+        {chatProjectTarget && (
+          <SelectAssistantProjectModal
+            open
+            onClose={() => setChatProjectTarget(null)}
+            chatTitle={chatProjectTarget.title}
+            currentLocation="Assistant"
+            currentProjectId={chatProjectTarget.project_id}
+            onSelectProject={moveChatToProject}
+          />
+        )}
+        {recyclingOpen && (
+          <RecyclingBinModal
+            open
+            onClose={() => setRecyclingOpen(false)}
+            onRestored={loadChats}
+          />
+        )}
+        {settingsOpen && (
+          <AppSettingsModal open onClose={() => setSettingsOpen(false)} />
+        )}
+      </Suspense>
     </>
   );
 }
