@@ -145,6 +145,14 @@ async function toApiError(response: Response) {
   }
 }
 
+function jsonRequest<T>(path: string, method: string, body: unknown) {
+  return apiRequest<T>(path, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
@@ -162,10 +170,11 @@ export async function createProject(
   practice?: string,
   shared_with?: string[],
 ): Promise<Project> {
-  return apiRequest<Project>("/projects", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, cm_number, practice, shared_with }),
+  return jsonRequest<Project>("/projects", "POST", {
+    name,
+    cm_number,
+    practice,
+    shared_with,
   });
 }
 
@@ -278,20 +287,14 @@ export async function updateUserProfile(payload: {
   tabularModel?: string;
   legalResearchUs?: boolean;
 }): Promise<UserProfile> {
-  return apiRequest<UserProfile>("/user/profile", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<UserProfile>("/user/profile", "PATCH", payload);
 }
 
 export async function updateUserMfaOnLogin(
   enabled: boolean,
 ): Promise<UserProfile> {
-  return apiRequest<UserProfile>("/user/security/mfa-login", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled }),
+  return jsonRequest<UserProfile>("/user/security/mfa-login", "PATCH", {
+    enabled,
   });
 }
 
@@ -319,10 +322,8 @@ export async function saveApiKey(
   provider: ApiKeyProvider,
   apiKey: string | null,
 ): Promise<ApiKeyStatus> {
-  return apiRequest<ApiKeyStatus>(`/user/api-keys/${provider}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey }),
+  return jsonRequest<ApiKeyStatus>(`/user/api-keys/${provider}`, "PUT", {
+    api_key: apiKey,
   });
 }
 
@@ -372,11 +373,11 @@ export async function createMcpConnector(payload: {
   bearerToken?: string | null;
   headers?: Record<string, string>;
 }): Promise<McpConnectorSummary> {
-  return apiRequest<McpConnectorSummary>("/user/mcp-connectors", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<McpConnectorSummary>(
+    "/user/mcp-connectors",
+    "POST",
+    payload,
+  );
 }
 
 export async function updateMcpConnector(
@@ -389,13 +390,10 @@ export async function updateMcpConnector(
     headers?: Record<string, string>;
   },
 ): Promise<McpConnectorSummary> {
-  return apiRequest<McpConnectorSummary>(
+  return jsonRequest<McpConnectorSummary>(
     `/user/mcp-connectors/${connectorId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
+    "PATCH",
+    payload,
   );
 }
 
@@ -428,13 +426,10 @@ export async function setMcpToolEnabled(
   toolId: string,
   enabled: boolean,
 ): Promise<McpConnectorSummary> {
-  return apiRequest<McpConnectorSummary>(
+  return jsonRequest<McpConnectorSummary>(
     `/user/mcp-connectors/${connectorId}/tools/${toolId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    },
+    "PATCH",
+    { enabled },
   );
 }
 
@@ -451,11 +446,7 @@ export async function updateProject(
     shared_with?: string[];
   },
 ): Promise<Project> {
-  return apiRequest<Project>(`/projects/${projectId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<Project>(`/projects/${projectId}`, "PATCH", payload);
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
@@ -490,13 +481,9 @@ export async function createProjectFolder(
   name: string,
   parentFolderId?: string | null,
 ): Promise<Folder> {
-  return apiRequest<Folder>(`/projects/${projectId}/folders`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      parent_folder_id: parentFolderId ?? null,
-    }),
+  return jsonRequest<Folder>(`/projects/${projectId}/folders`, "POST", {
+    name,
+    parent_folder_id: parentFolderId ?? null,
   });
 }
 
@@ -505,11 +492,11 @@ export async function renameProjectFolder(
   folderId: string,
   name: string,
 ): Promise<Folder> {
-  return apiRequest<Folder>(`/projects/${projectId}/folders/${folderId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  return jsonRequest<Folder>(
+    `/projects/${projectId}/folders/${folderId}`,
+    "PATCH",
+    { name },
+  );
 }
 
 export async function deleteProjectFolder(
@@ -526,11 +513,11 @@ export async function moveSubfolderToFolder(
   folderId: string,
   parentFolderId: string | null,
 ): Promise<Folder> {
-  return apiRequest<Folder>(`/projects/${projectId}/folders/${folderId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parent_folder_id: parentFolderId }),
-  });
+  return jsonRequest<Folder>(
+    `/projects/${projectId}/folders/${folderId}`,
+    "PATCH",
+    { parent_folder_id: parentFolderId },
+  );
 }
 
 export async function moveDocumentToFolder(
@@ -538,13 +525,10 @@ export async function moveDocumentToFolder(
   documentId: string,
   folderId: string | null,
 ): Promise<Document> {
-  return apiRequest<Document>(
+  return jsonRequest<Document>(
     `/projects/${projectId}/documents/${documentId}/folder`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder_id: folderId }),
-    },
+    "PATCH",
+    { folder_id: folderId },
   );
 }
 
@@ -553,13 +537,10 @@ export async function renameProjectDocument(
   documentId: string,
   filename: string,
 ): Promise<Document> {
-  return apiRequest<Document>(
+  return jsonRequest<Document>(
     `/projects/${projectId}/documents/${documentId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename }),
-    },
+    "PATCH",
+    { filename },
   );
 }
 
@@ -754,16 +735,12 @@ export async function saveLegalSource(args: {
   dataset?: string | null;
   sourceId?: string | null;
 }): Promise<LegalSourceReference> {
-  return apiRequest<LegalSourceReference>("/library/legal", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      citation: args.citation,
-      doc_type: args.docType,
-      language: args.language ?? "en",
-      dataset: args.dataset ?? undefined,
-      source_id: args.sourceId ?? undefined,
-    }),
+  return jsonRequest<LegalSourceReference>("/library/legal", "POST", {
+    citation: args.citation,
+    doc_type: args.docType,
+    language: args.language ?? "en",
+    dataset: args.dataset ?? undefined,
+    source_id: args.sourceId ?? undefined,
   });
 }
 
@@ -870,11 +847,11 @@ export async function listLegalResearchProjects() {
 }
 
 export async function createLegalResearchProject(name: string) {
-  return apiRequest<LegalResearchProject>("/legal-knowledge/projects", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  return jsonRequest<LegalResearchProject>(
+    "/legal-knowledge/projects",
+    "POST",
+    { name },
+  );
 }
 
 export async function getLegalSourceMarking(
@@ -891,17 +868,14 @@ export async function createLegalResearchLabel(
   projectId: string,
   label: { name: string; color: string; parentId: string | null },
 ) {
-  return apiRequest<LegalResearchNode>(
+  return jsonRequest<LegalResearchNode>(
     `/legal-knowledge/projects/${encodeURIComponent(projectId)}/nodes`,
+    "POST",
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "label",
-        name: label.name,
-        color: label.color,
-        parent_id: label.parentId,
-      }),
+      kind: "label",
+      name: label.name,
+      color: label.color,
+      parent_id: label.parentId,
     },
   );
 }
@@ -911,16 +885,10 @@ export async function saveLegalSourceMark(
   sourceId: string,
   mark: { labelIds: string[]; note: string },
 ) {
-  return apiRequest<LegalSourceMark | null>(
+  return jsonRequest<LegalSourceMark | null>(
     `/legal-knowledge/projects/${encodeURIComponent(projectId)}/sources/${encodeURIComponent(sourceId)}/mark`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        label_ids: mark.labelIds,
-        note: mark.note,
-      }),
-    },
+    "PUT",
+    { label_ids: mark.labelIds, note: mark.note },
   );
 }
 
@@ -945,13 +913,9 @@ export async function createLibraryFolder(
   name: string,
   parentFolderId?: string | null,
 ): Promise<LibraryFolder> {
-  return apiRequest<LibraryFolder>(`/library/${kind}/folders`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      parent_folder_id: parentFolderId ?? null,
-    }),
+  return jsonRequest<LibraryFolder>(`/library/${kind}/folders`, "POST", {
+    name,
+    parent_folder_id: parentFolderId ?? null,
   });
 }
 
@@ -960,11 +924,11 @@ export async function renameLibraryFolder(
   folderId: string,
   name: string,
 ): Promise<LibraryFolder> {
-  return apiRequest<LibraryFolder>(`/library/${kind}/folders/${folderId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  return jsonRequest<LibraryFolder>(
+    `/library/${kind}/folders/${folderId}`,
+    "PATCH",
+    { name },
+  );
 }
 
 export async function deleteLibraryFolder(
@@ -981,11 +945,11 @@ export async function moveLibraryFolder(
   folderId: string,
   parentFolderId: string | null,
 ): Promise<LibraryFolder> {
-  return apiRequest<LibraryFolder>(`/library/${kind}/folders/${folderId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ parent_folder_id: parentFolderId }),
-  });
+  return jsonRequest<LibraryFolder>(
+    `/library/${kind}/folders/${folderId}`,
+    "PATCH",
+    { parent_folder_id: parentFolderId },
+  );
 }
 
 export async function moveLibraryDocument(
@@ -993,13 +957,10 @@ export async function moveLibraryDocument(
   documentId: string,
   folderId: string | null,
 ): Promise<Document> {
-  return apiRequest<Document>(
+  return jsonRequest<Document>(
     `/library/${kind}/documents/${documentId}/folder`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder_id: folderId }),
-    },
+    "PATCH",
+    { folder_id: folderId },
   );
 }
 
@@ -1008,11 +969,11 @@ export async function renameLibraryDocument(
   documentId: string,
   filename: string,
 ): Promise<Document> {
-  return apiRequest<Document>(`/library/${kind}/documents/${documentId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename }),
-  });
+  return jsonRequest<Document>(
+    `/library/${kind}/documents/${documentId}`,
+    "PATCH",
+    { filename },
+  );
 }
 
 export type DeterministicDocxActionResult = {
@@ -1068,14 +1029,10 @@ export function submitLibraryDocumentToAuthorities(
   splitFallback: "off" | "auto" = "auto",
   projectId?: string | null,
 ) {
-  return apiRequest<TableOfAuthoritiesJob>("/table-of-authorities/jobs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      document_id: documentId,
-      split_fallback: splitFallback,
-      project_id: projectId || undefined,
-    }),
+  return jsonRequest<TableOfAuthoritiesJob>("/table-of-authorities/jobs", "POST", {
+    document_id: documentId,
+    split_fallback: splitFallback,
+    project_id: projectId || undefined,
   });
 }
 
@@ -1170,16 +1127,10 @@ export async function copyDocumentVersionFromDocument(
   sourceDocumentId: string,
   filename?: string,
 ): Promise<DocumentVersion> {
-  return apiRequest<DocumentVersion>(
+  return jsonRequest<DocumentVersion>(
     `/single-documents/${documentId}/versions/from-document`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source_document_id: sourceDocumentId,
-        filename,
-      }),
-    },
+    "POST",
+    { source_document_id: sourceDocumentId, filename },
   );
 }
 
@@ -1188,13 +1139,10 @@ export async function renameDocumentVersion(
   versionId: string,
   filename: string | null,
 ): Promise<DocumentVersion> {
-  return apiRequest<DocumentVersion>(
+  return jsonRequest<DocumentVersion>(
     `/single-documents/${documentId}/versions/${versionId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename }),
-    },
+    "PATCH",
+    { filename },
   );
 }
 
@@ -1278,11 +1226,7 @@ export async function downloadDocumentsZip(
 export async function createChat(payload?: {
   project_id?: string;
 }): Promise<{ id: string }> {
-  return apiRequest<{ id: string }>("/chat/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload ?? {}),
-  });
+  return jsonRequest<{ id: string }>("/chat/create", "POST", payload ?? {});
 }
 
 export async function listChats(options?: { limit?: number }): Promise<Chat[]> {
@@ -1327,22 +1271,14 @@ export async function getChat(chatId: string): Promise<ChatDetailOut> {
 }
 
 export async function renameChat(chatId: string, title: string): Promise<void> {
-  await apiRequest(`/chat/${chatId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
+  await jsonRequest(`/chat/${chatId}`, "PATCH", { title });
 }
 
 export async function updateChatProject(
   chatId: string,
   projectId: string | null,
 ): Promise<{ id: string; title: string | null; project_id: string | null }> {
-  return apiRequest(`/chat/${chatId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_id: projectId }),
-  });
+  return jsonRequest(`/chat/${chatId}`, "PATCH", { project_id: projectId });
 }
 
 export async function deleteChat(chatId: string): Promise<void> {
@@ -1371,11 +1307,11 @@ export async function generateChatTitle(
   chatId: string,
   message: string,
 ): Promise<{ title: string }> {
-  return apiRequest<{ title: string }>(`/chat/${chatId}/generate-title`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
-  });
+  return jsonRequest<{ title: string }>(
+    `/chat/${chatId}/generate-title`,
+    "POST",
+    { message },
+  );
 }
 
 export type CaseLawOpinion = {
@@ -1391,15 +1327,10 @@ export type CaseLawOpinion = {
 export async function getCourtlistenerOpinions(
   clusterId: number,
 ): Promise<CaseLawOpinion[]> {
-  const result = await apiRequest<{ opinions: CaseLawOpinion[] }>(
+  const result = await jsonRequest<{ opinions: CaseLawOpinion[] }>(
     "/case-law/case-opinions",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clusterId,
-      }),
-    },
+    "POST",
+    { clusterId },
   );
   return result.opinions;
 }
@@ -1493,11 +1424,7 @@ export async function createTabularReview(payload: {
   workflow_id?: string;
   project_id?: string;
 }): Promise<TabularReview> {
-  return apiRequest<TabularReview>("/tabular-review", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<TabularReview>("/tabular-review", "POST", payload);
 }
 
 export async function getTabularReview(
@@ -1516,11 +1443,11 @@ export async function updateTabularReview(
     shared_with?: string[];
   },
 ): Promise<TabularReview> {
-  return apiRequest<TabularReview>(`/tabular-review/${reviewId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<TabularReview>(
+    `/tabular-review/${reviewId}`,
+    "PATCH",
+    payload,
+  );
 }
 
 export async function getTabularReviewPeople(
@@ -1533,18 +1460,14 @@ export async function generateTabularColumnPrompt(
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },
 ): Promise<{ prompt: string; source: "preset" | "llm" | "fallback" }> {
-  return apiRequest<{
+  return jsonRequest<{
     prompt: string;
     source: "preset" | "llm" | "fallback";
-  }>("/tabular-review/prompt", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title,
-      format: options?.format,
-      documentName: options?.documentName,
-      tags: options?.tags,
-    }),
+  }>("/tabular-review/prompt", "POST", {
+    title,
+    format: options?.format,
+    documentName: options?.documentName,
+    tags: options?.tags,
   });
 }
 
@@ -1701,10 +1624,8 @@ export async function renameTabularChat(
   chatId: string,
   title: string,
 ): Promise<void> {
-  await apiRequest(`/tabular-review/${reviewId}/chats/${chatId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+  await jsonRequest(`/tabular-review/${reviewId}/chats/${chatId}`, "PATCH", {
+    title,
   });
 }
 
@@ -1718,15 +1639,11 @@ export async function regenerateTabularCell(
   flag: "green" | "grey" | "yellow" | "red";
   reasoning: string;
 }> {
-  return apiRequest(`/tabular-review/${reviewId}/regenerate-cell`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      document_id: documentId,
-      column_index: columnIndex,
-      model: options?.model,
-      reasoning_effort: options?.reasoningEffort,
-    }),
+  return jsonRequest(`/tabular-review/${reviewId}/regenerate-cell`, "POST", {
+    document_id: documentId,
+    column_index: columnIndex,
+    model: options?.model,
+    reasoning_effort: options?.reasoningEffort,
   });
 }
 
@@ -1734,10 +1651,8 @@ export async function clearTabularCells(
   reviewId: string,
   documentIds: string[],
 ): Promise<void> {
-  await apiRequest(`/tabular-review/${reviewId}/clear-cells`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ document_ids: documentIds }),
+  await jsonRequest(`/tabular-review/${reviewId}/clear-cells`, "POST", {
+    document_ids: documentIds,
   });
 }
 
@@ -1766,11 +1681,7 @@ export async function createWorkflow(payload: {
   skill_md?: string;
   columns_config?: { index: number; name: string; prompt: string }[];
 }): Promise<Workflow> {
-  return apiRequest<Workflow>("/workflows", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<Workflow>("/workflows", "POST", payload);
 }
 
 export async function updateWorkflow(
@@ -1786,11 +1697,7 @@ export async function updateWorkflow(
     columns_config?: { index: number; name: string; prompt: string }[];
   },
 ): Promise<Workflow> {
-  return apiRequest<Workflow>(`/workflows/${workflowId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return jsonRequest<Workflow>(`/workflows/${workflowId}`, "PATCH", payload);
 }
 
 export async function deleteWorkflow(workflowId: string): Promise<void> {
@@ -1804,13 +1711,10 @@ export async function openSourceWorkflow(
     contributor?: WorkflowContributor | null;
   },
 ): Promise<OpenSourceWorkflowResponse> {
-  return apiRequest<OpenSourceWorkflowResponse>(
+  return jsonRequest<OpenSourceWorkflowResponse>(
     `/workflows/${workflowId}/open-source`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
+    "POST",
+    payload,
   );
 }
 
@@ -1819,10 +1723,8 @@ export async function listHiddenWorkflows(): Promise<string[]> {
 }
 
 export async function hideWorkflow(workflowId: string): Promise<void> {
-  await apiRequest("/workflows/hidden", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workflow_id: workflowId }),
+  await jsonRequest("/workflows/hidden", "POST", {
+    workflow_id: workflowId,
   });
 }
 
@@ -1834,11 +1736,7 @@ export async function shareWorkflow(
   workflowId: string,
   payload: { emails: string[]; allow_edit: boolean },
 ): Promise<void> {
-  await apiRequest<void>(`/workflows/${workflowId}/share`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  await jsonRequest<void>(`/workflows/${workflowId}/share`, "POST", payload);
 }
 
 export async function listWorkflowShares(workflowId: string): Promise<
