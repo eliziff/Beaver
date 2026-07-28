@@ -305,7 +305,7 @@ function RelevantQuoteSection({
             );
             return {
                 id: `document:${citation.ref}:${index}`,
-                quote: cleanCitationQuoteText(citation, quote.quote),
+                quote: cleanCitationQuoteText(quote.quote),
                 inlineDetail: pageLabel || null,
                 citationText: [filename, pageLabel].filter(Boolean).join(", "),
             };

@@ -617,10 +617,7 @@ export function formatCitationQuotePage(
  * Reader-friendly version of a single raw quote: replaces [[PAGE_BREAK]] with
  * "...". Spreadsheet quotes now carry plain cell values, so no stripping.
  */
-export function cleanCitationQuoteText(
-  _a: Citation,
-  rawQuote: string,
-): string {
+export function cleanCitationQuoteText(rawQuote: string): string {
   return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
 }
 
@@ -632,7 +629,7 @@ export function displayCitationQuote(a: Citation): string {
       .join(" / ");
   }
   return getDocumentCitationQuotes(a)
-    .map((q) => cleanCitationQuoteText(a, q.quote))
+    .map((q) => cleanCitationQuoteText(q.quote))
     .filter(Boolean)
     .join(" / ");
 }
