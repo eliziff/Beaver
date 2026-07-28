@@ -98,6 +98,45 @@ describe("parseAmendmentInstructions", () => {
     });
   });
 
+  it("captures unquoted Canadian replacement blocks with furniture trimmed", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(
+      [
+        "2 Subparagraph 42(a)(i) of the Bills of Exchange Act is replaced " +
+          "by the following:",
+        "",
+        "(i) Sundays, New Year's Day, Good Friday and Christmas Day,",
+        "",
+        "R.S., c. I-21Interpretation Act",
+        "3 Subsection 27(5) of the Interpretation Act is replaced by the following:",
+        "",
+        "Marginal note:After specified day",
+        "(5) Where anything is to be done within a time after a specified " +
+          "day, the time does not include that day.",
+      ].join("\n"),
+    );
+    expect(unparsed).toEqual([]);
+    expect(ops.map((op) => [op.kind, op.target])).toEqual([
+      ["replace_provision", "sec42(a)(i)"],
+      ["replace_provision", "sec27(5)"],
+    ]);
+    // Block 1 stops at the chapter note; marginal-note furniture dropped.
+    expect(ops[0].newText).toBe(
+      "(i) Sundays, New Year's Day, Good Friday and Christmas Day,",
+    );
+    expect(ops[1].newText).toContain("the time does not include that day");
+    expect(ops[1].newText).not.toContain("Marginal note");
+  });
+
+  it("refuses definition-scoped heads instead of replacing whole sections", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(
+      "4 The definition general holiday in section 166 of the Canada " +
+        "Labour Code is replaced by the following:\n\n" +
+        "general holiday means New Year's Day and Christmas Day;",
+    );
+    expect(ops).toEqual([]);
+    expect(unparsed[0].reason).toContain("scoped amendment");
+  });
+
   it("refuses portion/heading-scoped heads instead of guessing", () => {
     const { ops, unparsed } = parseAmendmentInstructions(
       "The portion of subsection 5(1) of the Act before paragraph (a) is " +
