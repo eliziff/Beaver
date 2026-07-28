@@ -110,11 +110,14 @@ const HEAD_RE = new RegExp(
 
 /**
  * Scoped amendments the applier cannot honour yet ("The portion of
- * subsection 5(1) before paragraph (a)…", "The heading of section 5…").
- * They parse as if they addressed the whole provision, so they must be
- * refused at the head, not guessed at.
+ * subsection 5(1) before paragraph (a)…", "The heading of section 5…",
+ * "The definition general holiday in section 166…" — which would
+ * otherwise compile as a replace of the WHOLE section). They parse as if
+ * they addressed the whole provision, so they must be refused at the
+ * head, not guessed at. Verified against S.C. 2021, c. 11 ss. 3-4.
  */
-const SCOPED_HEAD_RE = /\b(?:portion|heading|marginal\s+note|description|title)\s+of\s*$/iu;
+const SCOPED_HEAD_RE =
+  /\b(?:portion|heading|marginal\s+note|description|title)\s+of\s*$|\bdefinitions?\s+[\w'’\s-]{0,60}in\s*$/iu;
 
 /** "in subsection (b)(1)" / "in section 4(a)" clause context. */
 const IN_CONTEXT_RE = new RegExp(String.raw`\bin\s+${PROVISION_REF}\s*[,:]?`, "giu");
@@ -304,7 +307,9 @@ function opFromClause(
         target,
         position: m[1].toLowerCase() as "after" | "before",
         afterChild: joinLocator(head.label, compactLabel(provision[1])),
-        newText: q(0, text),
+        // Unquoted-block fallback works clause-level unless the block
+        // itself contains " by " (clause splitting boundary).
+        newText: q(0, text) ?? unquotedBlock(text),
         raw,
       };
     }
@@ -313,7 +318,12 @@ function opFromClause(
 
   // adding at the end the following
   if (/adding\s+at\s+the\s+end/iu.test(text)) {
-    return { kind: "add_at_end", target, newText: q(0, text), raw };
+    return {
+      kind: "add_at_end",
+      target,
+      newText: q(0, text) ?? unquotedBlock(text),
+      raw,
+    };
   }
 
   // redesignating subsection (u) as subsection (v)
@@ -369,8 +379,9 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
       continue;
     }
     if (head.verbTail === "replaced") {
-      // "is replaced by the following:" — quoted block or indented text.
-      const block = firstQuotedBlock(body);
+      // "is replaced by the following:" — quoted block (US-style) or the
+      // unquoted indented block Canadian drafting uses.
+      const block = firstQuotedBlock(body) ?? unquotedBlock(body);
       if (block !== undefined) {
         ops.push({ kind: "replace_provision", target, newText: block, raw });
       } else {
@@ -389,7 +400,7 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
     }
     // "is amended …": read-as-follows, or clause list.
     if (/to\s+read\s+as\s+follows/iu.test(body.slice(0, 80))) {
-      const block = firstQuotedBlock(body);
+      const block = firstQuotedBlock(body) ?? unquotedBlock(body);
       if (block !== undefined) {
         ops.push({ kind: "replace_provision", target, newText: block, raw });
         continue;
@@ -420,6 +431,47 @@ function firstQuotedBlock(body: string): string | undefined {
   const match = new RegExp(QUOTED, "u").exec(body);
   if (!match) return undefined;
   return quotedValue(match[1], match[2], match[3], match[4]);
+}
+
+/**
+ * Canadian acts do NOT quote replacement text — the block after "is
+ * replaced by the following:" is plain indented text (quoting is a
+ * US/GPO convention). Capture from the colon to the next instruction
+ * line or chapter note, dropping marginal-note furniture. Verified
+ * against S.C. 2021, c. 11 as printed on laws-lois.justice.gc.ca.
+ */
+function unquotedBlock(body: string): string | undefined {
+  const colon = body.indexOf(":");
+  // The colon must belong to the instruction ("…the following:"), not to
+  // prose further along.
+  if (colon === -1 || colon > 160) return undefined;
+  const kept: string[] = [];
+  let sawText = false;
+  for (const line of body.slice(colon + 1).split("\n")) {
+    const t = line.trim();
+    if (!t) {
+      kept.push("");
+      continue;
+    }
+    if (/^Marginal note:/iu.test(t)) continue;
+    // Next instruction ("3 The portion of…") or chapter note ("R.S., c. I-21").
+    if (sawText && /^\d{1,4}\s+\S/u.test(t)) break;
+    if (/^(?:R\.S\.|S\.C\.|L\.R\.C\.|L\.C\.)[,.\s]/u.test(t)) break;
+    // Part/heading furniture ("Coming into Force"): a short unpunctuated
+    // Title-Case line. Statute block lines end in punctuation or start
+    // with an enum token, so this cannot eat real provision text.
+    if (
+      sawText &&
+      /^(?:[A-Z][\w’'-]*)(?:\s+(?:[a-z]{2,4}|[A-Z][\w’'-]*)){1,5}$/u.test(t) &&
+      !/[.;:,)]$/u.test(t)
+    ) {
+      break;
+    }
+    kept.push(line);
+    sawText = true;
+  }
+  const block = kept.join("\n").trim();
+  return block.length >= 3 ? block : undefined;
 }
 
 /* ------------------------------------------------------------------ */
