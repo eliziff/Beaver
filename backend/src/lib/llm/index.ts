@@ -5,13 +5,6 @@ import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
 export * from "./types";
 export * from "./models";
 
-async function streamCodex(
-  params: StreamChatParams,
-): Promise<StreamChatResult> {
-  // The app-server adapter owns the exec fallback, so this stays a single door.
-  return (await import("./codexAppServer")).streamCodexAppServer(params);
-}
-
 export async function streamChatWithTools(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
@@ -45,14 +38,10 @@ export async function streamChatWithTools(
                   await import("./openrouter")
                 ).streamOpenRouter(measuredParams)
               : provider === "codex"
-                ? await streamCodex(measuredParams)
-                : provider === "codex-api"
-                  ? await (await import("./codexApi")).streamCodexApi(
-                      measuredParams,
-                    )
-                  : await (
-                      await import("./gemini")
-                    ).streamGemini(measuredParams);
+                ? await (await import("./codexApi")).streamCodexApi(
+                    measuredParams,
+                  )
+                : await (await import("./gemini")).streamGemini(measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
       params,
@@ -112,9 +101,7 @@ export async function completeText(params: {
     return (await import("./deepseek")).completeDeepSeekText(params);
   if (provider === "openrouter")
     return (await import("./openrouter")).completeOpenRouterText(params);
-  if (provider === "codex")
-    return (await import("./codex")).completeCodexText(params);
-  if (provider === "codex-api") {
+  if (provider === "codex") {
     const result = await (await import("./codexApi")).streamCodexApi({
       model: params.model,
       systemPrompt: params.systemPrompt ?? "",

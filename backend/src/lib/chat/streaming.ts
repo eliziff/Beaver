@@ -290,7 +290,6 @@ export async function runLLMStream({
   };
 
   const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
-  const isCodex = selectedModel.startsWith("codex:");
 
   try {
     throwIfAborted(signal);
@@ -327,7 +326,7 @@ export async function runLLMStream({
         // the tool executes — avoids the dead gap between message_stop
         // and the first tool-specific event.
         onToolCallStart: (call) => {
-          if (!isCodex) flushText();
+          flushText();
           emit({ type: "tool_call_start", name: call.name });
         },
       },
@@ -335,7 +334,7 @@ export async function runLLMStream({
         throwIfAborted(signal);
         // Emit any text the model produced before this tool turn so the
         // UI sees it before the tool results stream in.
-        if (!isCodex) flushText();
+        flushText();
 
         const toolCalls: ToolCall[] = calls.map((c) => ({
           id: c.id,

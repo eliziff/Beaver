@@ -89,13 +89,13 @@ function providerLabel(provider: Provider): string {
     if (provider === "openai") return "OpenAI";
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
-    if (provider === "codex") return "Codex CLI";
+    if (provider === "codex") return "Codex";
     return "Gemini";
 }
 
 function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
     const provider = providerForModel(model);
-    if (provider === "codex" || provider === "codex-api") return null;
+    if (provider === "codex") return null;
     if (apiKeys[provider]?.trim()) return null;
     return {
         provider,
