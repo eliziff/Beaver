@@ -278,7 +278,7 @@ export function DocDownloadBlock({
                         </span>
                     )}
                 </div>
-                <p className="text-xs text-blue-500 mt-0.5">{ext}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{ext}</p>
             </div>
         </div>
     );
