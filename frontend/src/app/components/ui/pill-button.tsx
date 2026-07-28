@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { cn } from "@/app/lib/utils";
 
-type PillButtonTone = "black" | "white" | "blue" | "danger";
+type PillButtonTone = "black" | "white" | "danger";
 type PillButtonSize = "sm" | "normal";
 
 type PillButtonProps = ComponentProps<"button"> & {
@@ -12,7 +12,6 @@ type PillButtonProps = ComponentProps<"button"> & {
 const toneClasses: Record<PillButtonTone, string> = {
     black: "border-gray-950 bg-gray-950 text-white hover:bg-gray-800 disabled:hover:bg-gray-950",
     white: "border-gray-300 bg-white text-gray-800 hover:bg-gray-100 disabled:hover:bg-white",
-    blue: "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600",
     danger: "border-red-600 bg-red-600 text-white hover:bg-red-700 disabled:hover:bg-red-600",
 };
 

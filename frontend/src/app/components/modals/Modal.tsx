@@ -274,7 +274,7 @@ function ModalActionButton({
         variant === "danger"
             ? "danger"
             : fallbackVariant === "secondary" && variant === "secondary"
-              ? "blue"
+              ? "white"
               : variant === "primary"
                 ? "black"
                 : "white";
