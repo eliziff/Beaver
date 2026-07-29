@@ -1,6 +1,7 @@
 import type {
   AssistantEvent,
   AutomationToolName,
+  EditAnnotation,
 } from "@/app/components/shared/types";
 import {
   parseCourtlistenerCaseSearches,
@@ -70,6 +71,51 @@ export function parseAutomationRunEvent(
     ...(clean(data.version_id) ? { version_id: clean(data.version_id) } : {}),
     ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
   };
+}
+type AskInputsItem = Extract<AssistantEvent, { type: "ask_inputs" }>["items"][number];
+function parseAskInputs(data: Record<string, unknown>): Extract<AssistantEvent, { type: "ask_inputs" }> | null {
+  const rawItems = Array.isArray(data.items) ? data.items : [];
+  const items = rawItems.reduce<AskInputsItem[]>((items, item, index) => {
+    if (!item || typeof item !== "object") return items;
+    const row = item as Record<string, unknown>;
+    const id = clean(row.id) ?? `input-${index + 1}`;
+    if (row.kind === "choice") {
+      const options = Array.isArray(row.options)
+        ? row.options.flatMap((option) => {
+            if (!option || typeof option !== "object") return [];
+            const value = clean((option as Record<string, unknown>).value) ??
+              clean((option as Record<string, unknown>).label);
+            return value ? [{ value }] : [];
+          })
+        : [];
+      items.push({
+        id,
+        kind: "choice" as const,
+        question: clean(row.question) ?? "Please choose an option.",
+        options,
+        allow_other: row.allow_other !== false,
+        other_label: clean(row.other_label) ?? "Other",
+        ...(clean(row.response_prefix) ? { response_prefix: clean(row.response_prefix) } : {}),
+      });
+      return items;
+    }
+    if (row.kind === "documents") {
+      const document_types = Array.isArray(row.document_types)
+        ? row.document_types.flatMap((value) => typeof value === "string" && value.trim() ? [value.trim()] : [])
+        : [];
+      items.push({
+        id,
+        kind: "documents" as const,
+        document_types,
+        ...(clean(row.response_prefix) ? { response_prefix: clean(row.response_prefix) } : {}),
+      });
+      return items;
+    }
+    return items;
+  }, []);
+  return items.length
+    ? { type: "ask_inputs", items }
+    : null;
 }
 export const isStreamingPlaceholder = (event: AssistantEvent) =>
   (event.type === "thinking" || event.type === "tool_call_start") &&
@@ -153,6 +199,108 @@ export function reduceAssistantStreamEvent(
     return {
       deferPaint: true,
       events: next,
+    };
+  }
+  if (data.type === "tool_call_start") {
+    return { events: append(events, { type: "tool_call_start", name: string(data.name), isStreaming: true }) };
+  }
+  if (data.type === "workflow_applied") {
+    return { events: append(events, { type: "workflow_applied", workflow_id: string(data.workflow_id), title: string(data.title) }) };
+  }
+  if (data.type === "mcp_tool_start") {
+    const name = string(data.name);
+    return { events: append(events, { type: "mcp_tool_call", connector_id: "", connector_name: "", tool_name: name, openai_tool_name: name, status: "ok", isStreaming: true }) };
+  }
+  if (data.type === "mcp_tool_result") {
+    const name = string(data.name);
+    return {
+      events: thinking(
+        replaceLast(
+          events,
+          (event) => event.type === "mcp_tool_call" && event.openai_tool_name === name && !!event.isStreaming,
+          {
+            type: "mcp_tool_call",
+            connector_id: "",
+            connector_name: string(data.connector_name),
+            tool_name: string(data.tool_name) || name,
+            openai_tool_name: name,
+            status: data.status === "error" ? "error" : "ok",
+            ...(typeof data.error === "string" ? { error: data.error } : {}),
+            isStreaming: false,
+          },
+        ),
+      ),
+    };
+  }
+  if (data.type === "ask_inputs") {
+    const event = parseAskInputs(data);
+    return event ? { events: append(events, event) } : null;
+  }
+  if (data.type === "doc_find_start") {
+    return { events: append(events, { type: "doc_find", filename: string(data.filename), query: string(data.query), total_matches: 0, isStreaming: true }) };
+  }
+  if (data.type === "doc_find") {
+    const filename = string(data.filename);
+    const query = string(data.query);
+    return {
+      events: thinking(
+        replaceLast(
+          events,
+          (event) => event.type === "doc_find" && event.filename === filename && event.query === query && !!event.isStreaming,
+          { type: "doc_find", filename, query, total_matches: number(data.total_matches), isStreaming: false },
+        ),
+      ),
+    };
+  }
+  if (data.type === "doc_created_start") {
+    return { events: append(events, { type: "doc_created", filename: string(data.filename), download_url: "", isStreaming: true }) };
+  }
+  if (data.type === "doc_download") {
+    return { events: append(events, { type: "doc_download", filename: string(data.filename), download_url: string(data.download_url) }) };
+  }
+  if (data.type === "doc_created") {
+    const filename = string(data.filename);
+    return {
+      events: thinking(
+        replaceLast(
+          events,
+          (event) => event.type === "doc_created" && event.filename === filename && !!event.isStreaming,
+          {
+            type: "doc_created",
+            filename,
+            download_url: string(data.download_url),
+            ...(clean(data.document_id) ? { document_id: clean(data.document_id) } : {}),
+            ...(clean(data.version_id) ? { version_id: clean(data.version_id) } : {}),
+            ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
+            isStreaming: false,
+          },
+        ),
+      ),
+    };
+  }
+  if (data.type === "doc_edited_start") {
+    return { events: append(events, { type: "doc_edited", filename: string(data.filename), document_id: "", version_id: "", download_url: "", annotations: [], isStreaming: true }) };
+  }
+  if (data.type === "doc_edited") {
+    const filename = string(data.filename);
+    return {
+      events: thinking(
+        replaceLast(
+          events,
+          (event) => event.type === "doc_edited" && event.filename === filename && !!event.isStreaming,
+          {
+            type: "doc_edited",
+            filename,
+            document_id: string(data.document_id),
+            version_id: string(data.version_id),
+            ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
+            download_url: string(data.download_url),
+            annotations: Array.isArray(data.annotations) ? data.annotations as EditAnnotation[] : [],
+            ...(typeof data.error === "string" ? { error: data.error } : {}),
+            isStreaming: false,
+          },
+        ),
+      ),
     };
   }
   if (data.type === "courtlistener_search_case_law_start") {
