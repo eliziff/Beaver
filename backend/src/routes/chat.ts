@@ -775,8 +775,9 @@ export async function streamAnonymousChat(params: {
     return fail(400, "project_id does not match chat");
   }
   const projectId = existingChat?.project_id ?? params.projectId ?? null;
+  const matterStore = legalKnowledgeGraphStore();
   const matterDocumentIds = projectId
-    ? legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId)
+    ? matterStore.listMatterDocumentIds(userId, projectId)
     : undefined;
   if (projectId && !matterDocumentIds) return fail(404, "Project not found");
   const allowedDocumentIds = matterDocumentIds
@@ -792,28 +793,56 @@ export async function streamAnonymousChat(params: {
     ...(displayedDocumentId ? [displayedDocumentId] : []),
     ...attachedDocumentIds.filter(Boolean),
   ];
+  const turnFiles =
+    params.currentTurn.kind === "message"
+      ? params.currentTurn.message.files
+      : params.currentTurn.files;
+  const turnDocumentIds = [
+    ...new Set(
+      (turnFiles ?? []).flatMap((file) =>
+        file.document_id ? [file.document_id] : [],
+      ),
+    ),
+  ];
   if (
     (params.displayedDocument && !displayedDocumentId) ||
-    attachedDocumentIds.some((documentId) => !documentId) ||
-    (allowedDocumentIds &&
-      requestedFocusIds.some(
-        (documentId) => !allowedDocumentIds.has(documentId),
-      ))
+    attachedDocumentIds.some((documentId) => !documentId)
   ) {
-    return fail(400, "Focused document is not in this matter");
+    return fail(400, "Selected document is invalid");
   }
-  const uniqueFocusIds = [...new Set(requestedFocusIds)];
-  const focusedDocuments = uniqueFocusIds.length
-    ? await listLocalDocumentsById(userId, uniqueFocusIds)
+  const selectedDocumentIds = [
+    ...new Set([...requestedFocusIds, ...turnDocumentIds]),
+  ];
+  const selectedDocuments = selectedDocumentIds.length
+    ? await listLocalDocumentsById(userId, selectedDocumentIds)
     : [];
-  if (focusedDocuments.length !== uniqueFocusIds.length) {
-    return fail(400, "Focused document is unavailable");
+  if (selectedDocuments.length !== selectedDocumentIds.length) {
+    return fail(400, "Selected document is unavailable");
   }
-  const focusedById = new Map(
-    focusedDocuments.map((document) => [document.id, document] as const),
+  if (projectId && allowedDocumentIds) {
+    const explicitlySelectedIds = new Set([
+      ...attachedDocumentIds,
+      ...turnDocumentIds,
+    ]);
+    for (const documentId of explicitlySelectedIds) {
+      if (allowedDocumentIds.has(documentId)) continue;
+      if (!matterStore.attachMatterDocument(userId, projectId, documentId)) {
+        return fail(404, "Project not found");
+      }
+      allowedDocumentIds.add(documentId);
+    }
+    if (
+      displayedDocumentId &&
+      !allowedDocumentIds.has(displayedDocumentId)
+    ) {
+      return fail(400, "Open document is not in this project");
+    }
+  }
+  const selectedById = new Map(
+    selectedDocuments.map((document) => [document.id, document] as const),
   );
   const focusName = (documentId: string) =>
-    JSON.stringify(focusedById.get(documentId)!.filename);
+    JSON.stringify(selectedById.get(documentId)!.filename);
   const focusLines = [
     ...(displayedDocumentId
       ? [
@@ -833,34 +862,8 @@ export async function streamAnonymousChat(params: {
   const focusPrompt = focusLines.length
     ? `CURRENT MATTER FOCUS:\n${focusLines.join("\n")}\n\n`
     : "";
-  const turnFiles =
-    params.currentTurn.kind === "message"
-      ? params.currentTurn.message.files
-      : params.currentTurn.files;
-  const turnDocumentIds = [
-    ...new Set(
-      (turnFiles ?? []).flatMap((file) =>
-        file.document_id ? [file.document_id] : [],
-      ),
-    ),
-  ];
-  if (
-    allowedDocumentIds &&
-    turnDocumentIds.some((documentId) => !allowedDocumentIds.has(documentId))
-  ) {
-    return fail(400, "Attached document is not in this matter");
-  }
-  const turnDocuments = turnDocumentIds.length
-    ? await listLocalDocumentsById(userId, turnDocumentIds)
-    : [];
-  if (turnDocuments.length !== turnDocumentIds.length) {
-    return fail(400, "Attached document is unavailable");
-  }
-  const turnDocumentById = new Map(
-    turnDocuments.map((document) => [document.id, document] as const),
-  );
   const canonicalTurnFiles = turnDocumentIds.map((documentId) => ({
-    filename: turnDocumentById.get(documentId)!.filename,
+    filename: selectedById.get(documentId)!.filename,
     document_id: documentId,
   }));
   // Attachments are announced, not preloaded: formatChatMessageContent
@@ -926,7 +929,7 @@ export async function streamAnonymousChat(params: {
         : " Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration."
     }\n\n` +
     "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
-    "When a missing decision, clarification, or document would materially change the work, call ask_inputs once with every needed input. Beaver will pause the turn and resume from the user's structured response.\n\n" +
+    "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
     focusPrompt +
     priorEvidencePrompt +
     (RESEARCH_TOOLS_DISABLED

@@ -4,7 +4,7 @@ export const PROJECT_EXTRA_TOOLS = [
     function: {
       name: "list_documents",
       description:
-        "List all documents available in the project. Returns each document's ID, filename, file type, and deterministic Beaver app_url. Call this to discover what documents are available before deciding which ones to read.",
+        "List all documents available in the project. Returns each document's ID, filename, type, lightweight metadata/notes, and deterministic Beaver app_url. Call this to discover what documents are available before deciding which ones to read.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -94,7 +94,7 @@ export const TOOLS = [
     function: {
       name: "ask_inputs",
       description:
-        "Ask the user for one or more decisions, clarifications, or document uploads before continuing. Use this when guessing would materially affect the answer or when required documents have not been attached. Put all needed questions and document requests in one items array. After calling ask_inputs, do not continue the substantive task until the user responds in a later message.",
+        "Stop the turn and ask the user only for what blocks the work. A blocker is an instruction only the user can give, or a document that was never provided, where proceeding would produce work that is wrong or wasted. Ambiguity you can resolve on the most reasonable reading is not a blocker: proceed, and state the assumption in your answer. Never ask the user to confirm an instruction already given, or for permission to do the work requested. Put every blocking question in one items array, then stop and wait.",
       parameters: {
         type: "object",
         properties: {
