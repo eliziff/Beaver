@@ -1,4 +1,7 @@
-import type { AssistantEvent } from "@/app/components/shared/types";
+import type {
+  AssistantEvent,
+  AutomationToolName,
+} from "@/app/components/shared/types";
 import {
   parseCourtlistenerCaseSearches,
   parseCourtlistenerEventCases,
@@ -15,10 +18,59 @@ const clusterId = (value: unknown) =>
   typeof value === "number" ? value : null;
 const error = (value: unknown) =>
   typeof value === "string" ? value : undefined;
+const clean = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
 const clusterIds = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is number => typeof item === "number")
     : [];
+const AUTOMATION_TOOLS = new Set<AutomationToolName>([
+  "toa_submit_library_document",
+  "toa_job_status",
+  "library_fix_docx_supras",
+  "library_link_docx_citations",
+]);
+
+export function parseAutomationRunEvent(
+  data: Record<string, unknown>,
+): Extract<AssistantEvent, { type: "automation_run" }> | null {
+  const tool = data.tool;
+  if (typeof tool !== "string" || !AUTOMATION_TOOLS.has(tool as AutomationToolName)) return null;
+  const counts = Array.isArray(data.counts)
+    ? data.counts.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        return clean(row.label) && typeof row.value === "number"
+          ? [{ label: clean(row.label)!, value: row.value }]
+          : [];
+      })
+    : undefined;
+  const outputs = Array.isArray(data.outputs)
+    ? data.outputs.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        const name = clean(row.name);
+        return name ? [{ name, ...(clean(row.url) ? { url: clean(row.url) } : {}) }] : [];
+      })
+    : undefined;
+  return {
+    type: "automation_run",
+    id: clean(data.id) ?? `${tool}:${clean(data.job_id) ?? "run"}`,
+    tool: tool as AutomationToolName,
+    status: clean(data.status) ?? "unknown",
+    stage: clean(data.stage) ?? "Automation",
+    ...(typeof data.progress === "number" ? { progress: data.progress } : {}),
+    ...(clean(data.message) ? { message: clean(data.message) } : {}),
+    ...(counts?.length ? { counts } : {}),
+    ...(clean(data.error) ? { error: clean(data.error) } : {}),
+    ...(outputs?.length ? { outputs } : {}),
+    ...(clean(data.app_url) ? { app_url: clean(data.app_url) } : {}),
+    ...(clean(data.job_id) ? { job_id: clean(data.job_id) } : {}),
+    ...(clean(data.document_id) ? { document_id: clean(data.document_id) } : {}),
+    ...(clean(data.version_id) ? { version_id: clean(data.version_id) } : {}),
+    ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
+  };
+}
 export const isStreamingPlaceholder = (event: AssistantEvent) =>
   (event.type === "thinking" || event.type === "tool_call_start") &&
   !!event.isStreaming;
@@ -56,6 +108,10 @@ export function reduceAssistantStreamEvent(
   events: AssistantEvent[],
   data: Record<string, unknown>,
 ): StreamEventReduction | null {
+  if (data.type === "automation_run") {
+    const event = parseAutomationRunEvent(data);
+    return event ? { events: append(events, event) } : null;
+  }
   if (data.type === "reasoning_delta") {
     const text = string(data.text);
     const cleaned = withoutPlaceholders(events);
@@ -161,7 +217,7 @@ export function reduceAssistantStreamEvent(
   if (
     data.type === "courtlistener_find_in_case_start" ||
     data.type === "courtlistener_find_in_case"
-  ) {
+) {
     const searches = parseCourtlistenerCaseSearches(data.searches);
     const id = searches?.length ? null : clusterId(data.cluster_id);
     const query = searches?.length ? "" : string(data.query);
