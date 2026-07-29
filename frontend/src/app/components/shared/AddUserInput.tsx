@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Loader2, UserPlus } from "lucide-react";
@@ -9,9 +8,7 @@ import {
 } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { cn } from "@/app/lib/utils";
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 interface AddUserInputProps {
     onAdd: (user: UserLookupResult) => Promise<void> | void;
     validateEmail?: (email: string) => Promise<string | null> | string | null;
@@ -21,7 +18,6 @@ interface AddUserInputProps {
     submitLabel?: string;
     className?: string;
 }
-
 export function AddUserInput({
     onAdd,
     validateEmail,
@@ -34,10 +30,8 @@ export function AddUserInput({
     const [input, setInput] = useState("");
     const [checking, setChecking] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     const trimmedEmail = input.trim().toLowerCase();
     const showAddButton = trimmedEmail.length > 0;
-
     async function commitUser() {
         const email = trimmedEmail;
         if (!email || busy || checking) return;
@@ -45,7 +39,6 @@ export function AddUserInput({
             setError("Enter a valid email.");
             return;
         }
-
         setError(null);
         setChecking(true);
         try {
@@ -54,13 +47,11 @@ export function AddUserInput({
                 setError(validationError);
                 return;
             }
-
             const user = await lookupUserByEmail(email);
             if (!user.exists) {
                 setError(`${email} does not belong to a Beaver user.`);
                 return;
             }
-
             await onAdd(user);
             setInput("");
         } catch (err) {
@@ -73,14 +64,12 @@ export function AddUserInput({
             setChecking(false);
         }
     }
-
     function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
         if (event.key === "Enter" || event.key === ",") {
             event.preventDefault();
             void commitUser();
         }
     }
-
     return (
         <div>
             <div
@@ -104,8 +93,7 @@ export function AddUserInput({
                 />
                 {showAddButton && (
                     <PillButton
-                        tone="black"
-                        size="sm"
+                        tone="black"                        size="sm"
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => void commitUser()}

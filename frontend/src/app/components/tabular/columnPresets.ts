@@ -1,5 +1,4 @@
 import type { ColumnFormat } from "../shared/types";
-
 export interface ColumnPreset {
     name: string;
     matches: RegExp;
@@ -7,7 +6,6 @@ export interface ColumnPreset {
     format: ColumnFormat;
     tags?: string[];
 }
-
 export const PROMPT_PRESETS: ColumnPreset[] = [
     {
         name: "Parties",
@@ -88,7 +86,6 @@ export const PROMPT_PRESETS: ColumnPreset[] = [
         prompt: "Does this agreement contain a force majeure clause?",
     },
 ];
-
 export function getPresetConfig(
     title: string,
 ): Pick<ColumnPreset, "prompt" | "format" | "tags"> | null {

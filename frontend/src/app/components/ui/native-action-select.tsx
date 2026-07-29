@@ -1,14 +1,11 @@
 "use client";
-
 import type { ReactNode } from "react";
 import { cn } from "@/app/lib/utils";
-
 export type NativeAction = {
     label: string;
     onSelect: () => void;
     disabled?: boolean;
 };
-
 export function NativeActionSelect({
     label,
     items,
@@ -29,7 +26,6 @@ export function NativeActionSelect({
             "NativeActionSelect only supports fixed lists of eight items or fewer.",
         );
     }
-
     return (
         <span
             className={cn("relative inline-flex shrink-0", className)}

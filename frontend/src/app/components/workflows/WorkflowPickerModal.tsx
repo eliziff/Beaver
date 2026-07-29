@@ -1,11 +1,9 @@
 "use client";
-
 import { useEffect, useState, type ReactNode } from "react";
 import { listWorkflows } from "@/app/lib/beaverApi";
 import { Modal } from "../modals/Modal";
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
-
 interface WorkflowPickerModalProps {
     open: boolean;
     onClose: () => void;
@@ -19,13 +17,11 @@ interface WorkflowPickerModalProps {
     initialWorkflowId?: string;
     disabledWorkflow?: (workflow: Workflow) => boolean;
 }
-
 export function WorkflowPickerModal({
     open,
     ...props
 }: WorkflowPickerModalProps) {
     if (!open) return null;
-
     return (
         <OpenWorkflowPickerModal
             key={`${props.workflowType}:${props.initialWorkflowId ?? ""}`}
@@ -33,7 +29,6 @@ export function WorkflowPickerModal({
         />
     );
 }
-
 function OpenWorkflowPickerModal({
     onClose,
     onSelect,
@@ -50,10 +45,8 @@ function OpenWorkflowPickerModal({
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<Workflow | null>(null);
     const [search, setSearch] = useState("");
-
     useEffect(() => {
         let cancelled = false;
-
         listWorkflows(workflowType)
             .then((workflows) => {
                 if (cancelled) return;
@@ -74,27 +67,22 @@ function OpenWorkflowPickerModal({
             .finally(() => {
                 if (!cancelled) setLoading(false);
             });
-
         return () => {
             cancelled = true;
         };
     }, [initialWorkflowId, workflowType]);
-
     const selectionDisabled =
         !selected || selecting || (selected && disabledWorkflow?.(selected));
     const resolvedPrimaryLabel =
         selecting && selectingLabel ? selectingLabel : primaryLabel;
-
     function handleClose() {
         onClose();
     }
-
     async function handleSelect() {
         if (!selected || selectionDisabled) return;
         await onSelect(selected);
         if (closeOnSelect) handleClose();
     }
-
     return (
         <Modal
             open

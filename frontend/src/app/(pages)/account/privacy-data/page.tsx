@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
@@ -24,11 +23,9 @@ import {
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { downloadBlob } from "@/app/lib/download";
-
 type DeleteDataAction = "chats" | "tabular-reviews" | "projects";
 type ExportDataAction = "export-chats" | "export-tabular-reviews" | "export-account";
 type MfaRetryAction = DeleteDataAction | ExportDataAction;
-
 const DELETE_DATA_COPY: Record<
     DeleteDataAction,
     {
@@ -52,7 +49,6 @@ const DELETE_DATA_COPY: Record<
             "This will permanently delete all projects you own, including their documents, chats, and tabular reviews. This action cannot be undone.",
     },
 };
-
 export default function PrivacyDataPage() {
     const { loadChats } = useChatHistoryContext();
     const [pendingDeleteAction, setPendingDeleteAction] =
@@ -65,7 +61,6 @@ export default function PrivacyDataPage() {
     const [isExportingChats, setIsExportingChats] = useState(false);
     const [isExportingTabularReviews, setIsExportingTabularReviews] =
         useState(false);
-
     const handleExportAccountData = async () => {
         setIsExportingAccount(true);
         try {
@@ -85,7 +80,6 @@ export default function PrivacyDataPage() {
             setIsExportingAccount(false);
         }
     };
-
     const handleExportChatData = async () => {
         setIsExportingChats(true);
         try {
@@ -105,7 +99,6 @@ export default function PrivacyDataPage() {
             setIsExportingChats(false);
         }
     };
-
     const handleExportTabularReviewsData = async () => {
         setIsExportingTabularReviews(true);
         try {
@@ -125,7 +118,6 @@ export default function PrivacyDataPage() {
             setIsExportingTabularReviews(false);
         }
     };
-
     const handleDeleteData = async (action: DeleteDataAction) => {
         setDeletingAction(action);
         try {
@@ -155,12 +147,10 @@ export default function PrivacyDataPage() {
             setDeletingAction(null);
         }
     };
-
     const handleMfaVerified = async () => {
         const action = pendingMfaAction;
         setPendingMfaAction(null);
         if (!action) return;
-
         if (action === "export-account") {
             await handleExportAccountData();
         } else if (action === "export-chats") {
@@ -171,11 +161,9 @@ export default function PrivacyDataPage() {
             await handleDeleteData(action);
         }
     };
-
     const pendingDeleteCopy = pendingDeleteAction
         ? DELETE_DATA_COPY[pendingDeleteAction]
         : null;
-
     return (
         <div className="space-y-8">
             <section className="space-y-3">
@@ -206,7 +194,6 @@ export default function PrivacyDataPage() {
                         </Button>
                     </div>
                     <div className="mx-4 h-px bg-gray-200" />
-
                     <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-gray-900">
@@ -232,7 +219,6 @@ export default function PrivacyDataPage() {
                         </Button>
                     </div>
                     <div className="mx-4 h-px bg-gray-200" />
-
                     <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-gray-900">
@@ -257,7 +243,6 @@ export default function PrivacyDataPage() {
                     </div>
                 </AccountSection>
             </section>
-
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-gray-900">
                     Delete data
@@ -284,7 +269,6 @@ export default function PrivacyDataPage() {
                         </Button>
                     </div>
                     <div className="mx-4 h-px bg-gray-200" />
-
                     <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-gray-900">
@@ -308,7 +292,6 @@ export default function PrivacyDataPage() {
                         </Button>
                     </div>
                     <div className="mx-4 h-px bg-gray-200" />
-
                     <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-gray-900">

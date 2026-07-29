@@ -1,9 +1,7 @@
 "use client";
-
 import Link from "next/link";
 import { useEffect } from "react";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-
 export default function Error({
     error,
 }: {
@@ -12,7 +10,6 @@ export default function Error({
     useEffect(() => {
         console.error("App error:", error);
     }, [error]);
-
     return (
         <div className="min-h-screen bg-white flex items-center justify-center px-4">
             <div className="text-center max-w-md">
@@ -23,7 +20,6 @@ export default function Error({
                     We encountered an unexpected error. This has been logged and
                     our team will look into it.
                 </p>
-
                 <Link
                     href="/"
                     className={pillButtonClassName("black", "normal")}

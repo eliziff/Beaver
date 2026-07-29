@@ -1,22 +1,16 @@
 "use client";
-
 import { useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { apiFetch } from "@/app/lib/beaverApi";import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation } from "../shared/types";
-
 function normalizeText(s: string) {
     return s.replace(/\s+/g, " ").trim();
 }
-
 function findMatch(
     container: Element,
     tag: "ins" | "del",
     opts: { w_id?: string | null; text?: string },
 ): HTMLElement | null {
     if (opts.w_id) {
-        // Values are numeric strings from our own backend — CSS.escape
-        // makes them hex-encoded which works but is harder to debug.
         const byId = container.querySelector(
             `${tag}[data-w-id="${opts.w_id}"]`,
         ) as HTMLElement | null;
@@ -38,19 +32,12 @@ function findMatch(
         null;
     return byText;
 }
-
-/**
- * Apply the optimistic DOM mutation for an accept/reject click. Returns
- * a revert function that undoes every style + class the mutation added,
- * so if the backend call later fails we can restore the original look.
- */
 export function applyOptimisticResolution(
     annotation: EditAnnotation,
     verb: "accept" | "reject",
 ): () => void {
     const reverts: (() => void)[] = [];
     if (typeof document === "undefined") return () => {};
-
     const hide = (el: HTMLElement) => {
         el.classList.add("docx-edit-hidden");
         const prev = el.style.getPropertyValue("display");
@@ -95,14 +82,12 @@ export function applyOptimisticResolution(
             restore("text-decoration", snapshot.td);
         });
     };
-
     const scrolls = document.querySelectorAll(
         `[data-document-id="${CSS.escape(annotation.document_id)}"]`,
     );
     scrolls.forEach((scroll) => {
         const container = scroll.querySelector(".docx-view-container");
         if (!container) return;
-
         const insEl = findMatch(container, "ins", {
             w_id: annotation.ins_w_id,
             text: annotation.inserted_text,
@@ -111,7 +96,6 @@ export function applyOptimisticResolution(
             w_id: annotation.del_w_id,
             text: annotation.deleted_text,
         });
-
         if (verb === "accept") {
             if (insEl) keep(insEl);
             if (delEl) hide(delEl);
@@ -120,33 +104,14 @@ export function applyOptimisticResolution(
             if (delEl) keep(delEl);
         }
     });
-
     return () => reverts.forEach((fn) => fn());
 }
-
 interface Props {
     annotation: EditAnnotation;
     changeNumber?: number;
-    /**
-     * External override for this edit's status. When set, takes
-     * precedence over the annotation's DB status and the card's own
-     * internal state — used so bulk-resolved edits flip their per-card
-     * UI the moment the bulk handler calls onResolved.
-     */
     resolvedStatus?: "accepted" | "rejected";
-    /**
-     * True while an accept/reject request for any edit on this document
-     * is in flight (from here, DocPanel, or the bulk bar). When true the
-     * Accept/Reject buttons disable so the user can't race resolutions.
-     */
     isReloading?: boolean;
     onViewClick?: (ann: EditAnnotation) => void;
-    /**
-     * Fires immediately when the user clicks Accept or Reject, before the
-     * backend round-trip. Parents use this to show an in-progress spinner
-     * on download cards / editor panels tied to the same document while
-     * the version is being mutated.
-     */
     onResolveStart?: (args: {
         editId: string;
         documentId: string;
@@ -159,12 +124,6 @@ interface Props {
         versionId: string | null;
         downloadUrl: string | null;
     }) => void;
-    /**
-     * Fires when the backend accept/reject call fails. The optimistic
-     * DOM mutation has already been reverted. Parent should surface a
-     * warning (e.g. on the DocxView for this document + version) and
-     * clear the per-edit in-flight state keyed on `editId`.
-     */
     onError?: (args: {
         editId: string;
         documentId: string;
@@ -172,7 +131,6 @@ interface Props {
         message: string;
     }) => void;
 }
-
 export function EditCard({
     annotation,
     changeNumber,
@@ -189,10 +147,8 @@ export function EditCard({
     >(annotation.status);
     const status = resolvedStatus ?? localStatus;
     const setStatus = setLocalStatus;
-
     const resolved = status !== "pending";
     const inFlight = busy || !!isReloading;
-
     const handle = async (verb: "accept" | "reject") => {
         if (busy || resolved) return;
         setBusy(true);
@@ -208,11 +164,7 @@ export function EditCard({
             console.error("[EditCard] optimistic update threw", e);
         }
         try {
-            const resp = await apiFetch(
-                `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
-                { method: "POST" },
-            );
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const resp = await apiFetch(                `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,                { method: "POST" },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = (await resp.json()) as {
                 ok: boolean;
                 already_resolved?: boolean;
@@ -250,7 +202,6 @@ export function EditCard({
             setBusy(false);
         }
     };
-
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
             {changeNumber !== undefined && (
@@ -292,8 +243,7 @@ export function EditCard({
                 </PillButton>
                 {onViewClick && (
                     <PillButton
-                        tone="black"
-                        size="sm"
+                        tone="black"                        size="sm"
                         onClick={() => onViewClick(annotation)}
                         disabled={resolved}
                         title={

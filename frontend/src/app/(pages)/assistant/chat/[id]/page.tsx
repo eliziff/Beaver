@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
@@ -11,7 +10,6 @@ import {
     getProject,
     updateChatProject,
 } from "@/app/lib/beaverApi";
-
 export default function AssistantChatPage() {
     const router = useRouter();
     const params = useParams();
@@ -20,7 +18,6 @@ export default function AssistantChatPage() {
     const [projectId, setProjectId] = useState<string | null>(null);
     const [projectName, setProjectName] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
-
     const { peekPendingChatMessage, claimPendingChatMessage } =
         useChatHistoryContext();
     const [initialMessage] = useState(() => peekPendingChatMessage(id));
@@ -71,14 +68,11 @@ export default function AssistantChatPage() {
         },
         [id, router],
     );
-
     const hasLoaded = useRef(false);
-
     useEffect(() => {
         if (initialMessages.length > 0) return;
         if (hasLoaded.current || messages.length > 0) return;
         hasLoaded.current = true;
-
         getChat(id)
             .then(async ({ chat, messages: loaded }) => {
                 setTranscriptVersion(chat.transcript_version ?? 0);
@@ -101,7 +95,6 @@ export default function AssistantChatPage() {
             })
             .catch(() => router.replace("/assistant"));
     }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
     useEffect(() => {
         if (
             pendingMessageRef.current &&
@@ -120,7 +113,6 @@ export default function AssistantChatPage() {
         messages.length,
         isResponseLoading,
     ]);
-
     useEffect(() => {
         if (isResponseLoading || !pendingProjectRouteRef.current) return;
         const { projectId: nextProjectId } = pendingProjectRouteRef.current;
@@ -131,7 +123,6 @@ export default function AssistantChatPage() {
                 : `/assistant/chat/${id}`,
         );
     }, [id, isResponseLoading, router]);
-
     useEffect(() => {
         const onProjectMoved = (event: Event) => {
             const detail = (
@@ -150,12 +141,10 @@ export default function AssistantChatPage() {
                 onProjectMoved,
             );
     }, [finishProjectMove, id]);
-
     async function changeProject(nextProjectId: string | null) {
         const updated = await updateChatProject(id, nextProjectId);
         finishProjectMove(updated.project_id);
     }
-
     return (
         <>
             <ChatView

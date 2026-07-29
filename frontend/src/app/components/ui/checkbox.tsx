@@ -1,13 +1,10 @@
 "use client";
-
 import {
     forwardRef,
     type InputHTMLAttributes,
 } from "react";
 import { cn } from "@/app/lib/utils";
-
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
-
 export const CheckboxInput = forwardRef<HTMLInputElement, Props>(
     function CheckboxInput({ className, ...props }, ref) {
         return (
@@ -23,7 +20,6 @@ export const CheckboxInput = forwardRef<HTMLInputElement, Props>(
         );
     },
 );
-
 export const CheckboxControl = forwardRef<HTMLInputElement, Props>(
     function CheckboxControl({ className, disabled, ...props }, ref) {
         return (

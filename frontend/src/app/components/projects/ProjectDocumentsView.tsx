@@ -1,5 +1,4 @@
 "use client";
-
 import {
     type Dispatch,
     type SetStateAction,
@@ -32,11 +31,9 @@ import { DocumentAutomation } from "@/app/components/documents/DocumentAutomatio
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
-
 interface Props {
     projectId: string;
 }
-
 export function ProjectDocumentsView({ projectId }: Props) {
     const workspace = useProjectWorkspace();
     const {
@@ -54,11 +51,9 @@ export function ProjectDocumentsView({ projectId }: Props) {
     >(null);
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-
     useEffect(() => {
         if (!projectLoading) prefetchProjectSections();
     }, [projectLoading, prefetchProjectSections]);
-
     const documents = project?.documents ?? [];
     const setDocuments = useCallback(
         (update: SetStateAction<Document[]>) => {
@@ -73,7 +68,6 @@ export function ProjectDocumentsView({ projectId }: Props) {
         },
         [setProject],
     );
-
     const refreshCollection = useCallback(async () => {
         const updated = await getProject(projectId);
         setProject(updated);
@@ -101,7 +95,6 @@ export function ProjectDocumentsView({ projectId }: Props) {
         }),
         [projectId, refreshCollection],
     );
-
     const handleCreateFolderActionChange = useCallback(
         (action: (() => void) | null) => {
             setCreateFolderAction(() => action);
@@ -114,7 +107,6 @@ export function ProjectDocumentsView({ projectId }: Props) {
         },
         [],
     );
-
     const toolbarActions = (
         <div className="flex items-center gap-1.5">
             <DocumentAutomation
@@ -165,7 +157,6 @@ export function ProjectDocumentsView({ projectId }: Props) {
             </TabPillButton>
         </div>
     );
-
     if (!projectLoading && !project) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -173,7 +164,6 @@ export function ProjectDocumentsView({ projectId }: Props) {
             </div>
         );
     }
-
     return (
         <>
             <ProjectSectionToolbar actions={toolbarActions} />

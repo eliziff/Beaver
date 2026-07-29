@@ -1,5 +1,4 @@
 "use client";
-
 import { type FormEvent, useEffect, useState } from "react";
 import {
     createLegalResearchLabel,
@@ -16,13 +15,10 @@ import {
     LegalResearchLabelsPanel,
     type CreateLegalResearchLabelInput,
 } from "./LegalResearchLabelsPanel";
-
 const ACTIVE_PROJECT_KEY = "beaver:legal-research-project";
-
 function message(reason: unknown) {
     return reason instanceof Error ? reason.message : "The change could not be saved";
 }
-
 function storedProjectId() {
     try {
         return window.localStorage.getItem(ACTIVE_PROJECT_KEY);
@@ -30,15 +26,12 @@ function storedProjectId() {
         return null;
     }
 }
-
 function rememberProjectId(projectId: string) {
     try {
         window.localStorage.setItem(ACTIVE_PROJECT_KEY, projectId);
     } catch {
-        // The active choice remains usable for this page.
     }
 }
-
 export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
     const [projects, setProjects] = useState<LegalResearchProject[] | null>(
         null,
@@ -53,7 +46,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
     const [creatingProject, setCreatingProject] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
-
     useEffect(() => {
         let active = true;
         listLegalResearchProjects()
@@ -78,7 +70,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             active = false;
         };
     }, []);
-
     useEffect(() => {
         if (!activeProjectId) return;
         let active = true;
@@ -99,7 +90,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             active = false;
         };
     }, [activeProjectId, sourceId]);
-
     function applyMarking(marking: LegalSourceMarking) {
         setNodes(marking.nodes);
         setEdges(marking.edges);
@@ -107,12 +97,10 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
         setNote(marking.mark?.note ?? "");
         setSaved(false);
     }
-
     function selectProject(projectId: string) {
         rememberProjectId(projectId);
         setActiveProjectId(projectId);
     }
-
     async function createLabel(input: CreateLegalResearchLabelInput) {
         if (!activeProjectId) return;
         setError(null);
@@ -125,7 +113,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             setError(message(reason));
         }
     }
-
     async function saveMark() {
         if (!activeProjectId) return;
         setSaving(true);
@@ -146,7 +133,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             setSaving(false);
         }
     }
-
     async function createProject(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const form = event.currentTarget;
@@ -165,7 +151,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             setCreatingProject(false);
         }
     }
-
     if (projects === null) {
         return (
             <p className="p-4 text-sm text-gray-500" role="status">
@@ -173,7 +158,6 @@ export function LegalSourceMarkingPanel({ sourceId }: { sourceId: string }) {
             </p>
         );
     }
-
     return (
         <div className="min-w-0">
             {error ? (

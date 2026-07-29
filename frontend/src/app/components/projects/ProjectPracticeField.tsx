@@ -1,38 +1,24 @@
 "use client";
-
 import { PRACTICE_OPTIONS } from "../workflows/practices";
 import { ModalSelect, type ModalSelectOption } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
-
 const OPTION_NONE = "__none__";
 const OPTION_OTHER = "Other";
-
 interface ProjectPracticeFieldProps {
     id: string;
     value: string;
     onChange: (value: string) => void;
     disabled?: boolean;
 }
-
 export function ProjectPracticeField({
     id,
     value,
     onChange,
     disabled = false,
 }: ProjectPracticeFieldProps) {
-    const selectedOption = !value.trim()
-        ? OPTION_NONE
-        : (PRACTICE_OPTIONS as readonly string[]).includes(value)
-          ? value
-          : OPTION_OTHER;
-    const customValue =
+    const selectedOption = !value.trim()        ? OPTION_NONE        : (PRACTICE_OPTIONS as readonly string[]).includes(value)          ? value          : OPTION_OTHER;    const customValue =
         selectedOption === OPTION_OTHER && value !== OPTION_OTHER ? value : "";
-    const options: ModalSelectOption[] = [
-        { value: OPTION_NONE, label: "None" },
-        ...PRACTICE_OPTIONS,
-    ];
-
-    function handleSelect(option: string) {
+    const options: ModalSelectOption[] = [        { value: OPTION_NONE, label: "None" },        ...PRACTICE_OPTIONS,    ];    function handleSelect(option: string) {
         if (option === OPTION_NONE) {
             onChange("");
             return;
@@ -43,7 +29,6 @@ export function ProjectPracticeField({
         }
         onChange(option);
     }
-
     return (
         <div className="space-y-2">
             <ModalSelect

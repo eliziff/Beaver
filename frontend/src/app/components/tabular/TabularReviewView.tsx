@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -11,7 +10,6 @@ import {
     Users,
     Upload,
 } from "lucide-react";
-
 import {
     clearTabularCells,
     deleteTabularReview,
@@ -62,12 +60,10 @@ import { TableToolbar } from "../shared/TableToolbar";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
-
 interface Props {
     reviewId: string;
     projectId?: string;
 }
-
 export function TRView({ reviewId, projectId }: Props) {
     const { setSidebarOpen } = useSidebar();
     const [review, setReview] = useState<TabularReview | null>(null);
@@ -131,7 +127,6 @@ export function TRView({ reviewId, projectId }: Props) {
     const apiKeys = profile?.apiKeys;
     const [tabularModel] = useSelectedModel();
     const [reasoningEffort] = useSelectedReasoningEffort();
-
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (chatOpen) {
@@ -143,7 +138,6 @@ export function TRView({ reviewId, projectId }: Props) {
         const newUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
         window.history.replaceState(null, "", newUrl);
     }, [chatOpen, selectedChatId]);
-
     useEffect(() => {
         const fetches: Promise<unknown>[] = [
             getTabularReview(reviewId).then(({ review, cells, documents }) => {
@@ -168,13 +162,11 @@ export function TRView({ reviewId, projectId }: Props) {
         }
         Promise.all(fetches).finally(() => setLoading(false));
     }, [reviewId, projectId]);
-
     function getNextColumnIndex() {
         return (
             columns.reduce((max, column) => Math.max(max, column.index), -1) + 1
         );
     }
-
     async function saveColumnsConfig(nextColumns: ColumnConfig[]) {
         setSavingColumnsConfig(true);
         try {
@@ -188,7 +180,6 @@ export function TRView({ reviewId, projectId }: Props) {
             setSavingColumnsConfig(false);
         }
     }
-
     async function handleAddDocuments(newDocs: Document[]) {
         const toAdd = newDocs.filter(
             (d) => !documents.some((existing) => existing.id === d.id),
@@ -198,7 +189,6 @@ export function TRView({ reviewId, projectId }: Props) {
             ...documents.map((d) => d.id),
             ...toAdd.map((d) => d.id),
         ];
-
         await updateTabularReview(reviewId, {
             document_ids: allIds,
             columns_config: columns,
@@ -238,11 +228,9 @@ export function TRView({ reviewId, projectId }: Props) {
             ]);
         }
     }
-
     function hasFilePayload(dt: DataTransfer): boolean {
         return Array.from(dt.types).includes("Files");
     }
-
     async function handleDropReviewFiles(files: File[]) {
         if (files.length === 0) return;
         setUploadingDroppedFilenames(files.map((file) => file.name));
@@ -265,13 +253,11 @@ export function TRView({ reviewId, projectId }: Props) {
             setUploadingDroppedFilenames([]);
         }
     }
-
     async function handleRegenerateCell(docId: string, colIndex: number) {
         if (apiKeys && !isModelAvailable(tabularModel, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(tabularModel));
             return;
         }
-
         setCells((prev) =>
             prev.map((c) =>
                 c.document_id === docId && c.column_index === colIndex
@@ -320,20 +306,14 @@ export function TRView({ reviewId, projectId }: Props) {
             );
         }
     }
-
     async function handleGenerate() {
         if (!review || generating) return;
-
-        // If columns changed since last save, update the review first
         if (columns.length === 0) return;
-
         if (apiKeys && !isModelAvailable(tabularModel, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(tabularModel));
             return;
         }
-
         setGenerating(true);
-
         try {
             const response = await streamTabularGeneration(reviewId, {
                 model: tabularModel,
@@ -354,8 +334,6 @@ export function TRView({ reviewId, projectId }: Props) {
                 );
             }
             if (!response.body) throw new Error("No body");
-
-            // Optimistically set empty/pending/error cells to generating (skip done cells)
             setCells((prev) =>
                 documents.flatMap((doc) =>
                     columns.map((col) => {
@@ -385,7 +363,6 @@ export function TRView({ reviewId, projectId }: Props) {
                     }),
                 ),
             );
-
             for await (const dataStr of readSseData(response.body)) {
                 if (dataStr === "[DONE]") continue;
                 try {
@@ -412,7 +389,6 @@ export function TRView({ reviewId, projectId }: Props) {
             setGenerating(false);
         }
     }
-
     async function handleAddColumn(newColumns: ColumnConfig[]) {
         const startIndex = getNextColumnIndex();
         const normalizedColumns = newColumns.map((column, index) => ({
@@ -473,7 +449,6 @@ export function TRView({ reviewId, projectId }: Props) {
             setSavingColumn(false);
         }
     }
-
     async function handleUpdateColumn(nextColumn: ColumnConfig) {
         const nextColumns = columns.map((column) =>
             column.index === nextColumn.index ? nextColumn : column,
@@ -487,7 +462,6 @@ export function TRView({ reviewId, projectId }: Props) {
             console.error("Failed to update column", err);
         }
     }
-
     async function handleDeleteColumn(columnIndex: number) {
         const previousColumns = columns;
         const nextColumns = columns.filter(
@@ -501,7 +475,6 @@ export function TRView({ reviewId, projectId }: Props) {
             console.error("Failed to delete column", err);
         }
     }
-
     function handleTabularCitationClick(colIdx: number, rowIdx: number) {
         setSearch("");
         setHighlightedCell({ colIdx, rowIdx });
@@ -510,7 +483,6 @@ export function TRView({ reviewId, projectId }: Props) {
         }, 50);
         setTimeout(() => setHighlightedCell(null), 3000);
     }
-
     async function handleDeleteDocuments() {
         const idsToDelete = [...selectedDocIds];
         if (idsToDelete.length === 0) return;
@@ -534,7 +506,6 @@ export function TRView({ reviewId, projectId }: Props) {
             console.error("Failed to delete tabular review documents", err);
         }
     }
-
     async function clearResultsForDocuments(docIds: string[]) {
         if (docIds.length === 0) return;
         setCells((prev) =>
@@ -547,17 +518,14 @@ export function TRView({ reviewId, projectId }: Props) {
         setSelectedDocIds([]);
         await clearTabularCells(reviewId, docIds);
     }
-
     async function handleClearResults() {
         await clearResultsForDocuments([...selectedDocIds]);
     }
-
     async function handleClearAllResults() {
         await clearResultsForDocuments(
             documents.map((document) => document.id),
         );
     }
-
     function requestReviewDetails() {
         if (review?.is_owner === false) {
             setOwnerOnlyAction("edit tabular review details");
@@ -565,7 +533,6 @@ export function TRView({ reviewId, projectId }: Props) {
         }
         setDetailsOpen(true);
     }
-
     async function handleDetailsSave(values: {
         title: string;
         projectId?: string | null;
@@ -593,7 +560,6 @@ export function TRView({ reviewId, projectId }: Props) {
             );
         }
     }
-
     function requestReviewDelete() {
         if (review?.is_owner === false) {
             setOwnerOnlyAction("delete this tabular review");
@@ -602,7 +568,6 @@ export function TRView({ reviewId, projectId }: Props) {
         setDeleteReviewStatus("idle");
         setDeleteReviewConfirmOpen(true);
     }
-
     async function confirmReviewDelete() {
         if (deleteReviewStatus === "deleting") return;
         setDeleteReviewStatus("deleting");
@@ -621,7 +586,6 @@ export function TRView({ reviewId, projectId }: Props) {
             console.error("Failed to delete tabular review", err);
         }
     }
-
     function requestWorkflow() {
         if (review?.is_owner === false) {
             setOwnerOnlyAction("apply a workflow");
@@ -629,7 +593,6 @@ export function TRView({ reviewId, projectId }: Props) {
         }
         setWorkflowModalOpen(true);
     }
-
     async function handleApplyWorkflow(workflow: Workflow) {
         if (!workflow.columns_config?.length) return;
         const nextColumns = workflow.columns_config.map((column, index) => ({
@@ -662,7 +625,6 @@ export function TRView({ reviewId, projectId }: Props) {
             setApplyingWorkflow(false);
         }
     }
-
     const q = search.toLowerCase();
     const filteredDocuments = q
         ? documents.filter((d) => d.filename.toLowerCase().includes(q))
@@ -670,7 +632,6 @@ export function TRView({ reviewId, projectId }: Props) {
     const addedDocumentIds = new Set(
         documents.map((document) => document.id),
     );
-
     return (
         <div className="flex h-full overflow-hidden">
             <div className="flex flex-1 flex-col overflow-hidden">
@@ -839,7 +800,6 @@ export function TRView({ reviewId, projectId }: Props) {
                         },
                     ]}
                 />
-
                 {/* Toolbar + table column, chat panel beside it */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* On mobile the chat panel replaces the table entirely */}
@@ -991,7 +951,6 @@ export function TRView({ reviewId, projectId }: Props) {
                     )}
                 </div>
             </div>
-
             {/* Cell detail side panel */}
             {expandedCell &&
                 (() => {
@@ -1040,7 +999,6 @@ export function TRView({ reviewId, projectId }: Props) {
                         />
                     );
                 })()}
-
             <AddColumnModal
                 open={addColOpen || !!editingColumn}
                 existingCount={columns.length}
@@ -1057,7 +1015,6 @@ export function TRView({ reviewId, projectId }: Props) {
                         : undefined
                 }
             />
-
             <AddDocumentsModal
                 open={addDocsOpen}
                 onClose={() => setAddDocsOpen(false)}
@@ -1092,7 +1049,6 @@ export function TRView({ reviewId, projectId }: Props) {
                         : undefined
                 }
             />
-
             <TabularReviewDetailsModal
                 open={detailsOpen}
                 review={review}
@@ -1102,7 +1058,6 @@ export function TRView({ reviewId, projectId }: Props) {
                 onClose={() => setDetailsOpen(false)}
                 onSave={handleDetailsSave}
             />
-
             <PeopleModal
                 open={peopleModalOpen}
                 onClose={() => setPeopleModalOpen(false)}
@@ -1114,8 +1069,6 @@ export function TRView({ reviewId, projectId }: Props) {
                     review?.title || "Untitled Review",
                     "People",
                 ]}
-                // Only the review owner may modify the member list. PeopleModal
-                // hides the add/remove controls when this prop is undefined.
                 onSharedWithChange={
                     review?.is_owner === false
                         ? undefined
@@ -1137,7 +1090,6 @@ export function TRView({ reviewId, projectId }: Props) {
                           }
                 }
             />
-
             <WorkflowPickerModal
                 open={workflowModalOpen}
                 onClose={() => {
@@ -1168,7 +1120,6 @@ export function TRView({ reviewId, projectId }: Props) {
                     !workflow.columns_config?.length
                 }
             />
-
             <ConfirmPopup
                 open={deleteReviewConfirmOpen}
                 title="Delete tabular review?"
@@ -1189,13 +1140,11 @@ export function TRView({ reviewId, projectId }: Props) {
                 }}
                 onConfirm={() => void confirmReviewDelete()}
             />
-
             <OwnerOnlyPopup
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}
                 onClose={() => setOwnerOnlyAction(null)}
             />
-
             <ApiKeyMissingPopup
                 open={apiKeyModalProvider !== null}
                 provider={apiKeyModalProvider}

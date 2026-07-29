@@ -1,12 +1,10 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useDirectoryData } from "../shared/useDirectoryData";
 import { Modal } from "../modals/Modal";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -15,7 +13,6 @@ interface Props {
     currentProjectId?: string | null;
     onSelectProject?: (projectId: string | null) => Promise<void> | void;
 }
-
 export function SelectAssistantProjectModal({
     open,
     onClose,
@@ -29,14 +26,11 @@ export function SelectAssistantProjectModal({
     const router = useRouter();
     const { saveChat } = useChatHistoryContext();
     const { loading, projects } = useDirectoryData(open, "projects");
-
     useEffect(() => {
         if (!open) return;
         setSelectedId(currentProjectId ?? null);
     }, [currentProjectId, open]);
-
     if (!open) return null;
-
     async function handleContinue() {
         if (!onSelectProject && !selectedId) return;
         if (onSelectProject && selectedId === (currentProjectId ?? null)) return;
@@ -58,7 +52,6 @@ export function SelectAssistantProjectModal({
             setCreating(false);
         }
     }
-
     const currentProject = projects.find(
         (project) => project.id === currentProjectId,
     );
@@ -67,7 +60,6 @@ export function SelectAssistantProjectModal({
             ? `Move “${chatTitle}” to a project`
             : "Move chat to a project"
         : "Start chat in a project";
-
     return (
         <Modal
             open={open}

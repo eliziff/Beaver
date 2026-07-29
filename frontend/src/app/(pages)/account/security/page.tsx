@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { Copy, Loader2 } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
@@ -17,21 +16,18 @@ import {
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
-
 type MfaFactor = {
     id: string;
     friendly_name?: string | null;
     factor_type: string;
     status?: string;
 };
-
 type Enrollment = {
     factorId: string;
     challengeId: string;
     qrCode: string;
     secret: string;
 };
-
 function isDuplicateFriendlyNameError(error: unknown) {
     const message =
         error instanceof Error
@@ -46,7 +42,6 @@ function isDuplicateFriendlyNameError(error: unknown) {
         .toLowerCase()
         .includes("a factor with the friendly name");
 }
-
 function MfaSettingsSkeleton() {
     return (
         <div className="px-4 py-5">
@@ -66,7 +61,6 @@ function MfaSettingsSkeleton() {
         </div>
     );
 }
-
 export default function SecurityPage() {
     const { profile, updateMfaOnLogin } = useUserProfile();
     const [loading, setLoading] = useState(true);
@@ -85,7 +79,6 @@ export default function SecurityPage() {
     const [pendingLoginPreference, setPendingLoginPreference] = useState<
         boolean | null
     >(null);
-
     async function refreshMfaState() {
         setLoading(true);
         setStatus(null);
@@ -93,7 +86,6 @@ export default function SecurityPage() {
             supabase.auth.mfa.listFactors(),
             supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
         ]);
-
         if (factorResult.error) {
             setStatus(factorResult.error.message);
             setFactors([]);
@@ -101,7 +93,6 @@ export default function SecurityPage() {
             const verifiedTotp = (factorResult.data.totp ?? []) as MfaFactor[];
             setFactors(verifiedTotp);
         }
-
         if (aalResult.error) {
             setStatus(aalResult.error.message);
             setCurrentLevel(null);
@@ -110,11 +101,9 @@ export default function SecurityPage() {
         }
         setLoading(false);
     }
-
     useEffect(() => {
         void refreshMfaState();
     }, []);
-
     async function startEnrollment() {
         setBusy(true);
         setStatus(null);
@@ -133,12 +122,10 @@ export default function SecurityPage() {
             }
             if (error) throw error;
             if (!data) throw new Error("Failed to start MFA setup.");
-
             const challenge = await supabase.auth.mfa.challenge({
                 factorId: data.id,
             });
             if (challenge.error) throw challenge.error;
-
             setEnrollment({
                 factorId: data.id,
                 challengeId: challenge.data.id,
@@ -157,7 +144,6 @@ export default function SecurityPage() {
             setBusy(false);
         }
     }
-
     async function closeSetupModal() {
         if (busy) return;
         setSetupModalOpen(false);
@@ -168,15 +154,12 @@ export default function SecurityPage() {
             setSetupKeyCopied(false);
         }
     }
-
     async function returnToSetupInstructions() {
         if (busy || !enrollment) return;
         await cancelEnrollment();
     }
-
     async function verifyEnrollment() {
         if (!enrollment || verificationCode.trim().length !== 6) return;
-
         setBusy(true);
         setStatus(null);
         try {
@@ -186,7 +169,6 @@ export default function SecurityPage() {
                 code: verificationCode.trim(),
             });
             if (error) throw error;
-
             setEnrollment(null);
             setSetupModalOpen(false);
             setVerificationCode("");
@@ -203,7 +185,6 @@ export default function SecurityPage() {
             setBusy(false);
         }
     }
-
     async function cancelEnrollment() {
         const factorId = enrollment?.factorId;
         setEnrollment(null);
@@ -214,14 +195,12 @@ export default function SecurityPage() {
         }
         await refreshMfaState();
     }
-
     async function copySetupKey() {
         if (!enrollment?.secret) return;
         await navigator.clipboard.writeText(enrollment.secret);
         setSetupKeyCopied(true);
         window.setTimeout(() => setSetupKeyCopied(false), 1600);
     }
-
     async function requestUnenroll(factorId: string) {
         setStatus(null);
         const { data, error } =
@@ -230,21 +209,17 @@ export default function SecurityPage() {
             setStatus(error.message);
             return;
         }
-
         if (data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
             setPendingUnenrollFactorId(factorId);
             return;
         }
-
         await unenrollFactor(factorId);
     }
-
     async function unenrollFactor(factorId: string) {
         setBusy(true);
         setStatus(null);
         const { error } = await supabase.auth.mfa.unenroll({ factorId });
         setBusy(false);
-
         if (error) {
             if (
                 error.message.toLowerCase().includes("aal") ||
@@ -256,14 +231,12 @@ export default function SecurityPage() {
             setStatus(error.message);
             return;
         }
-
         setStatus("MFA disabled.");
         if (profile?.mfaOnLogin) {
             void updateMfaOnLogin(false);
         }
         await refreshMfaState();
     }
-
     async function handleLoginPreferenceToggle() {
         if (!hasVerifiedFactor || savingLoginPreference) return;
         const enabled = !(profile?.mfaOnLogin === true);
@@ -285,7 +258,6 @@ export default function SecurityPage() {
             setSavingLoginPreference(false);
         }
     }
-
     async function saveLoginPreference(enabled: boolean) {
         setSavingLoginPreference(true);
         setStatus(null);
@@ -308,11 +280,9 @@ export default function SecurityPage() {
             setSavingLoginPreference(false);
         }
     }
-
     const hasVerifiedFactor = factors.length > 0;
     const sessionVerified = currentLevel === "aal2";
     const loginMfaEnabled = profile?.mfaOnLogin === true;
-
     return (
         <div className="space-y-8">
             <section className="space-y-3">
@@ -372,7 +342,6 @@ export default function SecurityPage() {
                                     </div>
                                 ) : null}
                             </div>
-
                             {hasVerifiedFactor && (
                                 <>
                                     <div className="mx-4 h-px bg-gray-200" />
@@ -415,7 +384,6 @@ export default function SecurityPage() {
                             )}
                         </>
                     )}
-
                     {status && (
                         <>
                             <div className="mx-4 h-px bg-gray-200" />

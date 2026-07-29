@@ -5,11 +5,9 @@ import type { AssistantEvent, Citation } from "../../shared/types";
 import { RESPONSE_GLASS_ANNOTATION, withoutMarkdownNode } from "./messageStyles";
 import { citationTooltip } from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
-
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
     return <ReactMarkdown {...props} remarkPlugins={[remarkGfm]} />;
 }
-
 export function MarkdownContent({
     text,
     inlineCitationTargets,
@@ -38,7 +36,6 @@ export function MarkdownContent({
     function findCaseCitation(href: string) {
         return caseCitations.get(internalCaseHref(href) ?? "");
     }
-
     return (
         <div
             ref={divRef}

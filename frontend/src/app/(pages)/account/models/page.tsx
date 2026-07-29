@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { Check, Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -11,9 +10,7 @@ import {
 } from "@/app/components/assistant/ModelToggle";
 import { ModelPicker } from "@/app/components/assistant/ModelPicker";
 import { AccountSection } from "../AccountSection";
-
 type ModelPreferenceField = "titleModel" | "tabularModel";
-
 export default function ModelPreferencesPage() {
     const { profile, updateModelPreference } = useUserProfile();
     const [savingField, setSavingField] = useState<ModelPreferenceField | null>(
@@ -26,13 +23,11 @@ export default function ModelPreferencesPage() {
         Partial<Record<ModelPreferenceField, string>>
     >({});
     const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     useEffect(() => {
         return () => {
             if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
         };
     }, []);
-
     const handleModelChange = async (
         field: ModelPreferenceField,
         id: string,
@@ -56,7 +51,6 @@ export default function ModelPreferencesPage() {
             });
         }
     };
-
     return (
         <div>
             <div className="flex items-center gap-2 mb-4">
@@ -106,7 +100,6 @@ export default function ModelPreferencesPage() {
         </div>
     );
 }
-
 function ModelPreferenceDropdown({
     value,
     onChange,
@@ -140,7 +133,6 @@ function ModelPreferenceDropdown({
         </div>
     );
 }
-
 function InfoButton({ text }: { text: string }) {
     return (
         <button

@@ -1,5 +1,4 @@
 "use client";
-
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -24,20 +23,15 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
-import { formatDate, sortRows } from "@/app/lib/utils";
-
-function creatorLabel(chat: Chat, currentUserId?: string | null) {
+import { formatDate, sortRows } from "@/app/lib/utils";function creatorLabel(chat: Chat, currentUserId?: string | null) {
     if (currentUserId && chat.user_id === currentUserId) return "Me";
     return chat.creator_display_name?.trim() || "Shared";
 }
-
 type ProjectChatSortKey = "name" | "created";
-
 const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
 ];
-
 export function ProjectAssistantTable({
     chats,
     filteredChats,
@@ -76,16 +70,13 @@ export function ProjectAssistantTable({
         key: ProjectChatSortKey;
         direction: TableSortDirection;
     } | null>(null);
-
     function clearSelection() {
         setSelectedChatIds([]);
     }
-
     function handleCreatorFilterChange(value: string | null) {
         setCreatorFilter(value);
         clearSelection();
     }
-
     function handleSortChange(
         key: ProjectChatSortKey,
         direction: TableSortDirection | null,
@@ -93,7 +84,6 @@ export function ProjectAssistantTable({
         setSort(direction ? { key, direction } : null);
         clearSelection();
     }
-
     const creatorOptions = useMemo(
         () =>
             Array.from(
@@ -103,7 +93,6 @@ export function ProjectAssistantTable({
                 .map((creator) => ({ value: creator, label: creator })),
         [chats, currentUserId],
     );
-
     const visibleChats = useMemo(() => {
         const rows = filteredChats.filter(
             (chat) =>
@@ -111,21 +100,7 @@ export function ProjectAssistantTable({
                 creatorLabel(chat, currentUserId) === creatorFilter,
         );
         if (!sort) return rows;
-
-        return sortRows(rows, (a, b) => {
-            if (sort.key === "created") {
-                return (
-                    (new Date(a.created_at).getTime() -
-                        new Date(b.created_at).getTime())
-                );
-            }
-
-            return (a.title ?? "Untitled Chat").localeCompare(
-                b.title ?? "Untitled Chat",
-            );
-        }, sort.direction);
-    }, [creatorFilter, currentUserId, filteredChats, sort]);
-
+        return sortRows(rows, (a, b) => {            if (sort.key === "created") {                return (                    (new Date(a.created_at).getTime() -                        new Date(b.created_at).getTime())                );            }            return (a.title ?? "Untitled Chat").localeCompare(                b.title ?? "Untitled Chat",            );        }, sort.direction);    }, [creatorFilter, currentUserId, filteredChats, sort]);
     const allVisibleChatsSelected =
         visibleChats.length > 0 &&
         visibleChats.every((chat) => selectedChatIds.includes(chat.id));
@@ -163,7 +138,6 @@ export function ProjectAssistantTable({
             onChange={(direction) => handleSortChange("created", direction)}
         />
     );
-
     return (
         <TableScrollArea
             header={
@@ -305,10 +279,8 @@ export function ProjectAssistantTable({
         </TableScrollArea>
     );
 }
-
 function ProjectAssistantLoadingRows() {
     const titleWidths = ["w-36", "w-40", "w-44", "w-48", "w-52"];
-
     return (
         <TableBody>
             {[1, 2, 3, 4, 5].map((i) => (

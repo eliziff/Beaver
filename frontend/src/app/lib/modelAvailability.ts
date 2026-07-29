@@ -1,6 +1,5 @@
 import { SETTINGS_MODELS, type ModelOption } from "../components/assistant/ModelToggle";
 import type { ApiKeyState } from "@/app/lib/beaverApi";
-
 export type ModelProvider =
     | "claude"
     | "gemini"
@@ -8,7 +7,6 @@ export type ModelProvider =
     | "deepseek"
     | "openrouter"
     | "codex";
-
 export function getModelProvider(modelId: string): ModelProvider | null {
     if (modelId.startsWith("codex:")) {
         return "codex";
@@ -17,7 +15,6 @@ export function getModelProvider(modelId: string): ModelProvider | null {
     if (!model) return null;
     return modelGroupToProvider(model.group);
 }
-
 export function isModelAvailable(
     modelId: string,
     apiKeys: ApiKeyState,
@@ -26,7 +23,6 @@ export function isModelAvailable(
     if (!provider) return false;
     return isProviderAvailable(provider, apiKeys);
 }
-
 export function isProviderAvailable(
     provider: ModelProvider,
     apiKeys: ApiKeyState,
@@ -34,7 +30,6 @@ export function isProviderAvailable(
     if (provider === "codex") return true;
     return !!apiKeys[provider]?.configured;
 }
-
 export function providerLabel(provider: ModelProvider): string {
     if (provider === "claude") return "Anthropic (Claude)";
     if (provider === "openai") return "OpenAI";
@@ -43,7 +38,6 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "codex") return "Codex";
     return "Google (Gemini)";
 }
-
 export function modelGroupToProvider(
     group: ModelOption["group"],
 ): ModelProvider {

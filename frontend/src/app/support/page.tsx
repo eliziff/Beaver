@@ -1,16 +1,12 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { Send, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
-
 type FeedbackType = "bug" | "feature" | "question" | "other";
-
 export default function SupportPage() {
     const router = useRouter();
     const { user, isAuthenticated, authLoading } = useAuth();
-
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push("/");
@@ -23,7 +19,6 @@ export default function SupportPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     const feedbackTypes: {
         value: FeedbackType;
         label: string;
@@ -50,12 +45,10 @@ export default function SupportPage() {
             description: "General feedback or other inquiries",
         },
     ];
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         setIsSubmitting(true);
-
         try {
             const response = await fetch("/api/support", {
                 method: "POST",
@@ -68,11 +61,9 @@ export default function SupportPage() {
                     link,
                 }),
             });
-
             if (!response.ok) {
                 throw new Error("Failed to submit feedback");
             }
-
             setIsSubmitted(true);
         } catch (err) {
             console.error("Error submitting feedback:", err);
@@ -81,7 +72,6 @@ export default function SupportPage() {
             setIsSubmitting(false);
         }
     };
-
     if (isSubmitted) {
         return (
             <div className="h-full flex items-center justify-center p-4">
@@ -99,15 +89,13 @@ export default function SupportPage() {
                     </p>
                     <button
                         onClick={() => router.push("/")}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
-                    >
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"                    >
                         Back to Home
                     </button>
                 </div>
             </div>
         );
     }
-
     return (
         <div className="w-full flex flex-col px-6 h-full">
             <div className="w-full max-w-4xl m-auto flex flex-col h-full">
@@ -119,7 +107,6 @@ export default function SupportPage() {
                         </h1>
                     </div>
                 </div>
-
                 {/* Form Container */}
                 <div className="flex-1 overflow-y-auto pb-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -139,15 +126,13 @@ export default function SupportPage() {
                                             }
                                             className={`p-4 rounded-lg border-2 text-left ${
                                                 feedbackType === type.value
-                                                    ? "border-red-600 bg-red-50"
-                                                    : "border-gray-200 hover:border-gray-300"
+                                                    ? "border-red-600 bg-red-50"                                                    : "border-gray-200 hover:border-gray-300"
                                             }`}
                                         >
                                             <div
                                                 className={`font-medium ${
                                                     feedbackType === type.value
-                                                        ? "text-red-700"
-                                                        : "text-gray-900"
+                                                        ? "text-red-700"                                                        : "text-gray-900"
                                                 }`}
                                             >
                                                 {type.label}
@@ -159,7 +144,6 @@ export default function SupportPage() {
                                     ))}
                                 </div>
                             </div>
-
                             {/* Link (for bugs) */}
                             {feedbackType === "bug" && (
                                 <div>
@@ -177,8 +161,7 @@ export default function SupportPage() {
                                             setLink(e.target.value)
                                         }
                                         placeholder="https://mikeoss.com/..."
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                                    />
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"                                    />
                                     <p className="text-xs text-gray-500 mt-1">
                                         If the bug is in a chat, mouseover the
                                         chat in the sidebar, click the dots,
@@ -187,7 +170,6 @@ export default function SupportPage() {
                                     </p>
                                 </div>
                             )}
-
                             {/* Subject */}
                             <div>
                                 <label
@@ -201,11 +183,9 @@ export default function SupportPage() {
                                     id="subject"
                                     value={subject}
                                     onChange={(e) => setSubject(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                                    required
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"                                    required
                                 />
                             </div>
-
                             {/* Message */}
                             <div>
                                 <label
@@ -220,11 +200,9 @@ export default function SupportPage() {
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Please describe your question, issue, or suggestion in detail..."
                                     rows={5}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
-                                    required
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"                                    required
                                 />
                             </div>
-
                             {/* Email Display (if logged in) */}
                             {user?.email && (
                                 <div className="text-sm text-gray-500">
@@ -234,14 +212,12 @@ export default function SupportPage() {
                                     </span>
                                 </div>
                             )}
-
                             {/* Error Message */}
                             {error && (
                                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                                     {error}
                                 </div>
                             )}
-
                             {/* Submit Button */}
                             <button
                                 type="submit"
@@ -250,8 +226,7 @@ export default function SupportPage() {
                                     !subject.trim() ||
                                     !message.trim()
                                 }
-                                    className="w-full py-3 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
-                            >
+                                    className="w-full py-3 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"                            >
                                 {isSubmitting ? (
                                     <>
                                         <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

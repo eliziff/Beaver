@@ -1,19 +1,15 @@
 "use client";
-
 import { PlusIcon } from "lucide-react";
-
 interface Props {
     onBrowseAll: () => void;
     selectedDocIds?: string[];
 }
-
 export function AddDocButton({
     onBrowseAll,
     selectedDocIds = [],
 }: Props) {
     const count = selectedDocIds.length;
     const label = count ? `${count} documents selected` : "Add document";
-
     return (
         <button
             type="button"

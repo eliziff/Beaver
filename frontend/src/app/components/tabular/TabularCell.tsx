@@ -1,5 +1,4 @@
 "use client";
-
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,7 +7,6 @@ import type { ColumnConfig, TabularCell as TCell } from "../shared/types";
 import { preprocessCitations, type ParsedCitation } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
 import { SkeletonLine } from "../shared/TablePrimitive";
-
 interface Props {
     cell: TCell;
     column?: ColumnConfig;
@@ -22,14 +20,12 @@ interface Props {
         citationCell?: string,
     ) => void;
 }
-
 const FLAG_STYLES = {
     green: "bg-green-500",
     grey: "bg-gray-400",
     yellow: "bg-amber-400",
     red: "bg-red-500",
 } as const;
-
 function TabularCellSkeleton() {
     return (
         <div className="flex h-8 items-center px-2">
@@ -37,9 +33,6 @@ function TabularCellSkeleton() {
         </div>
     );
 }
-
-// Replace citations and pills with inline-code tokens so ReactMarkdown passes
-// them through its `code` component, where we render the final UI.
 function preprocessCellMarkdown(text: string): {
     processed: string;
     citations: ParsedCitation[];
@@ -55,7 +48,6 @@ function preprocessCellMarkdown(text: string): {
     out = out.replace(/§(\d+)§/g, (_, idx) => `\`§c${idx}§\`\u200B`);
     return { processed: out, citations, pills };
 }
-
 function CellMarkdown({
     text,
     citations,
@@ -164,14 +156,12 @@ function CellMarkdown({
         </ReactMarkdown>
     );
 }
-
 function formatCitationLocation(citation: ParsedCitation): string {
     if (citation.sheet && citation.cell) {
         return `${citation.sheet}!${citation.cell}`;
     }
     return `Page ${citation.page ?? 1}`;
 }
-
 export const TabularCell = memo(function TabularCell({
     cell,
     column,
@@ -181,7 +171,6 @@ export const TabularCell = memo(function TabularCell({
     if (cell.status === "generating") {
         return <TabularCellSkeleton />;
     }
-
     if (cell.status === "error") {
         return (
             <div className="h-8 flex items-center justify-center text-gray-300">
@@ -189,18 +178,14 @@ export const TabularCell = memo(function TabularCell({
             </div>
         );
     }
-
     if (!cell.content?.summary) {
         return <div className="h-8" />;
     }
-
     const { processed, citations, pills } = preprocessCellMarkdown(
         cell.content.summary,
     );
-
     const firstLine = processed.split("\n").find((l) => l.trim()) ?? processed;
     const collapsedDisplay = firstLine.replace(/^[-*•]\s+/, "");
-
     function handleCitationClick(
         page: number | undefined,
         quote: string,
@@ -210,11 +195,9 @@ export const TabularCell = memo(function TabularCell({
     ) {
         onCitationClick(cell, page, quote, citationRef, sheet, citationCell);
     }
-
     function handleSeeDetails() {
         onExpand(cell);
     }
-
     return (
         <div
             className="group relative flex h-8 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 hover:bg-gray-50"

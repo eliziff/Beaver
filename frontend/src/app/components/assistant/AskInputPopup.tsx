@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useState } from "react";
 import {
     Check,
@@ -12,14 +11,12 @@ import { PillButton } from "@/app/components/ui/pill-button";
 import type { AssistantEvent, Document } from "../shared/types";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
-
 type AskInputsEvent = Extract<AssistantEvent, { type: "ask_inputs" }>;
 type AskInputItem = AskInputsEvent["items"][number];
 type AskInputsResponse = Extract<
     AssistantEvent,
     { type: "ask_inputs_response" }
 >;
-
 export function AskInputPopup({
     event,
     onSubmit,
@@ -53,7 +50,6 @@ export function AskInputPopup({
     const [activeInputId, setActiveInputId] = useState(
         () => event.items[0]?.id ?? "",
     );
-
     const docsForItem = useCallback(
         (inputId: string) => {
             const seen = new Set<string>();
@@ -67,7 +63,6 @@ export function AskInputPopup({
         },
         [docsByInput],
     );
-
     const itemAnswered = useCallback(
         (item: AskInputItem) => {
             if (item.kind === "choice") return !!choiceAnswers[item.id]?.trim();
@@ -75,13 +70,11 @@ export function AskInputPopup({
         },
         [choiceAnswers, docsForItem],
     );
-
     const itemResolved = useCallback(
         (item: AskInputItem) =>
             skipped.has(item.id) || confirmed.has(item.id),
         [confirmed, skipped],
     );
-
     const firstUnresolvedId = useCallback(
         (resolvedId?: string) =>
             event.items.find((item) => {
@@ -90,7 +83,6 @@ export function AskInputPopup({
             })?.id ?? null,
         [event.items, itemResolved],
     );
-
     const goToNextUnresolved = useCallback(
         (resolvedId: string) => {
             const nextId = firstUnresolvedId(resolvedId);
@@ -98,7 +90,6 @@ export function AskInputPopup({
         },
         [firstUnresolvedId],
     );
-
     const setSkippedFor = (id: string, shouldSkip = true) => {
         setSkipped((prev) => {
             const next = new Set(prev);
@@ -108,7 +99,6 @@ export function AskInputPopup({
         });
         if (shouldSkip) goToNextUnresolved(id);
     };
-
     const confirmItem = (id: string) => {
         setConfirmed((prev) => {
             const next = new Set(prev);
@@ -117,7 +107,6 @@ export function AskInputPopup({
         });
         goToNextUnresolved(id);
     };
-
     const addDocs = (
         inputId: string,
         typeIndex: number,
@@ -141,7 +130,6 @@ export function AskInputPopup({
             };
         });
     };
-
     const removeDoc = (inputId: string, typeIndex: number, docId: string) => {
         setDocsByInput((prev) => {
             const byType = prev[inputId] ?? {};
@@ -156,7 +144,6 @@ export function AskInputPopup({
             };
         });
     };
-
     const chooseAnswer = (
         item: Extract<AskInputItem, { kind: "choice" }>,
         answer: string,
@@ -167,11 +154,9 @@ export function AskInputPopup({
         setChoiceAnswers((prev) => ({ ...prev, [item.id]: trimmed }));
         setOtherOpen((prev) => ({ ...prev, [item.id]: false }));
     };
-
     const allResolved =
         event.items.length > 0 && event.items.every(itemResolved);
     const canSubmit = !submitted && allResolved && !!onSubmit;
-
     const buildResponse = (): AskInputsResponse => {
         const responses = event.items.map((item) => {
             if (skipped.has(item.id)) {
@@ -210,7 +195,6 @@ export function AskInputPopup({
         });
         return { type: "ask_inputs_response", responses };
     };
-
     const responseFiles = (response: AskInputsResponse) => {
         const responseById = new Map(response.responses.map((item) => [item.id, item]));
         const docs = event.items.flatMap((item) => {
@@ -231,7 +215,6 @@ export function AskInputPopup({
             return [{ filename: doc.filename, document_id: doc.id }];
         });
     };
-
     const buildContent = (response: AskInputsResponse) => {
         const lines = response.responses.map((item, index) => {
             if (item.kind === "choice") {
@@ -244,27 +227,22 @@ export function AskInputPopup({
         });
         return `Responses to Beaver's questions:\n${lines.join("\n\n")}`;
     };
-
     const submit = () => {
         if (!canSubmit) return;
         const response = buildResponse();
         setSubmitted(true);
         onSubmit?.(response, buildContent(response), responseFiles(response));
     };
-
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-submit when every question is answered; submit() sets state as part of the side effect
         if (canSubmit) submit();
     });
-
     const dismiss = useCallback(() => {
         if (submitted || dismissed) return;
         setDismissed(true);
         onDismiss?.();
     }, [dismissed, onDismiss, submitted]);
-
     if (dismissed) return null;
-
     const activeItem =
         event.items.find((item) => item.id === activeInputId) ?? event.items[0];
     const activeIndex = Math.max(
@@ -273,7 +251,6 @@ export function AskInputPopup({
     );
     const activeLabel =
         activeItem?.kind === "documents" ? "Documents" : "Question";
-
     return (
         <>
             <div
@@ -348,7 +325,6 @@ export function AskInputPopup({
                         </button>
                     )}
                 </div>
-
                 {isExpanded && (
                 <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 px-3 pb-3">
                     {activeItem && (
@@ -368,7 +344,6 @@ export function AskInputPopup({
                                         )}
                                     </div>
                                 </div>
-
                                 <div className="pt-3">
                                     {activeItem.kind === "choice" ? (
                                         <OptionInput
@@ -493,16 +468,12 @@ export function AskInputPopup({
                 </div>
                 )}
             </div>
-
             <AddDocumentsModal
                 open={!!docSelectorTarget}
                 keepMounted
                 onClose={() => setDocSelectorTarget(null)}
                 onSelect={(selected) => {
                     if (!docSelectorTarget) return;
-                    // A document can only be added once per input, so docs
-                    // already living in another type row are left where they
-                    // are; only genuinely new picks join the targeted row.
                     const existing = new Set(
                         docsForItem(docSelectorTarget.inputId).map(
                             (doc) => doc.id,
@@ -524,7 +495,6 @@ export function AskInputPopup({
         </>
     );
 }
-
 function OptionInput({
     item,
     disabled,
@@ -625,7 +595,6 @@ function OptionInput({
         </div>
     );
 }
-
 function DocumentPrompt() {
     return (
         <p className="mt-0.5 text-sm text-gray-800">
@@ -633,7 +602,6 @@ function DocumentPrompt() {
         </p>
     );
 }
-
 function DocumentInput({
     item,
     disabled,

@@ -1,5 +1,4 @@
 "use client";
-
 import { createPortal } from "react-dom";
 import {
     useEffect,
@@ -26,7 +25,6 @@ import {
     automationLabel,
     publishAutomationRun,
 } from "@/app/components/assistant/AutomationRun";
-
 export type DocumentAutomationTarget = {
     id: string;
     filename: string;
@@ -34,18 +32,15 @@ export type DocumentAutomationTarget = {
     library_kind?: "file" | "template";
     project_id?: string | null;
 };
-
 type Action = {
     tool: Exclude<AutomationToolName, "toa_job_status">;
     icon: ComponentType<{ className?: string }>;
 };
-
 const ACTIONS: readonly Action[] = [
     { tool: "toa_submit_library_document", icon: BookOpen },
     { tool: "library_link_docx_citations", icon: Link2 },
     { tool: "library_fix_docx_supras", icon: RefreshCw },
 ];
-
 export function documentAutomationEligible(
     document: DocumentAutomationTarget | null,
 ) {
@@ -56,7 +51,6 @@ export function documentAutomationEligible(
         document.filename.trim().toLowerCase().endsWith(".docx")
     );
 }
-
 function docxRun(
     id: string,
     tool: Extract<
@@ -93,7 +87,6 @@ function docxRun(
         version_id: result.version_id,
     };
 }
-
 function authoritiesRun(
     id: string,
     documentId: string,
@@ -117,7 +110,6 @@ function authoritiesRun(
         document_id: documentId,
     };
 }
-
 export function DocumentAutomation({
     document,
     onDocumentChanged,
@@ -141,7 +133,6 @@ export function DocumentAutomation({
         />
     );
 }
-
 function AutomationTrigger({
     disabled = false,
     inspecting = false,
@@ -166,7 +157,6 @@ function AutomationTrigger({
         </button>
     );
 }
-
 function DocumentAutomationMenu({
     document,
     onDocumentChanged,
@@ -182,12 +172,10 @@ function DocumentAutomationMenu({
     const [running, setRunning] = useState<AutomationToolName | null>(null);
     const [inspectionError, setInspectionError] = useState("");
     const open = !!document && openFor === document.id;
-
     useEffect(() => {
         setOpenFor(null);
         setInspectionError("");
     }, [document?.id]);
-
     async function openAutomation() {
         if (!document || inspecting) return;
         setInspecting(true);
@@ -208,7 +196,6 @@ function DocumentAutomationMenu({
             setInspecting(false);
         }
     }
-
     async function runAction(tool: Action["tool"]) {
         if (!document) return;
         const runId = `${tool}:${document.id}`;
@@ -262,11 +249,9 @@ function DocumentAutomationMenu({
             setRunning(null);
         }
     }
-
     const actions = ACTIONS.filter(
         ({ tool }) => tool !== "library_fix_docx_supras" || showSupras,
     );
-
     return (
         <>
             <AutomationTrigger

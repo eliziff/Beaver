@@ -1,7 +1,5 @@
 "use client";
-
-import { use, useCallback, useEffect, useState } from "react";
-import {
+import { use, useCallback, useEffect, useState } from "react";import {
     deleteTabularReview,
     updateTabularReview,
 } from "@/app/lib/beaverApi";
@@ -14,11 +12,9 @@ import {
 import type { TabularReview } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-
 interface Props {
     params: Promise<{ id: string }>;
 }
-
 export default function ProjectTabularReviewsPage({ params }: Props) {
     use(params);
     const workspace = useProjectWorkspace();
@@ -37,13 +33,10 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         null,
     );
     const docs = project?.documents ?? [];
-    const reviews = projectReviews ?? [];
-    const loading = projectReviews === null;
-
+    const reviews = projectReviews ?? [];    const loading = projectReviews === null;
     useEffect(() => {
         void ensureProjectReviews();
     }, [ensureProjectReviews]);
-
     const q = search.toLowerCase();
     const filteredReviews = q
         ? reviews.filter((r) =>
@@ -57,7 +50,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         }
         setDetailsReview(review);
     }
-
     async function handleDetailsSave(values: {
         title: string;
         projectId?: string | null;
@@ -80,7 +72,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
             current?.id === updated.id ? { ...current, ...updated } : current,
         );
     }
-
     async function handleDeleteReviewRow(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
             setOwnerOnlyAction("delete this tabular review");
@@ -91,7 +82,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
             (prev ?? []).filter((r) => r.id !== review.id),
         );
     }
-
     const handleDeleteSelectedReviews = useCallback(async () => {
         const ids = [...selectedReviewIds];
         const owned = ids.filter((id) => {
@@ -118,7 +108,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         setProjectReviews,
         user?.id,
     ]);
-
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
             {selectedReviewIds.length > 0 && (
@@ -140,7 +129,6 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
             )}
         </span>
     );
-
     return (
         <>
             <ProjectSectionToolbar actions={toolbarActions} />

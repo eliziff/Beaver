@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 import type { Document, Project, Workflow } from "../shared/types";
@@ -14,7 +13,6 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -25,12 +23,10 @@ interface Props {
         columnsConfig?: Workflow["columns_config"],
     ) => void;
     projects?: Project[];
-    /** When provided, skip the project/directory picker and show only these docs */
     projectDocs?: Document[];
     projectName?: string;
     projectCmNumber?: string | null;
 }
-
 export function NewTRModal({
     open,
     onClose,
@@ -45,33 +41,26 @@ export function NewTRModal({
     const [title, setTitle] = useState("");
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
-
     const [projectDocs, setProjectDocs] = useState<Document[]>([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
-
     const [extraStandaloneDocs, setExtraStandaloneDocs] = useState<Document[]>(
         [],
     );
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(
         null,
     );
     const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false);
     const formId = "new-tabular-review-modal-form";
-
     useEffect(() => {
         if (!open) return;
-
         if (isProjectMode) {
             setSelectedDocuments(fixedProjectDocs ?? []);
         }
     }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
     if (!open) return null;
-
     function handleClose() {
         setStep("details");
         setTitle("");
@@ -84,7 +73,6 @@ export function NewTRModal({
         setWorkflowPickerOpen(false);
         onClose();
     }
-
     function submitterValue(e: React.FormEvent<HTMLFormElement>) {
         return (
             (e.nativeEvent as SubmitEvent).submitter as
@@ -92,7 +80,6 @@ export function NewTRModal({
                 | null
         )?.value;
     }
-
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (!title.trim()) return;
@@ -111,7 +98,6 @@ export function NewTRModal({
         );
         handleClose();
     }
-
     async function handleSelectProject(projectId: string) {
         setSelectedProjectId(projectId);
         setProjectDocs([]);
@@ -128,7 +114,6 @@ export function NewTRModal({
             setLoadingDocs(false);
         }
     }
-
     async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
         if (!files.length) return;
@@ -160,7 +145,6 @@ export function NewTRModal({
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
-
     const directoryDocuments = isProjectMode
         ? (fixedProjectDocs ?? [])
         : underProject
@@ -180,7 +164,6 @@ export function NewTRModal({
                   "New Tabular Review",
               ]
             : ["Tabular Reviews", "New Tabular Review"];
-
     return (
         <>
         <Modal
@@ -268,7 +251,6 @@ export function NewTRModal({
                                 autoFocus
                             />
                         </div>
-
                         <div>
                             <ModalFieldLabel as="p">
                                 Workflow template
@@ -298,7 +280,6 @@ export function NewTRModal({
                                 )}
                             </div>
                         </div>
-
                         {!isProjectMode && (
                             <div className="space-y-3">
                                 <ModalFieldLabel as="p">
@@ -328,7 +309,6 @@ export function NewTRModal({
                                         Create under a project
                                     </span>
                                 </button>
-
                                 {underProject && (
                                     <ProjectChoiceList
                                         projects={projects}

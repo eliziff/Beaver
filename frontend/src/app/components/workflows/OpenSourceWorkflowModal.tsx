@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { Check, EyeOff, User } from "lucide-react";
 import { openSourceWorkflow } from "@/app/lib/beaverApi";
@@ -9,13 +8,10 @@ import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "@/app/components/modals/ModalSegmentedToggle";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
-
 type OpenSourceContributorMode = "named" | "anonymous";
 type OpenSourceStatus = "idle" | "loading" | "complete";
-
 const WORKFLOWS_REPO_URL =
     "https://github.com/Open-Legal-Products/mike-workflows";
-
 interface OpenSourceWorkflowModalProps {
     open: boolean;
     onClose: () => void;
@@ -24,7 +20,6 @@ interface OpenSourceWorkflowModalProps {
     pending: boolean;
     onSubmitted: (submission: WorkflowOpenSourceSubmission) => void;
 }
-
 export function OpenSourceWorkflowModal({
     open,
     onClose,
@@ -44,11 +39,9 @@ export function OpenSourceWorkflowModal({
     const [disclosureConsent, setDisclosureConsent] = useState(false);
     const [closeCountdown, setCloseCountdown] = useState(3);
     const onCloseRef = useRef(onClose);
-
     useEffect(() => {
         onCloseRef.current = onClose;
     }, [onClose]);
-
     function resetModalState() {
         setStatus("idle");
         setError(null);
@@ -60,10 +53,8 @@ export function OpenSourceWorkflowModal({
         setDisclosureConsent(false);
         setCloseCountdown(3);
     }
-
     useEffect(() => {
         if (status !== "complete") return;
-
         const countdownTimer = window.setInterval(() => {
             setCloseCountdown((current) => Math.max(current - 1, 1));
         }, 1000);
@@ -71,17 +62,14 @@ export function OpenSourceWorkflowModal({
             onCloseRef.current();
             resetModalState();
         }, 3000);
-
         return () => {
             window.clearInterval(countdownTimer);
             window.clearTimeout(closeTimer);
         };
     }, [status]);
-
     const loading = status === "loading";
     const submitted = status === "complete";
     const needsConsent = contributorMode === "named" && !disclosureConsent;
-
     async function handleSubmit() {
         setStatus("loading");
         setError(null);
@@ -119,7 +107,6 @@ export function OpenSourceWorkflowModal({
             );
         }
     }
-
     return (
         <Modal
             open={open}
@@ -198,7 +185,6 @@ export function OpenSourceWorkflowModal({
                             replace that pending snapshot.
                         </p>
                     )}
-
                     <div className="space-y-2 pt-2">
                         <ModalFieldLabel as="p">
                             Contributor attribution
@@ -326,7 +312,6 @@ export function OpenSourceWorkflowModal({
                             </div>
                         )}
                     </div>
-
                     {error && (
                         <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
                             {error}

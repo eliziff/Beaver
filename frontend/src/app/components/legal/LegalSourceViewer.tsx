@@ -1,5 +1,4 @@
 "use client";
-
 import {
     Fragment,
     type ReactNode,
@@ -27,10 +26,8 @@ import {
     type LegalSourcePresentationBlock,
     type LegalSourceViewerPayload,
 } from "@/app/lib/beaverApi";
-
 type ViewerAnchor = LegalSourceViewerPayload["structure"]["blocks"][number];
 type ViewerMetadata = LegalSourceViewerPayload["metadata"];
-
 export type LegalSourceViewerSlice = {
     key: string;
     text: string;
@@ -38,7 +35,6 @@ export type LegalSourceViewerSlice = {
     primary: ViewerAnchor | null;
     depth: number;
 };
-
 export type LegalSourceViewerProps = {
     referenceId?: string;
     provider?: "a2aj" | "journal";
@@ -51,7 +47,6 @@ export type LegalSourceViewerProps = {
     citationRef?: number;
     compact?: boolean;
 };
-
 export type LegalSourceTab = {
     kind: "legal";
     id: `legal:${string}`;
@@ -65,11 +60,9 @@ export type LegalSourceTab = {
     citationRef?: number;
     quotes?: { quote: string }[];
 };
-
 export function legalSourceAnchorId(label: string) {
     return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
-
 function locatorLabel(label: string) {
     if (label.startsWith("page")) return `Page ${label.slice(4)}`;
     if (label.startsWith("par")) return `[${label.slice(3)}]`;
@@ -77,7 +70,6 @@ function locatorLabel(label: string) {
     if (label.startsWith("sec")) return label.slice(3);
     return label;
 }
-
 function sectionDepth(label: string) {
     const locator = label.replace(/^sec/u, "");
     return Math.min(
@@ -86,7 +78,6 @@ function sectionDepth(label: string) {
             Math.max(0, locator.split(/[.-]/u).length - 1),
     );
 }
-
 function primaryAnchor(
     anchors: ViewerAnchor[],
     docType: LegalDocumentType,
@@ -100,7 +91,6 @@ function primaryAnchor(
         null
     );
 }
-
 function fallbackStarts(text: string) {
     const starts = [0];
     for (const match of text.matchAll(/\n[ \t]*\n+/gu)) {
@@ -108,7 +98,6 @@ function fallbackStarts(text: string) {
     }
     return starts;
 }
-
 export function buildLegalSourceViewerSlices(
     payload: LegalSourceViewerPayload,
 ): LegalSourceViewerSlice[] {
@@ -156,7 +145,6 @@ export function buildLegalSourceViewerSlices(
         ];
     });
 }
-
 function stripDisplayedMarker(text: string, anchor: ViewerAnchor | null) {
     if (!anchor || !text) return text;
     if (anchor.kind === "paragraph") {
@@ -184,7 +172,6 @@ function stripDisplayedMarker(text: string, anchor: ViewerAnchor | null) {
           )
         : text;
 }
-
 function safeExternalHref(value: string | null | undefined) {
     if (!value) return null;
     try {
@@ -198,11 +185,9 @@ function safeExternalHref(value: string | null | undefined) {
         return null;
     }
 }
-
 function displayDate(value: string | null) {
     return value?.match(/^\d{4}-\d{2}-\d{2}/u)?.[0] ?? value;
 }
-
 export function legalSourceViewerActions(metadata: ViewerMetadata) {
     const actions: Array<{
         kind: "source" | "pdf";
@@ -227,7 +212,6 @@ export function legalSourceViewerActions(metadata: ViewerMetadata) {
     }
     return actions;
 }
-
 function removeLeadingCharacters(
     tokens: LegalSourceInlineToken[],
     count: number,
@@ -247,7 +231,6 @@ function removeLeadingCharacters(
         return [token];
     });
 }
-
 function stripInlineMarker(
     tokens: LegalSourceInlineToken[],
     anchor: ViewerAnchor | null,
@@ -257,7 +240,6 @@ function stripInlineMarker(
     const displayed = stripDisplayedMarker(text, anchor);
     return removeLeadingCharacters(tokens, text.length - displayed.length);
 }
-
 function stripProvisionMarker(
     tokens: LegalSourceInlineToken[],
     label: string,
@@ -270,7 +252,6 @@ function stripProvisionMarker(
     );
     return removeLeadingCharacters(tokens, text.length - displayed.length);
 }
-
 export function LegalInlineText({
     tokens,
 }: {
@@ -330,7 +311,6 @@ export function LegalInlineText({
         </>
     );
 }
-
 function HeadingBlock({
     block,
     tokens,
@@ -366,7 +346,6 @@ function HeadingBlock({
         </h5>
     );
 }
-
 export function LegalPresentedBlocks({
     blocks,
     anchor,
@@ -388,7 +367,6 @@ export function LegalPresentedBlocks({
             ? stripProvisionMarker(anchored, block.label)
             : anchored;
     };
-
     while (index < blocks.length) {
         const block = blocks[index];
         if (block.kind === "list-item") {
@@ -448,7 +426,6 @@ export function LegalPresentedBlocks({
             );
             continue;
         }
-
         const tokens = inline(block, index);
         const key = `${index}:${block.kind}`;
         if (block.kind === "heading") {
@@ -493,7 +470,6 @@ export function LegalPresentedBlocks({
     }
     return <>{nodes}</>;
 }
-
 export function LegalSourceViewer({
     referenceId,
     provider = "a2aj",
@@ -513,7 +489,6 @@ export function LegalSourceViewer({
     const [activeQuote, setActiveQuote] = useState(0);
     const rootRef = useRef<HTMLDivElement | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
-
     useEffect(() => {
         let cancelled = false;
         queueMicrotask(() => {
@@ -550,7 +525,6 @@ export function LegalSourceViewer({
             cancelled = true;
         };
     }, [citation, dataset, docType, language, provider, referenceId, sourceId]);
-
     const slices = useMemo(
         () => (payload ? buildLegalSourceViewerSlices(payload) : []),
         [payload],
@@ -569,13 +543,11 @@ export function LegalSourceViewer({
         id: `legal-quote-${index}`,
         quote: quote.quote,
     }));
-
     const jumpTo = useCallback((label: string) => {
         rootRef.current
             ?.querySelector<HTMLElement>(`#${legalSourceAnchorId(label)}`)
             ?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, []);
-
     useEffect(() => {
         const root = contentRef.current;
         if (!root || !payload) return;
@@ -594,7 +566,6 @@ export function LegalSourceViewer({
             );
         }
     }, [activeQuote, payload, quotes]);
-
     useEffect(() => {
         if (!payload || !window.location.hash) return;
         const label = decodeURIComponent(window.location.hash.slice(1)).replace(
@@ -603,7 +574,6 @@ export function LegalSourceViewer({
         );
         if (label) window.requestAnimationFrame(() => jumpTo(label));
     }, [jumpTo, payload]);
-
     if (error) {
         return (
             <div className="flex h-full items-center justify-center p-6">
@@ -620,7 +590,6 @@ export function LegalSourceViewer({
             </div>
         );
     }
-
     const kindLabel =
         payload.reference.docType === "laws"
             ? "Legislation"
@@ -633,7 +602,6 @@ export function LegalSourceViewer({
         displayDate(payload.metadata.date),
         payload.metadata.language.toUpperCase(),
     ].filter(Boolean);
-
     return (
         <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-white">
             <header
@@ -689,7 +657,6 @@ export function LegalSourceViewer({
                     ) : null}
                 </div>
             </header>
-
             {quoteItems.length > 0 ? (
                 <div className="shrink-0 py-2">
                     <CitationQuotesHeader
@@ -703,14 +670,12 @@ export function LegalSourceViewer({
                     />
                 </div>
             ) : null}
-
             {payload.truncated ? (
                 <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
                     This unusually long source is displayed through the first
                     five million characters.
                 </p>
             ) : null}
-
             <div
                 ref={contentRef}
                 className="min-h-0 flex-1 overflow-y-auto scroll-smooth bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10"

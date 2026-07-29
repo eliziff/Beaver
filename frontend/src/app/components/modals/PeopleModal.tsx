@@ -1,19 +1,15 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Loader2, Trash2, User } from "lucide-react";
+import { useEffect, useState } from "react";import { Loader2, Trash2, User } from "lucide-react";
 import type { ProjectPeople } from "@/app/lib/beaverApi";
 import { AddUserInput } from "../shared/AddUserInput";
 import { NativeActionSelect } from "../ui/native-action-select";
 import { Modal } from "./Modal";
-
 interface SharedResource {
     id: string;
     shared_with?: string[] | null;
     owner_display_name?: string | null;
     owner_email?: string | null;
 }
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -23,14 +19,12 @@ interface Props {
     breadcrumb: string[];
     onSharedWithChange?: (sharedWith: string[]) => Promise<void> | void;
 }
-
 type RosterRow = {
     email: string | null;
     user_id?: string | null;
     display_name: string | null;
     role: "owner" | "member";
 };
-
 export function PeopleModal({
     open,
     onClose,
@@ -43,32 +37,24 @@ export function PeopleModal({
     const [busy, setBusy] = useState<"add" | "remove" | null>(null);
     const [removingEmail, setRemovingEmail] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-
     const [people, setPeople] = useState<ProjectPeople | null>(null);
     const [lookupDisplayByEmail, setLookupDisplayByEmail] = useState<
         Map<string, string | null>
     >(new Map());
     const [peopleLoading, setPeopleLoading] = useState(false);
     const [loadedRosterKey, setLoadedRosterKey] = useState<string | null>(null);
-
     const resourceId = resource?.id ?? null;
-    const sharedWith: string[] = Array.isArray(resource?.shared_with)
-        ? resource.shared_with
-        : [];
-
-    useEffect(() => {
+    const sharedWith: string[] = Array.isArray(resource?.shared_with)        ? resource.shared_with        : [];    useEffect(() => {
         if (!open) return;
         setError(null);
         setBusy(null);
         setRemovingEmail(null);
     }, [open]);
-
     const sharedKey = sharedWith
         .map((e) => e.toLowerCase())
         .sort()
         .join(",");
     const rosterKey = `${resourceId ?? ""}:${sharedKey}`;
-
     useEffect(() => {
         if (!open || !resourceId) return;
         let cancelled = false;
@@ -91,9 +77,7 @@ export function PeopleModal({
             cancelled = true;
         };
     }, [open, resourceId, rosterKey, fetchPeople]);
-
     if (!open || !resource) return null;
-
     const memberDisplayByEmail = new Map<string, string | null>();
     for (const m of people?.members ?? []) {
         memberDisplayByEmail.set(m.email.toLowerCase(), m.display_name);
@@ -104,7 +88,6 @@ export function PeopleModal({
         null;
     const ownerDisplayName =
         people?.owner.display_name ?? resource.owner_display_name ?? null;
-
     const roster: RosterRow[] = [];
     if (people?.owner || ownerEmail || ownerDisplayName) {
         roster.push({
@@ -126,12 +109,10 @@ export function PeopleModal({
             role: "member",
         });
     }
-
     const normalizedCurrentUserEmail =
         currentUserEmail?.trim().toLowerCase() ?? null;
     const sharedLower = sharedWith.map((e) => e.toLowerCase());
     const rosterPending = peopleLoading || loadedRosterKey !== rosterKey;
-
     function validateNewEmail(email: string) {
         if (sharedLower.includes(email)) return `${email} already has access.`;
         if (ownerEmail && email === ownerEmail.toLowerCase()) {
@@ -145,7 +126,6 @@ export function PeopleModal({
         }
         return null;
     }
-
     async function handleAddUser(user: {
         email: string;
         display_name: string | null;
@@ -157,7 +137,6 @@ export function PeopleModal({
         });
         await handleAdd(user.email);
     }
-
     async function handleAdd(email: string) {
         if (!onSharedWithChange || busy !== null) return;
         setBusy("add");
@@ -175,7 +154,6 @@ export function PeopleModal({
             setBusy(null);
         }
     }
-
     async function handleRemove(email: string) {
         if (!onSharedWithChange || busy !== null) return;
         setBusy("remove");
@@ -197,7 +175,6 @@ export function PeopleModal({
             setRemovingEmail(null);
         }
     }
-
     return (
         <Modal open={open} onClose={onClose} breadcrumbs={breadcrumb}>
             <div className="flex min-h-0 flex-1 flex-col gap-5 pb-5">
@@ -219,7 +196,6 @@ export function PeopleModal({
                         )}
                     </section>
                 )}
-
                 <section className="flex min-h-0 flex-1 flex-col">
                     <div className="mb-2 flex items-center gap-2">
                         <h3 className="text-xs font-medium text-gray-500">
@@ -229,7 +205,6 @@ export function PeopleModal({
                             <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
                         )}
                     </div>
-
                     {rosterPending ? (
                         <div className="min-h-0 flex-1 space-y-1">
                             {[1, 2].map((item) => (

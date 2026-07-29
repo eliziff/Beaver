@@ -1,5 +1,4 @@
 "use client";
-
 import {
     use,
     useCallback,
@@ -54,14 +53,11 @@ import type {
     Document,
     Project,
 } from "@/app/components/shared/types";
-
 interface Props {
     params: Promise<{ id: string; chatId: string }>;
 }
-
 const EXPLORER_MIN = 160;
 const EXPLORER_DEFAULT = 280;
-
 function AssistantGreeting({ username }: { username: string }) {
     return (
         <div className="flex items-center justify-center gap-3">
@@ -72,10 +68,8 @@ function AssistantGreeting({ username }: { username: string }) {
         </div>
     );
 }
-
 function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
     const drag = horizontalDrag(onDrag);
-
     return (
         <div className="relative z-10 hidden w-0 shrink-0 md:block">
             <div
@@ -88,7 +82,6 @@ function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
         </div>
     );
 }
-
 export default function ProjectAssistantChatPage({ params }: Props) {
     const { id: projectId, chatId } = use(params);
     const router = useRouter();
@@ -97,7 +90,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const { profile } = useUserProfile();
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
-
     const [project, setProject] = useState<Project | null>(null);
     const [chatTitle, setChatTitle] = useState<string | null>(null);
     const [chatOwnerId, setChatOwnerId] = useState<string | null>(null);
@@ -117,7 +109,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const chatViewRef = useRef<ChatViewHandle>(null);
     const mobileExplorerRef = useRef<HTMLDivElement>(null);
     const mobileExplorerButtonRef = useRef<HTMLButtonElement>(null);
-
     const {
         peekPendingChatMessage,
         claimPendingChatMessage,
@@ -139,13 +130,11 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         retryRejectedTurn,
         cancel,
     } = useAssistantChat({ initialMessages, chatId, projectId });
-
     const responseLoadingRef = useRef(isResponseLoading);
     const pendingProjectRouteRef = useRef<{ projectId: string | null } | null>(
         null,
     );
     const hasLoaded = useRef(false);
-
     const refreshProject = useCallback(
         () =>
             getProject(projectId)
@@ -153,7 +142,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 .catch(() => {}),
         [projectId],
     );
-
     const projectMutationSignature = useMemo(() => {
         const created: string[] = [];
         const editedPerDoc: Record<string, number> = {};
@@ -183,23 +171,18 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 .join(",")}`,
         ].join("|");
     }, [messages]);
-
     useEffect(() => {
         setSidebarOpen(false);
     }, [setSidebarOpen]);
-
     useEffect(() => {
         void refreshProject();
     }, [refreshProject]);
-
     useEffect(() => {
         if (projectMutationSignature) void refreshProject();
     }, [projectMutationSignature, refreshProject]);
-
     useEffect(() => {
         responseLoadingRef.current = isResponseLoading;
     }, [isResponseLoading]);
-
     useEffect(() => {
         if (hasLoaded.current) return;
         hasLoaded.current = true;
@@ -217,7 +200,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             .catch(() => router.replace(`/projects/${projectId}/assistant`))
             .finally(() => setChatLoaded(true));
     }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
-
     useEffect(() => {
         if (isResponseLoading || !pendingProjectRouteRef.current) return;
         const { projectId: nextProjectId } = pendingProjectRouteRef.current;
@@ -228,12 +210,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : `/assistant/chat/${chatId}`,
         );
     }, [chatId, isResponseLoading, router]);
-
     useEffect(() => {
         const match = chats?.find((chat) => chat.id === chatId);
         if (match?.title) setChatTitle(match.title);
     }, [chats, chatId]);
-
     useEffect(() => {
         if (
             pendingMessageRef.current &&
@@ -252,7 +232,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         isResponseLoading,
         messages.length,
     ]);
-
     const addDocuments = useCallback((documents: Document[]) => {
         setProject((current) =>
             current
@@ -266,7 +245,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : current,
         );
     }, []);
-
     async function handleNewChat() {
         setCreatingChat(true);
         try {
@@ -276,7 +254,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             setCreatingChat(false);
         }
     }
-
     function handleDeleteChat() {
         if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
             setOwnerOnlyAction("delete this chat");
@@ -284,7 +261,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         }
         setDeleteConfirmOpen(true);
     }
-
     async function confirmDeleteChat() {
         setDeletingChat(true);
         try {
@@ -295,7 +271,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             setDeletingChat(false);
         }
     }
-
     async function handleRenameChat() {
         if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
             setOwnerOnlyAction("rename this chat");
@@ -310,7 +285,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         setChatTitle(trimmed);
         await renameChatInHistory(chatId, trimmed);
     }
-
     async function uploadFiles(files: File[]) {
         if (files.length === 0) return;
         setUploading(true);
@@ -329,7 +303,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
-
     async function handleCreateFolder(
         parentId: string | null,
         name: string,
@@ -348,7 +321,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : current,
         );
     }
-
     async function handleRenameFolder(folderId: string, name: string) {
         await renameProjectFolder(projectId, folderId, name);
         setProject((current) =>
@@ -364,7 +336,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : current,
         );
     }
-
     async function handleDeleteFolder(folderId: string) {
         const toDelete = new Set<string>();
         function collectIds(id: string) {
@@ -392,7 +363,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : current,
         );
     }
-
     async function handleMoveDoc(
         documentId: string,
         targetFolderId: string | null,
@@ -411,7 +381,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         await moveDocumentToFolder(projectId, documentId, targetFolderId);
     }
-
     async function handleMoveFolder(
         folderId: string,
         targetFolderId: string | null,
@@ -433,7 +402,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         await moveSubfolderToFolder(projectId, folderId, targetFolderId);
     }
-
     async function handleDeleteDoc(documentId: string) {
         await removeProjectDocument(projectId, documentId);
         chatViewRef.current?.closeDocument(documentId);
@@ -448,7 +416,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : current,
         );
     }
-
     function handleChatDrop(event: React.DragEvent) {
         event.preventDefault();
         const documentId = event.dataTransfer.getData(
@@ -459,21 +426,17 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         if (document) chatViewRef.current?.attachDocument(document);
     }
-
     const resizeExplorer = useCallback((dx: number) => {
         setExplorerWidth((width) => Math.max(EXPLORER_MIN, width + dx));
     }, []);
-
     const closeMobileExplorer = useCallback(() => {
         setMobileExplorerOpen(false);
         requestAnimationFrame(() => mobileExplorerButtonRef.current?.focus());
     }, []);
-
     const openMobileExplorer = useCallback(() => {
         setMobileExplorerOpen(true);
         requestAnimationFrame(() => mobileExplorerRef.current?.focus());
     }, []);
-
     async function changeProject(nextProjectId: string | null) {
         const updated = await updateChatProject(chatId, nextProjectId);
         if (responseLoadingRef.current) {
@@ -488,7 +451,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 : `/assistant/chat/${chatId}`,
         );
     }
-
     return (
         <div className="flex h-full flex-col">
             <PageHeader
@@ -539,8 +501,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     setProjectModalOpen(true);
                                 }}
                                 aria-label={`Change project: ${project?.name ?? "current project"}`}
-                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                            >
+                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"                            >
                                 <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                                 <span className="hidden truncate sm:inline">
                                     {project?.name ?? "Project"}
@@ -581,7 +542,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     },
                 ]}
             />
-
             <div className="relative flex min-h-0 flex-1 overflow-hidden border-t border-gray-200">
                 <div
                     ref={mobileExplorerRef}
@@ -646,8 +606,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploading}
                                 title="Upload documents"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
-                            >
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"                            >
                                 {uploading ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 ) : (
@@ -658,29 +617,25 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 type="button"
                                 onClick={closeMobileExplorer}
                                 title="Close explorer"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden"
-                            >
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden"                            >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setExplorerCollapsed(true)}
                                 title="Collapse explorer"
-                                className="hidden rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:block"
-                            >
+                                className="hidden rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:block"                            >
                                 <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
                         </div>
                     </div>
                     <div
                         className={`relative h-full flex-1 overflow-y-auto ${
-                            explorerDragOver ? "bg-red-50" : ""
-                        }`}
+                            explorerDragOver ? "bg-red-50" : ""                        }`}
                     >
                         {explorerDragOver && (
                             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                                <p className="text-xs font-medium text-red-600">
-                                    Drop to upload
+                                <p className="text-xs font-medium text-red-600">                                    Drop to upload
                                 </p>
                             </div>
                         )}
@@ -712,14 +667,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 type="button"
                                 onClick={() => setExplorerCollapsed(false)}
                                 title="Expand explorer"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                            >
+                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"                            >
                                 <ChevronRight className="h-3.5 w-3.5" />
                             </button>
                         </div>
                     </div>
                 )}
-
                 <div
                     className="relative min-w-0 flex-1"
                     onDragOver={(event) => event.preventDefault()}
@@ -767,7 +720,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     ) : null}
                 </div>
             </div>
-
             <OwnerOnlyPopup
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}

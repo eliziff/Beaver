@@ -1,5 +1,4 @@
 import { LegalLibraryDocumentPage } from "@/app/components/legal/LegalLibrary";
-
 export default async function LegalSourcePage({
     params,
 }: {

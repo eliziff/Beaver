@@ -1,29 +1,23 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLibrary, listProjects } from "@/app/lib/beaverApi";
 import type { Document, LibraryFolder, Project } from "./types";
-
 export type DirectoryTab = "files" | "templates" | "projects";
-
 const EMPTY_LOADING: Record<DirectoryTab, boolean> = {
     files: false,
     templates: false,
     projects: false,
 };
-
 const EMPTY_LOADED: Record<DirectoryTab, boolean> = {
     files: false,
     templates: false,
     projects: false,
 };
-
 function sortDocuments(docs: Document[]) {
     return [...docs].sort((a, b) =>
         (b.created_at ?? "").localeCompare(a.created_at ?? ""),
     );
 }
-
 async function loadFiles() {
     const files = await getLibrary("files");
     return {
@@ -31,7 +25,6 @@ async function loadFiles() {
         folders: files.folders,
     };
 }
-
 async function loadTemplates() {
     const templates = await getLibrary("templates");
     return {
@@ -39,11 +32,7 @@ async function loadTemplates() {
         folders: templates.folders,
     };
 }
-
 async function loadProjects() {
-    // One batched request. Fanning out getProject(id) per project caused an
-    // N+1 burst on every directory-modal open that could overwhelm the
-    // Supabase gateway once an account had accumulated projects.
     const projects = await listProjects({ includeDocuments: true });
     return projects.map((project) => ({
         ...project,
@@ -51,7 +40,6 @@ async function loadProjects() {
             project.documents?.length ?? project.document_count ?? 0,
     }));
 }
-
 export function useDirectoryData(
     enabled: boolean,
     initialTab: DirectoryTab = "files",
@@ -72,7 +60,6 @@ export function useDirectoryData(
     const settledTabsRef = useRef<Record<DirectoryTab, boolean>>({
         ...EMPTY_LOADED,
     });
-
     const loadTab = useCallback(
         async (tab: DirectoryTab) => {
             if (
@@ -82,7 +69,6 @@ export function useDirectoryData(
             ) {
                 return;
             }
-
             loadingTabsRef.current = {
                 ...loadingTabsRef.current,
                 [tab]: true,
@@ -128,7 +114,6 @@ export function useDirectoryData(
         },
         [enabled],
     );
-
     useEffect(() => {
         if (!enabled) return;
         let cancelled = false;
@@ -136,12 +121,10 @@ export function useDirectoryData(
             if (cancelled) return;
             void loadTab(initialTab);
         });
-
         return () => {
             cancelled = true;
         };
     }, [enabled, initialTab, loadTab]);
-
     const resolvedLoadingTabs = {
         ...loadingTabs,
         [initialTab]:
@@ -149,7 +132,6 @@ export function useDirectoryData(
                 ? true
                 : loadingTabs[initialTab],
     };
-
     return {
         loading: resolvedLoadingTabs[initialTab],
         loadingTabs: resolvedLoadingTabs,

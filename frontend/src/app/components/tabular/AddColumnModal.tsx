@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
@@ -12,7 +11,6 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { ModalTextInput } from "../modals/ModalTextInput";
-
 interface ColumnDraft {
     name: string;
     prompt: string;
@@ -20,7 +18,6 @@ interface ColumnDraft {
     tags: string[];
     tagInput: string;
 }
-
 const EMPTY_DRAFT: ColumnDraft = {
     name: "",
     prompt: "",
@@ -28,12 +25,10 @@ const EMPTY_DRAFT: ColumnDraft = {
     tags: [],
     tagInput: "",
 };
-
 const PRESET_OPTIONS = [
     { value: "", label: "Custom column" },
     ...PROMPT_PRESETS.map(({ name }) => ({ value: name, label: name })),
 ];
-
 interface Props {
     open: boolean;
     existingCount: number;
@@ -43,7 +38,6 @@ interface Props {
     onSave?: (col: ColumnConfig) => void | Promise<void>;
     onDelete?: () => void | Promise<void>;
 }
-
 export function AddColumnModal({
     open,
     existingCount,
@@ -59,7 +53,6 @@ export function AddColumnModal({
     const [collapsedIndices, setCollapsedIndices] = useState<number[]>([]);
     const [generatingIndices, setGeneratingIndices] = useState<number[]>([]);
     const [submitting, setSubmitting] = useState(false);
-
     useEffect(() => {
         if (!open) return;
         if (editingColumn) {
@@ -75,26 +68,21 @@ export function AddColumnModal({
         }
         setCollapsedIndices([]);
     }, [editingColumn, open]);
-
     if (!open) return null;
-
     function resetForm() {
         setColumns([{ ...EMPTY_DRAFT }]);
         setCollapsedIndices([]);
         setGeneratingIndices([]);
     }
-
     function handleClose() {
         resetForm();
         onClose();
     }
-
     function updateColumn(index: number, patch: Partial<ColumnDraft>) {
         setColumns((prev) =>
             prev.map((col, i) => (i === index ? { ...col, ...patch } : col)),
         );
     }
-
     function applyPreset(index: number, name: string) {
         const preset = PROMPT_PRESETS.find((item) => item.name === name);
         updateColumn(
@@ -110,11 +98,9 @@ export function AddColumnModal({
                 : { ...EMPTY_DRAFT },
         );
     }
-
     function addAnotherColumn() {
         setColumns((prev) => [...prev, { ...EMPTY_DRAFT }]);
     }
-
     function removeColumn(index: number) {
         setColumns((prev) =>
             prev.length === 1
@@ -131,7 +117,6 @@ export function AddColumnModal({
                 ),
         );
     }
-
     function toggleColumnCollapsed(index: number) {
         setCollapsedIndices((prev) =>
             prev.includes(index)
@@ -139,7 +124,6 @@ export function AddColumnModal({
                 : [...prev, index],
         );
     }
-
     function commitTag(index: number) {
         setColumns((prev) => {
             const col = prev[index]!;
@@ -156,7 +140,6 @@ export function AddColumnModal({
             );
         });
     }
-
     function handleTagKeyDown(
         e: React.KeyboardEvent<HTMLInputElement>,
         index: number,
@@ -174,7 +157,6 @@ export function AddColumnModal({
             });
         }
     }
-
     async function autoGeneratePrompt(index: number) {
         const title = columns[index]?.name?.trim() ?? "";
         if (!title) return;
@@ -190,7 +172,6 @@ export function AddColumnModal({
             setGeneratingIndices((prev) => prev.filter((v) => v !== index));
         }
     }
-
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (columns.some((col) => !col.name.trim() || !col.prompt.trim()))
@@ -223,7 +204,6 @@ export function AddColumnModal({
             setSubmitting(false);
         }
     }
-
     async function handleDelete() {
         if (!onDelete) return;
         setSubmitting(true);
@@ -235,7 +215,6 @@ export function AddColumnModal({
             setSubmitting(false);
         }
     }
-
     return (
         <Modal
             open={open}
@@ -298,7 +277,6 @@ export function AddColumnModal({
                                     )
                                         ? column.name
                                         : "";
-
                                     return (
                                         <>
                                             <div className="mb-4 flex items-center justify-between gap-3">
@@ -380,7 +358,6 @@ export function AddColumnModal({
                                                 className="flex-1"
                                                 autoFocus={index === 0}
                                             />
-
                                 <div className="mt-4">
                                     <ModalFieldLabel htmlFor={formatInputId}>
                                         Format
@@ -401,7 +378,6 @@ export function AddColumnModal({
                                         }
                                     />
                                 </div>
-
                                 {/* Tag input */}
                                 {column.format === "tag" && (
                                     <div className="mt-3">
@@ -459,7 +435,6 @@ export function AddColumnModal({
                                         </p>
                                     </div>
                                 )}
-
                                 {/* Prompt */}
                                 <div className="mt-4 flex items-center justify-between">
                                     <ModalFieldLabel
@@ -506,7 +481,6 @@ export function AddColumnModal({
                                 })()}
                             </div>
                         ))}
-
                         {!isEditing && (
                             <button
                                 type="button"

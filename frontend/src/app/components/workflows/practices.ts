@@ -19,5 +19,4 @@ export const PRACTICE_OPTIONS = [
     "Arbitration",
     "Other",
 ] as const;
-
 export type Practice = (typeof PRACTICE_OPTIONS)[number];

@@ -1,17 +1,13 @@
 "use client";
-
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { apiFetch } from "@/app/lib/beaverApi";import { PillButton } from "@/app/components/ui/pill-button";
 import { applyOptimisticResolution } from "./EditCard";
 import type { EditAnnotation } from "../shared/types";
-
 type ResolveArgs = {
     editId: string;
     documentId: string;
     verb: "accept" | "reject";
 };
-
 type ResolvedArgs = {
     editId: string;
     documentId: string;
@@ -19,14 +15,12 @@ type ResolvedArgs = {
     versionId: string | null;
     downloadUrl: string | null;
 };
-
 type ErrorArgs = {
     editId: string;
     documentId: string;
     versionId: string | null;
     message: string;
 };
-
 export function TrackedChangeHeader({
     edit,
     isEditReloading,
@@ -52,7 +46,6 @@ export function TrackedChangeHeader({
         </div>
     );
 }
-
 function EditResolveButtons({
     edit,
     isReloading,
@@ -70,14 +63,11 @@ function EditResolveButtons({
     const [status, setStatus] = useState<"pending" | "accepted" | "rejected">(
         edit.status,
     );
-
     useEffect(() => {
         if (busy) return;
         setStatus(edit.status);
     }, [edit.status, edit.edit_id, busy]);
-
     const resolved = status !== "pending";
-
     const handle = useCallback(
         async (verb: "accept" | "reject") => {
             if (busy || resolved) return;
@@ -97,11 +87,7 @@ function EditResolveButtons({
                 );
             }
             try {
-                const resp = await apiFetch(
-                    `/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,
-                    { method: "POST" },
-                );
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const resp = await apiFetch(                    `/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,                    { method: "POST" },                );                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = (await resp.json()) as {
                     ok: boolean;
                     status?: "accepted" | "rejected";
@@ -144,7 +130,6 @@ function EditResolveButtons({
         },
         [busy, resolved, edit, onResolveStart, onResolved, onError],
     );
-
     const inFlight = busy || !!isReloading;
     return (
         <div className="flex items-center gap-2">

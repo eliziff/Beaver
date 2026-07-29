@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import {
     ChevronRight,
@@ -16,7 +15,6 @@ import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import {
     FolderSvgIcon,
 } from "@/app/components/shared/FolderSvgIcon";
-
 interface Props {
     documents: Document[];
     folders?: ProjectFolder[];
@@ -30,15 +28,12 @@ interface Props {
     onMoveDoc?: (docId: string, targetFolderId: string | null) => Promise<void>;
     onMoveFolder?: (folderId: string, targetFolderId: string | null) => Promise<void>;
 }
-
-type ContextMenuState = {
-    x: number;
+type ContextMenuState = {    x: number;
     y: number;
     parentId: string | null;      // folder to create inside (null = root)
     folderId?: string;             // set if right-clicked on a specific folder
     docId?: string;                // set if right-clicked on a specific document
 };
-
 export function ProjectExplorer({
     documents,
     folders = [],
@@ -71,8 +66,6 @@ export function ProjectExplorer({
     >(null);
     const newFolderInputRef = useRef<HTMLInputElement>(null);
     const contextMenuRef = useRef<HTMLDivElement>(null);
-
-    // Close context menu on outside click
     useEffect(() => {
         if (!contextMenu) return;
         function handle(e: MouseEvent) {
@@ -83,8 +76,6 @@ export function ProjectExplorer({
         document.addEventListener("mousedown", handle);
         return () => document.removeEventListener("mousedown", handle);
     }, [contextMenu]);
-
-    // Clear all drag state when drag ends
     useEffect(() => {
         function handleDragEnd() {
             setDragOverFolderId(null);
@@ -93,7 +84,6 @@ export function ProjectExplorer({
         document.addEventListener("dragend", handleDragEnd);
         return () => document.removeEventListener("dragend", handleDragEnd);
     }, []);
-
     function toggleFolder(id: string) {
         setExpandedIds((prev) => {
             const next = new Set(prev);
@@ -105,13 +95,8 @@ export function ProjectExplorer({
             return next;
         });
     }
-
     async function commitNewFolder(parentId: string | null) {
         const name = newFolderName.trim();
-        // Empty name → leave the input in place. Users dismiss with Escape.
-        // This guards against a React StrictMode race where the simulated
-        // unmount fires a blur that would otherwise immediately collapse
-        // the freshly-mounted input.
         if (!name) return;
         setCreatingIn(undefined);
         setNewFolderName("");
@@ -119,14 +104,12 @@ export function ProjectExplorer({
         await onCreateFolder(parentId, name);
         if (parentId) setExpandedIds((prev) => new Set([...prev, parentId]));
     }
-
     async function commitRename(folderId: string) {
         const name = renameValue.trim();
         setRenamingId(null);
         if (!name || !onRenameFolder) return;
         await onRenameFolder(folderId, name);
     }
-
     async function confirmDocumentRemoval() {
         if (
             !pendingDocumentId ||
@@ -153,7 +136,6 @@ export function ProjectExplorer({
             );
         }
     }
-
     function openContextMenu(
         e: React.MouseEvent,
         parentId: string | null,
@@ -164,7 +146,6 @@ export function ProjectExplorer({
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, parentId, folderId, docId });
     }
-
     function wouldCreateCycle(movingId: string, targetId: string): boolean {
         let cur: ProjectFolder | undefined = folders.find((f) => f.id === targetId);
         while (cur) {
@@ -174,11 +155,9 @@ export function ProjectExplorer({
         }
         return false;
     }
-
     async function handleDropOnTarget(targetFolderId: string | null, e: React.DragEvent) {
         const docId = e.dataTransfer.getData("application/mike-doc");
         const movingFolderId = e.dataTransfer.getData("application/mike-folder");
-
         if (docId && onMoveDoc) {
             const doc = documents.find((d) => d.id === docId);
             if (!doc || (doc.folder_id ?? null) === targetFolderId) return;
@@ -190,21 +169,18 @@ export function ProjectExplorer({
             await onMoveFolder(movingFolderId, targetFolderId);
         }
     }
-
     function isInternalDrag(e: React.DragEvent): boolean {
         return (
             Array.from(e.dataTransfer.types).includes("application/mike-doc") ||
             Array.from(e.dataTransfer.types).includes("application/mike-folder")
         );
     }
-
     function renderLevel(parentId: string | null, depth: number): React.ReactNode {
         const basePadding = 24 + (depth - 1) * 16;
         const childFolders = folders
             .filter((f) => f.parent_folder_id === parentId)
             .sort((a, b) => a.name.localeCompare(b.name));
         const childDocs = documents.filter((d) => (d.folder_id ?? null) === parentId);
-
         return (
             <>
                 {/* Inline new-folder input */}
@@ -230,7 +206,6 @@ export function ProjectExplorer({
                         />
                     </li>
                 )}
-
                 {/* Child folders */}
                 {childFolders.map((folder) => {
                     const isExpanded = expandedIds.has(folder.id);
@@ -266,8 +241,7 @@ export function ProjectExplorer({
                                 }}
                                 className={`flex items-center gap-1.5 py-1.5 pr-2 rounded-sm cursor-pointer select-none group ${
                                     isDragTarget
-                                        ? "bg-red-50 ring-1 ring-inset ring-red-200"
-                                        : "hover:bg-gray-50"
+                                        ? "bg-red-50 ring-1 ring-inset ring-red-200"                                        : "hover:bg-gray-50"
                                 }`}
                                 style={{ paddingLeft: basePadding }}
                                 onClick={() => toggleFolder(folder.id)}
@@ -306,7 +280,6 @@ export function ProjectExplorer({
                         </li>
                     );
                 })}
-
                 {/* Child documents */}
                 {childDocs.map((doc) => {
                     const isSelected = doc.id === selectedDocId;
@@ -333,38 +306,23 @@ export function ProjectExplorer({
                             }`}
                             style={{ paddingLeft: basePadding }}
                         >
-                            <FileTypeIcon
-                                fileType={doc.file_type}
-                                className="h-3.5 w-3.5"
-                            />
-                            <span className="text-xs truncate">
+                            <FileTypeIcon                                fileType={doc.file_type}                                className="h-3.5 w-3.5"                            />                            <span className="text-xs truncate">
                                 {doc.filename}
                             </span>
-                            {typeof doc.active_version_number === "number" &&
-                                Number.isFinite(doc.active_version_number) &&
-                                doc.active_version_number >= 1 && (
-                                    <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1 py-0.5 text-[10px] font-medium text-gray-500">
-                                        V{doc.active_version_number}
-                                    </span>
-                                )}
-                        </li>
+                            {typeof doc.active_version_number === "number" &&                                Number.isFinite(doc.active_version_number) &&                                doc.active_version_number >= 1 && (                                    <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1 py-0.5 text-[10px] font-medium text-gray-500">                                        V{doc.active_version_number}                                    </span>                                )}                        </li>
                     );
                 })}
             </>
         );
     }
-
     const pendingDocument = documents.find(
         (document) => document.id === pendingDocumentId,
     );
     const detachesDocument = documentRemovalMode === "detach";
-
     return (
         <>
         <ul
-            className={`p-1 relative h-full ${dragOverRoot && dragOverFolderId === null ? "ring-2 ring-red-400 ring-inset" : ""}`}
-            onContextMenu={(e) => {
-                // Only fires if not stopped by a child
+            className={`p-1 relative h-full ${dragOverRoot && dragOverFolderId === null ? "ring-2 ring-red-400 ring-inset" : ""}`}            onContextMenu={(e) => {
                 openContextMenu(e, null);
             }}
             onDragOver={(e) => {
@@ -384,19 +342,16 @@ export function ProjectExplorer({
                     setDragOverFolderId(null);
                     await handleDropOnTarget(null, e);
                 }
-                // External file drops bubble up to the parent panel's onDrop (upload handler)
             }}
         >
             {/* Tree (depth 1 = direct children of root).
                 Root-level new-folder input is rendered here by renderLevel
                 when creatingIn === null — no separate top-level block. */}
             {renderLevel(null, 1)}
-
             {/* Empty state */}
             {documents.length === 0 && folders.length === 0 && creatingIn === undefined && (
                 <li className="px-4 py-2 text-xs text-gray-400">No documents in this project.</li>
             )}
-
             {/* Context menu */}
             {contextMenu && (
                 <div

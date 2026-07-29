@@ -4,12 +4,10 @@ export async function* readSseData(
     const reader = stream.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-
     while (true) {
         const { done, value } = await reader.read();
         buffer += decoder.decode(value, { stream: !done });
         if (done) buffer += "\n\n";
-
         const records = buffer.split(/\r?\n\r?\n/);
         buffer = records.pop() ?? "";
         for (const record of records) {
@@ -23,7 +21,6 @@ export async function* readSseData(
             yield data;
             if (data === "[DONE]") return;
         }
-
         if (done) return;
     }
 }

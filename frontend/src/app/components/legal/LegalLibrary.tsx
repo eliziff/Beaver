@@ -1,5 +1,4 @@
 "use client";
-
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,7 +29,6 @@ import {
 import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import { LegalSourceViewer } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-
 function sourceKindLabel(docType: LegalDocumentType) {
     return docType === "laws"
         ? "Legislation"
@@ -38,7 +36,6 @@ function sourceKindLabel(docType: LegalDocumentType) {
           ? "Journal article"
           : "Decision";
 }
-
 function directSourceHref(result: LegalSourceSearchResult) {
     const query = new URLSearchParams({
         provider: result.provider,
@@ -50,7 +47,6 @@ function directSourceHref(result: LegalSourceSearchResult) {
     if (result.source_id) query.set("source_id", result.source_id);
     return `/library/legal/view?${query}`;
 }
-
 export function LegalLibraryPage() {
     const router = useRouter();
     const [references, setReferences] = useState<LegalSourceReference[]>([]);
@@ -70,13 +66,11 @@ export function LegalLibraryPage() {
     const [searching, setSearching] = useState(false);
     const [savingCitation, setSavingCitation] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
         for (const tab of LIBRARY_TABS) {
             router.prefetch(libraryRoute(tab.id));
         }
     }, [router]);
-
     useEffect(() => {
         let cancelled = false;
         listLegalLibrary()
@@ -99,7 +93,6 @@ export function LegalLibraryPage() {
             cancelled = true;
         };
     }, []);
-
     useEffect(() => {
         let cancelled = false;
         getLegalSourceCoverage()
@@ -107,13 +100,11 @@ export function LegalLibraryPage() {
                 if (!cancelled) setCoverage(loaded);
             })
             .catch(() => {
-                // Search still works without facets when the provider is offline.
             });
         return () => {
             cancelled = true;
         };
     }, []);
-
     const typeCoverage = coverage.filter((item) => item.docType === docType);
     const jurisdictions = [
         ...new Map(
@@ -131,7 +122,6 @@ export function LegalLibraryPage() {
     const selectedDatasets = dataset
         ? [dataset]
         : availableSources.map((item) => item.dataset);
-
     async function runSearch(event: FormEvent) {
         event.preventDefault();
         if (!query.trim()) return;
@@ -157,7 +147,6 @@ export function LegalLibraryPage() {
             setSearching(false);
         }
     }
-
     async function saveResult(result: LegalSourceSearchResult) {
         setSavingCitation(result.citation);
         setError(null);
@@ -183,7 +172,6 @@ export function LegalLibraryPage() {
             setSavingCitation(null);
         }
     }
-
     async function remove(reference: LegalSourceReference) {
         try {
             await deleteLegalSource(reference.id);
@@ -198,7 +186,6 @@ export function LegalLibraryPage() {
             );
         }
     }
-
     return (
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
@@ -212,7 +199,6 @@ export function LegalLibraryPage() {
                 active="legal"
                 onChange={(tab) => router.push(libraryRoute(tab))}
             />
-
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                 <div className="mx-auto max-w-5xl space-y-6">
                     <form
@@ -406,13 +392,11 @@ export function LegalLibraryPage() {
                             </div>
                         ) : null}
                     </form>
-
                     {error ? (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
                         </p>
                     ) : null}
-
                     {results.length > 0 ? (
                         <section>
                             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -515,7 +499,6 @@ export function LegalLibraryPage() {
                             </div>
                         </section>
                     ) : null}
-
                     <section>
                         <div className="mb-2 flex items-center justify-between">
                             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -594,7 +577,6 @@ export function LegalLibraryPage() {
         </div>
     );
 }
-
 export function LegalLibraryDocumentPage({
     referenceId,
 }: {
@@ -642,7 +624,6 @@ export function LegalLibraryDocumentPage({
         </div>
     );
 }
-
 export function LegalLibraryDirectDocumentPage({
     provider,
     citation,

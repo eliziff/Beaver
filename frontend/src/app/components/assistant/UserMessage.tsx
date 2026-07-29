@@ -1,18 +1,14 @@
 "use client";
-
 import { Library } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { GfmMarkdown } from "./message/MarkdownContent";
-
 interface Props {
     content: string;
     files?: { filename: string; document_id?: string }[];
     workflow?: { id: string; title: string };
 }
-
 export function UserMessage({ content, files, workflow }: Props) {
     const hasFiles = files && files.length > 0;
-
     return (
         <div className="flex w-full justify-end">
             <div

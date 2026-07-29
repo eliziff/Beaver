@@ -1,12 +1,10 @@
 "use client";
-
 import { MoreHorizontal } from "lucide-react";
 import {
     NativeActionSelect,
     type NativeAction,
 } from "@/app/components/ui/native-action-select";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
-
 interface Props {
     onDelete?: () => void;
     onHide?: () => void;
@@ -23,7 +21,6 @@ interface Props {
     renameLabel?: string;
     deleteLabel?: string;
 }
-
 export function RowActions({
     onDelete,
     onHide,
@@ -48,7 +45,6 @@ export function RowActions({
     ) => {
         if (onSelect) items.push({ label, onSelect, disabled });
     };
-
     add(newSubfolderLabel, onNewSubfolder);
     add(renameLabel, onRename);
     add("Edit details", onEditDetails);
@@ -58,7 +54,6 @@ export function RowActions({
     add("Activate", onUnhide);
     add("Deactivate", onHide);
     add(deleteLabel, onDelete, deleting || deleteDisabled);
-
     return (
         <NativeActionSelect
             label="More actions"

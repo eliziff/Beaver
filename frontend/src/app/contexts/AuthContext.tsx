@@ -1,5 +1,4 @@
 "use client";
-
 import {
     createContext,
     useContext,
@@ -9,13 +8,11 @@ import {
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { isAnonymousMode } from "@/app/lib/authMode";
-
 interface User {
     id: string;
     email: string;
     pendingEmail?: string | null;
 }
-
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
@@ -23,13 +20,11 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     updateEmail: (email: string) => Promise<User>;
 }
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const ANONYMOUS_USER: User = {
     id: "00000000-0000-0000-0000-000000000001",
     email: "anonymous@localhost",
 };
-
 function toUser(user: SupabaseUser): User {
     return {
         id: user.id,
@@ -37,23 +32,18 @@ function toUser(user: SupabaseUser): User {
         pendingEmail: user.new_email ?? null,
     };
 }
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(
         isAnonymousMode ? ANONYMOUS_USER : null,
     );
     const [authLoading, setAuthLoading] = useState(!isAnonymousMode);
-
     useEffect(() => {
         if (isAnonymousMode) return;
-
         let cancelled = false;
         let unsubscribe: (() => void) | undefined;
-
         async function startCloudAuth() {
             const { supabase } = await import("@/app/lib/supabase");
             if (cancelled) return;
-
             const {
                 data: { subscription },
             } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -63,24 +53,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
             unsubscribe = () => subscription.unsubscribe();
         }
-
         void startCloudAuth().catch(() => {
             if (!cancelled) setAuthLoading(false);
         });
-
         return () => {
             cancelled = true;
             unsubscribe?.();
         };
     }, []);
-
     const signOut = async () => {
         if (isAnonymousMode) return;
         const { supabase } = await import("@/app/lib/supabase");
         await supabase.auth.signOut({ scope: "local" });
         setUser(null);
     };
-
     const updateEmail = async (email: string) => {
         if (isAnonymousMode) {
             throw new Error("Accounts are disabled in anonymous mode");
@@ -94,15 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             { email },
             redirectTo ? { emailRedirectTo: redirectTo } : undefined,
         );
-
         if (error) throw error;
         if (!data.user) throw new Error("Unable to update email");
-
         const nextUser = toUser(data.user);
         setUser(nextUser);
         return nextUser;
     };
-
     return (
         <AuthContext.Provider
             value={{
@@ -117,7 +100,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         </AuthContext.Provider>
     );
 }
-
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {

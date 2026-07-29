@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-
 export default function NotFound() {
     return (
         <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -12,7 +11,6 @@ export default function NotFound() {
                     The page you&apos;re looking for doesn&apos;t exist or may
                     have been moved.
                 </p>
-
                 <Link
                     href="/"
                     className={pillButtonClassName("black", "normal")}

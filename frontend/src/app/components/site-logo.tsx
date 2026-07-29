@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
-
 interface SiteLogoProps {
     size?: "sm" | "md" | "lg" | "xl";
     className?: string;
     iconClassName?: string;
     asLink?: boolean;
 }
-
 export function SiteLogo({
     size = "md",
     className = "",
@@ -24,14 +22,12 @@ export function SiteLogo({
         lg: "text-4xl",
         xl: "text-6xl",
     };
-
     const iconSizes = {
         sm: 20,
         md: 22,
         lg: 30,
         xl: 48,
     };
-
     const logo = (
         <h1
             className={`flex items-center gap-1.5 ${sizeClasses[size]} font-light font-serif ${className}`}
@@ -44,7 +40,6 @@ export function SiteLogo({
             <span>Beaver</span>
         </h1>
     );
-
     if (asLink) {
         return (
             <Link
@@ -55,6 +50,5 @@ export function SiteLogo({
             </Link>
         );
     }
-
     return logo;
 }

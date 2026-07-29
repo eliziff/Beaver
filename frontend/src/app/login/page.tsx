@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
@@ -8,7 +7,6 @@ import { Input } from "@/app/components/ui/input";
 import Link from "next/link";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
-
 const authGlassCardClassName =
     "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm";
 const authInputClassName =
@@ -19,7 +17,6 @@ const authToggleActiveClassName =
     "inline-flex h-6 items-center rounded-full border border-gray-200 bg-white px-3 text-gray-900";
 const authToggleInactiveClassName =
     "inline-flex h-6 items-center rounded-full border border-transparent px-3 text-gray-500 hover:bg-white/38 hover:text-gray-900";
-
 export default function LoginPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
@@ -27,26 +24,21 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
         if (!authLoading && isAuthenticated) {
             router.replace("/assistant");
         }
     }, [authLoading, isAuthenticated, router]);
-
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
-
         try {
             const { error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
-
             if (error) throw error;
-
             router.push("/assistant");
         } catch (error: unknown) {
             setError(
@@ -58,7 +50,6 @@ export default function LoginPage() {
             setLoading(false);
         }
     };
-
     return (
         <div className="min-h-dvh bg-gray-50/80 flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
@@ -101,7 +92,6 @@ export default function LoginPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         <div>
                             <label
                                 htmlFor="password"
@@ -119,13 +109,11 @@ export default function LoginPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         {error && (
                             <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
                                 {error}
                             </div>
                         )}
-
                         <Button
                             type="submit"
                             disabled={loading}

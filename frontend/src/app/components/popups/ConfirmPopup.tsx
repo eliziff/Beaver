@@ -1,11 +1,8 @@
 "use client";
-
 import type { ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
-
 type ConfirmStatus = "idle" | "loading" | "complete";
-
 interface ConfirmPopupProps {
     open: boolean;
     title?: ReactNode;
@@ -17,7 +14,6 @@ interface ConfirmPopupProps {
     onCancel: () => void;
     className?: string;
 }
-
 export function ConfirmPopup({
     open,
     title,
@@ -51,7 +47,6 @@ export function ConfirmPopup({
         ) : (
             confirmLabel
         );
-
     return (
         <Modal
             open={open}
@@ -79,7 +74,6 @@ export function ConfirmPopup({
         </Modal>
     );
 }
-
 function progressiveLabel(label: string) {
     return transformFirstWord(label, (word) =>
         word.toLowerCase().endsWith("e")
@@ -87,13 +81,11 @@ function progressiveLabel(label: string) {
             : `${word}ing…`,
     );
 }
-
 function completedLabel(label: string) {
     return transformFirstWord(label, (word) =>
         word.toLowerCase().endsWith("e") ? `${word}d` : `${word}ed`,
     );
 }
-
 function transformFirstWord(
     label: string,
     transform: (word: string) => string,
