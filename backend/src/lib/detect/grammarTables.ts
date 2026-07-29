@@ -1,15 +1,20 @@
 // Cross-runtime grammar tables: one authored pattern, two runtimes, zero
 // drift. The contract that makes it safe: Python compiles every pattern
-// with re.ASCII and JS compiles WITHOUT the u flag, which pins \d \w \s
-// and \b to identical ASCII semantics on both sides. The validator bans
-// the constructs whose semantics genuinely diverge; everything else is
-// ordinary regex. Named groups are authored JS-style ((?<name>…)); the
-// Python loader translates to (?P<name>…). Lookbehind is allowed because
-// Python only compiles the fixed-width form and the mandatory dual-runtime
-// vector check therefore rejects any table Python cannot hold — the gate
-// is structural, not syntactic. A table may carry `defs`, named pattern
-// fragments spliced in via {{name}} before validation and compilation,
-// mirroring how the source grammars compose rf-strings.
+// with re.ASCII and JS compiles WITHOUT the u flag, which pins \d \w and
+// \b to identical ASCII semantics on both sides. \s is the measured
+// exception — JS \s is Unicode-ish (NBSP yes, FEFF yes) in every mode
+// while Python re.ASCII \s is ASCII-only, and the SOURCE grammars were
+// compiled under Python's Unicode \s (NBSP yes, FS yes, FEFF no) — so
+// both loaders expand \s/\S to that explicit source whitespace class at
+// compile time. The validator bans the constructs whose semantics
+// genuinely diverge; everything else is ordinary regex. Named groups are
+// authored JS-style ((?<name>…)); the Python loader translates to
+// (?P<name>…). Lookbehind is allowed because Python only compiles the
+// fixed-width form and the mandatory dual-runtime vector check therefore
+// rejects any table Python cannot hold — the gate is structural, not
+// syntactic. A table may carry `defs`, named pattern fragments spliced
+// in via {{name}} before validation and compilation, mirroring how the
+// source grammars compose rf-strings.
 
 export interface GrammarVector {
   input: string;
@@ -72,6 +77,56 @@ export function expandGrammarPattern(
 }
 
 /**
+ * The whitespace set Python's Unicode \s matched when the source
+ * grammars were battle-tested: ASCII whitespace + the C1/Unicode spaces
+ * (NBSP, ogham, en/em spaces, line/para separators, narrow no-break,
+ * math space, ideographic) + the \x1c-\x1f separators and \x85. NOT
+ * ﻿ (JS-only). Both loaders expand \s/\S to this class so both
+ * runtimes reproduce the source behavior exactly.
+ */
+const SOURCE_WHITESPACE =
+  " \\t\\n\\r\\f\\v\\x1c-\\x1f\\x85\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+
+/**
+ * Expand \s and \S to the explicit source whitespace class, walking the
+ * pattern so escapes and character-class state are respected. \S inside
+ * a character class cannot be expressed as a class fragment and throws.
+ * Must stay behavior-identical with the Python loader's expansion.
+ */
+export function expandWhitespaceEscapes(source: string): string {
+  let out = "";
+  let inClass = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === "\\" && i + 1 < source.length) {
+      const next = source[i + 1];
+      if (next === "s") {
+        out += inClass ? SOURCE_WHITESPACE : `[${SOURCE_WHITESPACE}]`;
+        i += 1;
+        continue;
+      }
+      if (next === "S") {
+        if (inClass) {
+          throw new Error(
+            "\\S inside a character class cannot be expanded portably",
+          );
+        }
+        out += `[^${SOURCE_WHITESPACE}]`;
+        i += 1;
+        continue;
+      }
+      out += ch + next;
+      i += 1;
+      continue;
+    }
+    if (ch === "[" && !inClass) inClass = true;
+    else if (ch === "]" && inClass) inClass = false;
+    out += ch;
+  }
+  return out;
+}
+
+/**
  * Reject constructs whose behavior differs between Python re (with
  * re.ASCII) and JS RegExp (without u). Returns violation strings; empty
  * means the pattern is inside the shared dialect. Lookbehind passes here
@@ -125,12 +180,15 @@ export function validateGrammarEntry(
   return violations;
 }
 
-/** Compile for JS: defs expanded, global added for iteration, never u. */
+/** Compile for JS: defs and \s expanded, global added, never u. */
 export function compileGrammarEntry(
   entry: GrammarEntry,
   defs: Record<string, string> = {},
 ): RegExp {
-  return new RegExp(expandGrammarPattern(entry.pattern, defs), `${entry.flags}g`);
+  return new RegExp(
+    expandWhitespaceEscapes(expandGrammarPattern(entry.pattern, defs)),
+    `${entry.flags}g`,
+  );
 }
 
 export function canonicalizeGroups(

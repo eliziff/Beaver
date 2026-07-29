@@ -16,6 +16,7 @@ import {
   canonicalizeGroups,
   compileGrammarEntry,
   expandGrammarPattern,
+  expandWhitespaceEscapes,
   runGrammarVectors,
   validateGrammarEntry,
   validateGrammarPattern,
@@ -111,6 +112,39 @@ describe("defs expansion", () => {
     expect(validateGrammarEntry(entry, { num: "(?i)\\d+" })).not.toHaveLength(
       0,
     );
+  });
+});
+
+describe("whitespace expansion reproduces the source's Unicode \\s", () => {
+  const entry = {
+    id: "t.ws",
+    pattern: "a\\s+b",
+    flags: "",
+    canonical: {},
+    vectors: [],
+  };
+
+  it("matches NBSP and the \\x1c separators, refuses U+FEFF", () => {
+    const re = compileGrammarEntry(entry);
+    const test = (input: string) => {
+      re.lastIndex = 0; // compiled global for iteration; .test is stateful
+      return re.test(input);
+    };
+    expect(test("a b")).toBe(true);
+    expect(test("a b")).toBe(true);
+    expect(test("ab")).toBe(true);
+    expect(test("a﻿b")).toBe(false);
+  });
+
+  it("expands inside character classes without brackets", () => {
+    const expanded = expandWhitespaceEscapes("\\d[\\d\\s,-]*");
+    expect(expanded.startsWith("\\d[\\d \\t")).toBe(true);
+    const re = new RegExp(expanded, "g");
+    expect("12, 34".match(re)?.[0]).toBe("12, 34");
+  });
+
+  it("refuses \\S inside a character class", () => {
+    expect(() => expandWhitespaceEscapes("[\\S]")).toThrow(/character class/);
   });
 });
 

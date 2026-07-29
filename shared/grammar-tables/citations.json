@@ -32,7 +32,11 @@
           "groups": { "year": "1875", "court": "SCC", "num": "4" }
         },
         { "input": "2019SCC65 run together", "groups": null },
-        { "input": "Guttman v Law Society of Manitoba, 2010 MBCA 66 at para 75", "groups": { "year": "2010", "court": "MBCA", "num": "66" } }
+        { "input": "Guttman v Law Society of Manitoba, 2010 MBCA 66 at para 75", "groups": { "year": "2010", "court": "MBCA", "num": "66" } },
+        {
+          "input": "See R v LVR, 2014 BCCA 349 at paras 24-26 (NBSP-separated, as CanLII renders).",
+          "groups": { "year": "2014", "court": "BCCA", "num": "349" }
+        }
       ]
     },
     {
