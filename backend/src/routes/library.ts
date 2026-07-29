@@ -17,6 +17,7 @@ import {
 } from "../lib/normalize";
 
 export const libraryRouter = Router();
+libraryRouter.use(requireAuth);
 
 function mapLibraryDocument<T extends Record<string, unknown>>(doc: T) {
   return {
@@ -81,7 +82,7 @@ async function deleteLibraryDocumentsAndVersionFiles(
   return error ?? null;
 }
 
-libraryRouter.get("/:kind", requireAuth, async (req, res) => {
+libraryRouter.get("/:kind", async (req, res) => {
   try {
     const userId = res.locals.userId as string;
     const kind = normalizeLibraryKind(req.params.kind);
@@ -130,7 +131,6 @@ libraryRouter.get("/:kind", requireAuth, async (req, res) => {
 
 libraryRouter.post(
   "/:kind/documents",
-  requireAuth,
   singleFileUpload("file"),
   async (req, res) => {
     const userId = res.locals.userId as string;
@@ -143,7 +143,7 @@ libraryRouter.post(
   },
 );
 
-libraryRouter.post("/:kind/folders", requireAuth, async (req, res) => {
+libraryRouter.post("/:kind/folders", async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
   if (!kind) return void res.status(404).json({ detail: "Library not found" });
@@ -176,7 +176,7 @@ libraryRouter.post("/:kind/folders", requireAuth, async (req, res) => {
   res.status(201).json(data);
 });
 
-libraryRouter.patch("/:kind/folders/:folderId", requireAuth, async (req, res) => {
+libraryRouter.patch("/:kind/folders/:folderId", async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
   if (!kind) return void res.status(404).json({ detail: "Library not found" });
@@ -227,7 +227,7 @@ libraryRouter.patch("/:kind/folders/:folderId", requireAuth, async (req, res) =>
   res.json(data);
 });
 
-libraryRouter.delete("/:kind/folders/:folderId", requireAuth, async (req, res) => {
+libraryRouter.delete("/:kind/folders/:folderId", async (req, res) => {
   const userId = res.locals.userId as string;
   const kind = normalizeLibraryKind(req.params.kind);
   if (!kind) return void res.status(404).json({ detail: "Library not found" });
@@ -300,7 +300,6 @@ libraryRouter.delete("/:kind/folders/:folderId", requireAuth, async (req, res) =
 
 libraryRouter.patch(
   "/:kind/documents/:documentId/folder",
-  requireAuth,
   async (req, res) => {
     const userId = res.locals.userId as string;
     const kind = normalizeLibraryKind(req.params.kind);
@@ -340,7 +339,6 @@ libraryRouter.patch(
 
 libraryRouter.patch(
   "/:kind/documents/:documentId",
-  requireAuth,
   async (req, res) => {
     const userId = res.locals.userId as string;
     const kind = normalizeLibraryKind(req.params.kind);
