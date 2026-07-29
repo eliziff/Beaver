@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { extractEmailText, parseEmail } from "../emailText";
 
@@ -181,5 +184,55 @@ describe("extractEmailText", () => {
     expect(text).toContain("Subject: Financial notes");
     expect(text).toContain("The down payment was $90,000.");
     expect(text).toContain("Attachments not included in this file: wire.pdf");
+  });
+});
+
+describe("email documents in the library", () => {
+  let home: string | null = null;
+
+  afterEach(async () => {
+    delete process.env.OPEN_LEGAL_DATA_HOME;
+    vi.resetModules();
+    if (home) {
+      await rm(home, { recursive: true, force: true });
+      home = null;
+    }
+  });
+
+  it("uploads .eml and reads it back decoded, end to end", async () => {
+    home = await mkdtemp(path.join(os.tmpdir(), "beaver-eml-"));
+    process.env.OPEN_LEGAL_DATA_HOME = home;
+    vi.resetModules();
+    const store = await import("../localDocumentStore");
+    const { extractLocalDocument } = await import(
+      "../chat/localAssistantTools"
+    );
+
+    const document = await store.createLocalDocument({
+      userId: "00000000-0000-0000-0000-000000000001",
+      kind: "file",
+      filename: "client-note.eml",
+      bytes: Buffer.from(
+        [
+          "From: Rachel <rachel@example.com>",
+          "Date: Mon, 17 Feb 2025 09:43:00 -0000",
+          "Subject: Down payment",
+          'Content-Type: text/plain; charset="utf-8"',
+          "Content-Transfer-Encoding: quoted-printable",
+          "",
+          "My parents gifted us $85,0=",
+          "00 toward the down payment.",
+        ].join("\r\n"),
+        "utf8",
+      ),
+    });
+
+    const extracted = await extractLocalDocument(
+      "00000000-0000-0000-0000-000000000001",
+      document.id,
+    );
+    expect(extracted?.text).toContain("$85,000");
+    expect(extracted?.text).not.toContain("$85,0=");
+    expect(extracted?.text).toContain("Subject: Down payment");
   });
 });
