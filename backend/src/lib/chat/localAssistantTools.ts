@@ -711,7 +711,7 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "Read",
-    "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, only read that part.",
+    "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, only read that part — pass a section handle (shown in Grep results as [handle]) to read just that section.",
     {
       type: "object",
       properties: {
@@ -729,13 +729,18 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
           description:
             "The number of lines to read. Only provide if the file is too large to read at once.",
         },
+        section: {
+          type: "string",
+          description:
+            "Structural section handle (e.g. '3.1', 'sec8.01'). Returns only that section, numbered by document line.",
+        },
       },
       required: ["file_path"],
     },
   ),
   tool(
     "Edit",
-    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context.",
+    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context, or pass section to scope the match to one section.",
     {
       type: "object",
       properties: {
@@ -752,6 +757,11 @@ const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
         replace_all: {
           type: "boolean",
           description: "Replace all occurrences of old_string (default false)",
+        },
+        section: {
+          type: "string",
+          description:
+            "Structural section handle; old_string must be unique within it.",
         },
       },
       required: ["file_path", "old_string", "new_string"],
@@ -864,6 +874,37 @@ async function runCodingShapeCall(
     const lines = document.text.split(/\r?\n/u);
     const offset = clampInt(args.offset, 1, 100_000_000, 1);
     const limit = clampInt(args.limit, 1, 2_000, 2_000);
+    const sectionArg = trimmed(args.section);
+    if (sectionArg) {
+      const skeleton = compileAgreementSkeleton(document.text);
+      const lookup = readSection(skeleton, sectionArg);
+      if (lookup.status !== "found" || !lookup.block) {
+        return result(
+          call,
+          `Section '${sectionArg}' not found (${lookup.status}` +
+            (lookup.matches.length
+              ? `; candidates: ${lookup.matches.join(", ")}`
+              : "") +
+            "). Grep for the wording, or Read without section.",
+        );
+      }
+      const startLine =
+        document.text.slice(0, lookup.block.start).split(/\r?\n/u).length;
+      const blockLines = lookup.block.text.split(/\r?\n/u);
+      const window = blockLines.slice(0, limit);
+      const numbered = window.map((line, i) => {
+        const text =
+          line.length > GREP_LINE_CAP
+            ? `${line.slice(0, GREP_LINE_CAP)}… [line truncated]`
+            : line;
+        return `${String(startLine + i).padStart(6, " ")}\t${text}`;
+      });
+      const more =
+        window.length < blockLines.length
+          ? `\n\n(Section continues. Read with offset=${startLine + window.length} for the rest; the section spans lines ${startLine}-${startLine + blockLines.length - 1}.)`
+          : "";
+      return result(call, numbered.join("\n") + more);
+    }
     const window = lines.slice(offset - 1, offset - 1 + limit);
     if (!window.length) {
       return result(
@@ -900,11 +941,122 @@ async function runCodingShapeCall(
     if (oldString === newString) {
       return result(call, "old_string and new_string must be different");
     }
+    const sectionArg = trimmed(args.section);
     if (args.replace_all === true) {
-      return result(
-        call,
-        "replace_all is not supported for tracked legal edits; call Edit once per occurrence, making each old_string unique with surrounding context.",
+      if (sectionArg) {
+        return result(
+          call,
+          "replace_all with section is not supported yet; run Edit once per occurrence, or replace_all across the whole file.",
+        );
+      }
+      // Global find/replace belongs to the deterministic text-ops engine.
+      const [applied] = await runLocalAssistantTools(
+        userId,
+        [
+          {
+            id: `${call.id}-textops`,
+            name: "library_apply_text_ops",
+            input: {
+              document_id: meta.id,
+              ops: [
+                {
+                  op: "replace_text",
+                  find: oldString,
+                  replace: newString,
+                  scope: { kind: "whole_document" },
+                },
+              ],
+            },
+          },
+        ],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        allowedDocumentIds,
       );
+      try {
+        const payload = JSON.parse(applied.content) as {
+          ok?: boolean;
+          error?: string;
+          change_count?: number;
+          ops?: Array<{ replacements?: number }>;
+        };
+        if (payload.ok) {
+          const count =
+            payload.ops?.[0]?.replacements ?? payload.change_count ?? 0;
+          return result(
+            call,
+            `Updated ${meta.filename}: ${count} replacement(s) applied as tracked changes.`,
+          );
+        }
+        return result(
+          call,
+          `replace_all made no change: ${payload.error ?? applied.content}`,
+        );
+      } catch {
+        return result(call, applied.content);
+      }
+    }
+    // Section scope: uniqueness is required only within the named section;
+    // the surrounding document text becomes the disambiguating context the
+    // revise engine anchors on.
+    let edit: {
+      find: string;
+      replace: string;
+      context_before?: string;
+      context_after?: string;
+    } = { find: oldString, replace: newString };
+    if (sectionArg) {
+      const document = await extractLocalDocument(userId, meta.id);
+      if (!document) {
+        return result(call, `File could not be read: ${requested}`);
+      }
+      const skeleton = compileAgreementSkeleton(document.text);
+      const lookup = readSection(skeleton, sectionArg);
+      if (lookup.status !== "found" || !lookup.block) {
+        return result(
+          call,
+          `Section '${sectionArg}' not found (${lookup.status}` +
+            (lookup.matches.length
+              ? `; candidates: ${lookup.matches.join(", ")}`
+              : "") +
+            ").",
+        );
+      }
+      const occurrences: number[] = [];
+      for (
+        let at = lookup.block.text.indexOf(oldString);
+        at !== -1 && occurrences.length < 4;
+        at = lookup.block.text.indexOf(oldString, at + 1)
+      ) {
+        occurrences.push(at);
+      }
+      if (!occurrences.length) {
+        return result(
+          call,
+          `old_string was not found within section ${lookup.block.label}. Read the section and match its text exactly.`,
+        );
+      }
+      if (occurrences.length > 1) {
+        return result(
+          call,
+          `old_string appears ${occurrences.length} times within section ${lookup.block.label}; enlarge it with surrounding context.`,
+        );
+      }
+      const absolute = lookup.block.start + occurrences[0];
+      edit = {
+        find: oldString,
+        replace: newString,
+        context_before: document.text.slice(
+          Math.max(0, absolute - 60),
+          absolute,
+        ),
+        context_after: document.text.slice(
+          absolute + oldString.length,
+          absolute + oldString.length + 60,
+        ),
+      };
     }
     // Route through the revise handler so version pinning, tracked-change
     // receipts, and document cards behave identically across shapes. The
@@ -918,7 +1070,7 @@ async function runCodingShapeCall(
           input: {
             document_id: meta.id,
             version_id: meta.current_version_id,
-            edits: [{ find: oldString, replace: newString }],
+            edits: [edit],
           },
         },
       ],
@@ -990,6 +1142,32 @@ async function runCodingShapeCall(
       if (re.test(lines[i])) matched.push(i);
     }
     if (!matched.length) continue;
+    // Match lines carry the enclosing section handle so the follow-up is
+    // Read section= rather than offset arithmetic.
+    let sectionOf: ((line: number) => string | null) | null = null;
+    if (mode === "content") {
+      const skeleton = compileAgreementSkeleton(document.text);
+      if (skeleton.nodes.length) {
+        const offsets: number[] = [];
+        let cursor = 0;
+        for (const line of lines) {
+          offsets.push(cursor);
+          const next = document.text.indexOf("\n", cursor + line.length);
+          cursor = next === -1 ? document.text.length : next + 1;
+        }
+        sectionOf = (line) => {
+          const pos = offsets[line] ?? 0;
+          let best: { label: string; span: number } | null = null;
+          for (const node of skeleton.nodes) {
+            if (pos >= node.start && pos < node.end) {
+              const span = node.end - node.start;
+              if (!best || span < best.span) best = { label: node.label, span };
+            }
+          }
+          return best?.label ?? null;
+        };
+      }
+    }
     if (mode === "files_with_matches") {
       rows.push(meta.filename);
       continue;
@@ -1012,7 +1190,10 @@ async function runCodingShapeCall(
         const prefix = numberLines
           ? `${meta.filename}${sep}${i + 1}${sep}`
           : `${meta.filename}${sep}`;
-        rows.push(`${prefix}${lines[i].slice(0, GREP_LINE_CAP)}`);
+        const handle = sep === ":" ? sectionOf?.(i) : null;
+        rows.push(
+          `${prefix}${lines[i].slice(0, GREP_LINE_CAP)}${handle ? `  [${handle}]` : ""}`,
+        );
         lastPrinted = i;
       }
     }
