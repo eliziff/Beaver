@@ -15,7 +15,10 @@ import type {
   Message,
 } from "@/app/components/shared/types";
 import { readSseData } from "@/app/lib/sse";
-import { reduceAssistantStreamEvent } from "@/app/lib/assistantStreamEvents";
+import {
+  isStreamingPlaceholder,
+  reduceAssistantStreamEvent,
+} from "@/app/lib/assistantStreamEvents";
 import {
   readSelectedModel,
   readSelectedReasoningEffort,
@@ -158,8 +161,6 @@ export function useAssistantChat({
       events: snapshot,
     }));
   };
-  const isStreamingPlaceholder = (e: AssistantEvent) =>
-    (e.type === "tool_call_start" || e.type === "thinking") && !!e.isStreaming;
   const cancelStreamingEvents = (events: AssistantEvent[]) =>
     events
       .filter((event) => !isStreamingPlaceholder(event))
