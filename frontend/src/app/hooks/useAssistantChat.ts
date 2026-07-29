@@ -11,7 +11,6 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 import type {
   AssistantEvent,
-  AutomationToolName,
   Citation,
   Message,
 } from "@/app/components/shared/types";
@@ -41,65 +40,6 @@ export type RejectedAssistantTurn = {
 function readableStreamError(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   return "Sorry, something went wrong.";
-}
-const AUTOMATION_TOOLS = new Set<AutomationToolName>([
-  "toa_submit_library_document",
-  "toa_job_status",
-  "library_fix_docx_supras",
-  "library_link_docx_citations",
-]);
-export function parseAutomationRunEvent(
-  data: Record<string, unknown>,
-): Extract<AssistantEvent, { type: "automation_run" }> | null {
-  const tool = data.tool as AutomationToolName;
-  if (!AUTOMATION_TOOLS.has(tool)) return null;
-  const string = (value: unknown) =>
-    typeof value === "string" && value.trim() ? value.trim() : undefined;
-  const counts = Array.isArray(data.counts)
-    ? data.counts.flatMap((item) => {
-        if (!item || typeof item !== "object") return [];
-        const row = item as Record<string, unknown>;
-        const label = string(row.label);
-        return label && typeof row.value === "number"
-          ? [{ label, value: row.value }]
-          : [];
-      })
-    : undefined;
-  const outputs = Array.isArray(data.outputs)
-    ? data.outputs.flatMap((item) => {
-        if (!item || typeof item !== "object") return [];
-        const row = item as Record<string, unknown>;
-        const name = string(row.name);
-        return name
-          ? [{ name, ...(string(row.url) ? { url: string(row.url) } : {}) }]
-          : [];
-      })
-    : undefined;
-  return {
-    type: "automation_run",
-    id: string(data.id) ?? `${tool}:${string(data.job_id) ?? "run"}`,
-    tool,
-    status: string(data.status) ?? "unknown",
-    stage: string(data.stage) ?? "Automation",
-    ...(typeof data.progress === "number"
-      ? { progress: data.progress }
-      : {}),
-    ...(string(data.message) ? { message: string(data.message) } : {}),
-    ...(counts?.length ? { counts } : {}),
-    ...(string(data.error) ? { error: string(data.error) } : {}),
-    ...(outputs?.length ? { outputs } : {}),
-    ...(string(data.app_url) ? { app_url: string(data.app_url) } : {}),
-    ...(string(data.job_id) ? { job_id: string(data.job_id) } : {}),
-    ...(string(data.document_id)
-      ? { document_id: string(data.document_id) }
-      : {}),
-    ...(string(data.version_id)
-      ? { version_id: string(data.version_id) }
-      : {}),
-    ...(typeof data.version_number === "number"
-      ? { version_number: data.version_number }
-      : {}),
-  };
 }
 export function useAssistantChat({
   initialMessages = [],
@@ -640,11 +580,6 @@ export function useAssistantChat({
                 name: (data.name as string) ?? "",
                 isStreaming: true,
               });
-              continue;
-            }
-            if (data.type === "automation_run") {
-              const event = parseAutomationRunEvent(data);
-              if (event) pushEvent(event);
               continue;
             }
             if (data.type === "workflow_applied") {
