@@ -65,17 +65,19 @@ function leaseText(): string {
   return parts.join("\n");
 }
 
-// Each ask has a lean path and a lazy path. (1) can be answered from a find
-// hit or by hauling in the whole lease. (2) is only answerable if the email
-// was decoded. (3) names an anchor that occurs in several clauses, so the
-// first edit attempt should miss and come back with the real disambiguating
-// contexts — the question is whether one round trip fixes it.
+// Phrased the way a client would actually ask, with no hint about which tool
+// to use — naming the tools would prove nothing. Each ask still has a thrifty
+// path and a wasteful one: (1) is answerable from a search hit or by hauling
+// in the whole lease; (2) only works if the email was decoded; (3) targets
+// wording that appears in several clauses, so a first edit attempt should
+// miss and come back with the real surrounding text, and the question is
+// whether one more try fixes it.
 const PROMPT = [
-  "Three quick things. Be brief.",
+  "A few quick questions, short answers are fine.",
   "",
-  "1. In commercial-lease.docx, quote clause 3.1 verbatim and give the monthly instalment.",
-  "2. In the client email, what amount did the client's parents gift toward the down payment?",
-  "3. In the lease, make a tracked edit renaming Rent to Base Rent in clause 3.1 ONLY — leave every other clause alone.",
+  "1. What rent does the lease require, and what is the monthly payment? Quote the clause word for word.",
+  "2. My client's parents gave her money toward the down payment on the house. How much was it?",
+  "3. We are renaming Rent to Base Rent in the lease, but only in the clause that sets out the payment — nowhere else. Please make that change with track changes turned on.",
 ].join("\n");
 
 async function main() {
