@@ -37,6 +37,9 @@ Rules: to act, emit tool_use blocks (one or several); tool input must satisfy th
 // A healthy generation streams partial chunks continuously (we pass
 // --include-partial-messages); silence means a wedged call. Whole-document
 // turns legitimately run 10-30 min, so patience is inactivity-based.
+// Before the FIRST byte, silence usually means server-side rate-limit
+// queueing, not a wedge — allow a much longer time-to-first-byte.
+const FIRST_ACTIVITY_GRACE_MS = 600_000;
 const INACTIVITY_LIMIT_MS = 240_000;
 const HARD_LIMIT_MS = 3_600_000;
 
@@ -97,13 +100,15 @@ function runClaudeP(
     });
     let stdout = "";
     let stderr = "";
+    let sawActivity = false;
     let lastActivity = Date.now();
     const started = Date.now();
     const watchdog = setInterval(() => {
       const now = Date.now();
-      if (now - lastActivity > INACTIVITY_LIMIT_MS) {
+      const limit = sawActivity ? INACTIVITY_LIMIT_MS : FIRST_ACTIVITY_GRACE_MS;
+      if (now - lastActivity > limit) {
         child.kill();
-        reject(new Error(`claude -p silent for ${INACTIVITY_LIMIT_MS / 1000}s — killed`));
+        reject(new Error(`claude -p silent for ${limit / 1000}s — killed`));
       } else if (now - started > HARD_LIMIT_MS) {
         child.kill();
         reject(new Error("claude -p exceeded hard time limit — killed"));
@@ -116,6 +121,7 @@ function runClaudeP(
     abortSignal?.addEventListener("abort", onAbort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString("utf8");
+      sawActivity = true;
       lastActivity = Date.now();
     });
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
@@ -208,6 +214,8 @@ export async function streamClaudeP(
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
       throwIfAborted(params.abortSignal);
+      if (attempt > 0)
+        await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
       const run = await runClaudeP(
         slug,
         payload,
