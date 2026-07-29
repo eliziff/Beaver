@@ -37,9 +37,11 @@ Rules: to act, emit tool_use blocks (one or several); tool input must satisfy th
 // A healthy generation streams partial chunks continuously (we pass
 // --include-partial-messages); silence means a wedged call. Whole-document
 // turns legitimately run 10-30 min, so patience is inactivity-based.
-// Before the FIRST byte, silence usually means server-side rate-limit
-// queueing, not a wedge — allow a much longer time-to-first-byte.
-const FIRST_ACTIVITY_GRACE_MS = 600_000;
+// Liveness counts MODEL stream events only: the CLI prints its init line
+// instantly at spawn, long before prompt/cache processing of a
+// Beaver-sized context finishes (observed >240s to first token) — so the
+// clock is generous until the first model event, tight afterwards.
+const FIRST_MODEL_EVENT_GRACE_MS = 900_000;
 const INACTIVITY_LIMIT_MS = 240_000;
 const HARD_LIMIT_MS = 3_600_000;
 
@@ -105,7 +107,7 @@ function runClaudeP(
     const started = Date.now();
     const watchdog = setInterval(() => {
       const now = Date.now();
-      const limit = sawActivity ? INACTIVITY_LIMIT_MS : FIRST_ACTIVITY_GRACE_MS;
+      const limit = sawActivity ? INACTIVITY_LIMIT_MS : FIRST_MODEL_EVENT_GRACE_MS;
       if (now - lastActivity > limit) {
         child.kill();
         reject(new Error(`claude -p silent for ${limit / 1000}s — killed`));
@@ -120,9 +122,12 @@ function runClaudeP(
     };
     abortSignal?.addEventListener("abort", onAbort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-      sawActivity = true;
-      lastActivity = Date.now();
+      const text = chunk.toString("utf8");
+      stdout += text;
+      if (/"type":\s*"(?:stream_event|assistant|result)"/u.test(text)) {
+        sawActivity = true;
+        lastActivity = Date.now();
+      }
     });
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
     child.on("error", (error) => {
