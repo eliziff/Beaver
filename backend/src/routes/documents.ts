@@ -31,6 +31,7 @@ import {
 import { imageValidationError } from "../lib/llm/images";
 
 export const documentsRouter = Router();
+documentsRouter.use(requireAuth);
 
 type Db = ReturnType<typeof createServerSupabase>;
 type Req = import("express").Request;
@@ -211,7 +212,7 @@ async function deleteDocumentAndVersionFiles(db: Db, documentId: string) {
   return db.from("documents").delete().eq("id", documentId);
 }
 
-documentsRouter.get("/", requireAuth, async (_req, res) => {
+documentsRouter.get("/", async (_req, res) => {
   const userId = res.locals.userId as string;
   const db = createServerSupabase();
   const { data, error } = await db
@@ -232,7 +233,6 @@ documentsRouter.get("/", requireAuth, async (_req, res) => {
 
 documentsRouter.post(
   "/",
-  requireAuth,
   singleFileUpload("file"),
   async (req, res) => {
     const userId = res.locals.userId as string;
@@ -243,7 +243,7 @@ documentsRouter.post(
   },
 );
 
-documentsRouter.delete("/:documentId", requireAuth, async (req, res) => {
+documentsRouter.delete("/:documentId", async (req, res) => {
   const userId = res.locals.userId as string;
   const { documentId } = req.params;
   const db = createServerSupabase();
@@ -261,7 +261,7 @@ documentsRouter.delete("/:documentId", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
+documentsRouter.get("/:documentId/display", async (req, res) => {
   const { documentId } = req.params;
   const db = createServerSupabase();
   if (!(await requireDoc(res, db, documentId))) return;
@@ -313,7 +313,7 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
   res.send(Buffer.from(raw));
 });
 
-documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
+documentsRouter.post("/download-zip", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { document_ids } = req.body as { document_ids?: string[] };
@@ -368,7 +368,7 @@ documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
   res.send(content);
 });
 
-documentsRouter.get("/:documentId/url", requireAuth, async (req, res) => {
+documentsRouter.get("/:documentId/url", async (req, res) => {
   const { documentId } = req.params;
   const db = createServerSupabase();
   if (!(await requireDoc(res, db, documentId))) return;
@@ -392,7 +392,7 @@ documentsRouter.get("/:documentId/url", requireAuth, async (req, res) => {
 });
 
 // Proxy DOCX bytes to avoid browser CORS failures on signed storage URLs.
-documentsRouter.get("/:documentId/docx", requireAuth, async (req, res) => {
+documentsRouter.get("/:documentId/docx", async (req, res) => {
   const { documentId } = req.params;
   const db = createServerSupabase();
   if (!(await requireDoc(res, db, documentId))) return;
@@ -431,7 +431,7 @@ function downloadFilenameForVersion(
   return `${stem} [Edited V${versionNumber}]${ext}`;
 }
 
-documentsRouter.get("/:documentId/versions", requireAuth, async (req, res) => {
+documentsRouter.get("/:documentId/versions", async (req, res) => {
   const { documentId } = req.params;
   const db = createServerSupabase();
   const doc = await requireDoc(res, db, documentId, {
@@ -456,7 +456,6 @@ documentsRouter.get("/:documentId/versions", requireAuth, async (req, res) => {
 // Copy server-side so signed storage URLs never enter the browser fetch path.
 documentsRouter.post(
   "/:documentId/versions/from-document",
-  requireAuth,
   async (req, res) => {
     const userId = res.locals.userId as string;
     const { documentId } = req.params;
@@ -591,7 +590,6 @@ documentsRouter.post(
 
 documentsRouter.post(
   "/:documentId/versions",
-  requireAuth,
   singleFileUpload("file"),
   async (req, res) => {
     const userId = res.locals.userId as string;
@@ -662,7 +660,6 @@ documentsRouter.post(
 
 documentsRouter.patch(
   "/:documentId/versions/:versionId",
-  requireAuth,
   async (req, res) => {
     const { documentId, versionId } = req.params;
     const db = createServerSupabase();
@@ -690,7 +687,6 @@ documentsRouter.patch(
 // Replaces bytes in place; owner-only.
 documentsRouter.put(
   "/:documentId/versions/:versionId/file",
-  requireAuth,
   singleFileUpload("file"),
   async (req, res) => {
     const userId = res.locals.userId as string;
@@ -787,7 +783,6 @@ documentsRouter.put(
 // deleted version is current, the newest remaining version becomes current.
 documentsRouter.delete(
   "/:documentId/versions/:versionId",
-  requireAuth,
   async (req, res) => {
     const userId = res.locals.userId as string;
     const { documentId, versionId } = req.params;
@@ -888,7 +883,6 @@ documentsRouter.delete(
 // docx-preview drops the w:id attribute during parsing.
 documentsRouter.get(
   "/:documentId/tracked-change-ids",
-  requireAuth,
   async (req, res) => {
     const { documentId } = req.params;
     const db = createServerSupabase();
@@ -1018,13 +1012,11 @@ async function handleEditResolution(
 
 documentsRouter.post(
   "/:documentId/edits/:editId/accept",
-  requireAuth,
   (req, res) => void handleEditResolution(req, res, "accept"),
 );
 
 documentsRouter.post(
   "/:documentId/edits/:editId/reject",
-  requireAuth,
   (req, res) => void handleEditResolution(req, res, "reject"),
 );
 
