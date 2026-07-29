@@ -10,6 +10,7 @@ import { draftingLint } from "../legalDraftingLint";
 import { consolidateAmendment } from "../legalAmendOps";
 import { computeDeadline } from "../legalDeadlines";
 import type { DeadlineJurisdiction, DeadlineUnit } from "../legalDeadlines";
+import { conflictScan } from "../legalConflictScan";
 import { anchorCoverage, bilingualConcordance } from "../legalTextAnchors";
 import {
   compileAgreementSkeleton,
@@ -349,7 +350,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_anchor_coverage",
-    "Deterministically diff typed anchors (money, percentages, ratio multiples, full dates, durations, statutory and case citations) between source Library documents and draft deliverables. Canonical value matching: $2.25 million equals $2,250,000 and March 15, 2027 equals 3/15/2027. source_only rows are omission candidates the drafts never state in any form; draft_only rows are grounding candidates no source contains; words-vs-numerals mismatches are drafting defects. Purely mechanical — triage the rows for task relevance before acting on them.",
+    "Diff typed anchors (money, percentages, ratios, dates, durations, areas, citations) between source documents and drafts by canonical value. Reports source-only anchors (candidate omissions), draft-only anchors (candidate unsourced figures), and words-vs-numerals mismatches. Mechanical; triage rows for relevance yourself.",
     {
       type: "object",
       properties: {
@@ -373,6 +374,21 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         },
       },
       required: ["source_document_ids", "draft_document_ids"],
+    },
+  ),
+  tool(
+    "library_conflict_scan",
+    "Check that stated arithmetic closes across documents: parts against wholes and percentages, subtotals against totals, for money and physical quantities at each figure's stated precision. Returns findings with the arithmetic shown and abstentions for figures it could not pair. Read-only; judge materiality yourself.",
+    {
+      type: "object",
+      properties: {
+        document_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Library document_ids to reconcile against each other.",
+        },
+      },
+      required: ["document_ids"],
     },
   ),
   tool(
@@ -1663,13 +1679,19 @@ export async function runLocalAssistantTools(
               });
             }
             const maxChars = 60_000;
+            const sectionTruncated = lookup.block.text.length > maxChars;
             return result(call, {
               ok: true,
               filename: document.filename,
               section: lookup.block.label,
               parent: lookup.block.parentLabel,
               text: lookup.block.text.slice(0, maxChars),
-              truncated: lookup.block.text.length > maxChars,
+              truncated: sectionTruncated,
+              ...(sectionTruncated
+                ? {
+                    continuation: `Section continues; call library_read with offset=${lookup.block.start + maxChars} for the rest.`,
+                  }
+                : {}),
             });
           }
           // Windowed read: offset composes with library_find's `at` for
@@ -1687,12 +1709,18 @@ export async function runLocalAssistantTools(
             Number(process.env.MIKE_READ_DEFAULT_CHARS || 24_000),
           );
           const window = document.text.slice(offset, offset + maxChars);
+          const windowCut = offset + window.length < document.text.length;
           return result(call, {
             ok: true,
             filename: document.filename,
             ...(offset > 0 ? { offset } : {}),
             text: window,
-            truncated: offset + window.length < document.text.length,
+            truncated: windowCut,
+            ...(windowCut
+              ? {
+                  continuation: `Document continues (${document.text.length.toLocaleString("en-CA")} chars total); call library_read with offset=${offset + window.length} to keep reading, or library_outline / library_find to target a section.`,
+                }
+              : {}),
           });
         }
         const query = trimmed(args.query);
@@ -1791,6 +1819,29 @@ export async function runLocalAssistantTools(
           });
         } catch (error) {
           return fail(call, errorText(error, "Anchor coverage failed"));
+        }
+      }
+
+      if (call.name === "library_conflict_scan") {
+        const ids = stringArray(args.document_ids);
+        if (!ids.length) return fail(call, "document_ids is required");
+        const outside = ids.find(
+          (id) => allowedDocumentIds && !allowedDocumentIds.has(id),
+        );
+        if (outside) {
+          return fail(call, `Document ${outside} is not attached to this matter`);
+        }
+        try {
+          const loaded = await Promise.all(
+            ids.map(async (id) => {
+              const document = await extractLocalDocument(userId, id);
+              if (!document) throw new Error(`document ${id} not found`);
+              return { name: document.filename, text: document.text };
+            }),
+          );
+          return result(call, { ok: true, ...conflictScan(loaded) });
+        } catch (error) {
+          return fail(call, errorText(error, "Conflict scan failed"));
         }
       }
 
