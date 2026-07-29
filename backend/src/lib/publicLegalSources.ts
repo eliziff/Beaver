@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
+import { cachedContent } from "./contentCache";
 import { legalProviderCache, mikeLocalDataHome } from "./legalDataPath";
 import type {
   SourceDoc,
@@ -452,30 +453,55 @@ function trustedUrl(
 }
 
 async function responseText(url: string, accept: string, init?: RequestInit) {
-  const response = await fetch(url, {
-    ...init,
-    headers: { Accept: accept, ...(init?.headers ?? {}) },
-    signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+  // Downloaded-authority cache: published sources (legislation pages,
+  // judgments) change rarely; a week bounds staleness.
+  return cachedContent({
+    scope: "shared",
+    kind: "public-legal-text",
+    key: `${accept} ${url}`,
+    version: 1,
+    ttlMs: 7 * 24 * 60 * 60 * 1_000,
+    produce: async () => {
+      const response = await fetch(url, {
+        ...init,
+        headers: { Accept: accept, ...(init?.headers ?? {}) },
+        signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Public legal source request failed (${response.status})`,
+        );
+      }
+      return response.text();
+    },
   });
-  if (!response.ok) {
-    throw new Error(`Public legal source request failed (${response.status})`);
-  }
-  return response.text();
 }
 
 async function responseJson(
   url: string,
   init?: RequestInit,
 ): Promise<JsonRecord> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
-    signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+  // Search-ish endpoints: shorter staleness ceiling than document bodies.
+  return cachedContent({
+    scope: "shared",
+    kind: "public-legal-json",
+    key: url,
+    version: 1,
+    ttlMs: 24 * 60 * 60 * 1_000,
+    produce: async () => {
+      const response = await fetch(url, {
+        ...init,
+        headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+        signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Public legal source request failed (${response.status})`,
+        );
+      }
+      return asRecord(await response.json()) ?? {};
+    },
   });
-  if (!response.ok) {
-    throw new Error(`Public legal source request failed (${response.status})`);
-  }
-  return asRecord(await response.json()) ?? {};
 }
 
 function tnaCitation(verbatim: string) {
