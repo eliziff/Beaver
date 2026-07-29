@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 140 STAT. ?>
+<?I98 140 STAT. ?>
+<?I99 140 STAT. ?>
+<?I50 PUBLIC LAW 119–70—JAN. 20, 2026?>
+<?I51 PUBLIC LAW 119–70—JAN. 20, 2026?>
+<?I52 PUBLIC LAW 119–70—JAN. 20, 2026?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–70: To amend section 102(a)(20) of the Housing and Community Development Act of 1974 to require the exclusion of service-connected disability compensation when determining whether a person is a person of low and moderate income, a person of low income, or a person of moderate income, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>70</docNumber>
+<citableAs>Public Law 119–70</citableAs><citableAs>140 Stat. 3</citableAs>
+<approvedDate>2026-01-20</approvedDate>
+<dc:date>2026-01-20</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-01-25</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–70—JAN. 20, 2026</centerRunningHead>
+<page identifier="/us/stat/140/3">140 STAT. 3</page>
+<dc:type>Public Law</dc:type><docNumber>119–70</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend section 102(a)(20) of the Housing and Community Development Act of 1974 to require the exclusion of service-connected disability compensation when determining whether a person is a person of low and moderate income, a person of low income, or a person of moderate income, and for other purposes.<sidenote><p class="centered fontsize8" id="x6cd83b3a-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658076"><approvedDate date="2026-01-20">Jan. 20, 2026</approvedDate></p><p class="centered fontsize8" id="x6cd83b3b-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/224">H.R. 224</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x6cd8b06c-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658180">Disabled Veterans Housing Support Act.</p></sidenote>
+<section id="d127e88" identifier="/us/pl/119/70/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x6cd99acd-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658180"><ref href="/us/usc/t42/s5301">42 USC 5301 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Disabled Veterans Housing Support Act</shortTitle>”.</content></section>
+<section id="d127e103" identifier="/us/pl/119/70/s2" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>SERVICE CONNECTED DISABILITY COMPENSATION.</heading><content class="firstIndent0 fontsize10" id="x6cdafa5e-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658120">  Section 102(a)(20) of the Housing and Community Development Act of 1974 (<ref href="/us/usc/t42/s5302/a/20">42 U.S.C. 5302(a)(20)</ref>) <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="add">adding</amendingAction> at the end the following:<quotedContent><subparagraph class="fontsize10" id="y6cdb969f-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="C">“(C) </num><heading class="fontsize10"><inline class="smallCaps">Service-connected disability compensation</inline>.—</heading><content>When determining whether a person is a person of low and moderate income, a person of low income, or a person of moderate income under this paragraph, a State, unit of general local government, or Indian tribe shall exclude any service-connected disability compensation received by such person from the Department of Veterans Affairs.”</content></subparagraph>
+</quotedContent>.</content></section>
+<section id="d127e131" identifier="/us/pl/119/70/s3" style="-uslm-lc:I658141"><num class="fontsize12" value="3">SEC. 3. </num><heading>REPORT.</heading><chapeau class="indentUp0 firstIndent0 fontsize10" id="x6cdc8100-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658120">  The Comptroller General of the United States shall, not later than 1 year after the date of the enactment of this Act, submit to the Congress a report that—</chapeau><paragraph class="fontsize10" id="y6cdc8101-fa16-11f0-85eb-bfa20168462a" identifier="/us/pl/119/70/s3/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>examines how service-connected disability compensation is treated for the purposes of determining eligibility for all programs administered by the Secretary of Housing and Urban Development;</content></paragraph>
+<paragraph class="fontsize10" id="y6cdc8102-fa16-11f0-85eb-bfa20168462a" identifier="/us/pl/119/70/s3/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>identifies any instances where service-connected disability compensation is treated in a manner inconsistent with the amendment made by section 2; and</content></paragraph>
+<paragraph class="fontsize10" id="y6cdc8103-fa16-11f0-85eb-bfa20168462a" identifier="/us/pl/119/70/s3/3" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">(3) </num><content>with respect to each program administered by the Secretary of Housing and Urban Development in which service-connected disability compensation is treated inconsistently, provides legislative recommendations relating to how such program <page identifier="/us/stat/140/4">140 STAT. 4</page>
+could better serve veteran populations, and under-served communities.</content></paragraph>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2026-01-20">January 20, 2026</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/224">H.R. 224</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD:</heading>
+<subheading style="-uslm-lc:I658033">Vol. 171 (2025):</subheading>
+<p class="indentUp2 firstIndent-1" id="x6cdccf24-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658034">Feb. 10, considered and passed House.</p><subheading style="-uslm-lc:I658033">Vol. 172 (2026):</subheading>
+<p class="indentUp2 firstIndent-1" id="x6cdccf25-fa16-11f0-85eb-bfa20168462a" style="-uslm-lc:I658034">Jan. 6, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

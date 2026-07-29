@@ -1,0 +1,234 @@
+UNITED STATES DISTRICT COURT
+SOUTHERN DISTRICT OF FLORIDA
+CASE NO.: 9:23-cv-80398
+S
+ECURITIES AND EXCHANGE COMMISSION, )
+)
+Plaintiff, )
+)
+v. )
+)
+PETER D. KRIEGER )
+)
+)
+Defendant. )
+______________________________________________ )
+CO
+MPLAINT FOR INJUNCTIVE AND OTHER RELIEF AND
+DEMAND FOR JURY TRIAL
+P
+laintiff Securities and Exchange Commission ("Commission") alleges:
+I. I NTRODUCTION
+1. F rom May 2016 through August 2020, Oban Energies, LLC ("Oban"), a
+Florida-based entity managed by Defendant Peter D. Kreiger, raised approximately $15 million
+from 23 investors. Investors, some of whom were elderly, were told that their funds would be
+used to develop an oil refinery and storage facility in the Bahamas (the "Project").
+2. In reality, from January 2017 through August 2020, Defendant misappropriated
+approximately $5.2 million of investor funds to pay for personal expenses, such as luxury cars,
+jewelry, and vacations.
+3. By engaging in this conduct, Defendant violated Sections 17(a)(1) and 17(a)(3)
+of the Securities Act of 1933 ("Securities Act"),15 U.S.C. §§ 77q(a)(1) and 77q(a)(3); Section
+10(b) of the Securities Exchange Act of 1934 (the "Exchange Act"),15 U.S.C. § 78j(b); and
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 1 of 9
+2
+
+Exchange Act Rules 10b -5(a) and 10b- 5(c) promulgated thereunder, 17 C.F.R. §§ 240.10b-
+5(a) and 240.10b -5(c). Unless enjoined, Defendant will continue to violate the federal
+securities laws.
+II. DEFENDANT
+4. Krieger, age 49, is a resident of Jupiter, Florida. Krieger was Oban's manager,
+ran its day-to-day operations from 2017 through 2018, and maintained exclusive control over
+Oban's bank account from January 2017 through August 2020.
+III. R ELEVANT ENTITY
+5. Oban was a Florida limited liability company formed in June 2016 with its
+principal place of business in Palm Beach Gardens, Florida. Oban was dissolved in March
+2021, and its assets and liabilities were purchased by Lucayan Trans Fuels LLC ("Lucayan"),
+which was formed by certain Oban investors.
+IV. JURISDICTION AND VENUE
+6. The Court has jurisdiction over this action pursuant to Sections 20(b), 20(d),
+and 22(a) of the Securities Act, 15 U.S.C. §§ 77t(b), 77t(d), and 77v(a), and Sections 21(d),
+21(e), and 27 of the Exchange Act, 15 U.S.C. §§ 78u(d), 77u(e) and 78aa.
+7. This Court has personal jurisdiction over Defendant and venue is proper in this
+district because many of Defendant 's actions and transactions constituting violations of the
+Securities Act and the Exchange Act occurred in this district, Defendant resides in this district,
+and Oban's principal place of business was in this district.
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 2 of 9
+3
+
+8. In connection with the conduct alleged in this Complaint, Defendant , directly
+and indirectly, made use of the means or instrumentalities of interstate commerce , the means
+or instruments of transportation and communication in interstate commerce, and the mails.
+V. FACTS
+
+A. Defendant Led Oban's Efforts to Develop the Project in the Bahamas
+9. In 2009, Defendant and the Bahamian government began discussing
+Defendant's interest in developing the Project with capital raised from U.S. investors.
+10. After years-long discussions progressed, Oban was formed in mid -2016 to
+develop the Project and started raising money from investors to fund the Project.
+11. Most investors in Oban are friends with Defendant and each other, live at least
+part-time in the same community, and were solicited by word-of-mouth.
+12. Investors entered into a written Operating Agreement, which was last amended
+on March 12, 2018. The Operating Agreement refers to investors as "Members ," who each
+received a "Member Interest" in Oban in exchange for their capital contribution. The Operating
+Agreement is an investment contract. Investors relied solely on Oban to generate profits and
+Oban's ability to do so depended entirely on its ability to successfully develop the Project. As
+an investment contract, the Operating Agreement is a security within the meaning of the
+Securities Act and the Exchange Act.
+13. Defendant ran Oban's day-to-day operations and led its efforts to develop the
+Project. In February 2018, Oban and the Bahamian Government signed a Heads of Agreement
+(the "Agreement") awarding Oban the right s to develop the Project . Shortly thereafter,
+however, the Bahamian Government sought to renegotiate the terms of the Agreement.
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 3 of 9
+4
+
+14. In the meantime, Oban formalized a board of managers (the "Board") in March
+2018. The Board consisted of four investors who were to provide oversight over the Project
+and status updates to members while renegotiation discussions with the Bahamian Government
+ensued.
+15. The Board had exclusive authority to manage and control all aspects of Oban's
+business and operations, including but not limited to, overseeing Oban's day-to day operations,
+making expenditures to conduct Oban's business, and investing Oban's assets.
+16. Despite stepping back as the face of Oban in early 2018 shortly after the
+Agreement was executed, Krieger continued to spearhead the Project on behalf of Oban and
+maintain exclusive control over its bank account.
+17. In late 2020, Oban's Board discovered that Defendant was misappropriating
+investor funds for personal use and immediately took steps to remove him from Oban.
+B. Defendant Misappropriated Investor Funds
+18. From January 2017 through August 2020, Defendant was the sole signatory on
+Oban's bank account and exercised exclusive control over it.
+19. During that time , Defendant misappropriated at least $5.2 million of investor
+funds to pay for personal expenses, such as luxury cars, jewelry, designer clothing, vacations
+to Aspen and Hawaii, and day-to-day living expenses.
+20. Specifically, Defendant diverted approximately $3.7 million of investor funds
+through various means to the bank account of an unrelated entity he controlled, Mid Atlantic
+Group, Inc. ("MAG"). For instance, Defendant deposited approximately $795,000 of investor
+funds directly into MAG's bank account . Defendant also diverted through hundreds of
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 4 of 9
+5
+
+electronic funds transfers approximately $1.37 million of investor funds from Oban's bank
+account to MAG's bank account. Furthermore, in an effort to conceal his misappropriation,
+Defendant transferred $1.5 million of investor funds from Oban's bank account to an account
+for another entity he controlled, S&P Projects, LLC ("S&P"). From there, Defendant
+transferred the $1.5 million to the trust accounts of Oban's outside attorney, who then routed
+the money back to MAG.
+21. Additionally, Defendant transferred another $1.5 million in investor funds from
+Oban's bank account to pay credit card charges for S&P.
+22. Defendant's transfers of approximately $5.2 million of investor funds for his
+personal use were not disclosed to or authorized by Oban's Board.
+VI. CLAIMS FOR RELIEF
+COUNT 1
+VIOLATIONS OF SECTION 17(a)(1) OF THE SECURITIES ACT
+23. The Commission adopts by reference paragraphs 1 through 22 of this
+Complaint.
+24. Defendant, in the offer or sale of securities by use of any means or instruments
+of transportation or communication in interstate commerce or by use of the mails, directly or
+indirectly, knowingly or recklessly employed devices, schemes, or artifices to defraud.
+25. By reason of the foregoing, Defendant, directly or indirectly, violated and,
+unless enjoined, is reasonably likely to continue to violate Section 17(a)(1) of the Securitie s
+Act, 15 U.S.C. § 77q(a)(1).
+
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 5 of 9
+6
+
+COUNT 2
+VIOLATIONS OF SECTION 17(a)(3) OF THE SECURITIES ACT
+26. The Commission adopts by reference paragraphs 1 through 22 of this
+Complaint.
+27. Defendant, in the offer or sale of securities by use of any means or instruments
+of transportation or communication in interstate commerce or by use of the mails, directly or
+indirectly, negligently engaged in transactions, practices, or courses of business which
+operated or would have operated as a fraud or deceit upon the purchasers.
+28. By reason of the foregoing, Defendant, directly or indirectly, violated and,
+unless enjoined, is reasonably likely to continue to violate Section 17(a)(3) of the Securities
+Act, 15 U.S.C. § 77q(a)(3).
+COUNT 3
+VIOLATIONS OF SECTION 10(b) AND RULE 10b-5(a) OF THE EXCHANGE ACT
+29. The Commission adopts by reference paragraphs 1 through 22 of this
+Complaint.
+30. Defendant, directly or indirectly, by the use of any means or instrumentality of
+interstate commerce, or of the mails, knowingly or recklessly employed devices, schemes or
+artifices to defraud in connection with the purchase or sale of securities.
+31. By reason of the foregoing, Defendant, directly or indirectly, violated and,
+unless enjoined, is reasonably likely to continue to violate Section 10(b) of the Exchange Act,
+15 U.S.C. § 78j(b), and Exchange Act Rule 10b-5(a), 17 C.F.R. § 240.10b-5(a).
+
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 6 of 9
+7
+
+COUNT 4
+VIOLATIONS OF SECTION 10(b) AND RULE 10b-5(c) OF THE EXCHANGE ACT
+32. The Commission adopts by reference paragraphs 1 through 22 of this
+Complaint.
+33. Defendant, directly or indirectly, by the use of any means or instrumentality of
+interstate commerce, or of the mails, knowingly or recklessly engaged in acts, practices, and
+courses of business which have operated, are now operating and will operate as a fraud upon
+the purchasers of such securities.
+34. By reason of the foregoing, Defendant, directly or indirectly, violated and,
+unless enjoined, is reasonably likely to continue to violate Section 10(b) of the Exchange Act,
+15 U.S.C. § 78j(b), and Exchange Act Rule 10b-5(c), 17 C.F.R. § 240.10b-5(c).
+VII. RELIEF REQUESTED
+WHEREFORE, the Commission respectfully reques ts that the Court find the
+Defendant committed the violations alleged and:
+A. Permanent Injunction
+Issue a Permanent Injunction, restraining and enjoining Defendant from violating
+Sections 17(a)(1) and 17 (a)(3) of the Securities Act , Section 10(b) of the Exchange Act, and
+Exchange Act Rules 10b-5(a) and 10b-5(c) promulgated thereunder.
+B. Conduct-Based Injunction
+Issue a Conduct -Based Injunction, restraining and en joining Defendant from (i)
+participating in the issuance, purchase, offer, or sale of any security provided, however, that
+such injunction shall not prevent Defendant from purchasing or selling securities for his own
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 7 of 9
+8
+
+personal account, and (ii) participating in the management, supervision of, or otherwise
+exercising any control over, any commercial enterprise or project that issues, purchases or sells
+securities, pursuant to Section 21(d)(5) of the Exchange Act.
+C. Disgorgement
+Issue an Order directing Defendant to disgorge all ill- gotten gains, including
+prejudgment interest, resulting from the acts or courses of conduct alleged in this Complaint.
+D. Civil Penalty
+Issue an Order directing Defendant to pay civil money penalties pursuant to Section
+20(d) of the Securities Act, 15 U.S.C. § 77t(d), and Section 21(d) of the Exchange Act, 15
+U.S.C. § 78(d).
+E. Officer and Director Bar
+Issue an Order, pursuant to Section 20(e) of the Securities Act, 15 U.S.C. § 77t(e), and
+Section 21(d)(2) of the Exchange Act, 15 U.S.C. § 78u(d)(2), barring Defendant from acting
+as an officer or director of any issuer that has a class of securities registered pursuant to Section
+12 of the Exchange Act or that is required to file reports pursuant to Section 15(d) of the
+Exchange Act.
+F. Further Relief
+Grant such other and further relief as may be necessary and appropriate.
+G. Retention of Jurisdiction
+Further, the Commission respectfully requests that the Court retain jurisdiction over
+this action in order to implement and carry out the terms of all orders and decrees that it may
+enter, or to entertain any suitable application or motion by the Commission for additional relief
+within the jurisdiction of this Court.
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 8 of 9
+9
+
+VIII. DEMAND FOR JURY TRIAL
+The Commission hereby demands a trial by jury on any and all issues in this action so
+triable.
+March 13, 2023 Respectfully submitted,
+
+By: /s/ Stephanie N. Moot
+Stephanie N. Moot
+Senior Trial Counsel
+Fla. Bar No. 30377
+Direct Dial: (305) 982-6313
+E-mail: moots@sec.gov
+
+Steven J. Meiner
+Senior Counsel
+New York Bar No. 2785806
+Direct Dial: (305) 982-6336
+E-mail: meiners@sec.gov
+
+Attorneys for Plaintiff
+Securities and Exchange Commission
+801 Brickell Avenue, Suite 1950
+Miami, FL 33131
+Telephone: (305) 982-6300
+Facsimile: (305) 536-4154
+Case 9:23-cv-80398-XXXX Document 1 Entered on FLSD Docket 03/13/2023 Page 9 of 9

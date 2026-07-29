@@ -55,3 +55,7 @@ mike-workflows/
 # Local Supabase scaffold (supabase init output) — the local stack is a test
 # harness only; CI scaffolds its own fresh copy on every run
 backend/supabase/
+
+# Vendored LAB corpus: local venv and caches stay untracked
+benchmarks/harvey-labs/.venv/
+benchmarks/harvey-labs/**/__pycache__/

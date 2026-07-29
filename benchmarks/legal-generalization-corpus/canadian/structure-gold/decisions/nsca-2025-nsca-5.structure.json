@@ -1,0 +1,2610 @@
+{
+ "artifact_id": "nsca-2025-nsca-5",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2025 NSCA 5",
+ "citation_secondary": "",
+ "name": "Ward v. Murphy",
+ "document_date": "2025-01-22",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/522863/index.do",
+ "scraped_timestamp": "2026-04-10 03:24:55.154000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2025-nsca-5.txt",
+ "raw_text_chars": 65386,
+ "raw_text_sha256": "2e077242e60af647773a4691c35e754e1c23f76e5bbe56a21f8679f27c91535b",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 174,
+  "spine_count": 93,
+  "quoted_count": 81,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "12",
+   "13",
+   "14",
+   "15",
+   "29",
+   "17",
+   "30",
+   "31",
+   "31",
+   "16",
+   "17",
+   "18",
+   "153",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "741",
+   "39",
+   "40",
+   "742",
+   "26",
+   "745",
+   "44",
+   "45",
+   "46",
+   "4",
+   "14",
+   "47",
+   "48",
+   "49",
+   "50",
+   "12",
+   "51",
+   "52",
+   "53",
+   "94",
+   "54",
+   "55",
+   "56",
+   "18",
+   "31",
+   "57",
+   "58",
+   "59",
+   "60",
+   "31",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "31",
+   "46",
+   "84",
+   "108",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 3539,
+     "end": 3688
+    },
+    "body_chars": 144,
+    "body_sha256": "cf1b10f59f746d2b2e83ae547aceb3c1b02d5e220f8e0649d1c155eb3dfed031",
+    "body": "This appeal is about the determination of income for child support purposes under the Provincial Child Support Guidelines (the “Guidelines”).[1]"
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 3688,
+     "end": 4130
+    },
+    "body_chars": 437,
+    "body_sha256": "93bfc9e1f6496965bdb5ab8c6d3362008d8e51075e17be73b155f911b419b546",
+    "body": "The issues in this appeal focus on the income the appellant generates from a company in which he is the sole shareholder. Section 18(1)(a) of the Guidelines confers judicial discretion to examine the pre-tax income of a corporation for child support purposes. The assessment under s. 18(1)(a) and (2) is available to assist in arriving at a determination that fully and fairly reflects the income available for child support purposes.[2]"
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 4130,
+     "end": 4322
+    },
+    "body_chars": 187,
+    "body_sha256": "a25ef64789dd3523f6daed97e92a210f12ee10c65665ebf7a7b120fce5e27080",
+    "body": "Paul Ward and Coralie Murphy are parents to a child born in 2015. They were never married. Ms. Murphy is the primary care parent. Mr. Ward exercises parenting time and pays child support."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 4322,
+     "end": 4817
+    },
+    "body_chars": 490,
+    "body_sha256": "0703d5cff5cff75d379fb39cf82198cd053fb5ec59031d7e5f1aa2159b97ec5a",
+    "body": "There is a complicated history of litigation between the parties apparent from the number of reported decisions. The initial decision on parenting and child support was made by Justice Robert Gregan on April 4, 2017 (P.W. v. C.M., 2017 NSSC 91, the “Gregan decision”). Mr. Ward then applied to vary the amount of child support payable in September 2018 and Justice Lee Anne MacLeod-Archer granted the variation on April 13, 2021 (P.W. v. C.M., 2021 NSSC 127, the “MacLeod-Archer decision”)."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 4817,
+     "end": 5303
+    },
+    "body_chars": 481,
+    "body_sha256": "f21936ea6ad35d5536b978e63f2352bd0a36783c322f6221da03963be8df2242",
+    "body": "Mr. Ward appealed the MacLeod-Archer decision. The appeal was allowed in part and remitted for a rehearing of the s. 18 analysis and costs on March 16, 2022 (Ward v. Murphy, 2022 NSCA 20, “the first appeal”). Justice Theresa Forgeron presided over the rehearing and released her decision on child support on November 24, 2023 (Ward v. Murphy, 2023 NSSC 370), followed by a decision on costs on April 29, 2024 (Ward v. Murphy, 2024 NSSC 117) (together the “decisions under appeal”)."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 5303,
+     "end": 5411
+    },
+    "body_chars": 103,
+    "body_sha256": "722cf2345755ac6241a7ef5828d58f2557b52343bc249e01bf265474c6de1d76",
+    "body": "Mr. Ward now appeals the two orders of Justice Forgeron. The appeals were consolidated on July 2, 2024."
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 5411,
+     "end": 5736
+    },
+    "body_chars": 320,
+    "body_sha256": "4babc336d43b28637a1c81773b1eed6a68ff613c5d7fc345b1827841202c63ba",
+    "body": "Mr. Ward alleges a litany of errors in the decisions under appeal. These are similar to the grounds advanced in his first appeal. Mr. Ward also seeks to adduce fresh evidence in support of his appeal. For the reasons to follow, I would dismiss both the fresh evidence motion and the appeal.\nThe History of the Proceeding"
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 5736,
+     "end": 6079
+    },
+    "body_chars": 338,
+    "body_sha256": "69fb1c6471fed738c9d29c412aad6a728993988fa3de273455820db130e59dec",
+    "body": "The scope of the present appeal is constrained by the history of the proceeding. As a result, the issues now before this Court are narrow and confined by previous determinations, including those upheld on Mr. Ward’s first appeal. A review of the earlier decisions will place the present issues in their proper context.\nThe Gregan Decision"
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 6079,
+     "end": 6615
+    },
+    "body_chars": 531,
+    "body_sha256": "4927eebd257ce7759a9364de62e419224dfdf1da9cf645b543fed9dd5bb02a79",
+    "body": "On June 4, 2015, Mr. Ward made an application seeking shared custody of the parties’ only child. In response, Ms. Murphy sought sole custody and child support. By interim order dated December 16, 2015, Mr. Ward was granted access and obligated to pay interim child support of $1,200 per month starting November 1, 2015. Before a full hearing of the applications, Mr. Ward unilaterally reduced his payments to $600, and then $300 a month, claiming his income did not support the amount payable under the interim child support order."
+   },
+   {
+    "label": "10",
+    "marker_order": 9,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 6615,
+     "end": 7400
+    },
+    "body_chars": 779,
+    "body_sha256": "e6cb4f74fa4b1899d910884a0705a3d0104a7344d95d0ff9ce2f465c5ba243bd",
+    "body": "The full hearing of the initial applications proceeded over twelve days in 2016 and 2017. On the issue of child support, Mr. Ward was found to have three sources of income in those years: (1) employment income; (2) employment insurance benefits; and (3) income from rental properties. The hearing judge determined the rental property income to be $60,000 per year but was not aware of the existence of Mr. Ward’s rental property company as it was not disclosed. [3] Although Mr. Ward was not then employed, the judge considered the evidence and imputed $60,000 per year as employment income.[4] As a result, Mr. Ward was found to have an annual income for child support purposes of $120,000 and ordered to pay $994 per month starting on April 1, 2017.\nThe MacLeod-Archer Decision"
+   },
+   {
+    "label": "11",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 7400,
+     "end": 7737
+    },
+    "body_chars": 331,
+    "body_sha256": "00ecce872685b98f593d0f810a7d8f8a57d4734df4381e34db5af86a566bbb46",
+    "body": "Mr. Ward filed an application to vary his child support order in September of 2018. Although not an appeal, Mr. Ward argued the existing order was wrong in that it incorrectly imputed income to him. Justice MacLeod-Archer found Mr. Ward’s circumstances changed based on the evidence about his rental property company. She reasoned:"
+   },
+   {
+    "label": "10",
+    "marker_order": 11,
+    "role": "quoted_or_foreign",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 7737,
+     "end": 8338
+    },
+    "body_chars": 595,
+    "body_sha256": "95bfcd7efc87d93a78fbfe866a2bf1851cb75a3bfff30053191aaa3d1b299cfc",
+    "body": "I must look at what circumstances existed at the time the last order was granted and compare those circumstances with the present. In 2017:\n• P.W. was qualified as a mechanic (not heavy equipment operator), a carpenter and a scaffolder;\n• He regularly relied on Employment Insurance benefits to supplement his income when laid off;\n• He had transferred his union membership from western Canada to the local union hall so that he could be more available to co-parent his young son;\n• His business was earning rental income from eight units; and\n• He provided maintenance and upkeep for the units."
+   },
+   {
+    "label": "11",
+    "marker_order": 12,
+    "role": "quoted_or_foreign",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 8338,
+     "end": 8678
+    },
+    "body_chars": 334,
+    "body_sha256": "85e722f0fc1491efb63e09c80a6edf947ca7ec051a6a8b8d7ae474db50f2c5ba",
+    "body": "At the hearing before Gregan, J., P.W.’s financial disclosure was lacking. This time around, he made extensive disclosure of his corporate information, including receipts for expenses, tax returns, and his accountant’s file. His accountant also testified. On cross-examination, his company assets and expenses were reviewed in detail."
+   },
+   {
+    "label": "12",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 8678,
+     "end": 9006
+    },
+    "body_chars": 322,
+    "body_sha256": "c057205bb45bea92cd1ed92b4efce7475065a51beaf4f3a46487f67e48eb8620",
+    "body": "So has P.W.’s financial situation changed since 2017? At present:\n• P.W. is a qualified mechanic, carpenter, and scaffolder;\n• He still relies on E.I. benefits to supplement his income when laid off;\n• His business now earns rental income from 10 rental units; and\n• He still provides maintenance and upkeep for the units."
+   },
+   {
+    "label": "13",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 9006,
+     "end": 9383
+    },
+    "body_chars": 371,
+    "body_sha256": "f12ba4c3f88b9cb6541c657c46a7d577b20320c799dd388fb0432a3bbc7e47df",
+    "body": "Other than an increase in rental units, the only difference between when the court calculated P.W.’s income in 2017 and now, is that Gregan, J. treated all of P.W.’s income as personal income, including business income from the rentals. It appears that P.W.’s disclosure was so inadequate that it wasn’t apparent that the rental income was generated in a limited company."
+   },
+   {
+    "label": "14",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 9383,
+     "end": 9606
+    },
+    "body_chars": 217,
+    "body_sha256": "baaabcae01e743f53c0e956c38f50a3cff56e531c706fd37f05a563a718a80c7",
+    "body": "It’s now clear that P.W. is the sole shareholder, officer and director of a limited company that owns the rental units. That is a material change that I accept warrants a review of the child support payable by P.W.[5]"
+   },
+   {
+    "label": "12",
+    "marker_order": 16,
+    "role": "quoted_or_foreign",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 9606,
+     "end": 10588
+    },
+    "body_chars": 976,
+    "body_sha256": "5a6b2eb2f6e23e492b36b34532467167089ccef7c483d3b6d58355116a60681a",
+    "body": "The hearing judge considered the evidence and began by adjusting Mr. Ward’s total income downward in the years 2018-2020 in accordance with s. 16 and Schedule III of the Guidelines. However, she was not satisfied this reflected all the money Mr. Ward had available to pay child support.[6] As a result, she went on to consider ss. 18 and 19 of the Guidelines and increased Mr. Ward’s income in each of the years from 2018-2020. Under s. 18, she found it appropriate to adjust Mr. Ward’s income to reflect non-arms-length payments and benefits expensed by his company. Under s. 19, she considered Mr. Ward’s history of paid work outside the company, his capacity for employment, and his efforts to locate work. She found him underemployed and imputed $60,000 annually retroactive to October 1, 2018. Prospectively, Mr. Ward’s total income for child support purposes was set at $103,845 resulting in a monthly child support payment of $883 starting May 1, 2021.\nThe First Appeal"
+   },
+   {
+    "label": "13",
+    "marker_order": 17,
+    "role": "quoted_or_foreign",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 10588,
+     "end": 11224
+    },
+    "body_chars": 630,
+    "body_sha256": "4fae18fd0840decdd13a10e7c98b9561c64bda7e60cadae958ef72ca770eaa23",
+    "body": "Mr. Ward appealed. The issues raised on the first appeal were identified by Beaton, J.A. (dissenting in part) to include allegations of bias, misapprehension of evidence, and errors of law.[7] The alleged errors of law included both the “add back” of certain corporate expenses under s. 18 of the Guidelines and the imputation of income on the basis of underemployment under s. 19. Mr. Ward’s first appeal was allowed, in part, on the discrete issue of the s. 18 analysis. In all other respects, the application decision was upheld, including the imputation of $60,000 of income to Mr. Ward under s. 19(1)(a) of the Guidelines.[8]"
+   },
+   {
+    "label": "14",
+    "marker_order": 18,
+    "role": "quoted_or_foreign",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 11224,
+     "end": 11320
+    },
+    "body_chars": 90,
+    "body_sha256": "529434b0a2e4e0d6678ae845655a20ecd4cde081b031c4c9ead1517a6af54022",
+    "body": "I pause here to note several important aspects of the decision on Mr. Ward’s first appeal."
+   },
+   {
+    "label": "15",
+    "marker_order": 19,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 11320,
+     "end": 11760
+    },
+    "body_chars": 434,
+    "body_sha256": "7a98f2f2db4b8fb91277d5c62db58baad180e5181d73ac3e9a1fcc91a485b6df",
+    "body": "The first relates to Mr. Ward’s ongoing argument that the contentious deductions from his company revenue are permitted business expenses for taxation purposes and should not be added back for the purpose of determining his income under the Guidelines. Beaton J.A., (with the agreement of the majority), recognized this erroneous view permeated Mr. Ward’s entire submissions and disposed of it effectively with an overriding response:"
+   },
+   {
+    "label": "29",
+    "marker_order": 20,
+    "role": "quoted_or_foreign",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 11760,
+     "end": 12299
+    },
+    "body_chars": 533,
+    "body_sha256": "f71cc9749881903d3c99c28cd0b7ece9320cebaf456beec0e2ce5d4bf255d350",
+    "body": "Before addressing each ground of appeal, I comment on a theme that permeated Mr. Ward’s materials and submissions, both in this Court and before the judge. Mr. Ward emphatically rejects the distinction, as discussed by the judge in her reasons, between permissible deductions allowed by Canada Revenue Agency (“CRA”), and the discretion of a judge regarding treatment of those amounts for Guidelines purposes. In her discussion of s. 18 of the Guidelines in the context of company expenses and deductions, the judge correctly stated:"
+   },
+   {
+    "label": "17",
+    "marker_order": 21,
+    "role": "quoted_or_foreign",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 12299,
+     "end": 12655
+    },
+    "body_chars": 350,
+    "body_sha256": "5421d30a578a32ab7ec1ef328413b82d6d59e2332341e14d6b779ee06486e646",
+    "body": "There is a difference between income calculated for income tax purposes, and income calculated for child support purposes. Deductions that are perfectly legal for tax purposes are not necessarily permitted for child support purposes. The point is to capture all income available to the payor, so that children are properly supported. [Emphasis added]"
+   },
+   {
+    "label": "30",
+    "marker_order": 22,
+    "role": "quoted_or_foreign",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 12655,
+     "end": 13531
+    },
+    "body_chars": 870,
+    "body_sha256": "b1781f332bc9f4caa9d19c5791f185376e917343cdc0d7449773339986e43517",
+    "body": "In using the Guidelines to determine income available for payment of support, a court has the ability to examine income regardless of any income tax treatment afforded it. Indeed, s. 19(2) of the Guidelines specifically directs that when imputing income for child support purposes pursuant to s. 19(1)(g) - whether “the parent unreasonably deducts expenses from income”—a court is reminded “the reasonableness of an expense deduction is not solely governed by whether the deduction is permitted under the Income Tax Act (Canada).” Mr. Ward’s view is the judge should have treated the expenses and deductions of his solely held company in the same manner as did CRA for each year under scrutiny by the judge. The judge was correct; what CRA may allow as a deduction is distinct from and does not automatically equate to or command the same treatment under the Guidelines."
+   },
+   {
+    "label": "31",
+    "marker_order": 23,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 13531,
+     "end": 14002
+    },
+    "body_chars": 465,
+    "body_sha256": "fce179444eeb79ad4e9107f2884389e98bdf2745e64d52b1bf8bd00bde880208",
+    "body": "To apply Mr. Ward’s view of the significance of CRA’s treatment of the company would have necessitated the judge effectively ignoring those expenses borne by the company that she was satisfied were to the personal benefit of Mr. Ward. Doing so would undermine the raison d’etre of ss. 16–20 of the Guidelines - calculation of a payor’s income for purposes of payment of child support, not calculation of income taxes. As stated in Cunningham v. Seveny, 2017 ABCA 4:"
+   },
+   {
+    "label": "31",
+    "marker_order": 24,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 14002,
+     "end": 14310
+    },
+    "body_chars": 302,
+    "body_sha256": "0ad58179d5490947f4154ddd2768be08a4814180eebe6c2ce2bd226edbe53fd5",
+    "body": "[…] A parent’s legal obligation to pay child support that fairly reflects the parent’s income in accordance with child support guidelines is not to be constrained or limited by income tax statutes that may confer entitlements in relation to deductibility of business expenses.[9]\n[Emphasis in original]"
+   },
+   {
+    "label": "16",
+    "marker_order": 25,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 14310,
+     "end": 14619
+    },
+    "body_chars": 303,
+    "body_sha256": "f17ea4d1aa0cea06886cc1638def07dbb43357a920c1b6940957d142c9eb3877",
+    "body": "Despite the outcome of his first appeal, Mr. Ward repeated the same arguments on the rehearing and the present appeal.[10] On this point however, nothing has changed. The deductibility of business expenses under income tax legislation does nothing to constrain the assessment required by the Guidelines."
+   },
+   {
+    "label": "17",
+    "marker_order": 26,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 14619,
+     "end": 15741
+    },
+    "body_chars": 1116,
+    "body_sha256": "02edcc2d36c3562b379d3bd43674c86aec9353984586ce943ddc065a218af6cd",
+    "body": "The second point relates to the narrow scope of the issue remitted for redetermination on the first appeal. Writing for the majority, Van den Eynden J.A. identified an error in principle in the s. 18 analysis involving a failure to assess the pre-tax income of the company. This error inflated Mr. Ward’s income for child support purposes. The correct approach involved a number of sequential steps: (1) determine the pre-tax income of the company before adjustments; (2) decide whether it is appropriate to “add back” any amounts to the pre-tax income of the company under s. 18(2) of the Guidelines; (3) determine whether it is appropriate to “gross up” the “add back” amounts to account for the fact they were paid by the company and not personally with after tax dollars; (4) add the total adjustments (add backs plus any gross up) to the pre-tax income of the company; and (5) determine what portion of the adjusted pre-tax income should be attributed to the payor for child support purposes. It was the issue of Mr. Ward’s company income under s. 18 of the Guidelines that was remitted for redetermination.[11]"
+   },
+   {
+    "label": "18",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 15741,
+     "end": 15865
+    },
+    "body_chars": 118,
+    "body_sha256": "6d7f280024e98a3ede55eaa5747ee4b169b964864fc2da77a0c947fa2321a0e4",
+    "body": "To assist in the attribution assessment under s. 18(1)(a), this Court provided guidance in the form of considerations:"
+   },
+   {
+    "label": "153",
+    "marker_order": 28,
+    "role": "quoted_or_foreign",
+    "marker": "[153]",
+    "raw_span": {
+     "start": 15865,
+     "end": 18102
+    },
+    "body_chars": 2230,
+    "body_sha256": "b9c3b9518fca87346b92eae390fd37d37282dd45d0c34468ad5a80f613ac2521",
+    "body": "… Here are some general, non-exhaustive, considerations that may assist in deciding whether income should be attributed under s. 18:\n• Attribution of pre-tax corporate income to a payor pursuant to s. 18(1)(a) is a factual exercise, undertaken by a judge on a case-by-case basis.\n• A judge is not required to add any pre-tax corporate income to a payor’s income. The Guidelines merely allow for a judge to do so.\n• The reasonableness of a deduction is a discretionary determination; however, the objective is to ensure the allocation of pre-tax corporate income between business and family purposes is fair. At the end of the day, one should not interfere with reasonable economic decisions needed to meet corporate sustainability.\n• The onus rests on the shareholder parent to establish that pre-tax income of the corporation is not available for support purposes. This means the parent, who is typically the payor, must lead evidence that the pre-tax corporate income is not available for support purposes because it will jeopardize the capacity of the corporation to meet its financial obligations.\n• When deciding the amount of pre-tax corporate income to attribute to the payor, consideration should be given to:\n• What is the nature of the business?\n• Is there a business reason for retaining earnings?\n• What is the historical practice for retaining earnings?\n• What degree of corporate control does the payor exercise?\n• Is there only one principal shareholder or other bona fide arm’s‑length shareholders involved?\n• Depreciation;\n• Possible economic downturns;\n• Return on invested capital; and\n• If the corporation, after adding back expenses to the pre-tax corporate income, has an overall negative pre-tax income (also known as a loss), no amount of pre-tax corporate income can be attributed to the payor’s income. (As illustrated above, this was not relevant in this case.)\nSee Merrifield v. Merrifield, 2021 SKCA 85 at paras. 32, 35, 47–48; Walker, at para. 39; M.C. c. J.O., at para. 16; Potzus v. Potzus, 2017 SKCA 15 at para. 64; Mason v. Mason, 2016 ONCA 725 at para. 163; Chekowski v. Howland, 2013 ABCA 299 at paras. 13-14; Goett, at para. 21; Kowalewich v. Kowalewich, 2001 BCCA 450 at paras. 54, 58–59.[12]"
+   },
+   {
+    "label": "19",
+    "marker_order": 29,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 18102,
+     "end": 18904
+    },
+    "body_chars": 796,
+    "body_sha256": "c654fe1879d766c5fcdcccc536b998c9e12021206c163ffbea193f7ca99a5f52",
+    "body": "The finding Mr. Ward was intentionally underemployed and the imputation of $60,000 annually from 2018 onward under s. 19(1)(a) of the Guidelines was not disturbed on the first appeal.[13] The only point at which the ss. 18 and 19 analyses intersected was when Mr. Ward’s company paid him and deducted the payments from company income. These payments would properly appear in Mr. Ward’s personal income tax return. They were non-arms-length and subject to being added back to the pre-tax income of the company under s. 18(2) of the Guidelines. As Mr. Ward noted in argument, the treatment of these payments raised the issue of double counting his sources of income.[14] More will be said about this point of intersection when the issues under appeal are considered below.\nThe Decision Under Appeal"
+   },
+   {
+    "label": "20",
+    "marker_order": 30,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 18904,
+     "end": 19474
+    },
+    "body_chars": 564,
+    "body_sha256": "b0f8e25075263ffa224876255a5186a4ac39e115514fcf230d5dde2690e249cd",
+    "body": "The redetermination of the s. 18 analysis was the subject of a four-day hearing before Forgeron J. in June 2023.[15] She was satisfied it was appropriate to adjust some expenses and notionally add the amounts claimed as deductions back to the pre-tax income of the company. In detailed reasons, she explained the basis for adjusting certain deductions, including director’s fees, meals and entertainment, amortization, mortgage interest, office expenses, repairs and maintenance, salary and wages, vehicle expenses, heat, telephone, advertising, and promotion.[16]"
+   },
+   {
+    "label": "21",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 19474,
+     "end": 19944
+    },
+    "body_chars": 464,
+    "body_sha256": "c6f36a64274ae17414fac32f7e50716f0aec9df47e9f5f0769f72cec1a112106",
+    "body": "Significantly, Justice Forgeron adjusted the pre-tax income of the company by adding back 50% of the employment income paid to Mr. Ward in 2020 and 2021. She did this notwithstanding the $60,000 of income already imputed to Mr. Ward for employment and employment insurance income. She also adjusted the amounts claimed as capital cost allowance (“CCA”) by adding back 100% of the deduction made on real property and 50% of the amounts claimed on personal property."
+   },
+   {
+    "label": "22",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 19944,
+     "end": 20401
+    },
+    "body_chars": 451,
+    "body_sha256": "79c276197e99d668cec97a9fb7f6611ccb6e99d9198889cb6ff3f4c8bd86c1c6",
+    "body": "After detailing her analysis of “add backs,” the judge considered whether a gross up was appropriate. She applied a gross up of 23.79% (the lowest combined marginal tax rate in Nova Scotia) to those amounts she determined were a personal benefit to Mr. Ward or would not be taxable to him or the company.[17] Once the adjustments were identified, and the gross up calculated, the total amounts were added back into the annual pre-tax corporate income."
+   },
+   {
+    "label": "23",
+    "marker_order": 33,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 20401,
+     "end": 21251
+    },
+    "body_chars": 844,
+    "body_sha256": "a3164b4ddcc95392dbcc17caa77a110034958d271c7f862874943563140d3db3",
+    "body": "In the last step of her s. 18 analysis, the judge considered what amount of the adjusted pre-tax income should be attributed to Mr. Ward for the purpose of calculating child support. She specifically considered the factors enumerated by Justice Van den Eynden in the first appeal decision.[18] She recognized the onus on Mr. Ward at this stage and concluded he had not established any of the adjusted pre-tax income was required for the operation of the company. She considered 100% of the adjusted pre-tax income as available money to Mr. Ward for the payment of child support. She concluded by adding the income attributed under s. 18(1)(a) (the issue remitted to her for calculation) to the income imputed under s. 19(1)(a) (the amount upheld on the first appeal) in order to determine Mr. Ward’s total income for child support purposes.[19]"
+   },
+   {
+    "label": "24",
+    "marker_order": 34,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 21251,
+     "end": 21511
+    },
+    "body_chars": 254,
+    "body_sha256": "20f3c10fea398b127edb424522aa1bd74bf24965415c0ed11134a5002dfe4ab2",
+    "body": "After the s. 18 analysis, the judge went on to conclude the variation application by determining the issue of retroactive and prospective support. In a subsequent written decision, Mr. Ward was ordered to pay costs in the amount of $15,250 to Ms. Murphy."
+   },
+   {
+    "label": "25",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 21511,
+     "end": 21645
+    },
+    "body_chars": 128,
+    "body_sha256": "19fb8236bf067675559b0f912dfac96cec00320c583379befdc02d07e3d1d2b4",
+    "body": "Having reviewed the history of this proceeding, I turn now to the present appeal.\nAnalysis\nIssues Properly Raised on this Appeal"
+   },
+   {
+    "label": "26",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 21645,
+     "end": 22008
+    },
+    "body_chars": 357,
+    "body_sha256": "8f04214b35e8ba153af268a98f98c40f59cc11a33d1ef8e9a4569e7eb269acd0",
+    "body": "Mr. Ward’s appeal has two stages. The first is a motion to adduce fresh evidence. I must decide whether to admit the proposed evidence based on the applicable principles. Integral to the decision on the motion is whether the proposed fresh evidence is relevant and important to the outcome. For this reason, the issues on appeal must be properly identified."
+   },
+   {
+    "label": "27",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 22008,
+     "end": 22333
+    },
+    "body_chars": 319,
+    "body_sha256": "defab010de9980edcbd45582e035fc29f28efa6f2b839b092542b57aa120ca89",
+    "body": "Mr. Ward appeals both the substantive decision of Justice Forgeron and her award of costs. The grounds of appeal for each are similar. In essence, Mr. Ward argues the costs award resulted from a substantive decision that was wrong for a variety of reasons, including both errors of law and misapprehensions of evidence."
+   },
+   {
+    "label": "28",
+    "marker_order": 38,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 22333,
+     "end": 23291
+    },
+    "body_chars": 952,
+    "body_sha256": "f96dd17466372a86137054c68ce4d94d96a2d8331af2cc3b46bf659ea70cd343",
+    "body": "As a general observation, as in his first appeal, Mr. Ward seeks to raise or relitigate issues outside the scope of the appeal. For example, he raised the issue of undue hardship, an issue not perfected or pursued as part of his application to vary. He continues to argue the first judge hearing his application was biased, an issue raised and dismissed on the first appeal. Similarly, he repeats the argument that he should be free to make his business decisions as a controlling shareholder in a manner consistent with income tax law. These issues were addressed on the first appeal and are only addressed again to the extent they were raised in the context of issues on this appeal. Other issues raised, such as the allegation the rehearing judge simply accepted biased conclusions made by the first application judge,[20] and the issue of retroactivity, will be addressed as part of the analysis of the grounds of appeal properly before this Court."
+   },
+   {
+    "label": "29",
+    "marker_order": 39,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 23291,
+     "end": 23546
+    },
+    "body_chars": 249,
+    "body_sha256": "68cb56aa554db88c1f0f601f196af02095f241d0cc7d12172a5be928cbc6f1ed",
+    "body": "What is abundantly clear is Mr. Ward remains dissatisfied with the treatment of his business expenses in the context of his child support obligations. All of the issues raised on this appeal relate to this overriding complaint in one way or another."
+   },
+   {
+    "label": "30",
+    "marker_order": 40,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 23546,
+     "end": 23942
+    },
+    "body_chars": 390,
+    "body_sha256": "bbe43366334f8c593bd9b4c2815ce47de0c58f73cfbdc4ef768ceeb57c2b90d0",
+    "body": "Having considered which grounds raised are properly within the scope of this appeal, I would restate the issues on appeal as follows:\n1. Did the application judge demonstrate bias?\n2. Did the application judge misapprehend the evidence in her s. 18 analysis?\n3. Did the application judge err in law or principle in her s. 18 analysis?\n4. Did the application judge err in her award of costs?"
+   },
+   {
+    "label": "31",
+    "marker_order": 41,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 23942,
+     "end": 24057
+    },
+    "body_chars": 109,
+    "body_sha256": "9cbda06a3f49955166b5fa3b8cd2658f365b997bc136266edbb0489182a9a574",
+    "body": "The applicable standards of review will be addressed in the analysis of each issue.\nThe Fresh Evidence Motion"
+   },
+   {
+    "label": "32",
+    "marker_order": 42,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 24057,
+     "end": 24189
+    },
+    "body_chars": 126,
+    "body_sha256": "89fa3a1faa5a1de71d63575f8dfeec2709a8507555cabf48e281d96c9b8bd70e",
+    "body": "Before turning to the issues raised on this appeal, I must decide whether to grant Mr. Ward’s motion to adduce fresh evidence."
+   },
+   {
+    "label": "33",
+    "marker_order": 43,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 24189,
+     "end": 24662
+    },
+    "body_chars": 467,
+    "body_sha256": "e1a4c559eb3ddd6403a1af000cbb94a213b58a4eae43da704cb2b3e7208459db",
+    "body": "Mr. Ward offered his affidavit with a total of fifteen exhibits. The affidavit sets out a history of the litigation between the parties imbued with Mr. Ward’s: (1) personal perspective on the justice system, (2) complaints about the conduct of Ms. Murphy’s counsel and others, (3) argument he has been victimized as a father and (4) allegation he is the subject of ongoing discrimination and abuse. He acknowledged all of this material was potentially irrelevant.[21]"
+   },
+   {
+    "label": "34",
+    "marker_order": 44,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 24662,
+     "end": 25254
+    },
+    "body_chars": 586,
+    "body_sha256": "0df36de502b38be1ae8d345079cca4f9766335c4f7123aad24a21721f90bb4af",
+    "body": "The exhibits to his affidavit include: (1) affidavits and written submissions filed with the trial court at various points in the proceedings, (2) copies of complaints to the Nova Scotia Barrister’s Society, (3) emails and text message communication with court staff and Ms. Murphy, (4) a copy of the June 19, 2024 decision of Justice Lorne MacDowell denying Mr. Ward leave to vary parenting time, (5) excerpts from a court proceeding in 2017, (5) a trial balance sheet for his company dated December 31, 2021, and (6) a 2024 property assessment notice for one of the rental properties."
+   },
+   {
+    "label": "35",
+    "marker_order": 45,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 25254,
+     "end": 25656
+    },
+    "body_chars": 396,
+    "body_sha256": "e8de462511e766b398d23e71ff55e70dd8f66e5ac17eebcfa2ebdde4e0beffc1",
+    "body": "The principles guiding the admission of fresh evidence on appeal are uncontroversial. They were reviewed by this Court on Mr. Ward’s first appeal.[22] The components of the test are: (1) due diligence; (2) relevance; (3) credibility; and (4) materiality. In cases involving the best interests of a child, a further category of special circumstances may permit the admission of fresh evidence.[23]"
+   },
+   {
+    "label": "36",
+    "marker_order": 46,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 25656,
+     "end": 25870
+    },
+    "body_chars": 208,
+    "body_sha256": "bd4e45dbca64f24cab91d672bad82cd24b091ca4d40002e4ca5ef89983e57fff",
+    "body": "Mr. Ward’s motion is without merit. Overwhelmingly, the proposed evidence is irrelevant and immaterial to the issues on this appeal. There are no special circumstances justifying its admission on this appeal."
+   },
+   {
+    "label": "37",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 25870,
+     "end": 25935
+    },
+    "body_chars": 59,
+    "body_sha256": "8afea7b0692ed8266b892fb323e9be3e92f979c13ed80a9b1df1136ca92583bb",
+    "body": "I would dismiss Mr. Ward’s motion to adduce fresh evidence."
+   },
+   {
+    "label": "38",
+    "marker_order": 48,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 25935,
+     "end": 26043
+    },
+    "body_chars": 102,
+    "body_sha256": "1ec46813ad16ba075ce14c9f2aebd5947ffdb81ff74ef26bf89e77cf1ab039e5",
+    "body": "I now turn to the issues raised on the appeal.\nIssue One - Did the application judge demonstrate bias?"
+   },
+   {
+    "label": "39",
+    "marker_order": 49,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 26043,
+     "end": 26390
+    },
+    "body_chars": 341,
+    "body_sha256": "c0e937cbd284ae84abc8b9b65de1066503239cd2468afadc6ee9c3155f1e37f8",
+    "body": "I begin with the issue of bias raised by Mr. Ward, loosely organized into two inconsistent allegations. The first alleges the judge was wrong to adhere to previous findings, while the second alleges error in not adhering to earlier findings. As I understand it, Mr. Ward argues both of these approaches were wrong and resulted in unfairness."
+   },
+   {
+    "label": "40",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 26390,
+     "end": 26741
+    },
+    "body_chars": 345,
+    "body_sha256": "8257cadf4ab594abf875e66f659016ccbf511f61917fed6d45aad116ccbb616b",
+    "body": "In his Notice of Appeal, Mr. Ward says the rehearing judge erred by “mirroring a biased decision”. His factum crystallizes the argument. He alleges the rehearing judge simply accepted biased findings of the first hearing judge. However, Mr. Ward’s claims of bias against the first hearing judge were raised and dismissed on his first appeal.[24]"
+   },
+   {
+    "label": "41",
+    "marker_order": 51,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 26741,
+     "end": 27051
+    },
+    "body_chars": 304,
+    "body_sha256": "5bfab155c646fe1bc74b1b19d5ddd7fb12a881e960ae1b9554dcb1e2a80cacdf",
+    "body": "Mr. Ward now uses his previously dismissed complaints to bootstrap his allegations in this appeal. He asserts the rehearing judge’s reliance on biased findings interferes with his freedom to make decisions about how to operate his company. He strongly believes her analysis to be unfair and wrong in law."
+   },
+   {
+    "label": "42",
+    "marker_order": 52,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 27051,
+     "end": 27432
+    },
+    "body_chars": 375,
+    "body_sha256": "d2739e22796b602d5751b2b9a49742d3f3479fb2a8fdc220ea46ae0212b03296",
+    "body": "Additionally, Mr. Ward’s Notice of Appeal on the costs award claims the rehearing judge “[painted] the appellant with a bad brush for no good reason” and “a clear want to create higher numbers and not adhering to factual findings”. This argument alleges the rehearing judge went beyond the scope of the redetermination. Mr. Ward says that this too is wrong and unfair to him."
+   },
+   {
+    "label": "43",
+    "marker_order": 53,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 27432,
+     "end": 27759
+    },
+    "body_chars": 321,
+    "body_sha256": "b04da937fffc5f07abc567c7855b1e4d47d403edab4823e5fbada3e64a0b2832",
+    "body": "The principles guiding the examination of bias have been cited many times. Mr. Ward is familiar with these principles from his first appeal, as well as the recusal motion made on this appeal.[25] Mr. Ward’s allegation of bias in his previous appeal was dismissed with reliance on the guidance in R v. Potter, 2020 NSCA 9:"
+   },
+   {
+    "label": "741",
+    "marker_order": 54,
+    "role": "quoted_or_foreign",
+    "marker": "[741]",
+    "raw_span": {
+     "start": 27759,
+     "end": 27939
+    },
+    "body_chars": 173,
+    "body_sha256": "3748b5b1364b852dfce2075dd58bef18cc94fb4228b805595f908bdca385032f",
+    "body": "This Court canvassed the principles governing a claim of judicial bias, or reasonable apprehension thereof in Nova Scotia (Attorney General) v. MacLean, Saunders J.A. wrote:"
+   },
+   {
+    "label": "39",
+    "marker_order": 55,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 27939,
+     "end": 28632
+    },
+    "body_chars": 687,
+    "body_sha256": "767453bf699d3bb947efe58fd401b71af51a465284409b4c50fb61704b0a89cf",
+    "body": "First, as a matter of law, there is a strong presumption of judicial impartiality, which is not easily displaced. Second, there is a heavy burden of proof upon the person making the allegation to present cogent evidence establishing “serious grounds” sufficient to justify a finding that the decision-maker should be disqualified on account of bias. Third, whether a reasonable apprehension of bias exists is “highly fact specific.” Such an inquiry is one where the context, and the particular circumstances, are of supreme importance. The allegation can only be addressed carefully in light of the entire context. There are no shortcuts. See Wewaykum Indian Band v. Canada, 2003 SCC 45."
+   },
+   {
+    "label": "40",
+    "marker_order": 56,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 28632,
+     "end": 29777
+    },
+    "body_chars": 1139,
+    "body_sha256": "950fbe0543633a632dd37b5c376d81b78e6b6c438bce5b6a79585c82e3865b41",
+    "body": "The “test” regarding what constitutes a reasonable apprehension of bias appears in the oft-quoted dissenting judgment of de Grandpré, J. in Committee for Justice and Liberty v. National Energy Board, 1976 CanLII 2 (SCC), [1978] 1 S.C.R. 369 at ¶40:\n... the apprehension of bias must be a reasonable one, held by reasonable and right-minded persons, applying themselves to the question and obtaining thereon the required information, that test is “what would an informed person, viewing the matter realistically and practically -- ...conclude? Would he think that it is more likely than not that Mr. Crowe, whether consciously or unconsciously, would not decide fairly.\n[…] In relation to what constitutes the “reasonable person,” the qualifications are not limited to just being “reasonable.” The law requires a fully informed “reasonable person.” That is:\n...a person who approaches the question of whether there exists a reasonable apprehension of bias with a complex and contextualized understanding of the issues in the case. The reasonable person understands the impossibility of judicial neutrality but demands judicial impartiality."
+   },
+   {
+    "label": "742",
+    "marker_order": 57,
+    "role": "quoted_or_foreign",
+    "marker": "[742]",
+    "raw_span": {
+     "start": 29777,
+     "end": 29938
+    },
+    "body_chars": 154,
+    "body_sha256": "a4fdbe30786a60f709dd7754a77bc30a09cd35727ce5ed163b5c09c843f6de90",
+    "body": "Assessments of judicial bias are highly fact specific. In Yukon Francophone School Board, Education Area #23 v. Yukon (Attorney General), Abella J. wrote:"
+   },
+   {
+    "label": "26",
+    "marker_order": 58,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 29938,
+     "end": 30804
+    },
+    "body_chars": 860,
+    "body_sha256": "e641d54cdd9beb8a28888d37ff74a27020b4f4dae71ecf28c8fab73ca362fc1d",
+    "body": "The inquiry into whether a decision-maker’s conduct creates a reasonable apprehension of bias, as a result, is inherently contextual and fact-specific, and there is a correspondingly high burden of proving the claim on the party alleging bias: see Wewaykum, at para. 77; S. (R.D.), at para. 114, per Cory J. As Cory J. observed in S. (R.D.):\n… allegations of perceived judicial bias will generally not succeed unless the impugned conduct, taken in context, truly demonstrates a sound basis for perceiving that a particular determination has been made on the basis of prejudice or generalizations. One overriding principle that arises from these cases is that the impugned comments or other conduct must not be looked at in isolation. Rather it must be considered in the context of the circumstances, and in light of the whole proceeding. [Emphasis in original]"
+   },
+   {
+    "label": "745",
+    "marker_order": 59,
+    "role": "quoted_or_foreign",
+    "marker": "[745]",
+    "raw_span": {
+     "start": 30804,
+     "end": 30944
+    },
+    "body_chars": 133,
+    "body_sha256": "24739adadabf1eb908ffd1b34882352c1c9b4901b55be8bd28181c2c693edeaa",
+    "body": "The above authorities highlight the importance of applying a contextualized approach to considering allegations of judicial bias.[26]"
+   },
+   {
+    "label": "44",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 30944,
+     "end": 31077
+    },
+    "body_chars": 127,
+    "body_sha256": "a0c16067b6514075656a75cee618b8a549b16279030a47cece86d6374ed0dbaa",
+    "body": "More recently, this Court had occasion to underscore the heavy onus on a proponent of judicial bias in Fraser v. MacIntosh.[27]"
+   },
+   {
+    "label": "45",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 31077,
+     "end": 31302
+    },
+    "body_chars": 219,
+    "body_sha256": "7f3e719b70446a6f1e2774121b3ceb5619ed0813fbaf0769a0552380d5f8855a",
+    "body": "As the authorities direct, the assessment of bias is contextual, begins with a strong presumption of judicial impartiality, and requires the discharge of a heavy burden, on cogent evidence, establishing serious grounds."
+   },
+   {
+    "label": "46",
+    "marker_order": 62,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 31302,
+     "end": 31842
+    },
+    "body_chars": 534,
+    "body_sha256": "c7942e2f0f8033a2dfa30d77270318fa15e3567043ee7c341148acd60a094ead",
+    "body": "Mr. Ward’s allegations of bias in the present appeal are entirely without foundation in the record. Although it is clear Mr. Ward disagrees with the judge’s assessment of his business expenses for child support purposes, there is nothing in the judge’s approach supporting his allegations. The nature and scope of the rehearing would have been clear to Mr. Ward from the decision on his first appeal. It was clear to the judge, who sought input from the parties, and recorded the nature of the review she was assigned in her decision:"
+   },
+   {
+    "label": "4",
+    "marker_order": 63,
+    "role": "quoted_or_foreign",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 31842,
+     "end": 32103
+    },
+    "body_chars": 256,
+    "body_sha256": "45d69ea1cd2f9d737daeed3c990203bd6df4c3c7b54dbac522bf27f7e6de86b0",
+    "body": "Despite Mr. Ward’s attempts to have me address other issues, this decision will only focus on the corporate income because this is a rehearing of Mr. Ward’s variation application. Thus, I must follow the directions stated in Ward v. Murphy, 2022 NSCA 20.\n…"
+   },
+   {
+    "label": "14",
+    "marker_order": 64,
+    "role": "quoted_or_foreign",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 32103,
+     "end": 32584
+    },
+    "body_chars": 475,
+    "body_sha256": "576cfdd6ed461053953a7b4fea5f73dd41dd61be8fb209c6deaf7298389a30ea",
+    "body": "Although they were at odds over most issues, both parties nevertheless agreed that I should conduct a fresh s. 18 analysis independent of the factual findings and conclusions reported by MacLeod-Archer J. in PW v. CM, supra. I agree with the parties’ interpretation of the Court of Appeal’s directions in Ward v. Murphy, supra. I will thus conduct a fresh analysis to determine the amounts, if any, by which the corporate expenses should be adjusted to increase the PTCI.[28]"
+   },
+   {
+    "label": "47",
+    "marker_order": 65,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 32584,
+     "end": 32938
+    },
+    "body_chars": 348,
+    "body_sha256": "41a15c0a533aca4cf94ae8507bc14ac032d116aea58a66f65e24790b21089d44",
+    "body": "The record does not support, by any measure, a basis to find the rehearing judge simply accepted the findings and conclusions of the first hearing judge. To the contrary, there are instances where she made significantly different findings – also the subject of Mr. Ward’s complaints in those instances where he preferred the first judge’s findings."
+   },
+   {
+    "label": "48",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 32938,
+     "end": 33616
+    },
+    "body_chars": 672,
+    "body_sha256": "9c0b6fb4551f170c7da3ebd9246dce99e9be4fb8e502051ec050f22ae424b2cd",
+    "body": "Part of Mr. Ward’s argument on this point is the judge failed to accept the evidence offered by his accountant, Mr. Sonny MacDougall. Mr. MacDougall generally offered evidence about the preparation of Mr. Ward’s personal and business income tax returns as well as the expenses deducted from his corporate income. This evidence was considered by the judge in her determination of the s. 18 analysis. As will be discussed further below, the judge’s examination of the evidence had a different purpose. The fact that she notionally “added back” certain deductions made by Mr. Ward’s accountant for income tax purposes does not demonstrate bias or reveal an unfair motivation."
+   },
+   {
+    "label": "49",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 33616,
+     "end": 33909
+    },
+    "body_chars": 287,
+    "body_sha256": "9aeaf61168d0d5ff18f7fd9676f67f4c9e1a3893692c4e12e28986a1ee1371a0",
+    "body": "A reasonable and informed person viewing the record contextually could not conclude the judge did anything other than fairly adjudicate the task assigned to her. I would dismiss this ground of appeal.\nIssue Two - Did the application judge misapprehend the evidence in her s. 18 analysis?"
+   },
+   {
+    "label": "50",
+    "marker_order": 68,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 33909,
+     "end": 34170
+    },
+    "body_chars": 255,
+    "body_sha256": "a9cfb5a17ab36d161aeb992f9ee31e3cc41decafdebc2b8523fafa5257ac18c0",
+    "body": "On this issue, the standard of review is deferential and only permits intervention in the event of a material error or serious misapprehension of the evidence. The oft-cited decision in Hickey v. Hickey, [1999] 2 S.C.R. 518 informs the standard of review:"
+   },
+   {
+    "label": "12",
+    "marker_order": 69,
+    "role": "quoted_or_foreign",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 34170,
+     "end": 35068
+    },
+    "body_chars": 892,
+    "body_sha256": "8165d6de7f5882cd90b18bc9035b8cac338c067221c143de2daef34500b33ad9",
+    "body": "There are strong reasons for the significant deference that must be given to trial judges in relation to support orders. The standard of appellate review recognizes that the discretion involved in making a support order is best exercised by the judge who has heard the parties directly. It avoids giving the parties an incentive to appeal judgments and incur added expenses in the hope that the appeal court will have a different appreciation of the relevant factors and evidence. This approach promotes finality in family law litigation and recognizes the importance of the appreciation of facts by the trial judge. Though an appeal court must intervene when there is a material error, a serious misapprehension of the evidence, or an error in law, it is not entitled to overturn a support order simply because it would have made a different decision or balanced the factors differently.[29]"
+   },
+   {
+    "label": "51",
+    "marker_order": 70,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 35068,
+     "end": 35519
+    },
+    "body_chars": 445,
+    "body_sha256": "85f512f0e915fe4828e1a7aefbd088c200c31e22bff1b699783cebbf8ec303e1",
+    "body": "Mr. Ward alleges: (1) mathematical errors related to the company’s operating expenses; (2) expenses added back incorrectly and unreasonably; (3) overlooking clear facts – “not following accounting rules (CRA) in determining mathematical equations to determine proper answers”.[30] In his factum and oral argument, Mr. Ward alleges his company’s pre-tax income was miscalculated and both he and his company will suffer undue hardship as a result."
+   },
+   {
+    "label": "52",
+    "marker_order": 71,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 35519,
+     "end": 36122
+    },
+    "body_chars": 597,
+    "body_sha256": "fef7c6fe31274ad11090758799e3580eda8a18e98ee92deaaf2adf391f2e5f3e",
+    "body": "The overriding theme of Mr. Ward’s submissions on this issue is that he retained a professional accountant who prepared his personal and corporate returns properly. The expenses deducted from his company revenue for income tax purposes were permitted and reasonable to the Canada Revenue Agency (“CRA”) and should not be altered in the context of determining his child support obligation. He says emphatically he explained the basis for the various deductions to the rehearing judge who disregarded the evidence of both he and his accountant and added back amounts to his company’s pre-tax income."
+   },
+   {
+    "label": "53",
+    "marker_order": 72,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 36122,
+     "end": 36555
+    },
+    "body_chars": 427,
+    "body_sha256": "b02deb1a433c2ad2f6a5e366d67ec38b134efd2128e8836ccaeed6fc165ccd35",
+    "body": "As noted at paragraph 15, this argument was raised and addressed in Mr. Ward’s first appeal.[31] Nevertheless, it remains Mr. Ward’s principal and overarching complaint. As a result, it bears repeating that the exercise under s. 18(1)(a) and (2) of the Guidelines is notional and intended to fairly determine the amount of money available for the payment of child support. As explained in Gosse v. Sorensen-Gosse, 2011 NLCA 58:"
+   },
+   {
+    "label": "94",
+    "marker_order": 73,
+    "role": "quoted_or_foreign",
+    "marker": "[94]",
+    "raw_span": {
+     "start": 36555,
+     "end": 38144
+    },
+    "body_chars": 1583,
+    "body_sha256": "bd1b7d6437154c5f5c17604cd374219186243a8832e493a0c7a134c606d89d70",
+    "body": "Neither imputing pre-tax corporate income to a shareholder, nor adjusting the amount shown as pre-tax corporate income to offset non-cash expensing, in the course of establishing the basis for calculating child support obligations under the Guidelines, requires the corporation to alter its financial records or its business decisions in any manner. It does not require the actual transfer of any of its financial resources to the sole shareholder. That remains a decision of the corporation, as guided and directed by the sole shareholder. Imputing is only a theoretical exercise for the purpose of making “the fairest determination” of an income level by which to judge the level of responsibility the shareholding spouse should have for child support, when compared with the income level of the other spouse. The corporation is not a party to the action and no order is directed at the corporation. In the case of a sole shareholder, the effect is, essentially, to ignore the corporate structure, for Guidelines income assessment purposes only, and treat the shareholding spouse in the same manner as that spouse would be treated if the business were carried on in the name of that spouse personally. When applied to this case, that requires Ms. Sorensen to account for “all the money available to [her] for the payment of child support,” on precisely the same basis as Mr. Gosse has been required to account for all the money available to him for that purpose. Only in that manner can a primary objective of the Guidelines, “the fairest determination of that income” be achieved."
+   },
+   {
+    "label": "54",
+    "marker_order": 74,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 38144,
+     "end": 38577
+    },
+    "body_chars": 427,
+    "body_sha256": "f524c837ede023eaccd756e9ed678fd89939599336f6397f2950a73e542031af",
+    "body": "In spite of Mr. Ward’s ongoing objection, the Guidelines are clear. In circumstances where a parent derives income from a company in which they are a shareholder, there must be an inquiry as to whether their income, as determined under s. 16, fairly reflects all the money available for the payment of child support. If the answer is no, as it was in this case, the discretion under s. 18(1)(a) is available as a remedial tool."
+   },
+   {
+    "label": "55",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 38577,
+     "end": 39166
+    },
+    "body_chars": 583,
+    "body_sha256": "75a02eaee45b385b1bed44841b10ad5b38f68b2780714d739579b7e8b8e94c21",
+    "body": "In order to properly exercise the discretion in s. 18(1)(a), there must first be compliance with s. 18(2), requiring all amounts paid to non-arms length persons as “salaries, wages, or management fees”, or “other payments or benefits” be added back to the pre-tax income, “unless the parent establishes that the payments were reasonable in the circumstances”. In this context, the analysis under s. 18(2) is mandatory. Only after it is done can the discretion in s. 18(1)(a) be exercised. The failure to follow this two-step assessment was identified as an error on the first appeal."
+   },
+   {
+    "label": "56",
+    "marker_order": 76,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 39166,
+     "end": 39381
+    },
+    "body_chars": 209,
+    "body_sha256": "1b48508ef4d83c02fb9052723cc0f20d30fe0e6d0637a31319f138e051bbc0f1",
+    "body": "In Cunningham v. Seveny, 2017 ABCA 4, the respondent made an argument much like Mr. Ward, saying his business expenses were incurred and legitimate and approved by the CRA. This argument was readily dismissed:"
+   },
+   {
+    "label": "18",
+    "marker_order": 77,
+    "role": "quoted_or_foreign",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 39381,
+     "end": 39571
+    },
+    "body_chars": 184,
+    "body_sha256": "d533d4368c1cc29c4b3e8f3d4f23fd9fe513b48cadd992fba3bdadf4cdeac75b",
+    "body": "… It is manifest that a determination of the reasonableness of expenses claimed in reduction of annual income is a core, and critical, aspect of the court’s decision-making function.\n…"
+   },
+   {
+    "label": "31",
+    "marker_order": 78,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 39571,
+     "end": 40116
+    },
+    "body_chars": 539,
+    "body_sha256": "1b1441a794df2ac6c92767b4449859e396c7642057fc7e28a28cbe8fd417d520",
+    "body": "Moreover, the respondent’s proposition that the expenses claimed have been approved for income tax purposes and should thereby be found reasonable is neither persuasive, nor is it the test for analyzing those expenses when calculating Guidelines income for child support purposes. Expense deductions can legitimately be made under the Income Tax Act, RSC 1985, c 1 (5th Supp) to decrease corporate or personal tax exposure. But, calculating Guideline income for child support purposes engages an entirely different legislated methodology …"
+   },
+   {
+    "label": "57",
+    "marker_order": 79,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 40116,
+     "end": 40514
+    },
+    "body_chars": 392,
+    "body_sha256": "aa66505c5bbab98c6ec4e3a653e50ea799e5df9607a2f326aebba78533c45ca6",
+    "body": "Mr. Ward’s persistent position on this point is clearly wrong. There is no basis to conclude the hearing judge failed to understand or appreciate the evidence offered by Mr. Ward or his accountant. On the contrary, the record demonstrates the judge had a firm grasp on the evidence as well as the analysis required by s. 18(1)(a) and (2) of the Guidelines and followed the steps methodically."
+   },
+   {
+    "label": "58",
+    "marker_order": 80,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 40514,
+     "end": 41106
+    },
+    "body_chars": 586,
+    "body_sha256": "5d4d5fb73ef25d959cd756d54c0693f5d727e7a91405956fe0e49b8cff6bc297",
+    "body": "Mr. Ward’s arguments on this issue simply repeat complaints from his first appeal. Although framed as miscalculations or misapprehensions of the evidence, the arguments are really about the principles the judge applied to the assessment of the evidence. Mr. Ward fails to demonstrate how the judge misunderstood the evidence or made material mathematical mistakes. It is evident the judge’s factual determinations were well grounded in the record. She employed the evidence to make the required findings. The most that can be said is that Mr. Ward strenuously disagrees with the result."
+   },
+   {
+    "label": "59",
+    "marker_order": 81,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 41106,
+     "end": 41387
+    },
+    "body_chars": 275,
+    "body_sha256": "8b31e0004e700f9b891fd12b33105e5b480685d55a7fe582d8b50662a57761de",
+    "body": "This ground of appeal has no merit. I would dismiss it. However, some of the complaints made about the judge’s findings and conclusions are better assessed under the next ground of appeal.\nIssue Three - Did the application judge err in law or principle in her s. 18 analysis?"
+   },
+   {
+    "label": "60",
+    "marker_order": 82,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 41387,
+     "end": 41656
+    },
+    "body_chars": 263,
+    "body_sha256": "24099aef541fe4c81f06341d0ba2b5c5f611837bab07fdc84f141c817aafd73d",
+    "body": "Mr. Ward’s Notice of Appeal alleges the judge erred in principle in her s. 18 analysis. Questions of law must be decided correctly but as noted above, review of income and support decisions is deferential. In Chandler v. Chandler,[32] the rationale was explained:"
+   },
+   {
+    "label": "31",
+    "marker_order": 83,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 41656,
+     "end": 42726
+    },
+    "body_chars": 1064,
+    "body_sha256": "a353974bf872d8e04d7cfea7658e4d56e2d6e64c814dacfeaa386b7387cee9a1",
+    "body": "… The question involves the application of principles of law to findings of fact and is discretionary at its core. This is evident from the statutory language. The starting point for determining income is “the sources of income set out under the heading ‘Total income’ in the T1 General form issued by the Canada Revenue Agency” as set out in s. 16 of the Guidelines. Sections 17 and 18 of the Guidelines ask “if the court is of the opinion” that determining income pursuant to s. 16 “would not be the fairest determination” or “does not fairly reflect” all the money available to a spouse for payment of support. And s. 19 provides that a court “may impute such amount of income to a spouse as it considers appropriate”. The application of the Guidelines to determine a spouse’s income requires the court to exercise its discretion after finding the relevant facts. In short, a judge’s conclusion that the application of s. 16 (or of ss. 17–19) results in a fair reflection of all of the money available for the payment of support is to be reviewed deferentially."
+   },
+   {
+    "label": "61",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 42726,
+     "end": 43082
+    },
+    "body_chars": 350,
+    "body_sha256": "b2a20e889236c53b24ef30d462476ede056a697919d4c35c1fbcbd504f809cde",
+    "body": "On this ground, Mr. Ward says that his company’s operating expenses were “added back incorrectly” and he was treated unfairly on the issue of retroactivity. He references his Charter rights and “Canada Revenue Agency – Tax Laws.” In his Notice of Appeal on costs, he says the judge was “Overlooking clear facts. Not following accounting rules (CRA).”"
+   },
+   {
+    "label": "62",
+    "marker_order": 85,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 43082,
+     "end": 43790
+    },
+    "body_chars": 702,
+    "body_sha256": "5443d9c503563c105fe27a04baa3055d12e9b30d5d5c9910ceb4c9a532f0ccf5",
+    "body": "Mr. Ward’s arguments are largely repetition of the grievances already addressed. He disagrees with the determination made by the judge and what he perceives to be interference with his authority as a sole shareholder. At paragraph 73 of his factum, Mr. Ward reveals the substance of his complaint:\n73. … (Note: The freedom of the Appellant to make Corporate decisions should not have been interfered with by the Justices in their determination of Corporate Pre-Tax income). The purchase of a computer, backhoe or a tool used to perform duties, repairs and maintenance to the Company’s properties should not be determined outside of a Shareholder. These were all necessary acquisitions for the Business."
+   },
+   {
+    "label": "63",
+    "marker_order": 86,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 43790,
+     "end": 43917
+    },
+    "body_chars": 121,
+    "body_sha256": "6649fdaffe5bd2e969569f96075b35896cb08cb7f8a9a38a6ebacdd8f359bb42",
+    "body": "Mr. Ward goes on to make the conclusory assertion that the judge “failed to understand the Court of Appeal decision”.[33]"
+   },
+   {
+    "label": "64",
+    "marker_order": 87,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 43917,
+     "end": 44262
+    },
+    "body_chars": 339,
+    "body_sha256": "c5b4a309e49d4544fef1d0e1df456efd7bf1ba6e37e58076f765df15691972ce",
+    "body": "Once again, there is no merit to Mr. Ward’s complaints of error. A review of the record, the judge’s list of issues for determination, and her reasons, reveal she undertook the task directed by this Court in the previous appeal which compelled a fresh assessment of the corporate pre-tax income under s. 18(1)(a) and (2) of the Guidelines."
+   },
+   {
+    "label": "65",
+    "marker_order": 88,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 44262,
+     "end": 45799
+    },
+    "body_chars": 1531,
+    "body_sha256": "1754e109317090582d8790282a4f86f72ee5357cf6fd214957f5fcbd1676367b",
+    "body": "Mr. Ward’s view that he (or his accountant) has exclusive authority to make decisions about the operation of his company is abundantly clear. But his steadfast position continues to ignore the remedial assessment available under s. 18 of the Guidelines when, as here, the shareholder, director, or officer of a corporation is a parent:\nShareholder, director, or officer\n18(1) Where a parent is a shareholder, director or officer of a corporation and the court is of the opinion that the amount of the parent’s annual income as determined under Section 16 does not fairly reflect all the money available to the parent for the payment of child support, the court may consider the situations described in Section 17 and determine the parent’s annual income to include\n(a) All or part of the pre-tax income of the corporation, and of any corporation that is related to the corporation, for the most recent taxation year; or\n(b) An amount commensurate with the services that the parent provides to the corporation, provided that the amount does not exceed the corporation’s pre-tax income.\nAdjustment to corporation’s pre-tax income\n(2) In determining the pre-tax income of a corporation for the purposes of subsection (1), all amounts paid by the corporation as salaries, wages, or management fees, or other payments or benefits, to or on behalf of persons with whom the corporation does not deal at arm’s length must be added to the pre-tax income, unless the parent establishes that the payments were reasonable in the circumstances."
+   },
+   {
+    "label": "66",
+    "marker_order": 89,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 45799,
+     "end": 46420
+    },
+    "body_chars": 615,
+    "body_sha256": "08d65a894ed98044444cf2ca29f7fe92599ee70684d7a0c3845677029ffa7516",
+    "body": "As observed many times now, s. 18 confers a broad discretion to consider the pre-tax income of a company for child support purposes. Section 18 is a tool available to ensure a fair determination of the money available to pay child support. Once selected, it must be used correctly. This was the key determination on Mr. Ward’s first appeal. As noted, having found an error in the s. 18 analysis, it was remitted for redetermination. Mr. Ward was given a new hearing on this limited point. Given the outcome of the previous appeal, it is no longer open to him to argue that s. 18 does not apply to his circumstances."
+   },
+   {
+    "label": "67",
+    "marker_order": 90,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 46420,
+     "end": 46631
+    },
+    "body_chars": 205,
+    "body_sha256": "1069bfeafdeb8c79f2be3072ed001f2afb2b35fdc4345aa23ac9c75d6076eccf",
+    "body": "The question remains whether the judge committed any error in her analysis. In order to address this argument, it is necessary to deal with a number of points raised by Mr. Ward.\nThe Exercise of Discretion"
+   },
+   {
+    "label": "68",
+    "marker_order": 91,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 46631,
+     "end": 46923
+    },
+    "body_chars": 286,
+    "body_sha256": "827244b781a98d88950a10767efc4a67a4a36e29847888024b1e16e7891289fa",
+    "body": "The first of these relates to the variety of outcomes of Mr. Ward’s applications. He relies on the fact different judges reviewing his income for child support purposes have come to differing conclusions. He accepts those most favourable to him and complains the rest result from error."
+   },
+   {
+    "label": "69",
+    "marker_order": 92,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 46923,
+     "end": 47775
+    },
+    "body_chars": 846,
+    "body_sha256": "35357d2cf97af312bff42ff113e79d02327bed3f99139d823336b3c748fe5866",
+    "body": "There are reasoned explanations for the variances. To some degree the assessments have changed over time as a result of the state of disclosure. There were also changes in circumstances such as Mr. Ward’s decision to reorganize his business and incorporate his company in 2016 (information not disclosed on his initial application). It is also true that the broad discretion available under s. 18 may result in varied outcomes. The animating objectives of the discretionary exercise are fairness in the determination of income for child support purposes and consistency of support for children. The possibility of a range of outcomes does not mean the exercise of discretion is arbitrary. What is required is the discretion be rooted in evidence, informed by the correct principles, and exercised in a manner that meets the overriding objectives."
+   },
+   {
+    "label": "70",
+    "marker_order": 93,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 47775,
+     "end": 48174
+    },
+    "body_chars": 393,
+    "body_sha256": "1d70345ce8f7b9da557e5f26066469cc33f2cfb8df0189f17c008fa3d84697a8",
+    "body": "In his factum, Mr. Ward acknowledged Justice Forgeron “had more evidence before her than any previous Justice”. She also had the decision of the previous application judge and the decision of this Court on the first appeal.[34] She was compelled to apply the law, and she undertook a fresh assessment. This necessarily provides the possibility of different findings. It is not a sign of error."
+   },
+   {
+    "label": "71",
+    "marker_order": 94,
+    "role": "spine",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 48174,
+     "end": 48362
+    },
+    "body_chars": 182,
+    "body_sha256": "0e8407830bd766cc13a73a066034d97365db09f99232ade44b0d0cc04530090c",
+    "body": "There are two other issues raised by Mr. Ward requiring elaboration: (1) the issue of “double dipping”; and (2) the add back of capital cost allowance (CCA).\nThe Double Dipping Issue"
+   },
+   {
+    "label": "72",
+    "marker_order": 95,
+    "role": "spine",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 48362,
+     "end": 48791
+    },
+    "body_chars": 423,
+    "body_sha256": "f9709d17a20e4653fb34444dd2d9ecbda908206003192c0ca490da3aec68dcaf",
+    "body": "Mr. Ward identified an issue he called “double dipping.” The issue was whether it was an error for the judge to add wages paid to him back into corporate pre-tax income. As he correctly noted, the first hearing judge had not added those payments back. Justice Forgeron added back 50% of those payments. She gave four reasons for her decision to make this adjustment to the pre-tax income of the company:\nG. Salary and Wages"
+   },
+   {
+    "label": "37",
+    "marker_order": 96,
+    "role": "quoted_or_foreign",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 48791,
+     "end": 49004
+    },
+    "body_chars": 207,
+    "body_sha256": "8d1abe354afd5a7909a3276956bd1ba99958db981f9e2a3aa18c7d6c3588ba9f",
+    "body": "In 2020 and 2021, Mr. Ward was employed by the company. In 2020, he was paid $17,500; in 2021, he was paid $38,000. I will adjust the PTCI by adding back 50% of Mr. Ward’s employment income for four reasons."
+   },
+   {
+    "label": "38",
+    "marker_order": 97,
+    "role": "quoted_or_foreign",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 49004,
+     "end": 49531
+    },
+    "body_chars": 521,
+    "body_sha256": "10edaafc7cdf3b7c34f49d81c939db8b15be6190f49e95d749d5fead7f6946fb",
+    "body": "First, tax planning, and not corporate need, is a factor associated with Mr. Ward being paid wages. Reducing the amount of the PTCI generates a favourable tax outcome. Mr. Ward often pays income tax at a lower rate than does the company because the company generates income from rentals – characterized as passive assets by CRA. Further, Mr. MacDougall said that when the company operates at a deficit, the company can retain the corporate losses for 20 years. Corporate losses can be used to offset future tax liability."
+   },
+   {
+    "label": "39",
+    "marker_order": 98,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 49531,
+     "end": 50121
+    },
+    "body_chars": 584,
+    "body_sha256": "a89cf8a60e7b75d93b7c5cd932a0758b882c34f03c770c60ce301997bf36afdb",
+    "body": "Second, prior to the contentious court proceedings, during periods of unemployment, Mr. Ward worked on his rental properties without pay. The company, solely controlled by Mr. Ward, did not pay Mr. Ward wages to build, repair, or renovate the rental units. Since the 2017 decision, Mr. Ward continued to have periods of unemployment and thus time to complete any necessary renovations and repairs as he had in the past – without pay. Mr. Ward would, however, derive a financial benefit from the increased equity in the various rental properties which operate as an investment vehicle."
+   },
+   {
+    "label": "40",
+    "marker_order": 99,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 50121,
+     "end": 50576
+    },
+    "body_chars": 449,
+    "body_sha256": "4ba6886f2f9d457c85b0f664b1920574328ffb2065ae626c01ec8b960661c8e1",
+    "body": "Third, the rationale underpinning income imputation confirms that corporate wages should be adjusted. All court decisions distinguished between Mr. Ward’s two sources of imputed income. In the 2017 decision in PW v. CM, supra, Gregan J imputed an annual income to Mr. Ward of $60,000 for income earned from sources other than the rentals (employment and EI income). In addition, Mr. Ward was imputed an additional $60,000 in income from the rentals."
+   },
+   {
+    "label": "41",
+    "marker_order": 100,
+    "role": "quoted_or_foreign",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 50576,
+     "end": 51138
+    },
+    "body_chars": 556,
+    "body_sha256": "4d952a4cd344edcbc9dc1798a8b66c95d6c0e6e16ceecd24811c82fd3434ae44",
+    "body": "In MacLeod-Archer J’s 2021 decision in PW v. CM, supra, she considered Mr. Ward’s income for the years 2018-2020. She noted that in 2020, Mr. Ward worked for several months through the union and collected EI benefits. After being laid off, he worked for his company, paying himself wages of $17,500.00 instead of looking for outside work. MacLeod-Archer J. held at para 61:\nI am not satisfied that the choice to work for his company in the fall of 2020 was reasonable, nor that the work he completed couldn’t be interrupted or delayed if he got union work."
+   },
+   {
+    "label": "42",
+    "marker_order": 101,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 51138,
+     "end": 51408
+    },
+    "body_chars": 264,
+    "body_sha256": "fd5cc36d25b90ebcf8d64cee5bec58607f6406c5f87d99ce425c60952a3a12da",
+    "body": "She went on to find that it was still appropriate to impute $60,000 annually to Mr. Ward for income derived from external employment and E.I. benefits: para 62. The Court of Appeal in Ward v. Murphy, supra, took no issue with this aspect of her analysis: para 116."
+   },
+   {
+    "label": "43",
+    "marker_order": 102,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 51408,
+     "end": 51642
+    },
+    "body_chars": 228,
+    "body_sha256": "2a086b500e2bd555a0d6c5db0370a9aae23e2f19903704673559b2967deb4f24",
+    "body": "Not adjusting the PTCI for wages paid to Mr. Ward would defeat the rationale underlying the court’s previous imputation decisions. Employment income paid to Mr. Ward from the company should therefore be added back into the PTCI."
+   },
+   {
+    "label": "44",
+    "marker_order": 103,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 51642,
+     "end": 52441
+    },
+    "body_chars": 793,
+    "body_sha256": "fc5651ed716237f8e0757f2b012cbb0956441625d28a245cc487f9007b7bbc35",
+    "body": "Fourth, in 2020 and 2021, Mr. Ward intentionally reduced his income to avoid being garnished. In June 2018, upon Ms. Murphy’s counsel withholding $300 from his costs award, Mr. Ward stopped making child support payments as ordered. Mr. Ward reduced his monthly payments from $994 to $300. By October 2019, Mr. Ward owed maintenance arrears in excess of $10,000. Thereafter, MEP started to aggressively garnish Mr. Ward’s EI benefits. Once his EI claim expired in March 2020, Mr. Ward did not open another claim, despite having the qualifying hours. Further, he did not apply for CERB. The federal garnish would attach to both the EI and CERB payments. With no other source of income, Mr. Ward decided to withdraw money from the company as an employee, although he did not receive regular pays."
+   },
+   {
+    "label": "45",
+    "marker_order": 104,
+    "role": "quoted_or_foreign",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 52441,
+     "end": 52757
+    },
+    "body_chars": 310,
+    "body_sha256": "8933242bdbba12687c325100f36da08ab15ea99bf7176516c3229e251e95668d",
+    "body": "Given these four circumstances, I was initially inclined to add 100% of the wages to the PTCI. But for the pandemic, I would have. However, given the unique circumstances flowing from the pandemic, I will adjust by only adding back 50% of the wages paid to Mr. Ward.\n[Footnote citations deleted/Emphasis added]"
+   },
+   {
+    "label": "73",
+    "marker_order": 105,
+    "role": "spine",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 52757,
+     "end": 52825
+    },
+    "body_chars": 62,
+    "body_sha256": "e0118422d288408c3e01a72957961089d4d8f318eec2b2fdf4eacc6d3f27fdad",
+    "body": "Some background may help to explain the issue Mr. Ward raises."
+   },
+   {
+    "label": "74",
+    "marker_order": 106,
+    "role": "spine",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 52825,
+     "end": 53376
+    },
+    "body_chars": 545,
+    "body_sha256": "5c5b4f783aa4d889fec5f2968b9fda27d1b076babebd7bdc76c2965cbb783555",
+    "body": "Since being obligated to pay child support, Mr. Ward’s income has had two components: (1) his employment income and employment insurance benefits; and (2) his rental business. When first determined by Gregan, J., Mr. Ward was not working, and did not disclose the incorporation of his rental property business. The amount of $60,000 was imputed to him on the evidence of his employment and benefit history. Another $60,000 was determined to be his rental property income. His total income for child support purposes was set at $120,000 per year."
+   },
+   {
+    "label": "75",
+    "marker_order": 107,
+    "role": "spine",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 53376,
+     "end": 54018
+    },
+    "body_chars": 636,
+    "body_sha256": "6236171acc266e27e3cf13a58de23b2f575e9651073ca204bb161628fe902f3a",
+    "body": "When the issue of child support returned, Mr. Ward disclosed the incorporation of his business. The hearing judge reviewed the evidence of Mr. Ward’s history of paid work outside of his company, his capacity for work, and efforts to find work. She concluded it was “still appropriate” to impute the amount of $60,000 annually to Mr. Ward under s. 19(1)(a) of the Guidelines on the basis he was underemployed. The rationale was Mr. Ward had the ongoing capacity to earn income outside his company and had failed to establish his decision to work for his company was reasonable. This conclusion was not disturbed by the subsequent appeal."
+   },
+   {
+    "label": "76",
+    "marker_order": 108,
+    "role": "spine",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 54018,
+     "end": 54628
+    },
+    "body_chars": 604,
+    "body_sha256": "0d84ed3d74afc55ad14dc5c04fb46af22f5e78d988261b724f83059d986742f5",
+    "body": "The issue highlights the relationship between the imputation of income under s. 19 of the Guidelines and the attribution of income under s. 18, in the unique circumstances of this case. The majority on the first appeal accepted the hearing judge’s imputation of income noting she had not added back amounts paid to Mr. Ward as wages. This observation was subsumed by the conclusion the hearing judge erred in the s. 18 analysis. On rehearing, the judge added back 50% of the payments made to Mr. Ward by his company. In doing so, she recognized Mr. Ward also had imputed employment income of $60,000.[35]"
+   },
+   {
+    "label": "77",
+    "marker_order": 109,
+    "role": "spine",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 54628,
+     "end": 55257
+    },
+    "body_chars": 623,
+    "body_sha256": "098ae4df61f2e95f88e9cb15ea399c5af4db97443715f74eaa4b959b024a9369",
+    "body": "Mr. Ward argues the decision to add back the amount paid as wages was “double dipping” and an error in principle. In his view, if the income he receives from his company is added back, then his personal income should be correspondingly reduced. This, however, ignores the basis on which the s. 19(1)(a) income was originally imputed – the evidence established Mr. Ward had capacity to earn income outside his company in addition to the work he performed for his company. In these circumstances, the fact Mr. Ward derives a benefit in the form of wages from a company he controls cannot operate to reduce the imputed income."
+   },
+   {
+    "label": "78",
+    "marker_order": 110,
+    "role": "spine",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 55257,
+     "end": 55725
+    },
+    "body_chars": 462,
+    "body_sha256": "873c2b92291734707dfdc7249b0dd26ce29100003edf107dfe258511114a5aee",
+    "body": "It is clear from the judge’s reasons she understood the concern about potentially double counting Mr. Ward’s sources of income. However, she was satisfied adding back the amounts paid to Mr. Ward by the company did not interfere with the basis used to impute the external income of $60,000. She was further satisfied, on sound reasoning, it was appropriate to add back these non-arms-length payments made by the company. She made no error.\nCapital Cost Allowance"
+   },
+   {
+    "label": "79",
+    "marker_order": 111,
+    "role": "spine",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 55725,
+     "end": 55968
+    },
+    "body_chars": 237,
+    "body_sha256": "47a4e0b880fb0c9e73b9868785b927fc6ac1b6a699ef7ad4d1c490450c791d08",
+    "body": "The second issue raised by Mr. Ward involves his CCA deductions. In each of the years under review (2018 – 2022), Justice Forgeron added back to the corporate pre-tax income, 100% of the CCA on real property and 50% on personal property."
+   },
+   {
+    "label": "80",
+    "marker_order": 112,
+    "role": "spine",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 55968,
+     "end": 56351
+    },
+    "body_chars": 377,
+    "body_sha256": "193de87ac5c51108e5cd73fffa04321ee10d49ef9f5fa0ff40f935cbf583901c",
+    "body": "Mr. Ward objects to the add back of his CCA amounts on the basis that this is a deduction permitted by CRA. He argued, “there was no evidence that the assets were not depreciating at [the] rates … applied,” and “the Hearing Judge failed to address that the CRA breakdown is a fair and reasonable deduction which treats assets differently and depreciate at different rates”.[36]"
+   },
+   {
+    "label": "81",
+    "marker_order": 113,
+    "role": "spine",
+    "marker": "[81]",
+    "raw_span": {
+     "start": 56351,
+     "end": 56965
+    },
+    "body_chars": 608,
+    "body_sha256": "17612d82b4c081ab9a12c03089da0d0e0c0e44c02f8885feda538ec79396cd61",
+    "body": "This complaint is properly understood as a subset of Mr. Ward’s argument that he should be able to maintain the deductions permitted by CRA. What he fails to appreciate is he remains able to claim his CCA deductions for income tax purposes. However, for child support purposes, in this case, CCA is a discretionary non-cash expense subject to being added back into company pre-tax income in the absence of evidence establishing its reasonableness. Mr. Ward’s arguments overlook the burden on him to establish the reasonableness of expenses claimed through his company irrespective of what CRA may permit.[37]"
+   },
+   {
+    "label": "82",
+    "marker_order": 114,
+    "role": "spine",
+    "marker": "[82]",
+    "raw_span": {
+     "start": 56965,
+     "end": 57314
+    },
+    "body_chars": 343,
+    "body_sha256": "993f55db22f40102dc397bfba7b6963b0f6199902b031973d7d927a7102483c7",
+    "body": "The evidence offered by Mr. Ward’s accountant did not assist him. Mr. MacDougall: (1) acknowledged the non-cash nature of the deduction;[38] (2) admitted the real property owned by the company “doesn’t actually depreciate”;[39] (3) confirmed the CCA deduction was discretionary, and Mr. Ward claimed the maximum CCA deduction in each year.[40]"
+   },
+   {
+    "label": "83",
+    "marker_order": 115,
+    "role": "spine",
+    "marker": "[83]",
+    "raw_span": {
+     "start": 57314,
+     "end": 57573
+    },
+    "body_chars": 253,
+    "body_sha256": "4ffc6cc17a684b45437e89ce5688274a408e4c47b6cd146dcdff03427ac93db5",
+    "body": "Given Mr. MacDougall’s evidence, it is apparent Justice Forgeron added back 100% of the CCA on real property on the basis the assets were not actually depreciating.[41] With respect to the other property on which the CCA was claimed, the judge reasoned:"
+   },
+   {
+    "label": "31",
+    "marker_order": 116,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 57573,
+     "end": 58349
+    },
+    "body_chars": 770,
+    "body_sha256": "6e26f74bface00b73670ec021f0cd16b12cdc7d8bbee12ce15a3bae275409b4c",
+    "body": "I will also adjust the PTCI to include 50% of the claimed amortization expense for the vehicles, computers, and equipment for three reasons. First, I am satisfied that the company vehicles are used by Mr. Ward personally. I find that his personal use likely exceeds 50%, as will be more fully discussed at para 46. The fact that Mr. Ward may drop into a store to buy a tool while travelling to and from his employment or to pick up his son, does not negate the vehicle’s personal use. Second, I am not satisfied that Mr. Ward proved that all the company vehicles and equipment are reasonably associated with the company’s generation of rental revenue. Third, I am not satisfied that Mr. Ward proved that the vehicles and equipment are depreciating at the rate claimed.\n…"
+   },
+   {
+    "label": "46",
+    "marker_order": 117,
+    "role": "quoted_or_foreign",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 58349,
+     "end": 59164
+    },
+    "body_chars": 809,
+    "body_sha256": "9968ae6986808c5bbfc764ffa3700bb682e14446a17a90a1e2b66695bc21f1a6",
+    "body": "The company owns several vehicles – a 2023 SUV, two older trucks, a plow attachment, a four-wheeler, and a backhoe. Expenses associated with these vehicles are significant. I will adjust the PTCI by adding back 50% of the claimed vehicle expenses because at least 50% of these expenses were for personal use. In making this finding, I note that:\n• All rental units are situate in the area of Mr. Ward’s home. Mr. Ward banks in the local area. Mr. Ward buys supplies in the local area.\n• Mr. Ward did not keep a log book to record his business and personal usage. Mr. MacDougall said that he did not use a stand-by fee to address any personal use. He claimed 100% of all vehicle expenses.\n• Mr. Ward claimed vehicle expenses associated with his family law variation application and appeal as business expenses."
+   },
+   {
+    "label": "84",
+    "marker_order": 118,
+    "role": "spine",
+    "marker": "[84]",
+    "raw_span": {
+     "start": 59164,
+     "end": 59412
+    },
+    "body_chars": 242,
+    "body_sha256": "2af5fdd141c4931f723827751ae9555c36aa4d0059da278b26d4cd6dfa3747b7",
+    "body": "I can find no error in principle in the judge’s conclusions with respect to the CCA deduction. The determination of income for child support purposes is an exercise independent of income tax law or policy. As noted in Gosse v. Sorensen-Gosse:"
+   },
+   {
+    "label": "108",
+    "marker_order": 119,
+    "role": "quoted_or_foreign",
+    "marker": "[108]",
+    "raw_span": {
+     "start": 59412,
+     "end": 59855
+    },
+    "body_chars": 436,
+    "body_sha256": "f96846542d9946909671780e7d3053cbbcf24791ac0f3cd0262e4fd8e5646c1e",
+    "body": "… considering the amount of capital cost allowance expensed as a factor in determining the amount of income a sole shareholder should be considered to have available for child support purposes, the fact that government tax policy approves expensing capital cost allowance does not justify excluding the amount of the allowance from the income available for the purposes of determining child support obligations under the Guidelines.[42]"
+   },
+   {
+    "label": "85",
+    "marker_order": 120,
+    "role": "spine",
+    "marker": "[85]",
+    "raw_span": {
+     "start": 59855,
+     "end": 60142
+    },
+    "body_chars": 281,
+    "body_sha256": "d444604cb0088612f5ccf6960561eac479ad37f268e9ba8b1686b831c78f2b83",
+    "body": "A review of the remainder of the judge’s reasons demonstrates no error in the exercise of her discretion under s. 18(1)(a) or (2). Her findings were well grounded in the record, and she conducted her analysis in harmony with this Court’s first appeal decision.\nOther Grounds Raised"
+   },
+   {
+    "label": "86",
+    "marker_order": 121,
+    "role": "spine",
+    "marker": "[86]",
+    "raw_span": {
+     "start": 60142,
+     "end": 60783
+    },
+    "body_chars": 635,
+    "body_sha256": "6a2b14f0db955747cd4f4a8854712f7e94ee54f07779080131f1e205d65ba060",
+    "body": "Before concluding my analysis of the grounds of appeal, I note Mr. Ward raised a variety of other issues that have no basis in law and no merit as grounds of appeal. The arguments include: (1) the amount of time required by the court proceedings is a reason not to impute any amount of s. 19 income; (2) the retroactive date of his variation was unfair and should be March 2, 2017, as opposed to October 2018; and (3) the undue hardship resulting from the costs of two hearings and two appeals. A review of the record indicates none of these issues raises a valid ground of appeal.\nIssue Four - Did the judge err in her award of costs?"
+   },
+   {
+    "label": "87",
+    "marker_order": 122,
+    "role": "spine",
+    "marker": "[87]",
+    "raw_span": {
+     "start": 60783,
+     "end": 61035
+    },
+    "body_chars": 246,
+    "body_sha256": "55138be93635c4dbd3adf68d658503b9ab383200be826df5a3937e42e7d48078",
+    "body": "The last issue raised by Mr. Ward relates to the costs award against him.[43] The standard of review on a question of costs is clear. An award of costs is within a judge’s discretion and will not be disturbed absent error of law or injustice.[44]"
+   },
+   {
+    "label": "88",
+    "marker_order": 123,
+    "role": "spine",
+    "marker": "[88]",
+    "raw_span": {
+     "start": 61035,
+     "end": 61450
+    },
+    "body_chars": 409,
+    "body_sha256": "5ece162ce48684de77fc3a2f686a65e1e1c1b74eb17778c9cfef4e5916d49ed9",
+    "body": "In her decision dated April 29, 2024, Forgeron J. awarded costs to Ms. Murphy in the amount of $15,250, payable in installments of $500 per month through the Maintenance Enforcement Program. The total amount of costs included $8,000 which Justice Forgeron awarded as a result of Mr. Ward’s litigation conduct which she found “unduly and inappropriately increased the time it took to complete the hearing”.[45]"
+   },
+   {
+    "label": "89",
+    "marker_order": 124,
+    "role": "spine",
+    "marker": "[89]",
+    "raw_span": {
+     "start": 61450,
+     "end": 61748
+    },
+    "body_chars": 292,
+    "body_sha256": "fb6de2a8279c0a0659db1ed4b877697d9316b657cd9c013115a6471515204bdc",
+    "body": "Mr. Ward disputes the award on the basis it “flowed from an impugned decision – error in principle.” Mr. Ward cites other grounds that relate only to the s. 18 decision. It appears his complaint is that the costs award resulted from what he argued was a flawed decision on the s. 18 analysis."
+   },
+   {
+    "label": "90",
+    "marker_order": 125,
+    "role": "spine",
+    "marker": "[90]",
+    "raw_span": {
+     "start": 61748,
+     "end": 61933
+    },
+    "body_chars": 179,
+    "body_sha256": "65a24d9fd60fc85c3c515f736e4134441e87ed6d72087dd7ff3ba0b05ece1bea",
+    "body": "Having found no error in the s. 18 analysis, I find Mr. Ward demonstrated no basis to set aside or reconsider the award of costs. I would dismiss this ground of appeal.\nConclusion"
+   },
+   {
+    "label": "91",
+    "marker_order": 126,
+    "role": "spine",
+    "marker": "[91]",
+    "raw_span": {
+     "start": 61933,
+     "end": 61991
+    },
+    "body_chars": 52,
+    "body_sha256": "40297b776ef7beae9b6c3399bd86a1d9dc4ea065a8a2c57f8a60d04c1ff1f848",
+    "body": "I would dismiss the motion to adduce fresh evidence."
+   },
+   {
+    "label": "92",
+    "marker_order": 127,
+    "role": "spine",
+    "marker": "[92]",
+    "raw_span": {
+     "start": 61991,
+     "end": 62029
+    },
+    "body_chars": 32,
+    "body_sha256": "6413010a6ef59ae39671e22eef92835e65293fec3178f492051afd6dd0e71654",
+    "body": "I would also dismiss the appeal."
+   },
+   {
+    "label": "93",
+    "marker_order": 128,
+    "role": "spine",
+    "marker": "[93]",
+    "raw_span": {
+     "start": 62029,
+     "end": 62212
+    },
+    "body_chars": 177,
+    "body_sha256": "0425db104b0ac3a18824d08d73e29fbd4e39436b7f666c98136222c5b3602915",
+    "body": "I would award costs on appeal to Ms. Murphy in the amount of $4,000, inclusive of disbursements, payable forthwith.\nGogan, J.A.\nConcurred in:\nWood, C.J.N.S.\nVan den Eynden, J.A."
+   },
+   {
+    "label": "1",
+    "marker_order": 129,
+    "role": "quoted_or_foreign",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 62212,
+     "end": 62305
+    },
+    "body_chars": 88,
+    "body_sha256": "8f9bbbb20d6ea569f7bcd1438d30231ea250a1369083c15b0cf7822175cbe574",
+    "body": "N.S. Reg. 83/2017 made pursuant to the Parenting and Support Act, R.S.N.S. 1989, c. 160."
+   },
+   {
+    "label": "2",
+    "marker_order": 130,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 62305,
+     "end": 62454
+    },
+    "body_chars": 144,
+    "body_sha256": "ee7779aab35de3d438ad954f1f91a54b9b1da4ec6da3c9101ea1b83300c051d9",
+    "body": "MacLennan v. MacLennan, 2021 SKCA 132 at para. 27; Ward v. Murphy, 2022 NSCA 20 at para. 56; Gosse v. Sorensen-Gosse, 2011 NLCA 58 at para. 113."
+   },
+   {
+    "label": "3",
+    "marker_order": 131,
+    "role": "quoted_or_foreign",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 62454,
+     "end": 62525
+    },
+    "body_chars": 66,
+    "body_sha256": "1cf0a4339a94754b8b0aab9360c47941e862789913aff8aecea150a5ac442e77",
+    "body": "Decision of Gregan J., in P.W. v. C.M., 2017 NSSC 91 at para. 166."
+   },
+   {
+    "label": "4",
+    "marker_order": 132,
+    "role": "quoted_or_foreign",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 62525,
+     "end": 62548
+    },
+    "body_chars": 18,
+    "body_sha256": "30bb59af4d5d6db48aa8f4ec7300da9dff462fb07517b64ef54bad235ed9eed3",
+    "body": "Ibid at para. 178."
+   },
+   {
+    "label": "5",
+    "marker_order": 133,
+    "role": "quoted_or_foreign",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 62548,
+     "end": 62581
+    },
+    "body_chars": 28,
+    "body_sha256": "567d6dd25dc03cde7e333418a108131e6771c2cc8068c7d75b77df5120df5d6a",
+    "body": "P.W. v. C.M., 2021 NSSC 127."
+   },
+   {
+    "label": "6",
+    "marker_order": 134,
+    "role": "quoted_or_foreign",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 62581,
+     "end": 62670
+    },
+    "body_chars": 84,
+    "body_sha256": "559e45c813112e142572648324e1a09ce24a49d221ab2002b3047dbd659fd482",
+    "body": "The total income figures as reported in the applicant’s personal income tax returns."
+   },
+   {
+    "label": "7",
+    "marker_order": 135,
+    "role": "quoted_or_foreign",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 62670,
+     "end": 62715
+    },
+    "body_chars": 40,
+    "body_sha256": "724d2eb9d78db62951000f7711cd565731608e2fc94091642c101c1af615fad6",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at para. 3."
+   },
+   {
+    "label": "8",
+    "marker_order": 136,
+    "role": "quoted_or_foreign",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 62715,
+     "end": 62870
+    },
+    "body_chars": 150,
+    "body_sha256": "33ea35aec84d557edf3d46130faafe09869c66a96058a85dd22dc72d2458c8ee",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at para. 79, (per reasons of Beaton J.A.) and para. 104, (per reasons of Van den Eynden, J.A., Scanlan J.A., concurring)."
+   },
+   {
+    "label": "9",
+    "marker_order": 137,
+    "role": "quoted_or_foreign",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 62870,
+     "end": 62904
+    },
+    "body_chars": 29,
+    "body_sha256": "fddeb98faecec583f8ae40a71f43697815e0c985f2c045aa84719f42f8a6c075",
+    "body": "Ward v. Murphy, 2022 NSCA 20."
+   },
+   {
+    "label": "10",
+    "marker_order": 138,
+    "role": "quoted_or_foreign",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 62904,
+     "end": 62952
+    },
+    "body_chars": 42,
+    "body_sha256": "26a4082b590772defdc46aa828b0d9c31602a644cf16f7920c7d3926bac3f74f",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at para. 20."
+   },
+   {
+    "label": "11",
+    "marker_order": 139,
+    "role": "quoted_or_foreign",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 62952,
+     "end": 62996
+    },
+    "body_chars": 38,
+    "body_sha256": "f08634f9852ef930e827e3436d1c5563def71ebe706dc3cc152901b8b17b3c1a",
+    "body": "Along with the associated costs award."
+   },
+   {
+    "label": "12",
+    "marker_order": 140,
+    "role": "quoted_or_foreign",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 62996,
+     "end": 63031
+    },
+    "body_chars": 29,
+    "body_sha256": "fddeb98faecec583f8ae40a71f43697815e0c985f2c045aa84719f42f8a6c075",
+    "body": "Ward v. Murphy, 2022 NSCA 20."
+   },
+   {
+    "label": "13",
+    "marker_order": 141,
+    "role": "quoted_or_foreign",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 63031,
+     "end": 63061
+    },
+    "body_chars": 24,
+    "body_sha256": "8e5f5db6f5a26d577aca6346a34744ad0e243310809d5aaf58b344afb5cfd593",
+    "body": "Ibid at paras. 116, 143."
+   },
+   {
+    "label": "14",
+    "marker_order": 142,
+    "role": "quoted_or_foreign",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 63061,
+     "end": 63093
+    },
+    "body_chars": 26,
+    "body_sha256": "6624c3704f0b66c2c85ba7ed486291c3d3efbabfe7d971ca299804a40a0d0e52",
+    "body": "Ibid at para. 122, note 3."
+   },
+   {
+    "label": "15",
+    "marker_order": 143,
+    "role": "quoted_or_foreign",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 63093,
+     "end": 63288
+    },
+    "body_chars": 189,
+    "body_sha256": "b1e7a9dcc38251d6753c5f5c572deab197ae6f6df0b93c0224fc50829ef032e8",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at para. 14. Justice Forgeron conducted a fresh s. 18 analysis unconstrained by the factual findings and conclusions from the first hearing of the application."
+   },
+   {
+    "label": "16",
+    "marker_order": 144,
+    "role": "quoted_or_foreign",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 63288,
+     "end": 63364
+    },
+    "body_chars": 70,
+    "body_sha256": "d3446c6d6e2bba6934ec1bdf2501476c88fdaabecf6e03951c5d2d26c753e732",
+    "body": "Ibid at para. 50 for a summary of the adjustments to company expenses."
+   },
+   {
+    "label": "17",
+    "marker_order": 145,
+    "role": "quoted_or_foreign",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 63364,
+     "end": 63473
+    },
+    "body_chars": 103,
+    "body_sha256": "6769d4f92059582bb52a1283dfacd9f5b54715f57192ee8aa43324dc6d1e3066",
+    "body": "The judge’s summary of her gross up calculations is found at Ward v. Murphy, 2023 NSSC 370 at para. 54."
+   },
+   {
+    "label": "18",
+    "marker_order": 146,
+    "role": "quoted_or_foreign",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 63473,
+     "end": 63521
+    },
+    "body_chars": 42,
+    "body_sha256": "b5d2d0a57ed8a31db08fbaa2b3dfd90fe453cf1807e7c66ed52601c016fc3a54",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at para. 153."
+   },
+   {
+    "label": "19",
+    "marker_order": 147,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 63521,
+     "end": 63569
+    },
+    "body_chars": 42,
+    "body_sha256": "60309de680eb56087c76e5e86ef87ac2dc0dfaa8691604cb88e6e0760b7e24cf",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at para. 60."
+   },
+   {
+    "label": "20",
+    "marker_order": 148,
+    "role": "quoted_or_foreign",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 63569,
+     "end": 63663
+    },
+    "body_chars": 88,
+    "body_sha256": "8711f295cec85307cf1caf9fa5190905bc0b555872ddf260b6c72aeb5dd94ed0",
+    "body": "This allegation was what Mr. Ward referred to as “mirroring” in his various submissions."
+   },
+   {
+    "label": "21",
+    "marker_order": 149,
+    "role": "quoted_or_foreign",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 63663,
+     "end": 63724
+    },
+    "body_chars": 55,
+    "body_sha256": "d6be9901329e660b6781111c3ea8137ef9ccb2e2cd7a78c9739d7cb867898beb",
+    "body": "Appellant’s affidavit dated July 29, 2024, at para. 73."
+   },
+   {
+    "label": "22",
+    "marker_order": 150,
+    "role": "quoted_or_foreign",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 63724,
+     "end": 63916
+    },
+    "body_chars": 186,
+    "body_sha256": "0df68b1657c8a96cad90dd389d842a8da51bcc1203895dad174e3523941d8396",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at para. 33 citing Palmer v. The Queen, [1980] 1 S.C.R. 759; Armoyan v. Armoyan, 2013 NSCA 99; Daigle v. Mark’s Work Wearhouse Ltd., 2022 NSCA 5 at para. 27."
+   },
+   {
+    "label": "23",
+    "marker_order": 151,
+    "role": "quoted_or_foreign",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 63916,
+     "end": 63962
+    },
+    "body_chars": 40,
+    "body_sha256": "096a207435afe7b4e4fba095f77e57211e88cfe50be520f21729769472e0f7bc",
+    "body": "Jiang v. Shi, 2017 BCCA 232 at para. 11."
+   },
+   {
+    "label": "24",
+    "marker_order": 152,
+    "role": "quoted_or_foreign",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 63962,
+     "end": 64013
+    },
+    "body_chars": 45,
+    "body_sha256": "e57c61da84f9d2338afc5a69fbc90519ac65d9c4e08af191c89caec5da165933",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at paras. 85-89."
+   },
+   {
+    "label": "25",
+    "marker_order": 153,
+    "role": "quoted_or_foreign",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 64013,
+     "end": 64149
+    },
+    "body_chars": 130,
+    "body_sha256": "0185871fcf0613e5dd403a3a7a2c554d407f5fabc1a42ca61921d2a4d4467b95",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at para. 86 (the first appeal) and Ward v. Murphy, 2024 NSCA 81 at paras. 26-27 (the recusal motion)."
+   },
+   {
+    "label": "26",
+    "marker_order": 154,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 64149,
+     "end": 64208
+    },
+    "body_chars": 53,
+    "body_sha256": "ce4c712ab10122a45c2c0b40070aa1ead5e8fd52c78d334db7dabdfd3bb4a412",
+    "body": "As cited in Ward v. Murphy, 2022 NSCA 20 at para. 86."
+   },
+   {
+    "label": "27",
+    "marker_order": 155,
+    "role": "quoted_or_foreign",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 64208,
+     "end": 64314
+    },
+    "body_chars": 100,
+    "body_sha256": "02e7096400ba1152e7ada0833926677bbe93a3cbc874ab5028b2ca1aee2df146",
+    "body": "Fraser v. MacIntosh, 2024 NSCA 85 at para. 26, citing Ward v. Murphy, 2024 NSCA 85, at paras. 26-27."
+   },
+   {
+    "label": "28",
+    "marker_order": 156,
+    "role": "quoted_or_foreign",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 64314,
+     "end": 64444
+    },
+    "body_chars": 124,
+    "body_sha256": "af1debb551d3fb9dc76ed2210f21839ff151df2649725ca10bae51fc0b32ae22",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at paras. 4, 14. Mr. Ward endorsed the judge’s approach on the record. Appeal Book at 240-241."
+   },
+   {
+    "label": "29",
+    "marker_order": 157,
+    "role": "quoted_or_foreign",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 64444,
+     "end": 64550
+    },
+    "body_chars": 100,
+    "body_sha256": "d85e74bda380084022f852085cc29a01adbe483be3f3f79a6fd7c260b919beb8",
+    "body": "See also Michel v. Graydon, 2020 SCC 24 at para. 24; and A.M.G. v. C.J.K., 2024 NSCA 62 at para. 59."
+   },
+   {
+    "label": "30",
+    "marker_order": 158,
+    "role": "quoted_or_foreign",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 64550,
+     "end": 64616
+    },
+    "body_chars": 60,
+    "body_sha256": "1600878986c206979547723444e04e883f0a1f5155c55472f792d3ac84e21a0a",
+    "body": "This last ground is raised in the Notice of Appeal on costs."
+   },
+   {
+    "label": "31",
+    "marker_order": 159,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 64616,
+     "end": 64667
+    },
+    "body_chars": 45,
+    "body_sha256": "f7280ced49a753e00d8f553cf84b537277caafde2bc77d1e36b9a0b4e77d2eec",
+    "body": "Ward v. Murphy, 2022 NSCA 20 at paras. 29-31."
+   },
+   {
+    "label": "32",
+    "marker_order": 160,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 64667,
+     "end": 64687
+    },
+    "body_chars": 14,
+    "body_sha256": "82eec91140e3af2000b4c4866d4dd9641abbd39857f3e928daf78619aa98b328",
+    "body": "2024 BCCA 325."
+   },
+   {
+    "label": "33",
+    "marker_order": 161,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 64687,
+     "end": 64724
+    },
+    "body_chars": 31,
+    "body_sha256": "ea6841a232c809aa324752a3d5dd49215e5ab40affd4c642e4255b912dc61a4d",
+    "body": "Appellant’s factum at para. 99."
+   },
+   {
+    "label": "34",
+    "marker_order": 162,
+    "role": "quoted_or_foreign",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 64724,
+     "end": 64761
+    },
+    "body_chars": 31,
+    "body_sha256": "6bffaca34fde356f74116f7b794116d8fb268e8c9891016e086f1b8545884720",
+    "body": "Appellant’s factum at para. 91."
+   },
+   {
+    "label": "35",
+    "marker_order": 163,
+    "role": "quoted_or_foreign",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 64761,
+     "end": 64809
+    },
+    "body_chars": 42,
+    "body_sha256": "f46a97f61350329beaff230f054b12af90338c1c67e6bff5d1a09fca9d7fac34",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at para. 42."
+   },
+   {
+    "label": "36",
+    "marker_order": 164,
+    "role": "quoted_or_foreign",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 64809,
+     "end": 64851
+    },
+    "body_chars": 36,
+    "body_sha256": "79556d1b1ead99d2bdb06c2f8f2a4de560b2f0d81b726db4bb72198b8069e580",
+    "body": "Appellant’s factum at paras. 166-67."
+   },
+   {
+    "label": "37",
+    "marker_order": 165,
+    "role": "quoted_or_foreign",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 64851,
+     "end": 65090
+    },
+    "body_chars": 233,
+    "body_sha256": "a485da56004da4831541e5c360aa234982f8cbc12534e46018ab8a1d23ac053d",
+    "body": "Birnie v. Birnie, 2021 SKCA 107 at paras. 51, 53; Richardson v. Richardson, 2013 BCCA 378 at paras. 57-60; Luedke v. Luedke, 2004 BCCA 327 at para. 17; and Rudachyk v. Rudachyk, [1999] 10 W.W.R. 321 at para. 22, 205 W.A.C. 73 (SKCA)."
+   },
+   {
+    "label": "38",
+    "marker_order": 166,
+    "role": "quoted_or_foreign",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 65090,
+     "end": 65125
+    },
+    "body_chars": 29,
+    "body_sha256": "29a1a0157e5fce06691f724bd9802248990afaba727efe9fedf546dc4c81de14",
+    "body": "Appeal Book, Volume 3 at 244."
+   },
+   {
+    "label": "39",
+    "marker_order": 167,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 65125,
+     "end": 65160
+    },
+    "body_chars": 29,
+    "body_sha256": "c2898a055f4de8bdb105586a1bf860b8f22dd86c7e5869df9f62d3294324f20d",
+    "body": "Appeal Book, Volume 3 at 245."
+   },
+   {
+    "label": "40",
+    "marker_order": 168,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 65160,
+     "end": 65199
+    },
+    "body_chars": 33,
+    "body_sha256": "4fddc67738e33f593a922071c832cbf74c75ed61d572aac78587a5e6577d79bf",
+    "body": "Appeal Book, Volume 3 at 248-250."
+   },
+   {
+    "label": "41",
+    "marker_order": 169,
+    "role": "quoted_or_foreign",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 65199,
+     "end": 65247
+    },
+    "body_chars": 42,
+    "body_sha256": "6dcb88faf7313b7ad7a11e8e237b6a968fb42ae2ed88f09c7aba5d4648264c3c",
+    "body": "Ward v. Murphy, 2023 NSSC 370 at para. 59."
+   },
+   {
+    "label": "42",
+    "marker_order": 170,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 65247,
+     "end": 65279
+    },
+    "body_chars": 26,
+    "body_sha256": "689cde5a50e9da965663c7b96312501798c25d7c950d5a544a2f13a2e7c40a31",
+    "body": "2011 NLCA 58 at para. 108."
+   },
+   {
+    "label": "43",
+    "marker_order": 171,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 65279,
+     "end": 65315
+    },
+    "body_chars": 30,
+    "body_sha256": "057d5c916ed642fc3664cd9c6e9cbe964b895ffcea83695fd0f5c5955111c150",
+    "body": "Ward v. Murphy, 2024 NSSC 117."
+   },
+   {
+    "label": "44",
+    "marker_order": 172,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 65315,
+     "end": 65364
+    },
+    "body_chars": 43,
+    "body_sha256": "55801081567abaf4e863c038916cb56b4c51db59d943bd5a3a89df7b7c64f65c",
+    "body": "A.M.G. v. C.J.K., 2024 NSCA 62 at para. 60."
+   },
+   {
+    "label": "45",
+    "marker_order": 173,
+    "role": "quoted_or_foreign",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 65364,
+     "end": 65386
+    },
+    "body_chars": 16,
+    "body_sha256": "632d9a5e7c9a4a26ea1dfbfe02d1786b433b3527825be97d185f079ae6d8c02d",
+    "body": "Ibid at para. 28"
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 26,
+  "values": [
+   "2017 NSSC 91",
+   "2021 NSSC 127",
+   "2022 NSCA 20",
+   "2023 NSSC 370",
+   "2024 NSSC 117",
+   "2017 ABCA 4",
+   "2021 SKCA 85",
+   "2017 SKCA 15",
+   "2016 ONCA 725",
+   "2013 ABCA 299",
+   "2001 BCCA 450",
+   "2020 NSCA 9",
+   "2003 SCC 45",
+   "2011 NLCA 58",
+   "2021 SKCA 132",
+   "2013 NSCA 99",
+   "2022 NSCA 5",
+   "2017 BCCA 232",
+   "2024 NSCA 81",
+   "2024 NSCA 85",
+   "2020 SCC 24",
+   "2024 NSCA 62",
+   "2024 BCCA 325",
+   "2021 SKCA 107",
+   "2013 BCCA 378",
+   "2004 BCCA 327"
+  ]
+ }
+}

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–55—DEC. 12, 2025?>
+<?I51 PUBLIC LAW 119–55—DEC. 12, 2025?>
+<?I52 PUBLIC LAW 119–55—DEC. 12, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–55: To Amend title 38, United States Code, to direct the Secretary of Veterans Affairs to disapprove courses of education offered by a public institution of higher learning that does not charge the in-State tuition rate to a veteran using certain educational assistance under title 10 of such Code, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>55</docNumber>
+<citableAs>Public Law 119–55</citableAs><citableAs>139 Stat. 707</citableAs>
+<approvedDate>2025-12-12</approvedDate>
+<dc:date>2025-12-12</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-29</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–55—DEC. 12, 2025</centerRunningHead>
+<page identifier="/us/stat/139/707">139 STAT. 707</page>
+<dc:type>Public Law</dc:type><docNumber>119–55</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To Amend title 38, United States Code, to direct the Secretary of Veterans Affairs to disapprove courses of education offered by a public institution of higher learning that does not charge the in-State tuition rate to a veteran using certain educational assistance under title 10 of such Code, and for other purposes.<sidenote><p class="centered fontsize8" id="x05d4dd95-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658076"><approvedDate date="2025-12-12">Dec. 12, 2025</approvedDate></p><p class="centered fontsize8" id="x05d4dd96-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/983">H.R. 983</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x05d4dd97-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658180">Montgomery GI Bill Selected Reserves Tuition Fairness </p><p class="leftAlign firstIndent0 fontsize8" id="x05d4dd98-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658180">Act of 2025.</p><p class="leftAlign firstIndent0 fontsize8" id="x05d4dd99-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s101">38 USC 101 note</ref>.</p></sidenote>
+<section id="d503e94" identifier="/us/pl/119/55/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Montgomery GI Bill Selected Reserves Tuition Fairness Act of 2025</shortTitle>”.</content></section>
+<section id="d503e104" identifier="/us/pl/119/55/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>DEPARTMENT OF VETERANS AFFAIRS DISAPPROVAL OF COURSES OFFERED BY PUBLIC INSTITUTIONS OF HIGHER LEARNING THAT DO NOT CHARGE VETERANS IN-STATE TUITION RATE FOR PURPOSES OF SELECTED RESERVE EDUCATIONAL ASSISTANCE PROGRAM.</heading><subsection class="firstIndent0 fontsize10" id="y05d5a0ea-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/a" role="instruction" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">(a) </num><heading class="fontsize10"><inline class="smallCaps">In General</inline>.—</heading><chapeau>Subsection (c) of <ref href="/us/usc/t38/s3679">section 3679 of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction>—</chapeau><paragraph class="fontsize10" id="y05d5a0eb-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/a/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>in paragraph (1), by <amendingAction type="insert">inserting</amendingAction> “<quotedText>, or chapter 1606 of title 10,</quotedText>” after “<quotedText>chapter 30, 31, 33, or 35 of this title</quotedText>”;</content></paragraph>
+<paragraph class="fontsize10" id="y05d5a0ec-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/a/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>in paragraph (2), by <amendingAction type="add">adding</amendingAction> at the end the following new subparagraph:<quotedContent><subparagraph class="indentUp0 fontsize10" id="y05d5a0ed-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="E">“(E) </num><content>An individual who is entitled to assistance under section 16131 of title 10.”</content></subparagraph>
+</quotedContent>; and</content></paragraph>
+<paragraph class="fontsize10" id="y05d5c7fe-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/a/3" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">(3) </num><content>in paragraph (6), by <amendingAction type="insert">inserting</amendingAction> “<quotedText>, or chapter 1606 of title 10</quotedText>” before the period at the end.</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y05d5c7ff-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/b" role="instruction" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">(b) </num><heading class="fontsize10"><inline class="smallCaps">Conforming Amendments</inline>.—</heading><chapeau>Subsection (e) of such section <amendingAction type="amend">is amended</amendingAction>—</chapeau><paragraph class="fontsize10" id="y05d5c800-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/b/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><chapeau>in paragraph (1)—</chapeau><subparagraph class="fontsize10" id="y05d5c801-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/b/1/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>in subparagraph (A), by <amendingAction type="insert">inserting</amendingAction> “<quotedText>, or chapter 1606 of title 10,</quotedText>” after “<quotedText>chapter 31, 33, or 35 of this title</quotedText>”; and</content></subparagraph>
+<subparagraph class="fontsize10" id="y05d5c802-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/b/1/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>in subparagraph (B), by <amendingAction type="delete">striking</amendingAction> “<quotedText>chapter 31 33, or 35 of this title</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>chapter 31, 33, or 35 of this title, or chapter 1606 of title 10</quotedText>”; and</content></subparagraph>
+</paragraph>
+<paragraph class="fontsize10" id="y05d5c803-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/b/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>in paragraph (2), by <amendingAction type="delete">striking</amendingAction> “<quotedText>chapter 31 33, or 35 of this title</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>chapter 31, 33, or 35 of this title, or chapter 1606 of title 10</quotedText>”.</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y05d5c804-e4c2-11f0-a1e4-69761a48a15a" identifier="/us/pl/119/55/s2/c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="c">(c) </num><heading class="fontsize10"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x05d5c805-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658180">Applicability.</p><p class="leftAlign firstIndent0 fontsize8" id="x05d5c806-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s3679">38 USC 3679 note</ref>.</p></sidenote><inline class="smallCaps">Effective Date</inline>.—</heading><content>The amendments made by this section shall take effect on the date of the enactment of this Act and<page identifier="/us/stat/139/708">139 STAT. 708</page>
+ shall apply with respect to an academic period that begins on or after August 1, 2026.</content></subsection>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-12">December 12, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/983">H.R. 983</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x05d5c807-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658035">Apr. 7, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x05d5c808-e4c2-11f0-a1e4-69761a48a15a" style="-uslm-lc:I658035">Nov. 20, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

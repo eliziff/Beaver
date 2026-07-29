@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–46—DEC. 2, 2025?>
+<?I51 PUBLIC LAW 119–46—DEC. 2, 2025?>
+<?I52 PUBLIC LAW 119–46—DEC. 2, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–46: Requesting the Secretary of the Interior to authorize unique and one-time arrangements for displays on the National Mall and the Washington Monument during the period beginning on December 31, 2025, and ending on January 5, 2026.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>46</docNumber>
+<citableAs>Public Law 119–46</citableAs><citableAs>139 Stat. 694</citableAs>
+<approvedDate>2025-12-02</approvedDate>
+<dc:date>2025-12-02</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-05</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–46—DEC. 2, 2025</centerRunningHead>
+<page identifier="/us/stat/139/694">139 STAT. 694</page>
+<dc:type>Public Law</dc:type><docNumber>119–46</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">Joint Resolution</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">Requesting the Secretary of the Interior to authorize unique and one-time arrangements for displays on the National Mall and the Washington Monument during the period beginning on December 31, 2025, and ending on January 5, 2026.<sidenote><p class="centered fontsize8" id="xf43db1f3-d1f2-11f0-9137-9328ef815b30" style="-uslm-lc:I658076"><approvedDate date="2025-12-02">Dec. 2, 2025</approvedDate></p><p class="centered fontsize8" id="xf43db1f4-d1f2-11f0-9137-9328ef815b30" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hjres/133">H.J. Res. 133</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<preamble>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the Second Continental Congress unanimously agreed to adopt the Declaration of Independence on July 4, 1776, in which the Second Continental Congress declared a complete break with Britain and the king and claimed the powers of an independent country;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the founding of the United States represented a historic world event that has improved the lives of the people of the United States and the people of other nations in profound ways for centuries;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the ideas of the founding fathers, including representative government, guaranteed rights, and national sovereignty, inspire all people of the United States to this day;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas, on July 4, 2026, the 250th anniversary of the independence and founding of the United States will be commemorated and celebrated;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas Congress enacted the United States Semiquincentennial Commission Act of 2016 (<ref href="/us/usc/t36">36 U.S.C. note</ref> prec. 101; <ref href="/us/pl/114/196">Public Law 114–196</ref>) to plan, encourage, develop, and coordinate the commemoration of the history of the United States leading up to the 250th anniversary of the founding of the United States;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the United States Semiquincentennial Commission has planned, coordinated, and inspired celebrations of the 250th anniversary across the United States to mark the occasion;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas New Year’s Eve in 2025 marks the boundary between the 249th and 250th year of the United States, will bring the people of the United States together, and will be a fitting date to initiate celebrations of the 250th anniversary of the United States in earnest;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas Congress explored lighting the Washington Monument and other capital monuments at night during calendar year 1976 to celebrate the bicentennial of the United States;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the National Mall hosted the 50th anniversary commemoration of the Apollo 11 lunar landing in 2019, which included the display of NASA and Smithsonian artifacts on the National Mall for 5 days and concluded each night with an inspiring video program that projected footage from the Apollo 11 program on the Washington Monument;<?GPOvSpace 03?></recital>
+<page identifier="/us/stat/139/695">139 STAT. 695</page>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the commemoration of the Apollo 11 lunar landing was attended by over 500,000 people from all over the United States who gathered over a period of 5 days to celebrate the historic achievements of the Apollo program and watched the video program centered on the Washington Monument;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas hundreds of thousands of people of the United States visit Washington, DC, each holiday season and attend outdoor exhibits;<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas Washington, DC, is uniquely suitable to host the people of the United States for inaugural United States semiquincentennial festivities; and<?GPOvSpace 03?></recital>
+<recital class="indentUp1 firstIndent0 fontsize10" style="-uslm-lc:I658127">Whereas the Washington Monument is central to the Washington, DC, landscape and commemorates one of the most prominent figures in the founding of the United States: Now, therefore, be it<?GPOvSpace 03?></recital>
+
+<resolvingClause class="indentUp0 firstIndent0 fontsize10 italic" style="-uslm-lc:I658120"><i>  Resolved   by   the   Senate   and   House   of   Representatives   of   the   United   States   of   America   in   Congress   assembled,</i></resolvingClause></preamble>
+<section class="inline">
+<chapeau> That Congress—</chapeau>
+<paragraph class="fontsize10" id="yf43e4e35-d1f2-11f0-9137-9328ef815b30" identifier="/us/pl/119/46/s/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>requests the Secretary of the Interior to authorize unique and one-time arrangements for the display of United States semiquincentennial materials and other significant artifacts, digital content, film footage, and associated audio and imagery in and around the vicinity of the National Mall, including projected onto the surface of the Washington Monument for 5 nights of public display, during the period beginning on December 31, 2025, and ending on January 5, 2026; and</content></paragraph>
+<paragraph class="fontsize10" id="yf43e4e36-d1f2-11f0-9137-9328ef815b30" identifier="/us/pl/119/46/s/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><chapeau><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xf43e4e37-d1f2-11f0-9137-9328ef815b30" style="-uslm-lc:I658180">Records.</p></sidenote>respectfully requests that the Clerk of the House of Representatives transmit an enrolled copy of this resolution to—</chapeau><subparagraph class="fontsize10" id="yf43e4e38-d1f2-11f0-9137-9328ef815b30" identifier="/us/pl/119/46/s/2/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>the Secretary of the Interior; and</content></subparagraph>
+<subparagraph class="fontsize10" id="yf43e4e39-d1f2-11f0-9137-9328ef815b30" identifier="/us/pl/119/46/s/2/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>the Chair of the United States Semiquincentennial Commission.</content></subparagraph>
+</paragraph>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-02">December 2, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hjres/133">H.J. Res. 133</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="xf43e4e3a-d1f2-11f0-9137-9328ef815b30" style="-uslm-lc:I658035">Nov. 18, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="xf43e4e3b-d1f2-11f0-9137-9328ef815b30" style="-uslm-lc:I658035">Nov. 20, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

@@ -1,0 +1,4419 @@
+Exhibit 10.14
+
+LICENSE AGREEMENT
+
+between
+
+HARRISON 160, LLC,
+
+as Licensor,
+
+and
+
+MRL
+Ventures Inc.
+
+as Licensee
+
+dated as of April 16, 2004
+
+BASIC LICENSE TERMS
+
+1 Parties
+
+Data Center Operator:
+
+365 The Main Exchange, Inc.
+
+365 Main Street, San Francisco, CA 94105
+
+Contact: Kevin Shanahan
+415-546-6258
+
+Licensee:
+
+MRL
+Ventures Inc.
+
+650 Mission, Suite 2
+
+San Francisco, CA 94105
+
+Licensor:
+
+Harrison 160, LLC
+
+c/o Union Property Capital,
+Inc.
+
+353 Sacramento Street, Suite 560
+
+San Francisco, CA 94111
+
+Licensee Contact:
+
+Max Levchin
+
+Principal
+
+650-218-0563
+
+max@levchin.com
+
+Licensor Contacts:
+
+Martin B. Dalton 415-989-8846
+
+Chris
+Dolan 415-764-1601
+
+2 License Term
+
+Base Term:
+
+12 Months
+
+Optional Term:
+
+Renewal options to be presented within 90 days of conclusion of original term.
+
+Early Access Date:
+
+April 23, 2004
+
+Commencement Date:
+
+August 1, 2004 through July 31, 2005
+
+DESCRIPTION
+
+UNITS
+
+NON-RECURRING
+CHARGE/UNIT
+
+RECURRING
+CHARGE/UNIT
+
+NON-RECURRING
+CHARGES
+
+RECURRING
+CHARGES
+
+3 License Area Requirement
+
+Secure Private Cabinet
+
+1
+
+$
+1,100.00
+
+$
+400.00
+
+Waived
+
+$
+400.00
+
+4 Electrical Charges Power Billing Options: Billed Actual
+
+20 Amp Power Circuit, 1 Phase
+
+1
+
+$
+395.00
+
+$
+395.00
+
+Billed Actual
+
+Circuit Grounding
+
+1
+
+$
+65.00
+
+$
+65.00
+
+N/A
+
+BCMS Circuit Monitoring
+
+1
+
+$
+25.00
+
+$
+25.00
+
+Waived
+
+Waived
+
+5 Cross Connect Charges
+
+Ethernet 10/100 Cabinet to IP
+
+1
+
+$
+75.00
+
+$
+50.00
+
+Waived
+
+$
+50.00
+
+6 Additional Products and Feature Charges
+
+Committed Bandwidth (per MB)
+
+0
+
+$
+0.00
+
+$
+0.00
+
+Burst Bandwidth (95th % Billing)
+
+0
+
+$
+0.00
+
+$
+0.00
+
+Remote Hands (Tier 1 Support)
+
+1
+
+$
+0.00
+
+Included
+
+7 Grand Total
+
+Total Extension of all Charges:
+
+$
+460.00
+
+$
+450.00
+
+Security Deposit:
+
+$
+440.00
+
+TOTAL DUE AT INCEPTION (Includes NRC, Security Deposit & One Month
+License Fees):
+
+$
+1,350.00
+
+TOTAL MONTHLY CHARGE:
+
+$
+450.00
+
+Requires execution of License Terms & Conditions and Bandwidth Terms & Conditions. Quote valid for 10
+days. Beginning August 1, customer agrees to pay for all racks occupied at the rate listed above. During the Early Access period, customer to pay only power.
+
+1
+
+9 Commitment Levels
+
+a)
+Electrical Power. Licensor shall use commercially reasonable efforts to provide electricity to the License Area without interruption. In the event of any power outage
+for reasons other than Licensee actions or omissions, Licensee shall be entitled to an abatement of one day's License Fee for each hour that delivery of electricity to the License Area is disrupted during any twenty-four (24) hour period,
+provided in no event shall the License Fees be abated for a period longer than thirty (30) days. Except as otherwise expressly provided in the previous sentence, Licensor shall not in any way be liable or responsible to Licensee for any loss,
+damage or expense which Licensee may sustain or incur as a result of the unavailability of or interruption in the supply of electric current to the License Area or a change in the quantity or character or nature of such current and such change,
+interruption or unavailability shall not constitute an actual or constructive eviction, in whole or in part, or entitle Licensee to any abatement or diminution of, or relieve Licensee from any of its obligations under this License Agreement, or
+impose any liability upon Licenser or its agents, by reason of inconvenience or annoyance to or interruption of Licensee's business, or otherwise.
+
+b)
+Environmental Control: Licensor shall use commercially reasonable efforts to maintain conditions in the License Area as follows: (i) the relative humidity shall be
+maintained between 47.5% ambient and 52.5% ambient, and (ii) the temperature shall not exceed 78° Fahrenheit ambient. In the event that Licensor shall fail to maintain conditions as described above, Licensor shall make the necessary
+adjustments to obtain the conditions set forth herein within one hour of receiving notice of such failure to maintain such conditions.
+
+c)
+Work Order Request: Subject to any other provisions of this Agreement which may limit or impair the availability of the following items or place conditions on the
+availability of such items, Licensor shall implement Licensee's requests for the following work order items within the time periods designated below following fully executed work order:
+
+Type of Work Order
+
+Time Period
+
+Increase Electrical Capacity
+
+Qty: 1-10 - Five (5) days
+
+(20 amp - 120V circuit)
+
+Qty: 11-20 - Ten (10) days
+
+Qty: 21 + - agreed upon work order
+
+Install Cross Connects
+
+24 hours from approved work order
+
+Licensee shall submit a work order for any such requested change in accordance with the provisions of this Agreement and the Policies and Procedures. If Licensor
+determines in its reasonable commercial judgment that Licensor has failed to meet the work order commitment, Licensee shall receive a credit equal to 50% of Licensor's standard charge for the service with respect to which this commitment has
+not been met.
+
+d)
+Preparation of License Area: Licensor shall use commercially reasonable efforts to make the License Area available to Licensee in the condition required under this
+Agreement on or prior to the commencement of the Term. In the event Licensor fails to do so, Licensee shall be entitled to an abatement of one days License Fee for each day of Licensor's delay in making the License Area available to Licensee,
+up to a maximum of thirty (30) days; provided, however, that this provisions with respect to preparation of the License Area shall not apply if (i) Licensee has given Licensor incorrect or incomplete information with respect to the
+configuration of the License Area (ii) Licensee has altered or modified the requested configuration of the License Area after submission of such information to Licensor and acceptance thereby, or (iii) Licensee has requested that Licensor
+configure the License Area in accordance with specifications other than those that are standard for the Building.
+
+e)
+Remote Hands: Licensor or its independent contractor shall respond to a request for "Remote Hands" as described in the table below. Licensor's or its
+independent contractor's response time in connection with such a request shall be measured from the time Licensor or its independent contractor receives and logs Licensee's request with all necessary information requested by Licensor or
+its independent contractor until a representative of Licensor or its independent contractor first calls Licensee in response to such request. In the event Licensor or its independent contractor fails to satisfy the Remote Hand commitment Licensee
+shall be entitled to an abatement of one day's License Fee for each failed occurrence.
+
+2
+
+Response Table (Schedule 1)
+
+Severity
+
+Alarm
+Description
+
+Meaning
+
+Generic
+Response
+
+NOC "Target"
+Response Time
+
+Field Staff "Target"
+Response
+Time
+
+1
+
+Critical
+
+Site Down
+
+Immediate
+
+15 minutes
+
+15 minutes
+
+2
+
+Major
+
+Degrading Performance
+
+ASAP
+
+30 minutes
+
+15 minutes
+
+3
+
+Minor
+
+Required Maintenance
+
+Normal
+
+Next Business Day
+
+As advised by NOC
+
+f)
+Any abatement of License Fees or other credit permitted pursuant to these Basic License Terms shall be subject to the following conditions:
+
+1)
+The failure of Licensor to satisfy the applicable commitment level shall not have been caused in whole or in part by any scheduled maintenance events, unavoidable
+delay, Licensee actions or inactions, Licensee-supplied power or equipment, actions or inactions of any third party, excluding any third party directly involved in the operation and maintenance of the Building, but including, without limitation,
+Licensee's end users, third party network providers, traffic exchange points controlled by third parties, any power, equipment or services provided by third parties, or an event of force majeure.
+
+2)
+Licensee must notify Licensor within five (5) business days from the time Licensee becomes eligible to receive an abatement of License Fees or any other credit
+pursuant to these Basic License Terms. Licensee shall forfeit any right to receive such an abatement of License Fees or other credit if Licensee fails to timely notify Licensor.
+
+3)
+If Licensee is entitled to multiple credits or abatement of License Fees for multiple reasons under these Basic License Terms, such credits or abatement of License Fees
+shall be limited to a maximum of thirty (30) days' License Fees.
+
+4)
+In no event shall Licensee be entitled to a credit or abatement of License Fees if Licensee is in default under this Agreement or has otherwise failed to comply with
+Policies and Procedures.
+
+These Basic License Terms shall not be binding upon Licensor and Licensees until such time as the
+parties have agreed to and executed a License Agreement into which this summary of Basic License Terms shall be incorporated.
+
+LICENSOR:
+
+LICENSEE:
+
+Harrison 160, LLC
+
+a California limited liability company
+
+By: /s/ Max Levchin
+
+By: /s/ M. B. Dalton
+
+Print Name: Max Levchin
+
+Print Name: M. B. Dalton
+
+Title: CEO
+
+Date signed: 4/27/04
+
+Date signed: 4/20/04
+
+3
+
+License Terms and Conditions
+
+These License Terms and Conditions together with any schedules and exhibits attached hereto and the immediately preceding summary of
+Basic License Terms (the "Basic License Terms") when taken together comprise the "License Agreement" or "Agreement" between 160 Harrison, LLC, a California limited liability company
+("Licensor"), and the licensee identified in the Basic License Terms (the "Licensee").
+
+1. Grant of
+License.
+
+Licensor hereby grants Licensee the right during the Term of this Agreement to install, maintain and operate the
+equipment described on Exhibit A-1 attached hereto (together with any customary cabling and any replacement or additional equipment of a type similar to such original equipment, collectively, the "Equipment") within the space
+designated on Exhibit A-2 attached hereto (the "License Area") within the building commonly known as 365 Main Street, San Francisco, California 94105 (the "Building"), Licensor shall not be obligated to
+provide any telecommunications services or managed services to Licensee under this Agreement. In addition, Licensor shall have no obligation to make any alterations, install any equipment or otherwise prepare the License Area for use by Licensee
+other than the work specifically set forth on Exhibit A-2 as work to be completed by Licensor in the License Area prior to the commencement of the Term (the "Licensor Work"). Licensee acknowledges and agrees that any services
+to be provided by Licensor hereunder in connection with the Equipment or the License Area may be performed by an independent contractor or contractors on behalf of Licensor and Licensor shall have no liability for the work of such contracts except
+as specifically set forth in the Commitment Levels section of the Basic License Terms.
+
+2. Term.
+
+The term of this Agreement shall be the "Base Term" shown in the Basic License Terms, as extended by any "Optional
+Term" described therein with respect to which Licensee has duly exercised its option to extend (the "Term"), unless this Agreement is sooner terminated in accordance with Section 13.1 below.
+
+3. Policies and Procedures, Access and Security.
+
+The Policies and Procedures of the Building in effect as of the date hereof are attached hereto as Exhibit B (the "Policies and Procedures"). Licensor reserves the right, from time
+to time to adopt additional Policies and Procedures to amend the Policies and Procedures then in effect. Licensor shall provide to Licensee written notice of any such additions or amendments to the Policies and Procedures. Licensee and Licensees
+Representatives (as defined in Section 4.1(c) below) shall comply with the Policies and Procedures, as so supplemented or amended. Nothing contained in this Agreement shall be construed to impose upon Licensor any duty or obligation to enforce
+the Policies and Procedures or terms, covenants or conditions in any other lease or license against any other lessee or licensee, and Licensor shall not be liable to Licensee for violation of the same by any other lessee or licensee, its employees,
+agents, visitors or licensees. If there shall be any inconsistencies between this Agreement and the Policies and Procedures, the provisions of this Agreement shall prevail. Access to the Building and the License Area is governed by the Policies and
+Procedures.
+
+4. Use; Hazardous Materials; Compliance with Laws; Inspection.
+
+4.1 Use.
+
+(a) Licensee shall use and occupy the License Area only for the use set forth in the Basic License Terms, and for no other purpose.
+Licensee shall not use or keep in the License Area any hazardous materials, foul or noxious gas or substance, or any flammable or combustible fluid or material (collectively, "Hazardous Materials") other than those specifically
+approved by Licensor in writing and permitted to be used under local governing code and ordinances in the operation of Licensee's business that are used and stored in compliance with Legal Requirements (as defined in Section 492(a) below).
+Licensor may in its sole discretion, modify the definition of Hazardous Materials from time to time during the Term upon written notice to Licensee. Licensee's violation of this Section 4.1(a) will be grounds for termination of this
+Agreement by Licensor in Licensor's sole and absolute discretion.
+
+(b) Licensee shall not place a load upon any
+area of the License Area, which load either exceeds the floor load per square foot that such area is designed to carry or violates Legal Requirements. Pursuant to Building specifications, the designated loads per square foot are: (i) two
+thousand (2000) pounds with respect to any raised floor, and (ii) two hundred fifty (250) pounds with respect to areas other than a raised floor.
+
+(c) Licensee's Indemnification. Licensee agrees to indemnify, defend and hold harmless Licensor, its successors and assigns, and its and their trustees, beneficiaries, directors,
+officers, shareholders, members, managers, employees, agents, and partners from all costs, expenses, damages, liabilities, claims, fines, penalties, interest, judgments, and losses of any kind, including, without limitation, reasonable
+attorneys' fees and costs, arising from or In any way related to Licensee's or Licensee's officers, employees, contractors, representatives, affiliates, assignees, sublicensees, agets, invitees (collectively, "Licensee's
+Representatives") handling of Hazardous Materials during the Term or violation of any of the provisions of this Agreement pertaining to Hazardous Materials (collectively, "Environmental Losses"), including consequential
+damages, damages for personal or bodily injury, property damage, damage to natural resources occurring on or off the License Area, encumbrances,
+
+-1-
+
+liens, costs and expenses of investigations, monitoring, clean up, removal or remediation of Hazardous Materials, defense costs of any claims (whether or not such claim is ultimately defeated),
+good faith settlements, attorneys" and consultants' fees and costs, and losses attributable to the diminution of value, loss or use or adverse effects on marketability or use of any portion of the License Area, whether or not such
+Environmental Losses are contingent or otherwise, matured or unmatured, foreseeable or unforeseeable.
+
+4.2
+Licensee's Compliance with Legal Requirement
+
+(a) Definitions.
+
+"Legal Requirements" means all present
+and future laws, rules, orders, ordinances, regulations, statutes, requirements, codes, executive orders, rules of common law, and any judicial interpretations thereof, extraordinary as well as ordinary, of all Government Authorities, including
+without limitation, the Comprehensive Environmental Response Compensation and Liability Act, 42 U.S.C. § 9601 et seq. and the Resource Conservation and Recovery Act, 42 U.S.C. § 9601 et seq., the Americans with Disabilities Act, 42 U.S.C.
+§12,101 et seq., and any law of like import, any statute, rule or regulation designing any substance as a hazardous material or substance, and all rules, regulations and government orders with respect thereto, and of any applicable fire rating
+bureau, or other body exercising similar functions, affecting Licensee's use of the License Area, the Building or the maintenance, use or occupation thereof, or any street or sidewalk comprising a part of or in front thereof or any vault in or
+under the Building.
+
+"Governmental Authority" means any of the United States of America, the State of
+California, the City and County of San Francisco, any political subdivision thereof and any agency, department, commission, board, bureau or instrumentality of any of the foregoing; now existing or hereafter created, having jurisdiction over the
+Building or any portion thereof or the vaults, curbs, sidewalks, streets and areas adjacent thereto.
+
+(b) Compliance with
+Legal Requirements. Licensee, at its sole expense, shall comply with all Legal Requirements applicable to the License Area or the use and occupancy thereof by Licensee. Licensee shall not do or permit to be done any act or thing upon the License
+Area which will invalidate or be in conflict with Licensor's insurance policies. If, as a result of Licensee's acts or omissions, the insurance rates for the Building shall be increased, then Licensee shall reimburse Licensor for the
+amount of any such increase upon demand by Licensor.
+
+(c) City and County of San Francisco. Licensee shall have the sole
+responsibility to secure any and all governmental approvals relating to Licensee's use of the License Area other than building permits required in connection with any Licensor Work. Licensee shall secure such approvals prior to execution of
+this Agreement and hold Licensor harmless from any costs and fees Incurred in the process of obtaining such approvals, and from any fines or penalties Imposed by a Governmental Authority arising from Licensee's non-conformance with Legal
+Requirements (other than building permits required in connection with any Licensor Work).
+
+4.3 Access and
+Inspection. Licensor and Licenser's lender and consultants, and each of their respective officers, agents, employees, members or managers, shall have the right, but not the obligation, to enter into the License Area at any time, in the case
+of an emergency, and otherwise at reasonable times to inspect the License Area. In any such case, Licensee shall upon request reimburse Licensor for the reasonable cost of such inspections, so long as such inspections are reasonably related to any
+violation of Legal Requirements or other provision of this Agreement. In addition, Licensor or Licensor's agents may have access to the License Area at reasonable times for the purpose of showing the same to prospective purchasers, lenders, or
+licensees, and making such alterations, repairs, improvements or additions to the License Area as Licensor may deem necessary. All such activities shall be without abatement of License Fees or liability to Licensee.
+
+5. Alterations.
+
+5.1 The term "Alterations" shall mean any modification of the License Area from and after the commencement of the
+Term, whether by addition or deletion and shall exclude any Licensor Work.
+
+5.2 Licensee shall not make any Alterations
+to the License Area without Licensor's prior written consent, which may be given or withheld in Licensor's sole and absolute discretion; provided, however, that Licensor shall not unreasonably withhold its consent to the installation in
+the License Area by Licensee of customary cabling and trade fixtures. Any proposed Alterations that Licensee shall desire to make shall be presented to Licensor in written form with detailed plans. Any proposed Alterations shall be bonded in the
+amount of one hundred fifty percent (150%) of the estimated costs, shall be undertaken at Licensee's sole cost and expense and risk, shall be made in a safe and workmanlike manner, shall not cause or result in any mechanics or labor and
+materials liens for the work to be levied on the License Area and shall be subject to Licensor's customary conditions of construction, as set r In Licensor's form of Consent to Alterations.
+
+5.3 Indemnification. Licensee shall keep the License Area free from any liens and shall pay, when due, all claims for labor
+or materials furnished or alleged to have been furnished or for Licensee or for use on or in the License Area. Licensee shall give Licensor not less than ten (10) days' notice prior to the commencement of any work in on or about the
+License Area and Licensor shall have the right to post notices of non-responsibility in connection with such work. If Licensee shall contest the validity of any such lien claim or demand, then Licensee shall, at its sole expense defend and protect
+itself, Licensor and the License, Area against the same, shall post adequate security in connection therewith and shall pay and satisfy any such adverse judgment that may be rendered thereon before the enforcement thereof.
+
+-2-
+
+6. Commitment Levels.
+
+Licensor shall use commercially reasonable efforts to provide or cause an independent contractor to provide on behalf of Licensor, at Licensor's expense, except as otherwise set forth herein, the
+following, in accordance with the commitment levels described in the Basic License Terms, as applicable:
+
+6.1 Electricity. Licensee has elected be charged for electricity service on either an actual usage basis (as described in
+Section 6.1(a) below) or on a charge per circuit basis (as described in Section 6.1(b) below), as such election is indicated in the Basic License Terms. Licensor, subject to the provisions of this Section 6.1, shall use commercially
+reasonable efforts to make available to Licensee, AC electric capacity at a level not less than the level described In the Basic License Terms (the "Basic Capacity"). Licensee shall be solely responsible, at Licensee's sole cost and
+expense, for the installation of all power circuits and rack grounding to the base Building grounding grid system required in order to deliver the Basic Capacity to the License Area and to distribute it therein. Licensee shall use Licensor's
+designated electrical contractor to perform the tap-in to the Building's electrical system located at the remote power panel. In the event that Licensee shall require electrical capacity in excess of the Basic Capacity, then upon request, and
+subject to the availability of additional electrical capacity in the Building, as determined by Licensor in its sole and absolute discretion, Licensor shall make additional electric power available to Licensee. Licensee shall pay to Licensor a
+one-time charge equal to Licensor's designated electrical contractor's expense to install such electrical facilities and equipment necessary to enable Licensee to obtain such additional electrical capacity. Licensor's current rate for
+additional power as of the date of this Agreement is set forth in the Basic License Terms, subject to increase during the term due to increases in Licensor's costs and the charges of the Electricity Provider (as defined below). Licensee shall
+pay. Licensor, as additional License Fees, on a monthly basis, for its consumption of electrical energy at the License Area, which consumption shall be deemed to include both the electrical energy consumed by each circuit in the License Area as well
+as the electrical energy required to cool the heat generated thereby (the "License Area Consumption"), as more particularly provided herein. "Licensor's Electricity Cost" means the cost per kilowatt hour and cost per
+kilowatt demand, adjusted by applicable rate adjustments, to Licensor for the purchase of electricity from the public utility or other electricity provider furnishing electricity service to the Building from time to time (the "Electricity
+Provider"), including sales and other taxes or other impositions imposed by any Governmental Authority on Licensor's purchase of electricity. If at any time during the term the cost elements comprising Licensor's Electricity Cost
+shall be increased by the Electricity Provider, or Licensor's Electricity Cost shall be increased for any other reason, then effective as of the date of such increase, Licensee's payment for submetered electricity under this
+Section 6.1 shall be proportionately increased. Licensor res6004Wright to contract with different Electricity Providers from time to time in its sole discretion, and without reference to whether any Electricity Provider selected by Licensor
+provides lower rates than any other electricity supplier. Licensee covenants that Licensee's License Area Consumption shall not at any time exceed the capacity of any of the electrical facilities and installations in or otherwise serving or
+being used in the License Area and Licensee shall, upon the submission by Licensor to Licensee of written notice, promptly cease the use of any of Licensee's electrical equipment which Licensor believes will cause Licensee to exceed such
+capacity. If, within twenty-four (24) hours of receiving such a notice from Licensor, Licensee shall fail to reduce its License Area Consumption to a level. that complies with the terms of this Section 6.1, Licensor shall have the right to
+disconnect power to the applicable circuit. Any additional feeders, risers, electrical facilities and other such installations required for electric service to the License Area will be supplied by Licensor, at Licensee's expense, upon
+Licensor's prior consent in each instance, provided that, in Licensor's judgment, such additional electrical facilities and installations, feeders or risers are necessary for Licensee's use of the License Area and are permissible
+under Legal Requirements and insurance regulations, and provided further that the installation of such feeders or risers will not cause permanent damage or injury to the Building or the License Area or cause or create a dangerous or hazardous
+condition or entail excessive or unreasonable alterations or repairs or interfere with, or disturb, other licensee or occupants of the Building. In addition, Licensor shall have no obligation to consent to such additional feeders, risers, electrical
+facilities and installations if in Licensor's judgment, the same would give Licensee a disproportionate amount of the electrical current supplied to the Building at the expense of, or in derogation of the needs of other licensees or occupants
+of the Building.
+
+(a) Electricity Charge based upon Actual Usage.1f Licensee has elected to pay for electricity
+based upon actual usage, the calculations and determinations of the charges for Licensee's License Area Consumption shall be based on the readings of one or more circuit monitors to be installed by Licensor, applied to Licensor's
+Electricity Cost, as defined below. The cost for installation of such submeters be borne by Licensor if the License Area comprises an entire colocation area; otherwise, Licensee shall bear such cost as set forth in the Basic License Terms. Licensee
+shall pay on a monthly Licensor's Electricity Cost for Licensee's License Area Consumption for circuit power and cooling, as determined hereunder as measured and calculated by such circuit monitor or monitors including a factor of two
+(2) applied to the monitored totals to account for cooling electricity usage. in .addition, Licensee shall pay to Licensor, as additional License Fees (i) the fees and expenses of Licensor's electrical contractor for services rendered
+based upon readings of such contractor in the maintenance and repair of such circuit monitors and (ii) the amount of any taxes or other impositions imposed by any Governmental Authority on Licensors receipts from the sale of electricity to
+Licensee.
+
+(b) Electricity Charged Per Circuit. If Licensee has elected to pay for electricity on a per circuit
+basis, Licensee shall pay additional License Fees for such circuits in the amounts identified in the Basic License Terms. Such additional License Fees shall be based on the consumption rate per circuit shown in the Basic License Terms. In addition,
+Licensee shall pay to Licensor as additional License Fees (i) the fees and expenses of Licensor's. designated electrical contractor for services rendered by such contractor in the maintenance and repair of any such circuits, and
+(ii) the amount of taxes or other impositions-imposed by any Governmental Authority on Licensor's receipts from the sale of electricity to Licensee.
+
+6.2 Environmental Controls. Provided that no Event of Default shall have occurred and be continuing, Licensor shall use commercially reasonable efforts to provide heating, ventilation and
+air conditioning ("HVAC") to the License Area twenty-
+
+-3-
+
+four (24 hours a day, seven (7) days a week, three hundred sixty-five (365) days a year through use of the Building standard HVAC system.
+
+6.3 Security. Licensor, or an independent contractor on behalf of Licensor, shall provide security services for the
+Building twenty-four (24) hours a day, seven (7) days a week. Such security services shall be consistent with those provided at buildings comparable to the Building, including, without limitation, monitoring alarm and surveillance systems,
+responding to emergencies, escorting visitors, safekeeping licensee cage keys, and monitoring and controlling access to the Building. Licensee shall provide to Licensor the names of Licensee's Representatives who are authorized to access the
+Building and the License Area in accordance with the Policies and Procedures attached hereto as Exhibit B. Notwithstanding the foregoing, Licensee acknowledges and agrees that neither Licensor's agreement to provide such security
+services nor Licensor's actual provision of the same pursuant to this Agreement shall directly or indirectly create any liability (and Licensee hereby waives any claim based on any such liability) on the part of Licensor to Licensee, any
+persons occupying or visiting the License Area or the Building, or any other person or entity with respect to any loss by theft, injury or loss of life, or any other damage suffered or incurred in connection with any entry into the License Area or
+any other breach of security with respect to the License Area or the Building; provided, however, that the foregoing acknowledgment and agreement shall not apply to any such loss or damage that results from Licensor's failure to use
+commercially reasonable efforts to comply with its obligations under this subparagraph or from Licensor's willful misconduct.
+
+6.4 Fire Detection and Suppression. Licensor shall maintain a very early smoke detection system and a double interlock pre-action and detection system in the Building. In addition, Licensor
+shall provide and maintain fire extinguishers in the Building, Including clean agent extinguishers for use in "mission critical" portions of the Building, as determined by Licensor. Licensee shall review and approve the smoke detection and
+fire suppression systems prior to commencement of the Term.
+
+6.5 Remote Hands. Licensor, or an independent
+contractor on behalf of Licensor, shall provide personnel capable of performing certain limited maintenance services in accordance with the Licensee's written directions ("Remote Hands") on equipment belonging to Licensee
+installed in the License Area, provided that Remote Hands shall not be available beyond the point at which a login prompt appears on Licensee's Equipment. Remote Hands shall be available twenty-four (24) hours a day, seven (7) days a
+week. Licensee shall access and utilize Remote Hands in accordance with the Policies and Procedures. Notwithstanding anything to the contrary contained herein, in no event shall Licensor be responsible for the repair, configuration, tuning or
+installation of the Equipment or the License Area or any damage or loss caused by Remote Hands, except to the extent resulting from Licensor's gross negligence or willful misconduct.
+
+6.6 Changes In Configuration. Licensor, or an independent contractor on behalf of Licensor, shall implement Licensee
+requests for changes in electrical capacity (to the extent additional capacity is available and in accordance with Section 6.1 above), installation of cross connects and any other modifications to Licensee's License Area that Licensor is
+required by this Agreement to provide to Licensee upon Licensee's request, in accordance with the applicable commitment level set forth in the Basic License Term.
+
+6.7 Elevators. Licensor, or an independent contractor on behalf of Licensor, shall use commercially reasonable efforts to provide passenger elevator service to the License Area twenty-four
+(24) hours a day, seven (7) days a week, three hundred sixty-five (365) days a year. Such elevator service shall be subject to such rules and regulations as Licensor may promulgate from time to time with respect thereto:
+
+6.8 Cleaning and Rubbish Removal. Licensor, or an independent contactor on behalf of Licensor, shall provide janitorial
+service consistent with a telecommunications building similar to the Building. Licensee shall use Building trash containers for office-generated trash only and shall not use Building trash containers for disposal of construction-related materials,
+equipment or other bulky debris. Licensee shall remove from the License Area any debris generated by Licensee other than paper and other customary office waste and dispose of such debris in accordance with the Policies and Procedures and Legal
+Requirements.
+
+6.9 Water. Licensor shall furnish water in such quantities as Licensor deems sufficient for
+ordinary drinking, lavatory and cleaning purposes in the License Area.
+
+7. Condition of License Area.
+
+Licensee understand that the License Area and related services are provided on an "AS-IS" basis, and Licensor makes no warranty
+that the space or such services are suitable for Licensees intended purpose. Licensee acknowledges that: (a) Licensee has made such investigations as it deems necessary with reference to such matters and assumes all responsibility therefor as
+the same relate to its use of the License Area and (b) neither Licensor, Licensor's agents, nor any broker has made any oral or written representations or warranties with respect to said matters other than as set forth in this Agreement.
+Installation of any Equipment by Licensee shall be deemed conclusive evidence that Licensee accepts the same "as-is" and agrees that Licensor is under no obligation to perform any work or provide any materials to prepare the License Area
+or the Building for Licensee except for any Licensor Work. WITHOUT LIMITING THE FOREGOING, LICENSOR MAKES NO WARRANTIES, EXPRESS OR IMPLIED, IN FACT OR BY OPERATION OF LAW, STATUTORY OR OTHERWISE, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE, EXCEPT THOSE EXPRESSLY STATED HEREIN:
+
+-4-
+
+8. Fees, Billing and Payment.
+
+Licensee agrees to pay all fees detailed in the Basic License Terms and any additional fees described in this Agreement (collectively,
+"License Fees") when due. Upon execution of this Agreement, Licensee wilt pay all amounts designated in the Basic License Terms as "Non-recurring Charges", including, without limitation, installation charges, security
+deposit and License Fees with respect to the first full month of the Term. After the commencement of the Term, ongoing License Fees will be billed monthly in advance with payment due on the first business day of each month, provided that any failure
+of Licensee to timely receive a detailed billing statement shall not affect Licensee's obligation to pay such License Fees when due. Any credit due Licensee as a result of Licensee having paid a full month's License Fees upon execution of
+this Agreement and the Term having commenced on a date other than the first calendar day of a month will be applied to License Fees with respect to the first full calendar month of the Term and reflected in the applicable billing statement sent by
+Licensor to Licensee.
+
+9. Removal of Equipment.
+
+9.1 During Term. Licensee agrees not to remove any Equipment from the License Area except in strict compliance with the Policies and Procedures, including, without limitation, the completion
+of Licensor's equipment check-out form.
+
+9.2 Upon Termination. Upon the expiration or earlier termination
+of this Agreement, Licensee shall remove all Equipment from the License Area and from the Building in accordance with the Policies and Procedures. If Licensee fails to do so, Licensor may treat the Equipment as abandoned and charge Licensee for the
+removal and/or storage costs. Licensor has no duty to preserve or care for any Equipment abandoned or deemed abandoned hereunder, and Licensee hereby waives and releases any claims it may have in connection with any such removal or storage.
+
+10. Insurance; Indemnity.
+
+10.1 Insurance. At all times during the Term of this Agreement, Licensee maintain and pay for (a) commercial general liability insurance in an amount not less than $2,000,000 per
+occurrence, (b) workers' compensation insurance in an amount not less than that prescribed by applicable law; (c) employer's liability insurance in an amount not less than $2,000,000 per occurrence, (d) commercial automobile
+liability insurance applicable to bodily injury and property damages, covering owned, non-owned, leased and other hired vehicles in an amount not less than $1,000,000 per accident, (e) insurance coverage on all of Licensee's Equipment and
+property in the License Area with full replacement cost coverage .and a deductible not to exceed $100,000 per occurrence, and (f) umbrella or excess liability Insurance with a combined single limit of not less than $5,000,000 to apply over the
+above mentioned policies. The policies for such commercial general liability insurance and umbrella or excess liability coverage shall name Licensor as an additional insured. In additional, all insurance policies required under this
+Section 10.1 shall (i) be non-cancelable except upon thirty (30) day written notice to Licensor, (ii) be issued by an insurer with an AM Best's Rating of B+ or better, (iii) include a waiver of subrogation rights and
+(iv) be primary in nature. Licensee shall provide Licensor with certificates evidencing the required coverages prior to bringing any Equipment into the Building. if Licensee fails to maintain the required coverages, Licensor may, but shall not
+be obligated to, purchase such coverage for Licensee, at Licensee's cost. Licensee shall insure that all of its subcontractors and agents maintain insurance in the amounts required in this Section 10.1.
+
+10.2 Waiver of Subrogation. Without affecting any other rights or remedies, Licensee and Licensor each hereby release and
+relieve the other and their respective officers, employees, agents and representatives, and waive their entire right to recover damages against the other, for loss of or damage to its property arising out of or incident to the perils required to be
+insured against within. The effect of such releases and waivers is not limited by the amount of insurance carried or required, or by any deductibles applicable hereto. The parties agree to have their respective property damage insurance carriers
+waive any right to subrogation that such companies may have against Licensor or Licensee, as the case may be, so long as the insurance is not invalidated thereby. Licensor and Licensee each agree to take any necessary action to make this release
+effective and binding upon their respective insurance carriers so that such carriers specifically waive any right of subrogation that such carriers might otherwise have against either the parties hereto or their officers, employees, agents or
+representatives.
+
+10.3 Indemnity.
+
+(a) Except for any matter resulting from Licensor's gross negligence or willful misconduct, Licensee shall indemnify, protect, defend and hold harmless Licensor and its agents, partners and
+Lenders (as defined in Section 30 below), from and against any and all claims, loss of rents and/or damages, liens, judgments, penalties, attorneys' and consultants' fees, expenses and/or liabilities arising out of involving, or in
+connection with the use and/or occupancy of the License Area by Licensee. If any action or proceeding is brought against Licensor by reason of any of the foregoing matters, Licensee shall upon notice defend the same at Licensees expense by counsel
+reasonably satisfactory to Licensor and Licensor shall cooperate with Licensee in such defense. Licensor need not have first paid any such claim in order to be defended or indemnified.
+
+(b) Licensor shall have no liability or responsibility for the content of any communications transmitted via third party services,
+and Licensee shall defend, indemnify and hold Licensor harmless from any and all claims (including claims by any Governmental Authority seeking to impose penal sanctions) related to such content or for claims by third parties relating to
+Licensee's use of the License Area. Licensor does not operate or control the information, services, opinions or other content of third party services that may utilize equipment in the Building or provide services therein. Licensee agrees that
+it shall make no claim whatsoever against Licensor relating to the content of any such services or respecting any information, product, service or software ordered through or provided by virtue of such third party services.
+
+-5-
+
+10.4 Exemption of Licensor from Liability. Licensor shall not be liable for
+injury or damage to the person or goods, wares, merchandise or other property of Licensee, Licensee's employees, contractors, Invitees, customers, or any other person in or about the License Area; whether such damage or injury is caused by or
+results from fire, steam, electricity, gas, water or rain, or from the breakage, leakage, obstruction or other defects of pipes, fire sprinklers, wires, appliances, plumbing, HVAC or lighting fixtures, or from any other cause, whether such injury or
+damage results from conditions arising upon the License Area or from other sources or places, other than damages proximately caused by reason of Licensors gross negligence or willful misconduct and not covered by insurance required to be carried by
+Licensee under this Agreement. Licensor shall not be liable any damages arising from any act or neglect of any other licensee of Licensor. Notwithstanding any other provision of this Agreement, Licensor shall not be liable to Licensee for any
+indirect special, consequential, exemplary or punitive damages (including but not limited to damages for lost profits, lost revenues or the cost of purchasing replacement services) arising out the performance or failure to perform Licensor's
+obligations under this Agreement.
+
+11. Casualty and Condemnation.
+
+In the event of material damage to, destruction of or condemnation of the Building or the License Area Licensor shall have the right, in
+Licensor's sole discretion, to terminate this Agreement upon notice to Licensee, and upon delivery of such notice, Licensor shall have no further obligations to Licensee under this Agreement.
+
+12. Events of Default.
+
+Each of the following shall be an "Event of Default" under this Agreement:
+
+(a) the failure of Licensee to make any payment of License Fees or any other monetary payment required to be made by Licensee hereunder,
+whether to Licensor or to a third party, when due;
+
+(b) the failure of Licensee to provide reasonable evidence of insurance or
+surety bond required under this Agreement;
+
+(c) the failure of Licensee to fulfill any obligation under this Agreement which
+endangers or threatens life or property, where such failure continues for a period of five (5) days after receipt of written notice of such breach;
+
+(d) the failure by Licensee to provide reasonable written evidence of compliance with Legal Requirements or any other documentation or information which Licensor may reasonably require of Licensee under
+the terms of this Agreement, where any such failure continues for a period of ten (10) days following written notice to Licensee;
+
+(e) the failure of Licensee to comply with any of the provisions of Section 4 of this Agreement;
+
+(f) Licensee's abandonment of the Equipment in License Area or the Building;
+
+(g) Licensee's commencement of any case, proceeding or other action under any existing or future law of any jurisdiction, domestic or
+foreign, relating to bankruptcy, insolvency, reorganization, conservatorship or relief of debtors, seeking to have an order for relief entered with respect to it or seeking to adjudicate it a bankrupt or insolvent or Licensee's admitting in
+writing its inability to pay its debts as they become due; or
+
+(h) Licensee's breach of any other provision of this
+Agreement or any agreement referred to herein (except those breaches described in clauses (a) through (g) of this Section 12), including without limitation, violation of the Policies and Procedures, if not cured within ten
+(10) days after receipt of written notice of such breach.
+
+No remedy or election hereunder shall be deemed exclusive but shall, wherever
+possible, be cumulative with all other remedies at law or in equity.
+
+13. Remedies/Termination.
+
+13.1 Upon occurrence of an Event or Default, Licensor shall have available to it all remedies at law or In equity and, in addition
+to any other remedy available to Licensor at law or in equity, Licensor may elect to terminate this Agreement by notice to Licensee, and this Agreement shall terminate as of the effective date of the notice. If Licensee files a petition under the
+Bankruptcy Code or under any other similar federal or state law, Licensee; unconditionally and Irrevocably agrees that Licensor shall be entitled, and. Licensee unconditionally consents, to relief from the automatic stay so as to allow Licensor to
+exercise its rights and remedies under this Agreement with respect to the Building or the License Area. In such event, Licensee hereby agrees it shall not, in any manner, oppose or otherwise delay any motion filed by Licensor for relief from the
+automatic stay. Licensor's enforcement of the rights granted herein for relief from the automatic stay is subject to the approval of the bankruptcy court in which the case is then pending.
+
+13.2 Late Charges. Licensee hereby acknowledges that late payment by Licensee of License Fees will cause Licensor to incur
+costs not contemplated by this Agreement, the exact amount of which will be extremely difficult to ascertain. Such
+
+-10-
+
+costs include, but are not limited to processing and accounting charges, and late charges which may be imposed upon Licensor by any Lender. Accordingly, if any License Fees shall not be received
+by Licensor within three (3) days after such amount shall be due, then, without any requirement for notice to Licensee, Licensee shall pay to Licensor a late charge for each such occurrence equal to ten percent (10%) of each such overdue
+amount. The parties hereby agree that such late charge represents a fair and reasonable estimate of the costs Licensor will incur by reason of such late payment. Acceptance of such late charge by Licensor shall in no event constitute a waiver of
+Licensee's Default with respect to such overdue amount, nor prevent the exercise of any of the other rights and remedies granted hereunder.
+
+13.3 Interest. Any monetary payment due Licensor hereunder, other than late charges, not received by Licensor when due shall bear interest at the highest interest rate allowable by law from
+the date due until paid in full. Interest is payable in addition to the potential late charge provided for in Section 13.2.
+
+13.4 Breach by Licensor. Licensor shall not be deemed in breach of this Agreement unless Licensor fails within a reasonable time to perform an obligation required to be performed by
+Licensor. For purposes of this Section 13.4, a reasonable time shall in no event be less than thirty (30) days after receipt by Licensor, and any lender whose name and address shall have been furnished Licensee in writing for such purpose,
+of written notice specifying the obligation of Licensor that has not been performed; provided, however, that if the nature of Licensor's obligation is such that more than thirty 930) days are reasonably required for its performance, then
+Licensor shall not be in breach if performance is commenced within such thirty (30) day period and thereafter diligently pursued to completion.
+
+14. Assignment and Sublicensing.
+
+14.1 Licensee's Assignment
+or Subletting. Licensee shall not assign, mortgage, pledge or otherwise transfer this Agreement, in whole or in part, nor sublicense or permit use by any party other than Licensee of all or any part of the License Area, without obtaining in each
+instance the prior written consent of Licensor, which consent Licensor shall not unreasonably withhold, subject to the terms and provisions of Licensor's form of Consent to Assignment/Sublicensing. Any purported assignment or sublicensing
+contrary to the provisions hereof without Licensor's written consent shall be void. The written consent by Licensor to any assignment or sublicensing shall not constitute a waiver of such consent to any subsequent assignment or sublicensing.
+
+14.2 Licensor's Assignment. If Licensor conveys its interest in the License Area or the Building, Licensor
+shall provide Licensee with notice of such conveyance and Licensor shall be automatically relieved from all liability as respects the further performance of its covenants or obligations hereunder after the effective date of such conveyance and from
+any and all further obligations, liabilities, and claims arising from or connected with this Agreement.
+
+15. Notice.
+
+15.1 Notice Requirements. All notices required or permitted by this Agreement shall be in writing and may be delivered in
+person (by hand or by courier) or may be sent by certified or registered mail or U.S. Postal Service Express Mail, with postage prepaid, or by facsimile transmission, and shall be deemed sufficiently given if served in a manner specified in this
+Section 15. The addresses noted in the Basic License Terms shall be that party's address for delivery or mailing of notices. Either party may by written notice to the other specify a different address for notice. A copy of all notices to
+Licensor shall be concurrently transmitted to such party or parties at such addresses as Licensor may from time to time hereafter designate in writing.
+
+15.2 Date of Notice. Any notice sent by registered or certified mail, return receipt requested, shall be deemed given on the date of delivery shown on the receipt card. Notices delivered by
+U.S. Postal Service Express Mail or overnight courier that guarantee next day delivery shall be deemed given upon delivery. Notices transmitted by facsimile transmission or similar means shall be deemed delivered upon telephone confirmation of
+receipt, provided a copy is also delivered via overnight courier or mail. If notice is received on a Saturday, Sunday or legal holiday, it shall be deemed received on the next business day.
+
+16. Force Majeure.
+
+Except for monetary obligations, neither party shall be
+responsible for failure to act in accordance with the terms of this Agreement if such failure is due to causes beyond the party's reasonable control, financial inability excluded, such as earthquake, flood, acts of God, war, or terrorist
+attacks, whether physical or electronic, or failure of the Internet; provided that the party who is unable to act promptly provides written notice detailing the problem and further provided that such party use commercially reasonable efforts to
+overcome such delay.
+
+17. Advertising.
+
+Licensee consents to the disclosure and use by Licensor of Licensee's name and status as a Licensee of the Building, in any advertising or marketing efforts of Licensor.
+
+18. Governing Law.
+
+This
+Agreement shall be governed by and construed under the laws of the State of California.
+
+-7-
+
+19. Successors.
+
+This Agreement shall inure to the binding on the parties, and their heirs, successors, assigns and legal representatives, but nothing contained in this Section 19 shall be construed to permit an
+assignment or other transfer except as provided in Section 14.
+
+20. Severability.
+
+The invalidity of any provision of this Agreement, as determined by a court of competent jurisdiction, shall in no way affect the validity
+of any other provision hereof.
+
+21. Days.
+
+Unless otherwise specifically indicated to the contrary, the word "days" as used in this Agreement shall mean and refer to calendar days.
+
+22. Limitations on Liability.
+
+The obligations of Licensor under this Agreement shall not constitute personal obligations of Licensor, the individual partners, managers or members of Licensor or its or their individual partners,
+directors, officers, employees, members, investors or shareholders, and Licensee shall look to the License Area and the Building, and to no other assets of Licensor, for the satisfaction of any liability of Licensor with respect to this Agreement,
+and shall not seek recourse against Licensor or the individual partners or members of Licensor, or its or their individual partners, directors, officers, members, investors or shareholders, or any of their personal assets for such satisfaction .
+
+23. Time of Essence.
+
+Time is of the essence with respect to the performance of all obligations to be performed or observed by the parties under this Agreement.
+
+24. Waivers.
+
+No waiver by Licensor of any Event of Default hereunder by
+Licensee shall be deemed a waiver of any other term, covenant or condition hereof, or of any subsequent Event of Default by Licensee of the same or of any other term, covenant or condition hereof. A party's consent to, or approval of, any act
+shall not be deemed to render unnecessary the obtaining of such party's consent to, or approval of, any subsequent or similar act by the other party, or be construed as the basis of an estoppel to enforce the provision or provisions of this
+Agreement requiring such consent The acceptance of License Fees by Licensor shall not be a waiver of any Event of Default by Licensee. Any payment by Licensee may be accepted by Licensor on account of moneys or damages due Licensor, notwithstanding
+any qualifying statements or conditions made by Licensee in connection therewith, which such statements and/or conditions shall be of no force or effect whatsoever unless specifically agreed to in writing by Licensor at or before the time of deposit
+of such payment.
+
+25. Covenants and Conditions; Construction of Agreement.
+
+All provisions of this Agreement to be observed or performed by Licensee are both covenants and conditions. In construing this Agreement,
+all headings and titles are for the convenience of the parties only and shall not be considered a part of this Agreement. Whenever required by the context, the singular shall include the plural and vice versa. This Agreement shall not be construed
+as if prepared by one of the parties, but rather according to its fair meaning as a whole, as if both parties had prepared it.
+
+26.
+Consents.
+
+Whenever the consent, approval, judgment or determination of Licensor is required or permitted under this
+Agreement, Licensor may exercise such judgment in Licensor's sole and absolute discretion in granting or withholding such consent or approval or in making such judgment or determination without reference to any extrinsic standard of
+reasonableness, unless the provision providing for such consent, approval, judgment or determination specifies that Licensor's consent or approval not to be unreasonably withheld, or that such judgment or determination is to be reasonable, or
+otherwise specifies the standards under which Licensor may withhold its consent. The review and/or approval by Licensor of an item to be reviewed or approved by Licensor under the terms of this Agreement or any Exhibits hereto shall not impose upon
+Licensor any liability for accuracy or sufficiency of any such item or the quality or suitability of such item for its intended use. Any such review or approval is for the sole purpose of protecting Licensor's interest in the Building, and no
+third parties, including Licensee or Representatives and visitors or Licensee or any person or entity claiming by through or under Licensee, shall have any rights hereunder.
+
+-8-
+
+27. Reservations.
+
+Licensor reserves to itself the right, from time to time, to grant, without the consent or joinder of Licensee, such easements, rights and dedications that Licensor deems necessary, and to cause the
+recordation of parcel maps and restrictions, so long as such easements, rights, dedications, maps and restrictions do not unreasonably interfere with the use of the License Area by Licensee. Licensee agrees to sign any documents reasonably requested
+by Licensor to effectuate any such easement rights, dedication, map or restrictions.
+
+28. Authority.
+
+If either party hereto is a corporation, trust, limited liability company, partnership, or similar entity, each individual executing this
+Agreement on behalf of such entity represents and warrants that he or she is duly authorized to execute and deliver this Agreement on its behalf.
+
+29. Survival.
+
+Section 4.1(a) (Use), 9 (Removal of Equipment), 10.3
+(Indemnity), WA (Exemption of Licensor from Liability) and 32 (Attorney's Fees) shall survive the expiration or earlier termination of the Agreement.
+
+30. Amendment.
+
+The Agreement may be changed only by a written agreement
+signed by both parties. As long as they do not materially change Licensee's obligations hereunder, Licensee agrees to make such reasonable non monetary modifications to this Agreement as may be reasonably required by a lender in connection with
+the obtaining of normal financing or refinancing of the Building ("Lender").
+
+31. Subordination; Estoppel Certificates.
+
+This Agreement shall be subject and subordinate to any ground lease, mortgage, deed of trust or other hypothecation or
+security device now or hereafter placed upon the License Area or the Building (collectively, "Security Device"), to any and all advances made on the security thereof and to all renewals, modifications and extensions thereof. Lessee
+agrees that the holders of any such Security Devices shall have no liability or obligation to perform any of the obligations of Licensor under this License. Any Lender may elect to have this Agreement superior to the lien of its Security Device by
+giving written notice thereof to Licensee, notwithstanding the relative dates of documentation or recordation thereof. Any Lender who succeeds to the interests of Licensor hereunder shall have the option to either terminate this Agreement upon
+notice to Licensee or to maintain this Agreement in full force and effect, in the sole discretion of such Lender. The agreements in this Section 31 shall be effective without the execution of any further documents; provided, however, that upon
+written request from Licensor or Lender in connection with a sale, financing or refinancing of the Building, Licensee and Licensor shall execute such further writings as may be reasonably required to separately document any subordination provided
+for herein. In addition, Licensee shall, within ten (10) days after the written notice from Licensor, execute, acknowledge and deliver to Licensor an estoppel certificate in the form requested by Licensor or any Lender, together with any
+additional information, confirmation and/or statements reasonably requested by Licensor.
+
+32. Attorneys' Fees.
+
+If either party commences an action or arbitration against the other party arising out of or concerning this Agreement, . the prevailing
+party in such litigation or arbitration shall be entitled to reasonable attorneys' fees and costs in addition to such relief as may be awarded.
+
+33. No Real Property Interest Conveyed; No Joint Venture.
+
+Licensee's
+interest is as a licensee; with such license revocable upon an Event of Default. Nothing in this Agreement grants Licensee an easement, leasehold, or other property or ownership right in the License Area or the Building or creates a partnership or
+joint venture between Licensor and Licensee. Licensee acknowledges and agrees that this agreement does not comprise a leasehold or any other interest in real estate involving the Building, the License Area or otherwise. Except as expressly provided
+herein, nothing in this Agreement shall be construed to limit Licensor's right to maintain and operate Building and the License Area in its sole discretion.
+
+34. Entire Agreement.
+
+This Agreement, consisting of the Basic License
+Terms and the Exhibits attached hereto, contains the entire agreement between the parties regarding the subject matter hereof, and there are no verbal or other agreements which modify or affect this Agreement. The Agreement supersedes all prior
+discussions and agreements made by or on behalf of Licensor and Licensee regarding the subject matter hereof.
+
+-9-
+
+IN WITNESS WHEREOF, the parties hereto have executed this Agreement as this 25th day of
+April, 2004.
+
+LICENSEE:
+
+LICENSOR:
+
+MRL Ventures, Inc.,
+
+a Delaware corporation
+
+HARRISON 160, LLC,
+
+a
+California limited liability company
+
+By:
+
+/s/ Max Levchin
+
+By:
+
+/s/ Martin B. Dolan
+
+Print Name: Max Levchin
+
+Authorized Signatory
+
+Title: CE0
+
+-14-
+
+EXHIBIT A-1
+
+Equipment
+
+A-1-1
+
+EXHIBIT A-2
+
+License Area
+
+A-2-1
+
+EXHIBIT B
+
+Policies and Procedures
+
+1.
+The License Area is to be used by Licensee solely for lawful purposes in accordance with these Policies a Procedures and the other terms and conditions of the License
+Agreement.
+
+2.
+Licensee Access -- Licensee shall designate in writing, its primary contact ("Primary Contact") and three representatives having authorization to
+add/remove Licensee representatives from the "Licensee Access List" Only those individuals identified in writing by Licensee on the Licensee Access List may access the License Area and the Building It is the responsibility of Licensee to
+inform security personnel of Licensor of any change of status for authorized personnel.
+
+3.
+Licensee acknowledges that the security and access provisions employed by Licensor or an independent contractor on behalf of Licensor shall not be construed as
+Licensor's acceptance of responsibility or liability or the security of persons or property within the Building or the License Area. Licensor does not guaranty the security of Licensees property or Equipment. Licensor may require access to the
+License Area in order to install or maintain Infrastructure systems to support the Building and the Building systems.
+
+4.
+The Primary Contact, utilizing the Security Authorization Form, must identify visitors in advance of their visit to the Building. A temporary cardkey (good for one
+visit) will be issued when the authorized visitor presents their authorized company ID and surrenders their valid driver's license or valid photo ID in exchange for the temporary ID. Such form of identification will be held at security until
+each visitor completes his or her activities in the Building. A Licensee Representative must accompany any visitor to the License Area or the Building.
+
+5.
+Upon entering and leaving the Building, each Licensee Representative and authorized visitor must sign in or out in the Building logbook. Upon signing out and returning
+the security access card, a visitor's photo identification will be returned.
+
+6.
+Licensee shall cooperate in keeping the Building locked and in restricting access to unauthorized personnel. On entering or leaving the Building each Licensee
+Representative and authorized visitor must make sure the door is shut and not left ajar. At no time shall entrance be granted by Licensee or any Licensee Representative to anyone except employees or contractors for whom security access has been
+authorized by use of the Security Authorization Form.
+
+7.
+Licensee, Licensee's Representatives, authorized visitors and guests shall not obstruct corridors, halls, stairways, sidewalks, building entrance ramps, or site
+driveways at any time. Corridors, halls, stairways, sidewalks, building entrance ramps and site driveways shall be used for egress and ingress only There shall be no congregating in hallways.
+
+8.
+Parking -- Only Licensee and Licensee's Representatives may access the Building parking area. Parking is permitted on a first come first serve basis. Licensee
+vendors and/or contractors may not have access to the parking garage unless otherwise approved by Licensor. Licensee and its employees shall not allow any unauthorized persons to have access to the parking garage without written approval by
+Licensor. Licensee and Licensee's Representatives shall park in the designated parking spaces. Any vehicles parked outside the designated areas will be subject to removal from parking garage at owner's expense.
+
+9.
+All activities in the License Area and the Building must be in compliance with all laws, including all applicable local, state, and federal laws, rules, codes and
+regulations. Prior to commencement of any work in the License Area, Licensee must obtain any necessary federal, state, and municipal permit, licenses and approvals. Licensor must also approve all work to be undertaken by Licensee in advance.'
+
+10.
+Licensee is responsible for installation of its own Equipment. All of the Equipment must fit inside the License Area. All equipment must be UL approved. All cabling
+used by Licensee must meet national electrical and fire standards. All cables must be clearly labeled. Licensee shall not place or leave any Equipment or other items outside the License Area without the express written consent of Licensor.
+
+11.
+Licensee shall maintain the License Area in a neat and orderly manner and shall promptly remove all trash, packing materials, boxes, etc. that Licensee has brought or
+had delivered to the Building.
+
+12.
+Upon the expiration or earlier termination of Licensee's License Agreement, Licensee shall remove all Equipment from the License Area and shall repair, or
+reimburse Licensor for the reasonable costs to repair any damage caused by Licensee during the course of any such removal.
+
+13.
+Licensee will not permit any third party to locate any equipment in the License Area without the prior written consent of Licensor. Any such permitted use shall be
+subject to these Policies and Procedures and the other terms and conditions.
+
+14.
+
+The following items are banned from the Building, and Licensee agrees not to bring these into the Building or the License Area: alcohol, cameras,
+controlled substances, explosives, flammable liquids, gases or chemicals, tape recorders, chemical agents, weapons of any kind, wet cell batteries and all similar equipment and materials. There is no smoking
+
+B-1
+
+permitted in the Building. There is also no smoking permitted in front of the Building front entrance. There will be a designated smoking area adjacent to the loading dock. No food or drink will
+be allowed in the License Area. No animals are permitted in the Building.
+
+15.
+Licensee shall maintain and operate the Equipment in a safe manner, so as to avoid interference, physical or electronic, with other occupants of the Building and their
+equipment, Licensee shall not disrupt, adversely affect or interfere, physically or electronically, with other licensees of space in the Building or with any other licensee's use and enjoyment of such licensee's license area within the
+Building or the common areas of the Building.
+
+16.
+Any interference, physical or electronic, caused to the equipment of other licensees of the Building by the installation, operation, maintenance replacement or repair
+of Licensee's Equipment shall result in the immediate disconnection and removal of such Equipment by Licensor, at Licensee's sole risk, cost and expense. Licensor reserves the right to take other reasonable actions to prevent such
+interference.
+
+17.
+Relocation of License Area Licensor may, in Licensor's reasonable discretion and at Licensor's expense, change the location or the configuration of the
+License Area or other space within the Building. Licensor and Licensee shall cooperate in good faith minimize any disruption in Licensee's operations that might be caused by such changes in location or configuration of the License Area.
+
+18.
+Work Orders--Licensee will be required to complete a "Request for Work Order" form to Licensor in connection with any proposed changes to Licensee's
+use or configuration of the License Area Upon submission of the work order, Licensor will evaluate the request and return a written estimate and schedule for the work. All work orders requiring changes to the existing License Agreement will result
+in an Amendment to License Agreement to be approved by Licensee prior to any work being performed in the License Area.
+
+19.
+Remote Hands (Data Center Technicians) -- Licensor, or an independent contractor on behalf of Licensor, shall provide Data Center Technicians capable of performing
+certain limited maintenance services with respect to the Equipment in accordance with the Licensee's written directions, provided that Remote Hands shall not be available beyond the point at which a login prompt appears on Licensee's
+Equipment. Licensee shall access Remote Hands by contacting the Licensor's Help Desk. All written instructions shall be submitted along with the ticket.
+
+20.
+Help Desk Call In -- Licensor shall provide a Help Desk phone number for Licensee to call in to report troubles. The Help desk will create a ticket that will be
+sent via e-mail to Licensee and to the Data Center Technician on site. The Help Desk will monitor the ticket and notify Licensee when the ticket Item is closed or escalate to the appropriate level based on escalation procedures.
+
+21.
+Escalation protocol -- The Help Desk is the communications facilitator whose function is to assist in communicating events that occur in the Data Center environment
+to all the people who need to be informed during an event. The people who are paged are notified according to the "criticality" levels that the Help Desk members report. To perform this function effectively, the Help Desk uses the
+"escalation protocol" flow chart. This flow chart guides the Help Desk through the process of reporting and managing an event from the moment it is discovered by or reported to the Help Desk. The flow chart describes how to instruct the
+Help Desk to page out according to "Class", how to escalate and de-escalate the event, and how to close the event. Since this procedure is general in nature and cannot anticipate all possible contingencies, the Data Center Technicians
+staffing the Help Desk may, at times, need to use their own judgment regarding the definitions for a specific event classification. For any unscheduled event that is escalated using the Help Desk, a Post Incident Report (PIR) will be written to
+document the event.
+
+22.
+Shipping and receiving -- It is the Licensee's responsibility to notify Licensor of the impending receipt of any shipments through the Help Desk. Licensor, or
+an Independent contractor on behalf of Licensor, will take receipt of Licensee supplied equipment for a limited period of time and store it in a secure environment. It is the Licensee's responsibility to notify the shipping location of the
+impending receipt via e-mail. Licensor, or an independent contractor on behalf of Licensor, will only release a shipment upon obtaining an authorized signature and verifying identification. Security personnel use commercially reasonably efforts to
+monitor incoming and outgoing packages to ensure that goods entering and leaving the premises are accompanied by duly completed documentation. Once Licensor has released a shipment to Licensee, Licensor is longer responsible for tracking the
+shipment and it becomes Licensee's responsibility.
+
+23.
+No Equipment will be permitted to be removed from the Building without the submission of a duly completed equipment check-out form.
+
+24.
+No work will be done below the raised floor area without the prior written approval of Licensor.
+
+25.
+No exposed cables shall be installed under raised flooring.
+
+26.
+Licensee shall not inscribe, paint or affix advertisements, identifying signs or other notices on any part of the corridors, doors, public areas, common areas or the
+grounds of the License Area or any subdivision related thereof.
+
+B-2
+
+27.
+Licensee shall be allowed full use of provided common areas of the Building (bathrooms, coffee station, hallways, etc.). Licensee and Licensee's Representatives
+shall not-conduct activities in common areas that interfere with the activities of other licensees of the Building or Licensor. Licensee should make a concerted effort to keep all such areas clean and neat at all times. Licensee and Licensee's
+Representatives shall only use the common areas of the Building for their designated purposes.
+
+28.
+Failure by Licensee or Licensee's Representatives to materially comply with the Policies and Procedures in effect from time to time may result in (a) removal
+of Licensee or any Licensee Representative from the Building, (b) restriction of Licensee's access to the Building; (c) impositions of additional charges, and/or (c) termination of the License Agreement.
+
+29.
+Licensor reserves the right, in Licensor's sole discretion, to amend these Policies and Procedures at any time. Licensee acknowledges that the Polices and
+Procedures are subject to change from time to time Licensor shall provide to Licensee written notice of any such additions or amendments to the Policies and Procedures.
+
+B-3
+
+TABLE OF CONTENTS
+
+Page
+
+1.
+
+GRANT OF LICENSE
+
+1
+
+2.
+
+TERM
+
+1
+
+3.
+
+POLICIES AND PROCEDURES, ACCESS AND SECURITY
+
+1
+
+4.
+
+USE; HAZARDOUS MATERIALS; COMPLIANCE WITH LAWS; INSPECTION
+
+1
+
+5.
+
+ALTERATIONS
+
+2
+
+6.
+
+COMMITMENT LEVELS
+
+3
+
+7.
+
+CONDITION OF LICENSE AREA
+
+4
+
+8.
+
+FEES, BILLING AND PAYMENT
+
+5
+
+9.
+
+REMOVAL OF EQUIPMENT
+
+5
+
+10.
+
+INSURANCE; INDEMNITY
+
+5
+
+11.
+
+CASUALTY AND CONDEMNATION
+
+6
+
+12.
+
+EVENTS OF DEFAULT
+
+6
+
+13.
+
+REMEDIES/TERMINATION
+
+6
+
+14.
+
+ASSIGNMENT AND SUBLICENSING
+
+7
+
+15.
+
+NOTICE
+
+7
+
+16.
+
+FORCE MAJEURE
+
+7
+
+17.
+
+ADVERTISING
+
+7
+
+18.
+
+GOVERNING LAW
+
+7
+
+19.
+
+SUCCESSORS
+
+8
+
+20.
+
+SEVERABILITY
+
+8
+
+21.
+
+DAYS
+
+8
+
+22.
+
+LIMITATIONS ON LIABILITY
+
+8
+
+23.
+
+TIME OF ESSENCE
+
+8
+
+24.
+
+WAIVERS
+
+8
+
+25.
+
+COVENANTS AND CONDITIONS; CONSTRUCTION OF AGREEMENT
+
+8
+
+26.
+
+CONSENTS
+
+8
+
+27.
+
+RESERVATIONS
+
+9
+
+28.
+
+AUTHORITY
+
+9
+
+29.
+
+SURVIVAL
+
+9
+
+30.
+
+AMENDMENT
+
+9
+
+31.
+
+SUBORDINATION; ESTOPPEL CERTIFICATES
+
+9
+
+32.
+
+ATTORNEYS' FEES
+
+9
+
+33.
+
+NO REAL PROPERTY INTEREST CONVEYED; NO JOINT VENTURE
+
+9
+
+34.
+
+ENTIRE AGREEMENT
+
+9
+
+Exhibit A-1 -- Equipment
+
+A-1-1
+
+Exhibit A-2 -- License Area
+
+Exhibit B -- Policies and Procedures
+
+A-2-1
+
+B-1
+
+-1-
+
+Basic License Terms Change Order
+
+This Addendum is made by and between Rincon 365 Borrower, LLC (Licensor) and MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number
+365.047.000.
+
+Not withstanding anything to the contrary contained in the License Agreement Licensor and Licensee agree to the following modifications;
+
+Licensee:
+
+MRL Ventures Inc.
+
+650 Mission, Suite
+2
+
+San Francisco, CA 94105
+
+1. The Licensee is responsible to Initiate a work order request via email to
+service@365maln.com or via phone by calling 1-866-365-MAIN (6246).
+
+2. Unless otherwise noted, billing commencement will coincide with activation date as is
+tracked through the 365 Main Ticketing system.
+
+Licensee Contact:
+
+Max Levchin
+
+Principal
+
+max@levchin.com
+
+3. Licensee fax signed change order to 1-866-487-9581 and mail original.
+
+LICENSE TERM
+
+Term:
+
+Coterminous with existing agreement
+
+Ticket #: 2006052510002823
+
+Billing Date:
+
+6/1/2006
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+CROSS CONNECTIONS
+
+1
+
+$
+50.00
+
+06/01/2006
+
+$
+50.00
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+Total extension of all charges
+
+$
+50.00
+
+Security Deposit
+
+$
+0.00
+
+Net Installation charges
+
+Total to be billed (includes NRC and Security Deposit)
+
+$
+50.00
+
+TOTAL MONTHLY CHARGE
+
+$
+50.00
+
+Quote valid through June 2006.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Max Levchin
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+By:
+
+Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Print Name: Max Levchin
+
+By:
+
+Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Title: CEO
+
+By:
+
+Rincon Point, LLC, a California limited liability company, its manager
+
+Date: 5/26/06
+
+By:
+
+RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 8/23/06
+
+Basic License Terms Change Order
+
+This Addendum is made by and between Rincon 365 Borrower, LLC (Licensor) and (Licensee), and modifies the License Agreement for original Licensee Customer Number
+365.047.000.
+
+Not withstanding anything to the contrary contained in the License Agreement Licensor and Licensee agree to the following modifications;
+
+Licensee:
+
+MRL Ventures Inc.
+
+650 Mission, Suite 2
+
+San Francisco, CA 94105
+
+1. The Licensee is responsible to Initiate a work order request via email to
+service@365maln.com or via phone by calling 1-866-365-MAIN (6246).
+
+2. Unless otherwise noted, billing commencement will coincide with activation date as is
+tracked through the 365 Main Ticketing system.
+
+Licensee Contact:
+
+Max Levchin
+
+Principal
+
+max@levchin.com
+
+3. Licensee fax signed change order to 1-866-487-9581 and mail original.
+
+LICENSE TERM
+
+Term:
+
+Coterminous with existing agreement
+
+Ticket #: 2006052510002823
+
+Billing Date:
+
+5/1/2006
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+ELECTRICAL POWER
+
+20 Amp 120v (requires plug strip)
+
+1
+
+$
+450.00
+
+05/01/2006
+
+$
+450.00
+
+Billed actual
+
+Branch Circuit Monitoring System
+
+1
+
+$
+25.00
+
+05/01/2006
+
+$
+25.00
+
+Horizontal Plug Strips
+
+Please note this will be a vertical plug strip)
+
+1
+
+$
+125.00
+
+05/01/2006
+
+$
+125.00
+
+Total extension of all
+charges
+
+Security Deposit
+
+First Month Rent
+
+Net Installation charges
+
+$
+600.00
+
+Total Due at inception (includes NRC and Security Deposit)
+
+$
+600.00
+
+TOTAL MONTHLY CHARGE
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Kenneth R. Brownfield
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Kenneth R. Brownfield
+
+Title: Director IT
+
+Date: 4/19/2006
+
+By:
+
+Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+By:
+
+Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+By:
+
+Rincon Point, LLC, a California limited liability company, its manager
+
+By:
+
+RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 8/23/06
+
+Basic License Terms Change Order - FILE AUDIT COPY
+
+This Addendum is made by and between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer
+Number 365.047.000.
+
+Licensee:
+
+Yelp fka MRL Ventures Inc.
+
+650 Mission, Suite 2
+
+San Francisco, CA 94105
+
+Licensee Contact:
+
+Max Levchin
+
+Principal
+
+max@levchin.com
+
+LICENSE TERM
+
+Term:
+
+Coterminous with existing agreement
+
+Ticket #:
+
+Billing Date:
+
+11/01/2005
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Rack in a Private Cage
+
+5
+
+$
+400.00
+
+11/01/2005
+
+$
+2,000.00
+
+Rack in a Private Cage
+
+1
+
+$
+400.00
+
+11/01/2005
+
+$
+400.00
+
+ELECTRICAL POWER
+
+L520 - 20 Amp 120v (requires plug)
+
+11/01/2005
+
+Billed Actual
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+1
+
+$
+50.00
+
+11/01/2005
+
+$
+50.00
+
+SECURITY DEPOSIT
+
+Additional Security Deposit
+
+1
+
+-$
+400.00
+
+11/01/2005
+
+-$
+400.00
+
+11/01/2005
+
+Total extension of all charges
+
+$
+2,450.00
+
+Security Deposit
+
+$
+2,000.00
+
+Net Installation charges
+
+Total to be billed (includes NRC and Security Deposit)
+
+$
+4,450.00
+
+TOTAL MONTHLY CHARGE
+
+$
+2,450.00
+
+Racks and cross-connections & power installed from previous contract. Security deposit may be over by $40.
+Confirm from 000 & Skyline billing.
+
+Basic License Terms
+
+1. Parties
+
+Data Center Operator
+
+Licensee:
+
+365 The Main Exchange Inc.
+
+365 Main Street, San Francisco,
+
+CA 94105
+
+MRL Ventures Inc.
+
+Contact: Kevin Shanahan
+
+415-901-5707
+
+650 Mission, Suite 2
+
+FAX 866-487-9581
+
+Licensor:
+
+San Francisco, CA 94105
+
+Harrison 160, LLC
+
+c/o Union Property Capital, Inc.
+
+Licensee Contact:
+
+201 California Street, Suite 1250
+
+San Francisco, CA 94111
+
+Max Levchin
+
+Principal
+
+Licensor Contacts:
+
+650-218-0563
+
+Martin B. Dalton
+
+415-989-8846
+
+max@levchin.com
+
+Chris Dolan
+
+415-901-5708
+
+2. License Term
+
+Base Term:
+
+36 Months
+
+Early Access Date:
+
+Three weeks from receipt of Licensee signature.
+
+Commencement Date:
+
+November 01, 2005 through October 31, 2008
+
+DESCRIPTION
+
+UNITS
+
+NON-RECURRING
+CHARGE/UNIT
+
+RECURRING
+CHARGE/
+UNIT
+
+NON-RECURRING
+CHARGES
+
+RECURRING
+CHARGES
+
+3. License Area Requirements
+
+Rack in a Private Cage
+
+6
+
+$
+425.00
+
+$
+400.00
+
+Installed
+
+$
+2,400.00
+
+4. Electrical Charges Power Billed Actual
+
+20 Amp Power Circuit, 1 Phase
+
+$
+450.00
+
+Installed
+
+Billed Actual
+
+Rack Grounding
+
+$
+65.00
+
+Installed
+
+N/A
+
+BCMS Circuit Monitoring
+
+$
+25.00
+
+$
+25.00
+
+Installed
+
+Waived
+
+5. Cross Connect Charges
+
+Ethernet 10/100 or Cabinets to IP
+
+1
+
+$
+75.00
+
+$
+50.00
+
+Installed
+
+$
+50.00
+
+6. Additional Products and Feature Charges
+
+Remote Hands - (Tier 1 Support)
+
+0
+
+Included
+
+Included
+
+7. Grand Total
+
+Total Extension of all Charges:
+
+$
+2,450.00
+
+Additional Security Deposit
+
+$
+2,000.00
+
+TOTAL DUE AT INCEPTION (Includes Additional Security Deposit & First Month MRC):
+
+$ 4,450.00
+
+TOTAL MONTHLY CHARGE:
+
+$
+2,450.00
+
+8.
+Notes:
+
+Quote valid for
+August 2005. Replaces Basic License Terms with Commencement Date of August 1, 2004 while retaining the already executed License Agreement dated April 16, 2004. Terms above valid only if received via fax or delivered on site by Midnight
+8/31/2005.
+
+9.
+Commitment Levels
+
+a)
+Electrical Power: Licensor shall use commercially reasonable efforts to provide electricity to the License Area without interruption. In the event of any power outage
+for reasons other than Licensee actions or omissions, Licensee shall be entitled to an abatement of one day's License Fee for each hour that delivery of electricity to the License Area is disrupted during any twenty-four (24) hour period,
+provided in no event shall the License Fees be abated for a period longer than thirty (30) days. Except as otherwise expressly provided in the previous sentence, Licensor shall not in any way be liable or responsible to Licensee for any loss,
+damage or expense which Licensee may sustain or incur as a result of the unavailability of or interruption in the supply of electric current to the License Area or a change in the quantity or character or nature of such current and such change,
+interruption or unavailability shall not constitute an actual or constructive eviction, in whole or in part, or entitle Licensee to any abatement or diminution of, or relieve Licensee from any of its obligations under this License Agreement, or
+impose any liability upon Licensor or its agents, by reason of inconvenience or annoyance to or interruption of Licensee's business, or otherwise.
+
+b)
+Environmental Control: Licensor shall use commercially reasonable efforts to maintain conditions in the License Area as follows: (i) the relative humidity shall be
+maintained between 47.5% ambient and 52.5% ambient, and (ii) the temperature shall not exceed 78° Fahrenheit ambient. In the event that Licensor shall fail to maintain conditions as described above, Licensor shall make the necessary
+adjustments to obtain the conditions set forth herein within one hour of receiving notice of such failure to maintain such conditions.
+
+c)
+Work Order Request: Subject to any other provisions of this Agreement which may limit or impair the availability of the following items or place conditions on the
+availability of such items, Licensor shall implement Licensee's requests for the following work order items within the time periods designated below following fully executed work order:
+
+Type of Work Order
+
+Time Period
+
+Increase Electrical Capacity
+
+Qty: 1-10 - Five (5) days
+
+Qty: 11- 20 - Ten (10) days
+
+Qty: 21 + - agreed upon work order
+
+Install Cross Connects
+
+24 hours from approved work order
+
+Equipment Access Services
+
+Pre-Approved use of loading dock & freight elevator
+
+M-F 8 AM to 5PM - included
+
+Outside standard business hours
+
+$50/hr (4hr min.)
+
+Licensee shall submit a work order for any such requested change in accordance with the provisions of
+this Agreement and the Policies and Procedures. If Licensor determines in its reasonable commercial judgment that Licensor has failed to meet the work order commitment, Licensee shall receive a credit equal to 50% of Licensor's standard charge
+for the service with respect to which this commitment has not been met.
+
+d)
+Preparation of License Area: Licensor shall use commercially reasonable efforts to make the License Area available to Licensee in the condition required under. this
+Agreement on or prior to the commencement of the Term. In the event Licensor fails to do so, Licensee shall be entitled to an abatement of one day's License Fee for each day of Licensor's delay in making the License Area available to
+Licensee, up to a maximum of thirty (30) days; provided, however, that this provisions with respect to preparation of the License Area shall not apply if (i) Licensee has given Licensor incorrect or incomplete information with respect to
+the configuration of the License Area, (ii) Licensee has altered or modified the requested configuration of the License Area after submission of such information to Licensor and acceptance thereby, or (iii) Licensee has requested that
+Licensor configure the License Area in accordance with specifications other than those that are standard for the Building.
+
+e)
+Remote Hands: Licensor or its independent contractor shall respond to a request for "Remote Hands" as described in the table below. Licenser's or its
+independent contractor's response time in connection with such a request shall be measured from the time Licensor or its independent contractor receives and logs Licensee's request with all necessary information requested by Licensor or
+its independent contractor until a representative of Licensor or its independent contractor first calls Licensee in response to such request. In the event Licensor or its independent contractor fails to satisfy the Remote Hands commitment, Licensee
+shall be entitled to an abatement of one day's License Fee for each failed occurrence.
+
+2.
+
+Response Table (Schedule 1)
+
+Severity
+
+Alarm
+Description
+
+Meaning
+
+Generic
+Response
+
+NOC "Target"
+Response Time
+
+Field Staff "Target"
+Response Time
+
+1
+
+Critical
+
+Site Down
+
+Immediate
+
+15 minutes
+
+15 minutes
+
+2
+
+Major
+
+Degrading Performance
+
+ASAP
+
+30 minutes
+
+15 minutes
+
+3
+
+Minor
+
+Required Maintenance
+
+Normal
+
+Next Business Day
+
+As advised by NOC
+
+f)
+Any abatement of License Fees or other credit permitted pursuant to these Basic License Terms shall be subject to the following conditions:
+
+1)
+The failure of Licensor to satisfy the applicable commitment level shall not have been caused in whole or in part by any scheduled maintenance events, unavoidable
+delay, Licensee actions or inactions, Licensee-supplied power or equipment, actions or inactions of any third party, excluding any third party directly involved in the operation and maintenance of the Building, but including, without limitation,
+Licensee's end users, third party network providers, traffic exchange points controlled by third parties, any power, equipment or services provided by third parties, or an event of force majeure.
+
+2)
+Licensee must notify Licensor within five (5) business days from the time Licensee becomes eligible to receive an abatement of License Fees or any other credit
+pursuant to these Basic License Terms. Licensee shall forfeit any right to receive such an abatement of License Fees or other credit if Licensee fails to timely notify Licensor.
+
+3)
+If Licensee is entitled to multiple credits or abatement of License Fees for multiple reasons under these Basic License Terms, such credits or abatement of License Fees
+shall be limited to a maximum of thirty (30) days' License Fees.
+
+4)
+In no event shall Licensee be entitled to a credit or abatement of License Fees if Licensee is in default under this Agreement or has otherwise failed to comply with
+the Policies and Procedures.
+
+These Basic License Terms shall be binding upon Licensee for incurred installation costs. The
+monthly recurring shall not be binding until such time as the parties have agreed to and executed a License Agreement into which this summary of Basic License Terms shall be incorporated.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Max Levchin
+
+Harrison 160, LLC
+
+a California limited liability company
+
+Print Name: Max Levchin
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Title: Principal
+
+Print Name: Terry Sternberg
+
+Date: 9/6/05
+
+Date Signed: 1-2-89
+
+3.
+
+Basic License Terms OOC Documentation
+
+This Addendum is made by and between Harrison 160, LLC (Licensor)
+and MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000.
+
+Not withstanding anything to the contrary contained in the License Agreement Licensor and Licensee agree to the following modifications;
+
+Licensee:
+
+MRL Ventures
+Inc. 650 Mission,
+Suite 2 San
+Francisco, CA
+94105
+
+1. The Licensor will provide the additional below listed items.
+
+2. The Licensee is responsible to Initiate a work order request via email to
+service@365maln.com or via phone by calling 1-866-365-MAIN (6246).
+
+Licensee
+Contact: Max
+Levchin
+Principal
+
+max@levchin.com
+
+3. Unless otherwise noted, billing commencement will coincide with activation date as is
+tracked through the 365 Main Ticketing system.
+
+4. Licensee fax signed change order to 1-866-487-9581 and mail original.
+
+LICENSE TERM
+
+Term:
+
+OOC 3.00 months
+
+Billing Date:
+
+8/1/2005
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Secure Private Cabinet
+
+1
+
+$
+400.00
+
+08/01/2005
+
+$
+400.00
+
+ELECTRICAL POWER
+
+20 Amp 120v (requires plug)
+
+1
+
+08/01/2005
+
+Billed Actual
+
+Branch Circuit Monitoring System
+
+1
+
+08/01/2005
+
+Rack/Cabinet Grounding
+
+1
+
+08/01/2005
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+1
+
+$
+50.00
+
+08/01/2005
+
+$
+50.00
+
+SECURITY DEPOSIT
+
+Additional Security Deposit OOC additional deposit on file
+
+1
+
+08/01/2005
+
+Total extension of all charges
+
+$
+450.00
+
+Security Deposit
+
+First month rent
+
+$
+450.00
+
+Installation charges
+
+$
+4,450.00
+
+TOTAL MONTHLY CHARGE
+
+$
+450.00
+
+Basic License Terms Renewal Order
+
+This Addendum is made by and between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original
+Licensee Customer Number 365.047.000.
+
+Data Center Operator:
+
+Licensee:
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Peter Pagano
+
+415-901-5754
+
+Asa Donohugh
+
+415-901-5739
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Vlado Herman
+
+VP of Finance
+
+Licensor:
+
+415.908.3801
+
+Rincon 365 Borrower, LLC
+
+vlado@yelp.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+LICENSE TERM
+
+Base Term:
+
+36 months
+
+Billing Date:
+
+11/1/2008 through 10/31/2011
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Rack in a Private Cage
+
+10
+
+$
+1,000.00
+
+11/01/2008
+
+$
+10,000.00
+
+Power Allocation per 2 kW
+
+5
+
+$
+1,000.00
+
+11/01/2008
+
+$
+5,000.00
+
+ELECTRICAL POWER - ACTUAL RECURRING
+
+L520 - 20 Amp 120v (requires plug strip)
+
+18
+
+11/01/2008
+
+Billed Actual
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+3
+
+$
+75.00
+
+11/01/2008
+
+$
+225.00
+
+SECURITY DEPOSIT
+
+Offset for security deposit on account
+
+1
+
+-$
+11,440.00
+
+11/01/2008
+
+-$
+11,440.00
+
+1.
+
+ONE-TIME
+
+CHARGES
+
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+Total extension of all charges
+
+$
+15,225.00
+
+Additional Security Deposit
+
+$
+3,560.00
+
+First Month Rent
+
+$
+15,225.00
+
+Net Installation Charges
+
+Total to be billed (includes NRC and Security Deposit)
+
+$
+18,785.00
+
+TOTAL MONTHLY CHARGE (includes ramp-ups and rate adjustments)
+
+$
+15,225.00
+
+Quote valid through October, 2008. Pursuant to Section 6.1 of the License Agreement, the Basic Capacity for the
+license area is 30 kW.
+
+LICENSEE:
+
+LICENSOR:
+
+By: /s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company,
+
+its manager and sole member
+
+Title: System Administrator
+
+By: Above Rincon LLC, a Delaware limited liability company,
+
+its manager and sole member
+
+Date: 10/6/08
+
+By: Rincon Point, LLC, a California limited liability company,
+
+its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company,
+
+its manager
+
+BY:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 10/24/08
+
+2.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order') is entered into by and between Rincon 365 Borrower, LLC (Licensor) and Yelp (Licensee), and modifies the License Agreement for
+original Licensee Customer Number 365.047.000 dated 04/16/2004 (the "Agreement"). Capitalized terms used but not defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced
+Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Not withstanding anything to the contrary contained in the License Agreement Licensor and Licensee agree to the following
+modifications:
+
+Licensee:
+
+Yelp
+fka MRL Ventures Inc.
+
+365.047.012
+
+706 Mission Street, 7th Floor
+
+1. The Licensee is responsible to initiate a work order request via email to
+service@365main.com or via phone by calling (866) 365-MAIN
+
+San Francisco, CA 94103
+
+Licensee Contact:
+
+2. Unless otherwise noted, billing commencement will coincide with activation date as is
+tracked through the 365 Main Ticketing system.
+
+Aaron Vinson
+
+aaron@yelp.com
+
+3. Licensee fax signed change order to 866-487-9581 and mail original.
+
+LICENSE TERM
+
+Term:
+
+Coterminous with existing agreement
+
+Billing Date:
+
+8/1/2009
+
+DESCRIPTION
+
+UNITS
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+BILL DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Basic Capacity (power allocation)
+
+6 kW
+
+$
+500.00
+
+08/01/2009
+
+$
+3,000.00
+
+3.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+Total extension of all charges
+
+$
+3,000.00
+
+Security Deposit
+
+$
+3,000.00
+
+Net Installation Charges
+
+Total to be billed (includes NRC and Security Deposit)
+
+$
+6,000.00
+
+TOTAL MONTHLY CHARGE (includes ramp-ups and rate
+adjustments)
+
+$
+3,000.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by May 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall be increased by 6 kW to a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges" under the
+License Area Requirements and the Additional Basic Capacity Rate Schedule shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Commencement Date in accordance with the terms and conditions of the
+Agreement whether or not Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+Without limiting any remedies of Licensor under the Agreement, upon the occurrence of an event of default thereunder, the Licensor shall be
+entitled to apply to or to set off against any the security deposit or any other deposits or other sums held by Licensor from or on behalf of Licensee against payment of any License Fees or other obligations of Licensee now or hereafter arising
+under the Agreement.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: Sys Admin
+
+By: Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Date: 5/14/09
+
+By: Rincon Point, LLC, a California limited liability company, its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company,
+
+its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 6-12-09
+
+4.
+
+EXHIBIT A
+
+[graphic]
+
+5.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered
+into by and between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms
+used but not defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+365.047.013
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket #:
+
+Change Order Commencement Date: 11/1/2009
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Rack in a Private Cage (Licensor Provided)
+
+1
+
+$
+715.00
+
+11/01/2009
+
+$
+715.00
+
+We are installing a 365 Main provided rack into C7.15.00.
+
+6.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+$
+715.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+Net One-Time Installation Charges
+
+$
+715.00
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+715.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by October 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+Without limiting any remedies of Licensor under the Agreement, upon the occurrence of an event of default thereunder, the Licensor shall be entitled to
+apply to or to set off against any the security deposit or any other deposits or other sums held by Licensor from or on behalf of Licensee against payment of any License Fees or other obligations of Licensee now or hereafter arising under the
+Agreement.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: Sys Admin
+
+By: Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Date: 10/8/09
+
+By: Rincon Point, LLC, a California limited liability company, its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 10/20/09
+
+7.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+365.047.014
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket
+#: 2009101410000867
+
+Change Order Commencement Date: 11/1/2009
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+1
+
+$
+75.00
+
+$
+75.00
+
+11/01/2009
+
+$
+75.00
+
+$
+75.00
+
+8.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+$
+75.00
+
+$
+75.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+$
+75.00
+
+Net One-Time Installation Charges
+
+$
+75.00
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+150.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by October 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+This is a xconnect to Internap.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print
+
+Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: System Admin
+
+By: Above Rincon LLC, a Delaware limited liability company,
+
+its manager and sole member
+
+Date:
+
+10/14/09
+
+By: Rincon Point, LLC, a California limited liability company,
+
+its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company,
+
+its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 10/22/09
+
+9.
+
+9/23/2011
+
+Basic License Terms Renewal Order
+
+This renewal ("Renewal") is entered into by and between
+Digital 365 Main, LLC (Licensor) and Yelp fka MRL Ventures, Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not defined
+herein shall have the meanings ascribed tot hem in the Agreement. In the event of a conflict between the terms of this Renewal and the terms of the Agreement, the terms of this Renewal shall govern. The Agreement is hereby amended as and where
+necessary to give effect to the terms of this Renewal. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+This renewal ("Renewal") is entered into by and between Digital 365 Main, LLC (Licensor) and Yelp fka MRL
+Ventures, Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not defined herein shall have the meanings ascribed tot hem in
+the Agreement. In the event of a conflict between the terms of this Renewal and the terms of the Agreement, the terms of this Renewal shall govern. The Agreement is hereby amended as and where necessary to give effect to the terms of this Renewal.
+Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+Digital 365 Main, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 9th Floor
+
+Shaun Reid
+
+415-848-9287
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-848-9310
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Michael Stoppelman
+
+Licensor:
+
+VP of Enginnering
+
+Digital 365 Main, LLC
+
+(451) 254-7803
+
+365 Main Street
+
+stop@yelp.com
+
+San Francisco, CA 94105
+
+RENEWAL TERM
+
+The Term of the Agreement is hereby extended to 10/31/2013, and the License Fees applicable to the portion of the Term from 11/1/2011 (the "Renewal Commencement Date") through 10/31/2013 are set
+forth below.
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE
+PER UNIT
+
+MONTHLY
+CHARGE
+PER UNIT
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+License Area (Custom Private Cage)
+
+1
+
+11/01/2011
+
+Basic Capacity (power allocation)
+
+45 kW
+
+$
+325.00
+
+11/01/2011
+
+$
+14,625.00
+
+Subject to annual rate increases described in the schedule below
+
+Rack in a Private Cage (Existing)
+
+10
+
+11/01/2011
+
+ELECTRICAL POWER - ACTUAL RECURRING
+
+L520 - 20 Amp 120v (requires plug strip)
+
+24
+
+11/01/2011
+
+Billed Actual
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+9
+
+$
+75.00
+
+11/01/2011
+
+$
+675.00
+
+Fiber
+
+1
+
+$
+200.00
+
+11/01/2011
+
+$
+200.00
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+To SFMix; no MRC.
+
+1
+
+11/01/2011
+
+ADDITIONAL PRODUCTS AND FEATURES
+
+Permanent Badges
+
+2
+
+$
+10.00
+
+11/01/2011
+
+$
+20.00
+
+SECURITY DEPOSIT
+
+Offset for security deposit on account
+
+1
+
+-$
+18,000.00
+
+11/01/2008
+
+-$
+18,000.00
+
+1
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+License Fee Summary
+
+$
+15,520.00
+
+First Month's Recurring Charges
+
+$
+15,520.00
+
+Net One-Time Installation Charges
+
+Security Deposit
+
+-$
+2,936.25
+
+Total License Fees payable upon invoice
+
+$
+12,583.75
+
+BASIC CAPACITY
+RATE SCHEDULE
+
+Dollars per kW
+
+Effective Period
+
+Basic Capacity
+Monthly
+Recurring Charge
+
+With scheduled annual rate increases of 3%
+
+45 kW
+
+$
+325.00
+
+11/1/2011
+
+10/31/2012
+
+$
+14,625.00
+
+Basic Capacity (Power Allocation)
+
+45 kW
+
+$
+334.75
+
+11/1/2012
+
+10/31/2013
+
+$
+15,063.75
+
+This Renewal shall not be valid unless executed by Licensee by September 30, 2011. From and after the Renewal
+Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall be 45 kW. All License Fees shown as "Monthly Recurring Charges" under the License Area Requirements and the Basic Capacity Rate Schedule shall be
+payable by Licensee in full on a monthly basis every month of the Term from and after the Renewal Commencement Date in accordance with the terms and conditions of the Agreement whether or not Licensee fully utilizes its allotted Basic Capacity and
+notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+Without limiting any remedies of Licensor under the Agreement, upon the occurrence of an event of default thereunder, the Licensor shall be entitled to apply to or to set off against the security deposit
+or any other deposits or other sums held by Licensor from or on behalf of Licensee against payment of any License Fees or other obligations of Licensee now or hereafter arising under the Agreement.
+
+Notwithstanding anything to the contrary contained in the License Agreement Licensor's sole obligation with respect to
+environmental conditions in the License Area shall be to maintain at all times during the Term of the Agreement conditions in accordance with the then-current ASHRAE TC 9.9 (American Society of Heating, Refrigeration and Air-Conditioning Engineers,
+Technical Committee 9.9) Design Considerations for Datacom Equipment Centers©, for Class 1 buildings and
+Licensor shall have no liability to Licensee for failure to satisfy any other standard or commitment levels. In connection therewith, Licensor shall maintain filtration quality per design specifications and relative humidity control ranges shall be
+non-condensing.
+
+This Renewal shall become effective only upon execution and delivery of both Licensor and Licensee.
+
+Each party agrees that the terms and provisions of this Renewal are confidential and constitute proprietary information of the parties as though the
+terms hereof were originally part of the Agreement.
+
+LICENSEE:
+
+LICENSOR:
+
+By: /s/ Michael Stoppelman
+
+DIGITAL 365 MAIN, LLC a Delaware limited liability company
+
+Print Name: Michael Stoppelman
+
+Title: VP of Engineering
+
+By:
+
+Digital Realty Trust, L.P., a Maryland limited partnership,
+
+Its Member and Manager
+
+Date: 9/26/2011
+
+By:
+
+Digital Realty Trust, Inc. a Maryland corporation,
+
+Its General Partner
+
+By: /s/ Richard Berk
+
+Print Name: Richard Berk
+
+Title: VP Portfolio Management
+
+Date: 9/30/2011
+
+2.
+
+EXHIBIT A
+
+[graphic]
+
+3.
+
+Basic License Terms Change Order
+
+This Addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+365.047.015
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket
+#: 2009102710001074
+
+Change Order Commencement Date: 11/1/2009
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+ADDITIONAL PRODUCTS AND FEATURES
+
+Permanent Badges
+
+1
+
+This is a permanent badge for Daniel Chen
+
+11/01/2009
+
+1.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+Net One-Time Installation Charges
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+0.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by October 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 KW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or infrastructure in the License Area.
+
+LICENSEE:
+
+LICENSOR:
+
+By: /s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: System Administrator
+
+By: Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Date: 10/29/09
+
+By: Rincon Point, LLC, a California limited liability company, its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 11/2/09
+
+2.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order') is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 04/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+365.047.016
+
+365 Main Street
+
+max@levchin.com
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket
+#: 2010010410000561
+
+Change Order Commencement Date: 2/1/2010
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+-1
+
+$
+75.00
+
+02/01/2010
+
+-$
+75.00
+
+This is a disconnect from original ticket #2008072410002738 and order #365.047.007. This xconnect was renewed on order
+365.047.011.
+
+3.
+
+ONE-TIME
+
+CHARGES
+
+EXTENDED
+
+RECURRING
+
+CHARGES
+
+EXTENDED
+
+-$
+75.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+-$
+75.00
+
+Net One-Time Installation Charges
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+-$
+75.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by January 31,
+2010. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+This is a disconnect from original ticket #2008072410002738 and order #365.047.007. This xconnect was renewed on order 365.047.011.
+
+LICENSEE:
+
+LICENSOR:
+
+By: /s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: Sys Admin
+
+By: Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Date: 1/4/10
+
+By: Rincon Point, LLC, a California limited liability company, its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 6-18-10
+
+4.
+
+EXHIBIT A
+
+[graphic]
+
+5.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+365.047.013
+
+Rincon 365 Borrower,LLC
+
+Yelp fka MRL Ventures Inc.
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket #:
+
+Change Order Commencement Date: 11/1/2009
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+LICENSE AREA REQUIREMENTS
+
+Rack in a Private Cage (Licensor Provided)
+
+1
+
+$
+715.00
+
+11/01/2009
+
+$
+715.00
+
+We are installing a 365 Main provided rack into C7.15.00.
+
+6.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+$
+715.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+Net One-Time Installation Charges
+
+$
+715.00
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+715.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by October 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+Without limiting any remedies of Licensor under the Agreement, upon the occurrence of an event of default thereunder, the Licensor shall be entitled to
+apply to or to set off against any the security deposit or any other deposits or other sums held by Licensor from or on behalf of Licensee against payment of any License Fees or other obligations of Licensee now or hereafter arising under the
+Agreement.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: Sys Admin
+
+By: Above Rincon LLC, a Delaware limited liability company, its manager and sole member
+
+Date: 10/8/09
+
+By: Rincon Point, LLC, a California limited liability company, its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company, its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 10/20/09
+
+7.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+365.047.014
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket #: 2009101410000867
+
+Change Order Commencement Date: 11/1/2009
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE
+PER
+QUANTITY
+
+MONTHLY
+CHARGE
+PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+1
+
+$
+75.00
+
+$
+75.00
+
+11/01/2009
+
+$
+75.00
+
+$
+75.00
+
+8.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+$
+75.00
+
+$
+75.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+$
+75.00
+
+Net One-Time Installation Charges
+
+$
+75.00
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+150.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by October 31,
+2009. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+This is a xconnect to Internap.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+RINCON 365 BORROWER, LLC, a Delaware limited liability company
+
+Print Name: Aaron Vinson
+
+By: Rincon 365 Mezz, LLC, a Delaware limited liability company, its manager and sole member
+
+Title: System Admin
+
+By: Above Rincon LLC, a Delaware limited liability company,
+
+its manager and sole member
+
+Date: 10/14/09
+
+By: Rincon Point, LLC, a California limited liability company,
+
+its manager
+
+By: RP Holdings, LLC, a Delaware limited liability company,
+
+its manager
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date Signed: 10/22/09
+
+9.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket #: 2010010410000561
+
+Change Order Commencement Date: 2/1/2010
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE PER
+QUANTITY
+
+MONTHLY
+CHARGE PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+CROSS CONNECTIONS
+
+Ethernet 10/100 or T1/DSL (Copper)
+
+-1
+
+$
+75.00
+
+02/01/2010
+
+-$
+75.00
+
+This is a disconnect from original ticket #2008072410002738 and order #365.047.007. This xconnect was renewed on order
+365.047.011.
+
+1.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+-$
+75.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+-$
+75.00
+
+Net One-Time Installation Charges
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+-$
+75.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by January 31,
+2010. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+This is a disconnect from original ticket #2008072410002738 and order #365.047.007. This xconnect was renewed on order 365.047.011.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+Print Name: Aaron Vinson
+
+Title: System Administrator
+
+By:
+
+Authorized Signatory
+
+Date Signed: 1/4/10
+
+Date Signed:
+
+2.
+
+Basic License Terms Change Order
+
+This addendum ("Change Order") is entered into by and
+between Rincon 365 Borrower, LLC (Licensor) and Yelp fka MRL Ventures Inc. (Licensee), and modifies the License Agreement for original Licensee Customer Number 365.047.000 dated 4/20/2004 (the "Agreement"). Capitalized terms used but not
+defined herein shall have the meanings ascribed to them in the Agreement. Except as amended hereby, the above-referenced Agreement is hereby ratified and confirmed and shall continue in full force and effect.
+
+Data Center Operator:
+
+Licensee:
+
+Rincon 365 Borrower, LLC
+
+Yelp fka MRL Ventures Inc
+
+Contact:
+
+706 Mission Street, 7th Floor
+
+Shaun Reid
+
+415-901-5706
+
+San Francisco, CA 94103
+
+Amir Moon
+
+415-901-5750
+
+Peter Pagano
+
+415-901-5754
+
+Licensee Contact:
+
+Confidential FAX
+
+866-487-9581
+
+Max Levchin
+
+Licensor:
+
+Principal
+
+Rincon 365 Borrower, LLC
+
+max@levchin.com
+
+365 Main Street
+
+San Francisco, CA 94105
+
+CHANGE ORDER TERM
+
+Term: Coterminous with existing agreement
+
+Ticket #: 2010060810000599
+
+Change Order Commencement Date: 7/1/2010
+
+DESCRIPTION
+
+QUANTITY
+
+ONE-TIME
+CHARGE
+PER
+QUANTITY
+
+MONTHLY
+CHARGE
+PER
+QUANTITY
+
+EFFECTIVE
+DATE
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+MONTHLY
+RECURRING
+CHARGES
+EXTENDED
+
+ADDITIONAL PRODUCTS AND FEATURES
+
+Miscellaneous
+
+Cost for the Card Reader and the installation
+
+1
+
+$
+3,479.00
+
+07/01/2010
+
+$
+3,479.00
+
+Miscellaneous
+
+Cost to run conduit for the Card Reader door C7.15.00
+
+1
+
+$
+518.00
+
+07/01/2010
+
+$
+518.00
+
+Miscellaneous
+
+Cost for the Caging material
+
+1
+
+$
+822.00
+
+07/01/2010
+
+$
+822.00
+
+1.
+
+ONE-TIME
+CHARGES
+EXTENDED
+
+RECURRING
+CHARGES
+EXTENDED
+
+$
+4,819.00
+
+Additional License Fees
+
+Additional Monthly Recurring Charges
+
+Net One-Time Installation Charges
+
+$
+4,819.00
+
+Additional Security Deposit
+
+$
+0.00
+
+Total Additional License Fees payable upon invoice
+
+$
+4,819.00
+
+All additional License Fees set forth in this Change Order are payable in addition to all License Fees payable under the
+Agreement and any other change orders relating thereto.
+
+This Change Order shall not be valid unless executed by Licensee by June 30,
+2010. From and after the Commencement Date, the Basic Capacity pursuant to Section 6.1 of the Agreement shall not be increased and shall remain at a total Basic Capacity of 36 kW. All License Fees shown as "Monthly Recurring Charges"
+under the License Area Requirements shall be payable by Licensee in full on a monthly basis every month of the Term from and after the Change Order Commencement Date in accordance with the terms and conditions of the Agreement whether or not
+Licensee fully utilizes its allotted Basic Capacity and notwithstanding any removal, modification or operation or non-operation of all or any portion of Licensee's Equipment or Infrastructure in the License Area.
+
+LICENSEE:
+
+LICENSOR:
+
+By:
+
+/s/ Aaron Vinson
+
+Print Name: Aaron Vinson
+
+Title: System Administrator
+
+By:
+
+/s/
+
+Authorized Signatory
+
+Date: 6/15/10
+
+Date Signed:
+
+2.

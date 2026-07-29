@@ -1,0 +1,270 @@
+IN THE UNITED STATES DISTRICT COURT
+FOR THE NORTHERN DISTRICT OF ILLINOIS
+EASTERN DIVISION
+
+360NETWORKS TENNESSEE, LLC, )
+formerly known as IC FIBER )
+TENNESSEE, LLC, )
+) CASE NO. 05 C 3198
+Plaintiff, ) Consolidated with
+) CASE NO. 05 C 3200 and
+v. ) CASE NO. 06 C 5558
+)
+ILLINOIS CENTRAL RAILROAD ) Judge Robert M. Dow, Jr.
+COMPANY, an Illinois corporation, )
+)
+Defendant. )
+
+MEMORANDUM OPINION AND ORDER
+This case arises out of a fiber optic cable installation pr oject along a railroad right-of-
+way. In particular, the parties dispute who must bear the substantial cost of relocating the cable
+in connection with the reconstruction of old and decaying timber bridges between Chicago and
+New Orleans.
+In the recently submitted pre-trial order, the pa rties have drawn the Court's attention to a
+disagreement concerning the burden of proof to be applied at trial, the scope of the issues to be
+submitted to the jury, and the corresponding instru ctions to the jury. After considering the
+parties' written submissions, the Court determines that Illinois Central be ars the burden of proof
+on its allegations that 360networks materially breach ed the agreements at issue. At present, the
+Court reserves ruling on the scope of the issues that will be submitted (and the instructions that
+will be given) to the jury. Those issues will be determined on the basis of the evidence presented
+at trial.
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 1 of 10 PageID #:<pageID>
+2
+I. Background
+Illinois Central Railroad Company ("Illinois Central" or "IC") owns and operates a
+railroad between Chicago and New Orleans. 360networks Mississippi, LLC, 360networks
+Tennessee, LLC, and 360networks Louisiana, LLC (referred to collectively as "360networks" or
+"360") are Delaware limited liability companies that offer communication network services, such
+as installing and operating fiber optic networks. On May 28, 1999, and again on March 6, 2000,
+360networks entered into license agreements with Illinois Central to construct and operate fiber
+optic facilities along Il linois Central's right-of-way in Mi ssissippi, Tennessee, and Louisiana
+(from Chicago to New Orleans) as well as to provide fiber optic cable or transmission capacity to
+Illinois Central and third parties. In excha nge for use of the right-of-way, 360networks paid
+Illinois Central $28 million and provided Illinois Central with limited use of the fiber optic
+facilities.
+In 2005, 360networks sued Illinois Central for failing to pay the cost of relocating the
+cable at the eight bridges in Mississippi and Te nnessee. Illinois Central denied liability and
+claimed that 360networks breached the agreements between the parties by installing the cable in
+the wrong locations. Illinois Central has brought cl aims to recover the costs that it incurred in
+relocating the cable at additional bridges in Mississippi and Tenness ee and at bridges in
+Louisiana.
+Summary judgment rulings have narro wed the issues in the case. See Almy v. Kickert
+School Bus Line, Inc. , 2009 WL 2972487, at *2 (N.D. Ill. Se pt. 11, 2009) ("At the summary
+judgment stage, the Federal Rules of Civil Procedure give district courts the flexibility to move a
+case toward disposition by resolving some, but not all, of the issues raised in a motion for
+summary judgment. See Fed. R. Civ. P. 56(d)(1)"). The license agreements address the
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 2 of 10 PageID #:<pageID>
+3
+possibility of cable relocation and provide that 360networks must bear the cost of relocation if
+relocation is ordered by any authority with jurisd iction to do so (§ 17.1), but that Illinois Central
+must bear the cost if the relocation is undertak en for any other reason (§ 17.2). In a May 10,
+2007 opinion denying Illinois Central's motion fo r summary judgment and granting in part
+360networks' motion for summary judgment, Judge Leinenweber determined that § 17.2 of the
+license agreements required Illinois Central to bear the cost of relo cation unless 360networks
+breached the agreements.1 Section 17.2 provides:
+If IC at any time determines that any part of a Facility must be changed, altered or
+relocated for any reason other than as set forth in Section 17.1, including
+additions or changes to track to accommodate customers of IC or in the event of
+any pre-planned work in the vicinity of such Facility which might case any
+possible hazard to such Facility, IC sh all promptly notify 360 of such plans and
+IC shall, to the reasonable satisfaction of 360, with the least possible disruption of
+service, so change, alter, or relocate such Facility. All costs related thereto shall
+be borne by IC. If feasible , 360 shall be entitled, at IC's expense, to relocate the
+Facilities to the reasonable satisfaction of the Engineer.
+
+Judge Leinenweber further noted that neither party produced working drawings during discovery
+and concluded that there was a genuine issue of material fact as to whether 360neworks breached
+the agreements by not installing the cable at the edge of the right-of-way:
+As the Agreement specifically provide that relocations due to pre-planned work
+will be paid for by IC, the Court finds that the Agr eements provide that IC will
+bear the cost of the relocation in th e event that the Agreements were not
+breached. This finding does not dispose of th e liability issue in this case. As
+noted above, if 360 breached the Agreements by not installing the cable on the
+edge of the right of way, then 360 ca nnot expect to have the Agreements'
+provisions imposed in its favor * * * * Thus, trial will be necessary as to the issue
+of the possible breach of the Agreements by 360.
+
+5/10/07 Opinion at p. 12 (emphasis added); see also id. at 10 ("This Court agrees that the
+Agreements clearly establish that IC must bear the cost of relocation, absent a breach").
+
+1 Judge Leinenweber ruled that Illinois Central was not ordered to rebuild the bridges by the Surface
+Transportation Board, and therefore 360networks could not be held liabl e for relocation costs pursuant to
+§ 17.1.
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 3 of 10 PageID #:<pageID>
+4
+After the parties completed additional di scovery, 360networks filed a second motion for
+summary judgment before this Court. On October 26, 2009, the Court denied 360networks'
+motion, explaining that despite the additional di scovery, there still was a genuine issue of
+material fact as to whether 360networks breached the agreements (i) by not installing the cable at
+the edge of the right of way or (ii) by installing the cable in locations that unreasonably
+interfered with Illinoi s Central's operations. 2 10/26/09 Opinion at pp. 9-13. The Court also
+acknowledged an earlier point made by Judge Le inenweber and concurred that "if [Illinois
+Central] agreed to or approved the specific placem ent of the cable, it cannot very well argue that
+the placement 'unreasonably inte rfered' with its operations." 5/10/07 Opinion at 9; 10/26/09
+Opinion at 10.
+In laying out basic contract principles in its October opinion, the C ourt noted that "[t]o
+recover for a breach of contra ct, a plaintiff must prove, inter alia, that it complied with all of its
+material obligations under the contract. See, e.g., Priebe v. Autobarn, Ltd. , 240 F.3d 584, 587
+(7th Cir. 2001) (citing Hickox v. Bell , 552 N.E.2d 1133, 1143 (Ill. App. Ct. 1990)); see also
+
+2 Various provisions of the parties' agreements ma intain that 360networks sh all not install the facilities
+so as to unreasonably interfere with Illinois Central' s operations. For instance, § 8.1 of the Agreement
+provides:
+
+[30networks], at [360networks'] sole cost, risk and expense, will fu rnish all materials,
+parts, components, equipment and structures necessary to construct, install, operate,
+maintain, repair, reinstall, replace and remove the Facilities, or any part thereof. Any and
+all such work by [360networks] shall be done in a good and workmanlike manner, in
+conformity with all applicable statutes, laws, ordinances, regulations, rules, codes, orders
+or specifications of any public body or authority having jurisdiction thereof (all of which
+shall control if inconsistent with or contradi ctory to the specifications set forth in this
+Section 8) and so as not to unreasonably interfere with IC's operations.
+
+Section 8.3 contains a similar provision requiring th at the facilities be insta lled in accordance with IC
+standards and in a manner so as not to "unreasonably inte rfere with any operations of IC." Additionally,
+§ 14.1 provides, in pertinent part, that 360networks "shall maintain the Facilities so as to not interfere
+significantly with the operations of IC or adversely affect the safety of IC and its employees, officers,
+agents, grantees, licensees, lessees and invitees * * *."
+
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 4 of 10 PageID #:<pageID>
+5
+Normand v. Orkin Exterminating Co. , 193 F.3d 908, 912 (7th Cir. 1999) (explaining that breach
+of contract claim fails if plaintiff failed to satisfy condition precedent to defendant's
+performance); Brenner v. Greenberg, 2009 WL 1759596, at *5 (N.D. Ill. June 18, 2009) (noting
+that, at a minimum, breach of contract plain tiff must perform all conditions precedent under a
+contract)." As the cases cited in the Court's October 2009 opinion illustrate, under Illinois law a
+party must prove that it complied with any conditions precedent under a contract before it can
+recover for the opposing party's breach of that contract. However, the parties did not raise, and
+the Court did not address, any issues concerning how the summary judgment rulings might affect
+the parties' respective burdens of proof at trial. Those issues have now surfaced in the parties'
+pre-trial order and require resolution so that the parties and the Court may prepare for trial.
+II. Analysis
+In the pretrial order, the parties revealed th eir differing positions as to the scope of the
+issues to be decided and who is to bear the burden of proof at trial. Illinois Central contends that
+360networks bears the burden of proof in the tw o cases (Tennessee and Mississippi) in which
+360networks is the plaintiff, wh ile Illinois Central bears the bur den of proof in the Louisiana
+case, in which Illinois Central is the plaintiff. Illinois Central al so contends that the jury should
+be instructed that 360networks "breached the licen se agreements by failing to perform all of its
+obligations under the license agreements." Illi nois Central specifically requests that the Court
+instruct the jury as to nine di fferent ways in which it may fi nd that 360networks breached the
+agreements. By contrast, 360networks requests that the issues be framed as follows: "IC claims
+360 materially breached the agreem ents by failing to install the fi ber optic cable at the edge of
+the right of way or in locations that unreasonab ly interfered with IC's operations. The Court
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 5 of 10 PageID #:<pageID>
+6
+concluded the cable does not interfere with IC's operations if IC approved the location of the
+cable."
+This Court's decision on the burden of proof issue hinges on whether the contract
+provisions highlighted by Illinois Central as material breaches are conditional or promissory
+obligations on the part of 360networks. Courts have struggled for centuries to differentiate
+between conditions and promises. A condition has been defined as "an operative fact, one on
+which the existence of some particular le gal relation depends." 3A A. Corbin, C
+ORBIN ON
+CONTRACTS § 627, at 11 (1960). The Restatement similarly defines a condition as "an event, not
+certain to occur, which must occur, unless its non-occurrence is excused, before performance
+under a contract becomes due." R ESTATEMENT (SECOND) OF CONTRACTS § 224, at 160 (1981).
+A promise, on the other hand, occurs when one "expresses an intenti on that some future
+performance will be rendered and gives assura nce of its rendition to the promisee." 3A C ORBIN
+ON CONTRACTS § 633, at 25. Again, the Restatement is in accord: "A promise is a manifestation
+of intention to act or refrain from acting in a sp ecified way, so made as to justify a promisee in
+understanding that a commitment has been made." R ESTATEMENT (SECOND) OF CONTRACTS §
+2(1), at 8.
+In regard to the burden of proof issue, th e distinction between a promise and a condition
+becomes important in the event of nonfulfillment of a contract. As a general rule, a condition
+must be exactly fulfilled before liability can arise on the contract. 5 S. Williston, supra, § 675;
+3A A. Corbin, supra, § 633. Illinois courts have agreed, defining a condition precedent as "one
+that must be met before a contract becomes effective or that is to be performed by one party to an
+existing contract before the other party is obligated to perform.'" Catholic Charities v. Thorpe,
+741 N.E.2d 651, 653 (2000). Nonfulfillment of a prom ise, however, gives rise to a different
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 6 of 10 PageID #:<pageID>
+7
+remedy: "The non-fulfillment of a promis e is called a breach of contract, and creates in the
+other party a secondary right to damages; it is the failure to perform that which was required by
+a legal duty." 3A CORBIN ON CONTRACTS § 633, at 26 (emphasis supplied).
+Whether contractual language is deemed c onditional or promissory generally depends on
+the intention of the parties. See Catholic Charities, 741 N.E.2d at 654 ("a c ondition precedent
+* * * will not be found unless the intent to create such a condition is apparent from the face of
+the agreement"). Where the intent of the parties is not clear, the disput ed language is generally
+deemed to be promissory rather than conditional. See Sahadi v. Continental Ill. Nat. Bank &
+Trust Co., 706 F.2d 193 (7th Cir. 1983). Like the Seventh Circuit in Sahadi, Illinois courts have
+followed Professor Williston's classic rule that "'[w]here it is doubtful whether words create a
+promise or an express cond ition, they are interpreted as creating a promise.'" LaGrange Federal
+Savings and Loan Ass'n v. Rock River Corp., 423 N.E.2d 496, 501 (1981) (quoting
+RESTATEMENT [FIRST] OF CONTRACTS, § 261 (1932)). In other words, a condition precedent
+must be stated expressly and unambiguously. See Liu v. T & H Machine, Inc. , 191 F.3d 790,
+798 (7th Cir. 1999). "Conditions precedent are generally indicated by the terms 'on the
+condition,' 'subject to,' 'when,' 'as soon as,' or other similar terms." Chicago Graphic Arts
+Health and Welfare Fund v. Jefferson Smurfit Corp., 1995 WL 579538, at *7 (N.D. Ill. Sept. 28,
+1995); see also AAR Intern., Inc. v. Vacances Heliades S.A. , 202 F. Supp. 2d 788, 800 (N.D. Ill.
+2002)
+In this case, 360networks paid Illinois Centra l $28 million pursuant to the three licensing
+agreements, installed a fiber optic network alon g Illinois Central's rout e between Chicago and
+New Orleans, and provided the railroad with four fibers for use in opera ting the railroad. In
+exchange, Illinois Central gave 360networks use of Illinois Central's land on which 360networks
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 7 of 10 PageID #:<pageID>
+8
+placed the cable. That was the crux of the pa rties' agreement. The remaining clauses on which
+Illinois Central relies - providi ng, among other things, that 360netw orks would install the cable
+in a location that does not unr easonably interfere with Illinoi s Central's operations - are
+promises, not conditions precedent to a valid agreement under Illinois law. See Sahadi, 706 F.2d
+at 195 (7th Cir. 1983) ("Contractual terms are presumed to represent independent promises rather
+than conditions"); see also Interway, Inc. v. Alagna , 407 N.E.2d 615 (1st Dist. 1980) ("Where it
+is doubtful whether words create a promise or an express condition, they are interpreted as
+creating a promise."). Had the parties expressl y intended the location of the cable to be a
+condition precedent to the agreement, they easily could have included such language in § 17.2.
+See Klemp v. Hergott Group, Inc., 641 N.E.2d 957, 962 (Ill. App. Ct. 1st Dist. 1994) ("There is a
+strong presumption against provisio ns that easily could have been included in the contract but
+were not."). The absence of any language indicative of a condition belies the assertion by
+Illinois Central that the parties intended the lo cation of the cable to be a condition precedent to
+the formation of a valid contract.
+3
+Because Illinois Central's defense to 360networks ' breach of contract claim is based on
+360networks's breach of a prom ise, rather than a condition precedent, 360networks is not
+required to prove performance of the promise; ra ther, Illinois Central ha s the burden of proving
+that 360networks breached the agreements. See Normard v. Orkin Exterminating Co. , 193 F.3d
+
+3 Although the language of the agreem ent alone is dispositive in this instance, the undisputed facts
+concerning the circumstances surrounding the initial insta llation of the cable provide further contextual
+support for the Court's construction of the pertinent contractual language. Alth ough some of the details
+of those circumstances are disputed (see 10/26/09 Op inion at 11-12), there is no question that (1) both
+parties sent representatives to stake the route, (2) 3 60networks satisfied its in itial financial obligations
+under the agreement, (3) Illinois Central accepted pa yment on the contract, and (4) approximately three
+years passed without incident. These circumstances indicate that neither party viewed the provisions
+concerning the location of the lines as conditions precedent, rather than ordinary terms of the contract. If
+performance of 360networks' installation obligations were a condition precedent to some performance by
+Illinois Central on the contract, one would have expected 360networks' level of performance to have been
+examined during or shortly after the installation work took place, not years later.
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 8 of 10 PageID #:<pageID>
+9
+908, 911-12 (7th Cir. 1999). This ruling comports both with general principles of contract law in
+Illinois and with the prior rulings in this case - and, in particular, J udge Leinenweber's ruling
+that a trial is necessary to determine whether 360networks breached the agreements, such that
+Illinois Central would be relieved of its obligations under § 17.2. Illinois Central still may avoid
+liability by demonstrating that 360networks did not perform as promised under the agreement,
+but under the pertinent contract language, Illi nois Central bears the burden of proving that
+360networks' failed to deliver on its end of the bargain.
+As set forth in both summary j udgment opinions, the liability issue remaining for trial is
+whether 360networks breached the agreements by not installing the cable at the edge of the right
+of way or by installing the cable in locations that unreasonably interfered with Illinois Central's
+operations.
+4 Most of the nine items listed as potent ial breaches in Illin ois Central's proposed
+jury instructions relate to whether 360networ ks installed the cable in the proper location, i.e., in
+locations that were approved by Illinois Centra l or in locations that did not unreasonably
+interfere with Illinois Central's op erations. But the precise contour s of the issues that will be
+presented to the jury in the Court's instructions must await the presentation of the evidence at
+trial.
+
+4 The Court also has concluded that 360networks di d not breach the agreements if Illinois Central
+approved the location of the cable.
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 9 of 10 PageID #:<pageID>
+10
+III. Conclusion
+For the reasons stated above, the Court determ ines that Illinois Central bears the burden
+of proof on its allegations that 360networks materially breached the agreements at issue and
+defers ruling on the additional matters relating to jury instructions that the parties discussed in
+their supplemental briefing.
+
+Dated: May 28, 2010 ___________________________________
+Robert M. Dow, Jr.
+United States District Judge
+Case: 1:05-cv-03198 Document #: 144 Filed: 05/28/10 Page 10 of 10 PageID #:<pageID>

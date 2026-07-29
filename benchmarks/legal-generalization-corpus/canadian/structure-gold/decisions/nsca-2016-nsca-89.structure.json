@@ -1,0 +1,1464 @@
+{
+ "artifact_id": "nsca-2016-nsca-89",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2016 NSCA 89",
+ "citation_secondary": "",
+ "name": "Shannex Inc. v. Dora Construction Ltd.",
+ "document_date": "2016-12-14",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/212966/index.do",
+ "scraped_timestamp": "2026-04-09 17:22:46.885000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2016-nsca-89.txt",
+ "raw_text_chars": 46475,
+ "raw_text_sha256": "f2481fbefabcc879e73cb9d10a41013f33afcf43ea5020e84498c0206b6c245f",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 95,
+  "spine_count": 70,
+  "quoted_count": 25,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "19",
+   "30",
+   "31",
+   "32",
+   "42",
+   "43",
+   "44",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "49",
+   "52",
+   "54",
+   "62",
+   "66",
+   "69",
+   "75",
+   "77",
+   "78",
+   "79",
+   "80",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "22",
+   "32",
+   "39",
+   "41",
+   "42",
+   "56",
+   "57",
+   "40",
+   "41",
+   "43",
+   "44",
+   "45",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 1104,
+     "end": 1713
+    },
+    "body_chars": 604,
+    "body_sha256": "0f34aa9a2b5d36a9a5613c7d127e693b6fa6edaf2767ad3350bb16e3f4ec412c",
+    "body": "Shannex operates assisted living establishments. It built a new facility in Kentville. The general contractor was Dora Construction, who warranted its work. Shortly after the opening, some pipes froze and remediation was needed. Representatives of Shannex, Dora and the remediation contractor, Mr. Upham, met and discussed what to do. After working at the Kentville facility for a month, Mr. Upham sent two invoices for his work. Shannex replied that Dora was the party responsible under the warranty. Dora disagreed and, in any case, said Mr. Upham’s price was inflated. Mr. Upham wasn’t paid by anyone."
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 1713,
+     "end": 2296
+    },
+    "body_chars": 578,
+    "body_sha256": "2c87ad41acdc9c7774253863b6197dfb6b7523e763a05e0c278c40354699bbc7",
+    "body": "Mr. Upham threatened to lien Shannex’s building. Counsel for Shannex and Mr. Upham then negotiated a settlement that included Shannex’s payment to Mr. Upham for one of the invoices, and a Release and Indemnity signed by Mr. Upham. The Release and Indemnity said Mr. Upham released Shannex from “all … claims … by reason of any cause” related to the Kentville facility. Some years later, Mr. Upham sued Shannex for his unpaid second invoice. His claims included unjust enrichment. Citing the Release and Indemnity, Shannex moved for summary judgment to dismiss Mr. Upham’s claim."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 2296,
+     "end": 2529
+    },
+    "body_chars": 228,
+    "body_sha256": "513ddbb613e76ec4d159b8d7f36a62c924ea78fa5fb3292ea965f477f8cc40b5",
+    "body": "The chambers judge dismissed Shannex’s motion for summary judgment. He said the Release and Indemnity is just one of the “equities” in the mix that affect Mr. Upham’s claim for unjust enrichment, so the claim should go to trial."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 2529,
+     "end": 2875
+    },
+    "body_chars": 341,
+    "body_sha256": "177a718bc841ff5a88ca0f6198cd69838443d679dc6a71bb1eeb7881ca49eeab",
+    "body": "Shannex appeals. The main points are (1) how to approach the newly-amended summary judgment Rule 13.04, and (2) whether the chambers judge mistook the principles of unjust enrichment. On the latter - Is a release dispositive, or just one of several factors to be balanced in the analysis of a juristic reason for an enrichment?\n1. Background"
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 2875,
+     "end": 3430
+    },
+    "body_chars": 550,
+    "body_sha256": "15dc7cff5a43727e2e4176052b0f5ccd1f82c7d86ef439be3563a841e1da199e",
+    "body": "The Appellant Shannex Inc. owns and operates assisted living facilities across the province. In 2009, Shannex constructed one on West Main and River Streets in Kentville. The Respondent Dora Construction Limited was Shannex’s general contractor. According to the affidavits, the Shannex-Dora contract included Dora’s warranty of the building’s envelope, mechanical and electrical systems. The warranty began on the date of Dora’s substantial performance, i.e. November 18, 2009. The written contract and warranty were not in evidence for this motion."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 3430,
+     "end": 3526
+    },
+    "body_chars": 91,
+    "body_sha256": "945579dce7807e14fd0c8297efa95ed364b822a74b009b173a9c11506982d6f9",
+    "body": "In December 2009, the new facility had frozen pipes. Shannex sent warranty notices to Dora."
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 3526,
+     "end": 3700
+    },
+    "body_chars": 169,
+    "body_sha256": "473a5dff35994453ee4ce23eace543b622a232459579fa1534424a7d8a38f963",
+    "body": "By early January 2010, Shannex held the view that Dora had not sufficiently remediated, and the safety and comfort of the facility’s residents required immediate action."
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 3700,
+     "end": 3914
+    },
+    "body_chars": 209,
+    "body_sha256": "e6b49638a934319bbd05faaf202677afe37466602bca2fdd3a6faa139f7a745a",
+    "body": "Shannex’s Mr. Eric Goulden, Dora’s Mr. Brian Smith and the Respondent Mr. Myron Upham met on site to discuss what was to be done. Mr. Upham’s unincorporated proprietorship was M.U. Rhino Renovations (“Rhino”)."
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 3914,
+     "end": 4207
+    },
+    "body_chars": 288,
+    "body_sha256": "c7f7d1a89a61274dc6cc1818140e5abf6cfa5290862aacf8b07d76ac47135da4",
+    "body": "On January 6, 2010, Shannex contracted with Mr. Upham to remediate the problem. The chambers judge’s decision termed this the “Four Corners Work” – i.e. the remediation that was clearly mandated to Mr. Upham and related to the four corners of Shannex’s facility. I will use the same term."
+   },
+   {
+    "label": "10",
+    "marker_order": 9,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 4207,
+     "end": 4533
+    },
+    "body_chars": 320,
+    "body_sha256": "4ae0a1a903a1185325d4dcff34f9456aad39c0b1cc505773b7c348b9a6d2bd21",
+    "body": "While performing the Four Corners Work, Mr. Upham/Rhino did other work. As did the chambers judge, I will term this the “Additional Work”. From the evidence filed for this motion, it isn’t entirely clear what comprised this Additional Work, how it differed from the Four Corners Work, and who requested or authorized it."
+   },
+   {
+    "label": "11",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 4533,
+     "end": 4747
+    },
+    "body_chars": 208,
+    "body_sha256": "cc1d358804e8df75f7195996372aeb36993de6e6115b814d00e8d1afd82baa19",
+    "body": "By February 2010, Mr. Upham/Rhino had completed the Four Corners Work and Additional Work. In March 2010, Mr. Upham/Rhino invoiced $49,367.90 for the Four Corners Work and $303,282.70 for the Additional Work."
+   },
+   {
+    "label": "12",
+    "marker_order": 11,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 4747,
+     "end": 4828
+    },
+    "body_chars": 75,
+    "body_sha256": "8b0dbb05eb15db7e2b60094b1c43883aeb293a1d25f05cb45fda18209faf5253",
+    "body": "This litigation focuses on the $303,282.70 invoice for the Additional Work."
+   },
+   {
+    "label": "13",
+    "marker_order": 12,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 4828,
+     "end": 5332
+    },
+    "body_chars": 498,
+    "body_sha256": "200cfa63714c8530e8f12b5dffbd76faf64fce021d5d86196b1e4692b1f7c2bd",
+    "body": "Mr. Upham wanted to be paid by someone – either Shannex or Dora. Shannex refused, taking the position that the Additional Work was Dora’s responsibility under its warranty in the Shannex-Dora construction contract. On March 11, 2010, Dora wrote to Mr. Upham/Rhino and refused to pay, saying Dora had not retained Rhino to perform the Additional Work. On March 22, 2010, Dora’s email to Mr. Upham/Rhino said bluntly “Dora is not responsible for and will not pay the invoices you sent to our office”."
+   },
+   {
+    "label": "14",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 5332,
+     "end": 5428
+    },
+    "body_chars": 90,
+    "body_sha256": "25485ee0e3b85ce999f65b0a889c69605f63956b494bc0b4064fcef76ffd776c",
+    "body": "Mr. Upham instructed his counsel to file a builder’s lien on Shannex’s Kentville facility."
+   },
+   {
+    "label": "15",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 5428,
+     "end": 9634
+    },
+    "body_chars": 4200,
+    "body_sha256": "aab9c08c3934f1309c5d41a639cdfa1eb240ff90e5b47c17ef4457cf56011ef3",
+    "body": "Then the counsel for Shannex and Mr. Upham negotiated a settlement:\n1. On March 24, 2010, Shannex’s counsel wrote to Mr. Upham’s counsel:\nNext, with respect to the Kentville Project, Shannex is prepared to pay your client $49,000.00 all-inclusive in return for your client executing a Lien Waiver for any work done to date or future work to be done by your client on the Kentville Project whether for Shannex or for anyone else (including the general contractor, Dora). Furthermore, your client will have to execute a Release and Indemnity with respect to payment for the work performed for Shannex.\nI am enclosing a draft version of the Lien Waiver, Release and Indemnity which my client will require your client to sign. …\n2. On March 25, 2010, Mr. Upham’s counsel replied:\nNext, in respect of the Kentville Project, Mr. Upham considers the Waiver of Lien, Release and Indemnity is too broad. It requires Mr. Upham to release for future work and whether the work is done for Shannex or anyone else (including the general contractor Dora). Mr. Upham, in exchange for $49,000.00 is prepared to release Shannex from work done to date on the basis Shannex will undertake to provide witness and evidentiary support for Mr. Upham’s claim against Dora. Mr. Upham otherwise may not be able to continue work on the project.\nMr. Upham … does not want to accept the monies on the basis the balance of his claim against … Dora are compromised.\n3. On March 26, 2010, Shannex’s counsel countered:\nSecond, with respect to the Kentville Project, Shannex does not wish to get caught in the middle of any fight between Dora and Mr. Upham. Therefore, in exchange for payment, Shannex simply requests that Mr. Upham give up any lien rights he has with respect to any other work done on the project with the exception of any work done in the future for Shannex directly. If Shannex directly requests work from Mr. Upham, Mr. Upham is entitled to get paid for that work and if he does not get paid, the document he has been requested to sign specifically allows him to register a lien. However, as previously stated, Shannex does not want liens filed on its property for work it does not directly request from Mr. Upham.\nNone of what Shannex is suggesting in any way whatsoever compromises Mr. Upham’s rights as against … Dora.\n4. Finally, on March 26, 2010, Mr. Upham’s counsel faxed his client’s agreement:\nI have reviewed and discussed your letter with Mr. Myron Upham and he has instructed me to advise you he is satisfied with the proposed arrangements in your letter. …\nMr. Upham has also executed the revised Waiver of Lien, Release And Indemnity. A copy of that document is also attached to be held in escrow pending receipt of the sum of $49,000.00 in trust for Mr. Upham.\n…\nThe attached Waiver of Lien, Release and Indemnity (“Release and Indemnity”), signed by Mr. Upham, included:\n… Myron N. Upham, carrying on business as MU Rhino Renovations (hereinafter referred to as the “Releasor”), for good and valuable consideration in the amount of $49,367.90 all-inclusive, the sufficiency and receipt of which is hereby acknowledged, does hereby release, remise and forever discharge Shannex Incorporated (hereinafter referred to as the “Releasee”) … of and from all manner of actions, debts, accounts, covenants, contracts, claims and demands whatsoever against the said Releasee the Releasor ever had, now has, or which the Releasor’s heirs executors administrators successors or assigns, or any of them, hereafter can, shall or may have by reason of any cause, matter or thing whatsoever existing up to the present time, and more particularly, from any and all claims arising out of or attributable to the supply of labour and materials by the Releasor with respect to a project owned by the Releasee located on West Main Street and/or River Street in Kentville, Kings County, Nova Scotia …\nTHE RELEASOR FURTHER AGREES, for the above-noted consideration, not to make any claim(s) or take any further proceeding(s) against any other person(s) or corporation(s) who might claim contribution or indemnity from the Releasee and to indemnify and hold harmless the Releasee from any such claim(s). …\n[emphasis added]"
+   },
+   {
+    "label": "16",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 9634,
+     "end": 10076
+    },
+    "body_chars": 436,
+    "body_sha256": "182b589342c676cb9642dff6b59951cb1b75f8564528b269afae31a3e92f5ab7",
+    "body": "Five years later, Mr. Upham sued Dora in the Nova Scotia Supreme Court, claiming the $303,282.70 that Mr. Upham had invoiced for the Additional Work. On July 7, 2015, Mr. Upham amended his Statement of Claim to add Shannex as a co-Defendant and directly claim from Shannex the same $303,282.70. Mr. Upham’s Amended Statement of Claim said that Shannex was liable for breach of contract, tortious misrepresentation and unjust enrichment."
+   },
+   {
+    "label": "17",
+    "marker_order": 16,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 10076,
+     "end": 10196
+    },
+    "body_chars": 114,
+    "body_sha256": "389241c8dd42297a850f3c710dbece52ad4f93f701dc17bc3dce592983ed7e75",
+    "body": "On July 28, 2015, Shannex defended Upham’s claim, citing the Release and Indemnity, and crossclaimed against Dora."
+   },
+   {
+    "label": "18",
+    "marker_order": 17,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 10196,
+     "end": 10456
+    },
+    "body_chars": 254,
+    "body_sha256": "342d26070f152af5d02a19b11be5cc9997b074c445daf509fe0ce89544f5b99f",
+    "body": "On September 9, 2015, Dora filed (1) a Defence to Mr. Upham’s claim, denying responsibility to Mr. Upham, and (2) a Crossclaim against Shannex. The Crossclaim claimed indemnity and contribution from Shannex for any amount that Dora may have to pay Upham."
+   },
+   {
+    "label": "19",
+    "marker_order": 18,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 10456,
+     "end": 10579
+    },
+    "body_chars": 117,
+    "body_sha256": "25370b849e04c806976f0902e474ecda377a8155b75b2dc8d77fbab65ea7cbe4",
+    "body": "On September 9 and 11, 2015, respectively, Dora defended Shannex’s Crossclaim and Shannex defended Dora’s Crossclaim."
+   },
+   {
+    "label": "20",
+    "marker_order": 19,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 10579,
+     "end": 10855
+    },
+    "body_chars": 270,
+    "body_sha256": "5cda4991e32d14aa5baa66090f04679b12fd565e2d0ce027e7cce1de384a197f",
+    "body": "On December 21, 2015, Shannex filed a Notice of Claim Against Third Party, naming Mr. Upham as the Third Party. Shannex cited the Release and Indemnity to claim indemnity from Mr. Upham for any amount Shannex may have to pay Dora under Dora’s Crossclaim against Shannex."
+   },
+   {
+    "label": "21",
+    "marker_order": 20,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 10855,
+     "end": 10923
+    },
+    "body_chars": 62,
+    "body_sha256": "5490881638d5201737e977b66d6bc02ab2d1de18a8da05092bb2260fb4ea5ad2",
+    "body": "On January 12, 2016, Mr. Upham defended the Third Party Claim."
+   },
+   {
+    "label": "22",
+    "marker_order": 21,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 10923,
+     "end": 11171
+    },
+    "body_chars": 242,
+    "body_sha256": "1569bdcecb2bb7eea1118cdd4f5fb6298168bf9188f89453b88a87e64fda817d",
+    "body": "On February 1, 2016, Shannex moved for summary judgment on the evidence under Rule 13.04. The motion sought summary judgment to (1) dismiss Mr. Upham’s direct claim against Shannex, and (2) allow Shannex’s third party claim against Mr. Upham."
+   },
+   {
+    "label": "23",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 11171,
+     "end": 11253
+    },
+    "body_chars": 76,
+    "body_sha256": "29c0194fda203933239c8bfb8d3e1dcde34bb5ceb482fe7f47dab222bf892fc0",
+    "body": "On March 21, 2016, Justice Rosinski heard the motion. Dora took no position."
+   },
+   {
+    "label": "24",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 11253,
+     "end": 11508
+    },
+    "body_chars": 249,
+    "body_sha256": "8862b256a2ad40220491c52ded048e29545c092c7184d358c2436d32dcfa9cfa",
+    "body": "On April 12, 2016, the judge, by written reasons, dismissed Shannex’s motion for summary judgment (2016 NSSC 90). Later I will discuss the judge’s reasons. An Order followed on April 29, 2016. The Order fixed costs at $1,000 inclusive, in the cause."
+   },
+   {
+    "label": "25",
+    "marker_order": 24,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 11508,
+     "end": 11692
+    },
+    "body_chars": 178,
+    "body_sha256": "1b677cb548438189592a326c491a0ade92f6e568eaa200ff540bfcd510fb088a",
+    "body": "On May 26, 2016, Shannex applied for leave to appeal to the Court of Appeal. On November 22, 2016, the Court heard the application and appeal. Dora did not participate.\n2. Issues"
+   },
+   {
+    "label": "26",
+    "marker_order": 25,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 11692,
+     "end": 11945
+    },
+    "body_chars": 247,
+    "body_sha256": "80b3d1c9c528697cfc30ea2d6e4d1fc4070b0fdb9f7836a0218118c9d9f60fcb",
+    "body": "Did the chambers judge commit an appealable error by dismissing Shannex’s motion for summary judgment on the evidence respecting either (1) Mr. Upham’s claim against Shannex, or (2) Shannex’s Third Party claim against Mr. Upham?\n3. Leave to Appeal"
+   },
+   {
+    "label": "27",
+    "marker_order": 26,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 11945,
+     "end": 12425
+    },
+    "body_chars": 474,
+    "body_sha256": "9a446ec45cac6d7ca054dbc435877f2527758515c88772671b8730bbc45f99b4",
+    "body": "This is an appeal from an interlocutory motion, for which leave is required. In Burton Canada Company v. Coady, 2013 NSCA 95, Justice Saunders, for the majority, set out the test for leave to appeal:\n18. … The question of whether leave to appeal ought to be granted is one of first instance. The well-known test on a leave application is whether the appellant has raised an arguable issue, that is, an issue that could result in the appeal being allowed. [citations omitted]"
+   },
+   {
+    "label": "28",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 12425,
+     "end": 12578
+    },
+    "body_chars": 147,
+    "body_sha256": "7c6240dfa8e02949b678fc375e0156a590089d882a14b9829f1ee3130eaf6cca",
+    "body": "Mr. Upham agrees that leave should be granted. As will be apparent, the test is satisfied, and I would grant leave.\n4. Appellate Standard of Review"
+   },
+   {
+    "label": "29",
+    "marker_order": 28,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 12578,
+     "end": 12630
+    },
+    "body_chars": 46,
+    "body_sha256": "30e8cfca3f24a887dd3cce4d852c1e51544996e3cdb4ac31660f556de46dcece",
+    "body": "I adopt Justice Saunders’ statement in Burton:"
+   },
+   {
+    "label": "19",
+    "marker_order": 29,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 12630,
+     "end": 13105
+    },
+    "body_chars": 469,
+    "body_sha256": "90e44148840249fd1564cccddbae2f850be82381fb82bb4587236dad3aa2e9c4",
+    "body": "The standard of review applicable to summary judgment motions in Nova Scotia is settled law. The once favoured threshold inquiry as to whether the impugned order under appeal did or did not have a terminating effect, is now extinct. There is only one standard of review. We will not intervene unless wrong principles of law were applied or, insofar as the judge was exercising a discretion, a patent injustice would result. [citations omitted]\n5. The Amended Rule 13.04"
+   },
+   {
+    "label": "30",
+    "marker_order": 30,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 13105,
+     "end": 13342
+    },
+    "body_chars": 231,
+    "body_sha256": "73942b5b399106a28cf4bb5e414ccde61d5463b9602f24b394dd659b84a16a45",
+    "body": "Shannex moved for summary judgment on the evidence under Rule 13.04. Rule 13.04 was amended on February 26, 2016. Before Justice Rosinski, the parties agreed that the amended Rule governed the motion. I will apply the amended Rule."
+   },
+   {
+    "label": "31",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 13342,
+     "end": 15207
+    },
+    "body_chars": 1859,
+    "body_sha256": "029a720855bf74eabd88e1bed3af02a971e776a4d8f22f7d1c1fc54722cd7ae2",
+    "body": "The amended Rule says:\nSummary judgment on evidence in an action\n13.04 (1) A judge who is satisfied on both of the following must grant summary judgment on a claim or a defence in an action:\n(a) there is no genuine issue of material fact, whether on its own or mixed with a question of law, for trial of the claim or defence;\n(b) the claim or defence does not require determination of a question of law, whether on its own or mixed with a question of fact, or the claim or defence requires determination only of a question of law and the judge exercises the discretion provided in this Rule 13.04 to determine the question.\n(2) When the absence of a genuine issue of material fact for trial and the absence of a question of law requiring determination are established, summary judgment must be granted without distinction between a claim and a defence and without further inquiry into chances of success.\n(3) The judge may grant judgment, dismiss the proceeding, allow a claim, dismiss a claim, or dismiss a defence.\n(4) On a motion for summary judgment on evidence, the pleadings serve only to indicate the issues, and the subjects of a genuine issue of material fact and a question of law depend on the evidence presented.\n(5) A party who wishes to contest the motion must provide evidence in favour of the party’s claim or defence by affidavit filed by the contesting party, affidavit filed by another party, cross-examination, or other means permitted by a judge.\n(6) A judge who hears a motion for summary judgment on evidence has discretion to do either of the following:\n(a) determine the question of law, if there is no genuine issue of material fact for trial;\n(b) adjourn the hearing of the motion for any just purpose including to permit necessary disclosure, production, discovery, presentation of expert evidence, or collection of other evidence."
+   },
+   {
+    "label": "32",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 15207,
+     "end": 15665
+    },
+    "body_chars": 452,
+    "body_sha256": "729987e63a83a3b269fe86cb32941a82ea45c57d51be77c46975ec410beec480",
+    "body": "The former Rule 13.04(1) said, if the evidence on the motion satisfies the judge that the challenged statement of claim or defence “fails to raise a genuine issue for trial”, the judge “must grant summary judgment”. The former Rule 13.04(2) said the judge “may grant judgement for the plaintiff, dismiss the proceeding, allow a claim, dismiss a claim, or dismiss a defence”. This wording generated a twofold test. In Burton, Justice Saunders explained:"
+   },
+   {
+    "label": "42",
+    "marker_order": 33,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 15665,
+     "end": 16759
+    },
+    "body_chars": 1088,
+    "body_sha256": "3b507a9a9123c5992152fe4a9b1711c81f087cf90becf4b1bc60309af68daf3d",
+    "body": "At this point a summary of the analytical framework may be helpful. In the first stage the judge’s focus is concerned only with the important factual matters that anchor the cause of action or defence. At this stage the relative merits of either party’s position are irrelevant. It is only if the judge is satisfied that the moving party has met its evidentiary burden of showing there are no material factual matters in dispute that the judge will then enter into the second stage of the inquiry. The focus of that stage is not - as the judge put it here - to see if the “undisputed facts” … give rise to a genuine issue for trial” That is a misstatement of the test established in Guarantee [Guarantee Co. of North America v. Gordon Capital Corp., [1999] 3 S.C.R. 423]. Instead, the judge’s task is to decide whether the responding party has demonstrated on the evidence (from whatever source) whether the claim (or defence) has a real chance of success. This assessment, in the second stage, will necessarily involve a consideration of the relative merits of both parties’ positions. …"
+   },
+   {
+    "label": "43",
+    "marker_order": 34,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 16759,
+     "end": 17040
+    },
+    "body_chars": 275,
+    "body_sha256": "2a8d23b427ffdbe577451421010b964920d9c27fafd4ffed7841b66312664ed6",
+    "body": "In the context of summary judgment motions the words “real chance” do not mean proof to a civil standard. That is the burden to be met when the case is ultimately tried on its merits. If that were to be the approach on a summary judgment motion, one would never need a trial."
+   },
+   {
+    "label": "44",
+    "marker_order": 35,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 17040,
+     "end": 17662
+    },
+    "body_chars": 616,
+    "body_sha256": "52ef46c213d791ae104529f786320a73e1693223c6aa8134ef98bbab727b2177",
+    "body": "The phrase “real chance’ should be given its ordinary meaning – that is, a chance, a possibility that is reasonable in the sense that it is an arguable and realistic position that finds support in the record. In other words, it is a prospect that is rooted in the evidence, and not based on a hunch, hope or speculation. A claim or defence with a “real chance of success” is the kind of prospect that if the judge were to ask himself/herself the question:\nIs there a reasonable prospect of success on the undisputed facts?\nThe answer would be yes.\nSee also the expanded summary of the principles in Burton, para. 87."
+   },
+   {
+    "label": "33",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 17662,
+     "end": 18194
+    },
+    "body_chars": 526,
+    "body_sha256": "77a6643dcbc3c2f6bc8adeeab2954786108d78f8ca53fa419c9f063851324969",
+    "body": "The amended Rule 13.04 frames, but does not materially change Burton’s tests. On the first test, instead of the former Rule’s “genuine issue for trial”, the new Rule 13.04(1) speaks of a “genuine issue of material fact, whether on its own or mixed with a question of law”. On the second, the amended Rule 13.04(3) repeats the former Rule 13.04(2), that the judge may grant judgment, dismiss a proceeding, and allow or dismiss a claim or defence. These provisions remain consistent with Justice Saunders’ formulation in Burton."
+   },
+   {
+    "label": "34",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 18194,
+     "end": 22594
+    },
+    "body_chars": 4394,
+    "body_sha256": "d5f82dbc630f4f3f667f36cca75a2bb549e76a07d214474f69ada114f1457898",
+    "body": "I interpret the amended Rule 13.04 to pose five sequential questions:\n• First Question: Does the challenged pleading disclose a “genuine issue of material fact”, either pure or mixed with a question of law? [Rules 13.04(1), (2) and (4)]\nIf Yes, it should not be determined by summary judgment. It should either be considered for conversion to an application under Rules 13.08(1)(b) and 6 as discussed below [paras. 37-42], or go to trial.\nThe analysis of this question follows Burton’s first step.\nA “material fact” is one that would affect the result. A dispute about an incidental fact - i.e. one that would not affect the outcome - will not derail a summary judgment motion: 2420188 Nova Scotia Ltd. v. Hiltz, 2011 NSCA 74, para. 27, adopted by Burton, para. 41, and see also para. 87 (#8).\nThe moving party has the onus to show by evidence there is no genuine issue of material fact. But the judge’s assessment is based on all the evidence from any source. If the pleadings dispute the material facts, and the evidence on the motion fails to negate the existence of a genuine issue of material fact, then the onus bites and the judge answers the first question Yes. [Rules 13.04(4) and (5)]\nBurton, paras. 85-86, said that, if the responding party reasonably requires time to marshal his evidence, the judge should adjourn the motion for summary judgment. Summary judgment isn’t an ambush. Neither is the adjournment permission to procrastinate. The amended Rule 13.04(6)(b) allows the judge to balance these factors.\n• Second Question: If the answer to #1 is No, then: Does the challenged pleading require the determination of a question of law, either pure, or mixed with a question of fact?\nIf the answers to #1 and #2 are both No, summary judgment “must” issue: Rules 13.04(1) and (2). This would be a nuisance claim with no genuine issue of any kind – whether material fact, law, or mixed fact and law.\n• Third Question: If the answers to #1 and #2 are No and Yes respectively, leaving only an issue of law, then the judge “may” grant or deny summary judgment: Rule 13.04(3). Governing that discretion is the principle in Burton’s second test: “Does the challenged pleading have a real chance of success?”\nNothing in the amended Rule 13.04 changes Burton’s test. It is difficult to envisage any other principled standard for a summary judgment. To dismiss summarily, without a full merits analysis, a claim or defence that has a real chance of success at a later trial or application hearing, would be a patently unjust exercise of discretion.\nIt is for the responding party to show a real chance of success. If the answer is No, then summary judgment issues to dismiss the ill-fated pleading.\n• Fourth Question: If the answer to #3 is Yes, leaving only an issue of law with a real chance of success, then, under Rule 13.04(6)(a): Should the judge exercise the “discretion” to finally determine the issue of law?\nIf the judge does not exercise this discretion, then: (1) the judge dismisses the motion for summary judgment, and (2) the matter with a “real chance of success” goes onward either to a converted application under Rules 13.08(1)(b) and 6, as discussed below [paras. 37-42], or to trial. If the judge exercises the discretion, he or she determines the full merits of the legal issue once and for all. Then the judge’s conclusion generates issue estoppel, subject to any appeal.\nThis is not the case to catalogue the principles that will govern the judge’s discretion under Rule 13.04(6)(a). Those principles will develop over time. Proportionality criteria, such as those discussed in Hryniak v. Mauldin, [2014] 1 S.C.R. 87, will play a role.\nA party who wishes the judge to exercise discretion under Rule 13.04(6)(a) should state that request, with notice to the other party. The judge who, on his or her own motion, intends to exercise the discretion under Rule 13.04(6)(a) should notify the parties that the point is under consideration. Then, after the hearing, the judge’s decision should state whether and why the discretion was exercised. The reasons for this process are obvious: (1) fairness requires that both parties know the ground rules and whether the ruling will generate issue estoppel; (2) the judge’s standard differs between summary mode (“real chance of success”) and full-merits mode; (3) the judge’s choice may affect the standard of review on appeal."
+   },
+   {
+    "label": "35",
+    "marker_order": 38,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 22594,
+     "end": 23046
+    },
+    "body_chars": 446,
+    "body_sha256": "289dce6f14424600d2394a5e3975b0c6df3986a704fe8688bb9b041dd9e7e421",
+    "body": "“Discretion”: The judge’s “discretion” under the amended Rule 13.04(6)(a) governs the option whether or not to determine the full merits – i.e. the Fourth Question. I disagree with Mr. Upham’s factum that Rule 13.04(6)(a) gives the judge “unfettered” discretion to just dismiss Shannex’s summary judgment motion. The Civil Procedure Rules do not authorize judges to allow or dismiss summary judgment motions on an unprincipled or arbitrary basis."
+   },
+   {
+    "label": "36",
+    "marker_order": 39,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 23046,
+     "end": 23521
+    },
+    "body_chars": 469,
+    "body_sha256": "6c24fd7f9ad0c4153067885a38498224cb865f02fb269de1be37e205ea657850",
+    "body": "“Best foot forward”: Under the amended Rule, as with the former Rule, the judge’s assessment of issues of fact or mixed fact and law depends on evidence, not just pleaded allegations or speculation from the counsel table. Each party is expected to “put his best foot forward” with evidence and legal submissions on all these questions, including the “genuine issue of material fact”, issue of law, and “real chance of success”: Rules 13.04(4) and (5); Burton, para. 87."
+   },
+   {
+    "label": "37",
+    "marker_order": 40,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 23521,
+     "end": 24141
+    },
+    "body_chars": 614,
+    "body_sha256": "79a6968256727c67dfb821387af11630bbe11c905ec4fbe63cbb70a4394d0ffe",
+    "body": "Conversion to an application: Lastly, the judge and counsel “must” bear in mind Rule 13.08(1)(b):\n13.08(1) A judge who dismisses a motion for summary judgment on the evidence must, as soon as is practical after the dismissal, schedule a hearing to do either of the following:\n(a) give directions for the conduct of the action, if it is not converted to an application;\n(b) on the motion of a party or on the court’s own motion, convert the action to an application in court, set a time and date for the hearing of the application, and give further directions as called for in Rule 5 - Application.\n[emphasis added]"
+   },
+   {
+    "label": "38",
+    "marker_order": 41,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 24141,
+     "end": 24443
+    },
+    "body_chars": 296,
+    "body_sha256": "a758036b9cb785698f61fdd12d54ae37e2f906c08cc2852a5be758e237373f23",
+    "body": "Two reasons are often cited to support the request that an action be determined by a chambers judge upon affidavits. First is that the responding party’s pleading has no merit. Second is that the disputed issues may be determined more efficiently by an abbreviated procedure without a full trial."
+   },
+   {
+    "label": "39",
+    "marker_order": 42,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 24443,
+     "end": 25090
+    },
+    "body_chars": 641,
+    "body_sha256": "9da297a1c90de844b803f9f72908574320f4d84efd515fb52a98fe01ad529678",
+    "body": "Some jurisdictions address both factors with one Civil Procedure Rule: e.g. Ontario’s amended Rule 20, that was discussed in Hryniak. Ontario’s Rules do not have a general mechanism to convert actions into hybrid applications. Nova Scotia separates the functions with two Rules. Rule 13 addresses the first scenario with summary judgment. Rule 6 permits a chambers judge to convert an action to an application that will more proportionately allocate resources. Rule 6.02 lists the governing criteria, and a body of jurisprudence under Rule 6 has developed the principles for conversion. These include factors like those discussed in Hryniak."
+   },
+   {
+    "label": "40",
+    "marker_order": 43,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 25090,
+     "end": 25402
+    },
+    "body_chars": 306,
+    "body_sha256": "8e95763d99e7900c9bb8b6b9434922add0fca703fc3713a3ddde31cd2fee8432",
+    "body": "It is important to distinguish the functions of Rules 13.04 and 6. That is because different tones and criteria govern the two reasoning paths. A summary judgment motion frontally, sometimes scornfully attacks merit. A conversion motion considers the more efficient process to adjudicate a plausible claim."
+   },
+   {
+    "label": "41",
+    "marker_order": 44,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 25402,
+     "end": 26142
+    },
+    "body_chars": 734,
+    "body_sha256": "df318ced77640d621a4ffd038890fc11c969db36114173b156fde621562cc7c5",
+    "body": "Rules 13.08(1)(b) and 6 acknowledge that, in Nova Scotia, the two functions follow separate channels. This affects the analysis of a summary judgment motion. The mere fact that an application by affidavit may allocate resources more proportionately than a trial is not a reason to summarily dismiss a pleading as unmeritorious under Rule 13.04. Rather, the proportionality factor should trigger consideration, by the judge or counsel: (1) whether the judge should exercise the discretion to decide an isolated point of law under Rule 13.04(6)(a), as discussed earlier, and (2) whether the action should be converted to an application under Rules 13.08(1)(b) and 6. See Fougere v. Blunden Construction Ltd., 2014 NSCA 52, paras. 11-20."
+   },
+   {
+    "label": "42",
+    "marker_order": 45,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 26142,
+     "end": 26611
+    },
+    "body_chars": 463,
+    "body_sha256": "d5cd4b579b8577049b735959422ccee737ed4f46a5bcac37a9902cd096751613",
+    "body": "Rule 13.08(1) says that a judge who dismisses the motion for summary judgment “must” schedule a hearing to consider conversion or directions. Accordingly, a dismissed motion under Rule 13.04 triggers the supplementary question:\n• Fifth Question: If the motion under Rule 13.04 is dismissed, should the action be converted to an application and, if not, what directions should govern the conduct of the action?\n6. The Application of Rule 13.04 to Mr. Upham’s Claim"
+   },
+   {
+    "label": "43",
+    "marker_order": 46,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 26611,
+     "end": 26669
+    },
+    "body_chars": 52,
+    "body_sha256": "8331388218ca90e9d017a469c23d1dd1607cdf0c148bba106572ada042aa1d3e",
+    "body": "The chambers judge reasoned as follows:\n1. He asked:"
+   },
+   {
+    "label": "49",
+    "marker_order": 47,
+    "role": "quoted_or_foreign",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 26669,
+     "end": 27385
+    },
+    "body_chars": 710,
+    "body_sha256": "1eaeadeae48ad6c1aabf15836a3390ea15b26f183accce627d791b4452dcdd11",
+    "body": "… based on the evidence presented is there an “air of reality” to the mixed question of law and fact whether there was an innocent misrepresentation made here by [Shannex’s] Mr. Goulden to Mr. Upham, which was relied on by Mr. Upham to his detriment?\nThe judge (para. 50) imported the “air of reality” test from criminal law, and cited Chief Justice McLachlin’s articulation from R v. Pappas, [2013] 3 S.C.R. 452, paras. 21-26.\n2. To the chambers judge, Mr. Upham submitted that the Release and Indemnity were obtained by Shannex’s misrepresentation that Dora would pay Mr. Upham for the Additional Work. Mr. Upham claimed in contract and for tortious misrepresentation. Justice Rosinski rejected those claims:"
+   },
+   {
+    "label": "52",
+    "marker_order": 48,
+    "role": "quoted_or_foreign",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 27385,
+     "end": 27852
+    },
+    "body_chars": 461,
+    "body_sha256": "838abef9190b8d6536908218cda6fa382a1927f1290c297dcdab5f34b0694970",
+    "body": "…there is no genuine material factual issue (incl. mixed fact and law) in dispute regarding: Shannex’s defence as against Rhino; or its third party claim for indemnification from Rhino should Shannex be ordered to pay monies to Dora. Both are based on Shannex’s pleadings and the written release (waiver/indemnification) documents support its claims, for indemnification from Rhino, and regarding the $303,282.70 invoice, that Shannex owes no monies to Rhino.\n…"
+   },
+   {
+    "label": "54",
+    "marker_order": 49,
+    "role": "quoted_or_foreign",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 27852,
+     "end": 28156
+    },
+    "body_chars": 298,
+    "body_sha256": "b19a388e09d1d7d0ed753b38065f1c5fcaae5cf71aadc2d49ab2e501e4c4b82f",
+    "body": "There is no direct evidence presented which would tend to prove that there were made, the kind of representations required by law to ground a “misrepresentation”; nor is there evidence presented which would tend to prove that Rhino relied on any statements made by Shannex staff to its detriment.\n…"
+   },
+   {
+    "label": "62",
+    "marker_order": 50,
+    "role": "quoted_or_foreign",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 28156,
+     "end": 28674
+    },
+    "body_chars": 512,
+    "body_sha256": "105d52c83cc6f6e1b17d463e6b05c4c69f718ed46f03655ab00e5a25242f0623",
+    "body": "However, on the evidence as between Rhino and Shannex as it stands, the release/indemnification/waiver documents do appear to provide a complete answer to Rhino’s position.\n3. Mr. Upham’s Amended Statement of Claim also claimed against Shannex for unjust enrichment. Yet, Mr. Upham’s written and oral presentations to Justice Rosinski included no submission based on unjust enrichment or restitution. Nonetheless, the chambers judge held the principles of unjust enrichment precluded summary judgment to Shannex:"
+   },
+   {
+    "label": "66",
+    "marker_order": 51,
+    "role": "quoted_or_foreign",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 28674,
+     "end": 28856
+    },
+    "body_chars": 176,
+    "body_sha256": "74b8c46d2421b4344554b64782f9e391bd88b0f9f608b6eaca2c962f05d08030",
+    "body": "Nevertheless, while Shannex would appear on its way to success in this motion for summary judgment, their path is obstructed by the principles associated with quantum meruit.\n…"
+   },
+   {
+    "label": "69",
+    "marker_order": 52,
+    "role": "quoted_or_foreign",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 28856,
+     "end": 28993
+    },
+    "body_chars": 131,
+    "body_sha256": "19f0c66776ff1d81e887db1895d824f71be5e072a65d894b93c21a888e666811",
+    "body": "Without consideration of Rhino’s claim of unjust enrichment/quantum meruit, Rhino would not survive this summary judgment motion.\n…"
+   },
+   {
+    "label": "75",
+    "marker_order": 53,
+    "role": "quoted_or_foreign",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 28993,
+     "end": 29096
+    },
+    "body_chars": 97,
+    "body_sha256": "b93f91479c62d9b6750c61a9ac364f7addf754820239df9fd0cdab93d3ec9888",
+    "body": "It is not disputed that Shannex had the benefit of the work by Rhino on its Kentville facility. …"
+   },
+   {
+    "label": "77",
+    "marker_order": 54,
+    "role": "quoted_or_foreign",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 29096,
+     "end": 29524
+    },
+    "body_chars": 422,
+    "body_sha256": "7f1fd51e4d4bf15d36d52c3d0cc48637279ee5db4f3a58bc6a2d0864a6e481ef",
+    "body": "While on the evidence in this motion, Shannex has satisfied me that, regarding Rhino’s claims for breach of contract and negligence/innocent misrepresentation, standing alone, there is not a genuine material fact in dispute or a question of law that requires trial, Rhino’s reliance on unjust enrichment or restitutionary quantum meruit provides a genuine material fact in dispute or a question of law that requires trial."
+   },
+   {
+    "label": "78",
+    "marker_order": 55,
+    "role": "quoted_or_foreign",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 29524,
+     "end": 29932
+    },
+    "body_chars": 402,
+    "body_sha256": "16d80f750985564f0fd552fc3ccf7fa51dadd43a6cf5e53731155f930e35c14b",
+    "body": "This is so because a claim of unjust enrichment must be determined on the equities of the case, and the release/indemnification documents could be characterized thereunder as a “juristic reason” for the enrichment. The equities of the case, and whether there is an absence of juristic reason for the enrichment, are all matters that by their nature cannot be determined on this summary judgment motion."
+   },
+   {
+    "label": "79",
+    "marker_order": 56,
+    "role": "quoted_or_foreign",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 29932,
+     "end": 30563
+    },
+    "body_chars": 625,
+    "body_sha256": "4d3b04c12063ab38eb77d8ae0997b721023a838d97d5c854b69f1f7c26d3d06a",
+    "body": "Moreover, in making that determination, a trial court will also have to consider Rhino’s claim of a contract with Dora/Shannex, (and the associated duty to act in good faith in such contractual relationships Bhasin v. Hrynew, 2014 SCC 71, at paras. 63-71), which could also be characterized as a “juristic reason” for the enrichment …\n4. Then the judge concluded that, notwithstanding the Release and Indemnity’s “complete answer to Rhino’s position” on contract and tort (chambers judge’s decision, para. 62), Mr. Upham’s contractual and tortious claims against Shannex should accompany his unjust enrichment claim to trial:"
+   },
+   {
+    "label": "80",
+    "marker_order": 57,
+    "role": "quoted_or_foreign",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 30563,
+     "end": 31061
+    },
+    "body_chars": 492,
+    "body_sha256": "5b229f741014ce9922b8e0483143ce9f633e35c2205ccd8cb9fda3ee383f74d8",
+    "body": "Having found a trial is required, I must deny Shannex’s motion for summary judgment. In spite of Shannex’s putatively successful arguments herein respecting Rhino’s claims of breach of contract and negligence/innocent misrepresentation, I must leave the resolution of those issues for the trial judge, as well, because there is sufficient factual overlap between the quantum meruit claim and those alternative pleadings that they are not discernably separable at this stage of the litigation."
+   },
+   {
+    "label": "44",
+    "marker_order": 58,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 31061,
+     "end": 31298
+    },
+    "body_chars": 231,
+    "body_sha256": "0b9dda782513e83ce1d64328a978e6114e98bd28b0e1a8f3883cc5702bdabeda",
+    "body": "In my respectful view, the chambers judge erred in both the application of Rule 13.04 and the law of unjust enrichment. I will address the Rule’s questions set out earlier.\nFirst question: Is there a genuine issue of material fact?"
+   },
+   {
+    "label": "45",
+    "marker_order": 59,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 31298,
+     "end": 31537
+    },
+    "body_chars": 233,
+    "body_sha256": "cc006f05c548b563b63f9e108d86e1c973757c7361d1056bad5dd23147c063ce",
+    "body": "Shannex premised its summary judgment motion entirely on the Release and Indemnity. This posed the question: Whatever merit Mr. Upham’s claim had before he signed the Release and Indemnity, did his Release and Indemnity discharge it?"
+   },
+   {
+    "label": "46",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 31537,
+     "end": 33014
+    },
+    "body_chars": 1471,
+    "body_sha256": "14d5ec3f5b968d52ecec4ac347c07554ada938bebc20339081bc0de2c4de394b",
+    "body": "The material facts are clear:\n1. Mr. Upham was represented by independent counsel.\n2. There is no suggestion that his counsel exceeded his authority.\n3. His counsel negotiated the terms of the Release and Indemnity.\n4. The negotiation occurred in a purely written exchange with Shannex’s counsel.\n5. Mr. Upham signed the Release and Indemnity and received payment from Shannex as consideration.\n6. The Release and Indemnity is entirely in writing. It says that Mr. Upham “does hereby release, remise and forever discharge Shannex Incorporated … from all manner of actions, debts, accounts, covenants, contracts, claims and demands whatsoever … by reason of any cause, matter or thing whatsoever existing up to the present time … attributable to the supply of labour and materials by the Releasor with respect to a project owned by the Releasee located on West Main Street and/or River Street in Kentville, Kings County, Nova Scotia” [emphasis added]. Mr. Upham’s invoice for $303,282.70, the subject of this litigation, related to that project.\n7. Mr. Upham signed the Release and Indemnity on March 26, 2010. This was after the dispute had arisen respecting responsibility for Mr. Upham’s invoice for the Additional Work, and after Dora had emailed Mr. Upham, on March 22, 2010, that “Dora is not responsible for and will not pay the invoices you sent to our office”. Mr. Upham’s unpaid invoice for $303,282.70 was front of mind when he signed the Release and Indemnity."
+   },
+   {
+    "label": "47",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 33014,
+     "end": 33509
+    },
+    "body_chars": 489,
+    "body_sha256": "8459601629d41317ebbd51fc053b1839960b2163781e50cc10f6cb86b4fd6959",
+    "body": "The chambers judge rejected Mr. Upham’s challenge, based on Shannex’s alleged misrepresentation, to the validity of the Release and Indemnity. Mr. Upham has filed no Notice of Contention or Cross Appeal. At the appeal hearing, his counsel acknowledged that the legal validity of the Release and Indemnity is not contested in this Court. There is no claim for rectification to plead that the Release and Indemnity incorrectly records the terms of the contract between Shannex and Mr. Upham."
+   },
+   {
+    "label": "48",
+    "marker_order": 62,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 33509,
+     "end": 33642
+    },
+    "body_chars": 127,
+    "body_sha256": "8d86b3834373b74c9646ed51f764c8a51c8827950ab4f6b32dd742b0872bb401",
+    "body": "The answer to the first question is No – there is no genuine issue of material fact.\nSecond question: Is there an issue of law?"
+   },
+   {
+    "label": "49",
+    "marker_order": 63,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 33642,
+     "end": 33972
+    },
+    "body_chars": 324,
+    "body_sha256": "559221fbe5a7296f12419c30e7f6c93ebf19fc552028ce372def6355dd73dc37",
+    "body": "The chambers judge held that a release does not dispose of a claim for unjust enrichment, as it would a claim in contract or tort. Rather, he said a release is just one of the “equities of the case” in the mix as to whether there is a “juristic reason” for the enrichment. This is a ruling of law and is disputed by Shannex."
+   },
+   {
+    "label": "50",
+    "marker_order": 64,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 33972,
+     "end": 34096
+    },
+    "body_chars": 118,
+    "body_sha256": "b5467365874779c8223d99c612927717b611ec2cfe33559cbf4c2ee6ac512082",
+    "body": "The answer to the second question is Yes.\nThird question: Does Mr. Upham’s point of law have a real chance of success?"
+   },
+   {
+    "label": "51",
+    "marker_order": 65,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 34096,
+     "end": 34763
+    },
+    "body_chars": 661,
+    "body_sha256": "3d279a2f351415ffc3568b1c592c4a97df1d689423a053d38061fb3f44d2455f",
+    "body": "The judge said the “air of reality” test governs Rule 13.04. With respect, that was an error of law. In a criminal jury trial, only defences with an “air of reality” are left to the jury. The “air of reality” principle reflects the protections to an accused and the sensitivity of a jury. Different considerations govern a civil claim before a judge. Burton followed a long line of authority, in the Supreme Court of Canada and in this Court, that established the test as whether the challenged claim or defence has a “real chance of success”. There is neither authority nor a principled basis to replace that test with the criminal law’s “air of reality” test."
+   },
+   {
+    "label": "52",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 34763,
+     "end": 34902
+    },
+    "body_chars": 133,
+    "body_sha256": "b88a8bb069eb7f27f19c5406c5b26fb2bdb7f34ccac2b788fae998dfc2a28952",
+    "body": "The pivotal question is: Given the Release and Indemnity, does Mr. Upham’s claim for unjust enrichment have a real chance of success?"
+   },
+   {
+    "label": "53",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 34902,
+     "end": 35105
+    },
+    "body_chars": 197,
+    "body_sha256": "6dd031e19e51630e96e7dfa3d1b027e0427b86909df0682c5ca3af60690a255d",
+    "body": "The judge held that a release does not govern a claim for unjust enrichment, as it would other claims. With respect, the judge erred in his view of the law governing releases and unjust enrichment."
+   },
+   {
+    "label": "54",
+    "marker_order": 68,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 35105,
+     "end": 35577
+    },
+    "body_chars": 466,
+    "body_sha256": "5e7169f0610e19dbd777ac2e8a52fd7b2e46b25213a2eea3e4d0b9abfdf131da",
+    "body": "A valid release, given for consideration and signed by someone who is represented by independent legal counsel, and without a legally recognized vitiating element like misrepresentation, undue influence or duress, discharges the civil claims that are clearly cited in the Release. A later lawsuit for the released claim will be summarily dismissed or struck as an abuse of process. This well-established principle is essential for the orderly settlement of disputes."
+   },
+   {
+    "label": "55",
+    "marker_order": 69,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 35577,
+     "end": 36417
+    },
+    "body_chars": 834,
+    "body_sha256": "a8b6931491bbe9bd22a6bc2430b6189f8477e9a293fe644e3ed7e17e9f2d0860",
+    "body": "Meredith Estate v. Orlandello, 2005 NSCA 98 set out the authorities for this principle. Ms. Orlandello was injured after being struck by a vehicle while she was disembarking from a ferry. She settled her claim against the driver and owner of the vehicle, and signed a release of “all claims\" against them and “all other persons”, accompanied by an indemnity. Then she sued the ferry operator (the Province), who third-partied the vehicle’s driver and owner. The driver and owner moved for summary judgment. The chambers justice dismissed the motion. This Court allowed the appeal, and granted summary judgment to: (a) dismiss both Ms. Orlandello’s claim against the ferry operator and the ferry operator’s third party claim against the driver and owner, and (b) order Ms. Orlandello to indemnify the driver and owner. This Court said:"
+   },
+   {
+    "label": "22",
+    "marker_order": 70,
+    "role": "quoted_or_foreign",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 36417,
+     "end": 37449
+    },
+    "body_chars": 1026,
+    "body_sha256": "ff8ad6a3789b0ceea62609fa78bbd7c8e48fc18a7a4cb9b7e8c13a73b58cd896",
+    "body": "There is ample authority that a court may summarily dismiss, before trial, a claim which has been discharged by an unambiguous written release: e.g. Begg v East Hants (Municipality) (1986), 75 N.S.R. (2d) 431 (C.A.), at paras. 26-29; Canasia Industries Limited v. May (2000), 204 N.S.R. (2d) 88 (C.A.), at paras. 30-31; CIBC Mortgage Corp. v. Ofume (2002), 208 N.S.R. (2d) 185 (C.A.), affirming 206 N.S.R. (2d) 234 (S.C.); Nowe v. Allstate Insurance Co. of Canada (1996), 157 N.S.R. (2d) 148 (S.C.), at para. 11; McQuaid v. LaPierre (1993), 128 N.S.R. (2d) 327 (S.C.), at paras. 11-14; Dipersio v. Nova Scotia (Workers’ Compensation Appeals Tribunal), 2004 NSCA 139, at para. 49; Canada (Attorney General) v. Veinotte, (1987), 81 N.S.R. (2d) 356 (S.C.), at paras. 22-31; Kothke v. Ekblad, [1999] A.J. No. 664 (C.A.); Paletta v. Agro, [1990] O.J. No. 1417 (S.C. – H.C.J.); Waldman v. D.N. Kimberley Insurance Brokers Ltd., [1998] O.J. No. 4974 (C.J. – Gen. Div.); Ysselstein v. Tallon, [1992] O.J. No. 881 (C.J. – Gen. Div.).\n…"
+   },
+   {
+    "label": "32",
+    "marker_order": 71,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 37449,
+     "end": 37947
+    },
+    "body_chars": 492,
+    "body_sha256": "3073b021abb92bcc9eb6376052a45dabda633d03a65bb19e17682c8f66a0e86f",
+    "body": "Ms. Orlandello’s Release unambiguously satisfies both conditions from Fraser River [Fraser River Pile & Dredge Ltd. v. Can-Dive Services Ltd., [1999] 3 S.C.R. 108]. First, the Release discharged all Ms. Orlandello’s claims against “all other persons” which, as discussed, included the Province [the ferry operator]. Second, the Release discharged those claims “resulting, or to result from a certain loss which happened on or about July 21, 1999”, the incident on the Country Harbour ferry.\n…"
+   },
+   {
+    "label": "39",
+    "marker_order": 72,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 37947,
+     "end": 38689
+    },
+    "body_chars": 736,
+    "body_sha256": "f7cdeb22b76f03aec7cf7475a4eb75a4fabff11022b0c07ba5730ea1f56a55dd",
+    "body": "Rule 14.25(1)(d) permits a court to strike a pleading which would produce an abuse of process. An action for a claim which has been released and discharged is an abuse of process. As Justice Laskin stated in Sinclair-Cockburn [Sinclair-Cockburn Insurance Brokers Ltd. v. Richards (2002), 61 O.R. (3d) 105 (C.A.)], at paras. 14-16:\n…\nThe terms of the release plainly preclude Sinclair-Cockburn’s action against Richards to recover the money it contributed to the settlement. As Mesbur, J. accurately said, “[p]arties should be held to their promises.” The court is entitled to enforce these promises by exercising its stay jurisdiction under either s. 106 of the Court of Justice Act or Rule 21.01(3)(d) to prevent an abuse of process. …"
+   },
+   {
+    "label": "41",
+    "marker_order": 73,
+    "role": "quoted_or_foreign",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 38689,
+     "end": 39100
+    },
+    "body_chars": 405,
+    "body_sha256": "62c10003750e6cdf7c08a23734c424e0e2d6c748a4f54fae31e0a23536eb6c7a",
+    "body": "In my view, however, a stay is not the most appropriate remedy in this case. A stay is an indefinite, but not necessarily permanent remedy, which may be lifted … Ms. Orlandello signed a release which “forever discharged” her claim. The appropriate remedy would permanently terminate her lawsuit. Rule 14.25(1)(d) authorizes the court to strike a statement of claim which constitutes an abuse of process. …"
+   },
+   {
+    "label": "42",
+    "marker_order": 74,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 39100,
+     "end": 39283
+    },
+    "body_chars": 177,
+    "body_sha256": "9992c85a8324149a528c0e1cc7d05a6500478f89ca7b695e7665de9d6048815b",
+    "body": "… Because striking the pleadings was not canvassed in argument, it is not appropriate to order that remedy. I would resort to dismissal by summary judgment as discussed earlier."
+   },
+   {
+    "label": "56",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 39283,
+     "end": 39360
+    },
+    "body_chars": 71,
+    "body_sha256": "00671ff120ab35989f12cac72f36e83c0b7564fd9f9df65e0884b63f13c15fd2",
+    "body": "A release of an unjust enrichment claim is subject to those principles."
+   },
+   {
+    "label": "57",
+    "marker_order": 76,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 39360,
+     "end": 39714
+    },
+    "body_chars": 348,
+    "body_sha256": "f354cec05d23d0cec243f4fba4ef9f78d6c9e0cd8a1a6b06aa14073571d2b2c8",
+    "body": "In Kerr v. Baranow, [2011] 1 S.C.R. 269, Justice Cromwell for the Court said that unjust enrichment has three essential elements: first that the defendant was enriched, and second that plaintiff suffered a corresponding deprivation (paras. 36-39). Justice Cromwell then discussed the two-step test for the third element, absence of juristic reason:"
+   },
+   {
+    "label": "40",
+    "marker_order": 77,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 39714,
+     "end": 40088
+    },
+    "body_chars": 368,
+    "body_sha256": "158d02860391133da1307b49253a70351c02a4f79e33abb30d3d8f5b2f103e47",
+    "body": "The third element of an unjust enrichment claim is that the benefit and corresponding detriment must have occurred without a juristic reason. To put it simply, this means that there is no reason in law or justice for the defendant’s retention of the benefit conferred by the plaintiff, making its retention “unjust” in the circumstances of the case [citations omitted]"
+   },
+   {
+    "label": "41",
+    "marker_order": 78,
+    "role": "quoted_or_foreign",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 40088,
+     "end": 40241
+    },
+    "body_chars": 147,
+    "body_sha256": "b4756726d8449a57eb383109ab021dc049992347898813fbd91f4dfd27026f3c",
+    "body": "Juristic reasons to deny recovery may be the intention to make a gift (referred to as a “donative intent”), a contract, or a disposition of law …\n…"
+   },
+   {
+    "label": "43",
+    "marker_order": 79,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 40241,
+     "end": 41640
+    },
+    "body_chars": 1393,
+    "body_sha256": "d13c71758765910743c5da0465a16dada4ff8a0591bdb77c31b978354eef1446",
+    "body": "In Garland [Garland v. Consumers’ Gas Co., [2004] 1 S.C.R. 629], the Court set out a two-step analysis for the absence of juristic reason. It is important to remember that what prompted this development was to ensure that the juristic reason analysis was not “purely subjective”, thereby building into the unjust enrichment analysis an unacceptable “immeasurable judicial discretion” that would permit “case by case ‘palm tree’ justice”: Garland, at para. 40. The first step of the juristic reason analysis applies the established categories of juristic reasons; in their absence, the second step permits consideration of the reasonable expectations of the parties and public policy considerations to assess whether recovery should be denied:\nFirst, the plaintiff must show that no juristic reason from an established category exists to deny recovery…. The established categories that can constitute juristic reasons include a contract (Pettkus, supra), a disposition of law (Pettkus, supra), a donative intent (Peter, supra), and other valid common law, equitable or statutory obligations (Peter, supra). If there is no juristic reason from an established category, then the plaintiff has made out a prima facie case under the juristic reason component of the analysis.\nThe prima facie case is rebuttable, however, where the defendant can show that there is another reason to deny recovery. …"
+   },
+   {
+    "label": "44",
+    "marker_order": 80,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 41640,
+     "end": 42031
+    },
+    "body_chars": 385,
+    "body_sha256": "42d6b7a983f7ee28ac3181a8ffadd1c52d88b3d034ec889a1514e987b47e452c",
+    "body": "Thus, at the juristic reason stage of the analysis, if the case falls outside the existing categories, the court may take into account the legitimate expectations of the parties (Pettkus [Pettkus v. Becker, [1980] 2 S.C.R. 834], at p. 849) and moral and policy-based arguments about whether particular enrichments are unjust (Peter [Peter v. Beblow, [1993] 1 S.C.R. 980], at p. 990). …"
+   },
+   {
+    "label": "45",
+    "marker_order": 81,
+    "role": "quoted_or_foreign",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 42031,
+     "end": 42153
+    },
+    "body_chars": 116,
+    "body_sha256": "e35d762b8ac24fe869d4551bc1890acc465d5c519736737075ea0f4e26b2a8d4",
+    "body": "Policy arguments concerning individual autonomy may arise under the second branch of the juristic reason analysis. …"
+   },
+   {
+    "label": "58",
+    "marker_order": 82,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 42153,
+     "end": 43179
+    },
+    "body_chars": 1020,
+    "body_sha256": "80523fab0fbd9136fe4e249ecbb2c7c9902bfa1c1f067b65f245a57a4f9ade00",
+    "body": "Mr. Upham’s Release and Indemnity was a contract with Shannex. This is an established category of juristic reason to deny recovery for unjust enrichment under the first step in Garland and Kerr. The Release and Indemnity is not just one of the “equities” to be balanced in the second step, as the chambers judge posited. The analysis doesn’t reach the second step. A valid and clear release is a juristic reason that discharges a claim for unjust enrichment, e.g.: Miller Paving Ltd. v. B. Gottardo Construction Ltd., [2005] O.J. No. 1206 (Ont. S.C.J.), para. 35, affirmed [2007] O.J. No. 2227 (C.A.); Taske Technology Inc. v. PrairieFyre Software Inc., [2004] O.J. No. 6019 (Ont. S.C.J. Master), paras. 9, 13, 17, affirmed [2005] O.J. No. 2683 (Ont. S.C.J. Div. Ct.); Simkeslak Investments Ltd. v. Kolter Yonge LP Ltd., 2011 ONSC 7134 (CanLII), paras. 73-74, affirmed without discussing this point [2013] O.J. No. 769 (C.A.); Brent v. Slegg Construction Materials Ltd., 2007 BCSC 661 (CanLII), paras. 11, 37, 39, 44-45."
+   },
+   {
+    "label": "59",
+    "marker_order": 83,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 43179,
+     "end": 43577
+    },
+    "body_chars": 392,
+    "body_sha256": "e0d85f372b67b48586fe5667b6a926df21ff7abd57d15bdbcd3b475492351d73",
+    "body": "In my view, given the Release and Indemnity, Mr. Upham’s claim against Shannex for unjust enrichment has no real chance of success. The answer to the third question is No. This means the fourth and fifth questions under Rule 13.04 do not arise. Summary judgment should issue to dismiss Mr. Upham’s direct claims against Shannex.\n7. The Application of Rule 13.04 to Shannex’s Third Party Claim"
+   },
+   {
+    "label": "60",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 43577,
+     "end": 43774
+    },
+    "body_chars": 191,
+    "body_sha256": "24827a613e725d217b6c2962b2ada638a5ac3528b8f7a2a82b25c48c520e2af0",
+    "body": "Shannex also moves for summary judgment on its Third Party claim that Mr. Upham indemnify Shannex for any amount that Shannex may be required to pay Dora on Dora’s Crossclaim against Shannex."
+   },
+   {
+    "label": "61",
+    "marker_order": 85,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 43774,
+     "end": 44094
+    },
+    "body_chars": 314,
+    "body_sha256": "c064d2d4a7904034a7416ec394ec4e0663854812377874290998e3fb5ae91046",
+    "body": "The chambers judge did not separately address this point. Neither did either party’s factum to the Court of Appeal. Shannex assumed that the point slipstreamed behind its motion for direct summary judgment. At the appeal hearing, the Court requested further written submissions. These were filed after the hearing."
+   },
+   {
+    "label": "62",
+    "marker_order": 86,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 44094,
+     "end": 44218
+    },
+    "body_chars": 118,
+    "body_sha256": "777bfb530c8e70272f92fcb7fc0c7a1ccd05db29aba161fe99cf14720e322409",
+    "body": "In my view, Shannex’s Third Party claim is not appropriate for summary judgment. I say this for the following reasons."
+   },
+   {
+    "label": "63",
+    "marker_order": 87,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 44218,
+     "end": 44420
+    },
+    "body_chars": 196,
+    "body_sha256": "edb2b661e1e40a5d1703962f4401d7e0e8f78feb33a4c7c630cb566741b823a3",
+    "body": "Shannex’s motion would shift to Mr. Upham, Shannex’s liability to Dora. To assess this submission on a summary judgment motion, the Court needs information about Dora’s Crossclaim against Shannex."
+   },
+   {
+    "label": "64",
+    "marker_order": 88,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 44420,
+     "end": 44692
+    },
+    "body_chars": 266,
+    "body_sha256": "7c6fe72e6b2769ad5ede19478abf4a3eb056780600dcb8b63ed3b8fd694bef0e",
+    "body": "Dora’s Crossclaim says “Dora seeks full indemnity and contribution from Shannex pursuant to the contract between Shannex and Dora”, then pleads the Tortfeasors Act, R.S.N.S. 1989, c. 471. Shannex’s Defence to the Crossclaim denies every allegation in the Crossclaim."
+   },
+   {
+    "label": "65",
+    "marker_order": 89,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 44692,
+     "end": 45125
+    },
+    "body_chars": 427,
+    "body_sha256": "9cb12b4c4170d7272fa657d4aa77b4ababd3e2e083b9a6878b37dfb6703efcda",
+    "body": "On this motion, the Shannex-Dora written contract and Dora’s warranty are not in evidence. Nothing identifies what provision of that contract is cited by Dora’s Crossclaim, or what evidence pertains to Shannex’s alleged breach. Nothing indicates the basis of Dora’s claim under the Tortfeasors Act, identifies the tort, particularizes Shannex’s tortious conduct, or suggests what evidence may support or negate that allegation."
+   },
+   {
+    "label": "66",
+    "marker_order": 90,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 45125,
+     "end": 45304
+    },
+    "body_chars": 173,
+    "body_sha256": "0ddf218e67ba2fd7583bee66c87f3466951a6e7e7729f41f05e7737d53374f7c",
+    "body": "Shannex could have demanded these particulars from Dora, then “put its best foot forward” by addressing the particulars with evidence for this motion. Shannex did not do so."
+   },
+   {
+    "label": "67",
+    "marker_order": 91,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 45304,
+     "end": 45734
+    },
+    "body_chars": 424,
+    "body_sha256": "666ed31080291ec9222b7645a6cf1daf07358e3decbeb55fd37d463d6f0bffc3",
+    "body": "It is for the moving party to show that there is no genuine issue of material fact, either alone or mixed with an issue of law. Abstract speculation does not satisfy Shannex’s onus. Dora’s claim against Shannex is the platform for Shannex’s requested summary judgment on its Third Party claim. Dora’s claim is adrift in a vacuum, leaving the Court with only Shannex’s pleaded denial of every allegation in Dora’s Crossclaim."
+   },
+   {
+    "label": "68",
+    "marker_order": 92,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 45734,
+     "end": 45939
+    },
+    "body_chars": 199,
+    "body_sha256": "f04c6f8a5a11f48d138554bf1548c59347829e23471d361063c61106b9080167",
+    "body": "The answer to the first question under Rule 13.04 is Yes – there is a genuine issue of material fact. Shannex’s motion for summary judgment on the Third Party claim should be dismissed.\n8. Conclusion"
+   },
+   {
+    "label": "69",
+    "marker_order": 93,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 45939,
+     "end": 46240
+    },
+    "body_chars": 295,
+    "body_sha256": "f57e9dffa48794ee9efe9be87c60bc2e4b3b49f7b17c90fea79b424eafc3d018",
+    "body": "I would grant leave to appeal. I would partially allow the appeal, overturn the judge’s Order, and allow Shannex’s motion for summary judgment to dismiss all Mr. Upham’s claims against Shannex. I would dismiss Shannex’s ground seeking summary judgment on its Third Party claim against Mr. Upham."
+   },
+   {
+    "label": "70",
+    "marker_order": 94,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 46240,
+     "end": 46475
+    },
+    "body_chars": 229,
+    "body_sha256": "cdd41b3666520f773c4efa54bc58171ec83219256e5c41948ad675dba18025f3",
+    "body": "I would order Mr. Upham to pay Shannex costs of $1,000 forthwith for the Supreme Court, as quantified by Justice Rosinski, plus $2,500, all inclusive, forthwith for the appeal.\nFichaud, J.A.\nConcurred: Farrar, J.A\nBourgeois, J.A."
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 9,
+  "values": [
+   "2016 NSSC 90",
+   "2013 NSCA 95",
+   "2011 NSCA 74",
+   "2014 NSCA 52",
+   "2014 SCC 71",
+   "2005 NSCA 98",
+   "2004 NSCA 139",
+   "2011 ONSC 7134",
+   "2007 BCSC 661"
+  ]
+ }
+}

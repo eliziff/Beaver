@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 140 STAT. ?>
+<?I98 140 STAT. ?>
+<?I99 140 STAT. ?>
+<?I50 PUBLIC LAW 119–78—FEB. 18, 2026?>
+<?I51 PUBLIC LAW 119–78—FEB. 18, 2026?>
+<?I52 PUBLIC LAW 119–78—FEB. 18, 2026?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–78: Disapproving the action of the District of Columbia Council in approving the D.C. Income and Franchise Tax Conformity and Revision Temporary Amendment Act of 2025.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>78</docNumber>
+<citableAs>Public Law 119–78</citableAs><citableAs>140 Stat. 747</citableAs>
+<approvedDate>2026-02-18</approvedDate>
+<dc:date>2026-02-18</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-02-26</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–78—FEB. 18, 2026</centerRunningHead>
+<page identifier="/us/stat/140/747">140 STAT. 747</page>
+<dc:type>Public Law</dc:type><docNumber>119–78</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">Joint Resolution</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">Disapproving the action of the District of Columbia Council in approving the D.C. Income and Franchise Tax Conformity and Revision Temporary Amendment Act of 2025.<sidenote><p class="centered fontsize8" id="x476dbe5d-1303-11f1-9ce0-133163b3e781" style="-uslm-lc:I658076"><approvedDate date="2026-02-18">Feb. 18, 2026</approvedDate></p><p class="centered fontsize8" id="x476dbe5e-1303-11f1-9ce0-133163b3e781" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hjres/142">H.J. Res. 142</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<resolvingClause class="indentUp0 firstIndent0 fontsize10 italic" style="-uslm-lc:I658120"><i>  Resolved   by   the   Senate   and   House   of   Representatives   of   the   United   States   of   America   in   Congress   assembled,</i></resolvingClause>
+<section class="inline">
+<content class="inline"> That the Congress disapproves of the action of the District of Columbia Council described as follows: The D.C. Income and Franchise Tax Conformity and Revision Temporary Amendment Act of 2025 (D.C. Act 26–217), enacted by the Council of the District of Columbia on December 20, 2025, and transmitted to Congress pursuant to section 602(c)(1) of the District of Columbia Home Rule Act on December 30, 2025.</content>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2026-02-18">February 18, 2026</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hjres/142">H.J. Res. 142</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 172 (2026):</heading>
+<p class="indentUp4 firstIndent-1" id="x476e338f-1303-11f1-9ce0-133163b3e781" style="-uslm-lc:I658035">Feb. 4, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x476e3390-1303-11f1-9ce0-133163b3e781" style="-uslm-lc:I658035">Feb. 11, 12, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

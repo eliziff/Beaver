@@ -1,0 +1,1200 @@
+{
+ "artifact_id": "nsca-2023-nsca-3",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2023 NSCA 3",
+ "citation_secondary": "",
+ "name": "R. v. Seyeon Lee",
+ "document_date": "2023-01-19",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/521457/index.do",
+ "scraped_timestamp": "2026-04-09 15:10:34.578000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2023-nsca-3.txt",
+ "raw_text_chars": 53866,
+ "raw_text_sha256": "612ea7b39c252c0bebfd8b91f488a9b9388e925213bd832e925315723fbeec64",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 78,
+  "spine_count": 40,
+  "quoted_count": 38,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "40",
+   "10",
+   "11",
+   "42",
+   "43",
+   "44",
+   "12",
+   "13",
+   "14",
+   "15",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "16",
+   "17",
+   "18",
+   "13",
+   "14",
+   "19",
+   "20",
+   "21",
+   "139",
+   "140",
+   "141",
+   "144",
+   "146",
+   "147",
+   "156",
+   "157",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "98",
+   "99",
+   "100",
+   "114",
+   "117",
+   "153",
+   "30",
+   "31",
+   "5",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "149",
+   "150",
+   "151",
+   "152",
+   "38",
+   "39",
+   "40",
+   "1",
+   "2"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 4315,
+     "end": 4698
+    },
+    "body_chars": 378,
+    "body_sha256": "5b93d71f532a6283e933548cbba9748f26b479998893b2665ff30dd2afcd5ba7",
+    "body": "On June 6, 2019, Mr. Lee was charged with sexual assault contrary to s.271 of the Criminal Code. His trial was originally scheduled to be heard in the Provincial Court of Nova Scotia on November 16-17, 2020. Certain matters arose which necessitated an adjournment on the first day of trial. Two weeks later, new trial dates were assigned for November 29-30 and December 3, 2021."
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 4698,
+     "end": 5195
+    },
+    "body_chars": 492,
+    "body_sha256": "e5fddc939608fc10c95f57a2c68f909c8266ea2d3eeae9a20a0bbe37a0c65926",
+    "body": "On November 24, 2021, Mr. Lee succeeded on his application to stay the charge. The Honourable Judge Ann Marie Simmons (“the judge”) was persuaded the respondent’s s.11(b) Charter right to trial within a reasonable time had been breached. She determined the trial, scheduled to begin the following week, had exceeded the presumptively reasonable delay ceiling of 18 months prescribed in R. v. Jordan, 2016 SCC 27. The judge concluded the Crown had not met its burden to rationalize that delay."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 5195,
+     "end": 5627
+    },
+    "body_chars": 427,
+    "body_sha256": "3fdbb37729007ce8f187630ca4c885dd3364cbbc07df1d8e03b8fd341b3f999c",
+    "body": "The Crown appeals from the stay decision. It says the judge incorrectly attributed certain periods of the delay in her application of the Jordan analysis to the circumstances of Mr. Lee’s case. The Crown asks us to quash the stay imposed by the judge and to remit the matter for adjudication on the merits, or in the alternative, to quash the stay and order a new trial. For the reasons that follow, I would dismiss the appeal."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 5627,
+     "end": 5986
+    },
+    "body_chars": 354,
+    "body_sha256": "55d70c782fb5e7c23a9d91abb7947543636ee5aebb0fc705451115e8abc5ed2c",
+    "body": "Understanding the chronology of the various steps in Mr. Lee’s course through the Provincial Court gives context to the judge’s decision. This requires a closer look at some events, to appreciate the points of divergence between the Crown and Mr. Lee as to their significance. Certain dates are critical to the Crown’s objections to the judge’s decision."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 5986,
+     "end": 6402
+    },
+    "body_chars": 411,
+    "body_sha256": "bee6deb0996fe4abcf7399eec5ac3d0b06ca2e9851f90e8a5f63bfb83b6017ff",
+    "body": "There is no dispute that from June 2019 when the Information charging Mr. Lee was laid, through to January 2020 when election was made to Provincial Court and a not guilty plea entered, a total of 7 months, 21 days of delay had accrued. Mr. Lee’s trial was scheduled for November 16-17, 2020 with a pre-trial conference scheduled for June 26, 2020. That pre-trial was eventually adjourned to September 30, 2020."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 6402,
+     "end": 6961
+    },
+    "body_chars": 554,
+    "body_sha256": "a57f190439a86c50cc4c19718e00f0e38178ef30d59da9a550843044b362b3f2",
+    "body": "Unbeknownst to the Crown, the complainant returned to her home in South Korea in March 2020, intending to come back to Nova Scotia in September. However, on September 8th she advised Victims’ Services she would remain in South Korea. Subsequently, in the fall of 2020 the complainant disclosed to the investigating officer: (i) additional information in the form of text messages between her and Mr. Lee; (ii) she had received medical treatment relating to memory loss surrounding the events of the alleged sexual assault; and (iii) she had kept a diary."
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 6961,
+     "end": 23882
+    },
+    "body_chars": 16916,
+    "body_sha256": "d1b8d2899afa4dce94c5ee88e3e9831d4860a372f0818cc694954a33d1c0725a",
+    "body": "These events impacted the course of the case over the fall of 2020, contributing to the need to adjourn the trial. The events were outlined in detail by the judge in her decision and ably captured in a chart found in the Crown’s factum. A considerable portion of that chart is reproduced here to provide context to the arguments raised by the Crown:\nDate\nAppearance Notes\nTime Elapsed\nOct 6, 2020\nCrown applies to adjourn the trial as the complainant is out of the country. Crown is aware of Jordan concerns. Defence is opposed, says this issue should have been raised at a pre-trial conference. Adjourned to Oct 9, 2020 for further inquiries.[1]\n+6 days\n(Total: 488 days, or 16 mo)\nOct 7, 2020\nComplainant advises Crown about concerns with appearing in person: 28 day total quarantine, risk of infection during travel, having to advise parents of reason for travel.\nOct 8, 2020\nComplainant advises Crown about an in-person course she is taking in South Korea. Crown advises defence it is making a videolink application.\nOct 9, 2020\nCrown abandons adjournment application and makes s. 714.2 application. Defence needs instructions to make submissions. Adjourned to Oct 15, 2020.\n+3 days\n(Total: 491 days, or 16 mo, 3 days)\nOct 15, 2020\nDefence submissions on s. 714.2 application. Defence is working with Crown to resolve issue of text message translation. Defence says there may be s. 276 application, but unlikely. Adjourned to Nov 2, 2020 for s. 714.2 application continuation.\n+6 days\n(Total: 497 days, or 16 mo, 9 days)\nOct 30, 2020\nComplainant advises investigating officer (“I/O”) that she is having memory problems and mentions speaking with a psychiatrist. Complainant also forwards to I/O two screenshots of text messages.\nNov 2, 2020\nCrown witnesses, complainant and Ms. Kang, testify on s. 714.2 application. Adjourned to Nov 3, 2020 to schedule defence submissions.\n+ 18 days\n(Total: 515 days)\nNov 3, 2020\nDefence submissions scheduled for Nov 5, 2020.\n+1 day\n(Total: 516 days)\nNov 5, 2020\nDefence submissions on s. 714.2 application. Defence says “more should have been done earlier”. Adjourned to Nov 12, 2020 for decision on s. 714.2 application.\n+2 days\n(Total: 518 days)\nNov 9, 2020\nCrown meets with complainant with a police officer (not the I/O) and learns of complainant’s memory problems. Complainant also mentions making diary entries.\nNov 10, 2020\nCrown advises defence of the complainant’s memory loss. Crown asks I/O if he has had any correspondence with the complainant. At 8:48 p.m., I/O forwards to Crown the complainant’s Oct 30, 2020 email. Crown forwards the 8:48 p.m. email to defence at 8:54 p.m. Defence advises Crown that it possesses texts messages that are not part of the disclosure that it is holding on to as “potential defence evidence”.\nNov 11, 2020\nComplainant advises Crown that she has been seeing a psychiatrist for three weeks and will try to restore her memory. Defence reiterates to Crown that it has additional text messages.\nNov 12, 2020\nCrown is contemplating a past recollection recorded application, given the complainant’s memory loss. Court invites submissions on whether to proceed with the s. 714.2 decision. Defence says this development makes it even more imperative for complainant to appear in person. Further, defence says that there is more disclosure to request and potential third party records to try to have produced, but does not know if there will be a s. 278.3 application. Matter stood down to allow Court time to decide if she “should give [counsel] the decision”. Court invites possibility of reopening the s. 714.2 application, but parties agree to receive decision. Videolink application granted. Crown shows defence complainant’s Nov 11 email. After court, Crown replies to defence’s disclosure request that I/O has nothing further.\n+7 days\n(Total: 525 days, 17 mo, 7 days)\nNov 13, 2020\nCrown reiterates to defence that it is contemplating a “past recollection recorded” application, with which defence was not familiar. Crown asks if defence is making a s. 278.3 application (re: complainant’s diary) and/or a s. 278.92 application (re: text messages). Defence asks for clarification. Complainant advises Crown she remembers the majority of the incident. Crown discloses same to defence minutes later.\nNov 14, 2020\nDefence advises Crown it is making an adjournment application, citing five areas of inquiry it needs to consider further.\nNov 16, 2020\nTrial date: defence seeks adjournment because of outstanding issues arising from complainant’s two emails sent since Nov 10. Adjournment granted. Court invites counsel to email their availability to set a new date. Defence estimates three days required for trial. Crown will make itself available for “any date”. Crown advises that, because the trial has been adjourned, it will make a Seaboyer application. Court will look for a half-day for the potential s. 278.3 and Seaboyer applications. Adjourned to Nov 23, 2020 to set new trial date.\n+4 days\n(Total: 529 days, or 17 mo, 11 days)\nNov 23, 2020\nCourt notes all parties available for trial: Mar 8, Mar 12, Apr 22, and Apr 23, but court is “fully booked on those days”. Court asks Crown to “look at the dockets” to see if this matter can be given priority on those dates. Adjourned to Dec 1, 2020 to set trial dates.\n+7 days\n(Total: 533 days, or 17 mo, 18 days\nDec 1, 2020\nCrown advises that the four dates discussed present challenges. Crown asks to look at dockets, in other courtrooms, for earlier dates. Court says it is willing to hear this trial any time she is sitting and a courtroom is available. Court offers: Nov 15-17, 2021. Crown available; defence is not available Nov 16, 17. Court schedules Nov 29, Nov 30, Dec 3 for trial. Adjourned to Dec 8, 2020 to see if earlier dates can be scheduled.\n+8 days\n(Total: 541 days, or 17 mo, 26 days)\nDec 7, 2020\nCrown finds potential trials dates: Jan 4, 6, and 25. Defence not available.\nDec 8, 2020\nCrown reiterates it will accept any trial dates. Crown has looked for dates in any Halifax courtroom in January when defence is available and located potential dates: Jan 13, 15 (Court not available), 19, 22. Other potential dates Crown found were: Jan 6 and Feb 1, 5, 8, 12, 15, 19, 22, or 26; defence is not available, but Court might have been able to accommodate Feb 5, 8, 9. Jan 25 also a potential date, but Court not available. Crown canvassed with federal and municipal Crowns for court time, will canvass Dartmouth courts, and will look into March and April dockets. Defence to consider whether it is making a s. 278.3 application. Adjourned to Dec 22, 2020 to see if earlier dates can be scheduled.\n+7 days\n(Total: 548 days, or 18 mo, 2 days)\nDec 17, 2020\nCourt “may be able to secure some dates” in May 2021. Crown confirms it is available.\nDec 21, 2020\nDefence advises Court and Crown that it is “seeking” : (1) the complainant’s diary; (2) the complainant’s medical records; (3) Victim Services records; (4) s. 278.92 application (re: text messages in defence possession); and (5) further texts of Crown witnesses. Defence may make a delay application.\nDec 22, 2020\nCrown is not bringing a Seaboyer application and defence may need a hearing for all items identified in yesterday’s correspondence. Crown has located potential dates: Jan 13 (defence available, Court not sitting but could), Jan 15 (defence available, Court not available), Mar 1 (defence not available), Mar 4, Mar 11 (Court not available). Some May dates available, but defence is not available. Court books Jul 12, 2021 for this matter. Adjourned to Jan 19, 2021 for status on any third party records applications. Crown notes that s. 278.3 requires notice and early trial dates may be hard to accommodate.\n+14 days\n(Total: 562 days, or 18 mo, 16 days)\nDec 29, 2020\nDefence asks Crown if it will lead evidence of two incidents, which would alleviate the need for a s. 276 application.\nJan 11, 2021\nCourt asks if parties available Jul 13. Crown available.\nJan 13, 2021\nDefence requests various third party records from Crown: (1) complainant’s diary; (2) Victim Services’ file; (3) any further communications between Crown witnesses; and (4) any further communications between Crown witnesses and accused. Defence requests disclosure of the names of those who helped complainant with her memory, how texts were received by police from Crown witnesses, and any further communication between police and witnesses. Crown relays relevant requests to complainant.\nJan 14, 2021\nCrown replies to defence’s correspondence from Dec 29 and Jan 13, providing further information on s. 278.92 and efforts to obtain waivers from the complainant.\nJan 15, 2021\nComplainant sends Crown her Medical Certificate and diary entry, in Korean. Complainant has no further texts and confirms the typed copy of her diary is the original. Crown advises defence it is in possession of this medical record and the diary entry, and is working on obtaining a waiver to produce these documents to defence.\nJan 18, 2021\nComplainant confirms to Crown that what she has sent is all the medical documentation she has received. Crown obtains waiver from complainant to produce to defence, and for Crown to use, her medical record and diary.\nJan 19, 2021\nFive issues discussed: (1) Defence may make s. 276 application. (2) Crown has the complainant’s diary and medical record, as well as a waiver; awaiting translation and then documents can be produced to defence. (3) Defence needs to make a s. 278.3 application (re: Victim Services’ file). (4) Defence wants to use Jul 12 for a motion for directions to determine if text messages in its possession are records pursuant to s. 278.1. (5) Defence has requested that Crown find out how police obtained text messages, as it may result in “something during the trial”; this is an issue defence encountered before. Crown has no further information to provide. Adjourned to Mar 4, 2021 for update on what pre-trial applications will be pursued. Out of court, Crown queries with provincial Crowns whether they are aware of any potential court time. Court time appears available: Feb 8, Feb 12, Feb 19, Mar 4, Mar 12, and Mar 19.\n+28 days\n(Total: 590 days, or 19 mo, 13 days)\nJan 28, 2021\nCrown asks if defence available for Apr 29 as it appears to have become available.\nFeb 1, 2021\nCrown provides defence with Korean and English translations of the complainant’s diary and Medical Certificate of Jan 2021. Defence is not available Apr 29.\nFeb 2, 2021\nCrown writes to Court that Mar 23, 2021 may be available. Defence is not available.\nFeb 11, 2021\nCourt writes to Crown that the Court is not available for Mar 23, but Apr 26-30 may open up. Jul 13 is offered again. Crown is available, defence is not.\nMar 4, 2021\nDefence is pursuing: (1) a s. 276 application as it is “particularly relevant”, (2) a s. 278.3 application (re: Victim Services’ records), and (3) a motion for directions. Defence raises whether there is further disclosure of text messages and the authenticity of the diary and medical certificate. Crown advises it has nothing further to disclose; all other issues require an application. Adjourned to Mar 25, 2021 to set dates.\n+44 days\n(Total: 634 days, or 20 mo, 28 days)\nMar 18, 2021\nDefence advises Court it is no longer pursuing s. 276 or s. 278.3 (re: Victim Services’ records) applications.\nMar 23, 2021\nDefence sends a letter to Court raising Jordan issue.\nMar 25, 2021\nDefence confirms no s. 276 or s. 278.3 (re: Victim Services’ records) applications needed. Defence needs more time to consider whether it is making a s. 278.3 application (re: complainant’s medical records). Defence still pursuing the motion for directions. Adjourned to Apr 15, 2021 to see if defence has any further issues to raise, including Jordan, and to set motion for directions date. Crown has arranged for independent legal advice for the complainant to obtain a waiver permitting use of the text messages that were provided in the disclosure.\n+21 days\n(Total: 655 days, or 21 mo, 19 days)\nApr 15, 2021\nFour issues discussed: (1) Motion for directions procedure and hearing date scheduled. (2) Defence may make s. 278.3 application (re: complainant’s medical records). (3) Defence asks if there are more diary entries because it “believes” there may be more. Crown does not have more to disclose, but will confirm there are no other entries about this incident. If defence is not satisfied, it must bring an application for production. (4) Defence will file a delay application. Adjourned to May 4, 2021 for motion for directions.\n+21 days\n(Total: 676 days, or 22 mo, 9 days)\nApr 27, 2021\nCourt writes to multiple counsel offering: Aug 3-6, 9, 10, 12 and “a time period between September 7th and October 1”. Crown is available, defence is not.\nApr 29, 2021\nDefence advises Court about three items: (1) possible defence memory expert; (2) defence is preparing a s. 278.3 application (re: complainant’s medical records); and (3) defence is pursuing a Jordan application.\nMay 3, 2021\nDefence advises Court and Crown they will not be ready to proceed tomorrow.\nMay 4, 2021\nFour issues discussed: (1) Motion for directions adjourned at defence request. (2) Crown will use the complainant’s texts from the disclosure, so no s. 278.92 application required. (3) Parties agree to use Jul 12 for the s. 278.3 application (re: complainant’s medical file). Crown will facilitate obtaining counsel for complainant. (4) Transcript has been prepared for the delay application. If defence chooses to bring application before trial, then Court wants to use Jul 12 for the delay argument. Defence needs instructions to decide. Adjourned to May 18 for motion for directions.\n+19 days\n(Total: 695 days, or 22 mo, 28 days)\nMay 14, 2021\nComplainant emails Crown second medical record from May 2021.\nMay 18, 2021\nMotion for directions hearing. Adjourned to Jun 29, 2021 for decision.\n+14 days\n(Total: 709 days)\nMay 25, 2021\nCrown discloses translated medical record provided by the complainant on May 14 and advises a waiver has been obtained regarding text messages.\nJun 29, 2021\nDecision on motion for directions. Two groups of texts are “records”. Adjourned to Jul 9, 2021 to set date for s. 278.93 hearing.\n+42 days\n(Total: 751 days)\nJul 8, 2021\nDefence files its delay application.\nJul 9, 2021\nThree issues discussed: (1) Crown has obtained waivers for all messages in defence’s possession, so no s. 278.92 application (re: text messages) is required. (2) Defence is looking at a Mutual Legal Assistance Treaty (“MLAT”) for enforcement of any s. 278.3 order (re: complainant’s medical file) and will not be able to deal with this issue on Jul 12. (3) Delay application – Crown on vacation first three weeks of August. Adjourned to Sep 16 for delay argument. Nothing to proceed on Jul 12.\n+10 days\n(Total: 761 days, or 25 mo, 3 days\nAug 6, 2021\nDefence writes Crown to see whether PPS will act as requesting party on MLAT, if defence makes a s. 278.3 application (re: complainant’s medical records).\nAug 31, 2021\nDefence advises Court of intention to rely on MLAT.\nSep 15, 2021\nDefence advises they are not available for tomorrow due to illness and the delay application is incomplete.\nSep 16, 2021\nDelay argument adjourned at defence request. Crown received a third medical record (eight-page therapeutic record) from the complainant on Sep 15, 2021. Adjourned to Sep 23, 2021 for status update.\n+69 days\n(Total: 830 days, or 27 mo, 11 days)\nSep 23, 2021\nParties to set dates for delay and s. 278.3 (re: eight-page therapeutic record) applications. Crown has arranged for complainant to have counsel for the anticipated production application. Adjourned to Nov 2, 2021 for delay argument and to Oct 1, 2021 to set s. 278.4 hearing.\n+7 days\n(Total: 837 days, or 27 mo, 18 days)\nSep 29, 2021\nDefence files s. 278.3 application (re: eight-page therapeutic record).\nOct 1, 2021\nTo set dates for s. 278.4 hearing: Court has to check with Chief Judge if there is a courtroom and staff available for potential dates discussed by email before this appearance. Adjourned to Oct 7, 2021 to set dates.\n+8 days (Total: 845 days, or 27 mo, 26 days)\nOct 7, 2021\nAdjourned to Nov 10, 2021 for s. 278.4 hearing.\n+6 days\n(Total: 851 days)\nOct 29, 2021\nDefence files outstanding transcripts for delay argument.\nNov 2, 2021\nDelay argument. Adjourned to Nov 10 to set a date for decision and for s. 278.4 hearing.\n+26 days\n(Total: 877 days)\nNov 10, 2021\nSection 278.4 hearing (re: eight-page therapeutic record). Adjourned to Nov 18, 2021 for decision. Court tentatively offers Nov 24 for decision on delay.\n+ 8 days\n(Total: 885 days)\nNov 18, 2021\nSection 278.5 decision: production to Court ordered. Parties have no further submissions for s. 278.7. Adjourned to Nov 24, 2021 for s. 278.7 decision.\n+8 days\n(Total: 893 days)\nNov 24, 2021\nDecision on s. 11(b) application. Stay of proceedings entered.\n+6 days\n(Total: 899 days)"
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 23882,
+     "end": 24311
+    },
+    "body_chars": 424,
+    "body_sha256": "5ba14e23399586274bcf7e21ec3f0d94bc984a83ff6d842db9f1d0354ed82b31",
+    "body": "The judge’s calculations of the total delay accrued to the anticipated end of trial was 29 months and 27 days. Of that delay, two months were attributed to pandemic-related scheduling challenges and four months were attributed to defence unavailability. The net delay was therefore 24 months. The Crown was not able to persuade the judge that exceptional circumstances existed to bring that delay below the 18 month ceiling."
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 24311,
+     "end": 24411
+    },
+    "body_chars": 95,
+    "body_sha256": "e4bae1d07c7cc7b96abded602a479e2b26f2ea3fe64de08f52b282cf2178c00d",
+    "body": "The applicable standard of review was described by Derrick, J.A. in R. v. Pearce, 2021 NSCA 37:"
+   },
+   {
+    "label": "53",
+    "marker_order": 9,
+    "role": "quoted_or_foreign",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 24411,
+     "end": 24905
+    },
+    "body_chars": 488,
+    "body_sha256": "487a74a59f3b4efd841a0325873f8f73c47b5d7e60cc850824f5261a93c78c06",
+    "body": "The standard of review for s. 11(b) appeals is a three-step process as this Court has stated previously: palpable and overriding error for findings of fact and the categorization or attribution of delay, and correctness for the allocation or characterization of the delay and the ultimate determination of whether the delay was unreasonable and warrants a judicial stay. Deference is owed to a trial judge’s assessment of responsibility for the delay because it involves findings of fact."
+   },
+   {
+    "label": "54",
+    "marker_order": 10,
+    "role": "quoted_or_foreign",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 24905,
+     "end": 25301
+    },
+    "body_chars": 390,
+    "body_sha256": "8e412739e722024fe6ef515b3137e7c51f3d4332fc52ce64647fb991b66673a4",
+    "body": "Appellate courts must show deference to a trial judge’s underlying findings of fact and to the judge’s determination of the legitimacy of defence conduct. Those decisions are “by no means an exact science” and “first instance judges are uniquely positioned to gauge” whether the defence actions were legitimately taken to respond to the charges (Jordan, at para. 65; Cody, at paras. 31-32)."
+   },
+   {
+    "label": "55",
+    "marker_order": 11,
+    "role": "quoted_or_foreign",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 25301,
+     "end": 25969
+    },
+    "body_chars": 662,
+    "body_sha256": "803f13c88335afe007b7357b1159d8a9e4e6b66050d8386925158448d8428fae",
+    "body": "Trial judges dealing with s. 11(b) applications will be required to make underlying findings of fact and/or draw inferences from facts in determining what happened in the course of the case. Trial judges must also determine what caused the delay – was the defence conduct legitimate and not frivolous, was the case complex, had the parties reasonably relied on the law as it was before Jordan. As this Court noted in R. v. Brown, 2018 NSCA 62, at para. 46, and R. v. Ellis, 2020 NSCA 78, at para. 80, the trial judge’s categorization of the delay – the finding of who or what caused the delay – is entitled to deference, subject to palpable and overriding error."
+   },
+   {
+    "label": "56",
+    "marker_order": 12,
+    "role": "quoted_or_foreign",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 25969,
+     "end": 26442
+    },
+    "body_chars": 467,
+    "body_sha256": "576c3e456e3555b22950959414957a3593a66583ba727b2b2f2cf5e347a955bf",
+    "body": "A trial judge’s allocation of the delay under the Jordan framework, also referred to as the characterization of the delay, which includes calculating the total delay, subtracting the delay assessed against the defence, and then comparing the net delay to the applicable Jordan ceiling, is subject to a standard of correctness. Also subject to a standard of correctness is the judge’s ultimate determination of whether the delay was unreasonable and violated s. 11(b)."
+   },
+   {
+    "label": "57",
+    "marker_order": 13,
+    "role": "quoted_or_foreign",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 26442,
+     "end": 26751
+    },
+    "body_chars": 303,
+    "body_sha256": "f70de775d2a94794b6d299a9afffd2aab35dad1bb52df00b064d859cd89d5c61",
+    "body": "The above accords with the Supreme Court of Canada’s recent statement in R. v. Yusuf, 2021 SCC 2, that the Ontario Court of Appeal, in the decision being appealed from (cited as R. v. Pauls, 2020 ONCA 220), had “applied the appropriate standard of review. In Pauls, the standard of review was described:"
+   },
+   {
+    "label": "40",
+    "marker_order": 14,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 26751,
+     "end": 27064
+    },
+    "body_chars": 307,
+    "body_sha256": "1a00a61f877ac840a4e2c18679b55cf412cc5ded74d2ad7412d7bdaf9e4019f3",
+    "body": "...Deference is owed to a trial judge's underlying findings of fact. Characterizations of periods of delay and the ultimate decision concerning whether there has been unreasonable delay are reviewable on a standard of correctness (cites omitted).\nSee also R. v. Pastuch, 2022 SKCA 109 at paras. 141-42; 146."
+   },
+   {
+    "label": "10",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 27064,
+     "end": 27663
+    },
+    "body_chars": 593,
+    "body_sha256": "a4353feef507d0c458ac262ce2f70707d047c68ae902f3bd701c9c1330eb088b",
+    "body": "The judge applied the analytical framework found in Jordan to determine whether the delay in Mr. Lee’s case was unreasonable. Jordan set ceilings beyond which delay in a criminal proceeding will be presumptively unreasonable. In the case of provincial court matters, the Supreme Court of Canada set the limit at 18 months, net of any delay attributable to or waived by the defence. (In superior court matters that ceiling is 30 months.) Once the delay has been calculated, if the ceiling is exceeded the burden falls to the Crown to justify the delay on the basis of exceptional circumstances."
+   },
+   {
+    "label": "11",
+    "marker_order": 16,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 27663,
+     "end": 27936
+    },
+    "body_chars": 267,
+    "body_sha256": "8e62863e4ac8846a82d9bf5fbdc7276d2209738b81ea7b61c8ad23eee5eb1984",
+    "body": "A year after Jordan, in R. v. Cody, 2017 SCC 31, clarification was provided regarding assessment of defence delay and the obligations of all three parties to the case - Crown, defence and the court. This evolution of the Jordan framework was also discussed in Pearce:"
+   },
+   {
+    "label": "42",
+    "marker_order": 17,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 27936,
+     "end": 28547
+    },
+    "body_chars": 605,
+    "body_sha256": "6c530dd4ce3319bb7223864e122441eb00c044dd0c57ce95329c5f50d8c2d759",
+    "body": "The Supreme Court of Canada in Cody recognized there is a “potential tension between the right to make full answer and defence and the right to be tried within a reasonable time – and the need to balance both…” (at para. 34). Actions taken by defence in the course of the trial will be scrutinized on a s. 11(b) application to determine whether they were legitimately taken to respond to the charges or designed to delay. Furthermore, defence actions that exhibit “marked inefficiency or marked indifference toward delay” may well be counted against the defence in a s. 11(b) analysis (Cody, at para. 32)."
+   },
+   {
+    "label": "43",
+    "marker_order": 18,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 28547,
+     "end": 28881
+    },
+    "body_chars": 328,
+    "body_sha256": "a2476c46a33fea68679804dc7d23bdf562eafa857b26849cd518943a748aed51",
+    "body": "Defence counsel have a responsibility to safeguard their client’s s. 11(b) rights by “actively advancing their right to a trial within a reasonable time, collaborating with the Crown when appropriate, and using court time efficiently” (R. v. Potter, 2020 NSCA 9, at para. 271, citing Cody, at para. 33 and Jordan, at para. 138)."
+   },
+   {
+    "label": "44",
+    "marker_order": 19,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 28881,
+     "end": 29274
+    },
+    "body_chars": 387,
+    "body_sha256": "6438ae815cd3a9f421cd5baa550d6e08042744a88af9b9363db6205a8ded65ee",
+    "body": "Not only defence but all participants in the criminal justice system have been directed by Jordan to coordinate efforts to achieve “reasonably prompt justice, with a view to fulfilling s. 11(b)’s important objectives” (at para. 5). Trial judges as well as counsel have an obligation to conduct the proceedings efficiently and proactively in order to ensure unreasonable delay is avoided."
+   },
+   {
+    "label": "12",
+    "marker_order": 20,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 29274,
+     "end": 29578
+    },
+    "body_chars": 298,
+    "body_sha256": "fc6bb03a55784147a8186fefec1380ca64c64d14b711d49d182db6db1e90fbb7",
+    "body": "The Crown asserts the judge misapplied the test in relation to “exceptional circumstances” and wrongly assessed defence delay. The Crown says the combination of both exceptional circumstances, and defence delay occasioned after November 2020, were not properly excised from the judge’s calculation."
+   },
+   {
+    "label": "13",
+    "marker_order": 21,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 29578,
+     "end": 29838
+    },
+    "body_chars": 254,
+    "body_sha256": "40bde528565c9c9884c2c5aeaba51d4dfb53b97294190f5b9835333b8971a384",
+    "body": "Mr. Lee maintains the judge’s characterizations of the delay and her calculations flowing therefrom were correct. He suggests that even if there were errors on the part of the judge, it does not mean the overall delay would amount to less than 18 months."
+   },
+   {
+    "label": "14",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 29838,
+     "end": 30039
+    },
+    "body_chars": 195,
+    "body_sha256": "f7c14437d1b16bfbd12a20d2d6c6e028932351502664c648268d19dd7dba3cc6",
+    "body": "The Crown raises two issues:\ni) Did the judge err in law or in fact in failing to allocate delay to exceptional circumstances?\nii) Did the judge err in law or in fact in allocating defence delay?"
+   },
+   {
+    "label": "15",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 30039,
+     "end": 30127
+    },
+    "body_chars": 82,
+    "body_sha256": "21ad81474df1efdb5ed4e3e7cbb7e9d4b3c4b5091e5d8b838f5e618a51f15e28",
+    "body": "Her decision, delivered orally, reflects the judge understood the task before her:"
+   },
+   {
+    "label": "70",
+    "marker_order": 24,
+    "role": "quoted_or_foreign",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 30127,
+     "end": 30930
+    },
+    "body_chars": 797,
+    "body_sha256": "d29cfdff402a3796a26eb5ec33294d1a38689c1e76649f65b8140ec5f517b158",
+    "body": "The Supreme Court of Canada established a presumptive ceiling of 18 months for matters tried in the Provincial Court. Delays past this ceiling is presumptively unreasonable. The calculation begins with the date of the charge, and ends with the actual or anticipated end of the trial. I am directed to consider whether there is any period of time which should be categorized as Defence delay, where delay has been waived by the Defence , or solely caused by the conduct of the Defence. The accumulative amount of delay is deducted from the total period of delay. If the remaining calculations falls above the presumptive ceiling; the Crown must show the presence of exceptional circumstances in order to justify the delay. A failure to do so will take me to the conclusion that a stay is warranted."
+   },
+   {
+    "label": "71",
+    "marker_order": 25,
+    "role": "quoted_or_foreign",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 30930,
+     "end": 31305
+    },
+    "body_chars": 369,
+    "body_sha256": "51a2008e55f821aa9ce87768146756e3de63649dbf2f0ca8f0a6604e71d630f0",
+    "body": "What amounts to exceptional circumstances which might justify delay is defined as circumstances of such nature that they lie outside the Crown' s control to being reasonably unforeseen or reasonably unavoidable, and the Crown cannot reasonably remedy the delays arising therefrom. Exceptional circumstances may include discrete events and/or the complexity of the case."
+   },
+   {
+    "label": "72",
+    "marker_order": 26,
+    "role": "quoted_or_foreign",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 31305,
+     "end": 31501
+    },
+    "body_chars": 190,
+    "body_sha256": "b006359eb9ee900e2b912ae270742c86b4e6859bc5ceffc98fcc3c5c7f7734b7",
+    "body": "The Supreme Court of Canada was clear. The presence of exceptional circumstances is the only basis upon which the Crown can discharge its burden to justify as a way that exceeds the ceiling."
+   },
+   {
+    "label": "73",
+    "marker_order": 27,
+    "role": "quoted_or_foreign",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 31501,
+     "end": 31811
+    },
+    "body_chars": 304,
+    "body_sha256": "4932443ecf0f067b58930990cb4df269872f15014a5aadc56d5fe953b9020457",
+    "body": "The Supreme Court of Canada reiterated this approach to assess and [sic] post charge delay in R. v. Cody in 2017. To rebut the presumption that delay is unreasonable, the Crown must establish the presence of exceptional circumstances defined as either discrete events, or a particular [sic] complex case."
+   },
+   {
+    "label": "74",
+    "marker_order": 28,
+    "role": "quoted_or_foreign",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 31811,
+     "end": 31993
+    },
+    "body_chars": 176,
+    "body_sha256": "009a3d2d4afc66364deaee23a6d1f84045d334b605ef445bcf3f433266d4f9be",
+    "body": "The Court recognized that discrete events result in quantitative deductions of particular periods of time. On the other hand, case complexity requires a qualitative assessment."
+   },
+   {
+    "label": "75",
+    "marker_order": 29,
+    "role": "quoted_or_foreign",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 31993,
+     "end": 32464
+    },
+    "body_chars": 465,
+    "body_sha256": "c8c4df2308967f4f765b3becd520ac05e42c2cd77d414ee59d4caf066a979218",
+    "body": "In Cody, the Court also provided guidance in relation to Defence waiver and the import of the conduct of the Defence throughout the proceedings. Defence waiver can be either explicit or implicit so long as it is informed, clear, and unequivocal. Defence actions that legitimately take and to [sic] respond to the charges are not deductible, but clearly an accused is not entitled to benefit from their own delay-causing action or inaction.\nExceptional circumstances"
+   },
+   {
+    "label": "16",
+    "marker_order": 30,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 32464,
+     "end": 32761
+    },
+    "body_chars": 291,
+    "body_sha256": "92267584e63c8138ed993b5c55ce2eb42f999ee8a73f1128bc58a5e2e1a85e39",
+    "body": "The judge was required to determine whether there were discrete events that could be characterized as exceptional, and therefore out of the Crown’s control. In particular, the focus was on the issues involving the complainant that arose after Mr. Lee’s trial was first set for November 2020."
+   },
+   {
+    "label": "17",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 32761,
+     "end": 33015
+    },
+    "body_chars": 248,
+    "body_sha256": "340e0c4bcc264b57b25d13cc6b0f18ba18939bf1d17634b08044c671b71c82f6",
+    "body": "Jordan instructed judges that exceptional circumstances outside the Crown’s control are those that “are reasonably unforeseen or reasonably unavoidable” and for which “Crown counsel cannot reasonably remedy the delays” arising therefrom (para. 69)."
+   },
+   {
+    "label": "18",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 33015,
+     "end": 33323
+    },
+    "body_chars": 302,
+    "body_sha256": "473662b5f172495592fb16f49c08bde4210831fd06da83a9a98475661d949a11",
+    "body": "The Crown says the judge overlooked the distinction between allocation of delay and attribution of delay, which eventually led to a failure to properly characterize certain delays as constituting exceptional circumstances. The Crown relies on R. v. Virk, 2021 BCCA 58, where that distinction was drawn:"
+   },
+   {
+    "label": "13",
+    "marker_order": 33,
+    "role": "quoted_or_foreign",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 33323,
+     "end": 34215
+    },
+    "body_chars": 886,
+    "body_sha256": "041bc61aa66758242ea9666e61cbfcf64998135cdba461a4754517f48be8a409",
+    "body": "The errors identified in both S.C.W. and Pipping concerned attribution of delay, that is, what or who caused a period of delay. When a judge determines what caused a delay or whether steps were taken with the intention of delaying proceedings and was thus illegitimate, the judge is making a finding of fact or drawing an inference. This attribution of responsibility is therefore owed deference on appeal. Allocation is distinct from attribution. Allocation involves the application of legal principles to the facts found concerning the cause of delay, in order to categorize the period of delay within the Jordan or Morin framework. Attribution (deciding who or what caused a delay) will often effectively determine allocation (under Jordan whether that delay will be deducted), but that is not always so. They are distinct steps, and different standards of review apply to each step."
+   },
+   {
+    "label": "14",
+    "marker_order": 34,
+    "role": "quoted_or_foreign",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 34215,
+     "end": 34831
+    },
+    "body_chars": 610,
+    "body_sha256": "c527c26b930f29a3e8b7e8be37f25b3ffcfac0d2b9d5c583ea1bbae6da2559de",
+    "body": "The distinction between attribution and allocation can be demonstrated by way of example. If a judge were to find that defence counsel caused a period of delay by not being available to set trial dates when both the Crown and court were, that is a finding of fact to which deference is owed. But if the judge were, at that point, to decide that the resulting delay should not be allocated to defence delay because defence counsel cannot be expected always to be available, that would be an error of law. There is an established principle that such delay is to be allocated to defence delay: Jordan at para. 64."
+   },
+   {
+    "label": "19",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 34831,
+     "end": 35365
+    },
+    "body_chars": 528,
+    "body_sha256": "c61a97699dfcf3588e87627f432ae65636e3499da5ca2ac879b4107d4f68c8d9",
+    "body": "The Crown says, and I agree, the attribution of the delay caused by an adjournment is not always limited simply to which party requested it. In this case, there were several reasons for the adjournment of the November 2020 trial date. The Crown says some of those relate to the actions or inactions of the defence and some relate to institutional delay on the part of the court. I would add as well that as her decision reflects, the judge was of the view the Crown also bore some responsibility in relation to that adjournment."
+   },
+   {
+    "label": "20",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 35365,
+     "end": 36176
+    },
+    "body_chars": 805,
+    "body_sha256": "3f779181d194a1f46cc5100af6fcea3696e69bf0949b32ed6c23becf2b99f470",
+    "body": "The Crown correctly asserts the judge was required to consider whether the circumstances were unavoidable or unreasonable, but not both. It points to the judge’s analysis of exceptional circumstances and her use of the phrase “reasonably unavoidable” with the phrase “reasonably unforeseen”. The Crown says the linking of the two concepts constitutes error on the judge’s part. It says once the judge determined something was unforeseen, she did not then need to consider whether it was unavoidable, and should have instead proceeded to the second step of the analysis. Specifically, once the judge found the adjournment of the November 2020 trial was reasonably unforeseen due to the victim’s memory difficulties, she did not need to then consider also the question of whether that delay was unavoidable."
+   },
+   {
+    "label": "21",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 36176,
+     "end": 36281
+    },
+    "body_chars": 99,
+    "body_sha256": "4cd9f5afdd72d1061e301e5221902b8b1ff9c94e29fafc90a2a3ae835e704d4f",
+    "body": "The judge was thorough in her rejection of the Crown’s submissions as to exceptional circumstances:"
+   },
+   {
+    "label": "139",
+    "marker_order": 38,
+    "role": "quoted_or_foreign",
+    "marker": "[139]",
+    "raw_span": {
+     "start": 36281,
+     "end": 36662
+    },
+    "body_chars": 374,
+    "body_sha256": "2a16152884940026ea63cd48e3b3c11e8aca9672d57ffe8417d5869df1dfc09a",
+    "body": "I am confident that if the Crown knew in June that the complainant was in Korea, immediate action would've been taken. And in the context of the emerging pandemic it was imperative for the Crown to become aware of the true state of the prosecution, and failing to do so put the prosecution on the path that led to the trial being adjourned on the date scheduled to commence."
+   },
+   {
+    "label": "140",
+    "marker_order": 39,
+    "role": "quoted_or_foreign",
+    "marker": "[140]",
+    "raw_span": {
+     "start": 36662,
+     "end": 36911
+    },
+    "body_chars": 242,
+    "body_sha256": "1325712c086cbda4e8282dac8f011782279bf33f163e8c8fc376b24662a4d39e",
+    "body": "I am not satisfied that the problem was unavoidable. Unexpected, yes, but not unavoidable. Had the Crown made contact with the complainant before mid to late September, the events of October and November described above may not have occurred."
+   },
+   {
+    "label": "141",
+    "marker_order": 40,
+    "role": "quoted_or_foreign",
+    "marker": "[141]",
+    "raw_span": {
+     "start": 36911,
+     "end": 37185
+    },
+    "body_chars": 267,
+    "body_sha256": "66c3ba1ca8e07a74ed33d406f2496f6cc89b514fe6279133c0da72bfa993821c",
+    "body": "So, for these reasons I disagree with the proposition that on November 16, 2020 the Crown was prepared to proceed. In my view it cannot be said that the Court would've permitted the complainant to testify by video given the very significant change in circumstances.\n…"
+   },
+   {
+    "label": "144",
+    "marker_order": 41,
+    "role": "quoted_or_foreign",
+    "marker": "[144]",
+    "raw_span": {
+     "start": 37185,
+     "end": 37504
+    },
+    "body_chars": 312,
+    "body_sha256": "26303a8914bccba813ed2c5ddca2a604ac42b55f126555a1a60ec3f119188441",
+    "body": "In terms of whether the memory issue was unexpected, and whether this could be seen as an exceptional circumstance justifying the delay in this case, it is fair to say that the Crown would not be expected to anticipate this very serious memory problem reported in the October 30th email to the officer in charge."
+   },
+   {
+    "label": "146",
+    "marker_order": 42,
+    "role": "quoted_or_foreign",
+    "marker": "[146]",
+    "raw_span": {
+     "start": 37504,
+     "end": 38034
+    },
+    "body_chars": 523,
+    "body_sha256": "7d1c3de4fcd981f033d9d4a14392f94544f5eefce7b84bdd0d23bea6c11b9753",
+    "body": "As I have explained, what happened here had two components. The complainant was not resident in Canada, and she experienced a serious problem with her memory of the incident. As above, had the Crown made contact with the complainant earlier, the fact that she was in Korea could've been addressed early on. Earlier contact with the complainant may have well brought the memory issues to the forefront much earlier, as I have described above. Accordingly, the problems could've been mitigated and were not truly unavoidable."
+   },
+   {
+    "label": "147",
+    "marker_order": 43,
+    "role": "quoted_or_foreign",
+    "marker": "[147]",
+    "raw_span": {
+     "start": 38034,
+     "end": 38579
+    },
+    "body_chars": 538,
+    "body_sha256": "ca4580368270fb21b4298fb147ffc122bc02efc9a9489617247f632a2f1d3ea5",
+    "body": "The problem with respect to the memory was unforeseeable, but that begs the question of when the Crown could have or should have become aware of the problem. The example given by the majority in Jordan is not analogous to this case. A witness who unexpectedly recants while testifying is a reference to a witness who was not expected to recant prior to the start of the trial. It suggests [sic] prior contact with and preparation of the witness in advance of the trial leading to the unexpected result that the witness recants at trial.\n…"
+   },
+   {
+    "label": "156",
+    "marker_order": 44,
+    "role": "quoted_or_foreign",
+    "marker": "[156]",
+    "raw_span": {
+     "start": 38579,
+     "end": 38980
+    },
+    "body_chars": 394,
+    "body_sha256": "c114b623d0f26b002c135686ad20a6eea097776130369fbb6a9d187aa9956fb6",
+    "body": "In sum I return to Jordan in [sic] the Supreme Court of Canada's direction that discrete exceptional events which are reasonably unforeseeable or reasonably unavoidable are to be deducted from the delay period to the extent that they cannot be reasonably mitigated by the Prosecution or the justice system. If they can be mitigated but are not, then that portion is not deducted from the delay."
+   },
+   {
+    "label": "157",
+    "marker_order": 45,
+    "role": "quoted_or_foreign",
+    "marker": "[157]",
+    "raw_span": {
+     "start": 38980,
+     "end": 39260
+    },
+    "body_chars": 273,
+    "body_sha256": "9bb92deb90e7d70b8aa558bffcc4e2288586f3c5b3c791c9e646e3b8423742cf",
+    "body": "I am not persuaded to find that the discrete event at issue here was reasonably unavoidable or reasonably unforeseen as I have discussed. Accordingly the delay occasioned by the trial being adjourned should not be deducted from delay in my view.\n(underlined emphasis added)"
+   },
+   {
+    "label": "22",
+    "marker_order": 46,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 39260,
+     "end": 39549
+    },
+    "body_chars": 283,
+    "body_sha256": "34ac22dd3339119eebb7954eb8b9487df528e1519cd6c2fcd6d7dbf105828036",
+    "body": "The judge’s reasons make it clear she was not requiring that she be satisfied of both the unforeseen and the unavoidable nature of the events she determined factored into the adjournment of the trial in November 2020. The Crown has not persuaded me there is any error in this regard."
+   },
+   {
+    "label": "23",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 39549,
+     "end": 40202
+    },
+    "body_chars": 647,
+    "body_sha256": "e0c8d5a681ddba9b44ffae1bd2838be6c189c03b2baf5ee06fe3d5ee1a1ba173",
+    "body": "The Crown also maintains the memory difficulties of the complainant and the complainant’s decision to disclose screenshot materials in the fall of 2020 were sources of delay outside the Crown’s control, and therefore should also have been characterized by the judge as exceptional circumstances. The Crown says it was impossible to predict the defence would want to explore the complainant’s disclosure of screenshot messages or make a motion concerning them. With respect, it is difficult to imagine it could have come as any surprise to the Crown that the defence, when it learned about additional disclosure, wanted to explore its implications."
+   },
+   {
+    "label": "24",
+    "marker_order": 48,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 40202,
+     "end": 40772
+    },
+    "body_chars": 564,
+    "body_sha256": "11297abeafadb8018e97a638cf60ca5fbe013020ef7cecbc11c929347db72b26",
+    "body": "The Crown also says it had no capacity to control disclosure of which it was unaware until the complainant provided it. Likewise, it suggests, had the complainant never raised her memory problems, which nonetheless eventually resolved, the Crown might never have known about that difficulty. While I do not disagree, it is apparent from the judge’s decision she interpreted the Crown’s lack of attention to the complainant, and to the case overall, at an earlier point in the timeline as contributing in a significant way to the delay caused by those developments."
+   },
+   {
+    "label": "25",
+    "marker_order": 49,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 40772,
+     "end": 41481
+    },
+    "body_chars": 703,
+    "body_sha256": "dd74474b7c7c593b6914e24dfe799efe17fbbca5a8c94819e478e4468fa16c6f",
+    "body": "Mr. Lee says there were a variety of events, in addition to those the Crown now raises, which culminated in the November 2020 adjournment. He says the Crown was trying to “salvage” a case to which it had not been paying attention, as illustrated in the Crown’s October 6th application for an adjournment, which was abandoned three days later. Mr. Lee describes that issues began to “snowball” shortly prior to the November 2020 trial date. He rejects the suggestion there was any discrete event that caused the delay, because once the complainant’s memory issues arose, there were still efforts to have the trial proceed, although by the week of November 10th, it seemed unlikely that would be possible."
+   },
+   {
+    "label": "26",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 41481,
+     "end": 41881
+    },
+    "body_chars": 394,
+    "body_sha256": "30203d0366b6fc73dfd24502a20b33204604461939348b9839da33b14dac466f",
+    "body": "The Crown asks us to consider whether the judge improperly assumed that had the Crown tended to matters within its control at an earlier time, things may not have unfolded the way they did. It was open to the judge to view the Crown’s responsibility in the continuum of events as she did. Her conclusion does not constitute error, even though the Crown would have preferred a different outcome."
+   },
+   {
+    "label": "27",
+    "marker_order": 51,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 41881,
+     "end": 42624
+    },
+    "body_chars": 737,
+    "body_sha256": "217e7c25d4c40598499664a1f0e1f8642b4462d7c22ec38104a43fbccfac7872",
+    "body": "The Crown’s argument would seem to imply it was the complainant’s obligation to reveal the existence of additional materials to the police, thereby absolving the Crown of responsibility, and thus constituting exceptional circumstances. This begs the question as to how the complainant would have been in a position to determine what might be relevant to the police or the Crown in their prosecution of the case? The suggestion the Crown does not bear responsibility for that aspect of the delay was not persuasive to the judge. In her analysis the judge was clear as to why she was attributing certain delay to the Crown, rather than concluding exceptional circumstances were in play. I see no error in the judge having found as she did."
+   },
+   {
+    "label": "28",
+    "marker_order": 52,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 42624,
+     "end": 43185
+    },
+    "body_chars": 555,
+    "body_sha256": "9afd9412c1419879d878077c7134dd755d5fef26b3539b7b086c543ea9eee4e4",
+    "body": "At step two of the analysis, the judge was required to look at the Crown’s conduct once the issues that necessitated the adjournment arose, and its efforts to ameliorate any delay. The Crown says it took several “vigorous” steps, such as looking for available dates on multiple court dockets to target the earliest time to continue the matter, and securing translation of certain disclosure. It says those steps should have been considered by the judge and had she done so, those aspects of the delay would have been properly excised from the total delay."
+   },
+   {
+    "label": "29",
+    "marker_order": 53,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 43185,
+     "end": 43264
+    },
+    "body_chars": 73,
+    "body_sha256": "21c7faf9f66b716678a66e1af761b3454d45ef515d674f160ff6e44bdb2bd805",
+    "body": "Her decision reflects the judge did indeed recognize the Crown’s efforts:"
+   },
+   {
+    "label": "98",
+    "marker_order": 54,
+    "role": "quoted_or_foreign",
+    "marker": "[98]",
+    "raw_span": {
+     "start": 43264,
+     "end": 43417
+    },
+    "body_chars": 147,
+    "body_sha256": "f24e2f59301246274eb79fe23050c77ed6432b785cf05bfc449777942b8b0e8c",
+    "body": "As soon as the first trial date was adjourned, the Crown and the Court made efforts to find earlier dates for trial. I asked what did the Crown do?"
+   },
+   {
+    "label": "99",
+    "marker_order": 55,
+    "role": "quoted_or_foreign",
+    "marker": "[99]",
+    "raw_span": {
+     "start": 43417,
+     "end": 43643
+    },
+    "body_chars": 220,
+    "body_sha256": "482fb0f35283c57a96c19fe7bfe399e5b8de4505734b372b4279af461c7834aa",
+    "body": "[…] The Crown's efforts to secure earlier court dates were meaningful. Ms. Ball clearly worked hard to review dockets , speak with colleagues in the hopes of coming up with alternate trial time and I commend her efforts."
+   },
+   {
+    "label": "100",
+    "marker_order": 56,
+    "role": "quoted_or_foreign",
+    "marker": "[100]",
+    "raw_span": {
+     "start": 43643,
+     "end": 43873
+    },
+    "body_chars": 223,
+    "body_sha256": "20a05d2f0ded982d263adc4d73e0e427874c732b0cb223971951a5e9e24fe084",
+    "body": "The reality is that these efforts did not result in identifying dates that could actually be offered to the Defence. […] To be clear, Ms. Ball ' s efforts were laudable but unfortunately no earlier dates could be secured.\n…"
+   },
+   {
+    "label": "114",
+    "marker_order": 57,
+    "role": "quoted_or_foreign",
+    "marker": "[114]",
+    "raw_span": {
+     "start": 43873,
+     "end": 44539
+    },
+    "body_chars": 659,
+    "body_sha256": "8c57afd93db383afba11963bb1624075dcbdac70283e483ee77e1bc93b0bd3dd",
+    "body": "After the November 2020 adjournment , the Defence also raised the possibility of applications to obtain the newly disclosed diary and medical records. Sorry, in existence of - disclosed the existence of a diary and some further medical records. The applications were never needed, in fact, as the Crown facilitated obtaining the third party records with waiver. I note\nexcept, of course, for the records created in January of 2021, but their existence not disclosed to the Crown until September of 2021. The issues raised in November of 2020 have all been resolved at this point in time. They will not cause delay in starting the trial on November 29, 2021.\n…"
+   },
+   {
+    "label": "117",
+    "marker_order": 58,
+    "role": "quoted_or_foreign",
+    "marker": "[117]",
+    "raw_span": {
+     "start": 44539,
+     "end": 44937
+    },
+    "body_chars": 391,
+    "body_sha256": "59117bc647eceb2b12279decd6b7487d04f8e99e04ca61eabc567e68d785973b",
+    "body": "To be clear, there is no suggestion that any of the above applications were frivolous. In fact the Crown obtained and disclosed the diary and two of the three medical records by way of waiver. The motion for directions resulted in a ruling that some of the text messages would be subject to the 278.3 legislation, and they, too, were produced by waiver by the Crown by way of waiver. [sic]\n…"
+   },
+   {
+    "label": "153",
+    "marker_order": 59,
+    "role": "quoted_or_foreign",
+    "marker": "[153]",
+    "raw_span": {
+     "start": 44937,
+     "end": 45505
+    },
+    "body_chars": 561,
+    "body_sha256": "fef507eca9715abfdd91f7b4263496fc27cb2b7fff209a7158c369bd8f92391c",
+    "body": "As above, the Crown did make valiant efforts to assist in the search for trial dates earlier than November 29th of 2021. The Crown explored avenues available to the Crown and not to the Court to ask her colleagues directly whether sufficient time might become available in order to schedule this trial at an earlier time. And further, Crown Counsel made prompt arrangements to have independent counsel appointed for the complainant so that issues involving the text messages and medical records could be resolved in a timely - were resolved in a timely fashion."
+   },
+   {
+    "label": "30",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 45505,
+     "end": 45869
+    },
+    "body_chars": 358,
+    "body_sha256": "f9a16eca4f5f346bbd81675f0c72b5f8db46b4f8e7384338a4ae550b560c8440",
+    "body": "I am not persuaded the judge erred in either her categorization or attribution of delay. Nor do I see any error with respect to her allocation of delay. Her reasons make clear why the judge concluded certain delay was attributable to the Crown rather than being characterized as exceptional circumstances. I would dismiss this ground of appeal.\nDefence delay"
+   },
+   {
+    "label": "31",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 45869,
+     "end": 46482
+    },
+    "body_chars": 607,
+    "body_sha256": "bce5973ecf8f66ae44b0559f0b13e8b86cf30fe7caebedbb77e8f593ff4bf9b0",
+    "body": "Cody recognized the assessment of defence conduct is a “highly discretionary” task rather than an “exact science”, one for which the application judge is best suited (para. 31). As the Crown reminds us, Cody also recognized the tension between the right to make full answer and defence and the right to a timely trial. In oral submissions the Crown suggested the Supreme Court of Canada was prepared to have that tension exist in light of the burden on the defence to be proactive in its conduct of the case. That burden was recently reiterated by the Supreme Court of Canada in R. v. Boulanger, 2022 SCC 2:"
+   },
+   {
+    "label": "5",
+    "marker_order": 62,
+    "role": "quoted_or_foreign",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 46482,
+     "end": 46912
+    },
+    "body_chars": 425,
+    "body_sha256": "40580b3a85891ec100c9293a335026a4c3ea87665b412da1a643509fcc3c10aa",
+    "body": "[…] it is not sufficient that the step taken by the respondent be legitimate for the delay not to be attributable to him. In this case, it is the manner in which the defence conducted itself with respect to its motion for an unredacted copy of the information that was illegitimate, particularly because of how late the motion was brought. […]\nSee also R. v. Lai, 2021 SCC 52 at para 1; R. v. King, 2018 NLCA 66 at para. 165."
+   },
+   {
+    "label": "32",
+    "marker_order": 63,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 46912,
+     "end": 47803
+    },
+    "body_chars": 885,
+    "body_sha256": "41cfc84c4d0cf1c16db499201e28c9eb225e100a70368591890f0cafbfea7b5d",
+    "body": "The Crown points to several aspects of the path of Mr. Lee’s case which led to delay that it says should properly have been attributed to the defence. The first is in relation to the need for the defence to consider, at the time of the November 2020 adjournment, whether it wished to advance any application upon learning the complainant had suffered serious difficulties with her memory in the months prior to the intended trial date. The Crown says it was up to the defence to pursue any application it wished and therefore any delay in that respect should properly have fallen to the defence, as no application was eventually needed because the complainant recovered her memory. The Crown also points to the availability of trial dates in February and March 2021 that could not be utilized because the defence’s decision about whether to make an application still had not been made."
+   },
+   {
+    "label": "33",
+    "marker_order": 64,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 47803,
+     "end": 48207
+    },
+    "body_chars": 398,
+    "body_sha256": "56114352a01d1f6807425635b019f4756a42349e9d6f95832c39692cdeb0fd4e",
+    "body": "At the time of the November 20, 2020 adjournment the defence also wished to explore the possibility of additional disclosure in the form of text messages of the complainant. The Crown says this delay too should have fallen to the defence, because the Crown re-iterated several times in the period between the November adjournment and March 4, 2021, that it did not have any such further disclosure."
+   },
+   {
+    "label": "34",
+    "marker_order": 65,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 48207,
+     "end": 48597
+    },
+    "body_chars": 384,
+    "body_sha256": "4549b4a2fbcfd5efffc143b95ef6edce679cdb769c884786cede877a65913417",
+    "body": "The Crown raises as another factor the defence’s conduct concerning a possible s.278.9 application for medical records. Such an application was being contemplated in November 2020, but had not been filed. The Crown says it ameliorated any further delay by securing a waiver from the complainant so the materials could be used at trial, thereby precluding the need for the application."
+   },
+   {
+    "label": "35",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 48597,
+     "end": 49666
+    },
+    "body_chars": 1063,
+    "body_sha256": "a5bbf740f4f412d80ffb2743a5d9dbb21dd4883eca1a1ecb27098112d006df37",
+    "body": "The Crown raises both defence and the court’s obligations, within the Jordan framework, to be proactive in avoiding delay. The Crown asks us to consider the details regarding identification of possible adjourned trial dates. It points to the following as problematic:\n• During the discussion of dates that might be available, the judge did not provide the first available dates; instead she asked counsel when they would next be available to continue the matter.\n• There were earlier dates which the Court could not use because the defence was not available or was still contemplating possible applications. The Crown says the judge did not properly account for all of the delay occasioned by the defence, looking only at the period from August to December 2021, despite there being other times that “should probably have been considered” but were not.\n• The judge only looked at dates in her own courtroom. The Crown maintains this illustrates a system of centralized scheduling is needed in the Provincial Court to avoid gaps in seizing available court time.[2]"
+   },
+   {
+    "label": "36",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 49666,
+     "end": 50094
+    },
+    "body_chars": 422,
+    "body_sha256": "9f6d8ad85c2137e94d8f1cdd827c4dbebf691af701220f8cac3181d63ead9bb9",
+    "body": "Mr. Lee says the judge’s decision recognized, properly assessed and assigned the delay. He asserts it is unfair to assume the defence was “doing nothing”, especially in light of the additional factor of the court’s availability. While Mr. Lee agrees some delay was properly attributable to him, which the judge recognized and accounted for, he rejects the suggestion all of the delay would properly rest with him. I agree."
+   },
+   {
+    "label": "37",
+    "marker_order": 68,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 50094,
+     "end": 50712
+    },
+    "body_chars": 612,
+    "body_sha256": "be834a4ac682fbda01e511b4bb756277a852e821572f060bbf0fb4862c9b5873",
+    "body": "Finally, the Crown complains the judge improperly speculated in considering what might have happened had the Crown reached out to the complainant before September 2020. In my view, engaging in Jordan calculations may, in some circumstances, make inevitable some degree of speculation because the very task of the judge is to look back on a chronology of events that have already unfolded, to reflect both on their significance and their impact on the process, and the resultant calculation of delay. The judge recognized the highly contextual circumstances of each case when the Jordan ceiling has been exceeded:"
+   },
+   {
+    "label": "149",
+    "marker_order": 69,
+    "role": "quoted_or_foreign",
+    "marker": "[149]",
+    "raw_span": {
+     "start": 50712,
+     "end": 51081
+    },
+    "body_chars": 362,
+    "body_sha256": "2f5ac2ddfcf4b352edcd3b32aa2b3e0fc3881758ddd2612e096d2eb3e0c30f82",
+    "body": "The right to be tried within a reasonable time is easy to state and understand: people charged with offences should be tried within a reasonable time. Determining whether the right has been breached in a specific case, however, may be far from straightforward. The right is by its very nature fact-sensitive and case-specific. There are several reasons for this."
+   },
+   {
+    "label": "150",
+    "marker_order": 70,
+    "role": "quoted_or_foreign",
+    "marker": "[150]",
+    "raw_span": {
+     "start": 51081,
+     "end": 51513
+    },
+    "body_chars": 425,
+    "body_sha256": "c6b09e6ad9b70e220661ec754c58cadd375222bc6c1805c58b93604424ff72f2",
+    "body": "First, the term “delay” is not entirely apt. While delay has a pejorative connotation, delay, in the sense of the passage of time, is inherent in any legal proceeding. In fact, some delay may be desirable. As stated by Lamer J., dissenting but not on this point, with Dickson C.J. concurring, undue haste itself can make a trial unfair: see Mills, at p. 941. Therefore, delay only becomes problematic when it is unreasonable."
+   },
+   {
+    "label": "151",
+    "marker_order": 71,
+    "role": "quoted_or_foreign",
+    "marker": "[151]",
+    "raw_span": {
+     "start": 51513,
+     "end": 52198
+    },
+    "body_chars": 678,
+    "body_sha256": "cf79ea0b3a31df5075cfbfad88544155eea97097660551c47493948c9b08ed90",
+    "body": "Second, unreasonableness is not conducive to being captured by a set of rules: a reasonable time for the disposition of one case may be entirely unreasonable for another. Reasonableness is an inherently contextual concept, the application of which depends on the particular circumstances of each case. This makes it difficult and in fact unwise to try to establish the reasonable time requirements of a case by a numerical guideline. Inevitably, the ceiling will be too high for some cases and too low for others. More fundamentally, a fixed guideline is inconsistent with the notion of reasonableness in the context of the infinitely varied situations that arise in real cases."
+   },
+   {
+    "label": "152",
+    "marker_order": 72,
+    "role": "quoted_or_foreign",
+    "marker": "[152]",
+    "raw_span": {
+     "start": 52198,
+     "end": 52748
+    },
+    "body_chars": 543,
+    "body_sha256": "f3e6d9a8333474cc7d4823ddd45fc76e997f3b1b4d7451da6b937312e8b36de8",
+    "body": "Third, the Charter protects only against state action. Even if a case took too long to be dealt with, there will only be a breach of the right if that unreasonable delay counts against the state. And so it follows that the focus is not on unreasonable delay in general, but on unreasonable delay that properly counts against the state. We must therefore attribute responsibility for the delay that has occurred and only factor in the delay which can fairly be counted against the state in deciding whether the Charter right has been infringed."
+   },
+   {
+    "label": "38",
+    "marker_order": 73,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 52748,
+     "end": 53128
+    },
+    "body_chars": 374,
+    "body_sha256": "7dddedf8030b863473a00ccb9e9397858515e9610b79d923582cfb2944a206be",
+    "body": "I would dismiss the Crown’s second ground of appeal regarding allocation of defence delay. The Crown did not persuade the judge there should be allocation of delay to the defence that would have led her to dismiss the stay application. Nor am I persuaded the judge erred in her conclusions such that all of the delay in this case would properly belong on the defence ledger."
+   },
+   {
+    "label": "39",
+    "marker_order": 74,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 53128,
+     "end": 53316
+    },
+    "body_chars": 182,
+    "body_sha256": "eed4c63198ca1e4d7ffda677614ac39bce9eff34e06661820f0bbe0bb1fbb25b",
+    "body": "In conclusion, the judge articulated the applicable test, applied it to the circumstances before her, and reached a set of conclusions which, absent error, are entitled to deference."
+   },
+   {
+    "label": "40",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 53316,
+     "end": 53405
+    },
+    "body_chars": 83,
+    "body_sha256": "c80cac3fd9210cff12e61533462a56066c94688b282dd153e549de00326f58bd",
+    "body": "I would dismiss the appeal.\nBeaton, J.A.\nConcurred in:\nBeveridge, J.A.\nFarrar, J.A."
+   },
+   {
+    "label": "1",
+    "marker_order": 76,
+    "role": "quoted_or_foreign",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 53405,
+     "end": 53534
+    },
+    "body_chars": 124,
+    "body_sha256": "56acab08172fbae307dce2207eac9f5a4afe6c73e0eea3a26a7494b32fd4f3d0",
+    "body": "Numerous footnotes found in the chart are omitted here, as they are not necessary to understanding the chronology of events."
+   },
+   {
+    "label": "2",
+    "marker_order": 77,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 53534,
+     "end": 53866
+    },
+    "body_chars": 327,
+    "body_sha256": "32a0dfc642629d6926e5cb64f81fe1445e3233156b38d2127598b06822a9c151",
+    "body": "The Crown invited this Court to “provide guidance” by insisting upon centralized scheduling to ameliorate delay potential. That invitation must be declined. The Provincial Court’s docketing system is not germane to the issues in this appeal. It would be inappropriate to opine, in a vacuum, on the system used in another court."
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 13,
+  "values": [
+   "2016 SCC 27",
+   "2021 NSCA 37",
+   "2022 SKCA 109",
+   "2017 SCC 31",
+   "2021 BCCA 58",
+   "2022 SCC 2",
+   "2021 SCC 52",
+   "2018 NLCA 66",
+   "2018 NSCA 62",
+   "2020 NSCA 78",
+   "2021 SCC 2",
+   "2020 ONCA 220",
+   "2020 NSCA 9"
+  ]
+ }
+}

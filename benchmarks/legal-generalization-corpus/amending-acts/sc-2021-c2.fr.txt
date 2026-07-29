@@ -1,0 +1,301 @@
+docContents' id='docCont'>
+
+Loi modifiant le Code criminel (aide médicale à mourir)
+
+L.C. 2021, ch. 2
+
+Sanctionnée 2021-03-17
+
+Loi modifiant le Code criminel (aide médicale à mourir)
+
+SOMMAIRE
+
+Le texte modifie le Code criminel afin, notamment :
+
+a) d’abroger la disposition exigeant que la mort naturelle soit raisonnablement prévisible pour être admissible à l’aide médicale à mourir;
+
+b) de préciser que l’aide médicale à mourir n’est pas permise lorsque la maladie mentale est la seule condition médicale invoquée;
+
+c) de créer deux séries de mesures de sauvegarde à respecter avant la prestation de l’aide médicale à mourir, chacune s’appliquant selon que la mort naturelle est raisonnablement prévisible ou non;
+
+d) de permettre la prestation de l’aide médicale à mourir à la personne jugée admissible dont la mort naturelle est raisonnablement prévisible et qui a perdu, avant la prestation, la capacité à consentir à recevoir l’aide médicale à mourir, si elle a conclu une entente préalable avec le médecin ou l’infirmier praticien;
+
+e) de permettre la prestation de l’aide médicale à mourir à la personne qui a perdu la capacité à y consentir, après s’être administrée une substance qui lui a été fournie dans le cadre des dispositions régissant l’aide médicale à mourir pour qu’elle cause sa mort.
+
+Préambule
+
+Attendu :
+
+que le gouvernement du Canada s’est engagé à donner suite à la décision de la Cour supérieure du Québec dans l’affaire Truchon c. le Procureur général du Canada;
+
+que le Parlement estime indiqué de ne plus limiter l’admissibilité à l’aide médicale à mourir aux personnes dont la mort naturelle est raisonnablement prévisible et de prévoir des mesures de sauvegarde additionnelles pour les personnes dont la mort naturelle n’est pas raisonnablement prévisible;
+
+que la Charte canadienne des droits et libertés dispose, d’une part, que chacun a droit à la vie, à la liberté et à la sécurité de sa personne et qu’il ne peut être porté atteinte à ce droit qu’en conformité avec les principes de justice fondamentale et, d’autre part, que tous ont droit à la même protection et au même bénéfice de la loi, indépendamment de toute discrimination;
+
+que le Canada est un État partie à la Convention relative aux droits des personnes handicapées des Nations Unies et reconnaît les obligations que celle-ci lui impose, notamment à l’égard du droit à la vie;
+
+que le Parlement affirme la valeur inhérente et l’égalité de chaque vie humaine et l’importance d’adopter, à l’égard de l’inclusion des personnes handicapées, une approche fondée sur les droits de la personne;
+
+qu’il reconnaît la nécessité d’établir un équilibre entre plusieurs intérêts et valeurs sociétales, notamment l’autonomie des personnes admissibles à l’aide médicale à mourir, la protection des personnes vulnérables contre toute incitation à mettre fin à leur vie et l’enjeu important de santé publique que constitue le suicide;
+
+qu’il est souhaitable d’adopter une approche cohérente dans tout le pays en matière d’aide médicale à mourir, tout en reconnaissant la compétence des provinces en ce qui a trait à différentes questions liées à l’aide médicale à mourir, notamment la prestation de services de soins de santé et la réglementation des professionnels de la santé, les contrats d’assurance ainsi que les coroners et médecins légistes;
+
+que le gouvernement du Canada s’est engagé à se doter d’un régime fédéral de surveillance qui prévoit une base de données nationale fiable afin d’assurer la responsabilité dans le cadre de la loi régissant l’aide médicale à mourir et d’améliorer la transparence dans la mise en oeuvre de celle-ci;
+
+que le Parlement estime indiqué de permettre à des personnes mourantes qui ont été jugées admissibles et qui sont en attente de recevoir l’aide médicale à mourir de l’obtenir même si elles ont perdu leur capacité à fournir un consentement final au moment de la prestation, à moins qu’elles ne manifestent des signes de refus ou de résistance à l’égard de la procédure, tout en reconnaissant que le fait de permettre l’aide médicale à mourir dans de telles circonstances comporte des risques inhérents et constitue une question complexe;
+
+que des consultations additionnelles et d’autres délibérations sont nécessaires pour décider s’il est indiqué de fournir l’aide médicale à mourir aux personnes atteintes d’une maladie mentale lorsque celle-ci est la seule condition médicale invoquée et, le cas échéant, pour décider de la manière de le faire, compte tenu des risques inhérents que comporte le fait de permettre l’aide médicale à mourir dans de telles circonstances et de la complexité de la question;
+
+que la loi prévoit qu’un comité du Parlement entamera, en juin 2020, un examen des dispositions de la loi portant sur l’aide médicale à mourir et de la situation des soins palliatifs au Canada, et que cet examen pourra notamment porter sur les demandes anticipées et les demandes où la maladie mentale est la seule condition médicale invoquée,
+
+Sa Majesté, sur l’avis et avec le consentement du Sénat et de la Chambre des communes du Canada, édicte :
+
+L.R., ch. C-46Code criminel
+
+Note marginale :2016, ch. 3, art. 3
+
+1 (1) L’alinéa 241.2(2)d) du Code criminel est abrogé.
+
+(2) L’article 241.2 de la même loi est modifié par adjonction, après le paragraphe (2), de ce qui suit :
+
+Note marginale :Exclusion
+
+(2.1) Pour l’application de l’alinéa (2)a), la maladie mentale n’est pas considérée comme une maladie, une affection ou un handicap.
+
+(2.1) Le paragraphe 241.2(2.1) de la même loi est abrogé.
+
+Note marginale :2016, ch. 3, art. 3
+
+(3) Le passage du paragraphe 241.2(3) de la même loi précédant l’alinéa a) est remplacé par ce qui suit :
+
+Note marginale :Mesures de sauvegarde — mort naturelle prévisible
+
+(3) Sous réserve du paragraphe (3.2), avant de fournir l’aide médicale à mourir à une personne dont la mort naturelle est raisonnablement prévisible compte tenu de l’ensemble de sa situation médicale et sans pour autant qu’un pronostic ait été établi quant à son espérance de vie, le médecin ou l’infirmier praticien doit, à la fois :
+
+Note marginale :2016, ch. 3, art. 3
+
+(4) L’alinéa 241.2(3)c) de la même loi est remplacé par ce qui suit :
+
+c) être convaincu que la demande a été datée et signée par la personne ou par le tiers visé au paragraphe (4) devant un témoin indépendant, qui l’a datée et signée à son tour;
+
+Note marginale :2016, ch. 3, art. 3
+
+(5) L’alinéa 241.2(3)g) de la même loi est remplacé par ce qui suit :
+
+g) si la personne éprouve de la difficulté à communiquer, prendre les mesures nécessaires pour lui fournir un moyen de communication fiable afin qu’elle puisse comprendre les renseignements qui lui sont fournis et faire connaître sa décision;
+
+Note marginale :2016, ch. 3, art. 3
+
+(6) L’alinéa 241.2(3)i) de la même loi est abrogé.
+
+(7) L’article 241.2 de la même loi est modifié par adjonction, après le paragraphe (3), de ce qui suit :
+
+Note marginale :Mesures de sauvegarde — mort naturelle non prévisible
+
+(3.1) Avant de fournir l’aide médicale à mourir à une personne dont la mort naturelle n’est pas raisonnablement prévisible compte tenu de l’ensemble de sa situation médicale, le médecin ou l’infirmier praticien doit, à la fois :
+
+a) être d’avis que la personne qui a fait la demande d’aide médicale à mourir remplit tous les critères prévus au paragraphe (1);
+
+b) s’assurer que la demande :
+
+(i) a été faite par écrit et a été datée et signée par la personne ou par le tiers visé au paragraphe (4),
+
+(ii) a été datée et signée après que la personne a été avisée par un médecin ou un infirmier praticien qu’elle est affectée de problèmes de santé graves et irrémédiables;
+
+c) être convaincu que la demande a été datée et signée par la personne ou par le tiers visé au paragraphe (4) devant un témoin indépendant, qui l’a datée et signée à son tour;
+
+d) s’assurer que la personne a été informée qu’elle pouvait, en tout temps et par tout moyen, retirer sa demande;
+
+e) s’assurer qu’un avis écrit d’un autre médecin ou infirmier praticien confirmant le respect de tous les critères prévus au paragraphe (1) a été obtenu;
+
+e.1) si ni lui ni l’autre médecin ou infirmier praticien visé à l’alinéa e) ne possède d’expertise en ce qui concerne la condition à l’origine des souffrances de la personne, s’assurer que lui-même ou le médecin ou infirmier praticien visé à l’alinéa e) consulte un médecin ou un infirmier praticien qui possède une telle expertise et communique à l’autre médecin ou infirmier praticien les résultats de la consultation;
+
+f) être convaincu que lui et l’autre médecin ou infirmier praticien visé à l’alinéa e) sont indépendants;
+
+g) s’assurer que la personne a été informée des moyens disponibles pour soulager ses souffrances, notamment, lorsque cela est indiqué, les services de consultation psychologique, les services de soutien en santé mentale, les services de soutien aux personnes handicapées, les services communautaires et les soins palliatifs et qu’il lui a été offert de consulter les professionnels compétents qui fournissent de tels services ou soins;
+
+h) s’assurer que lui et le médecin ou l’infirmier praticien visé à l’alinéa e) ont discuté avec la personne des moyens raisonnables et disponibles pour soulager ses souffrances et qu’ils s’accordent avec elle sur le fait qu’elle les a sérieusement envisagés;
+
+i) s’assurer qu’au moins quatre-vingt-dix jours francs se sont écoulés entre le jour où commence la première évaluation au titre du présent paragraphe de l’admissibilité de la personne selon les critères prévus au paragraphe (1) et celui où l’aide médicale à mourir est fournie ou, si toutes les évaluations sont terminées, et que lui et le médecin ou l’infirmier praticien visé à l’alinéa e) jugent que la perte de la capacité de la personne à consentir à recevoir l’aide médicale à mourir est imminente, une période plus courte qu’il juge indiquée dans les circonstances;
+
+j) si la personne éprouve de la difficulté à communiquer, prendre les mesures nécessaires pour lui fournir un moyen de communication fiable afin qu’elle puisse comprendre les renseignements qui lui sont fournis et faire connaître sa décision;
+
+k) immédiatement avant de fournir l’aide médicale à mourir, donner à la personne la possibilité de retirer sa demande et s’assurer qu’elle consent expressément à la recevoir.
+
+Note marginale :Renonciation au consentement final
+
+(3.2) Pour l’application du paragraphe (3), le médecin ou l’infirmier praticien peut, sans respecter l’exigence prévue à l’alinéa (3)h), administrer une substance à la personne pour causer sa mort, si les conditions ci-après sont réunies :
+
+a) avant la perte de la capacité de la personne à consentir à recevoir l’aide médicale à mourir, les conditions ci-après étaient réunies :
+
+(i) la personne remplissait tous les critères prévus au paragraphe (1) et toutes les autres mesures de sauvegarde prévues au paragraphe (3) avaient été respectées,
+
+(ii) elle avait conclu avec lui une entente par écrit selon laquelle il lui administrerait à une date déterminée une substance pour causer sa mort,
+
+(iii) elle avait été informée par lui du risque de perdre, avant cette date, sa capacité à consentir à recevoir l’aide médicale à mourir,
+
+(iv) elle avait consenti dans l’entente à ce que, advenant le cas où elle perdait, avant cette date, la capacité à consentir à recevoir l’aide médicale à mourir, il lui administre une substance à cette date ou à une date antérieure pour causer sa mort;
+
+b) elle a perdu la capacité à consentir à recevoir l’aide médicale à mourir;
+
+c) elle ne manifeste pas, par des paroles, sons ou gestes, un refus que la substance lui soit administrée ou une résistance à ce qu’elle le soit;
+
+d) la substance lui est administrée en conformité avec les conditions de l’entente.
+
+Note marginale :Précision
+
+(3.3) Il est entendu que des paroles, des sons ou des gestes involontaires en réponse à un contact ne constituent pas une manifestation de refus ou de résistance pour l’application de l’alinéa (3.2)c).
+
+Note marginale :Consentement préalable invalidé
+
+(3.4) Une fois que la personne manifeste, par des paroles, sons ou gestes, un refus que la substance lui soit administrée au titre du paragraphe (3.2) ou une résistance à ce qu’elle le soit, l’aide médicale à mourir ne peut plus lui être fournie sur la base du consentement visé au sous-alinéa (3.2)a)(iv).
+
+Note marginale :Consentement préalable — auto-administration
+
+(3.5) Lorsqu’une personne a perdu, après s’être administrée une substance qui lui a été fournie en conformité avec le présent article afin qu’elle cause sa mort, sa capacité à consentir à recevoir l’aide médicale à mourir, le médecin ou l’infirmier praticien peut lui administrer une substance pour causer sa mort si les conditions ci-après sont réunies :
+
+a) avant la perte de sa capacité à consentir à recevoir l’aide médicale à mourir, elle avait conclu avec lui une entente par écrit selon laquelle ce dernier :
+
+(i) serait présent au moment où elle s’administrerait la substance,
+
+(ii) advenant le cas où, après s’être administrée la substance, elle ne mourait pas dans une période déterminée et perdait la capacité à consentir à recevoir l’aide médicale à mourir, lui administrerait une substance pour causer sa mort;
+
+b) la personne s’est administrée la substance, mais ne meurt pas dans la période précisée dans l’entente et perd la capacité à consentir à recevoir l’aide médicale à mourir;
+
+c) la substance lui est administrée en conformité avec les conditions de l’entente.
+
+(8) L’article 241.2 de la même loi est modifié par adjonction, après le paragraphe (5), de ce qui suit :
+
+Note marginale :Exception
+
+(5.1) Malgré les alinéas (5)c) et d) et à l’exception des personnes ci-après, quiconque dont l’occupation principale consiste à fournir des services de soins de santé ou des soins personnels et qui est rémunéré pour les fournir à la personne qui fait la demande d’aide médicale à mourir peut agir en qualité de témoin indépendant :
+
+a) le médecin ou l’infirmier praticien qui fournira l’aide médicale à mourir à cette dernière;
+
+b) celui qui, à son égard, a donné l’avis visé aux alinéas (3)e) ou (3.1)e), selon le cas.
+
+Note marginale :2016, ch. 3, art. 3
+
+(9) Le passage du paragraphe 241.2(6) de la même loi précédant l’alinéa a) est remplacé par ce qui suit :
+
+Note marginale :Indépendance des médecins et infirmiers praticiens
+
+(6) Pour être indépendant, ni le médecin ou l’infirmier praticien qui fournit l’aide médicale à mourir ni celui qui donne l’avis visé aux alinéas (3)e) ou (3.1)e) ne peut :
+
+(10) À la fin de l’alinéa 241.2(6)b) de la version anglaise de la même loi, « or » est remplacé par « and ».
+
+Note marginale :2019, ch. 25, art. 80
+
+2 Le passage de l’article 241.3 de la même loi précédant l’alinéa a) est remplacé par ce qui suit :
+
+Note marginale :Non-respect des mesures de sauvegarde
+
+241.3 Le médecin ou l’infirmier praticien qui, dans le cadre de la prestation de l’aide médicale à mourir, omet sciemment de respecter, sous réserve du paragraphe 241.2(3.2), toutes les exigences prévues aux alinéas 241.2(3)b) à h) ou aux alinéas 241.2(3.1)b) à k), selon le cas, et au paragraphe 241.2(8) est coupable :
+
+Note marginale :2016, ch. 3, art. 4
+
+3 (1) Les paragraphes 241.31(1) et (2) de la même loi sont remplacés par ce qui suit :
+
+Note marginale :Renseignements à fournir — médecin et infirmier praticien
+
+241.31 (1) Sous réserve d’une exemption accordée au titre des règlements pris en vertu du paragraphe (3), le médecin ou l’infirmier praticien qui procède à l’évaluation de l’admissibilité d’une personne à l’aide médicale à mourir selon les critères prévus au paragraphe 241.2(1) ou qui reçoit une demande écrite d’aide médicale à mourir doit, en conformité avec ces règlements, fournir les renseignements qui y sont exigés à la personne qui y est désignée à titre de destinataire.
+
+Note marginale :Renseignements à fournir — responsable des évaluations préliminaires
+
+(1.1) Sous réserve d’une exemption accordée au titre des règlements pris en vertu du paragraphe (3), toute personne qui a la responsabilité de procéder aux évaluations préliminaires de l’admissibilité d’une personne à l’aide médicale à mourir selon les critères prévus au paragraphe 241.2(1) doit, en conformité avec ces règlements, fournir les renseignements qui y sont exigés à la personne qui y est désignée à titre de destinataire.
+
+Note marginale :Renseignements à fournir — pharmacien et technicien en pharmacie
+
+(2) Sous réserve d’une exemption accordée au titre des règlements pris en vertu du paragraphe (3), le pharmacien qui délivre une substance dans le cadre de la prestation de l’aide médicale à mourir ou la personne qui est autorisée à agir à titre de technicien en pharmacie en vertu des lois d’une province et qui délivre une substance en vue d’aider le médecin ou l’infirmier praticien à fournir l’aide médicale à mourir à une personne doit, en conformité avec ces règlements, fournir les renseignements qui y sont exigés à la personne qui y est désignée à titre de destinataire.
+
+Note marginale :2016, ch. 3, art. 4
+
+(2) Le passage de l’alinéa 241.31(3)a) de la même loi précédant le sous-alinéa (ii) est remplacé par ce qui suit :
+
+a) pour régir, aux fins de surveillance de l’aide médicale à mourir, la fourniture et la collecte de renseignements relatifs aux demandes d’aide médicale à mourir ou à la prestation de celle-ci, notamment :
+
+(i) les renseignements qui doivent, à différentes étapes, être fournis par les médecins, les infirmiers praticiens, les personnes visées au paragraphe (1.1) qui ont la responsabilité de procéder aux évaluations préliminaires, les pharmaciens et les techniciens en pharmacie, ou par toute catégorie de ceux-ci, y compris :
+
+(A) les éléments qui ont été considérés dans le cadre des évaluations — préliminaires ou non — de l’admissibilité d’une personne à l’aide médicale à mourir selon les critères prévus au paragraphe 241.2(1),
+
+(B) les renseignements concernant la race ou l’identité autochtone de la personne qui demande ou reçoit l’aide médicale à mourir, si celle-ci consent à les fournir,
+
+(C) les renseignements — à l’exclusion de ceux qui doivent être fournis relativement à l’évaluation de l’admissibilité à l’aide médicale à mourir ou à l’application des mesures de sauvegarde — concernant tout handicap, au sens de l’article 2 de la Loi canadienne sur l’accessibilité, d’une personne qui demande ou reçoit l’aide médicale à mourir, si celle-ci consent à les fournir,
+
+(2.1) L’alinéa 241.31(3)b) de la même loi est remplacé par ce qui suit :
+
+b) pour régir l’utilisation, l’analyse et l’interprétation de ces renseignements, notamment pour cerner toute inégalité — systémique ou autre — ou tout désavantage fondés soit sur la race, l’identité autochtone, le handicap ou d’autres caractéristiques, soit sur l’intersection de telles caractéristiques, dans le régime d’aide médicale à mourir;
+
+b.1) pour régir la protection, la publication et la communication de ces renseignements;
+
+(3) L’alinéa 241.31(3)d) de la même loi est remplacé par ce qui suit :
+
+d) pour soustraire, aux conditions précisées, toute catégorie de personnes aux obligations prévues aux paragraphes (1) à (2).
+
+Note marginale :2016, ch. 3, art. 4
+
+(4) Le passage du paragraphe 241.31(4) de la même loi précédant l’alinéa a) est remplacé par ce qui suit :
+
+Note marginale :Infraction et peine
+
+(4) Le médecin ou l’infirmier praticien qui omet sciemment de se conformer au paragraphe (1), la personne qui a la responsabilité de procéder aux évaluations préliminaires et qui omet sciemment de se conformer au paragraphe (1.1) ou le pharmacien ou le technicien en pharmacie qui omet sciemment de se conformer au paragraphe (2) commet une infraction et est coupable :
+
+(5) L’article 241.31 de la même loi est modifié par adjonction, après le paragraphe (5), de ce qui suit :
+
+Note marginale :Consultation
+
+(6) Dans l’exercice de ses responsabilités au titre du paragraphe (3), le ministre de la Santé consulte, lorsque cela est indiqué, le ministre responsable de la condition des personnes handicapées.
+
+Examen indépendant
+
+Note marginale :Examen par des experts
+
+3.1 (1) Les ministres de la Justice et de la Santé font réaliser par des experts un examen indépendant portant sur les protocoles, les lignes directrices et les mesures de sauvegarde recommandés pour les demandes d’aide médicale à mourir de personnes atteintes de maladie mentale.
+
+Note marginale :Rapport
+
+(2) Au plus tard au premier anniversaire de la sanction de la présente loi, un rapport faisant état des conclusions et recommandations des experts est présenté aux ministres.
+
+Note marginale :Dépôt
+
+(3) Les ministres font déposer le rapport devant chaque chambre du Parlement dans les quinze premiers jours de séance de cette chambre suivant la réception du rapport.
+
+Disposition transitoire
+
+Note marginale :Demande précédant la sanction
+
+4 Le médecin ou l’infirmier praticien qui fournit l’aide médicale à mourir à une personne qui, avant la date de sanction de la présente loi, a signé et daté une demande par écrit d’aide médicale à mourir la fournit en conformité avec l’article 241.2 du Code criminel, dans sa version antérieure à cette date, à l’exception de l’alinéa 241.2(3)g), et avec les paragraphes 241.2(3.2) à (3.5) de cette loi, édictés par la présente loi.
+
+Examen
+
+Note marginale :Examen parlementaire
+
+5 (1) Un examen approfondi des dispositions du Code criminel concernant l’aide médicale à mourir et de l’application de celles-ci, notamment des questions portant sur les mineurs matures, les demandes anticipées, la maladie mentale, la situation des soins palliatifs au Canada et la protection des Canadiens handicapés, est fait par un comité mixte du Sénat et de la Chambre des communes.
+
+Note marginale :Composition du comité
+
+(2) Le comité mixte est formé de cinq sénateurs et dix députés de la Chambre des communes, dont cinq proviennent du parti ministériel, trois députés de l’Opposition officielle et deux députés des autres partis en opposition qui ne font pas partie de l’opposition officielle, avec deux coprésidents, le coprésident agissant au nom de la Chambre représentant le parti ministériel et le coprésident agissant au nom du Sénat étant choisi par le Sénat.
+
+Note marginale :Quorum
+
+(3) Le quorum du comité est fixé à huit membres lorsqu’il y a prise d’un vote, d’une résolution ou d’une décision, à la condition que les deux chambres et un député du parti ministériel, un député de l’opposition et un membre du Sénat soient représentés, et les coprésidents sont autorisés à tenir réunion, à entendre des témoignages et à autoriser leur impression, à la condition que six membres du comité soient présents et que les deux Chambres et un député du parti ministériel, un député de l’opposition et un membre du Sénat soient représentés.
+
+Note marginale :Début des travaux
+
+(4) Le comité débute ses travaux dans les trente jours qui suivent la date de sanction de la présente loi.
+
+Note marginale :Rapport
+
+(5) Au plus tard un an après le début de son examen, le comité présente au Parlement son rapport faisant notamment état de tout changement recommandé.
+
+Note marginale :Dissolution du comité
+
+(6) Lorsque le rapport, mentionné au paragraphe (5), est déposé dans les deux chambres, le comité cesse d’exister.
+
+Entrée en vigueur
+
+Note marginale :Entrée en vigueur
+
+6 Le paragraphe 1(2.1) entre en vigueur au deuxième anniversaire de la sanction de la présente loi.
+
+<!--

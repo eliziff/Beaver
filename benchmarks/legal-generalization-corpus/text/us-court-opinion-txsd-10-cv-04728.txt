@@ -1,0 +1,2203 @@
+IN THE UNITED STATES DISTRICT COURT
+FOR THE SOUTHERN DISTRICT OF TEXAS
+HOUSTON DIVISION
+OMNI USA, INC., §
+§
+Plaintiff, §
+§
+VS. § CIVIL ACTION H-10-4728
+§
+PARKER-HANNIFIN CORPORATION, §
+§
+Defendant. §
+OPINION AND ORDER
+The above referenced action alleges that Defendant Parker-
+Hannifin Corporation ("Parker") improperly designed, manufactured,
+marketed, and serviced defective industrial oil seals sold to
+Plaintiff Omni USA, Inc. ("Omni") specifically for use in its
+gearboxes, sold as part of agricultural irrigation systems to a
+third party. The Court's Opinion and Order of March 27, 2012
+(instrument #26) dismissed with prejudice claims brought by Omni
+against Parker for fraud, fraudulent inducement, negligent
+misrepresentation, and violations of the Deceptive Trade Practices
+Act. Omni's remaining claims against Parker are for breach of
+express warranties under § 2.313 of the Texas Business and Commerce
+Code, breach of implied warranties of merchantability and fitness
+for a particular purpose under §§ 2.314 and 2.315 of the Texas
+Business and Commerce Code, and breach of performance contract as
+defined under §§ 2.201(c), 2.204, and 2.206 of the Texas Business
+and Commerce Code.
+-1-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 1 of 75
+Pending before the Court are the following motions: (1)
+Parker's motion for partial summary judgment (#33) on Omni's
+remaining claims on the grounds that there is no defect or no
+evidence of any defect in Parker's seals; (2) Parker's second
+motion for summary judgment (#36) on all of Omni's claims; (3)
+Parker's motion for partial summary judgment against Omni on
+Parker's counterclaims
+1 for unpaid invoices (#37); and (4) Parker's
+motion for spoliation instruction (#42).
+After reviewing the briefs, the record and the applicable law,
+for the reasons stated below the Court concludes that Parker's
+three motions for partial summary judgment should be granted as
+indicated in this document.
+Because Omni's response to #37 refers the Court to its
+responses to Parker's motions for partial summary judgment as
+evidence (#47, p. 3) to support its affirmative defenses to
+Parker's counterclaims, the Court will first address Parker's two
+motions for partial summary judgment (#33 and 36).
+I. Standard of Review
+Summary judgment under Federal Rule of Civil Procedure 56(c)
+is appropriate when, viewing the evidence in the light most
+favorable to the nonmovant, the court determines that "the
+pleadings, depositions, answers to interrogatories and admissions
+1 The controlling complaint is Omni's First Amended Original
+Complaint, instrument #16. Parker's Answer to Omni's First Amended
+Complaint and Counterclaims is in instrument #22.
+-2-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 2 of 75
+on file, together with the affidavits, show that there is no
+genuine issue as to any material fact and that the moving party is
+entitled to judgment as a matter of law." A dispute of material
+fact is "genuine" if the evidence would allow a reasonable jury to
+find in favor of the nonmovant. Anderson v. Liberty Lobby, Inc. ,
+477 U.S. 242, 248 (1986).
+Initially the movant bears the burden of identifying those
+portions of the pleadings and discovery in the record that it finds
+demonstrate the absence of a genuine issue of material fact and
+that the movant is entitled to summary judgment as a matter of law;
+the movant may, but is not required to, negate elements of the
+nonmovant's case to prevail on summary judgment. Celotex Corp. v.
+Catrett, 477 U.S. 317, 323 (1986); Lujan v. National Wildlife
+Federation, 497 U.S. 871, 885 (1990); Edwards v. Your Credit, Inc.,
+148 F.3d 427, 431 (5
+th Cir. 1998).
+If the movant meets its burden and points out an absence of
+evidence to prove an essential element of the nonmovant's case on
+which the nonmovant bears the burden of proof at trial, the
+nonmovant must then present competent summary judgment evidence to
+support the essential elements of its claim and to demonstrate that
+there is a genuine issue of material fact for trial. National
+Ass'n of Gov't Employees v. City Pub. Serv. Board, 40 F.3d 698, 712
+(5
+th Cir. 1994). "[A] complete failure of proof concerning an
+essential element of the nonmoving party's case renders all other
+-3-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 3 of 75
+facts immaterial." Celotex, 477 U.S. at 323. The nonmovant may
+not rely merely on allegations, denials in a pleading or
+unsubstantiated assertions that a fact issue exists, but must set
+forth specific facts showing the existence of a genuine issue of
+material fact concerning every element of its cause(s) of action.
+Morris v. Covan World Wide Moving, Inc,, 144 F.3d 377, 380 (5
+th Cir.
+1998). Conclusory allegations unsupported by evidence will not
+preclude summary judgment. National Ass'n of Gov't Employees v.
+City Pub. Serv. Board , 40 F.3d at 713; Eason v. Thaler, 73 F.3d
+1322, 1325 (5
+th Cir. 1996). "'[T]he mere existence of some alleged
+factual dispute between the parties will not defeat an otherwise
+properly supported motion for summary judgment . . . .'" State
+Farm Life Ins. Co. v. Gutterman, 896 F.2d 116, 118 (5
+th Cir. 1990),
+quoting Anderson v. Liberty Lobby, Inc. . 477 U.S. 242, 247-48
+(1986). "Nor is the 'mere scintilla of evidence' sufficient;
+'there must be evidence on which the jury could reasonably find for
+the plaintiff.'" Id., quoting Liberty Lobby, 477 U.S. at 252. The
+Fifth Circuit requires the nonmovant to submit "'significant
+probative evidence.'" Id., quoting In re Municipal Bond Reporting
+Antitrust Litig., 672 F.2d 436, 440 (5 th Cir. 1978), and citing
+Fischbach & Moore, Inc. v. Cajun Electric Power Co-Op. , 799 F.2d
+194, 197 (5th Cir. 1986). "If the evidence is merely colorable,
+or is not significantly probative, summary judgment may be
+granted." Thomas v. Barton Lodge II, Ltd., 174 F.3d 636, 644 (5th
+-4-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 4 of 75
+Cir. 1999), citing Celotex, 477 U.S. at 322, and Liberty Lobby,
+477 U.S. at 249-50.2
+The court must consider all evidence and draw all inferences
+from the factual record in the light most favorable to the
+nonmovant. Matsushita Elec. Indus. Co. v. Zenith Radio, 475 U.S.
+574, 587 (1986); National Ass'n of Gov't Employees v. City Pub.
+Serv. Board, 40 F.3d at 712-13.
+II. Relevant Substantive Law
+Parker's motions for partial summary are grounded in several
+provisions of the Texas Business and Commerce Code.3
+Breach of Contract
+Under the UCC, a breach of warranty, which is created when a
+seller makes an affirmation of fact or a promise to the purchaser
+that relates to the sale of a product and warrants a conformity to
+the affirmation or promise, is distinguishable from a breach of
+contract based on whether the buyer has finally accepted the
+2 The court has no obligation to "sift through the record in
+search of evidence" to support the nonmovant's opposition to the
+motion for summary judgment. Forsyth v. Barr, 19 F.3d 1527, 1533
+(5th Cir. 1994). Rather the nonmovant must identify evidence in the
+record and demonstrate how it supports his claim. Ragas v. Tenn.
+Gas Pipeline Co., 136 F.3d 455, 458 (5th Cir. 1998).
+3 Article 2 of the UCC relating to the sale of goods was
+adopted in Texas as Chapter 2 of the Business and Commerce Code.
+Mehler Texnologies, Inc. v. Monolithic Constructors, Inc., Civ. A.
+No. 3:09-cv-0655-M, 2009 WL 3149383, *3 & n.17 (N.D. Tex. Sept. 29,
+2009), citing Emerson Elec. Co. v. American Permanent Ware Co. ,
+201 S.W. 3d 301, 310 (Tex. App.-Dallas 2006, no pet.).
+-5-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 5 of 75
+goods4: "[w]hen a party fails to deliver the goods as promised, a
+breach of contract occurs[,] but when a seller delivers
+nonconforming goods, it is a breach of warranty." Structural
+Metals, Inc. v. S&C Elec. Co., No. SA-09-CV-984-XR, 2012 WL 930816,
+*3 (W.D. Tex. Mar. 19, 2012)(and cases cited therein), citing
+Chilton Ins. Co. v. Pate & Pate Enters., 930 S.W. 2d 877, 890 (Tex.
+App.--San Antonio 1996, writ denied); in accord, Ellis v. Precision
+Engine Rebuilders, Inc., 68 S.W. 3d 894, 897 (Tex. App.--Houston
+[1st Dist.] 2002, no pet.); Head v. U.S. Inspect DFW, Inc., 199 S.W.
+3d 731, 746 (Tex. App.--Fort Worth 2005). See generally
+Southwestern Bell Telephone Co. v. FDP Corp., 811 S.W. 2d 572, 576
+(Tex. 1991)("The UCC recognizes that breach of contract and breach
+of warranty are not the same cause of action. The remedies for
+breach of contract are set forth in [Texas Business and Commerce
+Code] section 2.711, and are available to a buyer '[w]here the
+seller fails to make delivery. . . .' The remedies for breach of
+warranty are set forth in section 2.714,
+5 and are available to a
+4 See Selectouch Corp. v. Perfect Starch, Inc. , 111 S.W. 3d
+830, 834 (Tex. App.--Dallas 2003, not pet.)(The "critical factor"
+in determining whether a buyer has a claim for breach of contract
+or a claim for breach of warranty is "whether the buyer has finally
+accepted the goods"; "only after the buyer finally accepts the
+goods and can no longer revoke that acceptance, is he limited to
+recovering under section 2.714" for breach of warranty.").
+5 Section 2.714, "Buyer's Damages for Breach in Regard to
+Accepted Goods," provides in relevant part,
+(a) Where the buyer has accepted goods and given
+notification (Subsection (c) of Section 2.607) he may
+-6-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 6 of 75
+buyer who has finally accepted goods, but discovers the goods are
+defective in some manner. Tex. Bus. & Com. Code Ann. § 2.714, §
+2.711 (Comment 1)."
+Breach of Contract
+Section 2.204, "Formation in General," provides,
+(a) A contract or sale of goods may be made in any manner
+sufficient to show agreement, including conduct by both
+parties which recognizes the existence of such a
+contract.
+(b) An agreement sufficient to constitute a contract for
+sale may be found even though the moment of its making is
+undetermined.
+(c) Even though one or more terms are left open a
+contract for sale does not fail for indefiniteness if the
+parties have intended to make a contract and there is a
+reasonably certain basis for giving an appropriate
+remedy.
+Section 2.206, "Offer and Acceptance in Formation of
+Contract," recites,
+(a) Unless otherwise unambiguously indicated by the
+language or circumstances
+(1) an offer to make a contract shall be
+construed as inviting acceptance in any manner
+and by any medium reasonable in the
+recover as damages for any non-conformity of tender the
+loss resulting in the ordinary course of events from the
+seller's breach as determined in any manner which is
+reasonable.
+(b) The measure of damages for breach of warranty is the
+difference at the time and place of acceptance between
+the value of the goods accepted and the value they would
+have had if they had been as warranted, unless special
+circumstances show proximate damages of a different
+amount.
+-7-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 7 of 75
+circumstances;
+(2) an order or other offer to buy goods for
+prompt or current shipment shall be construed
+as inviting acceptance either by a prompt
+promise to ship or by the prompt or current
+shipment of conforming or non-conforming
+goods, but such a shipment of non-conforming
+goods does not constitute an acceptance if the
+seller seasonably notifies the buyer that the
+shipment is offered only as an accommodation
+to the buyer.
+(b) Where the beginning of a requested performance is a
+reasonable mode of acceptance an offeror who is not
+notified of acceptance within a reasonable time may treat
+the offer as having lapsed before acceptance.
+To recover for breach of contract, a plaintiff must prove (1)
+the existence of a valid contract, (2) performance or tendered
+performance by the plaintiff; (3) breach by the defendant, and (4)
+harm to the plaintiff as a result of the breach. Adams v. H&H Meat
+Prods., Inc., 41 S.W. 3d 762, 771 (Tex. App.--Corpus Christi 2001,
+no pet.).
+Section 2.201 addresses "Formal Requirements; Statute of
+Frauds," and recites,
+(a) Except as otherwise provided in this section a
+contract for the sale of goods for the price of $500 or
+more is not enforceable by way of action or defense
+unless there is some writing sufficient to indicate that
+a contract for sale has been made between the parties and
+signed by the party against whom enforcement is sought or
+by his authorized agent or broker. A writing is not
+insufficient because it omits or incorrectly states a
+term agreed upon but the contract is not enforceable
+under this paragraph beyond the quantity of goods shown
+in such writing.
+(b) Between merchants if within a reasonable time a
+writing in confirmation of the contract and sufficient
+-8-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 8 of 75
+against the sender is received and the party receiving it
+has reason to know its contents, it satisfies the
+requirements of Subsection (a) against such party unless
+written notice of objection to its contents is given
+within ten days after it is received.
+(c) A contract which does not satisfy the requirements of
+Subsection (a) but which is valid in other respects is
+enforceable
+(1) if the goods are to be specially
+manufactured for the buyer and are not
+suitable for sale to others in the ordinary
+course of the seller's business and the
+seller, before notice of repudiation is
+received and under circumstances which
+reasonably indicate that the goods are for the
+buyer, has made either a substantial beginning
+of their manufacture or commitments for their
+procurement; or
+(2) if the party against whom enforcement is
+sought admits in his pleading, testimony or
+otherwise in court that a contract for sale
+was made, but the contract is not enforceable
+under this provision beyond the quantity of
+goods admitted; or
+(3) with respect to goods for which payment
+has been made and accepted or which have been
+received and accepted (§ 2.606).
+6
+6 Section 2.606 states,
+(a) Acceptance of goods occurs when the buyer
+(1) after a reasonable opportunity to inspect
+the goods signifies to the seller that the
+goods are conforming or that he will take or
+retain them in spite of their non-conformity;
+or
+(2) fails to make an effective rejection
+(Subsection (a) of Section 2.602), but such
+acceptance does not occur until the buyer has
+had a reasonable opportunity to inspect them;
+or
+-9-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 9 of 75
+Comment 2 to § 2.201 states, "Receipt and acceptance either of
+goods or of the price constitutes an unambiguous overt admission by
+both parties that a contract actually exists."
+Breach of Express Warranties
+Section 2.313, titled "Express Warranties by Affirmation,
+Promise, Description, Sample," states,
+(a) Express warranties by the seller are created as
+follows:
+(1) Any affirmation of fact or promise made by
+the seller to the buyer which relates to the
+goods and becomes part of the basis of the
+bargain creates an express warranty that the
+goods shall conform to the affirmation or
+promise.
+(2) Any description of the goods which is made
+part of the basis of the bargain creates an
+express warranty that the goods shall conform
+to the description.
+(3) Any sample or model which is made part of
+the basis of the bargain creates an express
+warranty that the whole of the goods shall
+conform to the sample or model.
+(b) It is not necessary to the creation of an express
+warranty that the seller use formal words such as
+"warrant" or "guarantee" or that he have a specific
+intention to make a warranty, but an affirmation merely
+of the value of the goods or a statement purporting to be
+merely the seller's opinion or commendation of the goods
+does not create a warranty.
+(3) does any act inconsistent with the
+seller's ownership; but if such act is
+wrongful against the seller it is an
+acceptance only if ratified by him.
+(b) Acceptance of a part of any commercial unit is
+acceptance of that entire unit.
+-10-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 10 of 75
+The elements of a cause of action for breach of express
+warranty are (1) the defendant-seller made an express affirmation
+of fact or promise relating to the goods; (2) that affirmation or
+promise became part of the bargain; (3) the plaintiff relied upon
+that affirmation or promise; (4) the goods did not comply with the
+affirmation or promise; (5) the plaintiff was damaged by the
+noncompliance; and (6) the failure of the product to comply was the
+proximate cause of the plaintiff's injury. Berge Helene Ltd. v. GE
+Oil & Gas, Inc. , 830 F. Supp. 2d 235, 255 (S.D. Tex. 2011),
+superseded in part on other grounds, 896 F. Supp. 2d 582 (S.D. Tex.
+2012). To prevail on a breach of express warranty claim the
+plaintiff must demonstrate that he relied upon the warranty. Am.
+Tobacco Co. v. Grinnell, 951 S.W. 2d 420, 436 (Tex. 1997).
+Section 2.725 applies to an action for breach of warranty for
+the sale of goods, whether implied or express. See Safeway Stores,
+inc. v. Certainteed Corp., 710 S.W. 2d 544, 545-46 (Tex. 1986).
+The statute of limitations for breach of express warranty is four
+years, accruing from the date of delivery, regardless of whether
+the plaintiff lack knowledge of the breach, unless the warranty
+explicitly extends to future performance of the goods and discovery
+of the breach. § 2.725; American Alloy Steel, Inc. v. Armco, Inc.,
+777 S.W. 2d 173, 176 (Tex. App.-Houston [14
+th Dist.] 1984, no writ;.
+Where an express warranty is s hown to exist, it can only be
+-11-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 11 of 75
+excluded or modified pursuant to § 2.316(a),7 which requires that
+an exclusion or modification be "reasonable" and "consistent with
+the express warranties made.
+7 Section 2.316 ("Exclusion or Modification of Warranties")
+provides in relevant part,
+(a) Words or conduct relevant to the creation of an
+express warranty and words or conduct tending to negate
+or limit warranty shall be construed wherever reasonable
+as consistent with each other; but subject to the
+provisions of this chapter on parol or extrinsic evidence
+(§ 2.202) negation or limitations is inoperative to the
+extent that such construction is unreasonable.
+(b) Subject to Subsection (c), to exclude or modify the
+implied warranty of merchantability or any part of it the
+language must mention merchantability and in case of a
+writing must be conspicuous, and to exclude or modify any
+implied warranty of fitness the exclusion must be by a
+writing and conspicuous. Language to exclude all implied
+warranties of fitness is sufficient if it states, for
+example, that "There are no warranties which extend
+beyond the description on the face hereof."
+(c) Notwithstanding Subsection (b),
+(1) unless the circumstances indicate otherwise, all
+implied warranties are excluded by expressions like "as
+is," "with all faults" or other language which in common
+understanding calls the buyer's attention to the
+exclusion of warranties and makes plain that there is no
+implied warranty; and
+(2) when the buyer before entering into the contract has
+examined the goods of the sample or model as fully as he
+desired or has refused to examine the goods there is no
+implied warranty with regard to defects which an
+examination ought in the circumstances to have revealed
+to him; and
+(3) an implied warranty can also be excluded or modified
+by course of dealing or course of performance or usage of
+trade. . . .
+-12-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 12 of 75
+Breach of Implied Warranties
+An implied warranty is a representation about the implied
+quality or suitability of a product that the law implies and
+imports into a contract, "in view of all facts and circumstances
+attending the transaction, including the nature of the property,
+terms of the agreement, and trade usages." American Tobacco, 951
+S.W. 2d at 435.
+The statute of limitations for breach of implied warranty is
+four years after delivery of the goods to the original buyer. Tex.
+Bus. & Com. Code Ann. § 2.725(b)("A cause of action accrues when
+the breach occurs, regardless of the aggrieved party's lack of
+knowledge of the breach."). The statute of limitations for an
+implied warranty is not the same as that for an express warranty,
+which can be explicitly extended into the future by the parties.
+While the "statute of limitations on implied warranties runs from
+the date of the sale," the drafters of the UCC "intended to reserve
+the benefits of an extended warranty to those who bargained for
+them," so "only express warranties may explicitly extend to future
+performance." Id. at 546-48 (holding that "an implied warranty
+cannot be explicitly extended to future performance"). In accord
+American Alloy Steel, Inc. v. Armco, Inc., 777 S.W. 2d 173, 176-77
+(Tex. App.--Houston [14
+th Dist.] Aug. 24, 1989); Pecan Valley Nut
+Co., Inc. v. E.I. du Pont de Nemours & Co. , 15 S.W. 3d 244, 249
+(Tex. App.--Eastland Mar. 9, 2000); Cornerstones Mun. Utility Dist.
+-13-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 13 of 75
+v. Monsanto Co. , 889 S.W. 2d 570, 577 (Tex. App.--Houston [1 st
+Dist.] 1994, writ denied).
+Section 2.314, "Implied Warranty: Merchantability; Usage of
+Trade," provides in relevant part,
+(a) Unless excluded or modified (§ 2.316), a warranty
+that the goods shall be merchantable is implied in a
+contract for their sale if the seller is a merchant with
+respect to goods of that kind. . . .
+(b) Goods to be merchantable must be at least such as
+(1) pass without objection in the trade under
+the contract description; and
+(2) in the case of fungible goods, are of fair
+average quality within the description; and
+(3) are fit for the ordinary purposes for
+which such goods are used; and
+(4) run, within the variations permitted by
+the agreement, of even kind, quality and
+quantity within each unit and among all units
+involved; and
+(5) are adequately contained, packaged, and
+labeled as the agreement may require; and
+(6) conform to the promises or affirmations of
+fact made on the container or label, if any.
+(c) Unless excluded or modified (§ 2.316) other implied
+warranties may arise from course of dealing or usage of
+trade.
+To prevail on an action for breach of implied warranty of
+merchantability, a plaintiff must prove (1) that the merchant sold
+goods to the plaintiff; (2) that the goods were unmerchantable,
+that is, unfit for ordinary purposes; (3) that the plaintiff
+notified the defendant of the breach; and (4) that the plaintiff
+-14-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 14 of 75
+suffered injury. Hartford v. Lyndon-DFS Warranty Services, Inc.,
+2010 WL 2220443, *11 (Tex. App.--Houston [1 st Dist.] May 28,
+2010)(citing inter alia 2.314 cmt. 3, and Hyundai Motor Co. v.
+Rodriguez, 995 S.W. 2d 661, 667-68 (Tex. 1999). Proof of a defect
+is required for a claim of breach of implied warranty of
+merchantability under § 2.314. Plas-Tex, Inc. v. U.S. Steel Corp.,
+772 S.W. 2d 442, 443 (Tex. 1989). The "defect" in an implied
+warranty case "means condition of the goods that renders them unfit
+for the ordinary purposes for which they are used because of lack
+of something necessary for adequacy" at the time they left the
+manufacturer's or seller's possession. Plas-Tex, 772 S.W. 2d at
+444.
+The defendant may assert a defense of disclaimer under the
+UCC, Tex. Bus. & Com. Code Ann. 2.316(b), to a claim of implied
+warranty of merchantability as well as an implied warranty of
+fitness for a particular purpose. Southwestern Bell Tel. Co. v.
+FDP Corp., 811 S.W. 2d 572, 577 (Tex. 1991); Plas-Tex, 772 S.W. 2d
+at 444. Id. The disclaimer must be conspicuous and include the
+word, "merchantability." Plas-Tex, 772 S.W. 2d at 444. Whether
+the disclaimer is conspicuous is a question of law for the court.
+Id., citing Tex. Bus. & Com. Code Ann. § 1.201(b)(10). A term is
+conspicuous if a reasonable person against whom it is to operate
+would have noticed it. Id.; Cate v. Dover Corp., 790 S.W. 2d 559,
+561 (Tex. 1990). Print in a text is conspicuous if it is set off
+-15-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 15 of 75
+from the surrounding words by symbols, marks that draw attention to
+it, or larger or contrasting type, font or color. Id; id. Even if
+the warranty is inconspicuous, the disclaimer is valid if the buyer
+has actual knowledge of the disclaimer. Cate v. Dover Corp., 790
+S.W. 2d at 561 ("Because the object of the conspicuousness
+requirement is to protect the buyer from surprise and an unknowing
+waiver of his or her rights, inconspicuous language is immaterial
+when the buyer has actual knowledge of the disclaimer."). The
+seller bears the burden of proving that the buyer had actual
+knowledge of an inconspicuous disclaimer of implied warranties.
+Id. The seller can show actual knowledge by its prior dealings
+with the seller or by the showing that it called the buyer's
+attention to the inconspicuous waiver. Id. A written disclaimer
+is not required; an oral disclaimer may be effective, provided that
+for the im plied warranty of merchantability, the word
+"merchantability" is used. Id. and n.4, citing J. White & R.
+Summers, Uniform Commercial Code § 12-5 n.76 (2d ed. 1980).
+To prove a breach of the implied warranty of merchantability,
+a plaintiff must demonstrate a defect in the "condition of the
+goods that renders them unfit for the ordinary purposes for which
+they are used" under § 2.314(b)(3). Plas-Tex, Inc. v. U.S. Steel
+Corp., 772 S.W. 2d 442, 443-44 (Tex. 1989). The plaintiff, who
+bears the burden of showing that the goods were defective at the
+time they left the manufacturer's or seller's possession, may use
+-16-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 16 of 75
+circumstantial evidence to show the goods had a defect; he does not
+need to use direct or expert evidence. Id. at 444; in accord,
+Hyundai Motor Co. v. Rodriguez , 995 S.W. 2d 661, 667-68 (Tex.
+1999).
+Section 2.315, "Implied Warranty: Fitness for Particular
+Purpose," asserts,
+Where the seller at the time of contracting has reason to
+know any particular purpose for which the goods are
+required and that the buyer is relying on the seller's
+skill or judgment to select or furnish suitable goods,
+there is unless excluded or modified under the next
+section an implied warranty that the goods shall be fit
+for such purpose.
+"A 'particular purpose' is a specific use by the buyer that is
+peculiar to the nature of the buyer's business. A particular
+purpose differs from an ordinary purpose, which is the purpose
+envisaged in the concept of merchantability and goes to the uses
+that are customarily made of the goods." Berge Helene Ltd. v. GE
+Oil & Gas, Inc., 830 F. Supp. 2d 235, 252 (S.D. Tex. 2011)(citing
+§ 2.315 cmt. 2), superseded in part on other grounds, 896 F. Supp.
+2d 582 (S.D. Tex. 2012).
+An implied warranty of fitness may also be disclaimed, but the
+disclaimer may be by general language and need not use the word,
+"fitness." Hartford, 2010 WL 2220443, *11. An implied warranty
+may only be excluded or modified pursuant to § 2.316(b), which
+requires that the exclusion or modification be in writing and be
+conspicuous. Cate v. Cover, 790 S.W. 2d 559, 560-61 (Tex. 1990).
+-17-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 17 of 75
+To prevail on a claim for breach of implied warranty of
+fitness for a particular purpose, the plaintiff must prove that (1)
+the seller had reason to know any particular purpose for which the
+goods were required at the time of contracting; (2) the buyer
+actually and justifiably relied on the seller's skill or judgment
+to select or furnish suitable goods; (3) the plaintiff notified the
+defendant of the breach within a reasonable time after the buyer
+discovered or should have discovered any breach of warranty or he
+is "barred of remedy"4 pursuant to § 2607(c)(1) (4) the plaintiff
+suffered injury; and (5) the defendant's breach caused the
+plaintiff's injury.
+8 Berge Helene, 830 F. Supp. 2d at 252-53.
+III. Allegations of Plaintiff's
+First Amended Original Complaint (#16)
+Plaintiff's First Amended Original Complaint was filed
+pursuant to a Court order (#15) after the Court granted Parker's
+motion for more definite statement. In the amended pleading Omni
+alleges that in 2004 Omni met several times with Parker's Houston
+sales representative, Ronnie Lovett ("Lovett"), in Omni's Houston
+office. So did Paul Yager ("Yager"), Parker's Rotary Seals Market
+Manager for Parker's PS Division. Lovett verbally represented to
+8 "Caused in fact" means that the defendant's conduct or
+product was a "substantial factor in bringing about the injury
+which would not otherwise have occurred." Berge Helene, 830 F.
+Supp. 2d at 254. To recover consequential or special damages the
+plaintiff must also show the breach proximately caused the
+plaintiff's injuries, i.e. both cause in fact and foreseeability.
+Id.
+-18-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 18 of 75
+Omni that Parker would be fully capable of designing and
+manufacturing high quality cartridge seals for Omni's gearboxes,
+which Omni would then sell to T-L Irrigation Company ("T&L") for
+use in T&L's agricultural irrigation systems. Based on this
+representation, Omni agreed to have Parker design and manufacture
+the seals. The parties also agreed that Parker ultimately would
+have final design control over the design and manufacture of the
+seals.
+Before this agreement was made, Parker had represented to Omni
+that Parker had finished an analysis of Omni's gearbox design and
+compared it to seal designs of other seal suppliers in the
+agricultural irrigation market. Through Lovett and Yager, Parker
+represented that it could design and manufacture a cartridge seal
+for Omni's gearbox that would allow Omni's gearbox to operate and
+function successfully in an agricultural irrigation system.
+According to the amended pleading, when these representations were
+made, Parker did not actually possess the necessary knowledge,
+skills, technology, or other capabilities or resources that Parker
+claimed, and Parker was not sure that it could design and
+manufacture the functional cartridge seal design requested by Omni
+within the time frame established by Omni.
+According to the Amended Complaint, from 2005-07 Parker began
+supplying Plaintiff with the seals, which Omni installed in its
+gearboxes and forwarded to T&L. According to Omni, it only later
+-19-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 19 of 75
+discovered that the seals were defective at the time that they were
+delivered to Omni. During this time, Omni made several payments to
+Parker, and Parker sent several invoices to Omni. On the back side
+of some of these invoices was inconspicuous language that was not
+referenced in the invoices and that was not noticed when the
+invoices were received by Omni. All invoices that Omni received
+from Parker were received after the first shipment of seals; there
+was no course of dealings between Omni and Parker whereby the
+additional terms on the reverse side of the invoices became part of
+the agreement.
+T&L subsequently sold the agricultural systems containing the
+gearboxes and seals to end-users. At some point after 2007, T&L
+notified Omni that at least some of the gearboxes were leaking oil
+in the field (the "leakage") because of a problem in the design
+and/or manufacturing process of the seals. Omni promptly notified
+Parker and suspended payment to Parker until the defective design
+issue could be resolved. Omni allowed Parker to come to its
+Houston offices to obtain samples of the defective seals and
+gearboxes for testing. Subsequently and more than once, Parker
+admitted there were failures in the seal design and in the quality
+control aspects of Parker's manufacturing processes.
+Nevertheless Parker has disclaimed responsibility for the seal
+design and/or manufacturing and blamed faulty design failures on
+Omni, which is not and does not claim to be a designer or
+-20-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 20 of 75
+manufacturer of seals. In contrast, Parker represents itself to be
+the "world's leading diversified manufacturer of motion and control
+technologies and systems, providing precision-engineered solutions
+for a wide variety of mobile, industrial and aerospace markets."
+Ex. A. Omni asserts that Parker changed its materials supplier(s)
+during the production of the seals and that Parker chose and used
+inferior materials that directly caused the leakage. Parker also
+allegedly changed the seal's "rib" design during production,
+evidencing Parker's own testing of and attempts to correct the
+design problems.
+Omni and T&L continued to report incidents of leakage to
+Parker, which later indicated that it found certain defects in the
+design and proposed to correct the deficiencies, but in return it
+required Plaintiff to agree to make future seal purchases from
+Parker at a much higher price per seal.
+In sum, Omni contends that Parker's seal manufacturing and
+related services were defective in design, workmanship,
+manufacture, production, marketing, testing, and investigation of
+corrective design.
+IV. Parker's [First] Motion for Partial Summary Judgment (#33)
+Parker contends that Omni's entire case rests on whether the
+Parker seals in dispute were defective. Parker argues that the
+summary judgment evidence establishes that the seals were not
+defective and that Omni cannot produce any summary judgment
+-21-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 21 of 75
+evidence of a defect in Parker's seals which caused the leaks
+complained of by T&L. Therefore Parker is entitled to summary
+judgment on Omni's claims as a matter of law.
+The Court observes that there is disagreement about which
+party is responsible for the design of the seals at issue. Parker
+asserts that in early 2004 Omni came to Parker and asked for a
+quotation for a "cartridge" seal that could be used in Omni's
+agricultural gearboxes. Ex. B, Feb. 21, 2012 Dep. of Jeff Daniel
+("Daniel"), President of Omni, at pp. 114-20.
+9 Parker sent Omni a
+quotation (Ex. C) on May 21, 2004. Parker maintains that it made
+a substantially identical drawing of the sample provided by Omni,
+and that Omni then approved the drawing. Ex. D June 24, 2013, Oct.
+23, 2012 Dep. of Omni's Technical Support Manager and designated
+corporate representative, David Kemper ("Kemper"), who on behalf of
+Omni approved the drawings as fitting the space in the Omni
+gearbox, pp. 34-37. Kemper further testified that he understood
+that testing to insure that the seal worked with the gearbox was
+being done by Parker and that the seals had been used for a few
+9 Daniel explained that T&L had been using a lip seal but that
+the market was changing over to using "cartridge" (a/k/a
+"cassette") seals, which Daniel testified were better seals for
+keeping the oil in the gearbox and sealed for a longer term. Id.
+Daniel also stated, p. 118, ll. 20-25, "I asked them [Parker]
+to look at a variety of different cassette-type seals. I gave them
+not only samples, but leaflets, drawings that were not design
+drawings, but they were technical sketches of a cross-section of a
+product, and asked them to supply us a seal that would do the job
+that was required in the irrigation market."
+-22-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 22 of 75
+years with no complaints. Id. at p. 36.
+Omni's designated corporate representatives, Kemper and
+Operations Manager Daniel Lloyd Matthews ("Matthews"), both
+testified that it was Omni's responsibility to install the seals
+and ensure that they were installed correctly, and to insure that
+they were tested and would not be shipped to the customer until
+they passed. Ex. D, at 28-30; Ex. E, Matthews Dep. at pp. 75-76
+and Ex. 2. Both men confirmed that the Parker seals were capable
+of being properly installed. Ex. D at pp. 29-33 and Ex. 2; Ex. E
+at pp. 75-76 and Ex. 2). Furthermore Kemper stated that every
+gearbox was tested for leaks
+10 and had to pass the inspection before
+it left Omni's manufacturing sites. Ex. D at pp. 17-18, 29-30.
+The first complaints of leakage in the area of the seals
+inside the gearboxes that were sold and shipped in 2005 by Omni to
+T&L came in the fall of 2007 from T&L. Kemper Dep. Ex. D at pp.
+31-33 & Ex. 9; Matthews Dep., Ex. E at pp. 116-20 and Ex. 9. No
+"root cause analysis" was performed to determine the cause of the
+reported leakage. Ex. B, Daniel Dep. at 207-14; Ex. E, Matthews
+Dep. at pp. 113-15. What testing was done did not reveal leaking
+10 Kemper stated the assembler would check to see if the seal
+was correctly placed in the gearbox and not cocked to a visible
+degree, while the quality control process would pressurize the
+gearboxes with air, usually 10-12 psi, place them in tanks of water
+and see if bubbles emerged. All of the gear boxes had to pass the
+leak test before they left Omni's manufacturing facilities. #33,
+Ex. 3, pp. 17-18, 28. If they did not pass the test, they would be
+rejected, reworked, and not go to the customer until they passed
+the test. Id. at 28-29.
+-23-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 23 of 75
+or determine what caused the leakage. Ex. B at 207-24; Ex. E at
+pp. 122-24 & Ex. 10. Nor was there any evidence of a defect in any
+Parker seal. At his deposition on October 23, 2012 Kemper
+testified that he was not aware of any defects with the Parker or
+the J.M. Clipper
+11 seals (supplied by Parker). Ex. D at p. 30.
+Matthews testified at his deposition on the same date that he also
+did not know of any defect in the Parker seals. Ex. E at pp. 116-
+21, 125-26 & Ex. 9. Parker maintains that the evidence that exists
+shows only that improper installation of the seals by Omni may have
+been the cause of the leakage.
+Nor did Omni's expert, mechanical engineer Merle Lynn Bell
+("Bell")
+12, identify a defect when he tested the Parker seal by
+comparing a gearbox with seven-year-old Parker seals to a gearbox
+with new seals from Omni's current supplier. The Parker-seal
+gearbox began to leak after running for approximately three hours.
+Ex. F, Bell Dep., p. 48. Bell took the gearbox apart and noticed
+that the seal was cocked (misaligned) .044 inches, i.e., not seated
+flush in its seat in the gearbox. Id. at p. 51. Bell did not
+determine the source of the leaking, but only that it might have
+11 J.M. Clipper was the company that was originally approached
+by Omni and sold the seals in di spute to Omni, but it was later
+acquired by Parker. It is sometimes referred to as "JMC", JM
+Clipper, or "Clipper" by the parties or witnesses. The parties
+frequently use "Parker" for J.M. Clipper. See, e.g., #33, p.3,
+n.1.
+12 Bell is usually referred to by the parties as Mark Bell.
+-24-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 24 of 75
+been coming from any of several locations. Id. at 52. Bell's
+expert report (Ex. K) and deposition (Ex. F) reflect that his tests
+merely revealed the possibility of what might cause leakage, not a
+probability or conclusion. Bell testified that the cause of the
+leakage was not any alleged change by Parker in the design of the
+seal from three higher ridges to four smaller ridges. Ex. F. pp.
+98-99. Bell agreed that his testing did not rule out key possible
+causes of leakage, such as the age of the seal, improper
+installation of the seal by Omni, or out-of specification
+conditions of the gear box. Ex. F, p. 106.
+13
+Thus neither Omni's designated corporate representatives nor
+its expert identified a defect in the Parker seals. For Omni to
+prevail on its breach of contract claim it must prove that Parker
+breached a contract and caused Omni's injury; specifically it must
+prove that its injury was a natural, probable and foreseeable
+consequence of Parker's breach. Mead v. Johnson Group, 615 S.W. 2d
+685, 687 (Tex. 1981).
+To prevail on its claim of breach of express warranties "with
+respect to the seals sold to Plaintiff by selling same in a
+defective condition likely to cause leakage and product malfunction
+that did occur," Omni must establish that the seals did not comply
+13 Parker's expert witness, Timothy Hatch, concluded that
+improper installation of seals by Omni, evidenced by their cocked
+or tilted positions, caused Parker's seals to leak. Ex. H, Hatch's
+Dep. at pp. 99-100 and 61-63; Ex. G, Hatch's Decl. and report at
+pp. 5-6.
+-25-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 25 of 75
+with Parker's alleged representation regarding "the character,
+quality or title promised at the time of sale." Chilton Ins. Co.
+v. Pate & Pate Enters., 930 S.W. 2d 877, 891 (Tex. App.--San
+Antonio 1996, writ denied).
+Nither party disputes that Parker knew from the start of the
+parties' negotiations the particular purpose for which the seals
+were to be used: the cartridge seals Parker was to manufacture
+were to be inserted into and perform as components of Omni's
+gearboxes to allow Omni's gearboxes to operate and function
+successfully in an agricultural irrigation system to be sold to
+other parties. Omni charges that Parker breached implied warranties
+of merchantability and fitness for a particular purpose "by selling
+such seals to Plaintiff in a defective condition likely to cause
+the leakage and product malfunction that did occur." First Amended
+Complaint at ¶ 24.
+According to Parker, all of Omni's claims require it to prove
+there is a defect in Parker's seals. Neither Omni's corporate
+representatives nor its expert could identify a defect in Parker's
+seals that caused the leakage. Because Omni cannot do so, Parker
+insists that it is entitled to summary judgment on those claims.
+A. Omni's Response (#39)
+Omni objects that there are genuine issues of material fact on
+each element of its claims for breach of express warranties and of
+implied warranties, as well as for breach of contract. Parker's
+-26-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 26 of 75
+contention that the leakage was caused by Omni's improper
+installation of the seals is contradicted by evidence that the
+Parker seals were defective in (1) the accelerated functional test
+of gearbox rotary seal and associated report dated September 6,
+2012 (Ex. C, comparing JMC seal with one from current competitor
+and concluding that the JMC seal was the primary cause of leakage);
+(2) the seal installation verification and repeatability of rotary
+gearbox and associated report dated October 15, 2012 (Ex. D,
+concluding that in contrast with the seals of the current
+competitor, all JMC seals will have a certain degree of
+misalignment during the installation process," that all of the ten
+identical seals tested "were angled (misaligned) more than the
+allowable standards for this type of seal," and that the seals'
+misalignment could be the primary cause of the seals' leakage");
+and (3) the seal rotation test of rotary gearbox seal and
+associated report dated December 12, 2012 (Ex. E, finding that
+although the seals are designed to be static on the ID of the seal
+and the OD of the shaft, of the ten identical seals examined a
+percentage were not static on the shaft OD and thus inconsistent
+with a properly designed seal).
+14 Omni maintains that this evidence
+demonstrates that the seals were defective because they failed
+prematurely because of either the improper operation of the seal
+14 These tests were performed and the reports prepared by Bell
+and his company, Essential Product Services, Inc. ("EPS").
+-27-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 27 of 75
+design or from the misalignment inherent in that design that made
+it impossible to install the seals correctly.
+As summary judgment evidence, Omni submits the following for
+the reasons stated. First, excerpts of Parker's responses to
+Omni's first set of interrogatories (Ex. A, p.6, ll. 5-6, "[Lovett
+and Yager] will testify that the seals it sold to Omni were
+manufactured pursuant to a design requested and approved by Omni.")
+are attached to show that Parker is trying to shift the
+responsibility of design control to Omni even though Parker
+admitted it developed and proposed the subject designs (Ex. A, p.9,
+ll. 2-4, "Mr. Daniels [sic] required that the seals be manufactured
+in China. After J.M. Clipper determined that it could outsource a
+cartridge seal with a similar type of design from a low-cost
+country to meet Omni's cost requirement, as requested by Omni, and
+it submitted the proposed design to Omni, Omni reviewed and
+approved it."). Second, Omni presents excerpts from the deposition
+(Ex. B) of Parker's expert, Timothy Brian Hatch, to show that (a)
+Parker's attempt to shift the responsibility of design control to
+Omni failed, while admitting that Parker developed and proposed the
+subject designs
+15; (b) Parker's expert, Hatch, did not try to test
+15 The Court observes that Hatch's testimony is equivocal (Ex.
+B at p. 81, l. 22-p. 82, l.6):
+Q. Do you know whether Parker designed the seals?
+A. Yes.
+Q. So you think they designed the seals in this case?
+A. I believe the basic design was given to Parker from
+-28-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 28 of 75
+any of the possible ways offered in his expert report that the
+seals could have been improperly installed and admitted that the
+"improper installation" mentioned in his report was a conclusory
+opinion based solely on a results-oriented visual examination and
+not on any actual knowledge of Omni's installation procedures (id.
+at p. 99, l.1-p. 103, l.17)
+16; (c) Parker's expert did not attempt
+to test for any other potential cause (operator error, improper
+maintenance, manufacturing error, or defective design) of the
+leakage (Ex. B, p. 107, l. 18-p. 113, l. 18)
+17; and (d) Hatch
+Omni. I'm not sure how much additional design was
+required for them to manufacture it.
+Q. Who finalized the design?
+A. I'm sure it was Parker, but I don't know that. Yeah,
+Parker, that's what they do is they design seals.
+16 Hatch stated, "I haven't seen how they actually install it
+at the factory, but, you know, some of these are cocked to such a
+degree, you can see it with the naked eye that it was crooked, so
+it would be obvious to tell that it wasn't installed right." Ex.
+B at p. 99, ll. 18-23.
+17 The Court notes that when asked if any of the potential
+possible causes raised during his deposition was "inherently more
+important than the other potential causes?," Hatch responded,
+A. Yes. You have to make sure that you start with a
+good design first. If the seal is going to leak even if
+it is installed properly, then its going to leak if it's
+installed properly.
+Q. Okay. Well--
+A. These, as I . . . you know, they had a large number
+of them that did not leak, and - -
+Q. But as far as - -
+A. - - if the design is the same, then that proves that
+the design isn't the issue or indicates that the design
+isn't the issue.
+-29-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 29 of 75
+admitted that if Parker's seals were designed so that it was
+impossible to install them correctly, Hatch would conclude that the
+seals were defectively designed
+18 (Ex. B, p. 121, ll. 11-16).19
+Next, to establish that Parker's seals were defective and/or
+defectively designed, Omni points to EPS's expert tests and reports
+of EPS, Bell's company (Exhibit C, functional test and report, p.4;
+Ex. D, seal installation test and verification and repeatability of
+rotary gearbox and associated report dated October 15, 2012; and
+Ex. E, seal rotation test and report), which Omni claims establish
+that the seals were defective as evidenced by premature failure
+from either improper operation of the seal design or from the
+misalignment failure inherent in the seals' design, making correct
+installation impossible.
+Regarding the first, Exhibit C at pp. 4-5, Omni quotes a
+portion of the "SUMMARY OF OPINIONS":
+Based on the analysis and tests conducted, EPS
+20 has
+concluded that oil leakage originated almost immediately
+from the JMC seal, while the seal from the current
+Ex. B at p. 113, ll. 13-25.
+18 The Court agrees with Parker (#43 at p.4) that this
+hypothetical lacks foundation, is not relevant, and does not
+constitute competent proof that Parker's seals were designed to
+make proper installation impossible. As Parker and its expert
+point out, not all the gearboxes leaked.
+19 Regarding (b) and (c), Omni appears to ignore the fact that
+it bears the burden of proving that Parker's seal was defective.
+20 EPS is Essential Product Services, Inc., which performed the
+test, and is an expert witness for Omni.
+-30-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 30 of 75
+supplier did not exhibit any leakage. Leakage
+originating from the JMC seal was excessive and would
+cause failure of the gearbox. Leakage from the JMC seal
+originated between the shaft and the seal, which supports
+EPS's
+21 opinion that the seal was the primary cause of
+the leakage.22
+This report at p. 6 also found that Parkers' seals had two
+different designs despite having the same part number, and it
+stated at p. 7, "It is the opinion of EPS that making changes
+without customer approval to a seal design after it has been
+successfully tested and qualified is not considered acceptable."
+23
+EPS represents that because the first test "obviously raised the
+question of why was the seal improperly aligned and could this be
+the mode of failure in the field" (Ex. C at p. 7), a second test
+was conducted to determine if Defendant's seals were capable of
+being properly installed. Exs. D & E. According to the second
+test results, all of Parker's seals were misaligned outside the
+allowable tolerance, while seals from Omni's current supplier had
+almost no misalignment. Ex. C at pp. 6-7. EPS concluded that
+Parker's seals could not be installed within industry standards and
+21 The Court notes that the report continues, "[F]urther tests
+are now needed to confirm whether the design of JMC component parts
+were defective with regard to feasibility of installation. [sic]"
+Thus their original findings were not final.
+22 Omni omits a subsequent key sentence in that paragraph:
+"However, further tests are now needed to confirm whether the
+design of JMC component parts were defective with regard to
+feasibility of installation."
+23 The Court observes that EPS does not provide any foundation
+or reason for this conclusion.
+-31-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 31 of 75
+that this factor was the most likely cause of failur es in the
+field. Ex. C, p. 7, and Ex. E, p. 8. A third test was performed
+to determine if Parker's seals could operate as designed (Ex. E);
+EPS concluded that Parker's "seals are inconsistent when it comes
+to what parts of the seal are static and what parts are dynamic.
+While the [current] supplier's seals rotate consistently and as
+designed, many of [Parker's] seals tested rotated on the shaft
+instead of within the seal itself." Ex. E, pp. 3, 8. Furthermore
+the "Overall Summary" of the third report (Ex. E at p. 9) concluded
+following the three tests,
+Based on the testing completed, it is clear that these
+seals are designed with too much internal friction and
+torque to the point that many of them do not operate
+correctly. In addition, the rubber coating on this
+particular seal design is such that it makes them very
+difficult if not impossible to consistently install
+correctly.
+Therefore, it is my opinion that these seals are
+experiencing premature failure from either improper
+operation of the seal itself, or from the misalignment
+problems inherent to this design.
+Insisting that "[t]hese reports, individually and collectively,
+establish that the subject seals were defective because the seals
+underwent premature failure caused by improper operation of the
+seal design itself (unable to rotate consistently) and/or from the
+misalignment failure inherent to Defendant's design (unable to be
+properly installed")(Ex. E at pp. 9-10), Omni insists that Parker
+is liable for breach of express warranties because its seals did
+not comply with its representations that it would be able to design
+-32-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 32 of 75
+an operable and functional cartridge seal for Omni's gearbox, for
+breach of implied warranties because Parker's seals were
+unmerchantable, and (c) for breach of its contract to provide Omni
+with non-defective seals.
+B. Parker's Reply (#43)
+Parker objects that Omni still has not identified a defect in
+the material or workmanship of the Parker seals, no less showed
+that one caused any leakage. Nor has it demonstrated that the
+Parker component part (the seal) in the Omni gearboxes was
+defective on the date of delivery in 2005, but only that some
+gearboxes two years later leaked.
+Parker complains that the expert reports attached to Omni's
+response are not sworn. "'Unsworn expert reports . . . do not
+qualify as affidavits or otherwise admissible evidence for [the]
+purpose of Rule 56, and may be disregarded by the court when ruling
+on a motion for summary judgment.'" Provident Life and Acc. Ins.
+Co. v. Goel, 274 F.3d 984, 1000 (5
+th Cir. 2001), quoting 11 James
+Wm. Moore, et al., Moore's Federal Practice ¶ 60.42[6] (3d ed.
+1997).24 Parker further objects to the deposition excerpts because
+there is no court reporter certificate and no title page or other
+evidence showing who the witness is or that the witness was sworn.
+24 Because United States Magistrate Judge Frances Stacy denied
+Parker's motion to strike and exclude expert evidence (#33, 58) the
+Court does not ad dress the other arguments Parker raised for
+striking the reports.
+-33-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 33 of 75
+Refrigeracion y Restaurante S.A. De C.V. v. Wal-Mart Stores, Inc.,
+No. Civ. A. SA97CA354EP, 1998 WL 1782541, at *1 (W.D. Tex. July 21,
+1998)("Excerpts from depositions are not competent summary judgment
+evidence unless the party offering them attaches a copy of the
+court reporter's certificate certifying that the copy is true and
+correct."), aff'd,
+Fed. Appx. , 189 F.3d 469 (Table), No.
+98-50844, 1999 WL 548666 (5th Cir. July 13, 1999). Moreover, even
+if the Court considers this evidence, Parker is still entitled to
+summary judgment.
+Regarding Parker's discovery responses which purportedly show
+that it is responsible for a defect in the seals because it
+participated in the design of the seal, Parker argues that the
+evidence shows that Omni engineers approved the design, dimension,
+and materials of the seals, that Parker made a substantially
+identical drawing of the sample provided by Omni, and that Omni
+approved it and emailed the signed approval of the seals on August
+27, 2004 stating that Omni was ready to place the purchase order.
+Omni's signature on the drawings shows that it found the seal
+dimension, design, and material to be satisfactory. Furthermore,
+after signing the drawings, Omni tested the seals for fit and
+installation by installing samples and performing pressure tests.
+Regardless of who had design control, Omni has failed to identify
+a defect in the seals that caused the Omni-built gearboxes to leak.
+Parker contends that its expert Hatch's deposition supports
+-34-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 34 of 75
+Parker's position because Hatch opined that any seals that leaked
+did so not because of a defect in the component seal, but because
+they were improperly installed by Omni. Ex. B at p. 99 to Omni's
+response. Omni's claim that Hatch never performed any tests is
+meritless because Hatch's opinion was expressly based on tests that
+Omni performed, discovery answers that Omni gave, and the Omni e-
+mails in this case. Omni's technical expert, Mark Bell, agreed in
+his deposition.
+Parker insists that the evidence shows that the seals were
+capable of being installed correctly and were, by the thousands.
+If some were not installed properly, it was Omni's duty to ensure
+that they were installed correctly (as evidenced by the testimony
+of Omni's designated corporate representatives Matthews and Kemper,
+that every gearbox was supposed to have been tested before leaving
+Omni's manufacturing sites, that no complaints were made for years,
+and that thousands of gearboxes did not leak), or to notice they
+were not installed properly and to correct its installation
+technique at the factory or its gearbox design or to give notice of
+the problem to Parker, none of which it did. Bell's subsequent
+reports of October 15 and December 12, 2012 still do not identify
+a defect in the seals or their design nor even a probability that
+they could cause the leakage. Nor does Bell rule out other factors
+such as the age of the seals tested, the changes Omni made in its
+gearboxes without Parker's knowledge, or Omni's duty to install the
+-35-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 35 of 75
+seals and ensure they were properly installed. Parker argues that
+Bell's summary that the "seals are experiencing premature failure
+from either improper operation of the seal itself or from the
+misalignment problems inherent to this design" is not an opinion
+that there is a defect in the seals that caused any seal to leak,
+much less any gearbox to leak, and even if it were, it would be
+conclusory and contrary to Bell's sworn deposition testimony.
+Moreover Omni admittedly used thousands of seals from a different
+supplier in gearboxes sold to T&L so Omni cannot prove causation.
+In a supplement (#58), Parker emphasizes that it did not
+install the seals and had no control over seal installation.
+Because Omni had complete control in the design of the gearboxes
+into which the seals were installed, complete control over the
+installation process, complete control of the installation
+technique, and complete control over checking the boxes (i.e.,
+quality control), it would be Omni's duty to discover a defect,
+give notice, and either reject the goods (the seals) or change its
+own design. It did neither. Thus Parker claims it is entitled to
+summary judgment.
+In a second supplement to its motions for partial summary
+judgment(#62), however, relating to Bell's second court-ordered
+deposition on February 26, 2013 (Transcript, Ex. A, attached),
+pointing out that Bell did not know before performing his
+experiments that the Parker seals he was inspecting were six or
+-36-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 36 of 75
+seven years old while the comparison seals were new, Parker
+highlights Bell's admissions that (1) his first test and report,
+aimed at proving Parker seals were inferior to other designs, did
+not contain valid conclusions and that he could not state that
+Parker seals were inferior; (2) he has no opinion of how Parker
+seals performed when new because he only tested old ones, had no
+opinion about other causes of difficult installation because he was
+not asked by Omni to investigate Omni's inspection practices,
+installation techniques, consistency of gearbox dimensions,
+manufacturing practices, worker training, or quality control, and
+admitted that difficult installation of a seal into a company's
+gearbox is not proof of a defect in the seal; and (3) regarding the
+third test and report, performed to see if the Parker seals would
+rotate, again he had no opinion as to how the Parker seals behaved
+when new because he only tested old ones. Bell further testified
+that as the manufacturer of the end product, Omni had the
+responsibility to determine that the seals fit into the gear box
+and worked, that all the component parts are proper for the end
+product, and that difficulty in installing a seal does not indicate
+there is a defect in the seal's design. He admitted that he was
+not given the information necessary to find out why the Omni
+gearboxes sent to T&L were leaking, whether there was a flaw in the
+endcaps of the gearboxes, whether the manner of assembly or
+manufacture was faulty, or whether there was a problem with the
+-37-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 37 of 75
+quality control of the gearboxes, all within Omni's control.
+In sum, Parker repeats that Bell cannot identify the cause of
+Omni's gearbox leakage and that Omni was responsible for noticing
+if the seals were not being installed correctly and to correct the
+problem or give notice of the problem and reject the seals.
+Moreover, one e lement of a breach of warranty claim not
+demonstrated by Omni here is that the plaintiff must provide notice
+to the defendant of the breach under § 2.607(c)(1)("Where a tender
+has been accepted . . . the buyer must within a reasonable time
+after he discovers or should have discovered any breach notify the
+seller of breach or be barred from any remedy . . . ."). See U.S.
+Tire-Tech, Inc. v. Boeran, B.V., 110 S.W. 3d 194, 200 (Tex. App.--
+Houston [1
+st Dist.] 2003, pet. denied). Because Omni failed to
+provide such notice, it cannot recover for breach of warranty.
+Omni has not responded to the First or Second Supplement.
+V. Parker's Second Motion for Partial Summary Judgment (#36)
+Incorporating #33, Parker's second motion notes that all the
+seals Parker sold to Omni were subject to the quotation dated May
+21, 2004 that Parker sent as an offer for an agreement to provide
+the seals to Omni. After the first sentence stating, "This
+quotation is made subject to placement and of your order(s) by 60
+days," it provides in enlarged capital letters that set it of from
+the remainder of the text, "WE INVITE YOUR ATTENTION TO THE TERMS
+AND CONDITIONS OF SALE WHICH APPEAR ON THE REVERSE SIDE OF THIS
+-38-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 38 of 75
+QUOTATION AND WHICH ARE A PART OF THIS QUOTATION." Ex. B and C
+(reverse side)25 to #36. The "TERMS AND CONDITIONS" constitute an
+express warranty. Included among the "TERMS AND CONDITIONS," all
+in bold print, are the following, with lower case and capital
+letters rendered as they are in the document:
+6. Warranty. All shipments of the product sold hereby are
+subject to the following warranty: THE SELLER WARRANTS
+FOR A PERIOD OF ONE YEAR FROM THE DATE OF DELIVERY THAT
+THE PRODUCT IS FREE FROM DEFECTS IN MATERIALS AND
+WORKMANSHIP. THIS LIMITED WARRANTY IS YOUR EXCLUSIVE
+WARRANTY FROM THE SELLER AND DESCRIBES THE EXCLUSIVE
+REMEDY AVAILABLE TO ANY PURCHASER OF THE PRODUCT. THE
+PRODUCT IS NOT SOLD WITH ANY IMPLIED WARRANTIES. NOR ANY
+WARRANTY OF MERCHANTABILITY AND/OR OTHER WARRANTY OF
+FITNESS FOR A PARTICULAR PURPOSE. IN THE SALE OF THE
+PRODUCT SELLER MAKES NO REPRESENTATION OR WARRANTY OF ANY
+KIND OTHER THAN THAT STATED HEREIN AND NO PERSON IS
+AUTHORIZED TO ALTER THIS WARRANTY ORALLY.
+#36, Ex. B and C. Another term and condition is the following:
+7. Limitations of Liability. It is expressly understood and
+agreed that the limit of Seller's liability shall be, at
+Seller's sole option, repair or resupply of the product.
+Resupply shall mean furnishing free of charge (F.O.B.
+place of original purchase) a new shipment of the product
+(uninstalled) in an amount sufficient to replace any
+product found to be defective. All labor and service
+charges which may be incurred with respect to either the
+original or replacement product are excluded. THE SELLER
+SHALL NOT BE LIABLE FOR ANY INCIDENTAL, CONSEQUENTIAL OR
+OTHER DAMAGES SUCH AS DAMAGE TO ANY BUILDING STRUCTURES
+TO WHICH THE PRODUCT IS AFFIXED OR ITS CONTENTS; NOR
+SHALL THE SELLER BE LIABLE FOR ANY DAMAGES WHICH ARE
+BASED UPON ALLEGED NEGLIGENCE, BREACH OF WARRANTY, STRICT
+LIABILITY OR ANY OTHER THEORY OTHER THAN THE LIMITED
+LIABILITY SET FORTH ABOVE. INCIDENTAL AND CONSEQUENTIAL
+25 Parker states that Ex. C is the best copy of the quotation
+that the parties have, but the wording has been reduced through the
+copying process. Ex. B is more legible and closer to the original
+size of the document.
+-39-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 39 of 75
+DAMAGES SHALL NOT BE RECOVERABLE EVEN IF THE RESUPPLY
+FAILS OF ITS PURPOSE OR FOR ANY OTHER REASON.
+Also contained in the "TERMS AND CONDITIONS" is the requirement,
+"8. Any claim on account of damaged products, warranty, short
+count or for any other cause shall be deemed waived unless made in
+writing within 30 days from the date the defect or cause to which
+each claim relates is discovered or should have been discovered."
+Exs. B and C.
+After Omni accepted the "TERMS AND CONDITONS", Parker sent a
+"final pricing" quotation on July 16, 2004 that included on the
+front page another condition: "[Parker] is not able to provide a
+service life for your specific application at this time. Any
+warranty claims associated with service life of product is not the
+responsibility of [Parker.]" #36, Ex. D., Final Pricing, signed by
+Paul Yager.
+After approving Parker's substantially identical drawing of a
+sample provided by Omni, Omni emailed the signed approval of the
+seals on August 27, 2004, stating that Omni was ready to place the
+purchase order. Exs. D and F. By signing the seal design
+drawings, Omni represented that the "seal dimension, sign and
+material are satisfactory." Ex. D. After approving the drawing,
+Omni tested the seals for fit and installation by installing
+samples and performing pressure tests. Ex. E, Kemper Dep., pp. 36-
+37.
+With supporting evidence, Parker reiterates, inter alia, that
+-40-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 40 of 75
+Omni began issuing purchase orders in September 2004 and accepted
+delivery of seals from Parker (Ex. G) for the next year without
+disputing the "TERMS AND CONDITONS" in the two quotations.
+Matthews and Kemper, Omni's designated corporate representatives,
+stated in depositions that it was Omni's responsibility to install
+the seals correctly. Ex. H at pp. 105-12; Ex. E at pp. 28-29.
+Each gearbox was supposed to be tested before leaving Omni's
+manufacturing sites. Ex. E at p. 33 and Ex. 2; Ex. H, pp. 75-76
+and Ex. 2.
+In February 2007 Omni requested more seals from Parker. Ex.
+J, invoice). Because Omni was not receiving enough seals quickly,
+Omni purchased seals from other vendors and used them in the
+gearboxes. In the fall of 2007, T&L complained about leaks in some
+of the gearboxes shipped to it by Omni in 2005. Ex. E, pp. 31-33
+& Ex. 9; Ex. H at pp. 116-20 and Ex. 9. Parker highlights the fact
+that all of the purportedly leaking seals were discarded, and Omni
+and T&L cannot determine which of the numerous gearboxes sold
+leaked. Ex. I, T&L engineering manager Douglas Soderquist's Dep.
+at pp. 143-45. There is no record of how many seals allegedly
+leaked or whether any of the allegedly leaking seals were from
+Parker or from other vendors. The limited testing that was done
+was unable to duplicate leaking or determine its cause. Daniel
+Dep. at pp. 207-14, 262; Ex. H, Matthews Dep. at pp. 122-24.
+Parker complains that Omni filed this suit despite the fact that
+-41-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 41 of 75
+there was no evidence of a defect in the Parker s eals; all
+allegedly leaking seals were discarded; no root cause analysis was
+performed; there was no evidence regarding which gearboxes leaked;
+there was no evidence whether the seals in the allegedly leaking
+gearboxes were from Parker or another vendor; and the "TERMS AND
+CONDITONS" disclaim implied warranties and limit liability.
+One Term and Condition was an express warranty that the seals
+would be free from defects in materials and workmanship for one
+year from the date of delivery. Omni's failure to give notice of
+any claim within a year of delivery of the seals and its failure to
+identify a defect in material and workmanship that existed at the
+time of delivery require the Court to dismiss Omni's claim for
+breach of express warranty. Another term and condition explicitly
+disclaimed implied warranties of merchantability and fitness for a
+particular purpose and any warranty for service life. The warranty
+exclusions were conspicuous, and Omni was aware of them and given
+every opportunity to inspect the seals.
+If Omni's claims are not dismissed for other reasons, Parker's
+"TERMS AND CONDITONS" also limit Parker's liability either to
+repairing or resupplying any allegedly defective seals. The
+written "TERMS AND CONDITONS" include an express warranty that the
+seals would be free from defects in materials and workmanship for
+a period of only one year from the date of delivery and not
+afterward, thus barring claims in 2007 and afterward about the
+-42-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 42 of 75
+seals sent by Parker to Omni in 2005.
+Moreover "TERMS AND CONDITONS" warranted only that the Parker
+component part, the seals, would be free of defects in material and
+workmanship for one year, not the finished-product gearboxes, and
+Omni has not shown the leaking was caused by a defect in the
+component part. In writing Parker specifically disclaimed or
+excluded all implied warranties, including those for
+merchantability and for a particular purpose, as well as any
+warranty for service life. Moreover under section 2.316(c)(2),
+where "the buyer before entering into the contract has examined the
+goods of the sample or model as fully as he desired or has refused
+to examine the goods there is no implied warranty with regard to
+defects which an exami nation ought in the circumstances to have
+revealed to him." Even if the warranty is inconspicuous, which is
+not the case here, where the first page called attention to the
+"TERMS AND CONDITONS" in capital letters and the "TERMS AND
+CONDITONS" are in all capital letters, as are the warranty
+limitations, the disclaimer is valid if the buyer has actual
+knowledge of the disclaimer. Cate v. Dover Corp., 790 S.W. 2d at
+561. The "TERMS AND CONDITONS" were faxed to Daniel, Omni's
+President (Ex. B). Furthermore Daniel testified that his education
+and experience in the industry made him well aware of standard
+terms and conditions such as, and including, those in Omni's
+quotations. Daniel Dep., Ex. A, pp. 78-90, 96-97, 101-02.
+-43-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 43 of 75
+Matthews also testified that he was familiar with the standard
+terms and disclaimers of implied warranties from his education and
+experience and he was aware of the limited warranties and remedies
+associated with the seals. Ex. H, pp. 34-35, 49-51, 126. Kemper
+testified that Omni's customers were expected to abide by Omni's
+limitations in its warranties. Ex. E at pp. 27-28. Omni had every
+opportunity to inspect the seals, test them, and be sure they were
+working properly under section 2.316.
+Furthermore, insists Parker, Parker expressly excluded all
+labor and service charges, as well as damages other than for repair
+or resupply of any defective seal under the "TERMS AND CONDITONS"
+. Since Omni did not preserve the seals that allegedly leaked nor
+keep a record of which ones did, or which gearboxes leaked, or
+which gearboxes contained Parker seals or seals from other vendors,
+there is no evidence to support Omni's claimed damages. Omni has
+not designated an expert on damages, and Parker's expert stated
+that Omni's damage allegations are speculative. The measure of
+direct damages for a breach of warranty is the market value
+difference between the goods as delivered and the goods as
+warranted at the time and place of acceptance unless special
+circumstances show proximate damages of a different amount. Tex.
+Bus. & Com. Code Ann. § 2.714(b); Chaq Oil Co. v. Gardner Machinery
+Corp., 500 S.W. 2d 877, 878-79 (Tex. Civ. App.--Houston [14
+th Dist.]
+1973, no writ)("[T]he measure of damages for either an express or
+-44-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 44 of 75
+an implied warranty is the difference in market value between the
+equipment as delivered and as warranted.").
+Omni was required by the "TERMS AND CONDITONS" to notify
+Parker of any claim in writing within thirty days from the date the
+defect is discovered or should have been discovered. Ex. B. Omni
+failed to notify Parker within thirty days, as well as within the
+one year from date of delivery as required by the express warranty.
+Furthermore the statute of limitations for a breach of warranty is
+four years. Tex. Bus. & Com. Code Ann. § 2.725(a)("An action for
+breach of any contract for sale must be commenced within four years
+after the cause of action has accrued. By the original agreement
+the parties may reduce the period of limitation to not less than
+one year but may not extend it."); American Tobacco v. Grinnell,
+951 S.W. 2d 420, 435 (Tex. 1997). A cause of action for breach of
+warranty accrues when the goods are tendered for delivery, even if
+the aggrieved party did not know of the breach and even if they are
+defective. Id. at § 2.725(b)("A cause of action accrues when the
+breach occurs, regardless of the aggrieved party's lack of
+knowledge of the breach. A breach of warranty occurs when tender
+of delivery is made, except that where a wa rranty explicitly
+extends to future performance of the goods and discovery of the
+breach must await the time of such performance the cause of action
+accrues when the breach is or should have been discovered.");
+Conquest Drilling Fluids, Inc. v. Tri-Flo Int'l, 137 S.W. 3d 299,
+-45-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 45 of 75
+302 (Tex. App.--Beaumont 2004, no pet.). Since Omni filed this
+action on October 13, 2010, argues Parker, the statute of
+limitations bars any cause of action that accrued before October
+13, 2006; because the evidence shows that the leaking gearboxes
+were delivered in 2005, Omni's claims should be dismissed with
+prejudice.
+A. Omni's Response (#46)
+Although Parker asserts, "Omni was in the unique position to
+determine whether the seals were properly installed and whether
+they would leak prior to shipping its gearboxes to its customers,"
+Omni argues that it was not the seal expert here, Parker was, and
+yet Parker sold Omni defective seals. Omni states that it did
+perform its standard, rudimentary pressure checks before selling
+its gearboxes with Parker's seals. Ex. A, Matthews Dep. Omni
+maintains that Parker breached its contract by failing to provide
+Omni with adequate replacement seals once the original ones proved
+to be defective.
+Omni insists that its expert's reports evidence that Parker's
+seals were defective or defectively designed. Ex. E, Seal rotation
+test and report, p.9, to #33 ("Based on the testing completed, it
+is clear that [Parker's] seals are designed with too much internal
+friction and torque to the point that many of them do not operate
+correctly. In addition, rubber coating on this particular seal
+design is such that it makes them very difficult if not impossible
+-46-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 46 of 75
+to consistently install correctly. Therefor, it is my opinion that
+[Defendant's] seals are experiencing premature failure from either
+improper operation of the seal itself, or from the misalignment
+problems inherent to this design.").
+As for Omni's breach of contract claim, Omni maintains that
+Parker does not dispute that it breached its agreement with
+Plaintiff to provide replacement seals for the defective seals.
+Omni claims that at trial it will prove that Defendant breached its
+agreement to provide adequate seals by attempting to change the
+original terms and offering replacement seals of unknown quality at
+higher prices with a stipulation to purchase certain quantities
+from Parker. Meanwhile to counter the argument that there is a
+distinction between breach of contract and breach of warranty
+claims, Omni questions the premise, insists Parker breached the
+contract to provide replacement seals, and "to the extent there is
+no such steadfast rule as Defendant alleges, Plaintiff continues to
+assert its breach of contract claim that Defendant failed to
+provide Plaintiff with non-defective seals." #46 at p. 8.
+Omni further argues that the additional terms were not
+conspicuous, were not agreed to by it, and did not become part of
+the agreement between the parties. Omni claims it did not become
+aware of the terms until its attorney discovered them when
+examining the invoice copies after litigation began. In its
+-47-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 47 of 75
+Opinion and Order of June 28, 2011 (#15 at pp. 29-30)26 this Court
+wrote, "Neither party indicates how many invoices were sent to Omni
+and how many of those contained the Standard Terms; clearly it was
+not a consistent part of the course of dealings between the two.
+Moreover whether Parker can establish that the few invoices
+containing it constitute a 'confirmation' of the whole agreement
+under what is known as the 'merchant's exception' of Tex. Bus. &
+Com. Code § 2.207(c) remains a question."
+Regarding Omni's claim for damages, Omni states that it sent
+Parker a chart of minimum damages incurred as a result of the
+demand from customer T&L. Ex. C, Recall Damages Chart.
+Soderquist, T&L's former president, testified that under the
+circumstances, a total recall was the most economical and efficient
+method of replacing the defective seals. Ex. D, Soderquist's Dep.
+at pp. 87-89. Moreover Omni presents a measure of damages for its
+breach of express warranty as the difference between the goods as
+delivered and as warranted, which at minimum should have been full
+replacement value since when delivered the value of the goods was
+nonexistence because the seals were not in working condition. It
+further asserts that the value could be negative because utilizing
+26 Opinion and Order (#15) addressed the original complaint and
+granted a motion for more definite statement. The quoted portion
+dealt with Omni's breach of contract claim, which the Court has
+indicated in the instant Opinion and Order must be dismissed since
+the goods were delivered and accepted, relegating Omni to its
+breach of warranties causes of action. Omni filed its First
+Amended Complaint (#16) on July 13, 2011.
+-48-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 48 of 75
+defective seals was more costly than their worth, which was zero.
+B. Parker's Reply (#49)
+Parker reiterates that it is uncontroverted that (1) Omni has
+not identified a defect in the Parker seals, (2) Parker's "TERMS
+AND CONDITIONS" were separately communicated to and accepted by
+Omni to limit Parker's liability and damages in this case, (3) Omni
+was aware of the "TERMS AND CONDITIONS" and had every opportunity
+to inspect the seals, (4) Omni had exclusive control of the design
+of the gearboxes into which the seals were placed and exclusive
+control over the manufacturing method used to place the seals into
+the Omni gearboxes, and (5) after placing the seals in the
+gearboxes, Omni had exclusive control over the quality control
+inspections made to confirm that the installation was proper.
+27
+Moreover there is uncontroverted evidence that Omni approved the
+seal design, that the seals could be properly installed, and that
+the gearboxes with the Parker seals were used for years before
+there were any complaints from customer T&L, well past the one-year
+express warranty provided by Parker that the seals would be free
+from defects in material and workmanship. Thus Parker is entitled
+27 During his second deposition, Bell testified that the
+manufacturer/assembler of the end product was responsible for
+manufacturing techniques to assemble all the components to function
+properly, for determining that the seals, as a component, fit the
+application, that a quality control system was in place to make
+sure they worked, for determining whether there were any problems
+with the seals and if so, to notify the seal manufacturer of any
+seal installation issues, and to preserve the evidence. #62, Ex.
+A at pp. 100-01, 114-15, 123-28.
+-49-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 49 of 75
+to judgment was a matter of law.
+Parker again objects to the deposition excerpts attached by
+Omni to its response (Exs. A and C) because there is no title page
+or other evidence showing who the witness is or that the witness
+was sworn. Refrigeracion, 1998 WL 1782541 at *1 ("Excerpts from
+depositions are not competent summary judgment evidence unless the
+party offering them attaches a copy of the court reporter's
+certificate certifying that the copy is true and correct."). Nor
+is Omni's "Recall Damages Chart" (Ex. B to #46) authenticated.
+VI. Court's Determination on Motions for Partial Summary Judgment
+As a threshold matter, the Court has pointed out that as a
+matter of law, breach of contract and breach of warranty are
+distinct and different claims with different remedies, and "[w]hen
+a party fails to del iver the goods as promised, a breach of
+contract occurs[,] but when a seller delivers nonconforming goods,
+it is a breach of warranty." Structural Metals, Inc. v. S&C Elec.
+Co., 2012 WL 930816, *3, citing Chilton Ins. Co. v. Pate & Pate
+Enters., 930 S.W. 2d at 890; in accord, Ellis v. Precision Engine
+Rebuilders, Inc., 68 S.W. 3d at 897; Head v. U.S. Inspect DFW,
+Inc., 199 S.W. 3d 731, 746 (Tex. App.--Fort Worth 2005). See
+generally Southwestern Bell Telephone Co. v. FDP Corp., 811 S.W. 2d
+at 576.
+28 Because Parker did not fail to deliver the goods, and
+28 The Texas Supreme Court in Medical City D allas, Ltd. v.
+Carlisle Corp., 251 S.W. 3d 55, 60-61 (Tex. 2008), reiterated that
+"breach of warranty and breach of contract are distinct causes of
+-50-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 50 of 75
+because Omni accepted them, the Court concludes that as a matter of
+law Omni has no claim for breach of contract, but only claims for
+breach of express and implied warranties.
+Second, Parker's first motion for partial summary judgment
+argues that Omni must prove there is a defect in Parker's seals to
+prevail on all its breach of warranty claims. Contrary to Parker's
+claim, the Texas Supreme Court, although holding that "proof of a
+defect is required in an action for breach of implied warranty of
+merchantability under section 2.314(b)(3)," clearly opined, "In an
+action based on implied warranty of fitness for a particular
+purpose, proof of a defect is not required." Plas-Tex, 772 S.W.
+2d at 442 n.2, citing 1 J. White & R. Summers, Uniform Commercial
+Code § 9-10. at 482 and n.3 (3d ed. 1988). Thus Parker's motion for
+partial summary judgment on Omni's claims for implied warranty of
+fitness for a particular purpose on the grounds that it failed to
+establish a defect in Parker's seals must be denied.
+As for Omni's breach of express warranty claim, the term
+"defect" in the sense of a flaw or a weakness is too broad to
+describe accurately the element of that cause of action. Instead
+action with separate remedies," but noted that "while an express
+warranty is a distinct claim, it is nonetheless a part of the basis
+of a bargain and contractual in nature" and "is the result of a
+negotiated exchange." In both causes of action the plaintiff is
+"seeking damages based on an opponent's failure to uphold its end
+of the bargain." Id. Therefore a court should apply the "well-
+established rules for interpretation and construction of contracts"
+to determine the parties' intentions in a warranty. Id.
+-51-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 51 of 75
+§ 2.313(a)(1) re quires Omni to show that Parker made an express
+affirmation of fact or promise relating to the seals, on which Omni
+relied and which became the basis of the parties' bargain, but which
+Parker's failure to meet constituted the breach, or in Parker's
+contention, the "defect." In other words, it failed to conform to
+express or implied warranties. While Omni's amended complaint
+asserts that Lovett verbally represented to Omni that Parker was
+fully capable of designing and manufacturing high quality cartridge
+seals for Omni's gearboxes, Omni has not provided evidence
+supporting that allegation. Omni President Jeff Daniel testified
+during his deposition that Parker warranted that its seals would be
+free from defects in material and workmanship (#33, Ex. B, p. 116),
+a statement in essence embodying the implied warranties of
+merchantability and fitness for a particular purpose. Parker points
+to the "TERMS AND CONDITONS" on its quotation dated May 21, 2004
+(#36, Exs. B & C) as express warranties, accepted by Omni when it
+signed the drawings and placed orders: "6. Warranty," is inter
+alia "FREE FROM DEFECTS IN MATERIALS AND WORKMANSHIP." The "TERMS
+AND CONDITONS", however, are not only express warranties, but also
+material limitations on and disclaimers of the extent of Parker's
+warranties. Thus the issue becomes whether they are sufficiently
+conspicuous to be enforceable against Omni, the buyer, under §
+2.316. The decision is a question of law for the Court to decide
+by applying the definition under Tex. Bus. & Com. Code Ann. §
+-52-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 52 of 75
+1.201(b)(10). Plas-Tex, 772 S.W. 2d at 444; Cate v. Dover Corp.,
+790 S.W. 2d at 560. Section 1.201(b)(10) provides,
+"Conspicuous," with reference to a term, means so
+written, displayed, or presented that a reasonable person
+against which it is to operate ought to have noticed it.
+. . . . Conspicuous terms include the following:
+(A) a heading in capitals equal to or greater in size
+than the surrounding text, or in contrasting type, font,
+or color to the surrounding text of the same or lesser
+size; and
+(B) language in the body of a record or display in larger
+type than the surrounding text, or in contrasting type,
+font, or color to the surrounding text of the same size
+by symbols or other marks that call attention to the
+language.
+Comment 10 to the section sets out a subjective standard, "the test
+is whether attention can reasonably be expected to be called to it."
+The Court observes that on the front page of the May 21, 2004
+written quotation, just after the first sentence that states, "This
+quotation is made subject to placement and of your order(s) by 60
+days [sic]," in enlarged capital letters that clearly set it off
+from the remainder of the text is the sentence, "WE INVITE YOUR
+ATTENTION TO THE TERMS AND CONDITIONS OF SALE WHICH APPEAR ON THE
+REVERSE SIDE OF THIS QUOTATION AND WHICH ARE A PART OF THIS
+QUOTATION." Ex. B to #36, and C (reverse side)
+29. The Court finds
+that this sentence is sufficiently conspicuous that a reasonable
+29 Parker states that Ex. C is the best copy of the quotation's
+"TERMS AND CONDITONS" that the parties have, but the wording has
+been reduced through the copying process. Ex. B is more legible
+and closer to the original size of the document.
+-53-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 53 of 75
+party should have noticed it and read the reverse side. Mo reover
+in Cate v. Dover Corp., 790 S.W. 2d at 561, the Texas Supreme Court
+examined a number of cases that held that where a disclaimer is
+placed under a heading like "WARRANTY and AGREEMENT" or "Terms of
+Warranty," even when the headings were in bold, the disclaimer was
+found not to be conspicuous because the title did not suggest
+exclusion or m odification of a warranty.
+30 Here, "TERMS AND
+CONDITIONS" does not suggest the usual warranties are in place, but,
+highlighted by the capitalized sentence on the front of the first
+page, that the "TERMS AND CONDITONS" of the agreement need attention
+and the key disclaimers are visually effectively set off by
+capitalization. Moreover both Parker and Omni are sophisticated
+entities with experience in the business of irrigations systems and
+who would have understood the legal significance of legal terms
+relating to warranties in the documents.
+As indicated supra, on the reverse side, under the title "TERMS
+AND CONDITIONS" in capitals and bold print, are included the
+following paragraphs, with the letters rendered as they are in the
+document:
+30 The Texas Supreme Court does state that alternatively an
+inconspicuous disclaimer can be given effect if the seller can show
+that purchaser had a ctual knowledge of it at the time of the
+purchase, such as from prior dealings with the seller by the
+seller's pointing out the inconspicuous waiver to the buyer, orally
+or in writing. 790 S.W. 2d at 561-62. Moreover an implied
+warranty may be excluded by mean other than a conspicuous writing,
+e.g., course of dealing course of performance, or course of trade.
+These methods do not apply to the facts here. Id. at 562.
+-54-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 54 of 75
+6. Warranty. All shipments of the product sold hereby are
+subject to the following warranty: THE SELLER WARRANTS
+FOR A PERIOD OF ONE YEAR FROM THE DATE OF DELIVERY THAT
+THE PRODUCT IS FREE FROM DEFECTS IN MATERIALS AND
+WORKMANSHIP. THIS LIMITED WARRANTY IS YOUR EXCLUSIVE
+WARRANTY FROM THE SELLER AND DESCRIBES THE EXCLUSIVE
+REMEDY AVAILABLE TO ANY PURCHASER OF THE PRODUCT. THE
+PRODUCT IS NOT SOLD WITH ANY IMPLIED WARRANTIES. NOR ANY
+WARRANTY OF MERCHANTABILITY AND/OR OTHER WARRANTY OF
+FITNESS FOR A PARTICU LAR PURPOSE. IN THE SALE OF THE
+PRODUCT SELLER MAKES NO REPRESENTATION OR WARRANTY OF ANY
+KIND OTHER THAN THAT STATED HEREIN AND NO PERSON IS
+AUTHORIZED TO ALTER THIS WARRANTY ORALLY.
+7. Limitations of Liability. It is expressly understood and
+agreed that the limit of Seller's liability shall be, at
+Seller's sole option, repair or resupply of the product.
+Resupply shall mean furnishing free of charge (F.O.B.
+place of original purchase) a new shipment of the product
+(uninstalled) in an amount sufficient to replace any
+product found to be defective. All labor and service
+charges which may be incurred with respect to either the
+original or replacement product are excluded. THE SELLER
+SHALL NOT BE LIABLE FOR ANY INCIDENTAL, CONSEQUENTIAL OR
+OTHER DAMAGES SUCH AS DAMAGE TO ANY BUILDING STRUCTURES
+TO WHICH THE PRODUCT IS AFFIXED OR ITS CONTENTS; NOR
+SHALL THE SELLER BE LIABLE FOR ANY DAMAGES WHICH ARE
+BASED UPON ALLEGED NEGLIGENCE, BREACH OF WARRANTY, STRICT
+LIABILITY OR ANY OTHER THEORY OTHER THAN THE LIMITED
+LIABILITY SET FORTH ABOVE. INCIDENTAL AND CONSEQUENTIAL
+DAMAGES SHALL NOT BE RECOVERABLE EVEN IF THE RESUPPLY
+FAILS OF ITS PURPOSE OR FOR ANY OTHER REASON.
+8. Any claim on account of damaged products, warranty,
+short count or for any other cause shall be deemed waived
+unless made in writing within 30 days from the date the
+defect or cause to which each claim relates is discovered
+or should have been discovered.
+#36, Ex. B and C.
+
+Paragraphs 6 and 7 are the only paragraphs under the "TERMS AND
+CONDITONS" that contain substantial passages conspicuously set off
+in all capital letters, and those passages highlight the key
+disclaimers and limitations on the warranties. See, e.g., Rmax,
+-55-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 55 of 75
+Inc. v. Sarnafil, Inc., No. Civ. A. 3:03-CV-1404-B, 2004 WL 2070967,
+*1 (N.D. Tex. Sept. 16, 2004). Implied warranties must be expressly
+disclaimed, in writing, and must be conspicuous. §§ 2.314, 2.315.
+A disclaim er implied warranty of merchantability must be
+conspicuous and use the word "merchantability." § 2.316(b). These
+requirements have been met here and the disclaimers and limitations
+are enforceable. Because they are enforceable, the one-year time
+limitations on the express warranty that the seals were free from
+defects in materials and workmanship and the clear disclaimer of any
+implied warranties bar Omni's claims. Nor did Omni comply with
+paragraph 8, requiring written notice of any damaged product or
+warranty "within 30 days from the date the defect or cause to which
+each claim relates is discovered or should have been discovered.
+Third, regarding Parker's insistence that Omni failed to show
+a defect in Parker's seals and Parker's challenges to Omni's
+unauthenticated evidence, Federal Rule of Civil Procedure 56(c)(2)
+provides, "a party may object that the material cited to support or
+dispute a fact cannot be presented in a form that would be
+admissible in evidence." Allegations of the nonmovant must be
+supported by admissible evidence to defeat a motion for summary
+judgment. Howell Hydrocarbons, Inc. v. Adams , 897 F.2d 183, 192
+(5
+th Cir. 1990). "Material that is inadmissible will not be
+considered on a motion for summary judgment because it would not
+establish a genuine issue of material fact if offered at trial . .
+-56-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 56 of 75
+. ." Duplantis v. Shell Offshore, Inc., 948 F.2d 787, 793 (5th Cir.
+1991), quoting Geiserman v. McDonald, 893 F.2d 787, 793 (5 th Cir.
+1990)(quoting 10A Wright, Miller & Kane, Federal Practice and
+Procedure § 2727 at 156 (1983). See also Watts v. Kroger Co., 107
+F.3d 505, 508 (5 th Cir. 1999)("A plaintiff must respond to an
+adequate motion for summary judgment with admissible evidence.").
+The Advisory Commi ttee's comment to Rule 56(c) in the 2010
+Amendments states, "The burden is on the proponent to show that the
+material is admissible as presented or to explain the admissible
+form that is anticipated." "[T]he admissibility of summary judgment
+evidence is subject to the same rules of admissibility applicable
+to a trial." Pegram v. Honeywell, Inc., 361 F.3d 272, 285 (5
+th Cir.
+2004). Federal Rule of Civil Procedure 30(f)(1) requires that for
+a deposition transcript, the court reporter "must certify in writing
+that the witness was duly sworn and that the deposition is a true
+record of the testimony given by the witness." Coach, Inc. v. D 4
+L Apparel, No. SA-11-CV-00185-DAE, 2013 WL 489658, *6 (W.D. Tex.
+Feb. 7, 2013)(sustaining the objection that depositions were not
+certified by the court reporter). Rule 901 provides, "To satisfy
+the requirement of authenticating or identifying an item of
+evidence, the proponent must produce evidence sufficient to support
+a finding that the evidence in question is what its proponent claims
+it to be." Opining that there need not be conclusive proof of
+authenticity before the Court admits disputed evidence, the Fifth
+-57-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 57 of 75
+Circuit has opined, that "'Rule 901 does not limit the type of
+evidence allowed to auth enticate a document. It merely requires
+some evidence which is sufficient to support a finding that the
+evidence in question is what the proponent claims it to be.'" U.S.
+v. Arce , 997 F.2d 1123, 1128 (5 th Cir. 1993)( quoting U.S. v.
+Jimenez-Lopez, 873 F.2d 769, 772 (5th Cir. 1989)), cited by Tremont
+LLC v. Halliburton Energy Services, Inc., 696 F. Supp. 2d 741, 753
+n.8 (S.D. Tex. 2010). An authenticating affidavit will often serve
+this purpose. Here the format of the excerpts suggests that they
+are what Omni claims them to be, but Omni has not responded to
+Parker's challenge to identify and authenticate the deposition
+excerpts on which it relies. At the same time, Parker does not
+claim that the excerpts are not true and correct copies of parts of
+the deposition that Omni claims they are, nor has it challenged
+Bell's qualifications to be an expert witness.
+The Court finds that under the circumstances here the bottom
+line is whether these deposition excerpts substantively constitute
+relevant and reliable expert testimony. The Court, in its role as
+a gatekeeper, has broad discretion in determining whether such
+testimony is relevant and reliable and should be admitted. Wilson
+v. Woods, 163 F.3d 935. 937 (5
+th Cir. 1999), citing Daubert v.
+Merrell Dow Pharmaceuticals, Inc. , 509 U.S. 579, 590-93 (1993).
+Federal Rule of Evidence 702 allows a witness "qualified as an
+expert by knowledge, skill, experience, training or education" to
+-58-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 58 of 75
+offer opinion testimony if that testimony will assist the trier of
+fact, if "the testimony is based on sufficient facts or data," if
+it "is the product or reliable principles and methods," and if "the
+expert has reliably applied the principles and methods of the facts
+of the case." The Court also has broad discretion to determine if
+the evidence relied upon by an expert is reliable and sufficient to
+support and make admissible the expert's opinion. Johnson v.
+Arkema, Inc., 685 F.3d 452, 458-59 (5
+th Cir. 2012), citing Knight v.
+Kirby Inland Marine Inc., 482 F.3d 347, 354 (5th Cir. 2007).
+The key factor regarding Bell's testimony, as discussed supra,
+is that the transcript of Bell's second, court-ordered deposition
+testimony was submitted and properly authenticated by Parker. This
+second deposition testimony undermines Bell's earlier expert opinion
+testimony during Bell's first deposition that Parker's seals were
+defective by now revealing that when he performed his tests, he was
+materially misled about the age of the two groups of seals that he
+tested and that therefore his conclusions are invalid.
+31 Nor was he
+31 As discussed, Bell admitted that because he had not been
+told about the age of Parker's or the comparison seals, (1) his
+first test and report, aimed at proving Parker seals were inferior
+to other designs, did not contain valid conclusions and that he
+could not state that Parker seals were inferior; (2) he has no
+opinion of how Parker seals performed when new (and when they were
+delivered to Omni by Parker) because he only tested six-to-seven-
+year-old ones, had no opinion about other causes of difficult
+installation because he was not asked by Omni to investigate Omni's
+inspection practices, installation techniques, consistency of
+gearbox dimensions, manufacturing practices, worker training, or
+quality control, and admitted that difficult installation of a seal
+into a company's gearbox is not proof of a defect in the seal; and
+-59-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 59 of 75
+aware before starting his experiment that the seal was cocked. #62,
+Ex. A at 26. Even if the leakage was because of seals' not being
+installed by Omni flush with their endcaps, he conceded that there
+where a number of possible causes why they were not flush and he was
+not asked to rule any out. Id. at p. 97-123. Thus by Bell's own
+admission his conclusions based on his comparison of gearboxes, one
+with Parker's six- or seven-year-old seals and another vendor's new
+seals, were not helpful to the Court or a jury in this case, but
+irrelevant and unreliable bases to determine the condition and
+measure the function of the seals at the time Parker sold and
+delivered them to Omni in 2005. Bell was not given enough data to
+determine why the T&L gearboxes were leaking. #62, Ex. A at 80-82.
+Bell disclaimed the informational value of the three EPS reports.
+Id. at 146. Moreover Bell also admittedly failed to rule out other
+possible causes of the leakage. E.I. du Pont de Nemours and Co.,
+Inc. v. Robinson, 923 S.W. 2d 549, 558-59 (Tex. 1995)("An expert who
+(3) regarding the third test and report, performed to see if the
+Parker seals would rotate, again he had no opinion as to how the
+Parker seals behaved when new because he only tested old ones.
+Bell further testified that, as the manufacturer of the end
+product, Omni had the responsibility to determine that the seals
+fit into the gear box and worked, that all the component parts were
+proper for the end product, and that Omni's alleged difficulty in
+installing a seal into a gearbox did not indicate there was a
+defect in the seal's design. He also admitted that he was not
+given the information necessary to find out why the Omni gearboxes
+sent to T&L were leaking, whether there was a flaw in the endcaps
+of the gearboxes, whether the manner of assembly or manufacture was
+faulty, or whether there was a problem with the quality control of
+the gearboxes, all within Omni's control.
+-60-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 60 of 75
+is trying to find a cause of something should carefully consider
+alternative causes"; concluding that the trial court did not abuse
+its discretion when it excluded testimony by an expert who
+"conducted no testing to exclude other possible causes"), citing In
+re Paoli R.R. Yard PCB Litig., 35 F.3d 717, 758-59 (3d Cir. Aug. 31,
+1994); Transcontinental Ins. C. v. Crump, 330 S.W. 3d 211, 217-18
+(Tex. App.--Austin 2010); Michaels v. Avitech, Inc., 202 F.3d 746,
+753 (5
+th Cir. 2000)(citing In re Paoli), cert. denied, 531 U.S. 926
+(2000). Therefore the Court concludes that Bell's testimony was
+insufficient to support those of his conclusions on which Omni
+relied and it must be excluded.
+Omni fails to identify and support with admissible evidence a
+defect or deficiency or shortcoming in the Parker seals that caused
+the leakage, an essential element for Omni's claims for breach of
+express warranty and breach of implied warranty of merchantability.
+"Texas law does not generally recognize a product failure standing
+alone as proof of a product defect." Cooper Tire & Rubber Co. v.
+Mendez, 204 S.W. 3d 797, 807 (Tex. 2006). A plaintiff may show a
+defect in an implied warranty of merchantability case by means of
+circumstantial evidence by establishing that there was a malfunction
+together with evidence of proper use of the goods. Plas-Tex, 772
+S.W. 2d at 444-45. There has been no evidence of T&L's use, proper
+or improper, produced by the parties. "A conclusory statement of
+an expert witness is insufficient to create a question of fact to
+-61-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 61 of 75
+defeat summary judgment." McIntyre v. Ramirez, 109 S.W. 3d 741,749
+(Tex. 2003). Moreover, § 2.314(b) requires for a breach of implied
+warranty of merchantability that the goods must be defective, i.e.,
+"unfit for ordinary purposes for which they are used because of a
+lack of something necessary for adequacy," at the time they left the
+manufacturer's or seller's possession. GMC v. Brewer, 966 S.W. 2d
+56, 57 (Tex. 1998), quoting Plas-Tex, 772 S.W. 2d at 443-44. Omni
+has failed to produce admissible evidence that shows the condition
+of the gearboxes at the crucial time.
+Moreover, as should be evident from this discussion, the Court
+agrees with Parker's arguments in its second motion for partial
+summary judgment.
+VII. Parker's Motion for Partial Summary Judgment Against
+Omni on Parker's Counterclaims
+32 for Unpaid Invoices (#37)
+Parker's counterclaims assert that Omni is liable for
+$15,233.00 for seals which Omni ordered and received, but refused
+to pay, and complains that it was left with additional seals
+manufactured in accordance with the design requested and approved
+by Omni, 910 in breach of contract under Texas or Ohio law, (2) an
+action on an account under Ohio law, and (3) a suit on a sworn
+account under Texas law. Alternatively, Parker sues Omni for unjust
+enrichment and quantum meruit under Texas or Ohio law. Parker asks
+32 Parker's Answer to Omni's First Amended Complaint and
+Counterclaims is instrument #22.
+-62-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 62 of 75
+for damages, prejudgment and post-judgment interest and reasonable
+and necessary attorneys' fees, expenses and costs. By the time
+Parker filed its motion for partial summary judgment (#37), it
+apparently abandoned its Ohio law claims and sues for these causes
+of action solely under Texas law.
+Parker attaches to Paul Yager's declaration (Exhibit A) a copy
+of his prior affidavit that was attached to Parker's original answer
+(#37, Ex. A) attesting to Omni's unpaid $15,233.00 for seals it
+received from Parker, and copies of two unpaid invoices. The
+declaration states,
+The prices Omni charged were just and true because they
+were according to the terms of a contract. They were
+also usual and customary and reasonable prices. A
+systematic record of the transactions were kept, and a
+complete accounting of the amounts due and owing by Omni
+USA, Inc. to Parker-Hannifin Corporation is attached to
+my prior affidavit attached to Parker's Counterclaims as
+Exhibit A, and is incorporated by reference as if fully
+set forth herein. All lawful offsets, payments, and
+credits have been applied to the account. The account
+remains unpaid.
+The declaration is sworn under penalty of perjury. Parker also
+provides a declaration from attorney Jeremy R. Stone in support of
+a request for attorneys' fees for himself, co-counsel Louis M.
+Scofield, Jr., and their law firm, Mehaffy Webber, in the amount of
+$110,101.50, with supporting resumes of the two attorneys.
+Alternatively, Parker contends that Omni is liable under equitable
+theories of unjust enrichment and quantum meruit under Texas law.
+Omni has not filed a substantive response to this motion.
+-63-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 63 of 75
+Relevant Law
+Sworn Account
+"The elements of an action on account [under Texas common law]
+are (1) there was a sale and delivery of merchandise, (2) that the
+amount of the account is just, that is, that the prices are charged
+in accordance with an agreement or in the absence of an agreement,
+they are usual, customary and reasonable prices for that
+merchandise; and (3) that the amount is unpaid." ABB, Inc. v. Pena,
+Civ. A. No. L-10-83, 2011 WL 906651 (S.D. Tex. Mar. 5, 2011), citing
+Pro Connectors, Inc. v. Parker Hannifin Corp., 889 S.W. 2d 555, 558
+(Tex. App.--Houston [14
+th Cir.] 1994, no writ), and Pat Womack, Inc.
+v. Weslaco Aviation, Inc., 688 S.W. 2d 639, 641 (Tex. App.--Corpus
+Christi 1985, no writ). If a party prevails on a suit on a sworn
+account, it is entitled to attorney's fees under Texas Civil
+Practices and Remedies Code § 38.001(7). Id. at *2. "State law
+controls both the award of and the reasonableness of fees awarded
+where state law supplies the rule of decision." Mathis v. Exxon
+Corp., 302 F.3d 448, 462 (5
+th Cir. 2002).
+Texas Rule of Civil Procedure 185, "Suit on Account,"
+establishes a means of making a prima facie claim for a suit on
+account:
+When any action or defense is founded upon an open
+account or other claim for goods, wares and merchandise,
+including any claim for a liquidated money demand based
+upon written contract or founded on business dealings
+between the parties, or is for personal service rendered,
+or labor done or labor or materials furnished, on which
+-64-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 64 of 75
+a systematic record has been kept, and is supported by
+the affidavit of the party, his agent or attorney taken
+before some officer authorized to administer oaths, to
+the effect that such claim is, within the knowledge of
+affiant, just and true, that it is due, and that all just
+and lawful offsets, payments and credits have been
+allowed, the same shall be taken as prima facie evidence
+thereof, unless the party resisting such claim shall file
+a written denial, under oath. A party resisting such
+sworn claim shall comply with the rules of pleading as
+are required in any other kind of suit, provided,
+however, that if he does not timely file a written denial
+under oath, he shall not be permitted to deny the claim,
+or any other item therein, as the case may be. No
+particularization or description of the nature of the
+component parts of the account or claim is necessary
+unless the trial court sustains special exceptions to the
+pleadings.
+Parker's motion follows the prescription of Rule 185. With
+respect to the evidence necessary to make a prima facie case,
+however, the Texas Supreme Court has held that Rule 185 is a
+procedural rule, not a rule of substantive law. Sneed Shipbuilding,
+Inc. v. Spanier Marine Corp. , 125 F.R.D. 438, 443-44 (E.D. Tex.
+1979), citing Rizk v. Financial Guardian Ins. Agency, Inc., 584 S.W.
+2d 860, 862 (Tex. 1979). See also e.g., Steelplan Ltd. v. Steel
+Plan Australia Pty., Ltd., No. 3:02-CV-0470-P, 2003 WL 21499303, *8
+(N.D. Tex. June 25, 2003)("Rule 185 does not create a substantive
+cause of action. Rather, the rule is strictly procedural--it
+"facilitate[s] the presentation of evidence by providing that,
+absent verified denial, the pleadings, if they conform to the rule
+and are pleadings of facts rather than mere conclusions, constitute
+prima facie evidence of the justness of the claim, avoiding the
+necessity of further proof.'"), citing Hou-Tex Printers v. Marbach,
+-65-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 65 of 75
+862 S.W. 2d 188, 190 (Tex. App.--Houston [14 th Dist.] 1993), and
+Achimon v. J.I. Case Credit Corp., 715 S.W. 2d 73, 76 (Tex. App.--
+Dallas 1986 (Stephens, J,., concurring).
+In a diversity jurisdiction case, such as the instant action,
+federal courts apply state substantive law, but federal procedural
+law, and thus Rule 185 is not binding on federal courts. Steelplan,
+2003 WL 21499303, at *9; Steves & Sons, Inc. v. Trinity Glass Int'l,
+Inc., Civ. A. No. SA-06-CV-357-XR, 2007 WL 1556743, *4 (W.D. Tex.
+May 25, 2007), citing Hall v. GE Plastic Pac. PTE Ltd. , 327 F.3d
+391, 395 (5th Cir. 2003)("'Federal courts apply state substantive
+law when adjudicating diversity-jurisdiction claims, but in doing
+so apply federal procedural law to the proceedings.'"); ABB, Inc.,
+2011 WL 906651 at *3. See also Sneed Shipbuilding, Inc., 125 F.R.D.
+438 (holding that Fed. R. of Civ. P. 11 interpreting attorney's or
+party's signature to be certification that the pleading is grounded
+in law or fact or on colorable argument for changing law, displaced
+Tex. R. of Civ. P. 185 requiring verified denial in defendant's
+answer to challenge accuracy of plaintiff's accounting). Thus the
+standard of Federal Rule of Civil Procedure 56 applies to determine
+if Parker has established the elements of its claim of suit on sworn
+account. ABB, Inc., 2011 WL 906651 at *2.
+Here besides the invoices and a conclusory affidavit from
+counsel, Parker has not provided summary judgment evidence that the
+amount of the account is just, i.e., that the prices are in accord
+-66-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 66 of 75
+with an agreement or, in the absence of an agreement, are the usual
+customary and reasonable prices for the seals. Thus it fails to
+meet is burden of proof and its motion for partial summary judgment
+on its counterclaim for sworn account will be denied.
+Breach of Contract
+Texas Courts apply the UCC to contracts for the sale of goods
+even if the parties characterize the claim as a common law breach
+of contract or breach of warranty case. Courey Int'l v. Designer
+Floors of Texas, Inc., No. 03-09-00059-CV, 2010 WL 143420, *3 (Tex.
+App.--Austin Jan. 15, 2010, no writ), citing Tex. Bus. & Com. Code
+Ann. § 2.102; SelecTouch Corp. v. Perfect Starch, Inc., 111 S.W. 3d
+830, 834 (Tex. App.--Dallas 2003, no pet.)("Contracts relating to
+the sale of goods are governed by article two of the [UCC}, adopted
+in Texas as chapter two of the business and commerce code."), and
+Aquila Southwest Pipeline, Inc. v. Harmony Exploration, Inc. , 48
+S.W. 3d 225, 236 (Tex. App.--San Antonio 2001, pet. denied)("the UCC
+applies to contract for sale of goods even when the parties 'treat[]
+th[e] case as a common law breach of contract and breach of warranty
+case'"). Texas courts have regularly acknowledged that "'[w]here
+the UCC applies, common-law rules of law regarding breach of
+contract do not apply.'" Id., quoting Aquila Southwest, 48 S.W. 3d
+at 235 (citing § 2.102 and Glenn Thurman, Inc. v. Moore
+Construction, Inc., 942 S.W. 2d 768, 771 (Tex. App.--Tyler 1997, no
+writ)). See also United Galvanizing, Inc. v. Imperial Zinc Corp.,
+-67-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 67 of 75
+Civ. A. No. H-08-0551, 2011 WL 11185, *9 (S.D. Tex. Jan. 3,
+2011)("The UCC supersedes the common law. To the extent the UCC
+does not resolve a question, courts generally look to the common
+law."), citing § 1.303(b).
+Under Texas law the elements of a breach of contract are "(1)
+the existence of a valid contract; (2) performance or tendered
+performance by the plaintiff; (3) breach of the contract by the
+defendant; and (4) damages sustained by the plaintiff as a result
+of the breach." Mullins v. TestAmerica, Inc., 564 F.3d 386, 418
+(5
+th Cir. 2009). As discussed supra, Parker has provided in the
+record proof of a valid contract.
+A seller may sue for the price of the goods when the buyer
+failed to pay as that bill became due. Nazareth Intern., Inc. v.
+J.C. Penney Co., 287 S.W. 3d 452, 458 (Tex. App.--Dallas 2009, rev.
+denied) and Tex. Bus. & Com. Code Ann. § 2.709(a)("When the buyer
+fails to pay the price as it becomes due the seller may recover,
+together with incidental damages under the next section, the price
+(1) of goods accepted . . . .").
+Section 2.606(a) of the Texas Business and Commerce Code
+provides that acceptance of goods received occurs when the buyer
+(1) after a reasonable opportunity to inspect the goods
+signifies to the seller that the goods are conforming or
+that he will take or retain them in spite of their non-
+conformity; or
+(2) fails to make an effective rejection (Subsection (a)
+of Section 2.602), but that such acceptances does not
+occur until the buyer has a reasonable opportunity to
+-68-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 68 of 75
+inspect them; or
+(3) does any act inconsistent with the seller's ownership . .
+. .
+Omni received the seals but failed to object that they were non-
+conforming or to reject them and notify Parker within a reasonable
+time, but instead put them to use in its gearboxes. "'When a buyer
+puts the goods to use, it is generally held that he has accepted the
+goods.'" United Galvanizing, 2011 WL 11185 at *11, citing 4 Lary
+Lawrence, Anderson on the Uniform Commercial Code §2-606.70 at 272
+(3d ed. 2006). Section 2.703(1) provides, "Where the buyer . . .
+fails to make a payment on . . . delivery . . . the aggrieved seller
+may . . . recover . . . in a proper case the price . . . .").
+Moreover Omni's conduct in installing the seals into its gearboxes
+was inconsistent with the seller's ownership of the goods, amounting
+to the buyer's acceptance of the goods and triggering the duty to
+pay the contract price. Bacchus Industries, Inc. v. Frontier
+Mechanical Contractors, 36 S.W. 3d 579, 585 (Tex. App.--El Paso
+2000); Kuiper v. Wright , No. 05-99-00689-CV, 2001 WL 923367, *4
+(Tex. App.--Dallas Aug. 16, 2001)(as a matter of law, appellees'
+installation of stone columns is an act inconsistent with Kuiper's
+ownership of the columns). See also Lawrence, Anderson on the
+Uniform Commercial Code § 2-606:64 "Modification of goods")(3d ed.
+database updated June 2012)("When the buyer has not rejected the
+goods and has made a substantial modification to them, the buyer is
+deemed to have accepted the goods."); id. at § 2-607:81 ("A buyer's
+-69-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 69 of 75
+conduct in making substantial re pairs and modifications to
+nonconforming goods after delivery was inconsistent with the
+seller's ownership of the goods. As a result, the buyer had
+accepted the goods thereby triggering a duty on the buyer's part to
+pay the contract price together with attorney's fees authorized
+under the contract.")(citing Bacchus Industries).
+Section 2.709(a)(1), "Action for the Price," states in relevant
+part,
+(a) When the buyer fails to pay the price as it becomes
+due the seller may recover, together with any incidental
+damages under the next section, the price
+(1) of goods accepted . . . within a commercially reasonable
+time after the risk of their loss has passed to the buyer; and
+(2) where the seller sues for the price he must hold for
+the buyer any goods which have been identified to the
+contract and are sill in his control except that if
+resale becomes possible he may resell them at any time
+prior to the collection of the judgment. The net
+proceeds of any such resale must be credited to the buyer
+and payment of the judgment entitles him to any goods not
+resold . . . .
+See, e.g., Stanley Industries of South Fla., Inc. v. J.C. Penney
+Co., Civ. A. No. 3:05-CV-2499-L, 2006 WL 2432309. *2 (N.D. Tex. Aug.
+18. 2006). The common law doctrine that one contracting party is
+automatically excused from his contractual performance by a prior
+breach of the other party is wholly inapplicable to a contract for
+the sale of goods governed by the U.C.C." Glenn Thurman, Inc. v.
+Moore Constr., Inc., 942 S.W. 2d 768, 772 (Tex. App.--Tyler 1997,
+no writ); In re Sage Enterprises, Inc,, 421 B.R. 477, 495 (Bkrtcy.
+-70-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 70 of 75
+N.D. Ill. 2009).33
+Because Omni accepted the goods and put them to use and did not
+object to their nonconformity until years later, it is obligated to
+pay to Parker the price it contracted to pay under § 2607(a) and §
+2709(a)(1) for those goods whose invoices Omni did not pay. While
+Parker is entitled to summary judgment on its breach of contract
+counterclaim, other than the unpaid invoices it has not provided
+evidence of any other damages. Thus Parker has demonstrated that
+Omni is liable to Parker for $15,233.00.
+Quantum Meruit/Unjust Enrichmant
+A claim for the equitable remedy of quantum meruit, which is
+founded on unjust enrichment, arises independent of a contract when
+"1) valuable services were rendered or materials furnished; 2) for
+the person sought to be charged; 3) which services and materials
+were accepted by the person sought to be charged, used, and enjoyed
+by him; 4) under such circumstances as reasonably notified the
+33 Because a purpose of the UCC was to provide uniform law
+among various jurisdictions adopting it, and the statutory
+directive that uniform acts be construed to make uniform the law of
+those states that enact it in Tex. Gov. Code Ann. § 311.028,
+decisions from other jurisdictions that have adopted the UCC are
+persuasive authority. Western Nat. Bank v. Rives, 927 S.W. 2d 681,
+685 (Tex. App.-Amarillo 1996, writ denied); Fetter v. Wells Fargo
+Bank Texas, 110 S.W. 3d 683, 687 (Tex. App-Houston [14
+th Dist.]
+2003)("we are required to construe uniform acts included in a code
+'to effect its general purpose to make uniform the law of those
+states that have enacted it"), citing § 311.028 of the Tex. Gov't
+Code Ann. and MBank El Paso, N.A. v. Sanchez, 836 S.W. 2d 151, 152-
+53 (Tex. 1992)(citing out-of-state case in construing UCC
+provision).
+-71-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 71 of 75
+person sought to be charged that the plaintiff in performing such
+services was expecting to be paid by the person sought to be
+charged." Vortt Exploration, Inc. v. Chevron U.S.A., Inc., 787 S.W.
+2d 942, 944 (Tex. 1990); Green Garden Packaging Co., Inc. v.
+Schoenmann Produce Co., Inc., No. 01-09-00924-CV, 2010 WL 4395448,
+*6 (Tex. App.--Houston [1 st Dist.] Nov. 4, 2010). A party may
+recover under quantum meruit only when there is no express contract.
+Id. Because the Court finds that there is an express contract
+here, Parker may not recover on quantum meruit/unjust enrichment.
+Attorney's Fees
+Under Texas Civil Practice & Remedies Code § 38.001(8), "[a]
+person may recover reasonable attorney's fees from an individual or
+corporation, in addition to the amount of a valid claim and costs,
+if the claim is for . . . an oral or written contract." "The award
+of reasonable attorneys' fees is mandatory under [Texas law] if the
+plaintiff prevails on his or her breach of contr act claim and
+recovers damages." Coffel v. Stryker Corp., 284 F.3d 625, 640 (5
+th
+Cir. 2002).
+Attorney's fees under Texas and federal law are determined by
+the factors set out in Johnson v. Georgia Highway Express, 488 F.2d
+714, 171-19 (5th Cir. 1974) and the lodestar method. See El Apple
+I, Ltd. v. Olivas, 370 S.W. 3d 757 (Tex. 2012); Campbell v.
+Hardradio, No. 3:01-CV-2663-BF, 2003 U.S. Dist. LEXIS 23584, *5
+(N.D. Tex. Dec. 31, 2003)(determination of reasonable attorneys'
+-72-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 72 of 75
+fees under Texas law is "virtually identical to the Johnson factors
+used by the Fifth Circuit."), citing Arthur Andersen & Co. v. Perry
+Equipment Corp., 945 S.W. 2d 812, 818 (Tex. 1997); Vela v. City of
+Houston, 276 F.3d 659, 679-81 & n.24 (5 th Cir. 2001)("Johnson
+factors are comparable to the Arthur Andersen factors); Lee v. Wells
+Fargo Bank, N.A., Civ. A. No. H-11-1334, 2013 WL 2151680, * 3 & n.1
+(S.D. Tex. May 16, 2013).
+Parker's counsel has not briefed these factors with sufficient
+analysis, nor provided billing records or other documentation to
+support its request and permit the Court to make a meaningful
+evaluation. Furthermore, Parker prevailed only on its counterclaim
+for breach of contract under Chapter 2 of the Texas Business &
+Commerce Code (UCC). To be reasonable and necessary, the fees must
+be incurred on the claim that allows recovery of such fees. Stewart
+Title Guar. Co. v. Sterling, 822 S.W. 2d 1 (Tex. 1991), modified by
+Tony Gullo Motors I, LP v. Chapa , 212 S.W. 3d 299 (Tex.
+2006)(exception to the duty to segregate fees where claims are
+inextricably intertwined). Parker's request for fees must be
+limited to services and costs relating to the counterclaim for
+breach of contract on which it succeeded. Moreover one of the
+factors to be addressed in determining the reasonableness of
+attorneys' fees is the amount recovered. Smith v. Patrick W.Y. Tam
+Trust, 296 S.W. 3d 545, 548 (Tex. 2009), citing and quoting Wayland
+v. City of Arlington, 711 S.W. 2d 232, 233 (Tex. 1986), and Arthur
+-73-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 73 of 75
+Andersen & Co. v. Perry Equip. Corp. , 945 S.W. 2d 812, 818 (Tex.
+1997); Coffel, 284 F.3d at 641. Here Parker has established that
+it is entitled to recover $15,233.00, but has requested fees and
+costs in the amount of $110,101.50, presumably representing the
+services it has provided for the entire litigation, on its face
+clearly an amount unreasonable in light of the damages involved.
+Accordingly, the Court requires Parker to submit within twenty days
+a new request for fees with appropriate support. Omni may file a
+timely response.
+ORDER
+Accordingly, for the reasons stated above, the Court
+ORDERS the following:
+(1) Omni's claim for breach of contract is DISMISSED;
+(2) Parker's motion for partial summary judgment (#33) on
+Omni's claims for breach of implied warranty of fitness
+for a particular purpose is DENIED, but is GRANTED as to
+Omni's claims for breach of express warranty and breach
+of implied warranty of merchantability;
+(3) Parker's second motion for partial summary judgment
+(#36) is GRANTED;
+(4) Parker's motion for partial summary judgment (#37) is
+GRANTED on its counterclaim against Omni for breach of
+contract, but otherwise DENIED; and
+(5) Parker's motion for spoliation instruction (#42) is
+-74-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 74 of 75
+MOOT.
+Parker shall submit within twenty days a revised request for
+attorney's fees; Omni shall file a timely response. At the same
+time Parker shall also file an updated proposed final judgment.
+SIGNED at Houston, Texas, this 8th
+day of August , 2013.
+___________________________
+MELINDA HARMON
+UNITED STATES DISTRICT JUDGE
+-75-
+Case 4:10-cv-04728 Document 71 Filed in TXSD on 08/08/13 Page 75 of 75

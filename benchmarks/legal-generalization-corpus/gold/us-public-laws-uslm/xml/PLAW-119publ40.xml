@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–40—NOV. 25, 2025?>
+<?I51 PUBLIC LAW 119–40—NOV. 25, 2025?>
+<?I52 PUBLIC LAW 119–40—NOV. 25, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–40: To amend the Pittman-Robertson Wildlife Restoration Act to provide that interest on obligations held in the Federal aid to wildlife restoration fund shall become available for apportionment at the beginning of fiscal year 2033.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>40</docNumber>
+<citableAs>Public Law 119–40</citableAs><citableAs>139 Stat. 662</citableAs>
+<approvedDate>2025-11-25</approvedDate>
+<dc:date>2025-11-25</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-05</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–40—NOV. 25, 2025</centerRunningHead>
+<page identifier="/us/stat/139/662">139 STAT. 662</page>
+<dc:type>Public Law</dc:type><docNumber>119–40</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend the Pittman-Robertson Wildlife Restoration Act to provide that interest on obligations held in the Federal aid to wildlife restoration fund shall become available for apportionment at the beginning of fiscal year 2033.<sidenote><p class="centered fontsize8" id="xf27e4f01-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658076"><approvedDate date="2025-11-25">Nov. 25, 2025</approvedDate></p><p class="centered fontsize8" id="xf27e4f02-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/2316">H.R. 2316</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xf27e7613-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658180">Wetlands Conservation and Access Improvement Act of 2025.</p></sidenote>
+<section id="d285e88" identifier="/us/pl/119/40/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xf27e7614-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658180"><ref href="/us/usc/t16/s669">16 USC 669 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Wetlands Conservation and Access Improvement Act of 2025</shortTitle>”.</content></section>
+<section id="d285e103" identifier="/us/pl/119/40/s2" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>AVAILABILITY OF INTEREST ON OBLIGATIONS HELD IN FEDERAL AID TO WILDLIFE RESTORATION FUND.</heading><content style="-uslm-lc:I658120">  Section 3(b)(2)(C) of the Pittman-Robertson Wildlife Restoration Act (<ref href="/us/usc/t16/s669b/b/2/C">16 U.S.C. 669b(b)(2)(C)</ref>) <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="delete">striking</amendingAction> “<quotedText>2026</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>2033</quotedText>”.</content></section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-11-25">November 25, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/2316">H.R. 2316</ref>:</heading>
+<note>
+<headingText style="-uslm-lc:I658032">HOUSE REPORTS:</headingText> ┐No. <ref href="/us/hrpt/119/191">119–191</ref> (<committee>Comm. on Natural Resources</committee>).
+</note>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="xf27ec435-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658035">July 14, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="xf27ec436-d1f2-11f0-89ff-2165d7641ffc" style="-uslm-lc:I658035">Oct. 23, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

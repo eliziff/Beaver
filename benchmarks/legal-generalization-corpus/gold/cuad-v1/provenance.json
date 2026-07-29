@@ -1,0 +1,55 @@
+{
+  "dataset_id": "cuad-v1",
+  "dataset_version": "CUAD v1 (aok_v1.0)",
+  "source_url": "https://huggingface.co/datasets/theatticusproject/cuad/tree/a3c393f5d103fd0c516374e4fdff676c8176dcb1/CUAD_v1",
+  "source_urls": [
+    "https://huggingface.co/datasets/theatticusproject/cuad/resolve/a3c393f5d103fd0c516374e4fdff676c8176dcb1/CUAD_v1/CUAD_v1.json",
+    "https://huggingface.co/datasets/theatticusproject/cuad/resolve/a3c393f5d103fd0c516374e4fdff676c8176dcb1/CUAD_v1/CUAD%20v1%20ReadMe%20_%20Datasheet/CUAD_v1_README.txt"
+  ],
+  "upstream_home": "https://www.atticusprojectai.org/cuad",
+  "upstream_repository": "https://github.com/TheAtticusProject/cuad",
+  "paper": "arXiv:2103.06268 (NeurIPS 2021 Datasets & Benchmarks)",
+  "hf_revision": "a3c393f5d103fd0c516374e4fdff676c8176dcb1",
+  "accessed_utc": "2026-07-28T21:38:00Z",
+  "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International). The Atticus Project, Inc. Commercial use permitted with attribution.",
+  "license_source": "https://huggingface.co/datasets/theatticusproject/cuad (cardData.license = cc-by-4.0); https://www.atticusprojectai.org/cuad",
+  "attribution_required": "The Atticus Project, Contract Understanding Atticus Dataset (CUAD) v1, CC BY 4.0.",
+  "sha256_of_archive": "35e9673be4e65fa28be0de903f6d0b83386f3fcd99f3ece0fe1b39fdf7db9810",
+  "sha256_of_archive_note": "No single upstream archive was fetched; individual files were fetched from the pinned HF revision. This value is the manifest digest = sha256 over the sorted lines \"<file sha256>  <relative path>\\n\".",
+  "files": [
+    {
+      "path": "CUAD_v1.json",
+      "bytes": 40128638,
+      "sha256": "ed0b77d85bdf4014d7495800e8e4a70565b48ee6f8a2e5dca9cf8655dbf10eae"
+    },
+    {
+      "path": "CUAD_v1_README.txt",
+      "bytes": 26340,
+      "sha256": "57210acaea19734264090aa18ebf7b5c26dcf67796d61cd6eb2b068ebc1e7737"
+    }
+  ],
+  "total_bytes": 40154978,
+  "shape": {
+    "contracts": 510,
+    "clause_categories": 41,
+    "qa_pairs": 20910,
+    "qa_pairs_with_at_least_one_answer": 6702,
+    "gold_answer_spans": 13823,
+    "contract_text_chars": 26807133,
+    "format": "SQuAD v2 style: data[].title, data[].paragraphs[].context (full contract text), data[].paragraphs[].qas[] = {id, question, is_impossible, answers[{text, answer_start}]}",
+    "record_id_convention": "qas[].id == \"<contract title>__<Category>\""
+  },
+  "verification": {
+    "answer_start_offsets_checked": 13823,
+    "answer_start_offsets_exact": 13823,
+    "answer_start_offsets_mismatched": 0,
+    "method": "context[answer_start : answer_start + len(text)] == text for every answer of every qa",
+    "checked_utc": "2026-07-28T21:40:00Z"
+  },
+  "what_ground_truth": {
+    "a_typed_anchor_extraction": "STRONG / primary. Expert-annotated, character-exact answer spans over full contract text for 41 clause categories. Date + duration anchors: 'Agreement Date' (476 spans), 'Effective Date' (447), 'Expiration Date' (467), 'Renewal Term' (210), 'Notice Period To Terminate Renewal' (122), 'Warranty Duration' (176) = 1898 spans. Money / percentage / multiple anchors are carried inside 'Cap On Liability' (672), 'Minimum Commitment' (424), 'Revenue/Profit Sharing' (418), 'Volume Restriction' (171), 'Liquidated Damages' (121), 'Price Restrictions' (27) = 1833 spans. NOTE: the gold span is the CLAUSE that contains the anchor, not the normalized anchor value; scoring is containment/overlap, not value equality.",
+    "b_structural_parsing": "WEAK / indirect. No section tree, no enumeration ladder, and no defined-term index is annotated. Spans do implicitly mark clause boundaries and the raw contract text preserves original section numbering, so CUAD is usable as unlabeled input for structure parsing but is NOT gold for it.",
+    "c_tracked_changes_markup": "NONE. CUAD contains no redlines, no revision marks, no comments, and no DOCX artifacts."
+  },
+  "leakage_warning": "LegalBench tasks cuad_* (including cuad_anti-assignment, cuad_effective_date, cuad_expiration_date, cuad_renewal_term, cuad_notice_period_to_terminate_renewal) are derived from this same dataset, and LegalBench-RAG's 'cuad' benchmark reuses CUAD contracts and spans. This repo already ships backend/src/lib/__tests__/fixtures/legalbench/cuad_anti-assignment-mini.json from that family. Hold out by contract (data[].title / document_name), never by row."
+}
