@@ -109,11 +109,41 @@ const SYN_INSTRUCTION =
   "The definition Minister in section 1 of the Act is replaced by the " +
   "following:\n\n“Minister” means the Minister of Public Safety.";
 
-export type Case = { id: string; instruction: string; pre: string; gold: string };
+export // ---- Case 4: CLC art. 166 (fr) — the same definition, French version;
+// chapeau and neighbour are verbatim corpus text (equal authenticity). ----
+const CLC_FR_GOLD_DEF =
+  "jours fériés Le 1er janvier, le vendredi saint, la fête de Victoria, la " +
+  "fête du Canada, la fête du Travail, la Journée nationale de la vérité et " +
+  "de la réconciliation, qui a lieu le 30 septembre, le jour de l’Action de " +
+  "grâces, le jour du Souvenir, le jour de Noël et le lendemain de Noël; " +
+  "s’entend également de tout jour de substitution fixé dans le cadre de " +
+  "l’article 195. (general holiday)";
+const CLC_FR_NEIGHBOUR =
+  "professionnel de la santé Personne légalement autorisée en vertu de la " +
+  "loi d’une province à fournir des services de santé au lieu où elle les " +
+  "fournit. (health care practitioner)";
+const CLC_FR_CHAPEAU =
+  "166. Les définitions qui suivent s’appliquent à la présente partie.";
+const CLC_FR_PRE = [
+  CLC_FR_CHAPEAU,
+  CLC_FR_GOLD_DEF.replace(
+    "la fête du Travail, la Journée nationale de la vérité et de la " +
+      "réconciliation, qui a lieu le 30 septembre, le jour",
+    "la fête du Travail, le jour",
+  ),
+  CLC_FR_NEIGHBOUR,
+].join("\n\n");
+const CLC_FR_GOLD = [CLC_FR_CHAPEAU, CLC_FR_GOLD_DEF, CLC_FR_NEIGHBOUR].join("\n\n");
+const CLC_FR_INSTRUCTION =
+  "La définition de jours fériés, à l’article 166 du Code canadien du " +
+  "travail, est remplacée par ce qui suit :\n\n" + CLC_FR_GOLD_DEF;
+
+type Case = { id: string; instruction: string; pre: string; gold: string };
 export const CASES: Case[] = [
   { id: "clc-s166-definition", instruction: CLC_INSTRUCTION, pre: CLC_PRE, gold: CLC_GOLD },
   { id: "ia-s35(1)-portion", instruction: IA_INSTRUCTION, pre: IA_PRE, gold: IA_GOLD },
   { id: "synthetic-definition", instruction: SYN_INSTRUCTION, pre: SYN_PRE, gold: SYN_GOLD },
+  { id: "clc-s166-definition-fr", instruction: CLC_FR_INSTRUCTION, pre: CLC_FR_PRE, gold: CLC_FR_GOLD },
 ];
 
 const SCHEMA = {
