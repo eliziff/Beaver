@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import { createSupabaseStub, type SupabaseResult } from "../helpers/supabaseStub";
+import {
+    createMutableSupabaseState,
+    createMutableSupabaseStub,
+} from "../helpers/supabaseStub";
 
 // ---------------------------------------------------------------------------
 // Hoisted mock fns we want to reconfigure per-test.
@@ -16,31 +19,12 @@ const { checkProjectAccess, deleteUserProjects } = vi.hoisted(() => ({
 // per-table result, and rpc() resolves to a per-call result. Insert payloads
 // are recorded so tests can assert on normalisation (lowercasing / dedupe).
 // ---------------------------------------------------------------------------
-let supabaseState: {
-    rpc: SupabaseResult;
-    tables: Record<string, SupabaseResult>;
-    inserts: { table: string; payload: unknown }[];
-};
-
-function resetSupabaseState() {
-    supabaseState = {
-        rpc: { data: [], error: null },
-        tables: {},
-        inserts: [],
-    };
-}
+let supabaseState = createMutableSupabaseState();
+function resetSupabaseState() { supabaseState = createMutableSupabaseState(); }
 resetSupabaseState();
 
-function mockSupabase() {
-    return createSupabaseStub({
-        result: (table) => supabaseState.tables[table] ?? { data: null, error: null },
-        rpc: () => supabaseState.rpc,
-        onInsert: (table, payload) => supabaseState.inserts.push({ table, payload }),
-    });
-}
-
 vi.mock("../../lib/supabase", () => ({
-    createServerSupabase: vi.fn(() => mockSupabase()),
+    createServerSupabase: vi.fn(() => createMutableSupabaseStub(supabaseState)),
 }));
 
 vi.mock("../../middleware/auth", () => ({

@@ -12,6 +12,24 @@ type StubOptions = {
     adminDeleteUser?: () => { error: unknown };
 };
 
+export type MutableSupabaseState = {
+    rpc: SupabaseResult;
+    tables: Record<string, SupabaseResult>;
+    inserts: { table: string; payload: unknown }[];
+};
+
+export function createMutableSupabaseState(): MutableSupabaseState {
+    return { rpc: { data: [], error: null }, tables: {}, inserts: [] };
+}
+
+export function createMutableSupabaseStub(state: MutableSupabaseState) {
+    return createSupabaseStub({
+        result: (table) => state.tables[table] ?? { data: null, error: null },
+        rpc: () => state.rpc,
+        onInsert: (table, payload) => state.inserts.push({ table, payload }),
+    });
+}
+
 const chainMethods = [
     "select", "insert", "update", "delete", "upsert",
     "eq", "neq", "in", "is", "or", "not", "lt", "gt", "gte", "lte",
