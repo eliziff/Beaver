@@ -46,7 +46,7 @@ import {
     SUPPORTED_DOCUMENT_ACCEPT,
 } from "@/app/lib/documentUploadValidation";
 import {
-    DOC_NAME_COL_W,    treeNameCellStyle,} from "@/app/components/projects/ProjectPageParts";import { formatBytes, formatDate, sortRows } from "@/app/lib/utils";import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
+    DOC_NAME_COL_W,    treeNameCellStyle,} from "@/app/components/projects/ProjectPageParts";import { formatBytes, formatDate } from "@/app/lib/utils";import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
@@ -828,9 +828,6 @@ export function DocTable({
     }
     function hasFilePayload(dt: DataTransfer): boolean {
         return Array.from(dt.types).includes("Files");
-    }
-    function hasDocumentPayload(dt: DataTransfer): boolean {
-        return Array.from(dt.types).includes("application/mike-doc");
     }
     function currentVersionNumber(doc: Document): number | null {
         return documentVersionNumber(doc);
@@ -1803,6 +1800,11 @@ export function DocTable({
                     event.target.value = "";
                     void handleDropCollectionFiles(files);
                 }}
+            />
+            <WarningPopup
+                open={!!documentUploadWarning}
+                onClose={() => setDocumentUploadWarning(null)}
+                message={documentUploadWarning}
             />
             <WarningPopup
                 open={!!documentRenameWarning}
