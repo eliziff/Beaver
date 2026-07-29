@@ -99,6 +99,49 @@ function boundedWarnings(warnings: string[]) {
   ];
 }
 
+/**
+ * Native notes leave here as [^N] markers with [^N]: definitions — the
+ * same notation generate_docx compiles back to native notes — so the
+ * model only carries tokens through its rewrite and never converts
+ * notation. Multi-paragraph bodies flatten to one line (a note is one
+ * native note), reported as a warning rather than left to judgment.
+ */
+export function nativeNotesToMarkers(html: string): {
+  html: string;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  let out = html.replace(
+    /<sup><a\b(?=[^>]*href="#(?:footnote|endnote)-(\d+)")[^>]*>\[[^\]]*\]<\/a><\/sup>/giu,
+    (_match, n: string) => `[^${n}]`,
+  );
+  out = out.replace(
+    /<li id="(?:footnote|endnote)-(\d+)">([\s\S]*?)<\/li>/giu,
+    (_match, n: string, body: string) => {
+      const paragraphs = body.match(/<p\b/giu)?.length ?? 0;
+      if (paragraphs > 1) {
+        warnings.push(
+          `Multi-paragraph note ${n} was flattened into one native note.`,
+        );
+      }
+      const cleaned = body
+        .replace(
+          /<a\b[^>]*href="#(?:footnote|endnote)-ref-\d+"[^>]*>[\s\S]*?<\/a>/giu,
+          "",
+        )
+        .replace(/<\/?p\b[^>]*>/giu, " ")
+        .replace(/\s+/gu, " ")
+        .trim();
+      return `<p>[^${n}]: ${cleaned}</p>`;
+    },
+  );
+  out = out.replace(
+    /<ol>(\s*(?:<p>\[\^\d+\]:[\s\S]*?<\/p>\s*)+)<\/ol>/giu,
+    "$1",
+  );
+  return { html: out, warnings };
+}
+
 export async function extractDocxDraftingSource(
   bytes: Buffer,
 ): Promise<DocxDraftingSource> {
@@ -178,7 +221,9 @@ export async function extractDocxDraftingSource(
       })),
     },
   );
-  const html = converted.value
+  const noted = nativeNotesToMarkers(converted.value);
+  warnings.push(...noted.warnings);
+  const html = noted.html
     .replace(
       new RegExp(`<img\\b[^>]*src="${imageMarker}"[^>]*\\/?>`, "giu"),
       "<span>[Image omitted]</span>",
@@ -212,11 +257,6 @@ export async function extractDocxDraftingSource(
   ) {
     warnings.push(
       "Multi-paragraph table cells must be normalized without dropping their text.",
-    );
-  }
-  if (hasMultipleParagraphs(html, "li") && /id="footnote-/iu.test(html)) {
-    warnings.push(
-      "Multi-paragraph footnotes must be normalized into one native note without dropping their text.",
     );
   }
   if (mediaCount) {
