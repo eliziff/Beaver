@@ -57,9 +57,6 @@ export function ProjectAssistantTable({
     setRenameChatValue: Dispatch<SetStateAction<string>>;
     loading?: boolean;
 }) {
-    function clearSelection() {
-        setSelectedChatIds([]);
-    }
     const visibleChats = filteredChats;
     const allVisibleChatsSelected =
         visibleChats.length > 0 &&
