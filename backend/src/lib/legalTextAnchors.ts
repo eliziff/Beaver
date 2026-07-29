@@ -751,6 +751,18 @@ export interface AnchorRow {
   count: number;
   documents: string[];
   excerpt: string;
+  /** char offset of the first occurrence, in documents[0] */
+  at: number;
+  /**
+   * The excerpt is that document's text verbatim: nothing was cut at either
+   * end and no whitespace run was rewritten, so a quote mined from it can be
+   * verified against the source as-is. False means the excerpt is a display
+   * rendering — quote from the document at `at`, not from the excerpt.
+   */
+  verbatim: boolean;
+  // Section handle deferred here: anchorCoverage's call graph is wider than
+  // the scanners', so the skeleton cost is not yet paid for. See the
+  // `section` field on FigureRef/TemporalRef.
 }
 
 export interface AnchorClassCoverage {
@@ -786,11 +798,20 @@ const ANCHOR_CLASSES: AnchorClass[] = [
   "cite",
 ];
 
+/** Display excerpt plus whether it is still the document's own bytes. */
+function excerptSpan(text: string, index: number, rawLength: number) {
+  const start = Math.max(0, index - 45);
+  const end = Math.min(text.length, index + rawLength + 55);
+  const window = text.slice(start, end);
+  const display = window.replace(/\s+/gu, " ").trim();
+  return {
+    excerpt: display,
+    verbatim: start === 0 && end === text.length && display === window,
+  };
+}
+
 function excerpt(text: string, index: number, rawLength: number) {
-  return text
-    .slice(Math.max(0, index - 45), index + rawLength + 55)
-    .replace(/\s+/gu, " ")
-    .trim();
+  return excerptSpan(text, index, rawLength).excerpt;
 }
 
 type SideEntry = {
@@ -799,6 +820,8 @@ type SideEntry = {
   count: number;
   documents: Set<string>;
   excerpt: string;
+  at: number;
+  verbatim: boolean;
 };
 
 function collectSide(documents: AnchorDocument[]) {
@@ -811,12 +834,15 @@ function collectSide(documents: AnchorDocument[]) {
         existing.documents.add(document.name);
         if (hit.raw.length < existing.display.length) existing.display = hit.raw;
       } else {
+        // Excerpt, offset and fidelity all describe the first occurrence,
+        // which is the one in documents[0].
         entries.set(hit.norm, {
           cls: hit.cls,
           display: hit.raw,
           count: 1,
           documents: new Set([document.name]),
-          excerpt: excerpt(document.text, hit.index, hit.raw.length),
+          at: hit.index,
+          ...excerptSpan(document.text, hit.index, hit.raw.length),
         });
       }
     }
@@ -846,6 +872,8 @@ function rows(
       count: entry.count,
       documents: [...entry.documents],
       excerpt: entry.excerpt,
+      at: entry.at,
+      verbatim: entry.verbatim,
     });
   }
   only.sort((a, b) => b.count - a.count || a.norm.localeCompare(b.norm));

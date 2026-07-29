@@ -408,3 +408,47 @@ describe("anchorCoverage", () => {
     expect(report.classes.money.source_only_truncated).toBe(true);
   });
 });
+
+describe("anchor rows as citable spans", () => {
+  const moneyRow = (source: { name: string; text: string }) =>
+    anchorCoverage([source], [{ name: "d", text: "none" }]).classes.money
+      .source_only[0];
+
+  it("addresses the first occurrence and vouches for a clean excerpt", () => {
+    const source = { name: "s", text: "Fee: $2,250,000 due." };
+    const row = moneyRow(source);
+    expect(row.at).toBe(5);
+    expect(source.text.slice(row.at, row.at + row.display.length)).toBe(
+      "$2,250,000",
+    );
+    expect(row.excerpt).toBe(source.text);
+    expect(row.verbatim).toBe(true);
+  });
+
+  it("withholds the vouch when the excerpt was collapsed", () => {
+    const source = { name: "s", text: "Fee:\n$2,250,000 due." };
+    const row = moneyRow(source);
+    // The display string is unchanged; only the claim about it is.
+    expect(row.excerpt).toBe("Fee: $2,250,000 due.");
+    expect(row.verbatim).toBe(false);
+    expect(source.text.slice(row.at, row.at + row.display.length)).toBe(
+      "$2,250,000",
+    );
+  });
+
+  it("withholds the vouch when the excerpt was cut at either end", () => {
+    const source = {
+      name: "s",
+      text:
+        "The parties agree as follows and without limitation: the purchase " +
+        "price is $2,250,000 payable in immediately available funds at the " +
+        "closing contemplated by this agreement.",
+    };
+    const row = moneyRow(source);
+    expect(row.verbatim).toBe(false);
+    expect(row.excerpt).not.toBe(source.text);
+    expect(source.text.slice(row.at, row.at + row.display.length)).toBe(
+      "$2,250,000",
+    );
+  });
+});
