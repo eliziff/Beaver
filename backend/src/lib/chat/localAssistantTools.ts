@@ -574,7 +574,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
     return [
       tool(
         "library_revise_docx",
-        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Beaver shows the resulting document card automatically. Use this for action requests instead of replying with proposed or suggested changes in prose. Pass the exact active version_id you read; stale or non-DOCX versions fail without changing the document.",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Beaver shows the resulting document card automatically. Use this for action requests instead of replying with proposed or suggested changes in prose. The server edits the active version; non-DOCX documents fail without changing anything.",
         {
           type: "object",
           properties: {
@@ -585,7 +585,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
             version_id: {
               type: "string",
               description:
-                "Exact active version_id returned by library_list or a prior document receipt.",
+                "Optional. Omit to edit the active version; provide only to assert a specific version, which fails if it is no longer active.",
             },
             edits: sharedProperties.edits,
             annotate: {
@@ -594,7 +594,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
                 "OFF BY DEFAULT and stays off unless the user EXPLICITLY asks for in-document Word comments. Word comments make large documents laggy, and edit reasons already reach the user through the tracked-edit card, so plain tracked changes are the normal deliverable. When true: each reasoned edit gets an anchored comment, unreasoned edits are counted in the receipt, and the new version is auto-checked by the structural lint.",
             },
           },
-          required: ["document_id", "version_id", "edits"],
+          required: ["document_id", "edits"],
         },
       ),
     ];
@@ -1645,10 +1645,19 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "library_revise_docx") {
-        const versionId = trimmed(args.version_id);
+        let versionId = trimmed(args.version_id);
         const rawEdits = Array.isArray(args.edits) ? args.edits : [];
-        if (!documentId || !versionId || !rawEdits.length) {
-          return fail(call, "document_id, version_id, and edits are required");
+        if (!documentId || !rawEdits.length) {
+          return fail(call, "document_id and edits are required");
+        }
+        // The model never has to courier a version id: unstated means the
+        // active version, resolved here. A provided id still asserts.
+        if (!versionId) {
+          const collection = await listLocalLibrary(userId, "file");
+          versionId =
+            collection.documents.find((meta) => meta.id === documentId)
+              ?.current_version_id ?? "";
+          if (!versionId) return fail(call, "Document not found");
         }
         if (rawEdits.length > 100 || rawEdits.some(invalidReviseEdit)) {
           return fail(call, "edits are invalid");
