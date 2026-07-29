@@ -779,11 +779,7 @@ export async function uploadDocumentVersion(  documentId: string,
   versionId: string,
   file: File,
   filename?: string,
-): Promise<DocumentVersion> {  return multipartRequest<DocumentVersion>(    `/single-documents/${documentId}/versions/${versionId}/file`,    file,    { method: "PUT", filename },  );}export async function copyDocumentVersionFromDocument(
-  documentId: string,
-  sourceDocumentId: string,
-  filename?: string,
-): Promise<DocumentVersion> {  return jsonRequest<DocumentVersion>(    `/single-documents/${documentId}/versions/from-document`,    "POST",    { source_document_id: sourceDocumentId, filename },  );}
+): Promise<DocumentVersion> {  return multipartRequest<DocumentVersion>(    `/single-documents/${documentId}/versions/${versionId}/file`,    file,    { method: "PUT", filename },  );}
 export async function renameDocumentVersion(
   documentId: string,
   versionId: string,
