@@ -79,10 +79,10 @@ localDocumentsRouter.use((_req, _res, next) => {
   if (!isAnonymousLocalMode()) return next("router");
   next();
 });
+localDocumentsRouter.use(requireAuth);
 
 localDocumentsRouter.get(
   "/",
-  requireAuth,
   asyncRoute(async (_req, res) => {
     const collection = await listLocalLibrary(res.locals.userId as string, "file");
     res.json(collection.documents.slice().reverse());
@@ -91,7 +91,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.post(
   "/",
-  requireAuth,
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     if (!req.file) return void res.status(400).json({ detail: "file is required" });
@@ -117,7 +116,6 @@ localDocumentsRouter.post(
 
 localDocumentsRouter.post(
   "/download-zip",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const ids = Array.isArray(req.body?.document_ids)
       ? req.body.document_ids.filter((item: unknown): item is string => typeof item === "string")
@@ -147,7 +145,6 @@ localDocumentsRouter.post(
 
 localDocumentsRouter.delete(
   "/:documentId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const deleted = await deleteLocalDocument(
       res.locals.userId as string,
@@ -160,7 +157,6 @@ localDocumentsRouter.delete(
 
 localDocumentsRouter.get(
   "/:documentId/evidence-view",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const versionId = requestedVersionId(req);
     const handle = requestedEvidence(req);
@@ -241,7 +237,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.get(
   "/:documentId/display",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const file = await getLocalVersionFile(
       res.locals.userId as string,
@@ -273,7 +268,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.get(
   "/:documentId/file",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const file = await getLocalVersionFile(
       res.locals.userId as string,
@@ -292,7 +286,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.get(
   "/:documentId/url",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const versionId = requestedVersionId(req);
     const file = await getLocalVersionFile(
@@ -314,7 +307,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.get(
   "/:documentId/docx",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const file = await getLocalVersionFile(
       res.locals.userId as string,
@@ -333,7 +325,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.get(
   "/:documentId/versions",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const versions = await listLocalVersions(
       res.locals.userId as string,
@@ -346,7 +337,6 @@ localDocumentsRouter.get(
 
 localDocumentsRouter.post(
   "/:documentId/versions",
-  requireAuth,
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     if (!req.file) return void res.status(400).json({ detail: "file is required" });
@@ -374,7 +364,6 @@ localDocumentsRouter.post(
 
 localDocumentsRouter.post(
   "/:documentId/versions/from-document",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const sourceId =
       typeof req.body?.source_document_id === "string"
@@ -403,7 +392,6 @@ localDocumentsRouter.post(
 
 localDocumentsRouter.patch(
   "/:documentId/versions/:versionId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const filename =
       typeof req.body?.filename === "string" ? req.body.filename.trim() : "";
@@ -421,7 +409,6 @@ localDocumentsRouter.patch(
 
 localDocumentsRouter.put(
   "/:documentId/versions/:versionId/file",
-  requireAuth,
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     if (!req.file) return void res.status(400).json({ detail: "file is required" });
@@ -447,7 +434,6 @@ localDocumentsRouter.put(
 
 localDocumentsRouter.delete(
   "/:documentId/versions/:versionId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const result = await deleteLocalVersion(
       res.locals.userId as string,
@@ -469,7 +455,6 @@ localDocumentsRouter.delete(
 
 localDocumentsRouter.get(
   "/:documentId/tracked-change-ids",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const file = await getLocalVersionFile(
       res.locals.userId as string,
@@ -521,12 +506,10 @@ async function handleTrackedEditResolution(
 
 localDocumentsRouter.post(
   "/:documentId/edits/:editId/accept",
-  requireAuth,
   asyncRoute((req, res) => handleTrackedEditResolution(req, res, "accept")),
 );
 
 localDocumentsRouter.post(
   "/:documentId/edits/:editId/reject",
-  requireAuth,
   asyncRoute((req, res) => handleTrackedEditResolution(req, res, "reject")),
 );
