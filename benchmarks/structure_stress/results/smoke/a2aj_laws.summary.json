@@ -1,0 +1,182 @@
+{
+  "source": "a2aj_laws",
+  "docs": 3700,
+  "chars": 134507548,
+  "fail_docs": 459,
+  "para_docs": 5,
+  "ladder_clean_docs": 5,
+  "slow_docs": 21,
+  "fail_reasons": {
+    "section_recovery": 442,
+    "slow_doc": 21
+  },
+  "entry_docs": {
+    "pinpoint.section.splitter": 3303,
+    "pinpoint.section.toa": 3238,
+    "title.legal.splitter": 2615,
+    "title.legal.toa": 2610,
+    "boundary.sentence.splitter": 2532,
+    "signal.aggressive": 2201,
+    "cite.reporter.splitter": 2033,
+    "signal.citation.toa": 1663,
+    "signal.source": 1636,
+    "cite.statute.toa": 1174,
+    "cite.statute.splitter": 919,
+    "cite.reporter.toa": 663,
+    "title.named-code": 529,
+    "pinpoint.para.splitter": 489,
+    "pinpoint.para.toa": 489,
+    "cite.quoted": 475,
+    "ref.history.toa": 272,
+    "ref.quoted-work-author": 248,
+    "cite.neutral": 108,
+    "pinpoint.page.splitter": 87,
+    "pinpoint.page.toa": 87,
+    "cite.secondary": 78,
+    "cite.journal.splitter": 28,
+    "cite.journal.toa": 26,
+    "cite.url.prefix": 21,
+    "cite.url": 20,
+    "label.superscript": 18,
+    "ref.note-reference": 9,
+    "ref.cross-reference": 9,
+    "ref.supra-note.linking": 5,
+    "frame.book": 1
+  },
+  "entry_matches": {
+    "pinpoint.section.splitter": 122411,
+    "pinpoint.section.toa": 100657,
+    "title.legal.splitter": 57508,
+    "title.legal.toa": 57307,
+    "boundary.sentence.splitter": 56536,
+    "signal.aggressive": 25078,
+    "signal.citation.toa": 18492,
+    "signal.source": 17685,
+    "cite.reporter.splitter": 15348,
+    "pinpoint.para.splitter": 7087,
+    "pinpoint.para.toa": 7087,
+    "cite.reporter.toa": 3799,
+    "cite.statute.toa": 2291,
+    "title.named-code": 1985,
+    "cite.statute.splitter": 1349,
+    "cite.quoted": 1346,
+    "ref.history.toa": 828,
+    "ref.quoted-work-author": 780,
+    "cite.neutral": 433,
+    "cite.secondary": 378,
+    "pinpoint.page.splitter": 194,
+    "pinpoint.page.toa": 194,
+    "label.superscript": 88,
+    "ref.cross-reference": 80,
+    "ref.note-reference": 77,
+    "cite.url.prefix": 47,
+    "cite.journal.splitter": 44,
+    "cite.journal.toa": 41,
+    "cite.url": 41,
+    "ref.supra-note.linking": 9,
+    "frame.book": 3
+  },
+  "mb": 134.5,
+  "wall_s": 53.2,
+  "mb_per_s": 2.53,
+  "recovery_mean": 0.8112,
+  "recovery_n": 3672,
+  "recovery_by_set": {
+    "LEGISLATION-AB": {
+      "mean": 0.9693,
+      "n": 101
+    },
+    "LEGISLATION-BC": {
+      "mean": 0.9444,
+      "n": 100
+    },
+    "LEGISLATION-FED": {
+      "mean": 0.8166,
+      "n": 198
+    },
+    "LEGISLATION-MB": {
+      "mean": 0.5426,
+      "n": 200
+    },
+    "LEGISLATION-NB": {
+      "mean": 0.584,
+      "n": 200
+    },
+    "LEGISLATION-NL": {
+      "mean": 0.9748,
+      "n": 100
+    },
+    "LEGISLATION-NS": {
+      "mean": 0.7716,
+      "n": 100
+    },
+    "LEGISLATION-NT": {
+      "mean": 0.9784,
+      "n": 200
+    },
+    "LEGISLATION-ON": {
+      "mean": 0.9573,
+      "n": 200
+    },
+    "LEGISLATION-PE": {
+      "mean": 0.9588,
+      "n": 101
+    },
+    "LEGISLATION-SK": {
+      "mean": 0.5975,
+      "n": 153
+    },
+    "LEGISLATION-YT": {
+      "mean": 0.9857,
+      "n": 200
+    },
+    "REGULATIONS-AB": {
+      "mean": 0.9522,
+      "n": 100
+    },
+    "REGULATIONS-BC": {
+      "mean": 0.9151,
+      "n": 100
+    },
+    "REGULATIONS-FED": {
+      "mean": 0.8937,
+      "n": 174
+    },
+    "REGULATIONS-MB": {
+      "mean": 0.7281,
+      "n": 200
+    },
+    "REGULATIONS-NB": {
+      "mean": 0.6469,
+      "n": 200
+    },
+    "REGULATIONS-NL": {
+      "mean": 0.7315,
+      "n": 100
+    },
+    "REGULATIONS-NS": {
+      "mean": 0.6408,
+      "n": 100
+    },
+    "REGULATIONS-NT": {
+      "mean": 0.8627,
+      "n": 200
+    },
+    "REGULATIONS-ON": {
+      "mean": 0.9395,
+      "n": 200
+    },
+    "REGULATIONS-PE": {
+      "mean": 0.9228,
+      "n": 101
+    },
+    "REGULATIONS-SK": {
+      "mean": 0.5425,
+      "n": 144
+    },
+    "REGULATIONS-YT": {
+      "mean": 0.829,
+      "n": 200
+    }
+  }
+}
