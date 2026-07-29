@@ -13,6 +13,10 @@
 // fix are abstentions, never approximated as calendar days. Findings carry
 // the arithmetic so a reader can judge materiality.
 import { extractAnchors } from "./legalTextAnchors";
+import {
+  compileAgreementSkeleton,
+  type SkeletonNode,
+} from "./legalTextSkeleton";
 
 export interface TemporalDocument {
   name: string;
@@ -25,6 +29,16 @@ export interface TemporalRef {
   /** canonical value key: ISO date, or dur:<n>:<unit> */
   value: string;
   excerpt: string;
+  /** char offset of the span in its document: where to quote from */
+  at: number;
+  /**
+   * The excerpt is the document's text verbatim — no ellipsis added, no
+   * whitespace run rewritten — so a quote mined from it verifies as-is.
+   * False means quote from the document at `at`, not from the excerpt.
+   */
+  verbatim: boolean;
+  /** enclosing skeleton node label ("sec3.1"), or null in unsectioned text */
+  section: string | null;
 }
 
 export interface TemporalFinding {
@@ -139,21 +153,51 @@ interface Span {
   end: number;
 }
 
+/** Display excerpt plus whether it is still the document's own bytes. */
 const excerptAt = (text: string, at: number, length: number) => {
   const start = Math.max(0, at - EXCERPT_CHARS / 2);
   const end = Math.min(text.length, at + length + EXCERPT_CHARS / 2);
-  return (
-    (start > 0 ? "…" : "") +
-    text.slice(start, end).replace(/\s+/gu, " ").trim() +
-    (end < text.length ? "…" : "")
-  );
+  const window = text.slice(start, end);
+  const display = window.replace(/\s+/gu, " ").trim();
+  return {
+    excerpt: (start > 0 ? "…" : "") + display + (end < text.length ? "…" : ""),
+    verbatim: start === 0 && end === text.length && display === window,
+  };
 };
 
-const ref = (document: string, text: string, span: Span, value: string): TemporalRef => ({
+type SectionAt = (at: number) => string | null;
+
+/**
+ * Deepest skeleton node containing an offset, as a citable label. The
+ * skeleton is compiled at most once per document and only when a finding
+ * actually needs a handle, so clean documents pay nothing.
+ */
+function sectionResolver(text: string): SectionAt {
+  let nodes: SkeletonNode[] | null = null;
+  return (at) => {
+    nodes ??= compileAgreementSkeleton(text).nodes;
+    let best: SkeletonNode | null = null;
+    for (const node of nodes) {
+      if (node.start > at || at >= node.end) continue;
+      if (!best || node.depth > best.depth) best = node;
+    }
+    return best?.label ?? null;
+  };
+}
+
+const ref = (
+  document: string,
+  text: string,
+  span: Span,
+  value: string,
+  sectionAt: SectionAt,
+): TemporalRef => ({
   document,
   display: span.raw,
   value,
-  excerpt: excerptAt(text, span.index, span.raw.length),
+  at: span.index,
+  section: sectionAt(span.index),
+  ...excerptAt(text, span.index, span.raw.length),
 });
 
 /** Earliest idiom wins: "after … before" is an after-period. */
@@ -190,6 +234,7 @@ export function temporalScan(
   const checks = { date_arithmetic: 0 };
 
   for (const document of documents) {
+    const sectionAt = sectionResolver(document.text);
     const dates: Span[] = [];
     const durations: Span[] = [];
     for (const hit of extractAnchors(document.text)) {
@@ -290,9 +335,15 @@ export function temporalScan(
           (relation === "bound"
             ? `< ${statedIso} stated (period exceeded by ${magnitude} day${magnitude === 1 ? "" : "s"})`
             : `≠ ${statedIso} stated (Δ ${magnitude} day${magnitude === 1 ? "" : "s"})`),
-        base: ref(document.name, document.text, base, baseIso),
-        duration: ref(document.name, document.text, duration, duration.norm),
-        stated: ref(document.name, document.text, stated, statedIso),
+        base: ref(document.name, document.text, base, baseIso, sectionAt),
+        duration: ref(
+          document.name,
+          document.text,
+          duration,
+          duration.norm,
+          sectionAt,
+        ),
+        stated: ref(document.name, document.text, stated, statedIso, sectionAt),
         computed,
         delta_days: delta,
       });

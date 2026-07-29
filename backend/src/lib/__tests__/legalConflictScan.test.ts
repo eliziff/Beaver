@@ -144,3 +144,42 @@ describe("conflictScan", () => {
     ).toBeTruthy();
   });
 });
+
+describe("conflict figure refs as citable spans", () => {
+  const lease = [
+    "ARTICLE III",
+    "Premises",
+    "",
+    "3.1 Demised Premises. Tenant leases 30,000 SF of the 120,000 SF " +
+      "building (30% of the building).",
+    "",
+    "3.2 Parking. Tenant may use 40 stalls.",
+  ].join("\n");
+
+  it("carries the enclosing section handle and the figure's offset", () => {
+    const report = conflictScan([{ name: "lease.txt", text: lease }]);
+    expect(report.findings).toHaveLength(1);
+    const { part, whole } = report.findings[0];
+    // Deepest enclosing node wins: the section, not ARTICLE III.
+    expect(part?.section).toBe("sec3.1");
+    expect(whole?.section).toBe("sec3.1");
+    expect(lease.slice(part!.at, part!.at + part!.display.length)).toBe(
+      "30,000 SF",
+    );
+    // The excerpt is ellipsized, so it does not vouch for itself.
+    expect(part?.excerpt).toContain("…");
+    expect(part?.verbatim).toBe(false);
+  });
+
+  it("reports a null section in unsectioned text", () => {
+    const report = conflictScan([
+      {
+        name: "note.txt",
+        text: "Borrower prepaid $300,000 of the $1,000,000 principal, a 25% reduction.",
+      },
+    ]);
+    expect(report.findings[0].part?.section).toBeNull();
+    // Short enough that the whole passage survives the window intact.
+    expect(report.findings[0].part?.verbatim).toBe(true);
+  });
+});
