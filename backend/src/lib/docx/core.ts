@@ -149,6 +149,13 @@ export function maxTrackedId(doc: XNode[]): number {
     return max;
 }
 
+// Package bounds shared by the drafting-source extractor and every docx/*
+// scanner (pathology, stories, numbering, redline). They live in the kernel
+// so docx/* modules never import from docxDraftingSource — which itself
+// imports from this kernel; that cycle blocked drafting-source-consumes-stories.
+export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
+export const MAX_DRAFTING_XML_ENTRY_BYTES = 16 * 1024 * 1024;
+
 // Some older Windows/Word archives store entries with backslash path
 // separators (e.g. `word\document.xml`) even though the zip spec requires
 // forward slashes. JSZip looks up entries by exact string, so

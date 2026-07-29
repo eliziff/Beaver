@@ -18,9 +18,9 @@
  * mode, deliberately not wired into any extraction default.
  */
 
-import { MAX_DRAFTING_DOCX_BYTES } from "../docxDraftingSource";
 import {
   type XNode,
+  MAX_DRAFTING_DOCX_BYTES,
   createParser,
   elAttrs,
   elChildren,

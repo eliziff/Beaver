@@ -3,7 +3,7 @@ import type JSZip from "jszip";
 import {
   MAX_DRAFTING_DOCX_BYTES,
   MAX_DRAFTING_XML_ENTRY_BYTES,
-} from "../docxDraftingSource";
+} from "./core";
 import { loadZip } from "../zip";
 
 // Same package bounds the drafting reader enforces; a sniffer that runs

@@ -14,8 +14,6 @@ import type JSZip from "jszip";
 import {
   MAX_DRAFTING_DOCX_BYTES,
   MAX_DRAFTING_XML_ENTRY_BYTES,
-} from "../docxDraftingSource";
-import {
   createParser,
   elAttrs,
   elChildren,
