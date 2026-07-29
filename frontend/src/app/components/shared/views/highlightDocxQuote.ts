@@ -1,18 +1,7 @@
+import { normalizeQuoteText, strippedToOriginal } from "./quoteText";
+
 const HIGHLIGHT_CLASS = "docx-text-highlight";
 const IGNORED_TEXT_SELECTOR = ".star-pagination,.case-page-number";
-function onlyLetters(s: string): string {
-    return s.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-}
-function toOrigPos(text: string, strippedPos: number): number {
-    let count = 0;
-    for (let k = 0; k < text.length; k++) {
-        if (/[a-zA-Z0-9]/.test(text[k])) {
-            if (count === strippedPos) return k;
-            count++;
-        }
-    }
-    return text.length;
-}
 function collectTextNodes(root: HTMLElement): Text[] {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode(node: Node) {
@@ -51,7 +40,7 @@ export function highlightDocxQuote(
     if (!quote) return null;
     const segments = quote
         .split(/\.{3}|…/)
-        .map(onlyLetters)
+        .map(normalizeQuoteText)
         .filter((s) => s.length > 0);
     if (segments.length === 0) return null;
     const textNodes = collectTextNodes(root);
@@ -59,7 +48,7 @@ export function highlightDocxQuote(
     const nodeStrippedLen: number[] = [];
     let fullStripped = "";
     for (const node of textNodes) {
-        const stripped = onlyLetters(node.data);
+        const stripped = normalizeQuoteText(node.data);
         nodeStartInFull.push(fullStripped.length);
         nodeStrippedLen.push(stripped.length);
         fullStripped += stripped;
@@ -78,8 +67,8 @@ export function highlightDocxQuote(
             const localStart = Math.max(0, matchPos - start);
             const localEnd = Math.min(nodeStrippedLen[i], matchEnd - start);
             const text = textNodes[i].data;
-            const origStart = toOrigPos(text, localStart);
-            const origEnd = toOrigPos(text, localEnd);
+            const origStart = strippedToOriginal(text, localStart);
+            const origEnd = strippedToOriginal(text, localEnd);
             if (origStart >= origEnd) continue;
             ranges.push({ nodeIdx: i, origStart, origEnd });
         }

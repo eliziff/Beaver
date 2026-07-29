@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Upload, Loader2, X } from "lucide-react";
 import {
@@ -29,6 +28,11 @@ interface Props {
     externalUploadedDocuments?: Document[];
     primaryLabel?: string;
     keepMounted?: boolean;
+}
+function mergeDocuments(current: Document[], added: Document[]) {
+    const documents = new Map(current.map((document) => [document.id, document]));
+    for (const document of added) documents.set(document.id, document);
+    return [...documents.values()];
 }
 export function AddDocumentsModal({
     open,
@@ -66,11 +70,7 @@ export function AddDocumentsModal({
         }
         setSelectedDocuments((prev) => {
             if (!wasOpenRef.current) return initialSelectedDocuments ?? [];
-            const next = new Map(prev.map((document) => [document.id, document]));
-            for (const document of initialSelectedDocuments ?? []) {
-                next.set(document.id, document);
-            }
-            return [...next.values()];
+            return mergeDocuments(prev, initialSelectedDocuments ?? []);
         });
         setUploadingFilenames([]);
         setUploadWarning(null);
@@ -85,23 +85,13 @@ export function AddDocumentsModal({
         .join("|");
     useEffect(() => {
         if (!externalUploadedDocuments?.length) return;
-        setExtraUploadedDocs((prev) => {
-            const next = new Map(prev.map((document) => [document.id, document]));
-            for (const document of externalUploadedDocuments) {
-                next.set(document.id, document);
-            }
-            return [...next.values()];
-        });
+        setExtraUploadedDocs((prev) =>
+            mergeDocuments(prev, externalUploadedDocuments),
+        );
         if (open) {
-            setSelectedDocuments((prev) => {
-                const next = new Map(
-                    prev.map((document) => [document.id, document]),
-                );
-                for (const document of externalUploadedDocuments) {
-                    next.set(document.id, document);
-                }
-                return [...next.values()];
-            });
+            setSelectedDocuments((prev) =>
+                mergeDocuments(prev, externalUploadedDocuments),
+            );
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [externalUploadKey]);
@@ -163,13 +153,7 @@ export function AddDocumentsModal({
                 ),
             );
             setExtraUploadedDocs((prev) => [...uploaded, ...prev]);
-            setSelectedDocuments((prev) => [
-                ...prev,
-                ...uploaded.filter(
-                    (document) =>
-                        !prev.some((selected) => selected.id === document.id),
-                ),
-            ]);
+            setSelectedDocuments((prev) => mergeDocuments(prev, uploaded));
         } catch (err) {
             console.error("Upload failed:", err);
         } finally {
@@ -224,6 +208,7 @@ export function AddDocumentsModal({
             )}
             <div className="flex min-h-0 flex-1 flex-col">
                 <FileDirectory
+                    key={`${initialTab}:${open ? "open" : "closed"}`}
                     documents={
                         documents
                             ? [...extraUploadedDocs, ...documents]

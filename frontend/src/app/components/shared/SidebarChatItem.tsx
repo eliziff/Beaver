@@ -1,4 +1,3 @@
-"use client";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
@@ -53,7 +52,7 @@ export function SidebarChatItem({
     return (
         <div
             className={cn(
-                "group relative flex h-8 w-full items-center rounded-md pr-1",
+                "group relative flex h-8 w-full items-center rounded-md pr-1 [content-visibility:auto] [contain-intrinsic-size:32px]",
                 isActive
                     ? APP_SURFACE_ACTIVE_CLASS
                     : APP_SURFACE_HOVER_CLASS,
@@ -94,7 +93,6 @@ export function SidebarChatItem({
                     <ChatSkeuoIcon className="ml-2.5 h-3.5 w-3.5 shrink-0" />
                     <Link
                         href={href}
-                        prefetch={false}
                         onClick={onNavigate}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(

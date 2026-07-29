@@ -1,4 +1,3 @@
-"use client";
 import type { ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -31,22 +30,18 @@ export function ConfirmPopup({
     const isDeleteAction = normalizedConfirmLabel
         .toLowerCase()
         .startsWith("delete");
-    const resolvedConfirmLabel =
-        confirmStatus === "loading" ? (
-            <span className="inline-flex h-full items-center gap-1.5">
+    const resolvedConfirmLabel = (
+        <span className="inline-flex h-full items-center gap-1.5">
+            {confirmBusy ? (
                 <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                {progressiveLabel(normalizedConfirmLabel)}
-            </span>
-        ) : confirmStatus === "complete" ? (
-            completedLabel(normalizedConfirmLabel)
-        ) : isDeleteAction ? (
-            <span className="inline-flex h-full items-center gap-1.5">
+            ) : isDeleteAction ? (
                 <Trash2 className="h-3 w-3 shrink-0" />
-                {confirmLabel}
-            </span>
-        ) : (
-            confirmLabel
-        );
+            ) : (
+                <span className="h-3 w-3 shrink-0" aria-hidden="true" />
+            )}
+            {confirmLabel}
+        </span>
+    );
     return (
         <Modal
             open={open}
@@ -73,23 +68,4 @@ export function ConfirmPopup({
             ) : null}
         </Modal>
     );
-}
-function progressiveLabel(label: string) {
-    return transformFirstWord(label, (word) =>
-        word.toLowerCase().endsWith("e")
-            ? `${word.slice(0, -1)}ing…`
-            : `${word}ing…`,
-    );
-}
-function completedLabel(label: string) {
-    return transformFirstWord(label, (word) =>
-        word.toLowerCase().endsWith("e") ? `${word}d` : `${word}ed`,
-    );
-}
-function transformFirstWord(
-    label: string,
-    transform: (word: string) => string,
-) {
-    const [first = label, ...rest] = label.split(" ");
-    return [transform(first), ...rest].join(" ");
 }

@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";

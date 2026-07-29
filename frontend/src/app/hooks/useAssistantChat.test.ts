@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "./useAssistantChat";
 
@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   loadChats: vi.fn(),
   saveChat: vi.fn(),
   stagePendingChatMessage: vi.fn(),
-  generateTitle: vi.fn(),
+  peekPendingChatMessage: vi.fn(),
+  claimPendingChatMessage: vi.fn(),
+  generateChatTitle: vi.fn(),
+  renameChat: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,6 +23,7 @@ vi.mock("@/app/lib/beaverApi", () => ({
   getChat: mocks.getChat,
   stopChat: mocks.stopChat,
   streamChat: mocks.streamChat,
+  generateChatTitle: mocks.generateChatTitle,
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
   useChatHistoryContext: () => ({
@@ -27,10 +31,10 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     loadChats: mocks.loadChats,
     saveChat: mocks.saveChat,
     stagePendingChatMessage: mocks.stagePendingChatMessage,
+    peekPendingChatMessage: mocks.peekPendingChatMessage,
+    claimPendingChatMessage: mocks.claimPendingChatMessage,
+    renameChat: mocks.renameChat,
   }),
-}));
-vi.mock("./useGenerateChatTitle", () => ({
-  useGenerateChatTitle: () => ({ generate: mocks.generateTitle }),
 }));
 
 function streamResponse(events: unknown[]) {
@@ -66,8 +70,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   mocks.loadChats.mockResolvedValue(undefined);
-  mocks.generateTitle.mockResolvedValue(undefined);
+  mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
+  mocks.renameChat.mockResolvedValue(undefined);
   mocks.stopChat.mockResolvedValue({ stopped: true });
+  mocks.peekPendingChatMessage.mockReturnValue(null);
+  mocks.claimPendingChatMessage.mockReturnValue(null);
 });
 
 describe("useAssistantChat local transcript boundary", () => {
@@ -100,6 +107,29 @@ describe("useAssistantChat local transcript boundary", () => {
     });
 
     expect(mocks.stagePendingChatMessage).not.toHaveBeenCalled();
+  });
+
+  it("claims and submits a staged route handoff once", async () => {
+    const message = { role: "user" as const, content: "Draft this" };
+    mocks.peekPendingChatMessage.mockReturnValue(message);
+    mocks.claimPendingChatMessage.mockReturnValue(message);
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+
+    renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+
+    await waitFor(() => expect(mocks.streamChat).toHaveBeenCalledTimes(1));
+    expect(mocks.claimPendingChatMessage).toHaveBeenCalledOnce();
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        current_turn: expect.objectContaining({ content: "Draft this" }),
+      }),
+    );
   });
 
   it("posts only the current turn and advances the server transcript version", async () => {
@@ -473,6 +503,7 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("keeps structured selections when the provider fails after accepting them", async () => {
+    let renders = 0;
     mocks.streamChat
       .mockResolvedValueOnce(
         streamResponse([
@@ -495,8 +526,9 @@ describe("useAssistantChat local transcript boundary", () => {
           { type: "transcript_version", transcriptVersion: 4 },
         ]),
       );
-    const { result } = renderHook(() =>
-      useAssistantChat({
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useAssistantChat({
         chatId: "chat-1",
         initialMessages: [
           {
@@ -505,8 +537,8 @@ describe("useAssistantChat local transcript boundary", () => {
             events: [{ type: "ask_inputs", items: [] }],
           },
         ],
-      }),
-    );
+      });
+    });
     act(() => result.current.setTranscriptVersion(1));
     const response = {
       type: "ask_inputs_response" as const,
@@ -529,6 +561,12 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.messages.at(-1)?.error).toBe(
       "Provider unavailable.",
     );
+    expect(result.current.messages.at(-1)?.events).toEqual([
+      { type: "ask_inputs", items: [] },
+      response,
+      { type: "error", message: "Provider unavailable." },
+    ]);
+    expect(renders).toBe(2);
     expect(
       result.current.rejectedTurn?.options?.askInputsResponse,
     ).toEqual(response);

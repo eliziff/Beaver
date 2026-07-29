@@ -1,4 +1,3 @@
-"use client";
 import { createElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

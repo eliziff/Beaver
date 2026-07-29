@@ -1,4 +1,3 @@
-"use client";
 import { lazy, Suspense, useState } from "react";import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { usePathname } from "next/navigation";
@@ -82,7 +81,6 @@ export function AppSidebar({
   }
   return (
     <>
-      {/* Compact layouts use an overlay so the page keeps its working width. */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-[98] bg-gray-950/30 lg:hidden"

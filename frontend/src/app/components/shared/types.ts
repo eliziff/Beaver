@@ -7,14 +7,14 @@ export interface Folder {
   created_at: string;
   updated_at: string;
 }
-export interface LibraryFolder {
-  id: string;
-  user_id: string;
+export interface LibraryFolder extends Omit<Folder, "project_id"> {
   library_kind: "file" | "template";
-  name: string;
-  parent_folder_id: string | null;
-  created_at: string;
-  updated_at: string;
+}
+interface WorkMetadata {
+  jurisdiction: string | null;
+  areas_of_law: string[];
+  document_types: string[];
+  description: string | null;
 }
 export interface Project {
   id: string;
@@ -25,6 +25,8 @@ export interface Project {
   name: string;
   cm_number: string | null;
   practice: string | null;
+  metadata?: WorkMetadata;
+  notes?: string | null;
   shared_with: string[];
   created_at: string;
   updated_at: string;
@@ -33,74 +35,6 @@ export interface Project {
   document_count?: number;
   chat_count?: number;
   review_count?: number;
-}
-export type PdfParseStatus =
-  | "queued"
-  | "parsing"
-  | "ready"
-  | "degraded"
-  | "failed";
-export interface PdfParseState {
-  schema_version: "mike.pdf_parse.v1";
-  job_id: string;
-  document_id: string;
-  version_id: string;
-  status: PdfParseStatus;
-  source_path: string;
-  source_sha256: string;
-  parser_version: string;
-  parser_config_version: string;
-  parser_config: {
-    mode: "local" | "codex";
-    ocr_provider: "tesseract" | null;
-    ocr_identity?: string;
-    ocr_language?: string;
-    ocr_dpi?: number;
-    ocr_psm?: number;
-    model: string | null;
-    effort?: string | null;
-    prompt_version: string | null;
-    response_schema_sha256?: string | null;
-    repairable_diagnostics_sha256?: string | null;
-    repairable_diagnostics?: string[];
-    context_radius?: number | null;
-    max_attempts?: number | null;
-    max_live_calls?: number | null;
-    max_scope_pages?: number | null;
-    text_fidelity_root: string | null;
-    text_fidelity_native: false;
-  };
-  repair_contract?: {
-    schema_version: "legalpdf.codex.repair-identity.v1";
-    prompt_version: string;
-    response_schema_sha256: string;
-    repairable_diagnostics_sha256: string;
-    repairable_diagnostics: string[];
-    context_radius: number;
-    max_attempts: number;
-    max_live_calls: number;
-    max_scope_pages: number;
-  };
-  cache_key: string;
-  artifact_manifest: string;
-  attempts: number;
-  queued_at: string;
-  updated_at: string;
-  started_at?: string;
-  completed_at?: string;
-  interrupted_at?: string;
-  engine_status?: string;
-  cache_hit?: boolean;
-  page_count?: number;
-  counts?: Record<string, number>;
-  diagnostic_count?: number;
-  diagnostic_summary?: {
-    by_severity: Record<string, number>;
-    by_code: Record<string, number>;
-  };
-  structural_repair_available?: boolean;
-  error?: string;
-  flat_text_fallback_available: true;
 }
 export interface Document {
   id: string;
@@ -117,20 +51,14 @@ export interface Document {
   pdf_storage_path: string | null;
   size_bytes: number | null;
   page_count: number | null;
-  structure_tree: StructureNode[] | null;
+  structure_tree: unknown[] | null;
   status: "pending" | "processing" | "ready" | "error";
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
   active_version_number?: number | null;
-  pdf_parse?: PdfParseState | null;
-}
-export interface StructureNode {
-  id: string;
-  title: string;
-  level: number;
-  page_number: number | null;
-  children: StructureNode[];
+  metadata?: WorkMetadata;
+  notes?: string | null;
 }
 export interface Chat {
   id: string;
@@ -204,15 +132,15 @@ export type AutomationRunEvent = {
   version_id?: string;
   version_number?: number | null;
 };
+type Streamable<T> = T & { isStreaming?: boolean };
 export type AssistantEvent =
-  | { type: "reasoning"; text: string; isStreaming?: boolean }
+  | Streamable<{ type: "reasoning"; text: string }>
   | { type: "error"; message: string }
-  | {
+  | Streamable<{
       type: "tool_call_start";
       name: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "mcp_tool_call";
       connector_id: string;
       connector_name: string;
@@ -220,8 +148,7 @@ export type AssistantEvent =
       openai_tool_name: string;
       status: "ok" | "error";
       error?: string;
-      isStreaming?: boolean;
-    }
+    }>
   | {
       type: "ask_inputs";
       items: (
@@ -263,32 +190,29 @@ export type AssistantEvent =
           }
       )[];
     }
-  | { type: "thinking"; isStreaming?: boolean }
-  | {
+  | Streamable<{ type: "thinking" }>
+  | Streamable<{
       type: "doc_read";
       filename: string;
       document_id?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "doc_find";
       filename: string;
       query: string;
       total_matches: number;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "doc_created";
       filename: string;
       download_url: string;
       document_id?: string;
       version_id?: string;
       version_number?: number | null;
-      isStreaming?: boolean;
-    }
+    }>
   | { type: "doc_download"; filename: string; download_url: string }
   | { type: "workflow_applied"; workflow_id: string; title: string }
-  | {
+  | Streamable<{
       type: "doc_edited";
       filename: string;
       document_id: string;
@@ -297,16 +221,14 @@ export type AssistantEvent =
       download_url: string;
       annotations: EditAnnotation[];
       error?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "courtlistener_search_case_law";
       query: string;
       result_count?: number;
       error?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "courtlistener_get_cases";
       cluster_ids: number[];
       case_count?: number;
@@ -319,9 +241,8 @@ export type AssistantEvent =
         url?: string | null;
       }[];
       error?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "courtlistener_find_in_case";
       cluster_id: number | null;
       query: string;
@@ -337,24 +258,21 @@ export type AssistantEvent =
         error?: string;
       }[];
       error?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "courtlistener_read_case";
       cluster_id: number | null;
       case_name?: string | null;
       citation?: string | null;
       opinion_count?: number;
       error?: string;
-      isStreaming?: boolean;
-    }
-  | {
+    }>
+  | Streamable<{
       type: "courtlistener_verify_citations";
       citation_count?: number;
       match_count?: number;
       error?: string;
-      isStreaming?: boolean;
-    }
+    }>
   | {
       type: "case_citation";
       cluster_id: number | null;
@@ -387,7 +305,7 @@ export type AssistantEvent =
       };
     }
   | AutomationRunEvent
-  | { type: "content"; text: string; isStreaming?: boolean };
+  | Streamable<{ type: "content"; text: string }>;
 export type CaseCitationQuote = {
   opinionId: number | null;
   type: string | null;
@@ -411,7 +329,7 @@ export interface CitationQuote {
   page?: number;
   quote: string;
 }
-export type DocumentCitationQuote = {  page?: number | string;  quote: string;
+type DocumentCitationQuote = {  page?: number | string;  quote: string;
   sheet?: string;
   cell?: string;
 };
@@ -435,7 +353,7 @@ export type CaseCitation = {
   dateFiled?: string | null;
   quotes: CaseCitationQuote[];
 };
-export type A2AJCitation = {
+type A2AJCitation = {
   type: "citation_data";
   kind: "a2aj";
   ref: number;
@@ -445,7 +363,7 @@ export type A2AJCitation = {
   url?: string | null;
   quotes: { quote: string }[];
 };
-export type PublicLegalCitation = {
+type PublicLegalCitation = {
   type: "citation_data";
   kind: "public_legal";
   ref: number;
@@ -461,14 +379,10 @@ export type Citation =
   | A2AJCitation
   | PublicLegalCitation;
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
-export function isSpreadsheetFilename(filename: string): boolean {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  return ext === "xlsx" || ext === "xlsm" || ext === "xls";
-}
-export function isDocxFilename(filename: string): boolean {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  return ext === "docx" || ext === "doc";
-}
+export const isSpreadsheetFilename = (filename: string) =>
+  /\.(xlsx|xlsm|xls)$/i.test(filename);
+export const isDocxFilename = (filename: string) =>
+  /\.(docx|doc)$/i.test(filename);
 function formatCellLocator(sheet?: string, cell?: string): string {
   if (sheet && cell) return `${sheet}!${cell}`;
   return cell ?? sheet ?? "";
@@ -500,22 +414,17 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
   if (!Number.isFinite(pageNum)) return [];
   return [{ page: pageNum, quote: entry.quote }];
 }
-export function getDocumentCitationQuotes(  a: Citation,): DocumentCitationQuote[] {  if (
-    a.kind === "case" ||
-    a.kind === "a2aj" ||
-    a.kind === "public_legal"
-  )
-    return [];
-  return a.quotes.filter((entry) => entry.quote.trim().length > 0);}
+function isDocumentCitation(citation: Citation): citation is DocumentCitation {
+  return citation.kind == null || citation.kind === "document";
+}
+export function getDocumentCitationQuotes(a: Citation): DocumentCitationQuote[] {
+  return isDocumentCitation(a)
+    ? a.quotes.filter((entry) => entry.quote.trim().length > 0)
+    : [];
+}
 export function expandCitationToEntries(
   a: Citation,
 ): CitationQuote[] {
-  if (
-    a.kind === "case" ||
-    a.kind === "a2aj" ||
-    a.kind === "public_legal"
-  )
-    return [];
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
 export function formatCitationPage(a: Citation): string {
@@ -546,11 +455,7 @@ export function formatCitationQuotePage(
   page: number | string | undefined,  quote?: DocumentCitationQuote,
 ): string {
   if (a.kind === "public_legal") return "Source";
-  if (
-    a.kind !== "case" &&
-    a.kind !== "a2aj" &&
-    isSpreadsheetFilename(a.filename)
-  ) {
+  if (isDocumentCitation(a) && isSpreadsheetFilename(a.filename)) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
   return page == null ? "" : `Page ${page}`;}
@@ -605,24 +510,6 @@ export interface TabularCell {
   status: "pending" | "generating" | "done" | "error";
   created_at: string;
 }
-export interface WorkflowOpenSourceSubmission {
-  id: string;
-  status: "pending" | "approved" | "rejected";
-  submitted_at: string;
-  updated_at: string;
-  reviewed_at?: string | null;
-}
-export interface OpenSourceWorkflowResponse
-  extends WorkflowOpenSourceSubmission {
-  mode: "created" | "updated";
-}
-export type OpenSourceWorkflowContributorMode = "named" | "anonymous";
-export interface WorkflowContributor {
-  name: string;
-  organisation: string | null;
-  role: string | null;
-  linkedin: string | null;
-}
 export interface Workflow {
   id: string;
   user_id: string | null;
@@ -630,7 +517,12 @@ export interface Workflow {
     title: string;
     description: string | null;
     type: "assistant" | "tabular";
-    contributors: WorkflowContributor[];
+    contributors: {
+      name: string;
+      organisation: string | null;
+      role: string | null;
+      linkedin: string | null;
+    }[];
     language: string;
     version: string | null;
     practice: string | null;
@@ -643,14 +535,4 @@ export interface Workflow {
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;
-  open_source_submission?: WorkflowOpenSourceSubmission | null;
-}
-export interface ChatDetailOut {
-  chat: Chat;
-  messages: Message[];
-}
-export interface TabularReviewDetailOut {
-  review: TabularReview;
-  cells: TabularCell[];
-  documents: Document[];
 }

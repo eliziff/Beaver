@@ -1,17 +1,15 @@
-"use client";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { Modal } from "@/app/components/modals/Modal";
 import { QuickActionsSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
+import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
-import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
-import { QuickActionsModal } from "./QuickActionsModal";
-import { NewProjectModal } from "../projects/NewProjectModal";
-import { NewTRModal } from "../tabular/NewTRModal";
 import { createTabularReview } from "@/app/lib/beaverApi";
+import { preloadDuringIdle } from "@/app/lib/preloadDuringIdle";
 import { useDirectoryData, type DirectoryTab } from "../shared/useDirectoryData";
 import {
     QUICK_ACTIONS,
@@ -19,9 +17,13 @@ import {
     useQuickActionsPreference,
 } from "./quickActionsPreferences";
 import type { Message, Workflow } from "../shared/types";
-interface InitialViewProps {
-    onSubmit: (message: Message) => void;
-}
+const loadNewTRModal = () => import("../tabular/NewTRModal");
+const loadSelectAssistantProjectModal = () => import("./SelectAssistantProjectModal");
+const loadNewProjectModal = () => import("../projects/NewProjectModal");
+const NewTRModal = lazy(() => loadNewTRModal().then(({ NewTRModal }) => ({ default: NewTRModal })));
+const SelectAssistantProjectModal = lazy(() => loadSelectAssistantProjectModal().then(({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal })));
+const NewProjectModal = lazy(() => loadNewProjectModal().then(({ NewProjectModal }) => ({ default: NewProjectModal })));
+type InitialModal = "project" | "newProject" | "review" | "quickActions";
 const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     Record<
         QuickActionId,
@@ -55,22 +57,30 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
         initialDocumentTab: "templates",
     },
 };
-export function InitialView({ onSubmit }: InitialViewProps) {
+export function InitialView({
+    onSubmit,
+}: {
+    onSubmit: (message: Message) => void;
+}) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const router = useRouter();
-    const [projectModalOpen, setProjectModalOpen] = useState(false);
-    const [newProjectOpen, setNewProjectOpen] = useState(false);
-    const [newTROpen, setNewTROpen] = useState(false);
-    const [quickActionsModalOpen, setQuickActionsModalOpen] = useState(false);
+    const [modal, setModal] = useState<InitialModal | null>(null);
     const { visibleActions, setVisibleActions } = useQuickActionsPreference();
     const chatInputRef = useRef<ChatInputHandle>(null);
-    const { projects } = useDirectoryData(newTROpen, "projects");
+    const { projects } = useDirectoryData(modal === "review", "projects");
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
     const visibleQuickActions = QUICK_ACTIONS.filter(
         (action) => visibleActions[action.id],
     );
+    useEffect(() => {
+        return preloadDuringIdle(() => void Promise.all([
+            loadNewTRModal(),
+            loadSelectAssistantProjectModal(),
+            loadNewProjectModal(),
+        ]));
+    }, []);
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
         if (!config) return;
@@ -95,7 +105,7 @@ export function InitialView({ onSubmit }: InitialViewProps) {
             columns_config: columnsConfig ?? [],
             ...(projectId && { project_id: projectId }),
         });
-        setNewTROpen(false);
+        setModal(null);
         router.push(
             projectId
                 ? `/projects/${projectId}/tabular-reviews/${review.id}`
@@ -104,13 +114,13 @@ export function InitialView({ onSubmit }: InitialViewProps) {
     }
     function handleQuickAction(id: QuickActionId) {
         if (id === "projectChat") {
-            setProjectModalOpen(true);
+            setModal("project");
         } else if (DOCUMENT_WORKFLOW_ACTIONS[id]) {
             handleDocumentWorkflowClick(id);
         } else if (id === "newProject") {
-            setNewProjectOpen(true);
+            setModal("newProject");
         } else if (id === "newTabularReview") {
-            setNewTROpen(true);
+            setModal("review");
         }
     }
     return (
@@ -146,7 +156,7 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                             </span>
                             <button
                                 type="button"
-                                onClick={() => setQuickActionsModalOpen(true)}
+                                onClick={() => setModal("quickActions")}
                                 aria-label="Configure quick actions"
                                 className="absolute left-full ml-1.5 flex h-5 w-5 items-center justify-center text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100 focus:opacity-100"
                             >
@@ -168,30 +178,81 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                     </div>
                 )}
             </div>
-            <QuickActionsModal
-                open={quickActionsModalOpen}
-                onClose={() => setQuickActionsModalOpen(false)}
-                visibleActions={visibleActions}
-                onVisibleActionsChange={setVisibleActions}
-            />
-            <SelectAssistantProjectModal
-                open={projectModalOpen}
-                onClose={() => setProjectModalOpen(false)}
-            />
-            <NewProjectModal
-                open={newProjectOpen}
-                onClose={() => setNewProjectOpen(false)}
-                onCreated={(project) => {
-                    setNewProjectOpen(false);
-                    router.push(`/projects/${project.id}`);
-                }}
-            />
-            <NewTRModal
-                open={newTROpen}
-                onClose={() => setNewTROpen(false)}
-                onAdd={handleNewReview}
-                projects={projects}
-            />
+            {modal === "quickActions" && (
+                <Modal
+                    open
+                    onClose={() => setModal(null)}
+                    breadcrumbs={["Assistant", "Edit quick actions"]}
+                    cancelAction={false}
+                    primaryAction={{
+                        label: "Done",
+                        onClick: () => setModal(null),
+                    }}
+                >
+                    <div className="flex min-h-0 flex-1 flex-col pb-5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_112px] px-2 pb-1 pt-0.5 text-[11px] font-medium text-gray-400">
+                            <span>Quick action</span>
+                            <span className="flex items-center justify-end gap-2">
+                                <span>Enabled</span>
+                            </span>
+                        </div>
+                        <div className="w-full space-y-1">
+                            {QUICK_ACTIONS.map((action) => (
+                                <label
+                                    key={action.id}
+                                    className="grid min-h-10 w-full cursor-pointer grid-cols-[minmax(0,1fr)_112px] items-center rounded-lg px-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                                >
+                                    <span className="min-w-0 truncate">
+                                        {action.label}
+                                    </span>
+                                    <CheckboxInput
+                                        checked={visibleActions[action.id]}
+                                        aria-label={`Show ${action.label}`}
+                                        onChange={() =>
+                                            setVisibleActions((previous) => ({
+                                                ...previous,
+                                                [action.id]:
+                                                    !previous[action.id],
+                                            }))
+                                        }
+                                        className="ml-auto"
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            {modal === "project" && (
+                <Suspense fallback={null}>
+                    <SelectAssistantProjectModal
+                        open
+                        onClose={() => setModal(null)}
+                    />
+                </Suspense>
+            )}
+            {modal === "newProject" && (
+                <Suspense fallback={null}>
+                    <NewProjectModal
+                        open
+                        onClose={() => setModal(null)}
+                        onCreated={(project) => {
+                            setModal(null);
+                            router.push(`/projects/${project.id}`);
+                        }}
+                    />
+                </Suspense>
+            )}
+            {modal === "review" && (
+                <Suspense fallback={null}>
+                    <NewTRModal
+                        open
+                        onClose={() => setModal(null)}
+                        onAdd={handleNewReview}
+                        projects={projects}
+                    />
+                </Suspense>
+            )}
         </div>
     );
 }

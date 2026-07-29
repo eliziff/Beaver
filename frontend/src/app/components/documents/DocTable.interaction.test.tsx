@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useState } from "react";
+import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import {
@@ -13,9 +13,14 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 }));
 vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
 
+const sidePanelRender = vi.hoisted(() => vi.fn());
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
-    DocumentSidePanel: ({ doc }: { doc: Document | null }) =>
-        doc ? <div data-testid="document-view">{doc.filename}</div> : null,
+    DocumentSidePanel: ({ doc }: { doc: Document | null }) => {
+        sidePanelRender();
+        return doc ? (
+            <div data-testid="document-view">{doc.filename}</div>
+        ) : null;
+    },
 }));
 
 const document: Document = {
@@ -44,23 +49,33 @@ const wordDocument: Document = {
 function Harness({
     selectionFirst = true,
     initialDocuments = [document],
+    initialFolders = [],
     onActions,
     uploadDocument = async () => document,
     moveDocument = async () => document,
+    renameDocument = async (_documentId, filename) => ({
+        ...document,
+        filename,
+    }),
     search = "",
 }: {
     selectionFirst?: boolean;
     initialDocuments?: Document[];
+    initialFolders?: DocTableFolder[];
     onActions?: (actions: DocTableSelectionActions | null) => void;
     uploadDocument?: (file: File) => Promise<Document>;
     moveDocument?: (
         documentId: string,
         folderId: string | null,
     ) => Promise<Document>;
+    renameDocument?: (
+        documentId: string,
+        filename: string,
+    ) => Promise<Document>;
     search?: string;
 }) {
     const [documents, setDocuments] = useState(initialDocuments);
-    const [folders, setFolders] = useState<DocTableFolder[]>([]);
+    const [folders, setFolders] = useState<DocTableFolder[]>(initialFolders);
 
     return (
         <DocTable
@@ -79,7 +94,7 @@ function Harness({
                 deleteFolder: vi.fn(),
                 moveFolder: vi.fn(),
                 moveDocument,
-                renameDocument: vi.fn(),
+                renameDocument,
             }}
             selectionFirst={selectionFirst}
             onSelectionActionsChange={onActions}
@@ -106,6 +121,21 @@ function rects(elements: HTMLElement[]) {
 }
 
 describe("DocTable Library interactions", () => {
+    it("avoids empty-state and version-picker rerenders", () => {
+        sidePanelRender.mockClear();
+        render(<Harness />);
+        const renders = sidePanelRender.mock.calls.length;
+        expect(renders).toBe(1);
+        const select = screen.getByRole("combobox", { name: "More actions" });
+        const option = within(select).getByRole("option", {
+            name: "Upload new version",
+        }) as HTMLOptionElement;
+
+        fireEvent.change(select, { target: { value: option.value } });
+
+        expect(sidePanelRender).toHaveBeenCalledTimes(renders);
+    });
+
     it("uploads files dropped on the empty collection", async () => {
         const latestUpload = vi.fn(async () => wordDocument);
         render(<Harness initialDocuments={[]} uploadDocument={latestUpload} />);
@@ -122,19 +152,71 @@ describe("DocTable Library interactions", () => {
         await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
     });
 
+    it("keeps version-file drag feedback on its document row", () => {
+        render(<Harness />);
+        const row = documentRow();
+        const dataTransfer = { types: ["Files"], files: [] };
+
+        fireEvent.dragOver(row, { dataTransfer });
+        expect(row).toHaveClass("bg-red-50", "ring-red-200");
+        fireEvent.dragLeave(row, { relatedTarget: window.document.body });
+        expect(row).not.toHaveClass("bg-red-50", "ring-red-200");
+    });
+
+    it("keeps inline rename geometry without per-keystroke commits", async () => {
+        const commits = vi.fn();
+        const renameDocument = vi.fn(async (_id: string, filename: string) => ({
+            ...document,
+            filename,
+        }));
+        const { container } = render(
+            <Profiler id="doc-table" onRender={commits}>
+                <Harness renameDocument={renameDocument} />
+            </Profiler>,
+        );
+        const row = documentRow();
+        const select = within(row).getByRole("combobox", {
+            name: "More actions",
+        });
+        const rename = within(select).getByRole("option", {
+            name: "Rename document",
+        }) as HTMLOptionElement;
+        fireEvent.change(select, { target: { value: rename.value } });
+        const input = screen.getByDisplayValue("Brief.pdf");
+        const nodeCount = container.querySelectorAll("*").length;
+
+        commits.mockClear();
+        fireEvent.change(input, { target: { value: "Renamed.pdf" } });
+        expect(commits).not.toHaveBeenCalled();
+        expect(container.querySelectorAll("*")).toHaveLength(nodeCount);
+        expect(input.closest("[data-document-row]")).toBe(row);
+        fireEvent.keyDown(input, { key: "Enter" });
+        await waitFor(() =>
+            expect(renameDocument).toHaveBeenCalledWith(
+                document.id,
+                "Renamed.pdf",
+            ),
+        );
+        expect(renameDocument).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps internal document moves on the root drop target", async () => {
+        const commits = vi.fn();
         const moveDocument = vi.fn(async () => ({
             ...document,
             folder_id: null,
         }));
-        render(
-            <Harness
-                initialDocuments={[{ ...document, folder_id: "folder-1" }]}
-                moveDocument={moveDocument}
-                search="Brief"
-            />,
+        const { container } = render(
+            <Profiler id="doc-table" onRender={commits}>
+                <Harness
+                    initialDocuments={[{ ...document, folder_id: "folder-1" }]}
+                    moveDocument={moveDocument}
+                    search="Brief"
+                />
+            </Profiler>,
         );
-        const rootDropTarget = documentRow().parentElement!.parentElement!;
+        const rootDropTarget = documentRow().parentElement!;
+        expect(rootDropTarget).toHaveClass("flex-1", "flex-col");
         const rootDropSpacer = rootDropTarget.querySelector(
             ".min-h-16",
         ) as HTMLElement;
@@ -146,10 +228,52 @@ describe("DocTable Library interactions", () => {
         };
 
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
+        expect(container.querySelector(".border-red-400")).not.toBeNull();
+        commits.mockClear();
+        fireEvent.dragEnd(documentRow());
+        expect(commits).toHaveBeenCalledTimes(1);
+        expect(container.querySelector(".border-red-400")).toBeNull();
+        commits.mockClear();
+        fireEvent.dragOver(rootDropSpacer, { dataTransfer });
+        expect(commits).toHaveBeenCalledTimes(1);
         fireEvent.drop(rootDropSpacer, { dataTransfer });
 
         await waitFor(() =>
             expect(moveDocument).toHaveBeenCalledWith(document.id, null),
+        );
+    });
+
+    it("delegates a document drop to the containing folder row", async () => {
+        const moveDocument = vi.fn(async () => ({
+            ...document,
+            folder_id: "folder-1",
+        }));
+        const folder = {
+            id: "folder-1",
+            name: "Research",
+            parent_folder_id: null,
+        } as DocTableFolder;
+        render(
+            <Harness
+                initialFolders={[folder]}
+                moveDocument={moveDocument}
+            />,
+        );
+        const target = screen.getByText("Research");
+        const row = target.closest("[data-tree-drop-folder]")!;
+        const dataTransfer = {
+            types: ["application/mike-doc"],
+            files: [],
+            getData: (type: string) =>
+                type === "application/mike-doc" ? document.id : "",
+        };
+
+        fireEvent.dragOver(target, { dataTransfer });
+        expect(row).toHaveClass("bg-red-50", "ring-red-200");
+        fireEvent.drop(target, { dataTransfer });
+
+        await waitFor(() =>
+            expect(moveDocument).toHaveBeenCalledWith(document.id, folder.id),
         );
     });
 
@@ -280,7 +404,7 @@ describe("DocTable Library interactions", () => {
     });
 
     it.each([1440, 390])(
-        "keeps row and sticky-cell geometry fixed at %ipx",
+        "keeps row and lead-cell geometry fixed at %ipx",
         (viewportWidth) => {
             Object.defineProperty(window, "innerWidth", {
                 configurable: true,
@@ -289,9 +413,7 @@ describe("DocTable Library interactions", () => {
             render(<Harness />);
 
             const row = documentRow();
-            const stickyCell = row.querySelector(
-                ":scope > .sticky",
-            ) as HTMLElement;
+            const leadCell = row.firstElementChild as HTMLElement;
             const elements = [
                 row,
                 ...Array.from(row.children),
@@ -302,7 +424,7 @@ describe("DocTable Library interactions", () => {
                 const width =
                     element === row
                         ? viewportWidth
-                        : element === stickyCell
+                        : element === leadCell
                           ? stickyWidth
                           : 32;
                 vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
@@ -334,8 +456,8 @@ describe("DocTable Library interactions", () => {
                 "w-full",
                 "bg-app-surface-active",
             );
-            expect(stickyCell).toHaveClass("bg-inherit");
-            expect(`${row.className} ${stickyCell.className}`).not.toMatch(
+            expect(leadCell).not.toHaveClass("sticky");
+            expect(`${row.className} ${leadCell.className}`).not.toMatch(
                 /\b(?:animate-|duration-|scale-|shadow|transition|translate-)/,
             );
         },

@@ -1,12 +1,11 @@
-"use client";
-import { useEffect, useState } from "react";import {
+import { useLayoutEffect, useSyncExternalStore } from "react";import {
     type ApiKeyState,
-    type CodexModelCatalog,
+    type ModelCatalog,
 } from "@/app/lib/beaverApi";
 import {
-    getSessionCodexModelCatalog,
-    preloadCodexModelCatalog,
-} from "@/app/lib/codexModelCatalog";
+    getSessionModelCatalog,
+    preloadModelCatalog,
+} from "@/app/lib/modelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 export type { ModelOption } from "./ModelPicker";
 export const MODELS: ModelOption[] = [
@@ -42,37 +41,45 @@ export const SETTINGS_MODELS: ModelOption[] = [
     { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI" },
 ];
 const configuredDefaultModel = process.env.NEXT_PUBLIC_DEFAULT_MODEL;
-export const DEFAULT_MODEL_ID =
-    configuredDefaultModel?.startsWith("codex:") &&
-    configuredDefaultModel.length > "codex:".length
+const configuredDynamicModel =
+    configuredDefaultModel && /^(codex|ollama):.+/u.test(configuredDefaultModel)
         ? configuredDefaultModel
-        : (MODELS.find((model) => model.id === configuredDefaultModel)?.id ??
-          "codex:gpt-5.6-terra");
+        : null;
+export const DEFAULT_MODEL_ID =
+    configuredDynamicModel ??
+    MODELS.find((model) => model.id === configuredDefaultModel)?.id ??
+    "codex:gpt-5.6-terra";
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
-function useCodexCatalog(): CodexModelCatalog | null {
-    const [catalog, setCatalog] = useState(getSessionCodexModelCatalog);
-    useEffect(() => {
-        let cancelled = false;
-        const request = preloadCodexModelCatalog();
-        const cached = getSessionCodexModelCatalog();
-        if (cached) {
-            queueMicrotask(() => {
-                if (!cancelled) setCatalog(cached);
-            });
-        }
-        void request
-            .then((next) => {
-                if (!cancelled) setCatalog(next);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-    return catalog;
+const DESKTOP_MODELS: ModelOption[] = [
+    { id: "ollama:qwen3.5:2b-q4_K_M", label: "Qwen 3.5 2B (Q4_K_M)", group: "Desktop" },
+    { id: "ollama:qwen3.5:4b-q4_K_M", label: "Qwen 3.5 4B (Q4_K_M)", group: "Desktop" },
+    { id: "ollama:qwen3.5:9b", label: "Qwen 3.5 9B", group: "Desktop" },
+];
+const catalogListeners = new Set<() => void>();
+let catalogRefresh: Promise<ModelCatalog> | null = null;
+function subscribeModelCatalog(listener: () => void) {
+    catalogListeners.add(listener);
+    catalogRefresh ??= preloadModelCatalog().finally(() => {
+        catalogRefresh = null;
+        catalogListeners.forEach((notify) => notify());
+    });
+    return () => catalogListeners.delete(listener);
 }
-function fallbackCodexLabel(modelId: string): string | null {
-    if (!modelId.startsWith("codex:")) return null;
-    const slug = modelId.slice("codex:".length).trim();
+function useModelCatalog(): ModelCatalog | null {
+    return useSyncExternalStore(
+        subscribeModelCatalog,
+        getSessionModelCatalog,
+        () => null,
+    );
+}
+function fallbackDynamicLabel(modelId: string): string | null {
+    const prefix = modelId.startsWith("codex:")
+        ? "codex:"
+        : modelId.startsWith("ollama:")
+          ? "ollama:"
+          : null;
+    if (!prefix) return null;
+    const slug = modelId.slice(prefix.length).trim();
     if (!slug) return null;
     return slug
         .split("-")
@@ -87,18 +94,53 @@ interface Props {
     value: string;
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
+    models?: ModelOption[];
+    disabled?: boolean;
+    className?: string;
 }
 export function ModelToggle({
     value,
     onChange,
     apiKeys,
+    models = MODELS,
+    disabled,
+    className = "sm:w-56",
 }: Props) {
-    const codexCatalog = useCodexCatalog();
-    const dynamicModels: ModelOption[] = (codexCatalog?.models ?? [])        .filter((model) => model.supportedInApi !== false)        .map((model) => ({            id: `codex:${model.slug}`,            label: model.displayName,            group: "Codex",        }));    const allModels = [...dynamicModels, ...MODELS];    const selected = allModels.find((m) => m.id === value);
+    const catalog = useModelCatalog();
+    const dynamicModels: ModelOption[] = (catalog?.models ?? [])
+        .filter((model) => model.supportedInApi !== false)
+        .map((model) => ({
+            id: `codex:${model.slug}`,
+            label: model.displayName,
+            group: "Codex",
+        }));
+    const catalogDesktopModels: ModelOption[] = (catalog?.ollama?.models ?? []).map(
+        (model) => ({
+            id: `ollama:${model.name}`,
+            label: model.displayName,
+            group: "Desktop",
+        }),
+    );
+    const desktopModels = catalog?.ollama
+        ? catalogDesktopModels.map((model) => ({
+              ...model,
+              label:
+                  catalog.ollama?.source === "unavailable"
+                      ? `${model.label} — desktop offline`
+                      : model.label,
+          }))
+        : DESKTOP_MODELS;
+    const allModels = [...desktopModels, ...dynamicModels, ...models];
+    const selected = allModels.find((m) => m.id === value);
     const selectedLabel =
-        selected?.label ?? fallbackCodexLabel(value) ?? "Model";
+        selected?.label ?? fallbackDynamicLabel(value) ?? "Model";
     const selectedGroup =
-        selected?.group ?? (value.startsWith("codex:") ? "Codex" : MODELS[0].group);
+        selected?.group ??
+        (value.startsWith("codex:")
+            ? "Codex"
+            : value.startsWith("ollama:")
+              ? "Desktop"
+              : models[0]?.group ?? "Codex");
     const visibleModels = allModels.some((model) => model.id === value)
         ? allModels
         : [
@@ -106,6 +148,7 @@ export function ModelToggle({
                   id: value,
                   label: selectedLabel,
                   group: selectedGroup,
+                  available: !value.startsWith("ollama:"),
               },
               ...allModels,
           ];
@@ -115,7 +158,8 @@ export function ModelToggle({
             models={visibleModels}
             onChange={onChange}
             apiKeys={apiKeys}
-            className="sm:w-56"
+            disabled={disabled}
+            className={className}
         />
     );
 }
@@ -129,14 +173,21 @@ export function ReasoningEffortToggle({
     value,
     onChange,
 }: ReasoningEffortToggleProps) {
-    const catalog = useCodexCatalog();
+    const catalog = useModelCatalog();
     const selectedModel = catalog?.models.find(
         (item) =>
             item.supportedInApi !== false &&
             `codex:${item.slug}` === model,
     );
+    const selectedDesktopModel = catalog?.ollama?.models.find(
+        (item) => `ollama:${item.name}` === model,
+    );
     const efforts = model.startsWith("deepseek-")
         ? [{ effort: "high" }, { effort: "max" }]
+        : selectedDesktopModel?.supportsThinking
+          ? ["off", "low", "medium", "high", "max"].map((effort) => ({
+                effort,
+            }))
         : model === "meta/muse-spark-1.1"
           ? [
                 { effort: "xhigh" },
@@ -151,12 +202,14 @@ export function ReasoningEffortToggle({
         value && efforts.some((level) => level.effort === value)
             ? value
             : (model.startsWith("deepseek-")
-                ? "high"
-                : model === "meta/muse-spark-1.1"
+            ? "high"
+            : selectedDesktopModel?.supportsThinking
+              ? "off"
+            : model === "meta/muse-spark-1.1"
                   ? "medium"
                   : (selectedModel?.defaultReasoningLevel ??
                     efforts[0]?.effort));
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (supported && selectedEffort && value !== selectedEffort) {
             onChange(selectedEffort);
         }

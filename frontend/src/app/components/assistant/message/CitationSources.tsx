@@ -7,7 +7,7 @@ type CitationSourceRow = {
     key: string;
     label: string;
     source: Citation;
-    entries: { annotation: Citation; index: number }[];
+    entries: Citation[];
 };
 function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "case") {
@@ -61,18 +61,18 @@ function buildCitationSourceRows(
     citations: Citation[],
 ): CitationSourceRow[] {
     const rows = new Map<string, CitationSourceRow>();
-    citations.forEach((annotation, index) => {
+    citations.forEach((annotation) => {
         const key = citationSourceKey(annotation);
         const existing = rows.get(key);
         if (existing) {
-            existing.entries.push({ annotation, index });
+            existing.entries.push(annotation);
             return;
         }
         rows.set(key, {
             key,
             label: citationSourceLabel(annotation),
             source: annotation,
-            entries: [{ annotation, index }],
+            entries: [annotation],
         });
     });
     return Array.from(rows.values());
@@ -91,40 +91,26 @@ function ensureTerminalPeriod(value: string): string {
 export function buildCitationAppendix(citations: Citation[]) {
     if (citations.length === 0) return { html: "", text: "" };
     let previousSourceKey: string | null = null;
-    const entries = citations.map((annotation) => {
+    const text = ["", "Citations"];
+    const html = ['<section class="copied-citations">', "<h3>Citations</h3>"];
+    for (const annotation of citations) {
         const sourceKey = citationSourceKey(annotation);
-        const label =
+        const label = ensureTerminalPeriod(
             sourceKey === previousSourceKey
                 ? "Id."
-                : citationSourceLabel(annotation);
+                : citationSourceLabel(annotation),
+        );
         previousSourceKey = sourceKey;
-        return {
-            number: annotation.ref,
-            label,
-            quote: displayCitationQuote(annotation).trim(),
-        };
-    });
-    const textLines = [
-        "",
-        "Citations",
-        ...entries.map((entry) => {
-            const quote = entry.quote ? ` "${entry.quote}"` : "";
-            return `${entry.number} ${ensureTerminalPeriod(entry.label)}${quote}`;
-        }),
-    ];
-    const html = [
-        `<section class="copied-citations">`,
-        `<h3>Citations</h3>`,
-        ...entries.map((entry) => {
-            const label = escapeHtmlText(ensureTerminalPeriod(entry.label));
-            const quote = entry.quote
-                ? ` &quot;${escapeHtmlText(entry.quote)}&quot;`
-                : "";
-            return `<p><sup>${entry.number}</sup> ${label}${quote}</p>`;
-        }),
-        `</section>`,
-    ].join("");
-    return { html, text: textLines.join("\n") };
+        const quote = displayCitationQuote(annotation).trim();
+        text.push(`${annotation.ref} ${label}${quote ? ` "${quote}"` : ""}`);
+        html.push(
+            `<p><sup>${annotation.ref}</sup> ${escapeHtmlText(label)}${
+                quote ? ` &quot;${escapeHtmlText(quote)}&quot;` : ""
+            }</p>`,
+        );
+    }
+    html.push("</section>");
+    return { html: html.join(""), text: text.join("\n") };
 }
 export function CitationsBlock({
     citations,
@@ -179,7 +165,7 @@ export function CitationsBlock({
                                 </button>
                                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
                                     {row.entries.map(
-                                        ({ annotation, index }) => (
+                                        (annotation, index) => (
                                             <button
                                                 key={`${row.key}:${index}`}
                                                 type="button"

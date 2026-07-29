@@ -1,4 +1,3 @@
-"use client";
 import { createContext, useContext } from "react";
 interface SidebarContextValue {
     setSidebarOpen: (open: boolean) => void;

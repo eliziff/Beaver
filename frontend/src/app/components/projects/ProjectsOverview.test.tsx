@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Profiler } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/app/components/shared/types";
@@ -126,7 +127,7 @@ describe("ProjectsOverview", () => {
             .not.toBeInTheDocument();
     });
 
-    it("keeps the action slot mounted and deletes through the native picker", async () => {
+    it("keeps the action slot mounted and deletes without a one-item menu", async () => {
         listProjects.mockResolvedValue([createdProject]);
         const { container } = render(<ProjectsOverview />);
         const slot = container.querySelector<HTMLSpanElement>(
@@ -138,16 +139,38 @@ describe("ProjectsOverview", () => {
         fireEvent.click(screen.getAllByRole("checkbox")[1]);
 
         expect(container.querySelector("span.inline-flex.h-8.w-28")).toBe(slot);
-        const actions = screen.getByRole("combobox", { name: "Actions" });
-        expect(slot?.querySelector('[aria-hidden="true"]')).toHaveTextContent(
-            "▾",
+        expect(
+            screen.queryByRole("combobox", { name: "Actions" }),
+        ).not.toBeInTheDocument();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Delete selected" }),
         );
-
-        fireEvent.change(actions, { target: { value: "0" } });
 
         await waitFor(() =>
             expect(deleteProject).toHaveBeenCalledWith(createdProject.id),
         );
+    });
+
+    it("uses one bounded row and settles in two commits", async () => {
+        listProjects.mockResolvedValue([createdProject]);
+        const commits: string[] = [];
+        const { container } = render(
+            <Profiler
+                id="projects"
+                onRender={(_, phase) => commits.push(phase)}
+            >
+                <ProjectsOverview />
+            </Profiler>,
+        );
+
+        const name = await screen.findByText(createdProject.name);
+        expect(name.closest(".group")).toHaveClass(
+            "h-14",
+            "w-full",
+            "min-w-0",
+        );
+        expect(container.querySelector(".min-w-max")).toBeNull();
+        expect(commits).toEqual(["mount", "update"]);
     });
 
     it("displays the API creation timestamp without replacing it", async () => {

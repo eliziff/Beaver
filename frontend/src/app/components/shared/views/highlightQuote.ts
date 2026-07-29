@@ -1,3 +1,5 @@
+import { normalizeQuoteText, strippedToOriginal } from "./quoteText";
+
 let pdfjsLib: typeof import("pdfjs-dist") | null = null;
 export async function getPdfJs() {
     if (pdfjsLib) return pdfjsLib;
@@ -12,24 +14,11 @@ export const STANDARD_FONT_DATA_URL =
     "https://unpkg.com/pdfjs-dist@4.10.38/standard_fonts/";
 const HIGHLIGHT_CLASS = "pdf-text-highlight";
 const ORIGINAL_TEXT_ATTR = "data-original-text";
-function onlyLetters(s: string): string {
-    return s.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-}
 function escapeHtml(str: string): string {
     return str
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
-}
-function strippedPosToOriginal(original: string, strippedPos: number): number {
-    let count = 0;
-    for (let i = 0; i < original.length; i++) {
-        if (/[a-zA-Z0-9]/.test(original[i])) {
-            if (count === strippedPos) return i;
-            count++;
-        }
-    }
-    return original.length;
 }
 export function clearHighlights(textDivs: HTMLElement[]) {
     for (const div of textDivs) {
@@ -39,14 +28,14 @@ export function clearHighlights(textDivs: HTMLElement[]) {
         }
     }
 }
-export async function highlightQuote(
+export function highlightQuote(
     textDivs: HTMLElement[],
     quote: string,
-): Promise<boolean> {
+): boolean {
     clearHighlights(textDivs);
     const segments = quote
         .split(/\.{3}|…/)
-        .map((s) => onlyLetters(s))
+        .map(normalizeQuoteText)
         .filter((s) => s.length > 0);
     const divOrigTexts: string[] = []; // original text for innerHTML slicing
     const divStripped: string[] = []; // letters-only version for matching
@@ -55,7 +44,7 @@ export async function highlightQuote(
     for (let i = 0; i < textDivs.length; i++) {
         const orig = textDivs[i].textContent ?? "";
         divOrigTexts.push(orig);
-        const stripped = onlyLetters(orig);
+        const stripped = normalizeQuoteText(orig);
         divStripped.push(stripped);
         divStartInFull.push(fullStripped.length);
         fullStripped += stripped;
@@ -84,8 +73,8 @@ export async function highlightQuote(
     for (const [idx, [strStart, strEnd]] of divHighlightRanges) {
         const div = textDivs[idx];
         const orig = divOrigTexts[idx];
-        const origStart = strippedPosToOriginal(orig, strStart);
-        const origEnd = strippedPosToOriginal(orig, strEnd);
+        const origStart = strippedToOriginal(orig, strStart);
+        const origEnd = strippedToOriginal(orig, strEnd);
         div.setAttribute(ORIGINAL_TEXT_ATTR, orig);
         div.innerHTML =
             escapeHtml(orig.slice(0, origStart)) +

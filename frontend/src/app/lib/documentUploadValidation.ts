@@ -1,6 +1,6 @@
 export const SUPPORTED_DOCUMENT_ACCEPT =
     ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.gif,.webp,.eml";
-export const UNSUPPORTED_DOCUMENT_WARNING_MESSAGE =
+const UNSUPPORTED_DOCUMENT_WARNING_MESSAGE =
     "Unsupported file type. Use PDF, Word, Excel, PowerPoint, email (.eml), JPEG, PNG, GIF, or WebP.";
 const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
     "pdf",

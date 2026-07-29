@@ -1,4 +1,3 @@
-"use client";
 import {
     forwardRef,
     useCallback,
@@ -17,17 +16,20 @@ import type { ChatInputHandle } from "./ChatInput";
 import { AskInputPopup } from "./AskInputPopup";
 import {
     AssistantSidePanel,
+    type AssistantDocumentTab,
     type AssistantSidePanelTab,
-    type CitationTab,
-    type DocumentTab,
-    type EditTab,
 } from "./AssistantSidePanel";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import type {
     AssistantEvent,
+    CaseCitation,
     Citation,
     Document,
+    DocumentCitation,
     EditAnnotation,
+    EditResolveError,
+    EditResolveStart,
+    EditResolved,
     Message,
 } from "../shared/types";
 import { useSidebar } from "@/app/contexts/SidebarContext";
@@ -57,9 +59,7 @@ interface Props {
     onProjectClick?: () => void;
     projectId?: string;
     projectCmNumber?: string | null;
-    hideAddDocButton?: boolean;
     useDisplayedDocumentContext?: boolean;
-    onDocumentsUploaded?: (documents: Document[]) => void;
     onActiveDocumentChange?: (documentId: string | null) => void;
 }
 export interface ChatViewHandle {
@@ -69,13 +69,68 @@ export interface ChatViewHandle {
 }
 const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
-const SCROLL_BUTTON_INPUT_GAP = 16;
-const CHAT_INPUT_BOTTOM_OFFSET = 12;
-function isSmallScreen() {
-    return (
-        typeof window !== "undefined" &&
-        window.innerWidth < MOBILE_BREAKPOINT_PX
-    );
+const LATEST_ASSISTANT_MIN_HEIGHT = "calc(100dvh - 16rem)";
+function without<T>(items: Set<T>, item: T) {
+    if (!items.has(item)) return items;
+    const next = new Set(items);
+    next.delete(item);
+    return next;
+}
+function isDocumentTab(
+    tab: AssistantSidePanelTab,
+): tab is AssistantDocumentTab {
+    return "documentId" in tab;
+}
+type LegalTab = Extract<AssistantSidePanelTab, { kind: "legal" }>;
+function legalCitationTab(
+    citation: Citation,
+    showQuotes: boolean,
+): LegalTab | null {
+    const quotes = showQuotes ? citation.quotes : undefined;
+    if (citation.kind === "a2aj" && citation.citation) {
+        return {
+            kind: "legal",
+            id: `legal:${citation.dataset ?? ""}:${citation.citation}`,
+            citation: citation.citation,
+            name: citation.name ?? null,
+            dataset: citation.dataset ?? null,
+            docType: "auto",
+            language: "en",
+            citationRef: citation.ref,
+            quotes,
+        };
+    }
+    if (citation.kind === "public_legal" && citation.provider === "journal") {
+        return {
+            kind: "legal",
+            id: `legal:journal:${citation.identifier}`,
+            provider: "journal",
+            sourceId: citation.identifier,
+            citation: citation.title ?? citation.identifier,
+            name: citation.title ?? null,
+            dataset: null,
+            docType: "articles",
+            language: "en",
+            citationRef: citation.ref,
+            quotes,
+        };
+    }
+    return null;
+}
+function documentCitationTab(
+    citation: DocumentCitation,
+    showQuotes: boolean,
+): AssistantDocumentTab {
+    const tab = {
+        id: citation.document_id,
+        documentId: citation.document_id,
+        filename: citation.filename,
+        versionId: citation.version_id ?? null,
+        versionNumber: citation.version_number ?? null,
+    };
+    return showQuotes
+        ? { ...tab, kind: "citation", citation }
+        : { ...tab, kind: "document" };
 }
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     {
@@ -91,41 +146,28 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         onProjectClick,
         projectId,
         projectCmNumber,
-        hideAddDocButton,
         useDisplayedDocumentContext,
-        onDocumentsUploaded,
         onActiveDocumentChange,
     },
     ref,
 ) {
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
-    const [workflowModalInitialId, setWorkflowModalInitialId] = useState<
-        string | undefined
-    >();
-    const [hiddenAskInputKeys, setHiddenAskInputKeys] = useState<Set<string>>(
-        () => new Set(),
+    const [workflowModalId, setWorkflowModalId] = useState<string | null>(null);
+    const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
+        null,
     );
-    const [reloadingDocIds, setReloadingDocIds] = useState<Set<string>>(
-        () => new Set(),
-    );
-    const [reloadingEditIds, setReloadingEditIds] = useState<Set<string>>(
-        () => new Set(),
-    );
+    const [editState, setEditState] = useState(() => ({
+        docIds: new Set<string>(),
+        editIds: new Set<string>(),
+        statuses: {} as Record<string, "accepted" | "rejected">,
+    }));
     const { setSidebarOpen } = useSidebar();
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-chat UI state when switching chats
-        setHiddenAskInputKeys(new Set());
-    }, [chatId]);
-    const restoreSidebarAfterPanelClose = useCallback(() => {
-        if (!isSmallScreen()) setSidebarOpen(true);
-    }, [setSidebarOpen]);
     const closeAllTabs = useCallback(() => {
         setTabs([]);
         setActiveTabId(null);
-        restoreSidebarAfterPanelClose();
-    }, [restoreSidebarAfterPanelClose]);
+        if (window.innerWidth >= MOBILE_BREAKPOINT_PX) setSidebarOpen(true);
+    }, [setSidebarOpen]);
     const closeTab = useCallback(
         (id: string) => {
             const next = tabs.filter((tab) => tab.id !== id);
@@ -144,38 +186,24 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const upsertTab = useCallback(
         (tab: AssistantSidePanelTab) => {
             setTabs((prev) => {
-                const idx = prev.findIndex((t) => {
-                    if (
-                        tab.kind === "case" ||
-                        tab.kind === "legal" ||
-                        tab.kind === "automation"
-                    ) {
-                        return t.kind === tab.kind && t.id === tab.id;
-                    }
-                    return (
-                        t.kind !== "automation" &&
-                        t.kind !== "case" &&
-                        t.kind !== "legal" &&
-                        t.documentId === tab.documentId
-                    );
-                });
+                const idx = prev.findIndex((current) =>
+                    isDocumentTab(tab)
+                        ? isDocumentTab(current) &&
+                          current.documentId === tab.documentId
+                        : current.kind === tab.kind && current.id === tab.id,
+                );
                 if (idx >= 0) {
                     const existing = prev[idx];
                     const copy = prev.slice();
                     copy[idx] =
-                        tab.kind === "case" ||
-                        tab.kind === "legal" ||
-                        tab.kind === "automation" ||
-                        existing.kind === "case" ||
-                        existing.kind === "legal" ||
-                        existing.kind === "automation"
-                            ? tab
-                            : {
+                        isDocumentTab(tab) && isDocumentTab(existing)
+                            ? {
                                   ...tab,
                                   id: existing.id,
                                   warning: existing.warning,
                                   initialScrollTop: existing.initialScrollTop,
-                              };
+                              }
+                            : tab;
                     return copy;
                 }
                 return [...prev, tab];
@@ -185,124 +213,60 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [setSidebarOpen],
     );
-    const openCitation = useCallback(
-        (citation: Citation, options?: { showQuotes?: boolean }) => {
-            const showQuotes = options?.showQuotes ?? true;
-            if (citation.kind === "a2aj") {
-                if (citation.citation) {
-                    upsertTab({
-                        kind: "legal",
-                        id: `legal:${citation.dataset ?? ""}:${citation.citation}`,
-                        citation: citation.citation,
-                        name: citation.name ?? null,
-                        dataset: citation.dataset ?? null,
-                        docType: "auto",
-                        language: "en",
-                        citationRef: citation.ref,
-                        quotes: showQuotes ? citation.quotes : undefined,
-                    });
-                } else if (citation.url) {
-                    window.open(citation.url, "_blank", "noopener,noreferrer");
-                }
-                return;
-            }
-            if (citation.kind === "public_legal") {
-                if (citation.provider === "journal") {
-                    upsertTab({
-                        kind: "legal",
-                        id: `legal:journal:${citation.identifier}`,
-                        provider: "journal",
-                        sourceId: citation.identifier,
-                        citation: citation.title ?? citation.identifier,
-                        name: citation.title ?? null,
-                        dataset: null,
-                        docType: "articles",
-                        language: "en",
-                        citationRef: citation.ref,
-                        quotes: showQuotes ? citation.quotes : undefined,
-                    });
-                } else if (citation.url) {
-                    window.open(citation.url, "_blank", "noopener,noreferrer");
-                }
-                return;
-            }
-            if (citation.kind === "case") {
-                if (!chatId) return;
-                upsertTab({
-                    kind: "case",
-                    id: `case:${citation.cluster_id}`,
-                    chatId,
-                    clusterId: citation.cluster_id,
-                    citationRef: citation.ref,
-                    caseName: citation.case_name ?? null,
-                    citation: citation.citation ?? null,
-                    url: citation.url ?? null,
-                    dateFiled: citation.dateFiled ?? null,
-                    pdfUrl: citation.pdfUrl ?? null,
-                    quotes: showQuotes ? citation.quotes : undefined,
-                    opinions: undefined,
-                });
-                return;
-            }
-            if (!showQuotes) {
-                upsertTab({
-                    kind: "document",
-                    id: citation.document_id,
-                    documentId: citation.document_id,
-                    filename: citation.filename,
-                    versionId: citation.version_id ?? null,
-                    versionNumber: citation.version_number ?? null,
-                });
-                return;
-            }
-            upsertTab({
-                kind: "citation",
-                id: citation.document_id,
-                documentId: citation.document_id,
-                filename: citation.filename,
-                versionId: citation.version_id ?? null,
-                versionNumber: citation.version_number ?? null,
-                citation,
-            });
-        },
-        [chatId, upsertTab],
-    );
-    const openCase = useCallback(
-        (citation: Extract<AssistantEvent, { type: "case_citation" }>) => {
-            if (!citation.cluster_id) return;
-            if (!chatId) return;
-            upsertTab({
-                kind: "case",
-                id: `case:${citation.cluster_id}`,
-                chatId,
-                clusterId: citation.cluster_id,
-                citationRef: undefined,
-                caseName: citation.case_name,
-                citation: citation.citation,
-                url: citation.url,
-                dateFiled: citation.dateFiled ?? null,
-                pdfUrl: citation.pdfUrl ?? null,
-                quotes: undefined,
-                opinions: citation.case?.opinions,
-            });
-        },
-        [chatId, upsertTab],
-    );
-    const openEditor = useCallback(
-        (ann: EditAnnotation, filename: string, changeNumber?: number) => {
-            upsertTab({
-                kind: "edit",
-                id: ann.document_id,
-                documentId: ann.document_id,
-                filename,
-                versionId: ann.version_id ?? null,
-                versionNumber: ann.version_number ?? null,
-                edit: ann,
-                changeNumber,
-            });
-        },
-        [upsertTab],
-    );
+    const openCase = (
+        citation:
+            | CaseCitation
+            | Extract<AssistantEvent, { type: "case_citation" }>,
+        showQuotes = true,
+    ) => {
+        if (!citation.cluster_id || !chatId) return;
+        const streamed = citation.type === "case_citation";
+        upsertTab({
+            kind: "case",
+            id: `case:${citation.cluster_id}`,
+            chatId,
+            clusterId: citation.cluster_id,
+            citationRef: streamed ? undefined : citation.ref,
+            caseName: citation.case_name ?? null,
+            citation: citation.citation ?? null,
+            url: citation.url ?? null,
+            dateFiled: citation.dateFiled ?? null,
+            pdfUrl: citation.pdfUrl ?? null,
+            quotes: !streamed && showQuotes ? citation.quotes : undefined,
+            opinions: streamed ? citation.case?.opinions : undefined,
+        });
+    };
+    const openCitation = (
+        citation: Citation,
+        showQuotes = true,
+    ) => {
+        if (citation.kind === "case") return openCase(citation, showQuotes);
+        if (citation.kind === "document" || !citation.kind) {
+            return upsertTab(documentCitationTab(citation, showQuotes));
+        }
+        if (citation.kind === "a2aj" || citation.kind === "public_legal") {
+            const tab = legalCitationTab(citation, showQuotes);
+            if (tab) upsertTab(tab);
+            else if ("url" in citation && citation.url)
+                window.open(citation.url, "_blank", "noopener,noreferrer");
+        }
+    };
+    const openEditor = (
+        ann: EditAnnotation,
+        filename: string,
+        changeNumber?: number,
+    ) => {
+        upsertTab({
+            kind: "edit",
+            id: ann.document_id,
+            documentId: ann.document_id,
+            filename,
+            versionId: ann.version_id ?? null,
+            versionNumber: ann.version_number ?? null,
+            edit: ann,
+            changeNumber,
+        });
+    };
     const openDocument = useCallback(
         (args: {
             documentId: string;
@@ -321,232 +285,118 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [upsertTab],
     );
-    const mergedAutomationRun = useCallback(
-        (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
-            const key = automationRunKey(run);
-            let merged = run;
-            for (const message of messages) {
-                for (const event of message.events ?? []) {
-                    if (
-                        event.type === "automation_run" &&
-                        automationRunKey(event) === key
-                    ) {
-                        merged = { ...merged, ...event };
-                    }
-                }
-            }
-            return merged;
-        },
-        [messages],
-    );
-    const openAutomation = useCallback(
-        (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
-            const merged = mergedAutomationRun(run);
-            upsertTab({
-                kind: "automation",
-                id: `automation:${automationRunKey(merged)}`,
-                run: merged,
-            });
-        },
-        [mergedAutomationRun, upsertTab],
-    );
-    useEffect(() => {
-        const latest = new Map<
-            string,
-            Extract<AssistantEvent, { type: "automation_run" }>
-        >();
-        for (const message of messages) {
-            for (const event of message.events ?? []) {
-                if (event.type === "automation_run") {
-                    const key = `automation:${automationRunKey(event)}`;
-                    latest.set(key, {
-                        ...(latest.get(key) ?? {}),
-                        ...event,
-                    });
-                }
+    let lastUserIndex = -1;
+    let lastAssistantIndex = -1;
+    let rawActiveInput: {
+        key: string;
+        event: Extract<AssistantEvent, { type: "ask_inputs" }>;
+    } | null = null;
+    const automationRuns = new Map<
+        string,
+        Extract<AssistantEvent, { type: "automation_run" }>
+    >();
+    for (const [messageIndex, message] of messages.entries()) {
+        if (message.role === "user") {
+            lastUserIndex = messageIndex;
+            rawActiveInput = null;
+        } else if (message.role === "assistant") {
+            lastAssistantIndex = messageIndex;
+        }
+        for (const [eventIndex, event] of (message.events ?? []).entries()) {
+            if (event.type === "ask_inputs") {
+                rawActiveInput = {
+                    key: `${chatId ?? "new"}:${messageIndex}-${eventIndex}`,
+                    event,
+                };
+            } else if (event.type === "ask_inputs_response") {
+                rawActiveInput = null;
+            } else if (event.type === "automation_run") {
+                const key = automationRunKey(event);
+                automationRuns.set(key, {
+                    ...automationRuns.get(key),
+                    ...event,
+                });
             }
         }
-        if (!latest.size) return;
-        let cancelled = false;
-        queueMicrotask(() => {
-            if (cancelled) return;
-            setTabs((current) => {
-                let changed = false;
-                const next = current.map((tab) => {
-                    if (tab.kind !== "automation") return tab;
-                    const run = latest.get(tab.id);
-                    if (!run || run === tab.run) return tab;
-                    changed = true;
-                    return { ...tab, run };
-                });
-                return changed ? next : current;
-            });
+    }
+    const mergedAutomationRun = (
+        run: Extract<AssistantEvent, { type: "automation_run" }>,
+    ) => ({ ...run, ...automationRuns.get(automationRunKey(run)) });
+    const openAutomation = (
+        run: Extract<AssistantEvent, { type: "automation_run" }>,
+    ) => {
+        const merged = mergedAutomationRun(run);
+        upsertTab({
+            kind: "automation",
+            id: `automation:${automationRunKey(merged)}`,
+            run: merged,
         });
-        return () => {
-            cancelled = true;
-        };
-    }, [messages]);
-    const [resolvedEditStatuses, setResolvedEditStatuses] = useState<
-        Record<string, "accepted" | "rejected">
-    >({});
-    const handleEditResolveStart = useCallback(
-        (args: {
-            editId: string;
-            documentId: string;
-            verb: "accept" | "reject";
-        }) => {
-            setReloadingDocIds((prev) => {
-                if (prev.has(args.documentId)) return prev;
-                const next = new Set(prev);
-                next.add(args.documentId);
-                return next;
-            });
-            setReloadingEditIds((prev) => {
-                if (prev.has(args.editId)) return prev;
-                const next = new Set(prev);
-                next.add(args.editId);
-                return next;
-            });
-        },
-        [],
+    };
+    const visibleTabs = tabs.map((tab) =>
+        tab.kind === "automation"
+            ? { ...tab, run: mergedAutomationRun(tab.run) }
+            : tab,
     );
-    const handleEditResolved = useCallback(
-        (args: {
-            editId: string;
-            documentId: string;
-            status: "accepted" | "rejected";
-            versionId: string | null;
-            downloadUrl: string | null;
-        }) => {
-            setResolvedEditStatuses((prev) => ({
-                ...prev,
-                [args.editId]: args.status,
-            }));
-            setReloadingDocIds((prev) => {
-                if (!prev.has(args.documentId)) return prev;
-                const next = new Set(prev);
-                next.delete(args.documentId);
-                return next;
-            });
-            setReloadingEditIds((prev) => {
-                if (!prev.has(args.editId)) return prev;
-                const next = new Set(prev);
-                next.delete(args.editId);
-                return next;
-            });
-            setTabs((prev) =>
-                prev.map((t) =>
-                    t.kind === "edit" && t.edit.edit_id === args.editId
-                        ? {
-                              ...t,
-                              edit: { ...t.edit, status: args.status },
-                          }
-                        : t,
-                ),
-            );
-            invalidateDocxBytes(args.documentId);
+    const handleEditResolveStart = (args: EditResolveStart) => {
+        setEditState((state) => ({
+            ...state,
+            docIds: new Set(state.docIds).add(args.documentId),
+            editIds: new Set(state.editIds).add(args.editId),
+        }));
+    };
+    const handleEditResolved = (args: EditResolved) => {
+        setEditState((state) => ({
+            docIds: without(state.docIds, args.documentId),
+            editIds: without(state.editIds, args.editId),
+            statuses: { ...state.statuses, [args.editId]: args.status },
+        }));
+        setTabs((prev) =>
+            prev.map((t) =>
+                t.kind === "edit" && t.edit.edit_id === args.editId
+                    ? {
+                          ...t,
+                          edit: { ...t.edit, status: args.status },
+                      }
+                    : t,
+            ),
+        );
+        invalidateDocxBytes(args.documentId);
+    };
+    const patchTab = (
+        tabId: string,
+        patch: {
+            warning?: string | null;
+            initialScrollTop?: number | null;
         },
-        [],
-    );
-    const patchTab = useCallback(
-        (
-            tabId: string,
-            patch: {
-                warning?: string | null;
-                initialScrollTop?: number | null;
-            },
-        ) => {
-            setTabs((prev) => {
-                const idx = prev.findIndex((t) => t.id === tabId);
-                if (idx < 0) return prev;
-                if (
-                    prev[idx].kind === "automation" ||
-                    prev[idx].kind === "case" ||
-                    prev[idx].kind === "legal"
-                ) {
-                    return prev;
-                }
-                const copy = prev.slice();
-                copy[idx] = { ...copy[idx], ...patch };
-                return copy;
-            });
-        },
-        [],
-    );
-    const handleEditError = useCallback(
-        (args: {
-            editId?: string;
-            documentId: string;
-            versionId?: string | null;
-            message: string;
-        }) => {
-            setTabs((prev) =>
-                prev.map((t) =>
-                    t.kind !== "automation" &&
-                    t.kind !== "case" &&
-                    t.kind !== "legal" &&
-                    t.documentId === args.documentId
-                        ? { ...t, warning: args.message }
-                        : t,
-                ),
-            );
-            setReloadingDocIds((prev) => {
-                if (!prev.has(args.documentId)) return prev;
-                const next = new Set(prev);
-                next.delete(args.documentId);
-                return next;
-            });
-            if (args.editId) {
-                setReloadingEditIds((prev) => {
-                    if (!prev.has(args.editId!)) return prev;
-                    const next = new Set(prev);
-                    next.delete(args.editId!);
-                    return next;
-                });
-            }
-        },
-        [],
-    );
-    const handleWarningDismiss = useCallback(
-        (tabId: string) => {
-            patchTab(tabId, { warning: null });
-        },
-        [patchTab],
-    );
-    const handleScrollChange = useCallback(
-        (tabId: string, scrollTop: number) => {
-            patchTab(tabId, { initialScrollTop: scrollTop });
-        },
-        [patchTab],
-    );
+    ) => {
+        setTabs((prev) => {
+            const idx = prev.findIndex((t) => t.id === tabId);
+            if (idx < 0) return prev;
+            if (!isDocumentTab(prev[idx])) return prev;
+            const copy = prev.slice();
+            copy[idx] = { ...copy[idx], ...patch };
+            return copy;
+        });
+    };
+    const handleEditError = (args: EditResolveError) => {
+        setTabs((prev) =>
+            prev.map((t) =>
+                isDocumentTab(t) && t.documentId === args.documentId
+                    ? { ...t, warning: args.message }
+                    : t,
+            ),
+        );
+        setEditState((state) => ({
+            ...state,
+            docIds: without(state.docIds, args.documentId),
+            editIds: without(state.editIds, args.editId),
+        }));
+    };
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle | null>(null);
-    const measuredInputRef = useRef<HTMLDivElement>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    const [inputHeight, setInputHeight] = useState(0);
-    const [minHeight, setMinHeight] = useState("0px");
-    useEffect(() => {
-        const el = measuredInputRef.current;
-        if (!el) return;
-        const update = () => setInputHeight(el.offsetHeight);
-        const observer = new ResizeObserver(update);
-        observer.observe(el);
-        update();
-        return () => observer.disconnect();
-    }, []);
-    useEffect(() => {
-        if (latestUserMessageRef.current) {
-            const headerHeight = window.innerWidth < 768 ? 56 : 0;
-            const messageGap = window.innerWidth < 768 ? 24 : 32;
-            const paddingBottom = DEFAULT_ASSISTANT_BOTTOM_PADDING;
-            const userMessageHeight = latestUserMessageRef.current.offsetHeight;
-            setMinHeight(
-                `calc(100dvh - ${headerHeight + messageGap * 3 + userMessageHeight + paddingBottom}px)`,
-            );
-        }
-    }, [messages.length]);
     const updateScrollButton = useCallback(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
@@ -557,12 +407,18 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         const c = messagesContainerRef.current;
         if (!c) return;
         c.addEventListener("scroll", updateScrollButton);
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- initial scroll-button state must be measured from the live DOM
-        updateScrollButton();
-        return () => c.removeEventListener("scroll", updateScrollButton);
-    }, [messages, updateScrollButton]);
+        const content = messagesEndRef.current?.parentElement;
+        const observer = new ResizeObserver(updateScrollButton);
+        if (content) observer.observe(content);
+        const frame = requestAnimationFrame(updateScrollButton);
+        return () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+            c.removeEventListener("scroll", updateScrollButton);
+        };
+    }, [updateScrollButton]);
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     };
     const scrollLatestUserToTop = useCallback(() => {
         const container = messagesContainerRef.current;
@@ -575,9 +431,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     }, []);
     useLayoutEffect(() => {
         if (messages.length > 0) scrollLatestUserToTop();
-    }, [chatId, isResponseLoading, messages.length, scrollLatestUserToTop]);
+    }, [chatId, messages.length, scrollLatestUserToTop]);
     useEffect(() => {
-        if (tabs.length > 0 && window.innerWidth < 768) {
+        if (tabs.length > 0 && window.innerWidth < MOBILE_BREAKPOINT_PX) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "unset";
@@ -586,44 +442,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             document.body.style.overflow = "unset";
         };
     }, [tabs.length]);
-    const rawActiveInput = (() => {
-        for (
-            let messageIndex = messages.length - 1;
-            messageIndex >= 0;
-            messageIndex--
-        ) {
-            const message = messages[messageIndex];
-            if (message.role === "user") return null;
-            if (message.role !== "assistant" || !message.events) continue;
-            for (
-                let eventIndex = message.events.length - 1;
-                eventIndex >= 0;
-                eventIndex--
-            ) {
-                const event = message.events[eventIndex];
-                if (event.type === "ask_inputs_response") {
-                    return null;
-                }
-                if (event.type === "ask_inputs") {
-                    return {
-                        key: `${messageIndex}-${eventIndex}`,
-                        event,
-                    };
-                }
-            }
-        }
-        return null;
-    })();
     const activeInput =
-        rawActiveInput && !hiddenAskInputKeys.has(rawActiveInput.key)
+        rawActiveInput?.key !== hiddenAskInputKey
             ? rawActiveInput
             : null;
     const activeDocument = tabs.find(
-        (tab): tab is DocumentTab | CitationTab | EditTab =>
-            tab.id === activeTabId &&
-            tab.kind !== "automation" &&
-            tab.kind !== "case" &&
-            tab.kind !== "legal",
+        (tab): tab is AssistantDocumentTab =>
+            tab.id === activeTabId && isDocumentTab(tab),
     );
     useEffect(() => {
         onActiveDocumentChange?.(activeDocument?.documentId ?? null);
@@ -673,13 +498,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             ],
         });
     };
-    const messagesBottomPadding = DEFAULT_ASSISTANT_BOTTOM_PADDING;
-    const lastUserIndex = messages.findLastIndex(
-        (message) => message.role === "user",
-    );
-    const lastAssistantIndex = messages.findLastIndex(
-        (message) => message.role === "assistant",
-    );
     return (
         <div className="h-full w-full flex relative">
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
@@ -709,12 +527,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 >
                     <div
                         className="w-full max-w-4xl mx-auto px-6 pt-6 md:px-8 md:pt-8 min-h-full flex flex-col relative"
-                        style={{ paddingBottom: messagesBottomPadding }}
+                        style={{
+                            paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
+                        }}
                     >
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((msg, i) => (
                                 <div
-                                    key={i}
+                                    key={msg.id ?? `${msg.role}:${i}`}
                                     ref={
                                         i === lastUserIndex
                                             ? latestUserMessageRef
@@ -744,20 +564,17 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             citationStatus={msg.citationStatus}
                                             onCitationClick={openCitation}
                                             onOpenCitationSource={(citation) =>
-                                                openCitation(citation, {
-                                                    showQuotes: false,
-                                                })
+                                                openCitation(citation, false)
                                             }
                                             onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
                                             minHeight={
                                                 i === lastAssistantIndex
-                                                    ? minHeight
+                                                    ? LATEST_ASSISTANT_MIN_HEIGHT
                                                     : "0px"
                                             }
                                             onWorkflowClick={(id) => {
-                                                setWorkflowModalInitialId(id);
-                                                setWorkflowModalOpen(true);
+                                                setWorkflowModalId(id);
                                             }}
                                             onEditViewClick={openEditor}
                                             onOpenDocument={openDocument}
@@ -767,14 +584,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             onEditResolved={handleEditResolved}
                                             onEditError={handleEditError}
                                             isDocReloading={(docId) =>
-                                                reloadingDocIds.has(docId)
+                                                editState.docIds.has(docId)
                                             }
                                             isEditReloading={(editId) =>
-                                                reloadingEditIds.has(editId)
+                                                editState.editIds.has(editId)
                                             }
-                                            resolvedEditStatuses={
-                                                resolvedEditStatuses
-                                            }
+                                            resolvedEditStatuses={editState.statuses}
                                         />
                                     )}
                                 </div>
@@ -783,29 +598,18 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         </div>
                     </div>
                 </div>
-                {showScrollButton && (
-                    <div
-                        className="absolute left-1/2 -translate-x-1/2 z-19"
-                        style={{
-                            bottom:
-                                inputHeight +
-                                CHAT_INPUT_BOTTOM_OFFSET +
-                                SCROLL_BUTTON_INPUT_GAP,
-                        }}
-                    >
-                        <button
-                            onClick={scrollToBottom}
-                            className="cursor-pointer rounded-full border border-gray-300 bg-white p-2 hover:bg-gray-100"
-                        >
-                            <ArrowDown className="h-6 w-6 text-gray-500" />
-                        </button>
-                    </div>
-                )}
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div
-                        ref={measuredInputRef}
-                        className="relative mx-auto w-full max-w-4xl px-4 md:px-6"
-                    >
+                    <div className="relative mx-auto w-full max-w-4xl px-4 md:px-6">
+                        {showScrollButton && !activeInput && (
+                            <button
+                                type="button"
+                                aria-label="Scroll to latest message"
+                                onClick={scrollToBottom}
+                                className="absolute bottom-[calc(100%+1rem)] left-1/2 z-20 -translate-x-1/2 cursor-pointer rounded-full border border-gray-300 bg-white p-2 text-gray-500 hover:bg-gray-100"
+                            >
+                                <ArrowDown className="h-6 w-6" />
+                            </button>
+                        )}
                         {activeInput && (
                             <div
                                 data-ask-input-dock
@@ -815,22 +619,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                     key={activeInput.key}
                                     event={activeInput.event}
                                     onSubmit={(response, content, files) => {
-                                        setHiddenAskInputKeys((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(activeInput.key);
-                                            return next;
-                                        });
+                                        setHiddenAskInputKey(activeInput.key);
                                         void handleChat(
                                             { role: "user", content, files },
                                             { askInputsResponse: response },
                                         );
                                     }}
                                     onDismiss={() => {
-                                        setHiddenAskInputKeys((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(activeInput.key);
-                                            return next;
-                                        });
+                                        setHiddenAskInputKey(activeInput.key);
                                         cancel();
                                     }}
                                 />
@@ -840,21 +636,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             ref={chatInputRef}
                             onSubmit={submitMessage}
                             onCancel={() => {
-                                if (activeInput) {
-                                    setHiddenAskInputKeys((prev) => {
-                                        const next = new Set(prev);
-                                        next.add(activeInput.key);
-                                        return next;
-                                    });
-                                }
+                                if (activeInput)
+                                    setHiddenAskInputKey(activeInput.key);
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
-                            hideAddDocButton={hideAddDocButton}
-                            projectId={projectId}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}
-                            onDocumentsUploaded={onDocumentsUploaded}
                             restoreDraft={
                                 rejectedTurn?.options?.askInputsResponse
                                     ? null
@@ -865,31 +653,35 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 </div>
             </div>
             <AssistantWorkflowModal
-                open={workflowModalOpen}
-                onClose={() => setWorkflowModalOpen(false)}
-                onSelect={() => setWorkflowModalOpen(false)}
-                initialWorkflowId={workflowModalInitialId}
+                open={workflowModalId !== null}
+                onClose={() => setWorkflowModalId(null)}
+                onSelect={() => setWorkflowModalId(null)}
+                initialWorkflowId={workflowModalId ?? undefined}
             />
             {tabs.length > 0 && (
                 <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0">
                     <AssistantSidePanel
-                        tabs={tabs}
+                        tabs={visibleTabs}
                         activeTabId={activeTabId}
                         projectId={projectId}
                         onActivateTab={setActiveTabId}
                         onCloseTab={closeTab}
                         onCloseAll={closeAllTabs}
                         isEditorReloading={(documentId) =>
-                            reloadingDocIds.has(documentId)
+                            editState.docIds.has(documentId)
                         }
                         isEditReloading={(editId) =>
-                            reloadingEditIds.has(editId)
+                            editState.editIds.has(editId)
                         }
                         onEditResolveStart={handleEditResolveStart}
                         onEditResolved={handleEditResolved}
                         onEditError={handleEditError}
-                        onWarningDismiss={handleWarningDismiss}
-                        onScrollChange={handleScrollChange}
+                        onWarningDismiss={(tabId) =>
+                            patchTab(tabId, { warning: null })
+                        }
+                        onScrollChange={(tabId, initialScrollTop) =>
+                            patchTab(tabId, { initialScrollTop })
+                        }
                     />
                 </div>
             )}

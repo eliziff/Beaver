@@ -110,8 +110,13 @@ describe("DocxView", () => {
 
     it("renders saved Word page breaks without inventing page numbers", async () => {
         const onReady = vi.fn();
+        const onScrollChange = vi.fn();
         const { container } = render(
-            <DocxView documentId="doc-1" onReady={onReady} />,
+            <DocxView
+                documentId="doc-1"
+                onReady={onReady}
+                onScrollChange={onScrollChange}
+            />,
         );
 
         await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
@@ -129,6 +134,26 @@ describe("DocxView", () => {
         });
         const pages = container.querySelectorAll("section.docx");
         expect(pages).toHaveLength(2);
+        const viewport = container.querySelector<HTMLElement>(
+            '[data-document-id="doc-1"]',
+        )!;
+        expect(viewport).toHaveClass("flex-1", "overflow-auto");
+        expect(viewport.parentElement).toHaveClass(
+            "flex",
+            "min-h-0",
+            "flex-1",
+            "flex-col",
+            "overflow-hidden",
+        );
+        Object.defineProperties(viewport, {
+            clientHeight: { configurable: true, value: 320 },
+            scrollHeight: { configurable: true, value: 1_500 },
+        });
+        expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+        viewport.scrollTop = 240;
+        fireEvent.scroll(viewport);
+        expect(viewport.scrollTop).toBe(240);
+        expect(onScrollChange).toHaveBeenLastCalledWith(240);
         // Page boundaries come from Word; page *numbers* do not, so none are
         // fabricated onto the DOM.
         for (const page of pages) {

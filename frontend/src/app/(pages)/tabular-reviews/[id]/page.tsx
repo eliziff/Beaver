@@ -1,10 +1,7 @@
-"use client";
-import { use } from "react";
 import { TRView } from "@/app/components/tabular/TabularReviewView";
-interface Props {
-    params: Promise<{ id: string }>;
-}
-export default function TabularReviewPage({ params }: Props) {
-    const { id } = use(params);
+export default async function TabularReviewPage({
+    params,
+}: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     return <TRView reviewId={id} />;
 }

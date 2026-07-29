@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { render, screen } from "@testing-library/react";
+import { Profiler, useRef } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "../shared/types";
@@ -91,6 +91,45 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 }
 
 describe("ChatInput workflow document selection", () => {
+    it("does not rerender for each typed character", async () => {
+        const user = userEvent.setup();
+        let commits = 0;
+        render(
+            <Profiler id="chat-input" onRender={() => commits++}>
+                <WorkflowHarness onSubmit={vi.fn()} />
+            </Profiler>,
+        );
+
+        commits = 0;
+        const textbox = screen.getByRole("textbox");
+        expect(textbox.className).toContain("[field-sizing:content]");
+        await user.type(textbox, "test");
+        expect(commits).toBe(1);
+
+        commits = 0;
+        await user.click(screen.getByRole("button", { name: "Attach Lease" }));
+        expect(commits).toBe(1);
+    });
+
+    it("restores a draft and cancels a loading response", async () => {
+        const onCancel = vi.fn();
+        const onDraftRestored = vi.fn();
+        render(
+            <ChatInput
+                onSubmit={vi.fn()}
+                onCancel={onCancel}
+                isLoading
+                restoreDraft={{ role: "user", content: "restored" }}
+                onDraftRestored={onDraftRestored}
+            />,
+        );
+
+        await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("restored"));
+        expect(onDraftRestored).toHaveBeenCalledOnce();
+        await userEvent.click(screen.getByRole("button", { name: "Stop response" }));
+        expect(onCancel).toHaveBeenCalledOnce();
+    });
+
     it("attaches the selected document and offers one format-neutral action", async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
@@ -122,6 +161,8 @@ describe("ChatInput workflow document selection", () => {
                     id: "builtin-extract-key-terms",
                     title: "Extract Key Terms",
                 },
+                model: "gpt-5.2",
+                reasoningEffort: "high",
             }),
         );
     });

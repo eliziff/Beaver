@@ -1,4 +1,3 @@
-"use client";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { cn } from "@/app/lib/utils";
 type ModalFieldLabelProps = ComponentPropsWithoutRef<"label"> & {

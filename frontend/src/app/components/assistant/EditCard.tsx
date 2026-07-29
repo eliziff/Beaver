@@ -1,118 +1,172 @@
-"use client";
 import { useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";import { PillButton } from "@/app/components/ui/pill-button";
+import { apiFetch } from "@/app/lib/beaverApi";
+import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
-function normalizeText(s: string) {
-    return s.replace(/\s+/g, " ").trim();
-}
+
+type EditVerb = "accept" | "reject";
+
+const normalized = (text: string) => text.replace(/\s+/g, " ").trim();
+
 function findMatch(
     container: Element,
     tag: "ins" | "del",
-    opts: { w_id?: string | null; text?: string },
-): HTMLElement | null {
-    if (opts.w_id) {
-        const byId = container.querySelector(
-            `${tag}[data-w-id="${opts.w_id}"]`,
-        ) as HTMLElement | null;
-        if (byId) return byId;
+    id?: string,
+    text = "",
+) {
+    if (id) {
+        const match = container.querySelector<HTMLElement>(
+            `${tag}[data-w-id="${id}"]`,
+        );
+        if (match) return match;
     }
-    const text = opts.text ?? "";
-    const target = normalizeText(text);
+    const target = normalized(text);
     if (!target) return null;
-    const candidates = Array.from(
-        container.querySelectorAll(tag),
-    ) as HTMLElement[];
-    const byText =
+    const candidates = [
+        ...container.querySelectorAll<HTMLElement>(tag),
+    ];
+    return (
         candidates.find(
-            (el) => normalizeText(el.textContent ?? "") === target,
+            (element) => normalized(element.textContent ?? "") === target,
         ) ??
-        candidates.find((el) =>
-            normalizeText(el.textContent ?? "").includes(target),
+        candidates.find((element) =>
+            normalized(element.textContent ?? "").includes(target),
         ) ??
-        null;
-    return byText;
-}
-export function applyOptimisticResolution(
-    annotation: EditAnnotation,
-    verb: "accept" | "reject",
-): () => void {
-    const reverts: (() => void)[] = [];
-    if (typeof document === "undefined") return () => {};
-    const hide = (el: HTMLElement) => {
-        el.classList.add("docx-edit-hidden");
-        const prev = el.style.getPropertyValue("display");
-        const prevPriority = el.style.getPropertyPriority("display");
-        el.style.setProperty("display", "none", "important");
-        reverts.push(() => {
-            el.classList.remove("docx-edit-hidden");
-            if (prev) el.style.setProperty("display", prev, prevPriority);
-            else el.style.removeProperty("display");
-        });
-    };
-    const keep = (el: HTMLElement) => {
-        el.classList.add("docx-edit-kept");
-        const snapshot = {
-            color: [
-                el.style.getPropertyValue("color"),
-                el.style.getPropertyPriority("color"),
-            ] as const,
-            bg: [
-                el.style.getPropertyValue("background-color"),
-                el.style.getPropertyPriority("background-color"),
-            ] as const,
-            td: [
-                el.style.getPropertyValue("text-decoration"),
-                el.style.getPropertyPriority("text-decoration"),
-            ] as const,
-        };
-        el.style.setProperty("color", "inherit", "important");
-        el.style.setProperty("background-color", "transparent", "important");
-        el.style.setProperty("text-decoration", "none", "important");
-        reverts.push(() => {
-            el.classList.remove("docx-edit-kept");
-            const restore = (
-                prop: "color" | "background-color" | "text-decoration",
-                [v, p]: readonly [string, string],
-            ) => {
-                if (v) el.style.setProperty(prop, v, p);
-                else el.style.removeProperty(prop);
-            };
-            restore("color", snapshot.color);
-            restore("background-color", snapshot.bg);
-            restore("text-decoration", snapshot.td);
-        });
-    };
-    const scrolls = document.querySelectorAll(
-        `[data-document-id="${CSS.escape(annotation.document_id)}"]`,
+        null
     );
-    scrolls.forEach((scroll) => {
-        const container = scroll.querySelector(".docx-view-container");
-        if (!container) return;
-        const insEl = findMatch(container, "ins", {
-            w_id: annotation.ins_w_id,
-            text: annotation.inserted_text,
-        });
-        const delEl = findMatch(container, "del", {
-            w_id: annotation.del_w_id,
-            text: annotation.deleted_text,
-        });
-        if (verb === "accept") {
-            if (insEl) keep(insEl);
-            if (delEl) hide(delEl);
-        } else {
-            if (insEl) hide(insEl);
-            if (delEl) keep(delEl);
-        }
-    });
-    return () => reverts.forEach((fn) => fn());
 }
+
+export function applyOptimisticResolution(
+    edit: EditAnnotation,
+    verb: EditVerb,
+) {
+    if (typeof document === "undefined") return () => {};
+    const applied: [HTMLElement, string][] = [];
+    document
+        .querySelectorAll(
+            `[data-document-id="${CSS.escape(edit.document_id)}"] .docx-view-container`,
+        )
+        .forEach((container) => {
+            const inserted = findMatch(
+                container,
+                "ins",
+                edit.ins_w_id,
+                edit.inserted_text,
+            );
+            const deleted = findMatch(
+                container,
+                "del",
+                edit.del_w_id,
+                edit.deleted_text,
+            );
+            const changes: [HTMLElement | null, string][] = verb === "accept"
+                ? [
+                      [inserted, "docx-edit-kept"],
+                      [deleted, "docx-edit-hidden"],
+                  ]
+                : [
+                      [inserted, "docx-edit-hidden"],
+                      [deleted, "docx-edit-kept"],
+                  ];
+            for (const [element, className] of changes) {
+                if (!element) continue;
+                element.classList.add(className);
+                applied.push([element, className]);
+            }
+        });
+    return () =>
+        applied.forEach(([element, className]) =>
+            element.classList.remove(className),
+        );
+}
+
+export async function resolveEdit(
+    edit: EditAnnotation,
+    verb: EditVerb,
+    { onResolveStart, onResolved, onError }: EditResolveHandlers,
+) {
+    onResolveStart?.({
+        editId: edit.edit_id,
+        documentId: edit.document_id,
+        verb,
+    });
+    let revert = () => {};
+    try {
+        revert = applyOptimisticResolution(edit, verb);
+    } catch (error) {
+        console.error("Optimistic edit update failed", error);
+    }
+    try {
+        const response = await apiFetch(
+            `/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,
+            { method: "POST" },
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = (await response.json()) as {
+            status?: "accepted" | "rejected";
+            version_id: string | null;
+            download_url: string | null;
+        };
+        const status =
+            result.status ?? (verb === "accept" ? "accepted" : "rejected");
+        onResolved?.({
+            editId: edit.edit_id,
+            documentId: edit.document_id,
+            status,
+            versionId: result.version_id,
+            downloadUrl: result.download_url,
+        });
+        return status;
+    } catch (error) {
+        console.error("Edit resolution failed", error);
+        try {
+            revert();
+        } catch {}
+        onError?.({
+            editId: edit.edit_id,
+            documentId: edit.document_id,
+            versionId: edit.version_id ?? null,
+            message: `Couldn't ${verb} this change. Please retry.`,
+        });
+        return null;
+    }
+}
+
+export function useEditResolution(
+    edit: EditAnnotation,
+    resolvedStatus: "accepted" | "rejected" | undefined,
+    isReloading: boolean | undefined,
+    handlers: EditResolveHandlers,
+) {
+    const [busy, setBusy] = useState(false);
+    const source = `${edit.edit_id}:${edit.status}`;
+    const [local, setLocal] = useState({ source, status: edit.status });
+    const status =
+        resolvedStatus ?? (local.source === source ? local.status : edit.status);
+    const resolve = async (verb: EditVerb) => {
+        if (busy || status !== "pending") return;
+        setBusy(true);
+        try {
+            const next = await resolveEdit(edit, verb, handlers);
+            if (next) setLocal({ source, status: next });
+        } finally {
+            setBusy(false);
+        }
+    };
+    return {
+        status,
+        resolve,
+        disabled: busy || !!isReloading || status !== "pending",
+    };
+}
+
 interface Props extends EditResolveHandlers {
     annotation: EditAnnotation;
     changeNumber?: number;
     resolvedStatus?: "accepted" | "rejected";
     isReloading?: boolean;
-    onViewClick?: (ann: EditAnnotation) => void;
+    onViewClick?: (annotation: EditAnnotation) => void;
 }
+
 export function EditCard({
     annotation,
     changeNumber,
@@ -123,78 +177,25 @@ export function EditCard({
     onResolved,
     onError,
 }: Props) {
-    const [busy, setBusy] = useState(false);
-    const [localStatus, setLocalStatus] = useState<
-        "pending" | "accepted" | "rejected"
-    >(annotation.status);
-    const status = resolvedStatus ?? localStatus;
-    const setStatus = setLocalStatus;
+    const { status, resolve, disabled } = useEditResolution(
+        annotation,
+        resolvedStatus,
+        isReloading,
+        { onResolveStart, onResolved, onError },
+    );
     const resolved = status !== "pending";
-    const inFlight = busy || !!isReloading;
-    const handle = async (verb: "accept" | "reject") => {
-        if (busy || resolved) return;
-        setBusy(true);
-        onResolveStart?.({
-            editId: annotation.edit_id,
-            documentId: annotation.document_id,
-            verb,
-        });
-        let revert: (() => void) | null = null;
-        try {
-            revert = applyOptimisticResolution(annotation, verb);
-        } catch (e) {
-            console.error("[EditCard] optimistic update threw", e);
-        }
-        try {
-            const resp = await apiFetch(                `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,                { method: "POST" },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = (await resp.json()) as {
-                ok: boolean;
-                already_resolved?: boolean;
-                status?: "accepted" | "rejected";
-                version_id: string | null;
-                download_url: string | null;
-            };
-            const nextStatus =
-                data.status ?? (verb === "accept" ? "accepted" : "rejected");
-            setStatus(nextStatus);
-            onResolved?.({
-                editId: annotation.edit_id,
-                documentId: annotation.document_id,
-                status: nextStatus,
-                versionId: data.version_id,
-                downloadUrl: data.download_url,
-            });
-        } catch (e) {
-            console.error("EditCard resolve failed", e);
-            try {
-                revert?.();
-            } catch (revertErr) {
-                console.error("[EditCard] revert threw", revertErr);
-            }
-            onError?.({
-                editId: annotation.edit_id,
-                documentId: annotation.document_id,
-                versionId: annotation.version_id ?? null,
-                message:
-                    verb === "accept"
-                        ? "Couldn't save accept — reverted."
-                        : "Couldn't save reject — reverted.",
-            });
-        } finally {
-            setBusy(false);
-        }
-    };
+
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
             {changeNumber !== undefined && (
-                <p className="text-xs text-gray-400 mb-1.5">{changeNumber}</p>
+                <p className="mb-1.5 text-xs text-gray-400">{changeNumber}</p>
             )}
             {annotation.reason && (
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="mb-2 text-xs text-gray-500">
                     {annotation.reason}
                 </p>
             )}
-            <div className="text-sm leading-relaxed font-serif bg-gray-100/70 rounded-lg px-2 py-2">
+            <div className="rounded-lg bg-gray-100/70 px-2 py-2 font-serif text-sm leading-relaxed">
                 {annotation.inserted_text && (
                     <span className="text-green-700">
                         {annotation.inserted_text}
@@ -206,31 +207,32 @@ export function EditCard({
                     </span>
                 )}
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="mt-3 flex gap-2">
                 <PillButton
                     tone="black"
                     size="sm"
-                    onClick={() => handle("accept")}
-                    disabled={inFlight || resolved}
+                    onClick={() => resolve("accept")}
+                    disabled={disabled}
                 >
                     {status === "accepted" ? "Accepted" : "Accept"}
                 </PillButton>
                 <PillButton
                     tone="white"
                     size="sm"
-                    onClick={() => handle("reject")}
-                    disabled={inFlight || resolved}
+                    onClick={() => resolve("reject")}
+                    disabled={disabled}
                 >
                     {status === "rejected" ? "Rejected" : "Reject"}
                 </PillButton>
                 {onViewClick && (
                     <PillButton
-                        tone="black"                        size="sm"
+                        tone="black"
+                        size="sm"
                         onClick={() => onViewClick(annotation)}
                         disabled={resolved}
                         title={
                             resolved
-                                ? "This change has been resolved and is no longer in the document."
+                                ? "This change is no longer in the document."
                                 : undefined
                         }
                         className="ml-auto"

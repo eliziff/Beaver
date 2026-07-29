@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PeopleModal } from "./PeopleModal";
 
 describe("PeopleModal", () => {
-    it("removes a member through the fixed native action slot", async () => {
+    it("removes a member directly without a one-item menu", async () => {
         let finishRemoval!: () => void;
         const onSharedWithChange = vi.fn(
             () =>
@@ -41,25 +41,19 @@ describe("PeopleModal", () => {
             />,
         );
 
-        const actions = await screen.findByRole("combobox", {
+        const remove = await screen.findByRole("button", {
             name: "Remove access for member@example.test",
         });
-        const slot = actions.closest("span.inline-flex.h-6.w-6");
-        expect(slot).not.toBeNull();
-        expect(
-            screen.getByRole("option", { name: "Remove access" }),
-        ).toBeInTheDocument();
-
-        fireEvent.change(actions, { target: { value: "0" } });
+        fireEvent.click(remove);
 
         expect(onSharedWithChange).toHaveBeenCalledWith([]);
         await waitFor(() =>
-            expect(slot?.querySelector("svg.animate-spin")).not.toBeNull(),
+            expect(remove.querySelector("svg.animate-spin")).not.toBeNull(),
         );
 
         finishRemoval();
         await waitFor(() =>
-            expect(slot?.querySelector("svg.animate-spin")).toBeNull(),
+            expect(remove.querySelector("svg.animate-spin")).toBeNull(),
         );
     });
 });

@@ -1,9 +1,8 @@
-"use client";
-import { useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Modal } from "./Modal";
-export type ModalSelectOption =
+type ModalSelectOption =
     | string
     | {
           value: string;
@@ -20,11 +19,6 @@ interface ModalSelectProps {
     searchable?: boolean;
     ariaLabel?: string;
 }
-function normalizeOption(option: ModalSelectOption) {
-    return typeof option === "string"
-        ? { value: option, label: option }
-        : option;
-}
 export function ModalSelect({
     id,
     value,
@@ -36,20 +30,45 @@ export function ModalSelect({
     searchable = false,
     ariaLabel,
 }: ModalSelectProps) {
-    const normalizedOptions = options.map(normalizeOption);
+    const [open, setOpen] = useState(false);
+    const normalizedOptions = options.map((option) =>
+        typeof option === "string" ? { value: option, label: option } : option,
+    );
     const selected = normalizedOptions.find((option) => option.value === value);
     if (searchable || normalizedOptions.length > 8) {
         return (
-            <SearchableModalSelect
-                id={id}
-                value={value}
-                options={normalizedOptions}
-                onChange={onChange}
-                placeholder={placeholder}
-                disabled={disabled}
-                className={className}
-                ariaLabel={ariaLabel}
-            />
+            <>
+                <button
+                    id={id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setOpen(true)}
+                    title={selected?.label ?? placeholder}
+                    aria-label={ariaLabel}
+                    className={cn(
+                        "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 outline-none hover:border-gray-500 focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-60",
+                        className,
+                    )}
+                >
+                    <span className="truncate">
+                        {selected?.label ?? placeholder}
+                    </span>
+                    <ChevronDown
+                        className="h-4 w-4 shrink-0"
+                        aria-hidden="true"
+                    />
+                </button>
+                <SearchableChoiceModal
+                    open={open}
+                    onClose={() => setOpen(false)}
+                    title={ariaLabel ?? "Choose option"}
+                    value={value}
+                    options={normalizedOptions}
+                    onChange={(next) => {
+                        if (next !== null) onChange(next);
+                    }}
+                />
+            </>
         );
     }
     return (
@@ -78,67 +97,17 @@ export function ModalSelect({
         </select>
     );
 }
-function SearchableModalSelect({
-    id,
-    value,
-    options,
-    onChange,
-    placeholder,
-    disabled,
-    className,
-    ariaLabel,
-}: {
-    id: string;
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-    placeholder: string;
-    disabled: boolean;
-    className?: string;
-    ariaLabel?: string;
-}) {
-    const [open, setOpen] = useState(false);
-    const selected = options.find((option) => option.value === value);
-    return (
-        <>
-            <button
-                id={id}
-                type="button"
-                disabled={disabled}
-                onClick={() => setOpen(true)}
-                title={selected?.label ?? placeholder}
-                aria-label={ariaLabel}
-                className={cn(
-                    "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 outline-none hover:border-gray-500 focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-60",
-                    className,
-                )}
-            >
-                <span className="truncate">
-                    {selected?.label ?? placeholder}
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
-            </button>
-            <SearchableChoiceModal
-                open={open}
-                onClose={() => setOpen(false)}
-                title={ariaLabel ?? "Choose option"}
-                value={value}
-                options={options}
-                onChange={(next) => {
-                    if (next !== null) onChange(next);
-                }}
-            />
-        </>
-    );
-}
-export type SearchableChoice = {
+type SearchableChoice = {
     value: string | null;
     label: string;
+    group?: string;
+    keywords?: string;
 };
 export function SearchableChoiceModal({
     open,
     onClose,
     title,
+    searchLabel = "Search options",
     value,
     options,
     onChange,
@@ -146,15 +115,24 @@ export function SearchableChoiceModal({
     open: boolean;
     onClose: () => void;
     title: string;
+    searchLabel?: string;
     value: string | null;
     options: readonly SearchableChoice[];
     onChange: (value: string | null) => void;
 }) {
     const [query, setQuery] = useState("");
+    const searchRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (!open) return;
+        const frame = requestAnimationFrame(() => searchRef.current?.focus());
+        return () => cancelAnimationFrame(frame);
+    }, [open]);
     const needle = query.trim().toLowerCase();
     const visible = needle
         ? options.filter((option) =>
-              option.label.toLowerCase().includes(needle),
+              `${option.label} ${option.group ?? ""} ${option.keywords ?? ""}`
+                  .toLowerCase()
+                  .includes(needle),
           )
         : options;
     const close = () => {
@@ -178,10 +156,10 @@ export function SearchableChoiceModal({
                     aria-hidden="true"
                     className="h-4 w-4 shrink-0 text-gray-500"
                 />
-                <span className="sr-only">Search options</span>
+                <span className="sr-only">{searchLabel}</span>
                 <input
+                    ref={searchRef}
                     type="search"
-                    autoFocus
                     value={query}
                     onChange={(event) => setQuery(event.currentTarget.value)}
                     onKeyDown={(event) => {
@@ -190,7 +168,7 @@ export function SearchableChoiceModal({
                             choose(visible[0].value);
                         }
                     }}
-                    placeholder="Search options"
+                    placeholder={searchLabel}
                     className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
                 />
             </label>
@@ -200,23 +178,30 @@ export function SearchableChoiceModal({
                 className="min-h-0 flex-1 overflow-y-auto py-1"
             >
                 {visible.map((option, index) => (
-                    <button
-                        key={option.value ?? index}
-                        type="button"
-                        role="option"
-                        aria-selected={option.value === value}
-                        onClick={() => choose(option.value)}
-                        className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
-                    >
-                        <Check
-                            aria-hidden="true"
-                            className={cn(
-                                "h-4 w-4 shrink-0 text-red-700",
-                                option.value !== value && "invisible",
+                    <Fragment key={option.value ?? index}>
+                        {option.group &&
+                            option.group !== visible[index - 1]?.group && (
+                                <div className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    {option.group}
+                                </div>
                             )}
-                        />
-                        <span className="truncate">{option.label}</span>
-                    </button>
+                        <button
+                            type="button"
+                            role="option"
+                            aria-selected={option.value === value}
+                            onClick={() => choose(option.value)}
+                            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
+                        >
+                            <Check
+                                aria-hidden="true"
+                                className={cn(
+                                    "h-4 w-4 shrink-0 text-red-700",
+                                    option.value !== value && "invisible",
+                                )}
+                            />
+                            <span className="truncate">{option.label}</span>
+                        </button>
+                    </Fragment>
                 ))}
                 {!visible.length && (
                     <p className="px-3 py-6 text-center text-sm text-gray-600">

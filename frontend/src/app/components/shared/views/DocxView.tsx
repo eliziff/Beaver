@@ -1,5 +1,4 @@
-"use client";
-import { useEffect, useRef, useState } from "react";import { Loader2 } from "lucide-react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import { apiFetch } from "@/app/lib/beaverApi";import {
@@ -230,16 +229,13 @@ export function DocxView({
     const containerRef = useRef<HTMLDivElement>(null);
     const lastScrollTopRef = useRef(0);
     const renderKeyRef = useRef(0);
-    const onReadyRef = useRef(onReady);
-    onReadyRef.current = onReady;
-    const highlightEditRef = useRef(highlightEdit);
-    highlightEditRef.current = highlightEdit;
-    const quotesRef = useRef(quotes);
-    quotesRef.current = quotes;
-    const initialScrollTopRef = useRef(initialScrollTop ?? null);
-    initialScrollTopRef.current = initialScrollTop ?? null;
-    const onScrollChangeRef = useRef(onScrollChange);
-    onScrollChangeRef.current = onScrollChange;
+    const current = useEffectEvent(() => ({
+        highlightEdit,
+        initialScrollTop,
+        onReady,
+        onScrollChange,
+        quotes,
+    }));
     const unavailableRenditionsRef = useRef(new Set<string>());
     const [pdfRenditionKey, setPdfRenditionKey] = useState<string | null>(null);
     const [unsupportedMediaKey, setUnsupportedMediaKey] = useState<
@@ -325,9 +321,10 @@ export function DocxView({
                 if (cancelled) return;
                 linkDocxNotes(containerEl);
                 quietBrokenDocxImages(containerEl, () => {
+                    const { highlightEdit: currentEdit } = current();
                     if (
                         cancelled ||
-                        highlightEditRef.current ||
+                        currentEdit ||
                         unavailableRenditionsRef.current.has(renditionKey)
                     )
                         return;
@@ -347,9 +344,12 @@ export function DocxView({
                         thisRender !== renderKeyRef.current
                     )
                         return;
-                    const pendingHighlight = highlightEditRef.current;
-                    const pendingQuotes = quotesRef.current;
-                    const pendingInitialScroll = initialScrollTopRef.current;
+                    const {
+                        highlightEdit: pendingHighlight,
+                        initialScrollTop: pendingInitialScroll,
+                        onReady: ready,
+                        quotes: pendingQuotes,
+                    } = current();
                     if (pendingHighlight) {
                         scrollToHighlight(
                             containerEl,
@@ -373,7 +373,7 @@ export function DocxView({
                     } else {
                         scrollRef.current.scrollTop = lastScrollTopRef.current;
                     }
-                    onReadyRef.current?.();
+                    ready?.();
                 });
             } catch (e) {
                 console.error("docx-preview render failed", e);
@@ -397,7 +397,7 @@ export function DocxView({
         applyQuoteHighlights(
             containerRef.current,
             scrollRef.current,
-            quotesRef.current,
+            current().quotes,
         );
     }, [quoteKey, quoteFocusKey]);
     useEffect(() => {
@@ -410,7 +410,7 @@ export function DocxView({
             scheduled = true;
             requestAnimationFrame(() => {
                 scheduled = false;
-                onScrollChangeRef.current?.(el.scrollTop);
+                current().onScrollChange?.(el.scrollTop);
             });
         };
         el.addEventListener("scroll", onScroll, { passive: true });
@@ -439,7 +439,7 @@ export function DocxView({
             : null);
     return (
         <div
-            className={`relative flex flex-col flex-1 overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
+            className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
         >
             {displayedWarning && (
                 <div className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 shadow-sm">
@@ -458,7 +458,7 @@ export function DocxView({
             )}
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-auto px-5 pt-5 pb-3 docx-view-scroll"
+                className="docx-view-scroll min-h-0 min-w-0 flex-1 overflow-auto px-5 pt-5 pb-3"
                 data-document-id={documentId}
                 data-version-id={versionId ?? ""}
             >

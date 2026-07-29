@@ -1,8 +1,8 @@
 "use client";
+
 import {
     createContext,
     type ReactNode,
-    use,
     useCallback,
     useContext,
     useEffect,
@@ -23,7 +23,6 @@ import {
 import type {
     Chat,
     ColumnConfig,
-    Folder as ProjectFolder,
     Project,
     TabularReview,
 } from "@/app/components/shared/types";
@@ -38,19 +37,19 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import {
+    projectBreadcrumbLabel,
     ProjectPageHeader,
     type ProjectWorkspaceSection,
 } from "./ProjectPageParts";
 type ProjectWorkspaceValue = {
     projectId: string;
-    project: Project | null;
-    setProject: React.Dispatch<React.SetStateAction<Project | null>>;
-    folders: ProjectFolder[];
-    setFolders: React.Dispatch<React.SetStateAction<ProjectFolder[]>>;
-    projectLoading: boolean;
+    project: Project | null | undefined;
+    setProject: React.Dispatch<
+        React.SetStateAction<Project | null | undefined>
+    >;
+    refreshProject: () => Promise<void>;
     activeSection: ProjectWorkspaceSection;
     search: string;
-    setSearch: (search: string) => void;
     projectChats: Chat[] | null;
     setProjectChats: React.Dispatch<React.SetStateAction<Chat[] | null>>;
     ensureProjectChats: () => Promise<Chat[]>;
@@ -67,6 +66,24 @@ type ProjectWorkspaceValue = {
     setAddDocumentsHeaderAction: (action: (() => void) | null) => void;
     setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
+type ProjectDialog =
+    | "people"
+    | "details"
+    | "review"
+    | "delete"
+    | "deleting"
+    | "deleted"
+    | null;
+const PROJECT_SECTIONS = [
+    { id: "documents", label: "Documents" },
+    { id: "assistant", label: "Chats" },
+    { id: "reviews", label: "Tabular Reviews" },
+] satisfies { id: ProjectWorkspaceSection; label: string }[];
+const PROJECT_SECTION_PATH: Record<ProjectWorkspaceSection, string> = {
+    documents: "",
+    assistant: "/assistant",
+    reviews: "/tabular-reviews",
+};
 const ProjectWorkspaceContext =
     createContext<ProjectWorkspaceValue | null>(null);
 export function useProjectWorkspace() {
@@ -78,17 +95,32 @@ export function useProjectWorkspace() {
     }
     return value;
 }
-function activeSectionFromSegments(
-    segments: string[],
-): ProjectWorkspaceSection {
-    if (segments[0] === "assistant") return "assistant";
-    if (segments[0] === "tabular-reviews") return "reviews";
-    return "documents";
-}
-function shouldShowWorkspaceShell(segments: string[]) {
-    if (segments.length === 0) return true;
-    if (segments.length !== 1) return false;
-    return segments[0] === "assistant" || segments[0] === "tabular-reviews";
+function useLazyProjectList<T>(
+    projectId: string,
+    load: (projectId: string) => Promise<T[]>,
+    errorLabel: string,
+) {
+    const [items, setItems] = useState<T[] | null>(null);
+    const pending = useRef<Promise<T[]> | null>(null);
+    const ensure = useCallback(() => {
+        if (items) return Promise.resolve(items);
+        if (pending.current) return pending.current;
+        pending.current = load(projectId)
+            .then((loaded) => {
+                setItems(loaded);
+                return loaded;
+            })
+            .catch((error) => {
+                console.error(errorLabel, error);
+                setItems([]);
+                return [];
+            })
+            .finally(() => {
+                pending.current = null;
+            });
+        return pending.current;
+    }, [errorLabel, items, load, projectId]);
+    return [items, setItems, ensure] as const;
 }
 export function ProjectWorkspaceProvider({
     projectId,
@@ -97,46 +129,49 @@ export function ProjectWorkspaceProvider({
     projectId: string;
     children: ReactNode;
 }) {
-    const [project, setProject] = useState<Project | null>(null);
-    const [folders, setFolders] = useState<ProjectFolder[]>([]);
-    const [projectLoading, setProjectLoading] = useState(true);
+    const [project, setProject] = useState<Project | null>();
     const [searchBySection, setSearchBySection] = useState<
         Record<ProjectWorkspaceSection, string>
     >({ documents: "", assistant: "", reviews: "" });
-    const [projectChats, setProjectChats] = useState<Chat[] | null>(null);
-    const [projectReviews, setProjectReviews] = useState<
-        TabularReview[] | null
-    >(null);
-    const [peopleModalOpen, setPeopleModalOpen] = useState(false);
-    const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
+    const [projectChats, setProjectChats, ensureProjectChats] =
+        useLazyProjectList<Chat>(
+            projectId,
+            listProjectChats,
+            "[project assistant] failed to load",
+        );
+    const [projectReviews, setProjectReviews, ensureProjectReviews] =
+        useLazyProjectList<TabularReview>(
+            projectId,
+            listTabularReviews,
+            "[project reviews] failed to load",
+        );
+    const [dialog, setDialog] = useState<ProjectDialog>(null);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    const [deleteProjectConfirmOpen, setDeleteProjectConfirmOpen] =
-        useState(false);
-    const [deleteProjectStatus, setDeleteProjectStatus] = useState<
-        "idle" | "deleting" | "deleted"
-    >("idle");
-    const [newTRModalOpen, setNewTRModalOpen] = useState(false);
     const [creatingChat, setCreatingChat] = useState(false);
     const [creatingReview, setCreatingReview] = useState(false);
     const [addDocumentsHeaderAction, setAddDocumentsHeaderActionState] =
         useState<{ action: (() => void) | null }>({ action: null });
     const segments = useSelectedLayoutSegments();
-    const activeSection = activeSectionFromSegments(segments);
-    const showShell = shouldShowWorkspaceShell(segments);
+    const activeSection: ProjectWorkspaceSection =
+        segments[0] === "assistant"
+            ? "assistant"
+            : segments[0] === "tabular-reviews"
+              ? "reviews"
+              : "documents";
+    const showShell =
+        segments.length === 0 ||
+        (segments.length === 1 && activeSection !== "documents");
+    const readyDocuments = useMemo(
+        () =>
+            project?.documents?.filter(
+                (document) => document.status === "ready",
+            ) ?? [],
+        [project?.documents],
+    );
     const router = useRouter();
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const { saveChat } = useChatHistoryContext();
-    const projectChatsPromiseRef = useRef<Promise<Chat[]> | null>(null);
-    const projectReviewsPromiseRef = useRef<Promise<TabularReview[]> | null>(
-        null,
-    );
-    useEffect(() => {
-        setProjectChats(null);
-        setProjectReviews(null);
-        projectChatsPromiseRef.current = null;
-        projectReviewsPromiseRef.current = null;
-    }, [projectId]);
     const setAddDocumentsHeaderAction = useCallback(
         (action: (() => void) | null) => {
             setAddDocumentsHeaderActionState({ action });
@@ -144,32 +179,24 @@ export function ProjectWorkspaceProvider({
         [],
     );
     useEffect(() => {
-        if (!showShell) {
-            setProjectLoading(false);
-            return;
-        }
         let cancelled = false;
-        setProjectLoading(true);
         getProject(projectId)
             .then((loaded) => {
                 if (cancelled) return;
                 setProject(loaded);
-                setFolders(loaded.folders ?? []);
             })
             .catch((error) => {
                 console.error("[project workspace] failed to load project", error);
-                if (!cancelled) {
-                    setProject(null);
-                    setFolders([]);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setProjectLoading(false);
+                if (!cancelled) setProject(null);
             });
         return () => {
             cancelled = true;
         };
-    }, [projectId, showShell]);
+    }, [projectId]);
+    const refreshProject = useCallback(async () => {
+        const loaded = await getProject(projectId);
+        setProject(loaded);
+    }, [projectId]);
     const search = searchBySection[activeSection];
     const setSearch = useCallback(
         (value: string) =>
@@ -179,45 +206,6 @@ export function ProjectWorkspaceProvider({
             })),
         [activeSection],
     );
-    const ensureProjectChats = useCallback(() => {
-        if (projectChats) return Promise.resolve(projectChats);
-        if (projectChatsPromiseRef.current) return projectChatsPromiseRef.current;
-        const promise = listProjectChats(projectId)
-            .then((loaded) => {
-                setProjectChats(loaded);
-                return loaded;
-            })
-            .catch((error) => {
-                console.error("[project assistant] failed to load", error);
-                setProjectChats([]);
-                return [];
-            })
-            .finally(() => {
-                projectChatsPromiseRef.current = null;
-            });
-        projectChatsPromiseRef.current = promise;
-        return promise;
-    }, [projectChats, projectId]);
-    const ensureProjectReviews = useCallback(() => {
-        if (projectReviews) return Promise.resolve(projectReviews);
-        if (projectReviewsPromiseRef.current)
-            return projectReviewsPromiseRef.current;
-        const promise = listTabularReviews(projectId)
-            .then((loaded) => {
-                setProjectReviews(loaded);
-                return loaded;
-            })
-            .catch((error) => {
-                console.error("[project reviews] failed to load", error);
-                setProjectReviews([]);
-                return [];
-            })
-            .finally(() => {
-                projectReviewsPromiseRef.current = null;
-            });
-        projectReviewsPromiseRef.current = promise;
-        return promise;
-    }, [projectId, projectReviews]);
     const prefetchProjectSections = useCallback(() => {
         void ensureProjectChats();
         void ensureProjectReviews();
@@ -251,11 +239,8 @@ export function ProjectWorkspaceProvider({
         }
     }, [profile?.displayName, projectId, router, saveChat, user?.id]);
     const openNewReview = useCallback(() => {
-        const readyDocs =
-            project?.documents?.filter((d) => d.status === "ready") ?? [];
-        if (readyDocs.length === 0) return;
-        setNewTRModalOpen(true);
-    }, [project?.documents]);
+        if (readyDocuments.length > 0) setDialog("review");
+    }, [readyDocuments]);
     async function handleCreateReview(
         title: string,
         _projectId?: string,
@@ -264,11 +249,10 @@ export function ProjectWorkspaceProvider({
     ) {
         setCreatingReview(true);
         try {
-            const readyDocs =
-                project?.documents?.filter((d) => d.status === "ready") ?? [];
             const review = await createTabularReview({
                 title: title || undefined,
-                document_ids: documentIds ?? readyDocs.map((d) => d.id),
+                document_ids:
+                    documentIds ?? readyDocuments.map((document) => document.id),
                 columns_config: columnsConfig ?? [],
                 project_id: projectId,
             });
@@ -283,48 +267,30 @@ export function ProjectWorkspaceProvider({
         cmNumber: string;
         practice: string;
     }) {
-        if (project && project.is_owner === false) {
-            setOwnerOnlyAction("edit project details");
-            return;
-        }
-        const name = values.name.trim();
-        const cmNumber = values.cmNumber.trim();
-        const practice = values.practice.trim();
-        if (!name) return;
         const updated = await updateProject(projectId, {
-            name,
-            cm_number: cmNumber,
-            practice: practice || null,
+            name: values.name,
+            cm_number: values.cmNumber,
+            practice: values.practice || null,
         });
-        setProject((prev) =>
-            prev
-                ? {
-                      ...prev,
-                      name: updated.name,
-                      cm_number: updated.cm_number,
-                      practice: updated.practice,
-                  }
-                : updated,
-        );
+        setProject(updated);
     }
     function requestProjectDelete() {
-        if (project && project.is_owner === false) {
+        if (project?.is_owner === false) {
             setOwnerOnlyAction("delete this project");
             return;
         }
-        setDeleteProjectStatus("idle");
-        setDeleteProjectConfirmOpen(true);
+        setDialog("delete");
     }
     async function confirmProjectDelete() {
-        if (deleteProjectStatus === "deleting") return;
-        setDeleteProjectStatus("deleting");
+        if (dialog === "deleting") return;
+        setDialog("deleting");
         try {
             await deleteProject(projectId);
-            setDeleteProjectStatus("deleted");
+            setDialog("deleted");
             window.setTimeout(() => router.push("/projects"), 500);
         } catch (error) {
             console.error("deleteProject failed", error);
-            setDeleteProjectStatus("idle");
+            setDialog("delete");
         }
     }
     const value = useMemo<ProjectWorkspaceValue>(
@@ -332,12 +298,9 @@ export function ProjectWorkspaceProvider({
             projectId,
             project,
             setProject,
-            folders,
-            setFolders,
-            projectLoading,
+            refreshProject,
             activeSection,
             search,
-            setSearch,
             projectChats,
             setProjectChats,
             ensureProjectChats,
@@ -355,11 +318,9 @@ export function ProjectWorkspaceProvider({
         [
             projectId,
             project,
-            folders,
-            projectLoading,
+            refreshProject,
             activeSection,
             search,
-            setSearch,
             projectChats,
             ensureProjectChats,
             projectReviews,
@@ -372,10 +333,18 @@ export function ProjectWorkspaceProvider({
             setAddDocumentsHeaderAction,
         ],
     );
+    const ownerOnlyPopup = (
+        <OwnerOnlyPopup
+            open={!!ownerOnlyAction}
+            action={ownerOnlyAction ?? undefined}
+            onClose={() => setOwnerOnlyAction(null)}
+        />
+    );
     if (!showShell) {
         return (
             <ProjectWorkspaceContext.Provider value={value}>
                 {children}
+                {ownerOnlyPopup}
             </ProjectWorkspaceContext.Provider>
         );
     }
@@ -383,7 +352,7 @@ export function ProjectWorkspaceProvider({
         <ProjectWorkspaceContext.Provider value={value}>
             <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <ProjectPageHeader
-                    project={project}
+                    project={project ?? null}
                     search={search}
                     activeSection={activeSection}
                     creatingChat={creatingChat}
@@ -391,43 +360,38 @@ export function ProjectWorkspaceProvider({
                     docsCount={project?.documents?.length ?? 0}
                     isOwner={project?.is_owner !== false}
                     onBackToProjects={() => router.push("/projects")}
-                    onOpenDetails={() => setProjectDetailsOpen(true)}
+                    onOpenDetails={() => setDialog("details")}
                     onDeleteProject={requestProjectDelete}
                     onSearchChange={setSearch}
-                    onOpenPeople={() => setPeopleModalOpen(true)}
+                    onOpenPeople={() => setDialog("people")}
                     onNewChat={() => void createChat()}
                     onNewReview={openNewReview}
                     onAddDocuments={addDocumentsHeaderAction.action}
                 />
                 {children}
                 <NewTRModal
-                    open={newTRModalOpen}
-                    onClose={() => setNewTRModalOpen(false)}
+                    open={dialog === "review"}
+                    onClose={() => setDialog(null)}
                     onAdd={handleCreateReview}
-                    projectDocs={project?.documents?.filter(
-                        (d) => d.status === "ready",
-                    )}
+                    projectDocs={readyDocuments}
                     projectName={project?.name}
                     projectCmNumber={project?.cm_number}
                 />
-                <OwnerOnlyPopup
-                    open={!!ownerOnlyAction}
-                    action={ownerOnlyAction ?? undefined}
-                    onClose={() => setOwnerOnlyAction(null)}
-                />
+                {ownerOnlyPopup}
                 <ProjectDetailsModal
-                    open={projectDetailsOpen}
-                    project={project}
+                    open={dialog === "details"}
+                    project={project ?? null}
                     canEdit={project?.is_owner !== false}
-                    onClose={() => setProjectDetailsOpen(false)}
+                    onClose={() => setDialog(null)}
                     onSave={handleProjectDetailsSave}
-                    onShareProject={() => {
-                        setProjectDetailsOpen(false);
-                        setPeopleModalOpen(true);
-                    }}
+                    onShareProject={() => setDialog("people")}
                 />
                 <ConfirmPopup
-                    open={deleteProjectConfirmOpen}
+                    open={
+                        dialog === "delete" ||
+                        dialog === "deleting" ||
+                        dialog === "deleted"
+                    }
                     title="Delete project?"
                     message={
                         isAnonymousMode
@@ -436,33 +400,28 @@ export function ProjectWorkspaceProvider({
                     }
                     confirmLabel="Delete"
                     confirmStatus={
-                        deleteProjectStatus === "deleting"
+                        dialog === "deleting"
                             ? "loading"
-                            : deleteProjectStatus === "deleted"
+                            : dialog === "deleted"
                               ? "complete"
                               : "idle"
                     }
                     cancelLabel="Cancel"
                     onCancel={() => {
-                        if (deleteProjectStatus === "deleting") return;
-                        setDeleteProjectConfirmOpen(false);
-                        setDeleteProjectStatus("idle");
+                        if (dialog !== "deleting") setDialog(null);
                     }}
                     onConfirm={() => void confirmProjectDelete()}
                 />
                 {project && (
                     <PeopleModal
-                        open={peopleModalOpen}
-                        onClose={() => setPeopleModalOpen(false)}
+                        open={dialog === "people"}
+                        onClose={() => setDialog(null)}
                         resource={project}
                         fetchPeople={getProjectPeople}
                         currentUserEmail={user?.email ?? null}
                         breadcrumb={[
                             "Projects",
-                            project.name +
-                                (project.cm_number
-                                    ? ` (${project.cm_number})`
-                                    : ""),
+                            projectBreadcrumbLabel(project),
                             "People",
                         ]}
                         onSharedWithChange={
@@ -473,15 +432,7 @@ export function ProjectWorkspaceProvider({
                                           projectId,
                                           { shared_with: next },
                                       );
-                                      setProject((prev) =>
-                                          prev
-                                              ? {
-                                                    ...prev,
-                                                    shared_with:
-                                                        updated.shared_with,
-                                                }
-                                              : prev,
-                                      );
+                                      setProject(updated);
                                   }
                         }
                     />
@@ -499,36 +450,12 @@ export function ProjectSectionToolbar({
     const router = useRouter();
     return (
         <TableToolbar
-            items={[
-                { id: "documents", label: "Documents" },
-                { id: "assistant", label: "Chats" },
-                { id: "reviews", label: "Tabular Reviews" },
-            ]}
+            items={PROJECT_SECTIONS}
             active={activeSection}
-            onChange={(next) => {
-                const href =
-                    next === "documents"
-                        ? `/projects/${projectId}`
-                        : next === "assistant"
-                          ? `/projects/${projectId}/assistant`
-                          : `/projects/${projectId}/tabular-reviews`;
-                router.push(href);
-            }}
+            onChange={(next) =>
+                router.push(`/projects/${projectId}${PROJECT_SECTION_PATH[next]}`)
+            }
             actions={actions}
         />
-    );
-}
-export function ProjectWorkspaceLayout({
-    params,
-    children,
-}: {
-    params: Promise<{ id: string }>;
-    children: ReactNode;
-}) {
-    const { id } = use(params);
-    return (
-        <ProjectWorkspaceProvider projectId={id}>
-            {children}
-        </ProjectWorkspaceProvider>
     );
 }

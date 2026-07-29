@@ -1,4 +1,4 @@
-import { LegalLibraryDirectDocumentPage } from "@/app/components/legal/LegalLibrary";
+import { LegalLibrarySourcePage } from "@/app/components/legal/LegalLibrary";
 import type { LegalDocumentType } from "@/app/lib/beaverApi";
 export default async function DirectLegalSourcePage({
     searchParams,
@@ -16,7 +16,7 @@ export default async function DirectLegalSourcePage({
             ? rawType
             : "cases";
     return (
-        <LegalLibraryDirectDocumentPage
+        <LegalLibrarySourcePage
             provider={value("provider") === "journal" ? "journal" : "a2aj"}
             citation={value("citation")}
             sourceId={value("source_id") || null}

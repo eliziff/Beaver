@@ -1,7 +1,5 @@
-"use client";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/app/lib/utils";
-export interface SegmentedToggleOption<T extends string> {
+interface SegmentedToggleOption<T extends string> {
     value: T;
     label: string;
     icon?: LucideIcon;
@@ -10,25 +8,15 @@ interface ModalSegmentedToggleProps<T extends string> {
     value: T;
     onChange: (value: T) => void;
     options: SegmentedToggleOption<T>[];
-    disabled?: boolean;
-    size?: "sm" | "md";
-    className?: string;
 }
 export function ModalSegmentedToggle<T extends string>({
     value,
     onChange,
     options,
-    disabled = false,
-    size = "md",
-    className,
 }: ModalSegmentedToggleProps<T>) {
     return (
         <div
-            className={cn(
-                "inline-grid gap-1 rounded-md border border-gray-300 bg-white",
-                size === "sm" ? "min-h-8 p-1" : "min-h-9 p-1",
-                className,
-            )}
+            className="inline-grid min-h-9 gap-1 rounded-md border border-gray-300 bg-white p-1"
             style={{
                 gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
             }}
@@ -41,22 +29,15 @@ export function ModalSegmentedToggle<T extends string>({
                         key={option.value}
                         type="button"
                         onClick={() => onChange(option.value)}
-                        disabled={disabled}
                         aria-pressed={active}
-                        className={cn(
-                            "flex items-center justify-center whitespace-normal break-normal rounded-sm py-1 text-xs leading-tight disabled:cursor-not-allowed disabled:opacity-60",
-                            size === "sm" ? "gap-1 px-3" : "gap-1.5 px-3",
+                        className={`flex items-center justify-center gap-1.5 whitespace-normal break-normal rounded-sm px-3 py-1 text-xs leading-tight ${
                             active
                                 ? "bg-gray-100 text-gray-900"
-                                : "text-gray-500 hover:text-gray-700",
-                        )}
+                                : "text-gray-500 hover:text-gray-700"
+                        }`}
                     >
                         {Icon && (
-                            <Icon
-                                className={
-                                    size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"
-                                }
-                            />
+                            <Icon className="h-3 w-3" />
                         )}
                         {option.label}
                     </button>

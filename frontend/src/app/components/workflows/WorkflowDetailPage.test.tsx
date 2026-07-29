@@ -1,10 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Profiler } from "react";
 import { expect, it, vi } from "vitest";
 import type { Workflow } from "../shared/types";
 import { WorkflowDetailPage } from "./WorkflowDetailPage";
 
 const mocks = vi.hoisted(() => ({
     getWorkflow: vi.fn(),
+    listWorkflowShares: vi.fn(),
+    shareWorkflow: vi.fn(),
     updateWorkflow: vi.fn(),
 }));
 
@@ -15,9 +18,9 @@ vi.mock("@/app/lib/beaverApi", () => ({
     deleteWorkflow: vi.fn(),
     deleteWorkflowShare: vi.fn(),
     getWorkflow: mocks.getWorkflow,
-    listWorkflowShares: vi.fn(async () => []),
+    listWorkflowShares: mocks.listWorkflowShares,
     lookupUserByEmail: vi.fn(),
-    shareWorkflow: vi.fn(),
+    shareWorkflow: mocks.shareWorkflow,
     updateWorkflow: mocks.updateWorkflow,
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -32,8 +35,23 @@ vi.mock("@/app/components/workflows/UseWorkflowModal", () => ({
 vi.mock("@/app/components/workflows/NewWorkflowModal", () => ({
     NewWorkflowModal: () => null,
 }));
-vi.mock("@/app/components/workflows/OpenSourceWorkflowModal", () => ({
-    OpenSourceWorkflowModal: () => null,
+vi.mock("@/app/components/modals/PeopleModal", () => ({
+    PeopleModal: ({
+        open,
+        onSharedWithChange,
+    }: {
+        open: boolean;
+        onSharedWithChange: (emails: string[]) => Promise<void>;
+    }) =>
+        open ? (
+            <button
+                onClick={() =>
+                    void onSharedWithChange(["member@example.test"])
+                }
+            >
+                Add member
+            </button>
+        ) : null,
 }));
 vi.mock("@/app/components/tabular/AddColumnModal", () => ({
     AddColumnModal: () => null,
@@ -64,14 +82,19 @@ const workflow: Workflow = {
 };
 
 mocks.getWorkflow.mockResolvedValue(workflow);
+mocks.listWorkflowShares.mockResolvedValue([]);
 mocks.updateWorkflow.mockResolvedValue(workflow);
 
 it("keeps one delete control mounted while column selection changes", async () => {
+    let commits = 0;
     render(
-        <WorkflowDetailPage id={workflow.id} workflowType="tabular" />,
+        <Profiler id="workflow-detail" onRender={() => commits++}>
+            <WorkflowDetailPage id={workflow.id} workflowType="tabular" />
+        </Profiler>,
     );
 
     await screen.findByText("Party");
+    expect(commits).toBe(2);
     const deleteButton = screen.getByRole("button", {
         name: "Delete selected",
     });
@@ -97,4 +120,52 @@ it("keeps one delete control mounted while column selection changes", async () =
     expect(screen.getByText("Counterparty")).toBeInTheDocument();
     expect(deleteButton).toBeDisabled();
     expect(deleteButton).toHaveClass("invisible");
+});
+
+it("updates workflow sharing without refetching the saved roster", async () => {
+    render(<WorkflowDetailPage id={workflow.id} workflowType="tabular" />);
+    await screen.findByText("Party");
+
+    fireEvent.click(
+        screen.getByRole("button", { name: "Open workflow people" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add member" }));
+
+    await waitFor(() =>
+        expect(mocks.shareWorkflow).toHaveBeenCalledWith(workflow.id, {
+            emails: ["member@example.test"],
+            allow_edit: false,
+        }),
+    );
+    expect(mocks.listWorkflowShares).toHaveBeenCalledTimes(1);
+});
+
+it("does not rerender the workflow for every prompt keystroke", async () => {
+    mocks.getWorkflow.mockResolvedValueOnce({
+        ...workflow,
+        metadata: { ...workflow.metadata, type: "assistant" },
+        skill_md: "Review the agreement.",
+    });
+    mocks.updateWorkflow.mockClear();
+    let commits = 0;
+    render(
+        <Profiler id="workflow-detail" onRender={() => commits++}>
+            <WorkflowDetailPage id={workflow.id} workflowType="assistant" />
+        </Profiler>,
+    );
+
+    const prompt = await screen.findByRole("textbox", {
+        name: "Workflow prompt",
+    });
+    fireEvent.change(prompt, { target: { value: "Review this agreement." } });
+    const firstChangeCommits = commits;
+    fireEvent.change(prompt, { target: { value: "Review this agreement well." } });
+    expect(commits).toBe(firstChangeCommits);
+
+    fireEvent.blur(prompt);
+    await waitFor(() =>
+        expect(mocks.updateWorkflow).toHaveBeenCalledWith(workflow.id, {
+            skill_md: "Review this agreement well.",
+        }),
+    );
 });

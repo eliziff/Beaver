@@ -1,4 +1,4 @@
-export type FileTypeKind =
+type FileTypeKind =
     | "pdf"
     | "word"
     | "excel"

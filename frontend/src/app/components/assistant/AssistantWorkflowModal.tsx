@@ -1,4 +1,3 @@
-"use client";
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 interface Props {

@@ -1,4 +1,3 @@
-"use client";
 import {
   Suspense,
   useCallback,
@@ -138,13 +137,6 @@ export function TableOfAuthoritiesHost({
   const targetJob = pending ? "" : scope.job;
   const targetProject = pending ? "" : scope.project;
   const scopeSignature = `${targetJob}:${targetProject}`;
-  const onScopeChange = useCallback((next: AuthoritiesScope) => {
-    setScope((current) =>
-      current.job === next.job && current.project === next.project
-        ? current
-        : next,
-    );
-  }, []);
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current !== null) {
       window.clearTimeout(watchdogRef.current);
@@ -210,14 +202,11 @@ export function TableOfAuthoritiesHost({
       startWatchdog(attemptRef.current);
       pingFrame();
     }
-    return () => window.removeEventListener("message", onReady);
-  }, [clearWatchdog, pingFrame, startWatchdog]);
-  useEffect(
-    () => () => {
+    return () => {
+      window.removeEventListener("message", onReady);
       clearWatchdog();
-    },
-    [clearWatchdog],
-  );
+    };
+  }, [clearWatchdog, pingFrame, startWatchdog]);
   useEffect(() => {
     if (!enabled) return;
     let live = true;
@@ -296,7 +285,7 @@ export function TableOfAuthoritiesHost({
   return (
     <>
       <Suspense fallback={null}>
-        <ScopeReader active={active} onChange={onScopeChange} />
+        <ScopeReader active={active} onChange={setScope} />
       </Suspense>
       <AuthoritiesShell
         active={visible}

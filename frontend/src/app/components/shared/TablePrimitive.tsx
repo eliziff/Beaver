@@ -1,6 +1,4 @@
-"use client";
 import {
-    useRef,
     type HTMLAttributes,
     type ReactNode,
     type RefObject,
@@ -8,13 +6,11 @@ import {
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
-    APP_SURFACE_GROUP_HOVER_CLASS,
     APP_SURFACE_HOVER_CLASS,
     LIQUID_TABLE_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-export const TABLE_STICKY_CELL_BG = "bg-app-surface";
-export const TABLE_PRIMARY_CELL_WIDTH_CLASS =
+const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
     "w-[190px] sm:w-[260px] md:w-[300px] xl:w-[320px] 2xl:w-[332px] shrink-0";
@@ -39,32 +35,27 @@ export function TableScrollArea({
     className,
     header,
     scrollRef,
+    horizontal = false,
 }: Omit<DivProps, "onScroll"> & {
     header?: ReactNode;
     scrollRef?: RefObject<HTMLDivElement | null>;
+    horizontal?: boolean;
 }) {
-    const headerViewportRef = useRef<HTMLDivElement>(null);
     return (
         <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 md:mx-6 md:mb-3", className)}>
             <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
-                {header && (
-                    <div
-                        ref={headerViewportRef}
-                        className="min-w-0 shrink-0 overflow-hidden [scrollbar-gutter:stable]"
-                    >
-                        {header}
-                    </div>
-                )}
                 <div
                     ref={scrollRef}
-                    className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto overscroll-x-none"
-                    onScroll={(event) => {
-                        if (headerViewportRef.current) {
-                            headerViewportRef.current.scrollLeft =
-                                event.currentTarget.scrollLeft;
-                        }
-                    }}
+                    className={cn(
+                        "flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]",
+                        horizontal ? "overflow-x-auto" : "overflow-x-hidden",
+                    )}
                 >
+                    {header && (
+                        <div className="sticky top-0 z-[70] min-w-0 shrink-0">
+                            {header}
+                        </div>
+                    )}
                     {children}
                 </div>
             </div>
@@ -75,7 +66,7 @@ export function TableHeaderRow({ children, className, ...props }: DivProps) {
     return (
         <div
             className={cn(
-                "z-[70] flex h-11 min-w-max items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
+                "z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
                 className,
             )}
             {...props}
@@ -97,7 +88,7 @@ export function TableRow({
     return (
         <div
             className={cn(
-                "group flex h-11 min-w-max items-center pr-3",
+                "group flex h-11 min-w-0 items-center pr-3 [content-visibility:auto] [contain-intrinsic-size:auto_44px]",
                 interactive && "cursor-pointer",
                 interactive && !selected && APP_SURFACE_HOVER_CLASS,
                 selected && APP_SURFACE_ACTIVE_CLASS,
@@ -113,25 +104,19 @@ export function TableStickyCell({
     children,
     className,
     widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS,
-    bgClassName = TABLE_STICKY_CELL_BG,
     header = false,
-    hover = true,
 }: DivProps & {
     widthClassName?: string;
-    bgClassName?: string;
     header?: boolean;
-    hover?: boolean;
 }) {
     return (
         <div
             className={cn(
-                "sticky left-0 z-[60] flex pl-4 pr-2 text-left",
+                "flex pl-4 pr-2 text-left",
                 widthClassName,
-                bgClassName,
                 header
-                    ? "z-[80] items-center self-stretch"
+                    ? "items-center self-stretch"
                     : "py-2",
-                !header && hover && APP_SURFACE_GROUP_HOVER_CLASS,
                 className,
             )}
         >
@@ -143,7 +128,6 @@ export function TablePrimaryCell({
     children,
     className,
     widthClassName = TABLE_PRIMARY_CELL_WIDTH_CLASS,
-    bgClassName,
     selected,
     onSelectionChange,
     checkboxTitle,
@@ -155,7 +139,6 @@ export function TablePrimaryCell({
     onEditCancel,
 }: DivProps & {
     widthClassName?: string;
-    bgClassName?: string;
     selected: boolean;
     onSelectionChange: () => void;
     checkboxTitle?: string;
@@ -192,11 +175,7 @@ export function TablePrimaryCell({
     return (
         <TableStickyCell
             widthClassName={widthClassName}
-            bgClassName={
-                selected ? APP_SURFACE_ACTIVE_CLASS : bgClassName
-            }
             className={className}
-            hover={!selected}
         >
             <div className="flex min-w-0 items-center">
                 <CheckboxControl

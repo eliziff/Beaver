@@ -1,4 +1,3 @@
-"use client";
 import { useRef, useState } from "react";
 import { Upload, User, X } from "lucide-react";
 import {
@@ -20,10 +19,15 @@ interface Props {
     onClose: () => void;
     onCreated: (project: Project) => void;
 }
-export function NewProjectModal({ open, onClose, onCreated }: Props) {
+export function NewProjectModal({ open, ...props }: Props) {
+    if (!open) return null;
+    return <OpenNewProjectModal {...props} />;
+}
+function OpenNewProjectModal({
+    onClose,
+    onCreated,
+}: Omit<Props, "open">) {
     const [step, setStep] = useState<"details" | "documents">("details");
-    const [name, setName] = useState("");
-    const [cmNumber, setCmNumber] = useState("");
     const [practice, setPractice] = useState("");
     const [sharedUsers, setSharedUsers] = useState<UserLookupResult[]>([]);
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
@@ -34,14 +38,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
     const { user } = useAuth();
     const ownEmail = user?.email?.trim().toLowerCase() ?? null;
     const formId = "new-project-modal-form";
-    if (!open) return null;
-    function submitterValue(e: React.FormEvent<HTMLFormElement>) {
-        return (
-            (e.nativeEvent as SubmitEvent).submitter as
-                | HTMLButtonElement
-                | null
-        )?.value;
-    }
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
         e.target.value = "";
@@ -50,8 +46,14 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
     }
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        if (!name.trim()) return;
-        if (step === "details" || submitterValue(e) !== "create-project") {
+        const form = new FormData(e.currentTarget);
+        const name = String(form.get("name") ?? "").trim();
+        const cmNumber = String(form.get("cmNumber") ?? "").trim();
+        const practice = String(form.get("practice") ?? "").trim();
+        const submitter = (e.nativeEvent as SubmitEvent)
+            .submitter as HTMLButtonElement | null;
+        if (!name) return;
+        if (submitter?.value !== "create-project") {
             setStep("documents");
             return;
         }
@@ -59,16 +61,14 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
         setError("");
         try {
             const project = await createProject(
-                name.trim(),
-                cmNumber.trim() || undefined,
-                practice.trim() && practice.trim() !== "Other"
-                    ? practice.trim()
+                name,
+                cmNumber || undefined,
+                practice && practice !== "Other"
+                    ? practice
                     : undefined,
-                ownEmail
-                    ? sharedUsers
-                          .map((user) => user.email)
-                          .filter((email) => email !== ownEmail)
-                    : sharedUsers.map((user) => user.email),
+                sharedUsers
+                    .map((user) => user.email)
+                    .filter((email) => email !== ownEmail),
             );
             await Promise.all([
                 ...selectedDocuments.map((document) =>
@@ -80,27 +80,12 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                 ...project,
                 document_count: selectedDocuments.length + pendingFiles.length,
             });
-            resetForm();
             onClose();
         } catch (err: unknown) {
             setError((err as Error).message || "Failed to create project");
         } finally {
             setLoading(false);
         }
-    }
-    function resetForm() {
-        setStep("details");
-        setName("");
-        setCmNumber("");
-        setPractice("");
-        setSharedUsers([]);
-        setSelectedDocuments([]);
-        setPendingFiles([]);
-        setError("");
-    }
-    function handleClose() {
-        resetForm();
-        onClose();
     }
     function validateShareUser(email: string) {
         if (ownEmail && email === ownEmail) {
@@ -126,17 +111,13 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
     }
     function handleRemoveShareUser(email: string) {
         setSharedUsers((prev) =>
-            prev.filter(
-                (user) =>
-                    user.email.trim().toLowerCase() !==
-                    email.trim().toLowerCase(),
-            ),
+            prev.filter((user) => user.email !== email),
         );
     }
     return (
         <Modal
-            open={open}
-            onClose={handleClose}
+            open
+            onClose={onClose}
             breadcrumbs={[
                 "Projects",
                 "New project",
@@ -161,26 +142,19 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                       }
                     : undefined
             }
-            primaryAction={
-                step === "details"
-                    ? {
-                          label: "Next",
-                          type: "button",
-                          onClick: (event) => {
-                              event.preventDefault();
-                              setStep("documents");
-                          },
-                          disabled: !name.trim() || loading,
-                      }
-                    : {
-                          label: loading ? "Creating…" : "Create project",
-                          type: "submit",
-                          form: formId,
-                          name: "modalAction",
-                          value: "create-project",
-                          disabled: !name.trim() || loading,
-                      }
-            }
+            primaryAction={{
+                label:
+                    step === "details"
+                        ? "Next"
+                        : loading
+                          ? "Creating…"
+                          : "Create project",
+                type: "submit",
+                form: formId,
+                name: "modalAction",
+                value: step === "details" ? "next" : "create-project",
+                disabled: loading,
+            }}
         >
             <input
                 ref={fileInputRef}
@@ -194,19 +168,22 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                 onSubmit={handleSubmit}
                 className="flex flex-col flex-1 min-h-0"
             >
-                {step === "details" ? (
-                    <div className="space-y-6">
+                <input type="hidden" name="practice" value={practice} />
+                <div
+                    hidden={step !== "details"}
+                    className="space-y-6"
+                >
                         <div>
                             <ModalFieldLabel htmlFor="new-project-name">
                                 Project name
                             </ModalFieldLabel>
                             <ModalTextInput
                                 id="new-project-name"
+                                name="name"
                                 type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
                                 placeholder="Add project name"
                                 variant="minimal"
+                                required
                                 autoFocus
                             />
                         </div>
@@ -216,9 +193,8 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                             </ModalFieldLabel>
                             <ModalTextInput
                                 id="new-project-cm-number"
+                                name="cmNumber"
                                 type="text"
-                                value={cmNumber}
-                                onChange={(e) => setCmNumber(e.target.value)}
                                 placeholder="Add a CM number..."
                                 variant="minimal"
                                 className="text-xl text-gray-600"
@@ -294,7 +270,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                             )}
                         </div>
                     </div>
-                ) : (
+                {step === "documents" && (
                     <div className="flex min-h-0 flex-1 flex-col">
                         <FileDirectory
                             selectedDocuments={selectedDocuments}

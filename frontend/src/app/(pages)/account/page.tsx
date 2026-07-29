@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
@@ -7,12 +7,9 @@ import { Input } from "@/app/components/ui/input";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import {
-    MfaVerificationPopup,
-    needsMfaVerification,
-} from "@/app/components/popups/MfaVerificationPopup";
+import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
-import { deleteAccount, isMfaRequiredError } from "@/app/lib/beaverApi";
+import { deleteAccount } from "@/app/lib/beaverApi";
 import {
     accountGlassDangerOutlineButtonClassName,
     accountGlassInputClassName,
@@ -21,221 +18,156 @@ import { AccountSection } from "./AccountSection";
 export default function AccountPage() {
     const router = useRouter();
     const { user, signOut, updateEmail } = useAuth();
-    const { profile, updateDisplayName, updateOrganisation } = useUserProfile();
-    const [displayName, setDisplayName] = useState("");
-    const [isSavingName, setIsSavingName] = useState(false);
-    const [saved, setSaved] = useState(false);
-    const [organisation, setOrganisation] = useState("");
-    const [isSavingOrg, setIsSavingOrg] = useState(false);
-    const [orgSaved, setOrgSaved] = useState(false);
-    const [email, setEmail] = useState("");
+    const { profile, updateProfile } = useUserProfile();
+    const [savingProfile, setSavingProfile] = useState(false);
     const [isSavingEmail, setIsSavingEmail] = useState(false);
-    const [emailSaved, setEmailSaved] = useState(false);
     const [emailStatus, setEmailStatus] = useState<string | null>(null);
     const [emailWarning, setEmailWarning] = useState<string | null>(null);
-    const [emailMfaOpen, setEmailMfaOpen] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [accountDeleteMfaOpen, setAccountDeleteMfaOpen] = useState(false);
-    useEffect(() => {
-        if (profile?.displayName) {
-            setDisplayName(profile.displayName);
-        }
-        if (profile?.organisation) {
-            setOrganisation(profile.organisation);
-        }
-    }, [profile]);
-    useEffect(() => {
-        if (user?.email) {
-            setEmail(user.pendingEmail || user.email);
-        }
-    }, [user?.email, user?.pendingEmail]);
+    const { runMfa, mfaPopup } = useMfaAction();
     const handleLogout = async () => {
         await signOut();
         router.push("/");
     };
-    const handleDeleteAccount = async () => {
-        setIsDeleting(true);
-        try {
-            if (await needsMfaVerification()) {
-                setDeleteConfirm(false);
-                setAccountDeleteMfaOpen(true);
-                setIsDeleting(false);
-                return;
-            }
-            await deleteAccount();
-            await signOut();
-            router.push("/");
-        } catch (error) {
-            setIsDeleting(false);
-            if (isMfaRequiredError(error)) {
-                setDeleteConfirm(false);
-                setAccountDeleteMfaOpen(true);
-                return;
-            }
-            setDeleteConfirm(false);
-            alert("Failed to delete account. Please try again.");
-        }
+    const handleDeleteAccount = () => {
+        void runMfa(
+            async () => {
+                setIsDeleting(true);
+                try {
+                    await deleteAccount();
+                    await signOut();
+                    router.push("/");
+                } finally {
+                    setIsDeleting(false);
+                }
+            },
+            {
+                title: "Two-factor verification required",
+                message:
+                    "Account deletion is sensitive. Enter a code from your authenticator app to continue.",
+                onPending: () => setDeleteConfirm(false),
+                onError: () => {
+                    setDeleteConfirm(false);
+                    alert("Failed to delete account. Please try again.");
+                },
+            },
+        );
     };
-    const handleSaveEmail = async () => {
-        const nextEmail = email.trim();
+    const handleSaveEmail = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const input = event.currentTarget.elements.namedItem(
+            "email",
+        ) as HTMLInputElement;
+        const nextEmail = input.value.trim();
         if (!nextEmail || nextEmail === user?.email) return;
-        setIsSavingEmail(true);
         setEmailStatus(null);
         setEmailWarning(null);
-        try {
-            if (await needsMfaVerification()) {
-                setEmailMfaOpen(true);
-                return;
-            }
-            const updatedUser = await updateEmail(nextEmail);
-            const pendingEmail = updatedUser.pendingEmail;
-            setEmail(pendingEmail || updatedUser.email);
-            setEmailSaved(true);
-            setEmailStatus(
-                pendingEmail
-                    ? `Confirmation sent to ${pendingEmail}. Your current email remains ${updatedUser.email} until the change is confirmed.`
-                    : "Email updated.",
-            );
-            setTimeout(() => setEmailSaved(false), 2000);
-        } catch (error: unknown) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : "Failed to update email. Please try again.";
-            if (isAlreadyRegisteredEmailError(message)) {
-                setEmail(user?.pendingEmail || user?.email || "");
-                setEmailWarning(message);
-                return;
-            }
-            setEmailStatus(message);
-        } finally {
-            setIsSavingEmail(false);
-        }
+        void runMfa(
+            async () => {
+                setIsSavingEmail(true);
+                try {
+                    const updatedUser = await updateEmail(nextEmail);
+                    const pendingEmail = updatedUser.pendingEmail;
+                    setEmailStatus(
+                        pendingEmail
+                            ? `Confirmation sent to ${pendingEmail}. Your current email remains ${updatedUser.email} until the change is confirmed.`
+                            : "Email updated.",
+                    );
+                } finally {
+                    setIsSavingEmail(false);
+                }
+            },
+            {
+                title: "Two-factor verification required",
+                message:
+                    "Email changes are sensitive. Enter a code from your authenticator app to continue.",
+                onError: (error) => {
+                    const message =
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to update email. Please try again.";
+                    if (isAlreadyRegisteredEmailError(message)) {
+                        input.value =
+                            user?.pendingEmail || user?.email || "";
+                        setEmailWarning(message);
+                    } else {
+                        setEmailStatus(message);
+                    }
+                },
+            },
+        );
     };
-    const handleSaveDisplayName = async () => {
-        setIsSavingName(true);
-        const success = await updateDisplayName(displayName.trim());
-        setIsSavingName(false);
-        if (success) {
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
-        } else {
-            alert("Failed to update display name. Please try again.");
-        }
-    };
-    const handleSaveOrganisation = async () => {
-        setIsSavingOrg(true);
-        const success = await updateOrganisation(organisation.trim());
-        setIsSavingOrg(false);
-        if (success) {
-            setOrgSaved(true);
-            setTimeout(() => setOrgSaved(false), 2000);
-        } else {
-            alert("Failed to update organisation. Please try again.");
-        }
+    const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        setSavingProfile(true);
+        const success = await updateProfile({
+            displayName: String(form.get("displayName") ?? "").trim(),
+            organisation: String(form.get("organisation") ?? "").trim(),
+        });
+        setSavingProfile(false);
+        if (!success) alert("Failed to update profile. Please try again.");
     };
     if (!user) return null;
     return (
         <div className="space-y-8">
-            {/* Profile Settings */}
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Profile
-                </h2>
-                <AccountSection className="p-4">
-                    <div className="divide-y divide-gray-200">
-                        <div className="pb-4">
-                            <label className="text-sm text-gray-600 block mb-2">
-                                Display Name
-                            </label>
-                            <div className="space-y-2">
-                                <Input
-                                    type="text"
-                                    value={displayName}
-                                    onChange={(e) =>
-                                        setDisplayName(e.target.value)
-                                    }
-                                    placeholder="Enter your name"
-                                    className={accountGlassInputClassName}
-                                />
-                                <div className="flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={handleSaveDisplayName}
-                                        disabled={
-                                            isSavingName ||
-                                            !displayName.trim() ||
-                                            saved
-                                        }
-                                        className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+            <AccountSection heading="Profile" className="p-4">
+                    <form
+                        key={`${profile?.displayName}:${profile?.organisation}`}
+                        onSubmit={(event) => void saveProfile(event)}
+                    >
+                        <div className="divide-y divide-gray-200">
+                            {(
+                                [
+                                    ["displayName", "Display name", "Enter your name"],
+                                    ["organisation", "Organisation", "Enter your organisation"],
+                                ] as const
+                            ).map(([field, label, placeholder], index) => (
+                                <div
+                                    key={field}
+                                    className={index ? "pt-4" : "pb-4"}
+                                >
+                                    <label
+                                        htmlFor={`profile-${field}`}
+                                        className="mb-2 block text-sm text-gray-600"
                                     >
-                                        {isSavingName ? (
-                                            "Saving..."
-                                        ) : saved ? (
-                                            "Saved"
-                                        ) : (
-                                            "Save"
-                                        )}
-                                    </button>
+                                        {label}
+                                    </label>
+                                    <Input
+                                        id={`profile-${field}`}
+                                        name={field}
+                                        defaultValue={profile?.[field] ?? ""}
+                                        placeholder={placeholder}
+                                        className={accountGlassInputClassName}
+                                    />
                                 </div>
-                            </div>
+                            ))}
                         </div>
-                        <div className="pt-4">
-                            <label className="text-sm text-gray-600 block mb-2">
-                                Organisation
-                            </label>
-                            <div className="space-y-2">
-                                <Input
-                                    type="text"
-                                    value={organisation}
-                                    onChange={(e) =>
-                                        setOrganisation(e.target.value)
-                                    }
-                                    placeholder="Enter your organisation"
-                                    className={accountGlassInputClassName}
-                                />
-                                <div className="flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={handleSaveOrganisation}
-                                        disabled={
-                                            isSavingOrg ||
-                                            organisation.trim() ===
-                                                (profile?.organisation ?? "") ||
-                                            orgSaved
-                                        }
-                                        className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
-                                    >
-                                        {isSavingOrg ? (
-                                            "Saving..."
-                                        ) : orgSaved ? (
-                                            "Saved"
-                                        ) : (
-                                            "Save"
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="flex justify-end pt-4">
+                            <button
+                                type="submit"
+                                disabled={savingProfile}
+                                className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+                            >
+                                {savingProfile ? "Saving..." : "Save"}
+                            </button>
                         </div>
-                    </div>
-                </AccountSection>
-            </section>
-            {/* Email */}
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Email
-                </h2>
-                <AccountSection className="p-4">
-                    <div className="space-y-2">
+                    </form>
+            </AccountSection>
+            <AccountSection heading="Email" className="p-4">
+                    <form
+                        key={user.pendingEmail || user.email}
+                        className="space-y-2"
+                        onSubmit={handleSaveEmail}
+                    >
                         <Input
+                            name="email"
                             type="email"
-                            value={email}
-                            onChange={(event) => {
-                                setEmail(event.target.value);
+                            defaultValue={user.pendingEmail || user.email}
+                            onChange={() => {
                                 setEmailStatus(null);
                                 setEmailWarning(null);
-                                setEmailSaved(false);
                             }}
                             placeholder="Enter your email"
                             className={accountGlassInputClassName}
@@ -249,78 +181,38 @@ export default function AccountPage() {
                                 Pending confirmation: {user.pendingEmail}
                             </p>
                         ) : null}
-                        {emailStatus && (
-                            <p className="text-xs text-gray-400">
-                                Current email: {user.email}
-                            </p>
-                        )}
                         <div className="flex justify-end">
                             <button
-                                type="button"
-                                onClick={handleSaveEmail}
-                                disabled={
-                                    isSavingEmail ||
-                                    !email.trim() ||
-                                    email.trim() === user.email ||
-                                    email.trim() === user.pendingEmail ||
-                                    emailSaved
-                                }
+                                type="submit"
+                                disabled={isSavingEmail}
                                 className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                             >
-                                {isSavingEmail ? (
-                                    "Saving..."
-                                ) : emailSaved ? (
-                                    "Saved"
-                                ) : (
-                                    "Save"
-                                )}
+                                {isSavingEmail ? "Saving..." : "Save"}
                             </button>
                         </div>
-                    </div>
-                </AccountSection>
-            </section>
-            {/* Plan */}
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Usage Plan
-                </h2>
-                <AccountSection className="p-4">
-                    <div>
-                        <p className="text-base font-medium text-gray-500 capitalize">
-                            {profile?.tier || "Free"}
-                        </p>
-                    </div>
-                </AccountSection>
-            </section>
-            {/* Actions */}
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Actions
-                </h2>
-                <Button
-                    variant="outline"
-                    onClick={handleLogout}
-                    className="w-full gap-1.5 rounded-lg border border-transparent bg-gray-950 px-3 text-white shadow-none hover:bg-gray-900 hover:text-white active:bg-black sm:w-auto"
-                >
-                    <LogOut className="h-4 w-4 shrink-0" />
-                    Sign Out
-                </Button>
-            </section>
-            {/* Danger Zone */}
+                    </form>
+            </AccountSection>
+            <AccountSection heading="Usage Plan" className="p-4">
+                <p className="text-base font-medium text-gray-500 capitalize">
+                    {profile?.tier || "Free"}
+                </p>
+            </AccountSection>
+            <Button
+                variant="outline"
+                onClick={handleLogout}
+                className="w-full gap-1.5 rounded-lg border border-transparent bg-gray-950 px-3 text-white shadow-none hover:bg-gray-900 hover:text-white active:bg-black sm:w-auto"
+            >
+                <LogOut className="h-4 w-4 shrink-0" />
+                Sign out
+            </Button>
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-red-600">
-                    Danger Zone
+                    Delete account
                 </h2>
                 <AccountSection className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium text-gray-900">
-                            Delete account
-                        </p>
-                        <p className="text-sm text-gray-500">
-                            Permanently delete your account and all associated
-                            data. This action cannot be undone.
-                        </p>
-                    </div>
+                    <p className="text-sm text-gray-500">
+                        Permanently deletes your account and its data.
+                    </p>
                     <Button
                         variant="outline"
                         onClick={() => setDeleteConfirm(true)}
@@ -343,7 +235,7 @@ export default function AccountPage() {
                     if (isDeleting) return;
                     setDeleteConfirm(false);
                 }}
-                onConfirm={() => void handleDeleteAccount()}
+                onConfirm={handleDeleteAccount}
             />
             <WarningPopup
                 open={!!emailWarning}
@@ -351,26 +243,7 @@ export default function AccountPage() {
                 message={emailWarning}
                 onClose={() => setEmailWarning(null)}
             />
-            <MfaVerificationPopup
-                open={accountDeleteMfaOpen}
-                onCancel={() => setAccountDeleteMfaOpen(false)}
-                onVerified={() => {
-                    setAccountDeleteMfaOpen(false);
-                    void handleDeleteAccount();
-                }}
-                title="Two-factor verification required"
-                message="Account deletion is sensitive. Enter a code from your authenticator app to continue."
-            />
-            <MfaVerificationPopup
-                open={emailMfaOpen}
-                onCancel={() => setEmailMfaOpen(false)}
-                onVerified={() => {
-                    setEmailMfaOpen(false);
-                    void handleSaveEmail();
-                }}
-                title="Two-factor verification required"
-                message="Email changes are sensitive. Enter a code from your authenticator app to continue."
-            />
+            {mfaPopup}
         </div>
     );
 }

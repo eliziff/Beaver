@@ -1,6 +1,4 @@
-"use client";
-import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
@@ -35,13 +33,11 @@ const sizeClassName: Record<ModalSize, string> = {
     lg: "max-w-xl",
     xl: "max-w-2xl",
 };
-const FOCUSABLE =
-    'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])';
 export function Modal({
     open,
     onClose,
     children,
-    role = "dialog",
+    role,
     breadcrumbs,
     headerAction,
     size = "lg",
@@ -52,88 +48,65 @@ export function Modal({
     cancelAction,
     keepMounted = false,
 }: ModalProps) {
-    const [hasMounted, setHasMounted] = useState(false);
-    const layerRef = useRef<HTMLDivElement>(null);
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    const openerRef = useRef<HTMLElement | null>(null);
     const titleId = useId();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR portal gate: must flip after first client mount
-    useEffect(() => setHasMounted(true), []);
-    const hasHeader = breadcrumbs?.length;
+    const breadcrumbCount = breadcrumbs?.length ?? 0;
+    const hasHeader = breadcrumbCount > 0;
     const hasFooter =
         footerStatus ||
         primaryAction ||
         secondaryAction ||
         cancelAction;
-    useEffect(() => {
-        if (!open) return;
-        const restoreFocus =
+    useLayoutEffect(() => {
+        const dialog = dialogRef.current;
+        if (!open || !dialog) return;
+        openerRef.current =
             document.activeElement instanceof HTMLElement
                 ? document.activeElement
                 : null;
-        layerRef.current
-            ?.querySelector<HTMLElement>(`[aria-label="Close"], ${FOCUSABLE}`)
-            ?.focus();
+        dialog.showModal();
         return () => {
-            if (restoreFocus?.isConnected) restoreFocus.focus();
+            if (dialog.open) dialog.close();
         };
     }, [open]);
-    if (!open && (!keepMounted || !hasMounted)) return null;
-    return createPortal(
-        <div
-            ref={layerRef}
+    useEffect(() => {
+        if (!open) return;
+        const opener = openerRef.current;
+        return () => {
+            if (opener?.isConnected) opener.focus();
+        };
+    }, [open]);
+    if (!open && !keepMounted) return null;
+    return (
+        <dialog
+            ref={dialogRef}
+            role={role}
+            aria-labelledby={hasHeader ? titleId : undefined}
+            aria-label={hasHeader ? undefined : "Dialog"}
             data-shortcut-layer
             data-shortcut-open={open ? "true" : "false"}
             data-shortcut-close
-            hidden={!open}
-            className={cn(
-                "fixed inset-0 z-[200] flex items-center justify-center px-4",
-                "bg-gray-950/20",
-                !open && "hidden",
-            )}
-            onClick={onClose}
-            onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onClose();
-                    return;
-                }
-                if (event.key !== "Tab") return;
-                const focusable = [
-                    ...(layerRef.current?.querySelectorAll<HTMLElement>(
-                        FOCUSABLE,
-                    ) ?? []),
-                ].filter((element) => !element.hidden);
-                if (focusable.length === 0) {
-                    event.preventDefault();
-                    return;
-                }
-                const current = focusable.indexOf(
-                    document.activeElement as HTMLElement,
-                );
-                if (
-                    (event.shiftKey && current <= 0) ||
-                    (!event.shiftKey && current === focusable.length - 1)
-                ) {
-                    event.preventDefault();
-                    focusable[
-                        event.shiftKey ? focusable.length - 1 : 0
-                    ]?.focus();
-                }
+            onCancel={(event) => {
+                event.preventDefault();
+                onClose();
             }}
+            onKeyDown={(event) => {
+                if (event.defaultPrevented || event.key !== "Escape") return;
+                event.preventDefault();
+                onClose();
+            }}
+            onClick={(event) => {
+                if (event.target === event.currentTarget) onClose();
+            }}
+            className={cn(
+                "m-auto h-[min(600px,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col rounded-lg p-0 backdrop:bg-gray-950/20",
+                open && "flex",
+                sizeClassName[size],
+                "border border-gray-300 bg-white",
+                className,
+            )}
         >
-            <div
-                role={role}
-                aria-modal="true"
-                aria-labelledby={hasHeader ? titleId : undefined}
-                aria-label={hasHeader ? undefined : "Dialog"}
-                className={cn(
-                    "flex h-[min(600px,calc(100dvh-2rem))] w-full flex-col rounded-lg",
-                    sizeClassName[size],
-                    "border border-gray-300 bg-white",
-                    className,
-                )}
-                onClick={(e) => e.stopPropagation()}
-            >
                 {hasHeader && (
                     <div className="flex shrink-0 items-center justify-between gap-3 p-4 pl-5">
                         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
@@ -144,9 +117,7 @@ export function Modal({
                                         className={cn(
                                             "min-w-0 items-center gap-1.5",
                                             index > 0 &&
-                                                index <
-                                                    (breadcrumbs?.length ?? 0) -
-                                                        1
+                                                index < breadcrumbCount - 1
                                                 ? "hidden sm:flex"
                                                 : "flex",
                                             index === 0 && "shrink-0",
@@ -155,16 +126,14 @@ export function Modal({
                                         {index > 0 && <span>›</span>}
                                         <span
                                             id={
-                                                index ===
-                                                (breadcrumbs?.length ?? 0) - 1
+                                                index === breadcrumbCount - 1
                                                     ? titleId
                                                     : undefined
                                             }
                                             className={cn(
                                                 "truncate",
-                                                index ===
-                                                    (breadcrumbs?.length ?? 0) -
-                                                        1 && "text-gray-700",
+                                                index === breadcrumbCount - 1 &&
+                                                    "text-gray-700",
                                             )}
                                         >
                                             {segment}
@@ -221,9 +190,7 @@ export function Modal({
                         </div>
                     </div>
                 )}
-            </div>
-        </div>,
-        document.body,
+        </dialog>
     );
 }
 function ModalActionButton({
@@ -231,7 +198,7 @@ function ModalActionButton({
     fallbackVariant,
 }: {
     action: ModalAction;
-    fallbackVariant: "primary" | "secondary" | "danger" | "cancel";
+    fallbackVariant: "primary" | "secondary" | "cancel";
 }) {
     const {
         label,
@@ -253,8 +220,7 @@ function ModalActionButton({
     const tone =
         variant === "danger"
             ? "danger"
-            : fallbackVariant === "secondary" && variant === "secondary"
-              ? "white"              : variant === "primary"
+            : variant === "primary"
                 ? "black"
                 : "white";
     return (
