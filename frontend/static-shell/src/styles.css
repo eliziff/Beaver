@@ -5,7 +5,8 @@ button, textarea, input { font: inherit; }
 button, a { cursor: pointer; }
 .topbar { min-height: 56px; display: flex; align-items: center; gap: 20px; padding: 0 24px; background: #fff; border-bottom: 1px solid #d5d5d0; }
 .brand { color: #171717; font-weight: 750; text-decoration: none; }
-nav { display: flex; gap: 4px; }
+nav { display: flex; gap: 4px; min-width: 0; }
+.nav { white-space: nowrap; }
 .nav { border: 0; background: none; color: #4b4b47; padding: 8px 11px; border-radius: 5px; text-decoration: none; }
 .nav:hover, .nav.active { background: #fbe9e7; color: #9f2017; }
 .mode { margin-left: auto; color: #666; font-size: .85rem; }
@@ -44,4 +45,4 @@ li span { margin-left: auto; }
 .project-name:focus { outline: 3px solid #f4bbb5; border-color: #a72219; }
 .section-heading h1 { margin: 0; }
 .primary input { display: none; }
-@media (max-width: 640px) { .topbar { padding: 0 14px; gap: 10px; } .nav { padding: 8px 6px; } .mode { display: none; } .content { padding: 28px 14px 48px; } .project-form { max-width: none; } }
+@media (max-width: 640px) { .topbar { flex-wrap: wrap; padding: 8px 14px 0; gap: 4px 10px; } .topbar nav { flex-basis: 100%; justify-content: space-between; overflow: hidden; } .nav { padding: 8px 4px; font-size: .9rem; } .mode { display: none; } .content { padding: 28px 14px 48px; } .project-form { max-width: none; } }
