@@ -48,7 +48,8 @@
         { "input": "DOLA, supra note 13, subsection 4(4).", "groups": { "values": "4(4)" } },
         { "input": "ss 4-6 of the Act", "groups": { "values": "4-6" } },
         { "input": "Ibid at art 1457.", "groups": { "values": "1457" } },
-        { "input": "the session resumed", "groups": null }
+        { "input": "the session resumed", "groups": null },
+        { "input": "les traités 12 pays (accented boundary keeps this clean)", "groups": null }
       ]
     },
     {
@@ -61,7 +62,8 @@
         { "input": "Ibid, s 49.2.", "groups": { "values": "49.2" } },
         { "input": "s 672.54(a) applies", "groups": { "values": "672.54(a)" } },
         { "input": "DOLA, supra note 13, subsection 4(4).", "groups": null },
-        { "input": "no provision named", "groups": null }
+        { "input": "no provision named", "groups": null },
+        { "input": "les traités 12 pays (accented boundary keeps this clean)", "groups": null }
       ]
     },
     {
