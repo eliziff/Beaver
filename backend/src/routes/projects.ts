@@ -38,6 +38,7 @@ import {
 } from "../lib/normalize";
 
 export const projectsRouter = Router();
+projectsRouter.use(requireAuth);
 
 async function localMatterDocuments(userId: string, projectId: string) {
   const documentIds =
@@ -181,7 +182,7 @@ async function attachChatCreatorLabels(
   }
 }
 
-projectsRouter.get("/", requireAuth, async (req, res) => {
+projectsRouter.get("/", async (req, res) => {
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
     const includeDocuments = req.query.include === "documents";
@@ -252,7 +253,7 @@ projectsRouter.get("/", requireAuth, async (req, res) => {
   }
 });
 
-projectsRouter.post("/", requireAuth, async (req, res) => {
+projectsRouter.post("/", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const body =
@@ -333,7 +334,7 @@ projectsRouter.post("/", requireAuth, async (req, res) => {
   res.status(201).json({ ...data, documents: [] });
 });
 
-projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
+projectsRouter.get("/:projectId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string;
   const { projectId } = req.params;
@@ -384,7 +385,7 @@ projectsRouter.get("/:projectId", requireAuth, async (req, res) => {
 // Resolve the owner + every shared member to {email, display_name}. Used
 // by the People modal so the UI can show display names where available
 // and tag the current user as "You".
-projectsRouter.get("/:projectId/people", requireAuth, async (req, res) => {
+projectsRouter.get("/:projectId/people", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
@@ -441,7 +442,7 @@ projectsRouter.get("/:projectId/people", requireAuth, async (req, res) => {
   res.json({ owner, members });
 });
 
-projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
+projectsRouter.patch("/:projectId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
@@ -532,7 +533,7 @@ projectsRouter.patch("/:projectId", requireAuth, async (req, res) => {
   res.json({ ...data, documents: docsTyped, folders: folderData ?? [] });
 });
 
-projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
+projectsRouter.delete("/:projectId", async (req, res) => {
   const userId = res.locals.userId as string;
   const { projectId } = req.params;
   if (isAnonymousLocalMode()) {
@@ -563,7 +564,7 @@ projectsRouter.delete("/:projectId", requireAuth, async (req, res) => {
   }
 });
 
-projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
+projectsRouter.get("/:projectId/documents", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
@@ -596,7 +597,6 @@ projectsRouter.get("/:projectId/documents", requireAuth, async (req, res) => {
 // document from one matter without deleting the canonical file.
 projectsRouter.delete(
   "/:projectId/documents/:documentId",
-  requireAuth,
   (req, res) => {
     if (!isAnonymousLocalMode()) {
       return void res.status(404).json({ detail: "Not found" });
@@ -616,7 +616,6 @@ projectsRouter.delete(
 
 projectsRouter.post(
   "/:projectId/documents/:documentId",
-  requireAuth,
   async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
@@ -816,7 +815,7 @@ projectsRouter.post(
   },
 );
 
-projectsRouter.patch("/:projectId/documents/:documentId", requireAuth, async (req, res) => {
+projectsRouter.patch("/:projectId/documents/:documentId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, documentId } = req.params;
@@ -906,7 +905,6 @@ projectsRouter.patch("/:projectId/documents/:documentId", requireAuth, async (re
 
 projectsRouter.post(
   "/:projectId/documents",
-  requireAuth,
   singleFileUpload("file"),
   async (req, res) => {
     const userId = res.locals.userId as string;
@@ -961,7 +959,7 @@ projectsRouter.post(
   },
 );
 
-projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
+projectsRouter.get("/:projectId/chats", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
@@ -999,7 +997,7 @@ projectsRouter.get("/:projectId/chats", requireAuth, async (req, res) => {
 
 // ── Folder routes ─────────────────────────────────────────────────────────────
 
-projectsRouter.post("/:projectId/folders", requireAuth, async (req, res) => {
+projectsRouter.post("/:projectId/folders", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId } = req.params;
@@ -1034,7 +1032,7 @@ projectsRouter.post("/:projectId/folders", requireAuth, async (req, res) => {
   res.status(201).json(data);
 });
 
-projectsRouter.patch("/:projectId/folders/:folderId", requireAuth, async (req, res) => {
+projectsRouter.patch("/:projectId/folders/:folderId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, folderId } = req.params;
@@ -1077,7 +1075,7 @@ projectsRouter.patch("/:projectId/folders/:folderId", requireAuth, async (req, r
   res.json(data);
 });
 
-projectsRouter.delete("/:projectId/folders/:folderId", requireAuth, async (req, res) => {
+projectsRouter.delete("/:projectId/folders/:folderId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, folderId } = req.params;
@@ -1141,7 +1139,7 @@ projectsRouter.delete("/:projectId/folders/:folderId", requireAuth, async (req, 
   res.status(204).send();
 });
 
-projectsRouter.patch("/:projectId/documents/:documentId/folder", requireAuth, async (req, res) => {
+projectsRouter.patch("/:projectId/documents/:documentId/folder", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { projectId, documentId } = req.params;
