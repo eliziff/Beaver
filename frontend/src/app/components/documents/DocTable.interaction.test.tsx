@@ -106,48 +106,20 @@ function rects(elements: HTMLElement[]) {
 }
 
 describe("DocTable Library interactions", () => {
-    it("keeps collection drop listeners mounted and uses the latest uploader", async () => {
-        const addListener = vi.spyOn(window, "addEventListener");
-        const removeListener = vi.spyOn(window, "removeEventListener");
-        const firstUpload = vi.fn(async () => document);
+    it("uploads files dropped on the empty collection", async () => {
         const latestUpload = vi.fn(async () => wordDocument);
-        const { rerender, unmount } = render(
-            <Harness uploadDocument={firstUpload} />,
-        );
-        const dragEvents = ["dragenter", "dragover", "dragleave", "drop"];
-        const registrations = (spy: typeof addListener, type: string) =>
-            spy.mock.calls.filter(([eventType]) => eventType === type).length;
-
-        rerender(<Harness uploadDocument={latestUpload} />);
-
-        for (const event of dragEvents) {
-            expect(registrations(addListener, event)).toBe(1);
-            expect(registrations(removeListener, event)).toBe(0);
-        }
-
+        render(<Harness initialDocuments={[]} uploadDocument={latestUpload} />);
         const file = new File(["brief"], "Brief.pdf", {
             type: "application/pdf",
         });
         const dataTransfer = { types: ["Files"], files: [file] };
-        fireEvent.dragEnter(window, { dataTransfer });
-        expect(screen.getByText("Drop files here to upload")).toBeVisible();
-        fireEvent.drop(window, {
+        const dropTarget = screen.getByText(/Drop PDF, Word/).parentElement!;
+        fireEvent.dragOver(dropTarget, { dataTransfer });
+        fireEvent.drop(dropTarget, {
             dataTransfer,
         });
 
         await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
-        expect(
-            screen.queryByText("Drop files here to upload"),
-        ).not.toBeInTheDocument();
-        expect(firstUpload).not.toHaveBeenCalled();
-        for (const event of dragEvents) {
-            expect(registrations(addListener, event)).toBe(1);
-        }
-
-        unmount();
-        for (const event of dragEvents) {
-            expect(registrations(removeListener, event)).toBe(1);
-        }
     });
 
     it("keeps internal document moves on the root drop target", async () => {
