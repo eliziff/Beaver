@@ -1,5 +1,7 @@
 import os from "node:os";
+import { existsSync } from "node:fs";
 import path from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 
 type Environment = Record<string, string | undefined>;
 
@@ -43,6 +45,20 @@ export function legalProviderDatabase(provider: string, filename: string) {
 
 export function legalProviderCache(provider: string) {
   return path.join(legalDataHome(), "cache", provider);
+}
+
+export function withReadonlySqlite<T>(
+  filename: string,
+  operation: (database: DatabaseSync) => T,
+): T | null {
+  if (!existsSync(filename)) return null;
+  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+  const database = new DatabaseSync(filename, { readOnly: true });
+  try {
+    return operation(database);
+  } finally {
+    database.close();
+  }
 }
 
 export function mikeLocalDataHome(options?: {
