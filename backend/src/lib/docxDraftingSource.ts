@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type JSZip from "jszip";
 import { loadZip } from "./zip";
+import { getZipEntry } from "./docx/core";
 
 export const DOCX_DRAFTING_SOURCE_FORMAT = "beaver-precedent-html-v1";
 export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
@@ -151,7 +152,8 @@ export async function extractDocxDraftingSource(
 
   const zip = await loadZip(bytes);
   assertBoundedPackage(zip);
-  if (!zip.file("word/document.xml")) {
+  const documentEntry = getZipEntry(zip, "word/document.xml");
+  if (!documentEntry) {
     throw new Error("Drafting mode requires a valid DOCX");
   }
 
@@ -196,7 +198,7 @@ export async function extractDocxDraftingSource(
   if (hasPart(paths, /^word\/embeddings\//i)) {
     warnings.push("Embedded objects are not included in the drafting source.");
   }
-  const documentXml = await zip.file("word/document.xml")!.async("text");
+  const documentXml = await documentEntry.async("text");
   if (
     /<w:br\b[^>]*w:type="page"/iu.test(documentXml) ||
     /<w:lastRenderedPageBreak\b/iu.test(documentXml)

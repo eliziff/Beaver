@@ -14,38 +14,27 @@
  * (accepting that insertion) before the new change is emitted.
  */
 
-import type JSZip from "jszip";
 import diff from "fast-diff";
-import { loadZip } from "./zip";
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
-
-// Some older Windows/Word archives store entries with backslash path
-// separators (e.g. `word\document.xml`) even though the zip spec requires
-// forward slashes. JSZip looks up entries by exact string, so
-// `zip.file("word/document.xml")` misses those files. These helpers accept
-// the canonical forward-slash form and transparently fall back to the
-// backslash variant for both reads and writes.
-
-function getZipEntry(zip: JSZip, pathSlash: string) {
-    const direct = zip.file(pathSlash);
-    if (direct) return direct;
-    return zip.file(pathSlash.replace(/\//g, "\\"));
-}
-
-function setZipEntry(
-    zip: JSZip,
-    pathSlash: string,
-    content: string | Buffer,
-): void {
-    const backslash = pathSlash.replace(/\//g, "\\");
-    // If the archive already stores the entry under backslashes, keep it
-    // there so we don't emit both variants side by side.
-    if (!zip.file(pathSlash) && zip.file(backslash)) {
-        zip.file(backslash, content);
-        return;
-    }
-    zip.file(pathSlash, content);
-}
+import {
+    ATTR_KEY,
+    type XNode,
+    cloneNode,
+    createBuilder,
+    createParser,
+    elAttrs,
+    elChildren,
+    elName,
+    ensureXmlDeclaration,
+    findBodyChildren,
+    getTextContent,
+    getZipEntry,
+    loadDocxPackage,
+    makeEl,
+    makeText,
+    maxTrackedId,
+    setChildren,
+    setZipEntry,
+} from "./docx/core";
 
 export interface EditInput {
     find: string;
@@ -79,75 +68,6 @@ export interface ApplyTrackedEditsResult {
     comments: number;
 }
 
-type XNode = Record<string, unknown>;
-
-const ATTR_KEY = ":@";
-const TEXT_KEY = "#text";
-
-function elName(n: unknown): string | null {
-    if (!n || typeof n !== "object") return null;
-    for (const k of Object.keys(n as XNode)) {
-        if (k === ATTR_KEY || k === TEXT_KEY) continue;
-        return k;
-    }
-    return null;
-}
-
-function isTextNode(n: unknown): n is { [TEXT_KEY]: string } {
-    if (!n || typeof n !== "object") return false;
-    const obj = n as XNode;
-    return TEXT_KEY in obj && elName(n) === null;
-}
-
-function elChildren(n: unknown): XNode[] {
-    const name = elName(n);
-    if (!name) return [];
-    const v = (n as XNode)[name];
-    return Array.isArray(v) ? (v as XNode[]) : [];
-}
-
-function setChildren(n: XNode, children: XNode[]): void {
-    const name = elName(n);
-    if (!name) return;
-    n[name] = children;
-}
-
-function elAttrs(n: unknown): Record<string, string> {
-    if (!n || typeof n !== "object") return {};
-    const a = (n as XNode)[ATTR_KEY];
-    return (a as Record<string, string>) ?? {};
-}
-
-function makeEl(
-    name: string,
-    children: XNode[] = [],
-    attrs?: Record<string, string>,
-): XNode {
-    const el: XNode = { [name]: children };
-    if (attrs) {
-        const attrObj: Record<string, string> = {};
-        for (const [k, v] of Object.entries(attrs)) {
-            attrObj[`@_${k}`] = v;
-        }
-        el[ATTR_KEY] = attrObj;
-    }
-    return el;
-}
-
-function makeText(s: string): XNode {
-    return { [TEXT_KEY]: s };
-}
-
-function getTextContent(wtEl: XNode): string {
-    // A w:t node has only a single text child (or nothing).
-    const kids = elChildren(wtEl);
-    let out = "";
-    for (const k of kids) {
-        if (isTextNode(k)) out += String(k[TEXT_KEY] ?? "");
-    }
-    return out;
-}
-
 // Build a w:r element that wraps a piece of text. Newlines in the text are
 // emitted as <w:br/> soft line breaks (interleaved with w:t/w:delText
 // segments) so models can request multi-line replacements without the
@@ -166,10 +86,6 @@ function buildRun(rPr: XNode | null, text: string, tagName: "w:t" | "w:delText")
         }
     }
     return makeEl("w:r", children);
-}
-
-function cloneNode<T>(n: T): T {
-    return JSON.parse(JSON.stringify(n)) as T;
 }
 
 interface RunSlot {
@@ -828,61 +744,6 @@ function diagnoseAnchor(params: {
     ].join("\n");
 }
 
-function createParser() {
-    return new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        trimValues: false,
-        parseAttributeValue: false,
-        processEntities: true,
-    });
-}
-
-function createBuilder() {
-    return new XMLBuilder({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        suppressEmptyNode: false,
-        processEntities: true,
-    });
-}
-
-function findBody(doc: XNode[]): XNode[] | null {
-    for (const top of doc) {
-        if (elName(top) === "w:document") {
-            for (const c of elChildren(top)) {
-                if (elName(c) === "w:body") return elChildren(c);
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * Walk a tree and collect all max w:id values in w:ins/w:del so new changes
- * can start their numbering safely above it.
- */
-function maxTrackedId(doc: XNode[]): number {
-    let max = 0;
-    const visit = (n: unknown) => {
-        const name = elName(n);
-        if (!name) return;
-        if (name === "w:ins" || name === "w:del") {
-            const a = elAttrs(n);
-            const raw = a["@_w:id"];
-            if (raw != null) {
-                const v = parseInt(String(raw), 10);
-                if (Number.isFinite(v) && v > max) max = v;
-            }
-        }
-        for (const c of elChildren(n as XNode)) visit(c);
-    };
-    for (const top of doc) visit(top);
-    return max;
-}
-
 /**
  * Extract the body text of a .docx using the same flattening rules as the
  * tracked-changes matcher. Paragraphs are joined by a single newline. The
@@ -891,13 +752,13 @@ function maxTrackedId(doc: XNode[]): number {
  * anchor matcher operates against.
  */
 export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
-    const zip = await loadZip(bytes);
+    const zip = await loadDocxPackage(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) return "";
     const docXmlRaw = await docXmlFile.async("string");
     const parser = createParser();
     const tree = parser.parse(docXmlRaw) as XNode[];
-    const bodyChildren = findBody(tree);
+    const bodyChildren = findBodyChildren(tree);
     if (!bodyChildren) return "";
 
     const lines: string[] = [];
@@ -932,7 +793,7 @@ export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
 export async function extractTrackedChangeIds(
     bytes: Buffer,
 ): Promise<{ kind: "ins" | "del"; w_id: string }[]> {
-    const zip = await loadZip(bytes);
+    const zip = await loadDocxPackage(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) return [];
     const docXmlRaw = await docXmlFile.async("string");
@@ -967,7 +828,7 @@ export async function applyTrackedEdits(
     const now = new Date().toISOString();
     const annotate = opts?.annotate ?? false;
 
-    const zip = await loadZip(bytes);
+    const zip = await loadDocxPackage(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) throw new Error("document.xml missing from docx");
     const docXmlRaw = await docXmlFile.async("string");
@@ -975,7 +836,7 @@ export async function applyTrackedEdits(
     const parser = createParser();
     const tree = parser.parse(docXmlRaw) as XNode[];
 
-    const bodyChildren = findBody(tree);
+    const bodyChildren = findBodyChildren(tree);
     if (!bodyChildren) throw new Error("w:body missing from document.xml");
 
     // Build paragraph table (only w:p at the top level of the body — does not
@@ -1517,7 +1378,7 @@ export async function resolveTrackedChange(
     changeIds: string[],
     mode: "accept" | "reject",
 ): Promise<{ bytes: Buffer; found: boolean }> {
-    const zip = await loadZip(bytes);
+    const zip = await loadDocxPackage(bytes);
     const docXmlFile = getZipEntry(zip, "word/document.xml");
     if (!docXmlFile) throw new Error("document.xml missing from docx");
     const docXmlRaw = await docXmlFile.async("string");
@@ -1535,11 +1396,6 @@ export async function resolveTrackedChange(
         compression: "DEFLATE",
     });
     return { bytes: out, found };
-}
-
-function ensureXmlDeclaration(xml: string): string {
-    if (xml.startsWith("<?xml")) return xml;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${xml}`;
 }
 
 function truncate(s: string, n: number): string {
