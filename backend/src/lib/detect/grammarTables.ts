@@ -92,7 +92,10 @@ export function validateGrammarPattern(source: string): string[] {
   for (const match of source.matchAll(/\(\?([a-zA-Z-]+)[:)]/g)) {
     violations.push(`inline flags (?${match[1]}…: banned; use table flags`);
   }
-  if (/\(\?\(/.test(source)) {
+  if (/(?:^|[^\\])\(\?\(/.test(source)) {
+    // An escaped \(? followed by a group reads as "(?(" to a substring
+    // scan; require the opening paren to be unescaped. A conditional that
+    // slips past this still fails JS compilation in the vector run.
     violations.push("conditional groups: not portable");
   }
   if (/\\u\{/.test(source)) {

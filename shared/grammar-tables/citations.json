@@ -1,10 +1,13 @@
 {
   "format": "beaver-grammar-table:v1",
-  "description": "Cross-runtime citation and pinpoint grammars. Authored in the restricted dialect grammarTables.ts validates: JS-syntax named groups, fixed-width lookbehind only (Python's compile is the gate), no \\p classes, no inline flags. Python compiles with re.ASCII and JS without the u flag, so \\d/\\w/\\b are ASCII in both.",
+  "description": "Citation grammars extracted VERBATIM from the deterministic-citations lineage (ALR verifier_core/deterministic_splitter.py == engine legalpdf/deterministic_citations.py, md5-verified 2026-07-29) and from toa_maker.py where it diverges — dialects preserved side by side, never merged. Authoring rules: JS-style named groups (added groups are provenance-marked; they wrap existing alternations without changing match semantics); leading (?i) hoisted to table flags; invisible characters stay \\uXXXX escapes, visible non-ASCII stays literal. Python compiles with re.ASCII, JS without the u flag.",
+  "defs": {
+    "reporter_words": "[A-Z][A-Za-z&.'-]{1,16}(?:\\s+[A-Z][A-Za-z&.'-]{1,16}){0,4}"
+  },
   "entries": [
     {
-      "id": "cite.neutral.ca",
-      "pattern": "\\b(?<year>(?:19|20)\\d{2})\\s+(?<court>CSC|CAF|CFPI|CF|SCC|FCA|FC|TCC|CCI|ONCA|ONSC|BCCA|BCSC|ABCA|ABKB|QCCA|QCCS)\\s+(?<num>\\d{1,5})\\b",
+      "id": "cite.neutral",
+      "pattern": "\\b(?<year>(?:17|18|19|20)\\d{2})\\s+(?<court>[A-Z][A-Z0-9-]{1,15})\\s+(?<num>\\d+)\\b",
       "flags": "",
       "canonical": {
         "lowercase": ["court"],
@@ -12,6 +15,7 @@
           "court": { "csc": "scc", "caf": "fca", "cf": "fc", "cfpi": "fc", "cci": "tcc" }
         }
       },
+      "provenance": "splitter.py:12 == deterministic_citations.py:12 == toa_maker.py:83 (_NEUTRAL_RE, all byte-identical). Named groups and the FR->EN court canonicalization map are beaver-authored additions; the groups wrap existing subexpressions without changing what matches.",
       "vectors": [
         {
           "input": "As held in 2019 SCC 65, the standard is reasonableness.",
@@ -23,20 +27,189 @@
           "groups": { "year": "2019", "court": "CSC", "num": "65" },
           "canonical": { "court": "scc" }
         },
+        {
+          "input": "in 1875 SCC 4 (lineage accepts 17xx-20xx)",
+          "groups": { "year": "1875", "court": "SCC", "num": "4" }
+        },
         { "input": "2019SCC65 run together", "groups": null },
-        { "input": "in 1875 SCC 4 (too early)", "groups": null }
+        { "input": "Guttman v Law Society of Manitoba, 2010 MBCA 66 at para 75", "groups": { "year": "2010", "court": "MBCA", "num": "66" } }
       ]
     },
     {
-      "id": "pinpoint.para",
-      "pattern": "(?:\\bat\\s+)?(?:\\bparas?\\.?\\s+|¶\\s?)(?<para>\\d{1,4})\\b",
+      "id": "cite.canlii",
+      "pattern": "\\b(?:17|18|19|20)\\d{2}\\s+CanLII\\s+\\d+\\b",
       "flags": "i",
       "canonical": {},
+      "provenance": "toa_maker.py:84 (_CANLII_RE). No splitter counterpart (splitter's _NEUTRAL_RE cannot match mixed-case CanLII).",
       "vectors": [
-        { "input": "Vavilov at para 23", "groups": { "para": "23" } },
-        { "input": "see ¶ 12 above", "groups": { "para": "12" } },
-        { "input": "at Paras. 105", "groups": { "para": "105" } },
-        { "input": "comparable paradigms", "groups": null }
+        { "input": "R v Smith, 2015 CanLII 12345 (ON CA).", "groups": {} },
+        { "input": "cited to CanLII without a year", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.reporter.splitter",
+      "pattern": "(?<![\\w.])(?:\\[(?:17|18|19|20)\\d{2}\\]\\s+(?:\\d{1,4}\\s+)?{{reporter_words}}(?:\\s+\\(\\d+[A-Za-z]{0,3}\\))?\\s+\\d{1,5}|\\((?:17|18|19|20)\\d{2}\\)\\s+(?:\\d{1,4}\\s+)?{{reporter_words}}(?:\\s+\\(\\d+[A-Za-z]{0,3}\\))?\\s+\\d{1,5}|\\d{1,4}\\s+{{reporter_words}}(?:\\s+\\(\\d+[A-Za-z]{0,3}\\))?\\s+\\d{1,5})(?=\\s*(?:[,;.]|\\bat\\b|\\band\\b|\\bwith\\b|\\(|\\[|$))",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "splitter.py:14-23 (_REPORTER_RE, three-branch: [year] / (year) / bare-volume, built on _REPORTER_WORDS which is the reporter_words def). Trailing lookahead bounds the match at clause edges. Recall-first routing evidence by design.",
+      "vectors": [
+        { "input": "R v Oakes, [1986] 1 SCR 103;", "groups": {} },
+        { "input": "(1990) 71 OR (2d) 725.", "groups": {} },
+        { "input": "R v Bernard, [1988] 2 S.C.R. 833 at 880.", "groups": {} },
+        { "input": "no volume no reporter here", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.reporter.toa",
+      "pattern": "(?<![\\w.])(?:\\[(?:17|18|19|20)\\d{2}\\]\\s+)?\\d{1,4}\\s+[A-Z][A-Za-z0-9&.'-]{1,20}(?:\\s+\\([0-9A-Za-z]{1,4}\\))?(?:\\s+[A-Z][A-Za-z0-9&.'-]{0,14}){0,3}\\s+\\d{1,6}\\b",
+      "flags": "",
+      "canonical": {},
+      "provenance": "toa_maker.py:85-89 (_REPORTER_RE). Dialect vs splitter: single branch, volume mandatory, digits allowed inside reporter words, page \\d{1,6}, NO re.I, no trailing clause-edge lookahead.",
+      "vectors": [
+        { "input": "R v Oakes, [1986] 1 SCR 103;", "groups": {} },
+        { "input": "cited at 71 OR (2d) 725 in passing", "groups": {} },
+        { "input": "lowercase 1 scr 103 stays unmatched (no re.I in this dialect)", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.statute.splitter",
+      "pattern": "\\b(?:RSC|RSO|RSA|RSS|RSM|RSQ|RSY|RSBC|RSNL|RSNB|RSNS|RSPEI|RSNWT|SC|SO|SA|SS|SM|SQ|SY|SBC|SNL|SNB|SNS|SNWT|CQLR|CCSM)\\b\\s*[, ]\\s*\\d{4}(?:\\s*,?\\s*c\\s+[A-Za-z0-9.-]+)?",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "splitter.py:24-29 (_STATUTE_RE). Chapter class [A-Za-z0-9.-] — no parentheses.",
+      "vectors": [
+        { "input": "Criminal Code, RSC 1985, c C-46, s 672.54(a)", "groups": {} },
+        { "input": "CQLR c C-12, art 10", "groups": null },
+        { "input": "SO 1990, c H.8", "groups": {} }
+      ]
+    },
+    {
+      "id": "cite.statute.toa",
+      "pattern": "\\b(?:RSC|RSO|RSA|RSS|RSM|RSQ|RSY|RSBC|RSNL|RSNB|RSNS|RSPEI|RSNWT|CQLR|CCSM|SC|SO|SA|SS|SM|SQ|SY|SBC|SNL|SNB|SNS|SNWT)\\b\\s*[, ]\\s*\\d{4}(?:\\s*,?\\s*c\\s+[A-Za-z0-9().-]+)?|\\b(?:Alta Reg|BC Reg|B C Reg|O Reg|OIC|SOR|SI|SOR/|CFR)\\s*[A-Za-z-]*\\s*\\d{2,4}[-/]\\d{1,4}\\b",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "toa_maker.py:90-96 (_STATUTE_RE). Dialect vs splitter: CQLR/CCSM hoisted ahead of the two-letter codes, chapter class gains parentheses, and a second branch covers regulations (Alta Reg / BC Reg / O Reg / OIC / SOR / SI / CFR).",
+      "vectors": [
+        { "input": "Criminal Code, RSC 1985, c C-46", "groups": {} },
+        { "input": "O Reg 213/91, s 1", "groups": {} },
+        { "input": "SOR/98-106 applies", "groups": {} },
+        { "input": "no statute series here", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.journal.splitter",
+      "pattern": "\\(?(?:17|18|19|20)\\d{2}\\)?\\s+\\d{1,4}(?::\\s*[A-Za-z0-9.-]+)?\\s+[A-Z][A-Za-z&.'’(), -]{1,100}?\\s+\\d{1,5}\\b",
+      "flags": "",
+      "canonical": {},
+      "provenance": "splitter.py:30-34 (_JOURNAL_RE). Title class includes U+2019 right single quote.",
+      "vectors": [
+        { "input": "(2019) 97 Can Bar Rev 1 at 12", "groups": {} },
+        { "input": "(2020) 45 Queen’s 221", "groups": {} },
+        { "input": "a paper from 2019 with no volume", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.journal.toa",
+      "pattern": "\\(?(?:17|18|19|20)\\d{2}\\)?\\s+\\d{1,4}(?::\\s*[A-Za-z0-9.-]+)?\\s+[A-Z][A-Za-z&.'(), -]{1,100}?\\s+\\d{1,5}\\b",
+      "flags": "",
+      "canonical": {},
+      "provenance": "toa_maker.py:97-100 (_JOURNAL_RE). Dialect vs splitter: one character — the title class drops U+2019. The Queen’s vector is the discriminating pair.",
+      "vectors": [
+        { "input": "(2019) 97 Can Bar Rev 1 at 12", "groups": {} },
+        { "input": "(2020) 45 Queen’s 221", "groups": null }
+      ]
+    },
+    {
+      "id": "title.legal.splitter",
+      "pattern": "(?<!\\w)(?:(?:and\\s+)?the\\s+)?[A-Z][A-Za-z'’() -]{1,100}?\\s+(?:Act|Code|Rules?|Regulations?|Convention|Treaty)(?=\\b|,)",
+      "flags": "",
+      "canonical": {},
+      "provenance": "splitter.py:132-135 (_LEGAL_TITLE_RE). Title class has U+2019, no ampersand.",
+      "vectors": [
+        { "input": "under the Divorce Act, s 15", "groups": {} },
+        { "input": "the Employees’ Retirement Act", "groups": {} },
+        { "input": "no instrument named", "groups": null }
+      ]
+    },
+    {
+      "id": "title.legal.toa",
+      "pattern": "(?<!\\w)(?:(?:and\\s+)?the\\s+)?[A-Z][A-Za-z'()& -]{1,100}?\\s+(?:Act|Code|Rules?|Regulations?|Convention|Treaty)(?=\\b|,)",
+      "flags": "",
+      "canonical": {},
+      "provenance": "toa_maker.py:101-104 (_LEGAL_TITLE_RE). Dialect vs splitter: gains ampersand, drops U+2019. Match spans differ across dialects on &-bearing and ’-bearing titles; the differential harness, not these vectors, asserts spans.",
+      "vectors": [
+        { "input": "under the Divorce Act, s 15", "groups": {} },
+        { "input": "the Trade & Commerce Act", "groups": {} }
+      ]
+    },
+    {
+      "id": "title.named-code",
+      "pattern": "\\b(?:Model\\s+)?(?:Code|Rules?)\\s+of\\s+[A-Z][A-Za-z'’ -]{2,100}",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "splitter.py:136-138 (_NAMED_CODE_RE). No toa counterpart.",
+      "vectors": [
+        { "input": "the Code of Professional Conduct requires", "groups": {} },
+        { "input": "Model Rules of Professional Conduct r 1.6", "groups": {} },
+        { "input": "a code of silence also matches under re.I — the lineage is recall-first here", "groups": {} },
+        { "input": "no such instrument", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.url",
+      "pattern": "\\b(?:https?://|www\\.)[^\\s<>]+|\\bperma\\.cc/[A-Z0-9-]+|\\bdoi:\\s*10\\.\\d{4,9}/\\S+",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "splitter.py:8-11 == toa_maker.py:82 (_URL_RE; compiled patterns identical). Source spells the flag as a leading (?i); hoisted to table flags.",
+      "vectors": [
+        { "input": "online: https://canlii.ca/t/1fqm7 accessed", "groups": {} },
+        { "input": "archived at perma.cc/ABC1-23DE", "groups": {} },
+        { "input": "doi: 10.1234/example.5678", "groups": {} },
+        { "input": "no link in this sentence", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.url.prefix",
+      "pattern": "(?:https?://|www\\.)",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "engine docx_linking.py:54 (URL_RE). Deliberately truncated prefix detector — routing only, no body match, no perma.cc/doi. Kept as its own entry because its purpose differs from cite.url.",
+      "vectors": [
+        { "input": "see www.canlii.org for the source", "groups": {} },
+        { "input": "wwwnot a link", "groups": null }
+      ]
+    },
+    {
+      "id": "frame.book",
+      "pattern": "\\([A-Z][A-Za-z .,'-]{1,50}:\\s*[^()]{0,80},?\\s*(?:17|18|19|20)\\d{2}\\)",
+      "flags": "",
+      "canonical": {},
+      "provenance": "splitter.py:35-37 (_BOOK_FRAME_RE): the (City: Publisher, Year) frame of a monograph citation.",
+      "vectors": [
+        { "input": "Peter Hogg, Constitutional Law of Canada (Toronto: Carswell, 2007) at 121", "groups": {} },
+        { "input": "(see the discussion below)", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.quoted",
+      "pattern": "[\"“][^\"”]{3,240}[\"”][^.;]{0,220}(?:\\b(?:17|18|19|20)\\d{2}\\b|\\b(?:online|perma\\.cc|doi)\\b)",
+      "flags": "i",
+      "canonical": {},
+      "provenance": "splitter.py:123-127 (_QUOTED_CITATION_RE). Source spells the curly quotes as \\u201c/\\u201d escapes; written literal here.",
+      "vectors": [
+        { "input": "“The Duty to Consult” (2020) 43 Dal LJ 1", "groups": {} },
+        { "input": "\"short\" then nothing citation-like", "groups": null }
+      ]
+    },
+    {
+      "id": "cite.secondary",
+      "pattern": "(?<!\\w)[A-Z][^.;]{2,220}\\((?:[^()]|\\([^()]*\\)){0,160}(?:17|18|19|20)\\d{2}\\)(?:\\s*\\[[^\\]]+\\])?(?:\\s+at\\b|\\s*[,.;]|\\s*$)",
+      "flags": "",
+      "canonical": {},
+      "provenance": "splitter.py:128-131 (_SECONDARY_CITATION_RE): author-title-(parenthetical ending in year) shape for secondary sources.",
+      "vectors": [
+        { "input": "Ruth Sullivan, Sullivan on the Construction of Statutes (6th ed, 2014) at 45", "groups": {} },
+        { "input": "lowercase start (2014) never matches", "groups": null }
       ]
     }
   ]
