@@ -55,14 +55,11 @@ import {
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import {
-    TableFilters,
     TableHeaderCell,
     TableHeaderRow,
     TableScrollArea,
     TableSelectionPlaceholder,
     TableStickyCell,
-    type TableFilterOption,
-    type TableSortDirection,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
@@ -79,11 +76,6 @@ export interface DocTableSelectionActions {
     onRemoveFromFolder: () => Promise<void>;
     onDelete: () => Promise<void>;
 }
-type DocumentSortKey = "name" | "size" | "version" | "created" | "updated";
-const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
-    { value: "asc", label: "Ascending" },
-    { value: "desc", label: "Descending" },
-];
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2";
 const DOCUMENT_TYPE_COLUMN = "hidden w-20 shrink-0 sm:block";
@@ -148,7 +140,6 @@ interface DocTableProps {
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
     onSelectionActionsChange?: (actions: DocTableSelectionActions | null) => void;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
-    enableHeaderFilters?: boolean;
     documentRemovalMode?: "delete" | "detach";
     selectionFirst?: boolean;
 }
@@ -167,19 +158,6 @@ function apiErrorDetail(error: unknown): string | null {
     } catch {
     }
     return error.message || null;
-}
-function documentTypeValue(doc: Document): string {
-    const explicit = doc.file_type?.trim();
-    if (explicit) return explicit.toLowerCase();
-    const extension = doc.filename.includes(".")
-        ? doc.filename.split(".").pop()?.trim()
-        : null;
-    return (extension || "file").toLowerCase();
-}
-function dateTimeValue(value: string | null | undefined): number {
-    if (!value) return 0;
-    const time = new Date(value).getTime();
-    return Number.isFinite(time) ? time : 0;
 }
 function documentVersionNumber(doc: Document): number | null {
     return doc.active_version_number ?? null;
@@ -278,7 +256,6 @@ export function DocTable({
     onCreateFolderActionChange,
     onSelectionActionsChange,
     onOwnerOnlyAction,
-    enableHeaderFilters = false,
     documentRemovalMode = "delete",
     selectionFirst = false,
 }: DocTableProps) {
@@ -291,11 +268,6 @@ export function DocTable({
         label: string;
     } | null>(null);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
-    const [typeFilter, setTypeFilter] = useState<string | null>(null);
-    const [sort, setSort] = useState<{
-        key: DocumentSortKey;
-        direction: TableSortDirection;
-    } | null>(null);
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const loadingRef = useRef(loading);
     const renderAddDocumentsModalRef = useRef(renderAddDocumentsModal);
@@ -572,8 +544,6 @@ export function DocTable({
     }, [loading, folders]);
     useEffect(() => {
         setSelectedDocIds([]);
-        setTypeFilter(null);
-        setSort(null);
     }, [scopeKey]);
     useEffect(() => {
         function handleDragEnd() {
@@ -1310,20 +1280,11 @@ export function DocTable({
         depth: number,
         flat = false,
     ) {
-        const nameMultiplier =
-            enableHeaderFilters &&
-            sort?.key === "name" &&
-            sort.direction === "desc"
-                ? -1
-                : 1;
         const childFolders = flat
             ? []
             : folders
                   .filter((f) => f.parent_folder_id === parentId)
-                  .sort(
-                      (a, b) =>
-                          a.name.localeCompare(b.name) * nameMultiplier,
-                  );
+                  .sort((a, b) => a.name.localeCompare(b.name));
         const childDocs = flat
             ? filteredDocs
             : filteredDocs.filter(
@@ -1896,107 +1857,10 @@ export function DocTable({
         : null;
     const versionUploadAccept = ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt";
     const q = search.toLowerCase();
-    const typeOptions = useMemo(
-        () =>
-            Array.from(new Set(docs.map(documentTypeValue)))
-                .sort((a, b) => a.localeCompare(b))
-                .map((type) => ({
-                    value: type,
-                    label: type.toUpperCase(),
-                })),
-        [docs],
+    const filteredDocs = useMemo(
+        () => docs.filter((doc) => !q || doc.filename.toLowerCase().includes(q)),
+        [docs, q],
     );
-    function clearDocumentSelection() {
-        setSelectedDocIds([]);
-    }
-    function handleTypeFilterChange(value: string | null) {
-        setTypeFilter(value);
-        clearDocumentSelection();
-    }
-    function handleSortChange(
-        key: DocumentSortKey,
-        direction: TableSortDirection | null,
-    ) {
-        setSort(direction ? { key, direction } : null);
-        clearDocumentSelection();
-    }
-    const filteredDocs = useMemo(() => {
-        const rows = docs
-            .filter(
-                (doc) =>
-                    !q ||
-                    doc.filename.toLowerCase().includes(q),
-            )
-            .filter(
-                (doc) =>
-                    !enableHeaderFilters ||
-                    !typeFilter ||
-                    documentTypeValue(doc) === typeFilter,
-            );
-        if (!enableHeaderFilters || !sort) return rows;
-        return sortRows(rows, (a, b) => {            if (sort.key === "size") {                return (a.size_bytes ?? 0) - (b.size_bytes ?? 0);            }            if (sort.key === "version") {                return (                    ((documentVersionNumber(a) ?? 0) -                        (documentVersionNumber(b) ?? 0))                );            }            if (sort.key === "created") {                return (                    (dateTimeValue(a.created_at) -                        dateTimeValue(b.created_at))                );            }            if (sort.key === "updated") {                return (                    (dateTimeValue(a.updated_at) -                        dateTimeValue(b.updated_at))                );            }            return a.filename.localeCompare(b.filename);        }, sort.direction);    }, [docs, enableHeaderFilters, q, sort, typeFilter]);
-    const nameSortDirection = sort?.key === "name" ? sort.direction : null;
-    const sizeSortDirection = sort?.key === "size" ? sort.direction : null;
-    const versionSortDirection =
-        sort?.key === "version" ? sort.direction : null;
-    const createdSortDirection =
-        sort?.key === "created" ? sort.direction : null;
-    const updatedSortDirection =
-        sort?.key === "updated" ? sort.direction : null;
-    const nameFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Sort by name"
-            value={nameSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("name", direction)}
-        />
-    ) : null;
-    const typeFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Filter by file type"
-            value={typeFilter}
-            allLabel="All Types"
-            options={typeOptions}
-            onChange={handleTypeFilterChange}
-        />
-    ) : null;
-    const sizeFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Sort by size"
-            value={sizeSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("size", direction)}
-        />
-    ) : null;
-    const versionFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Sort by version"
-            value={versionSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("version", direction)}
-        />
-    ) : null;
-    const createdFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Sort by created date"
-            value={createdSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("created", direction)}
-        />
-    ) : null;
-    const updatedFilterButton = enableHeaderFilters ? (
-        <TableFilters
-            label="Sort by updated date"
-            value={updatedSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("updated", direction)}
-        />
-    ) : null;
     const allDocsSelected =
         filteredDocs.length > 0 &&
         filteredDocs.every((d) => selectedDocIds.includes(d.id));
@@ -2299,27 +2163,21 @@ export function DocTable({
                                     className="mr-2 h-4 w-4 shrink-0"
                                 />
                                 <span className="mr-1">Name</span>
-                                {nameFilterButton}
                             </TableStickyCell>
                             <TableHeaderCell className="ml-auto hidden w-20 items-center gap-1 sm:flex">
                                 <span>Type</span>
-                                {typeFilterButton}
                             </TableHeaderCell>
                             <TableHeaderCell className="hidden w-24 items-center gap-1 md:flex">
                                 <span>Size</span>
-                                {sizeFilterButton}
                             </TableHeaderCell>
                             <TableHeaderCell className="flex w-20 items-center gap-1">
                                 <span>Version</span>
-                                {versionFilterButton}
                             </TableHeaderCell>
                             <TableHeaderCell className="hidden w-32 items-center gap-1 lg:flex">
                                 <span>Created</span>
-                                {createdFilterButton}
                             </TableHeaderCell>
                             <TableHeaderCell className="hidden w-32 items-center gap-1 xl:flex">
                                 <span>Updated</span>
-                                {updatedFilterButton}
                             </TableHeaderCell>
                             <TableHeaderCell className="w-8" />
                         </TableHeaderRow>
