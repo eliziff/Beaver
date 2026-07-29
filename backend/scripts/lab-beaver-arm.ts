@@ -271,11 +271,22 @@ async function main() {
     for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/u)) {
       if (!line.trim()) continue;
       const entry = JSON.parse(line) as {
-        usage?: { inputTokens?: number; outputTokens?: number } | null;
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          cacheReadInputTokens?: number | null;
+          cacheWriteInputTokens?: number | null;
+        } | null;
         inputEstimate?: { tokens?: number };
       };
       if (entry.usage?.inputTokens != null) {
-        inputTokens += entry.usage.inputTokens;
+        // Same input basis as the LAB reference adapter (raw input +
+        // cache reads + cache writes) so cross-arm token comparisons
+        // stay apples-to-apples on cache-heavy transports like claude-p.
+        inputTokens +=
+          entry.usage.inputTokens +
+          (entry.usage.cacheReadInputTokens ?? 0) +
+          (entry.usage.cacheWriteInputTokens ?? 0);
         outputTokens += entry.usage.outputTokens ?? 0;
       } else {
         inputTokens += entry.inputEstimate?.tokens ?? 0;
