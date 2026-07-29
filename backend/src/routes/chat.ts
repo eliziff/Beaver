@@ -34,6 +34,7 @@ import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
   appendSlaReceipt,
   auditSlaDraft,
+  collectSlaDeliverable,
   buildSlaLedger,
   slaWorkflowEnabled,
   type SlaLedger,
@@ -1478,8 +1479,22 @@ export async function streamAnonymousChat(params: {
     // SLA Audit→Grounding: deterministic anchor coverage of the draft, one
     // typed-findings revision pass, and machine receipts for both stages.
     if (slaLedger && visibleText.trim()) {
-      const draftAudit = auditSlaDraft(slaLedger, visibleText);
-      appendSlaReceipt({ phase: "draft_audit", ...draftAudit.receipt });
+      // The audited deliverable is the chat text PLUS any library document
+      // created or revised since the ledger snapshot — for file-producing
+      // tasks the artifact carries the anchors, not the chat message.
+      const deliverable = await collectSlaDeliverable(
+        userId,
+        slaLedger,
+        visibleText,
+      );
+      const draftAudit = auditSlaDraft(slaLedger, deliverable.text, {
+        artifactDeliverable: deliverable.artifacts.length > 0,
+      });
+      appendSlaReceipt({
+        phase: "draft_audit",
+        artifacts: deliverable.artifacts,
+        ...draftAudit.receipt,
+      });
       if (draftAudit.repairPrompt) {
         const draft = visibleText;
         rawText = "";
@@ -1495,9 +1510,15 @@ export async function streamAnonymousChat(params: {
           rawText = draft;
           visibleText = draft;
         }
+        const revised = await collectSlaDeliverable(
+          userId,
+          slaLedger,
+          visibleText,
+        );
         appendSlaReceipt({
           phase: "final_grounding",
-          ...auditSlaDraft(slaLedger, visibleText).receipt,
+          artifacts: revised.artifacts,
+          ...auditSlaDraft(slaLedger, revised.text).receipt,
         });
       }
     }

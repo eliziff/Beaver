@@ -37,6 +37,12 @@ export interface SlaLedger {
   documents: AnchorDocument[];
   /** Appended to the system prompt: the Spec contract + document outlines. */
   promptSection: string;
+  /**
+   * Library snapshot at ledger build (documentId -> currentVersionId), over
+   * the WHOLE library, not just the in-scope sources: a deliverable created
+   * or revised during the turn is recognized by diffing against this.
+   */
+  baseline: ReadonlyMap<string, string>;
 }
 
 /**
@@ -48,6 +54,12 @@ export async function buildSlaLedger(
   allowedDocumentIds: ReadonlySet<string> | null,
 ): Promise<SlaLedger | null> {
   const collection = await listLocalLibrary(userId, "file");
+  const baseline = new Map<string, string>(
+    collection.documents.map((document) => [
+      document.id,
+      document.current_version_id,
+    ]),
+  );
   const inScope = collection.documents.filter(
     (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
   );
@@ -74,7 +86,54 @@ export async function buildSlaLedger(
     `- After you produce the deliverable, a deterministic audit compares it to the source documents' anchors (amounts, dates, section references, citations) and you will get exactly one revision pass with typed findings. Expect it; keep judgment for it.\n` +
     (dropped > 0 ? `- (${dropped} additional document(s) exceeded the ledger cap; list and read them yourself.)\n` : "") +
     `\n${outlines.join("\n\n")}`;
-  return { documents, promptSection };
+  return { documents, promptSection, baseline };
+}
+
+export interface SlaDeliverable {
+  /** Chat text plus the text of every document created/revised this turn. */
+  text: string;
+  /** Filenames of the included artifact documents (receipt evidence). */
+  artifacts: string[];
+}
+
+const MAX_DELIVERABLE_ARTIFACTS = 8;
+
+/**
+ * The deliverable for a file-producing task is the artifact, not the chat
+ * message ("I've created the document…" carries no anchors — the smoke run
+ * that audited it read 0 matched / 0 draft_only against 59 source anchors).
+ * Diff the library against the ledger baseline and fold new or revised
+ * documents' text into the audited draft.
+ */
+export async function collectSlaDeliverable(
+  userId: string,
+  ledger: SlaLedger,
+  chatText: string,
+): Promise<SlaDeliverable> {
+  const artifacts: { name: string; text: string }[] = [];
+  try {
+    const collection = await listLocalLibrary(userId, "file");
+    for (const meta of collection.documents) {
+      if (ledger.baseline.get(meta.id) === meta.current_version_id) continue;
+      if (artifacts.length >= MAX_DELIVERABLE_ARTIFACTS) break;
+      const document = await extractLocalDocument(userId, meta.id);
+      if (document?.text?.trim()) {
+        artifacts.push({ name: document.filename, text: document.text });
+      }
+    }
+  } catch {
+    // Store trouble degrades to auditing the chat text alone.
+  }
+  return {
+    text: [
+      chatText,
+      ...artifacts.map(
+        (artifact) =>
+          `\n\n[deliverable document: ${artifact.name}]\n${artifact.text}`,
+      ),
+    ].join(""),
+    artifacts: artifacts.map((artifact) => artifact.name),
+  };
 }
 
 export interface SlaAudit {
@@ -103,7 +162,14 @@ function findingRows(rows: AnchorRow[]): string {
  * Audit phase: deterministic two-way anchor coverage of the draft against
  * the ledger sources. Zero model calls.
  */
-export function auditSlaDraft(ledger: SlaLedger, draft: string): SlaAudit {
+export function auditSlaDraft(
+  ledger: SlaLedger,
+  draft: string,
+  options?: {
+    /** The deliverable includes library artifacts (repair goes via tools). */
+    artifactDeliverable?: boolean;
+  },
+): SlaAudit {
   const report = anchorCoverage(ledger.documents, [
     { name: "draft", text: draft },
   ]);
@@ -140,7 +206,10 @@ export function auditSlaDraft(ledger: SlaLedger, draft: string): SlaAudit {
         (unsourcedLines.length
           ? `\nAnchors in your deliverable with no match in any source document — verify each against the source and correct or remove what you cannot ground:\n${unsourcedLines.join("\n")}\n`
           : "") +
-        `\nNot every missing anchor is material — exercise judgment. Re-read the exact sections involved via their outline handles, then output the COMPLETE revised deliverable (full text, same format), not a description of changes.`
+        `\nNot every missing anchor is material — exercise judgment. Re-read the exact sections involved via their outline handles, then ` +
+        (options?.artifactDeliverable
+          ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
+          : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)
       : null;
   return {
     repairPrompt,
