@@ -8,14 +8,18 @@
 //   Ledger   the source documents' texts + the library snapshot, carried
 //            for the deterministic audit only — never into model context
 //   Draft    the normal provider tool loop, steered to section-scoped reads
-//   Audit    deterministic anchor coverage of the draft vs the sources,
-//            typed findings returned for exactly one revision pass
+//   Audit    four deterministic organs over the draft and the sources —
+//            anchor coverage, arithmetic conflicts, defined-term drift,
+//            drafting lint — typed findings returned for exactly one
+//            revision pass
 //   Grounding the final coverage report, persisted as a machine receipt
 // Enabled per-process with MIKE_SLA_WORKFLOW=1 (same pattern as the other
 // sealed-run gates); receipts append to MIKE_SLA_RECEIPT_PATH when set.
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
+import { conflictScan, type ConflictFinding } from "../legalConflictScan";
+import { draftingLint, type DraftingFinding } from "../legalDraftingLint";
 import {
   anchorCoverage,
   type AnchorCoverageReport,
@@ -23,11 +27,18 @@ import {
   type AnchorRow,
 } from "../legalTextAnchors";
 import { compileAgreementSkeleton } from "../legalTextSkeleton";
+import { termDriftReport } from "../legalTermDrift";
 import { listLocalLibrary } from "../localDocumentStore";
 import { extractLocalDocument } from "./localAssistantTools";
 
 const MAX_LEDGER_DOCUMENTS = 8;
 const MAX_FINDING_ROWS_PER_CLASS = 12;
+/** Repair-prompt caps, per organ: findings are evidence, not a report. */
+const MAX_CONFLICT_FINDINGS = 8;
+const MAX_DRIFT_TERMS = 6;
+const MAX_LINT_FINDINGS = 10;
+/** The draft's document name inside every organ that takes a stack. */
+const DRAFT_NAME = "draft";
 
 export function slaWorkflowEnabled(): boolean {
   return process.env.MIKE_SLA_WORKFLOW === "1";
@@ -157,6 +168,17 @@ export interface SlaAudit {
         draft_only_rows: string[];
       }
     >;
+    /** Arithmetic that does not close, over sources + draft. */
+    conflict: {
+      findings: number;
+      consistent: number;
+      /** Each detail prefixed by origin (draft | sources), capped. */
+      finding_details: string[];
+    };
+    /** Defined terms whose bodies differ across sources + draft. */
+    term_drift: { divergent: number; terms: string[] };
+    /** Drafting lint over the draft alone, by severity. */
+    drafting_lint: { errors: number; warnings: number; info: number };
   };
   report: AnchorCoverageReport;
 }
@@ -169,8 +191,27 @@ function findingRows(rows: AnchorRow[]): string {
 }
 
 /**
- * Audit phase: deterministic two-way anchor coverage of the draft against
- * the ledger sources. Zero model calls.
+ * A conflict finding touching the draft is the drafter's own arithmetic; one
+ * confined to the sources is a source-vs-source disagreement to surface.
+ */
+function touchesDraft(finding: ConflictFinding): boolean {
+  return [
+    finding.part,
+    finding.whole,
+    finding.total,
+    ...(finding.parts ?? []),
+  ].some((figure) => figure?.document === DRAFT_NAME);
+}
+
+function lintLine(finding: DraftingFinding): string {
+  return `- [${finding.severity}] ${finding.rule}: ${finding.excerpt} — ${finding.message}`;
+}
+
+/**
+ * Audit phase: four deterministic organs over the draft and the ledger
+ * sources — anchor coverage, arithmetic conflicts, defined-term drift (all
+ * three over sources + draft as one stack) and drafting lint (draft only).
+ * Zero model calls.
  */
 export function auditSlaDraft(
   ledger: SlaLedger,
@@ -180,9 +221,9 @@ export function auditSlaDraft(
     artifactDeliverable?: boolean;
   },
 ): SlaAudit {
-  const report = anchorCoverage(ledger.documents, [
-    { name: "draft", text: draft },
-  ]);
+  const draftDocument = { name: DRAFT_NAME, text: draft };
+  const stack = [...ledger.documents, draftDocument];
+  const report = anchorCoverage(ledger.documents, [draftDocument]);
   const classes: SlaAudit["receipt"]["classes"] = {};
   let sourceOnly = 0;
   let draftOnly = 0;
@@ -213,20 +254,78 @@ export function auditSlaDraft(
       unsourcedLines.push(`- ${cls}: ${findingRows(coverage.draft_only)}`);
     }
   }
-  const repairPrompt =
-    missingLines.length || unsourcedLines.length
-      ? `DETERMINISTIC AUDIT (no model involved; computed from the source documents and your deliverable):\n` +
-        (missingLines.length
-          ? `\nAnchors present in the source documents but absent from your deliverable:\n${missingLines.join("\n")}\n`
-          : "") +
-        (unsourcedLines.length
-          ? `\nAnchors in your deliverable with no match in any source document — verify each against the source and correct or remove what you cannot ground:\n${unsourcedLines.join("\n")}\n`
-          : "") +
-        `\nNot every missing anchor is material — exercise judgment. Re-read the exact sections involved via their outline handles, then ` +
-        (options?.artifactDeliverable
-          ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
-          : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)
-      : null;
+
+  const conflict = conflictScan(stack);
+  const draftConflicts = conflict.findings.filter(touchesDraft);
+  const sourceConflicts = conflict.findings.filter(
+    (finding) => !touchesDraft(finding),
+  );
+  // Budget the cap draft-first: the drafter's own arithmetic outranks a
+  // disagreement it merely inherited.
+  const draftConflictLines = draftConflicts
+    .slice(0, MAX_CONFLICT_FINDINGS)
+    .map((finding) => `- ${finding.detail}`);
+  const sourceConflictLines = sourceConflicts
+    .slice(0, MAX_CONFLICT_FINDINGS - draftConflictLines.length)
+    .map((finding) => `- ${finding.detail}`);
+
+  const drift = termDriftReport(stack);
+  const divergent = drift.shared.filter((row) => row.status === "divergent");
+  const driftLines = divergent
+    .slice(0, MAX_DRIFT_TERMS)
+    .map((row) =>
+      row.divergence
+        ? `- "${row.term}" (${row.divergence.documents[0]} vs ${row.divergence.documents[1]}): "${row.divergence.excerpts[0]}" / "${row.divergence.excerpts[1]}"`
+        : `- "${row.term}" (defined in ${row.definitions.map((def) => def.document).join(", ")})`,
+    );
+
+  const lint = draftingLint(draft);
+  const lintErrors = lint.findings.filter(
+    (finding) => finding.severity === "error",
+  );
+  const lintWarnings = lint.findings.filter(
+    (finding) => finding.severity === "warning",
+  );
+  const lintInfo = lint.findings.filter(
+    (finding) => finding.severity === "info",
+  );
+  const lintLines = [...lintErrors, ...lintWarnings]
+    .slice(0, MAX_LINT_FINDINGS)
+    .map(lintLine);
+
+  // Lint warnings alone do not buy a revision pass: they are style-grade and
+  // the pass costs a whole model turn.
+  const worthARevision =
+    missingLines.length > 0 ||
+    unsourcedLines.length > 0 ||
+    conflict.findings.length > 0 ||
+    divergent.length > 0 ||
+    lintErrors.length > 0;
+  const repairPrompt = worthARevision
+    ? `DETERMINISTIC AUDIT (no model involved; computed from the source documents and your deliverable):\n` +
+      (missingLines.length
+        ? `\nAnchors present in the source documents but absent from your deliverable:\n${missingLines.join("\n")}\n`
+        : "") +
+      (unsourcedLines.length
+        ? `\nAnchors in your deliverable with no match in any source document — verify each against the source and correct or remove what you cannot ground:\n${unsourcedLines.join("\n")}\n`
+        : "") +
+      (draftConflictLines.length
+        ? `\nArithmetic in your deliverable that does not close — your own error unless a source states it that way:\n${draftConflictLines.join("\n")}\n`
+        : "") +
+      (sourceConflictLines.length
+        ? `\nArithmetic the source documents disagree on — not yours to invent a number for; state the discrepancy where it bears on the deliverable:\n${sourceConflictLines.join("\n")}\n`
+        : "") +
+      (driftLines.length
+        ? `\nDefined terms whose definitions differ across the stack — check which one your deliverable relies on:\n${driftLines.join("\n")}\n`
+        : "") +
+      (lintLines.length
+        ? `\nDrafting lint over your deliverable (exact spans; errors first):\n${lintLines.join("\n")}\n`
+        : "") +
+      `\nThese are deterministic detections, not judgments — not every finding is material, and materiality stays yours. Re-read the exact sections involved via their outline handles, then ` +
+      (options?.artifactDeliverable
+        ? `apply the corrections to the deliverable document itself with the library tools (revise the document; do not paste its content into chat).`
+        : `output the COMPLETE revised deliverable (full text, same format), not a description of changes.`)
+    : null;
   return {
     repairPrompt,
     receipt: {
@@ -234,6 +333,23 @@ export function auditSlaDraft(
       draft_only_total: draftOnly,
       matched_total: matched,
       classes,
+      conflict: {
+        findings: conflict.findings.length,
+        consistent: conflict.consistent,
+        finding_details: [
+          ...draftConflicts.map((finding) => `draft: ${finding.detail}`),
+          ...sourceConflicts.map((finding) => `sources: ${finding.detail}`),
+        ].slice(0, MAX_CONFLICT_FINDINGS),
+      },
+      term_drift: {
+        divergent: divergent.length,
+        terms: divergent.slice(0, MAX_DRIFT_TERMS).map((row) => row.term),
+      },
+      drafting_lint: {
+        errors: lintErrors.length,
+        warnings: lintWarnings.length,
+        info: lintInfo.length,
+      },
     },
     report,
   };
