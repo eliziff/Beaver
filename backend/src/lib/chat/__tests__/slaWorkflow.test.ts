@@ -247,3 +247,34 @@ describe("collectSlaDeliverable", () => {
     expect(audit.receipt.matched_total).toBeGreaterThan(0);
   });
 });
+
+describe("auditSlaDraft temporal organ", () => {
+  const ledgerOf = (text: string) => ({
+    documents: [{ name: "engagement.txt", text }],
+    promptSection: "",
+    baseline: new Map<string, string>(),
+  });
+
+  it("flags deadline arithmetic that does not close and spends the pass", () => {
+    const audit = auditSlaDraft(
+      ledgerOf(
+        "The review period runs forty-five (45) days after the Start Date of March 1, 2025, that is, until April 20, 2025.",
+      ),
+      "A summary that restates nothing numeric.",
+    );
+    expect(audit.receipt.temporal.findings).toBe(1);
+    expect(audit.receipt.temporal.finding_details[0]).toContain("sources:");
+    expect(audit.repairPrompt).toContain("Deadline arithmetic");
+  });
+
+  it("stays silent when the stated date closes exactly", () => {
+    const audit = auditSlaDraft(
+      ledgerOf(
+        "The review period runs forty-five (45) days after the Start Date of March 1, 2025, that is, April 15, 2025.",
+      ),
+      "A summary that restates nothing numeric.",
+    );
+    expect(audit.receipt.temporal.findings).toBe(0);
+    expect(audit.receipt.temporal.consistent).toBeGreaterThanOrEqual(1);
+  });
+});
