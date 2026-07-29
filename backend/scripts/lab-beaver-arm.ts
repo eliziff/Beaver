@@ -125,6 +125,14 @@ async function main() {
           // reference harness has no ask-user affordance either.
           MIKE_DISABLE_ASK_INPUTS: "1",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
+          // SLA receipts land beside the run's other artifacts; inert
+          // unless the parent also sets MIKE_SLA_WORKFLOW=1 (arm variant).
+          MIKE_SLA_RECEIPT_PATH: path.join(
+            labRoot,
+            "results",
+            runId,
+            "sla-receipts.jsonl",
+          ),
         },
         stdio: "inherit",
         // Whole-deliverable runs on claude-p run 45+ min (LAB's sonnet row
