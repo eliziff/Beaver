@@ -15,21 +15,12 @@ function AppSymbol({
         </span>
     );
 }
-export function ChatSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol={"✦\uFE0E"} {...props} />;
-}
-export function LibrarySkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol="▤" {...props} />;
-}
-export function TabularReviewSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol="▦" {...props} />;
-}
-export function TableOfAuthoritiesSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol={"⚖\uFE0E"} {...props} />;
-}
-export function WorkflowSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol="⎇" {...props} />;
-}
-export function QuickActionsSkeuoIcon(props: IconProps) {
-    return <AppSymbol symbol={"⚡\uFE0E"} {...props} />;
-}
+const makeIcon = (symbol: string) => (props: IconProps) => (
+    <AppSymbol symbol={symbol} {...props} />
+);
+export const ChatSkeuoIcon = makeIcon("✦\uFE0E");
+export const LibrarySkeuoIcon = makeIcon("▤");
+export const TabularReviewSkeuoIcon = makeIcon("▦");
+export const TableOfAuthoritiesSkeuoIcon = makeIcon("⚖\uFE0E");
+export const WorkflowSkeuoIcon = makeIcon("⎇");
+export const QuickActionsSkeuoIcon = makeIcon("⚡\uFE0E");
