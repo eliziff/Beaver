@@ -15,7 +15,6 @@ const TABS: {
     label: string;
 }[] = [{ value: "files", label: "Files" }, { value: "templates", label: "Templates" }, { value: "projects", label: "Projects" },];
 const EMPTY_DOCS: Document[] = [];
-const EMPTY_FOLDERS: LibraryFolder[] = [];
 interface Props {
     documents?: Document[];
     loading?: boolean;
