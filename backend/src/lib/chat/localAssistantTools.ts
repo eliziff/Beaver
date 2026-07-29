@@ -142,6 +142,19 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           description:
             "Optional structural locator parsed from the document's own numbering — 'Section 8.01(b)', '8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'. Returns only that span (children included) instead of the full text. Call library_outline first for the exact handles.",
         },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Character offset to start reading from (text mode, no section). Compose with library_find hits' `at` offsets to read a window around a match in documents without numbered structure.",
+        },
+        max_chars: {
+          type: "integer",
+          minimum: 200,
+          maximum: 300000,
+          description:
+            "Window size for text mode without a section. Prefer a bounded window over the untargeted default (300000).",
+        },
       },
       required: ["document_id"],
     },
@@ -165,7 +178,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_find",
-    "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
+    "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Each hit carries its enclosing structural handle (`section`, when the document has numbered structure) and character offset (`at`), so the follow-up is library_read section=... or a windowed read — not a whole-document read. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
     {
       type: "object",
       properties: {
@@ -1509,12 +1522,18 @@ export async function runLocalAssistantTools(
               truncated: lookup.block.text.length > maxChars,
             });
           }
-          const maxChars = 300_000;
+          // Windowed read: offset composes with library_find's `at` for
+          // documents without numbered structure. Untargeted reads keep the
+          // historical 300k head.
+          const offset = clampInt(args.offset, 0, 100_000_000, 0);
+          const maxChars = clampInt(args.max_chars, 200, 300_000, 300_000);
+          const window = document.text.slice(offset, offset + maxChars);
           return result(call, {
             ok: true,
             filename: document.filename,
-            text: document.text.slice(0, maxChars),
-            truncated: document.text.length > maxChars,
+            ...(offset > 0 ? { offset } : {}),
+            text: window,
+            truncated: offset + window.length < document.text.length,
           });
         }
         const query = trimmed(args.query);
@@ -1524,11 +1543,22 @@ export async function runLocalAssistantTools(
           maxResults: clampInt(args.max_results, 1, 50, 20),
           contextChars: clampInt(args.context_chars, 40, 2000, 500),
         });
+        // The grep-analog composes like file:line does for code: each hit
+        // carries its offset plus the deepest enclosing structural handle,
+        // so the follow-up is a section read, not a whole-document read.
+        const skeleton = compileAgreementSkeleton(document.text);
+        const hits = matches.hits.map((hit) => {
+          const owner = skeleton.nodes
+            .filter((node) => node.start <= hit.at && hit.at < node.end)
+            .sort((a, b) => b.depth - a.depth)[0];
+          return { ...hit, section: owner?.label ?? null };
+        });
         return result(call, {
           ok: true,
           filename: document.filename,
           query,
-          ...matches,
+          totalMatches: matches.totalMatches,
+          hits,
         });
       }
 
