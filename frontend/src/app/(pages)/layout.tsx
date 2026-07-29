@@ -101,7 +101,7 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                                                 locally yet.
                                             </p>
                                         </div>
-                                    ) : authoritiesVisible ? null : (
+                                    ) : (
                                         children
                                     )}
                                 </main>
