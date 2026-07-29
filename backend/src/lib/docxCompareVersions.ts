@@ -71,20 +71,19 @@
  *       comparison abstains and the new document is returned unmarked.
  *
  * Reused house machinery (this module adds no parallel access layer):
- *   - `loadZip` (lib/zip) for all archive access, with the same
- *     backslash-entry fallback docxTrackedChanges uses;
+ *   - `docx/core` for all archive access and XML plumbing: the shared
+ *     parser/builder settings, the ":@"/"#text" node helpers, and the
+ *     backslash-entry zip fallback — one kernel, shared with
+ *     docxTrackedChanges rather than mirrored from it;
  *   - `normalizeWs` (docxTrackedChanges) for all alignment/similarity
  *     normalization — the exact matcher-grade normalization
  *     docxTextOps/applyTrackedEdits anchor with;
  *   - `decodeXmlText` (lib/text) plus docxStructuralLint's w:t /
  *     deleted-run regex patterns for the read-only story comparison;
- *   - the docxTrackedChanges preserveOrder tree conventions (identical
- *     XMLParser/XMLBuilder settings, ":@"/"#text" node shape, and
- *     w:ins/w:del emission format: w:id/w:author/w:date attributes,
- *     w:delText with xml:space). Its tiny node helpers are file-local
- *     there (not exported), so they are mirrored here unchanged; the
- *     document-level writer itself (applyTrackedEdits) cannot be reused
- *     because its EditInput model is old-doc-anchored and cannot express
+ *   - the docxTrackedChanges w:ins/w:del emission format (w:id/w:author/
+ *     w:date attributes, w:delText with xml:space). The document-level
+ *     writer itself (applyTrackedEdits) cannot be reused because its
+ *     EditInput model is old-doc-anchored and cannot express
  *     paragraph-level insert/delete or transform-the-NEW-document
  *     semantics.
  *   - Word-level tokenization mirrors the proven legal-text conventions
@@ -95,8 +94,27 @@
 
 import diff from "fast-diff";
 import type JSZip from "jszip";
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
-import { loadZip } from "./zip";
+import {
+    TEXT_KEY,
+    type XNode,
+    cloneNode,
+    createBuilder,
+    createParser,
+    elAttrs,
+    elChildren,
+    elName,
+    ensureXmlDeclaration,
+    findBody,
+    getTextContent,
+    getZipEntry,
+    isTextNode,
+    loadDocxPackage,
+    makeEl,
+    makeText,
+    maxTrackedId,
+    setChildren,
+    setZipEntry,
+} from "./docx/core";
 import { normalizeWs } from "./docxTrackedChanges";
 import { decodeXmlText } from "./text";
 
@@ -128,157 +146,6 @@ const MAX_LCS_CELLS = 4_000_000;
 const MAX_GAP_CELLS = 10_000;
 /** Minimum fast-diff similarity for two paragraphs to count as a pair. */
 const PAIR_SIMILARITY = 0.5;
-
-// ---------------------------------------------------------------------------
-// XML plumbing — mirrors the docxTrackedChanges conventions (preserveOrder
-// trees from fast-xml-parser: element nodes are { [name]: children[] } with
-// attributes under ":@" and text under "#text"). Those helpers are file-
-// local there, so the small set needed here is redefined, not diverged.
-// ---------------------------------------------------------------------------
-
-type XNode = Record<string, unknown>;
-
-const ATTR_KEY = ":@";
-const TEXT_KEY = "#text";
-
-function elName(n: unknown): string | null {
-    if (!n || typeof n !== "object") return null;
-    for (const k of Object.keys(n as XNode)) {
-        if (k === ATTR_KEY || k === TEXT_KEY) continue;
-        return k;
-    }
-    return null;
-}
-
-function isTextNode(n: unknown): n is { [TEXT_KEY]: string } {
-    if (!n || typeof n !== "object") return false;
-    const obj = n as XNode;
-    return TEXT_KEY in obj && elName(n) === null;
-}
-
-function elChildren(n: unknown): XNode[] {
-    const name = elName(n);
-    if (!name) return [];
-    const v = (n as XNode)[name];
-    return Array.isArray(v) ? (v as XNode[]) : [];
-}
-
-function setChildren(n: XNode, children: XNode[]): void {
-    const name = elName(n);
-    if (!name) return;
-    n[name] = children;
-}
-
-function elAttrs(n: unknown): Record<string, string> {
-    if (!n || typeof n !== "object") return {};
-    const a = (n as XNode)[ATTR_KEY];
-    return (a as Record<string, string>) ?? {};
-}
-
-function makeEl(
-    name: string,
-    children: XNode[] = [],
-    attrs?: Record<string, string>,
-): XNode {
-    const el: XNode = { [name]: children };
-    if (attrs) {
-        const attrObj: Record<string, string> = {};
-        for (const [k, v] of Object.entries(attrs)) {
-            attrObj[`@_${k}`] = v;
-        }
-        el[ATTR_KEY] = attrObj;
-    }
-    return el;
-}
-
-function makeText(s: string): XNode {
-    return { [TEXT_KEY]: s };
-}
-
-function getTextContent(wtEl: XNode): string {
-    let out = "";
-    for (const k of elChildren(wtEl)) {
-        if (isTextNode(k)) out += String(k[TEXT_KEY] ?? "");
-    }
-    return out;
-}
-
-function cloneNode<T>(n: T): T {
-    return JSON.parse(JSON.stringify(n)) as T;
-}
-
-function createParser() {
-    return new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        trimValues: false,
-        parseAttributeValue: false,
-        processEntities: true,
-    });
-}
-
-function createBuilder() {
-    return new XMLBuilder({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        suppressEmptyNode: false,
-        processEntities: true,
-    });
-}
-
-function ensureXmlDeclaration(xml: string): string {
-    if (xml.startsWith("<?xml")) return xml;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${xml}`;
-}
-
-// Some older Windows/Word archives store entries with backslash separators;
-// accept the canonical forward-slash path and fall back (house pattern).
-function getZipEntry(zip: JSZip, pathSlash: string) {
-    const direct = zip.file(pathSlash);
-    if (direct) return direct;
-    return zip.file(pathSlash.replace(/\//g, "\\"));
-}
-
-function setZipEntry(zip: JSZip, pathSlash: string, content: string): void {
-    const backslash = pathSlash.replace(/\//g, "\\");
-    if (!zip.file(pathSlash) && zip.file(backslash)) {
-        zip.file(backslash, content);
-        return;
-    }
-    zip.file(pathSlash, content);
-}
-
-function findBody(doc: XNode[]): XNode | null {
-    for (const top of doc) {
-        if (elName(top) === "w:document") {
-            for (const c of elChildren(top)) {
-                if (elName(c) === "w:body") return c;
-            }
-        }
-    }
-    return null;
-}
-
-/** Max w:id across existing w:ins/w:del so fresh ids never collide. */
-function maxTrackedId(doc: XNode[]): number {
-    let max = 0;
-    const visit = (n: unknown) => {
-        const name = elName(n);
-        if (!name) return;
-        if (name === "w:ins" || name === "w:del") {
-            const raw = elAttrs(n)["@_w:id"];
-            if (raw != null) {
-                const v = parseInt(String(raw), 10);
-                if (Number.isFinite(v) && v > max) max = v;
-            }
-        }
-        for (const c of elChildren(n as XNode)) visit(c);
-    };
-    for (const top of doc) visit(top);
-    return max;
-}
 
 // ---------------------------------------------------------------------------
 // Text extraction (accepted view: w:ins content counts, w:del content does
@@ -1566,8 +1433,8 @@ export async function compareDocxVersions(
     const now = new Date().toISOString();
 
     const [oldZip, newZip] = await Promise.all([
-        loadZip(oldBytes),
-        loadZip(newBytes),
+        loadDocxPackage(oldBytes),
+        loadDocxPackage(newBytes),
     ]);
     const oldDocEntry = getZipEntry(oldZip, "word/document.xml");
     const newDocEntry = getZipEntry(newZip, "word/document.xml");

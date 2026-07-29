@@ -36,8 +36,9 @@ describe("DOCX drafting source", () => {
     expect(source.html).toContain("<strong>Vendor</strong>");
     expect(source.html).toContain("<ul>");
     expect(source.html).toContain("<table>");
-    expect(source.html).toContain('href="#footnote-');
-    expect(source.html).toContain("This is the source footnote.");
+    expect(source.html).toContain("[^1]");
+    expect(source.html).toContain("[^1]: This is the source footnote.");
+    expect(source.html).not.toContain('href="#footnote-');
     expect(source.requires_review).toBe(false);
   });
 

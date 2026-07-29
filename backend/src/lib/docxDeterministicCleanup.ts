@@ -1,6 +1,5 @@
-import type JSZip from "jszip";
-import { loadZip } from "./zip";
 import { readFile } from "node:fs/promises";
+import { getZipEntry, loadDocxPackage, setZipEntry } from "./docx/core";
 import {
   addLocalVersion,
   getLocalVersionFile,
@@ -26,22 +25,6 @@ export type SupraCleanupResult = {
     unsafe_or_split_fields: number;
   };
 };
-
-function getZipEntry(zip: JSZip, canonicalPath: string) {
-  return (
-    zip.file(canonicalPath) ??
-    zip.file(canonicalPath.replaceAll("/", "\\"))
-  );
-}
-
-function setZipEntry(zip: JSZip, canonicalPath: string, contents: string) {
-  const windowsPath = canonicalPath.replaceAll("/", "\\");
-  if (!zip.file(canonicalPath) && zip.file(windowsPath)) {
-    zip.file(windowsPath, contents);
-    return;
-  }
-  zip.file(canonicalPath, contents);
-}
 
 function elementIsOpen(xml: string, offset: number, tag: string) {
   const prior = xml.slice(0, offset);
@@ -206,7 +189,7 @@ function containsNumberedSupra(xml: string) {
 }
 
 export async function hasDocxSupraReferences(bytes: Buffer) {
-  const zip = await loadZip(bytes);
+  const zip = await loadDocxPackage(bytes);
   const footnotes = getZipEntry(zip, "word/footnotes.xml");
   if (footnotes && containsNumberedSupra(await footnotes.async("string"))) {
     return true;
@@ -385,7 +368,7 @@ function convertSafeParagraphs(
 export async function fixDocxSupraCrossReferences(
   bytes: Buffer,
 ): Promise<SupraCleanupResult> {
-  const zip = await loadZip(bytes);
+  const zip = await loadDocxPackage(bytes);
   const documentEntry = getZipEntry(zip, "word/document.xml");
   const footnotesEntry = getZipEntry(zip, "word/footnotes.xml");
   if (!documentEntry || !footnotesEntry) {
