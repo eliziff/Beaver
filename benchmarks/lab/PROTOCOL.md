@@ -11,10 +11,21 @@ the model constant?
 - Benchmark: Harvey Legal Agent Benchmark (LAB), github.com/harveyai/harvey-labs,
   local clone at `C:/Users/elias/Desktop/harvey-labs`, branch `beaver/codex-route`
   (integration patches committed there; upstream untouched).
-- Model, both arms: `gpt-5.6-sol` via the ChatGPT-subscription Codex backend
-  (`chatgpt.com/backend-api/codex`) — the repo's only sanctioned model route
-  (no per-token API spend). Reasoning effort: medium. LAB's temperature knob is
-  inoperative on this backend (parameter rejected; stripped by the adapter).
+- Model, both arms — held constant per pairing, so the harness is the only
+  variable (corrected 2026-07-28; the design was always "measure the harness,
+  not the model"):
+  1. `claude-code/claude-sonnet-4-6` — Sonnet 4.6 over headless Claude Code
+     (`claude -p`, subscription flat rate; adapter
+     `harness/adapters/claude_code.py`). Transport-only: Anthropic message
+     format, tool calls as JSON-in-text (no schema enforcement, retried),
+     no temperature pin, no thinking control.
+  2. `ollama/<qwen slug>` — the desktop PC's local Qwen over ollama
+     (`harness/adapters/ollama.py`, native /api/chat tool calling,
+     OLLAMA_BASE_URL / OLLAMA_NUM_CTX). The small-model pairing is the
+     lean-context thesis test.
+  The 2026-07-28 pilots ran both arms on `codex/gpt-5.6-sol` because it was
+  the only wired flat-rate route at the time. Those rows are pilot history,
+  not experiment rows — no codex in any experiment cell.
 - Sandbox: LAB's container sandbox via Docker (`LAB_SANDBOX_ENGINE=docker`;
   podman not installed on this machine). Same image (`ghcr.io/harveyai/lab-sandbox`),
   same isolation flags.
@@ -22,8 +33,8 @@ the model constant?
 ## Arms
 
 - **A — LAB reference harness**: LAB's own agent loop (six workspace tools:
-  bash/read/write/edit/glob/grep, skills for docx/xlsx/pptx) driving
-  `codex/gpt-5.6-sol`. This is the "generic agent scaffold" baseline.
+  bash/read/write/edit/glob/grep, skills for docx/xlsx/pptx) driving the
+  held-constant model. This is the "generic agent scaffold" baseline.
 - **B — Beaver harness**: Beaver's production chat pipeline (its document
   extraction, context assembly, system prompt, tool loop) fed the same task
   instructions and documents, producing the same named deliverables.
@@ -33,19 +44,14 @@ the model constant?
   scored for memo-type deliverables. Runner: `backend/scripts/lab-beaver-arm.ts`
   (Beaver repo), writing LAB-layout results so LAB's evaluator judges both
   arms identically.
-- **C — Claude Code harness** (added 2026-07-28): headless Claude Code
-  (`claude -p`, Claude subscription flat rate — the same sanctioned surface
-  as the judge) as the agent harness, model `claude-sonnet-4-6`. Tool
-  inventory pinned to Arm A's six workspace tools (+TodoWrite, planning
-  only); WebFetch/WebSearch disallowed. Runner:
-  `backend/scripts/lab-claude-arm.ts`, writing LAB-layout results judged
-  identically. Deviations vs Arm A: host execution, not a sealed container
-  (richer toolchain; host network reachable by Bash in principle), and
-  ANTHROPIC_API_KEY stripped in favor of subscription auth. Runs:
-  `sonnet46-b-01`, `sonnet46-b-03` (B tasks only — A tasks not repeated).
-  Caveat: this arm changes BOTH model and harness relative to A/B, so it
-  reads as "what a strong integrated agent product does on these tasks",
-  not a single-variable comparison.
+- **Side observation — Claude Code product harness** (NOT an arm of the
+  controlled comparison; it changes model AND harness at once): headless
+  Claude Code as its own agent loop on the host, model `claude-sonnet-4-6`,
+  tool inventory pinned to Arm A's six workspace tools (+TodoWrite);
+  WebFetch/WebSearch disallowed; ANTHROPIC_API_KEY stripped (subscription
+  auth). Runner: `backend/scripts/lab-claude-arm.ts`, LAB-layout results
+  under `cc-harness-*` ids (B tasks only). Reads as "what a strong
+  integrated agent product does on these tasks".
 
 ## Grading
 
@@ -58,12 +64,14 @@ subscription (flat rate, official surface; same legitimacy pattern as the
 codex route). Differences from Harvey's API grading rig: no schema-enforced
 output, no temperature pin.
 
-Bulk/iteration judge: `codex/gpt-5.6-sol` (subscription route). Calibration
-on the smoke runs (112 criterion verdicts, both arms): 110/112 agreement
+Bulk/iteration judge (pilot era only): `codex/gpt-5.6-sol`. Calibration on
+the smoke runs (112 criterion verdicts, both arms): 110/112 agreement
 (98.2%); both disagreements were borderline implicit-vs-express-statement
-calls where codex was the STRICTER judge, on the Beaver arm — i.e. no
-same-family leniency observed. Quote this calibration whenever codex-judge
-numbers are reported.
+calls where codex was the STRICTER judge, on the Beaver arm. Experiment
+rows are judged exclusively by the headline claude-code judge — no codex
+anywhere in the experiment. The sonnet-4-6 agent cells are therefore
+self-graded by model family, which matches Harvey's own rig (their judge
+IS claude-sonnet-4-6).
 
 ## Task selection
 
@@ -79,8 +87,12 @@ Scale-up only after pilot results are reviewed.
    Claude Code, not the Anthropic API: no schema-enforced verdict JSON, no
    temperature pin. Agent model (gpt-5.6-sol via ChatGPT backend) is not a
    model Harvey published, so rows are still not leaderboard rows.
-2. Agent-side temperature is stripped (codex backend rejects it); LAB
-   defaults to 0.0.
+2. Agent-side temperature cannot be pinned on the pilot route (codex
+   rejects it) nor on the claude-code transport; ollama accepts it and
+   runs at LAB's 0.0 default. The claude-code transport additionally
+   carries tool calls as JSON-in-text (no schema enforcement; parse
+   failures retried) — both arms must use the SAME transport per pairing
+   so the deviation cancels in the comparison.
 3. Docker instead of podman for the sandbox.
 4. LAB's LLM deliverable-filename matcher (Anthropic API, fires only when
    filenames don't match) now falls back to headless Claude Code with the
