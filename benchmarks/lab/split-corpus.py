@@ -8,8 +8,7 @@ genre being the task slug's leading verb. Every file of every task is
 hashed so a restored sealed tier can be verified byte-for-byte.
 
 Usage:
-  python split-corpus.py --lab-root C:/Users/elias/Desktop/harvey-labs \
-      --out corpus-split.json
+  python split-corpus.py --lab-root ../harvey-labs --out corpus-split.json
 """
 
 import argparse

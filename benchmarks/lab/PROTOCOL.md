@@ -9,8 +9,9 @@ the model constant?
 ## Setup
 
 - Benchmark: Harvey Legal Agent Benchmark (LAB), github.com/harveyai/harvey-labs,
-  local clone at `C:/Users/elias/Desktop/harvey-labs`, branch `beaver/codex-route`
-  (integration patches committed there; upstream untouched).
+  vendored at `benchmarks/harvey-labs` (dev+validation tiers only — see
+  "Corpus split" and its PROVENANCE.md), branch `beaver/codex-route`
+  (integration patches; upstream untouched).
 - Model, both arms — held constant per pairing, so the harness is the only
   variable (corrected 2026-07-28; the design was always "measure the harness,
   not the model"):
@@ -170,7 +171,7 @@ Known residual imperfections (disclosed, judged immaterial):
 
 ## Results
 
-Under `C:/Users/elias/Desktop/harvey-labs/results/` (LAB layout:
+Under `benchmarks/harvey-labs/results/` (LAB layout:
 config.json / metrics.json / transcript.jsonl / output/ / scores.json).
 
 ## Corpus split (2026-07-29)
@@ -188,10 +189,10 @@ Rules of engagement:
 - Dev: free to read, run, and debug against.
 - Validation: run at milestones; inspect scores and our own outputs only —
   never task documents or rubrics.
-- Sealed: NOT PRESENT on this machine. The local harvey-labs clone is a
-  blob-filtered partial clone whose sparse checkout carries only dev and
-  validation tasks; sealed task content lives solely in the upstream
-  GitHub repo. At eval time: restore via git, verify each task dir against
-  the manifest hash, run once against a pre-registered harness commit.
+- Sealed: NOT PRESENT on this machine. The corpus is vendored at
+  `benchmarks/harvey-labs` with only dev and validation tasks; sealed
+  task content lives solely in the upstream GitHub repo. At eval time:
+  restore via git, verify each task dir against the manifest hash, run
+  once against a pre-registered harness commit.
 - Deterministic-grammar changes additionally validate on non-LAB corpora
   (A2AJ, Desktop/legal-generalization-corpus) before landing.

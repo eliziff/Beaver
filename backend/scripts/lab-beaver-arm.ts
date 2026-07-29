@@ -51,7 +51,7 @@ function argument(name: string, fallback?: string): string {
   return value;
 }
 
-const DEFAULT_LAB_ROOT = "C:/Users/elias/Desktop/harvey-labs";
+const DEFAULT_LAB_ROOT = path.join(__dirname, "../../benchmarks/harvey-labs");
 
 // Derived from the real gate rather than mirrored by hand: a stale copy is
 // how .eml ended up wrapped as .docx long after Beaver could read it.

@@ -19,8 +19,10 @@ import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const EML_FIXTURE =
-  "C:/Users/elias/Desktop/harvey-labs/tasks/trusts-estates-private-client/extract-client-intake-facts/scenario-01/documents/client-email-financial-notes.eml";
+const EML_FIXTURE = path.join(
+  __dirname,
+  "../../benchmarks/harvey-labs/tasks/trusts-estates-private-client/extract-client-intake-facts/scenario-01/documents/client-email-financial-notes.eml",
+);
 
 function argument(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`);
