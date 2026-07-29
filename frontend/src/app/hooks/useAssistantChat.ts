@@ -116,7 +116,6 @@ export function useAssistantChat({
   const { generate: generateTitle } = useGenerateChatTitle();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
-  const [isLoadingCitations, setIsLoadingCitations] = useState(false);
   const [chatId, setChatId] = useState<string | undefined>(initialChatId);
   const [rejectedTurn, setRejectedTurn] =
     useState<RejectedAssistantTurn | null>(null);
@@ -249,7 +248,6 @@ export function useAssistantChat({
         events: snapshot,
       }));
       setIsResponseLoading(false);
-      setIsLoadingCitations(false);
     }
   };
   const clearStreamingPlaceholders = () => {
@@ -498,7 +496,6 @@ export function useAssistantChat({
             setRejectedTurn(null);
             setMessages(reloaded);
             setIsResponseLoading(false);
-            setIsLoadingCitations(false);
             await loadChats();
             return null;
           }
@@ -528,7 +525,6 @@ export function useAssistantChat({
             pollForCompletedAnonymousTurn(chatId, currentVersion);
           }
           setIsResponseLoading(false);
-          setIsLoadingCitations(false);
           return null;
         }
         const errText = await response.text();
@@ -561,7 +557,6 @@ export function useAssistantChat({
               continue;
             }
             if (data.type === "content_done") {
-              setIsLoadingCitations(true);
               continue;
             }
             if (data.type === "error") {
@@ -589,7 +584,6 @@ export function useAssistantChat({
                 error: streamErrorMessage,
               }));
               setIsResponseLoading(false);
-              setIsLoadingCitations(false);
               continue;
             }
             if (data.type === "content_final") {
@@ -943,7 +937,6 @@ export function useAssistantChat({
       flushPendingEventsSnapshot();
       finalizeStreamingReasoning();
       setIsResponseLoading(false);
-      setIsLoadingCitations(false);
       const finalChatId = streamedChatId || chatId || null;
       if (finalChatId && finalChatId !== chatId) {
         if (chatId) {
@@ -1039,7 +1032,6 @@ export function useAssistantChat({
         });
       }
       setIsResponseLoading(false);
-      setIsLoadingCitations(false);
       return null;
     } finally {
       if (abortControllerRef.current === controller) {
@@ -1072,8 +1064,6 @@ export function useAssistantChat({
   return {
     messages,
     isResponseLoading,
-    setIsResponseLoading,
-    isLoadingCitations,
     handleChat,
     handleNewChat,
     setMessages,
