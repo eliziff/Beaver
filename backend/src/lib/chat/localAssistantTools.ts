@@ -547,8 +547,17 @@ const LOCAL_ASK_INPUTS_TOOLS = (TOOLS as OpenAIToolSchema[]).filter(
 export const RESEARCH_TOOLS_DISABLED =
   process.env.MIKE_DISABLE_RESEARCH_TOOLS === "1";
 
+/**
+ * MIKE_DISABLE_ASK_INPUTS=1 removes the ask-the-user tool — for benchmark
+ * runs with no user on the other end. Parity note: the reference harness
+ * has no ask-user affordance either, so a benchmark model must resolve
+ * ambiguity from the task materials in both arms.
+ */
+export const ASK_INPUTS_DISABLED =
+  process.env.MIKE_DISABLE_ASK_INPUTS === "1";
+
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
-  ...LOCAL_ASK_INPUTS_TOOLS,
+  ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
   ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS,
   ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),

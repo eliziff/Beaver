@@ -121,10 +121,15 @@ async function main() {
           // Parity with Arm A's sealed sandbox: no online research tools,
           // and no prompt sections describing them (see localAssistantTools).
           MIKE_DISABLE_RESEARCH_TOOLS: "1",
+          // No user exists to answer ask_inputs in a benchmark run; the
+          // reference harness has no ask-user affordance either.
+          MIKE_DISABLE_ASK_INPUTS: "1",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
         },
         stdio: "inherit",
-        timeout: 30 * 60_000,
+        // Whole-deliverable runs on claude-p run 45+ min (LAB's sonnet row
+        // took 48); the cap is a runaway backstop, not a pace-setter.
+        timeout: 180 * 60_000,
       },
     );
     process.exit(child.status ?? 1);
