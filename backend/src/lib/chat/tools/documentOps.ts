@@ -1123,7 +1123,7 @@ export function clearTurnReadsForDocument(
 export async function readDocumentContent(
   docLabel: string,
   docStore: DocStore,
-  write: (s: string) => void,
+  emit: (payload: unknown) => void,
   docIndex?: DocIndex,
   db?: ReturnType<typeof createServerSupabase>,
   opts?: { emitEvents?: boolean; mode?: "text" | "drafting" },
@@ -1136,22 +1136,18 @@ export async function readDocumentContent(
   const documentId = docIndex?.[docLabel]?.document_id;
   const emitDocRead = () => {
     if (!emitEvents) return;
-    write(
-      `data: ${JSON.stringify({
-        type: "doc_read",
-        filename: docInfo.filename,
-        document_id: documentId,
-      })}\n\n`,
-    );
+    emit({
+      type: "doc_read",
+      filename: docInfo.filename,
+      document_id: documentId,
+    });
   };
   if (emitEvents)
-    write(
-      `data: ${JSON.stringify({
-        type: "doc_read_start",
-        filename: docInfo.filename,
-        document_id: documentId,
-      })}\n\n`,
-    );
+    emit({
+      type: "doc_read_start",
+      filename: docInfo.filename,
+      document_id: documentId,
+    });
   try {
     // Prefer the current tracked-changes version (if any) so read_document
     // reflects accepted/pending edits rather than the original upload.
@@ -1231,9 +1227,7 @@ export async function readDocumentContent(
   } catch (err) {
     devLog(`[read_document] failed for "${docInfo.filename}":`, err);
     if (emitEvents)
-      write(
-        `data: ${JSON.stringify({ type: "doc_read", filename: docInfo.filename })}\n\n`,
-      );
+      emit({ type: "doc_read", filename: docInfo.filename });
     if (mode === "drafting") {
       const message = err instanceof Error ? err.message : "";
       return JSON.stringify({
@@ -1395,7 +1389,7 @@ export async function findInDocumentContent(params: {
   maxResults?: number;
   contextChars?: number;
   docStore: DocStore;
-  write: (s: string) => void;
+  emit: (payload: unknown) => void;
   docIndex?: DocIndex;
   db?: ReturnType<typeof createServerSupabase>;
 }): Promise<string> {
@@ -1405,7 +1399,7 @@ export async function findInDocumentContent(params: {
     maxResults = 20,
     contextChars = 80,
     docStore,
-    write,
+    emit,
     docIndex,
     db,
   } = params;
@@ -1425,31 +1419,27 @@ export async function findInDocumentContent(params: {
   // Announce the search to the UI, then reuse readDocumentContent for its
   // fallbacks — but suppress its own doc_read events so the user only sees
   // the doc_find block (not a competing doc_read block for the same op).
-  write(
-    `data: ${JSON.stringify({
-      type: "doc_find_start",
-      filename: docInfo.filename,
-      query,
-    })}\n\n`,
-  );
+  emit({
+    type: "doc_find_start",
+    filename: docInfo.filename,
+    query,
+  });
 
   const text = await readDocumentContent(
     docLabel,
     docStore,
-    write,
+    emit,
     docIndex,
     db,
     { emitEvents: false },
   );
   if (!text || text === "Document could not be read.") {
-    write(
-      `data: ${JSON.stringify({
-        type: "doc_find",
-        filename: docInfo.filename,
-        query,
-        total_matches: 0,
-      })}\n\n`,
-    );
+    emit({
+      type: "doc_find",
+      filename: docInfo.filename,
+      query,
+      total_matches: 0,
+    });
     return JSON.stringify({
       ok: false,
       filename: docInfo.filename,
@@ -1464,14 +1454,12 @@ export async function findInDocumentContent(params: {
     contextChars,
   });
 
-  write(
-    `data: ${JSON.stringify({
-      type: "doc_find",
-      filename: docInfo.filename,
-      query,
-      total_matches: totalMatches,
-    })}\n\n`,
-  );
+  emit({
+    type: "doc_find",
+    filename: docInfo.filename,
+    query,
+    total_matches: totalMatches,
+  });
 
   return JSON.stringify({
     ok: true,

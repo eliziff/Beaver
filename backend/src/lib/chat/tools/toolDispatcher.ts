@@ -207,7 +207,7 @@ export async function runToolCalls(
   docStore: DocStore,
   userId: string,
   db: ReturnType<typeof createServerSupabase>,
-  write: (s: string) => void,
+  emit: (payload: unknown) => void,
   workflowStore?: WorkflowStore,
   tabularStore?: TabularCellStore,
   docIndex?: DocIndex,
@@ -306,16 +306,14 @@ export async function runToolCalls(
         });
       }
 
-      write(
-        `data: ${JSON.stringify({
-          type: "doc_created",
-          filename: dlFilename,
-          download_url: dlUrl,
-          document_id: documentId,
-          version_id: versionId,
-          version_number: versionNumber,
-        })}\n\n`,
-      );
+      emit({
+        type: "doc_created",
+        filename: dlFilename,
+        download_url: dlUrl,
+        document_id: documentId,
+        version_id: versionId,
+        version_number: versionNumber,
+      });
       docsCreated.push({
         filename: dlFilename,
         download_url: dlUrl,
@@ -324,9 +322,11 @@ export async function runToolCalls(
         version_number: versionNumber,
       });
     } else {
-      write(
-        `data: ${JSON.stringify({ type: "doc_created", filename: previewFilename, download_url: "" })}\n\n`,
-      );
+      emit({
+        type: "doc_created",
+        filename: previewFilename,
+        download_url: "",
+      });
     }
 
     const { download_url, storage_path, ...safeToolResult } = result;
@@ -359,12 +359,10 @@ export async function runToolCalls(
     const a2aj = await executeA2AJTool(tc.function.name, args);
 
     if (tc.function.name.startsWith("mcp_")) {
-      write(
-        `data: ${JSON.stringify({
-          type: "mcp_tool_start",
-          name: tc.function.name,
-        })}\n\n`,
-      );
+      emit({
+        type: "mcp_tool_start",
+        name: tc.function.name,
+      });
       const { content, event } = await (
         await import("../../mcpConnectors")
       ).executeMcpToolCall(
@@ -379,16 +377,14 @@ export async function runToolCalls(
         content,
       });
       mcpEvents.push(event);
-      write(
-        `data: ${JSON.stringify({
-          type: "mcp_tool_result",
-          name: tc.function.name,
-          connector_name: event.connector_name,
-          tool_name: event.tool_name,
-          status: event.status,
-          error: event.error,
-        })}\n\n`,
-      );
+      emit({
+        type: "mcp_tool_result",
+        name: tc.function.name,
+        connector_name: event.connector_name,
+        tool_name: event.tool_name,
+        status: event.status,
+        error: event.error,
+      });
       continue;
     }
 
@@ -420,7 +416,7 @@ export async function runToolCalls(
       const content = await readDocumentContent(
         docId,
         docStore,
-        write,
+        emit,
         docIndex,
         db,
         { mode: readMode },
@@ -463,7 +459,7 @@ export async function runToolCalls(
         maxResults,
         contextChars,
         docStore,
-        write,
+        emit,
         docIndex,
         db,
       });
@@ -526,7 +522,7 @@ export async function runToolCalls(
         const content = await readDocumentContent(
           docId,
           docStore,
-          write,
+          emit,
           docIndex,
           db,
         );
@@ -568,9 +564,11 @@ export async function runToolCalls(
       const wfId = args.workflow_id as string;
       const wf = workflowStore?.get(wfId);
       if (wf) {
-        write(
-          `data: ${JSON.stringify({ type: "workflow_applied", workflow_id: wfId, title: wf.title })}\n\n`,
-        );
+        emit({
+          type: "workflow_applied",
+          workflow_id: wfId,
+          title: wf.title,
+        });
         workflowsApplied.push({ workflow_id: wfId, title: wf.title });
       }
       toolResults.push({
@@ -587,13 +585,9 @@ export async function runToolCalls(
         rowIndices,
       );
 
-      write(
-        `data: ${JSON.stringify({ type: "doc_read_start", filename: selected.label })}\n\n`,
-      );
+      emit({ type: "doc_read_start", filename: selected.label });
 
-      write(
-        `data: ${JSON.stringify({ type: "doc_read", filename: selected.label })}\n\n`,
-      );
+      emit({ type: "doc_read", filename: selected.label });
       docsRead.push({ filename: selected.label });
       toolResults.push({
         role: "tool",
@@ -628,9 +622,7 @@ export async function runToolCalls(
       });
     } else if (tc.function.name === COURTLISTENER_TOOL_NAMES.searchCaseLaw) {
       const query = typeof args.query === "string" ? args.query : "";
-      write(
-        `data: ${JSON.stringify({ type: "courtlistener_search_case_law_start", query })}\n\n`,
-      );
+      emit({ type: "courtlistener_search_case_law_start", query });
       const payload = await executeCourtlistenerTool(
         { name: tc.function.name, input: args },
         courtState,
@@ -646,7 +638,7 @@ export async function runToolCalls(
           ? { error: payload.error }
           : {}),
       };
-      write(`data: ${JSON.stringify(event)}\n\n`);
+      emit(event);
       courtlistenerEvents.push(event);
       toolResults.push({
         role: "tool",
@@ -669,9 +661,7 @@ export async function runToolCalls(
             .map((value) => Math.floor(value)),
         ),
       );
-      write(
-        `data: ${JSON.stringify({ type: "courtlistener_get_cases_start", cluster_ids: clusterIds })}\n\n`,
-      );
+      emit({ type: "courtlistener_get_cases_start", cluster_ids: clusterIds });
       const payload = await executeCourtlistenerTool(
         { name: tc.function.name, input: args },
         courtState,
@@ -682,21 +672,19 @@ export async function runToolCalls(
         return record ? [record] : [];
       });
       for (const record of caseRecords) {
-        write(
-          `data: ${JSON.stringify({
-            type: "case_opinions",
-            cluster_id: record.clusterId,
-            case: {
-              id: record.clusterId,
-              caseName: record.caseName,
-              dateFiled: record.dateFiled,
-              citations: record.citations,
-              url: record.url,
-              pdfUrl: record.pdfUrl,
-              opinions: record.opinions,
-            },
-          })}\n\n`,
-        );
+        emit({
+          type: "case_opinions",
+          cluster_id: record.clusterId,
+          case: {
+            id: record.clusterId,
+            caseName: record.caseName,
+            dateFiled: record.dateFiled,
+            citations: record.citations,
+            url: record.url,
+            pdfUrl: record.pdfUrl,
+            opinions: record.opinions,
+          },
+        });
       }
       const event: CourtlistenerToolEvent = {
         type: "courtlistener_get_cases",
@@ -719,7 +707,7 @@ export async function runToolCalls(
           ? { error: stringField(payload, "error")! }
           : {}),
       };
-      write(`data: ${JSON.stringify(event)}\n\n`);
+      emit(event);
       courtlistenerEvents.push(event);
       toolResults.push({
         role: "tool",
@@ -730,20 +718,20 @@ export async function runToolCalls(
       const { clusterId, query } = parseFindInCaseArgs(args);
       if (shouldGroupFindInCase) {
         if (!groupedFindInCaseStarted) {
-          write(
-            `data: ${JSON.stringify({
-              type: "courtlistener_find_in_case_start",
-              cluster_id: null,
-              query: "",
-              searches: groupedFindInCaseSearches,
-            })}\n\n`,
-          );
+          emit({
+            type: "courtlistener_find_in_case_start",
+            cluster_id: null,
+            query: "",
+            searches: groupedFindInCaseSearches,
+          });
           groupedFindInCaseStarted = true;
         }
       } else {
-        write(
-          `data: ${JSON.stringify({ type: "courtlistener_find_in_case_start", cluster_id: clusterId, query })}\n\n`,
-        );
+        emit({
+          type: "courtlistener_find_in_case_start",
+          cluster_id: clusterId,
+          query,
+        });
       }
       const payload = await executeCourtlistenerTool(
         { name: tc.function.name, input: args },
@@ -764,7 +752,7 @@ export async function runToolCalls(
       if (shouldGroupFindInCase) {
         groupedFindInCaseEvents.push(event);
       } else {
-        write(`data: ${JSON.stringify(event)}\n\n`);
+        emit(event);
         courtlistenerEvents.push(event);
       }
       toolResults.push({
@@ -806,7 +794,7 @@ export async function runToolCalls(
           ? { error: stringField(payload, "error")! }
           : {}),
       };
-      write(`data: ${JSON.stringify(event)}\n\n`);
+      emit(event);
       courtlistenerEvents.push(event);
       toolResults.push({
         role: "tool",
@@ -821,9 +809,7 @@ export async function runToolCalls(
               Number.isFinite(args.cluster_id)
             ? Math.floor(args.cluster_id)
             : null;
-      write(
-        `data: ${JSON.stringify({ type: "courtlistener_read_case_start", cluster_id: clusterId })}\n\n`,
-      );
+      emit({ type: "courtlistener_read_case_start", cluster_id: clusterId });
       const payload = await executeCourtlistenerTool(
         { name: tc.function.name, input: args },
         courtState,
@@ -842,7 +828,7 @@ export async function runToolCalls(
           ? { error: stringField(payload, "error")! }
           : {}),
       };
-      write(`data: ${JSON.stringify(event)}\n\n`);
+      emit(event);
       courtlistenerEvents.push(event);
       toolResults.push({
         role: "tool",
@@ -856,9 +842,10 @@ export async function runToolCalls(
           )
         : [];
       const citationCount = citations.length;
-      write(
-        `data: ${JSON.stringify({ type: "courtlistener_verify_citations_start", citation_count: citationCount })}\n\n`,
-      );
+      emit({
+        type: "courtlistener_verify_citations_start",
+        citation_count: citationCount,
+      });
       try {
         const result = (await executeCourtlistenerTool(
           { name: tc.function.name, input: args },
@@ -911,7 +898,7 @@ export async function runToolCalls(
               const event = caseCitationEventFromRecord(record);
               if (event) {
                 caseCitationEvents.push(event);
-                write(`data: ${JSON.stringify(event)}\n\n`);
+                emit(event);
               }
             }
             return {
@@ -943,7 +930,7 @@ export async function runToolCalls(
           match_count: matchCount,
           ...(error ? { error } : {}),
         };
-        write(`data: ${JSON.stringify(event)}\n\n`);
+        emit(event);
         courtlistenerEvents.push(event);
         toolResults.push({
           role: "tool",
@@ -960,7 +947,7 @@ export async function runToolCalls(
               ? err.message
               : "CourtListener citation lookup failed.",
         };
-        write(`data: ${JSON.stringify(event)}\n\n`);
+        emit(event);
         courtlistenerEvents.push(event);
         toolResults.push({
           role: "tool",
@@ -988,23 +975,19 @@ export async function runToolCalls(
         // Surface the failure as a failed "Edited" block in the UI
         // (start → done-with-error) so it matches the shape the
         // success/late-failure paths already use.
-        write(
-          `data: ${JSON.stringify({
-            type: "doc_edited_start",
-            filename,
-          })}\n\n`,
-        );
-        write(
-          `data: ${JSON.stringify({
-            type: "doc_edited",
-            filename,
-            document_id: documentId,
-            version_id: "",
-            download_url: "",
-            annotations: [],
-            error,
-          })}\n\n`,
-        );
+        emit({
+          type: "doc_edited_start",
+          filename,
+        });
+        emit({
+          type: "doc_edited",
+          filename,
+          document_id: documentId,
+          version_id: "",
+          download_url: "",
+          annotations: [],
+          error,
+        });
       };
 
       if (!docInfo || !indexed) {
@@ -1032,12 +1015,10 @@ export async function runToolCalls(
           content: JSON.stringify({ error: err }),
         });
       } else {
-        write(
-          `data: ${JSON.stringify({
-            type: "doc_edited_start",
-            filename: docInfo.filename,
-          })}\n\n`,
-        );
+        emit({
+          type: "doc_edited_start",
+          filename: docInfo.filename,
+        });
         const edits: EditInput[] = (editsRaw as Record<string, unknown>[]).map(
           (e) => ({
             find: String(e.find ?? ""),
@@ -1089,12 +1070,10 @@ export async function runToolCalls(
             annotations: result.annotations,
           };
           docsEdited.push(payload);
-          write(
-            `data: ${JSON.stringify({
-              type: "doc_edited",
-              ...payload,
-            })}\n\n`,
-          );
+          emit({
+            type: "doc_edited",
+            ...payload,
+          });
           toolResults.push({
             role: "tool",
             tool_call_id: tc.id,
@@ -1115,17 +1094,15 @@ export async function runToolCalls(
             }),
           });
         } else {
-          write(
-            `data: ${JSON.stringify({
-              type: "doc_edited",
-              filename: docInfo.filename,
-              document_id: indexed.document_id,
-              version_id: "",
-              download_url: "",
-              annotations: [],
-              error: result.error,
-            })}\n\n`,
-          );
+          emit({
+            type: "doc_edited",
+            filename: docInfo.filename,
+            document_id: indexed.document_id,
+            version_id: "",
+            download_url: "",
+            annotations: [],
+            error: result.error,
+          });
           toolResults.push({
             role: "tool",
             tool_call_id: tc.id,
@@ -1143,9 +1120,7 @@ export async function runToolCalls(
         `[generate_docx] title="${title}" landscape=${landscape} args.landscape=${args.landscape}`,
       );
       const previewFilename = safeGeneratedFilename(title, "docx");
-      write(
-        `data: ${JSON.stringify({ type: "doc_created_start", filename: previewFilename })}\n\n`,
-      );
+      emit({ type: "doc_created_start", filename: previewFilename });
       let evidence: Awaited<ReturnType<typeof resolveDocxEvidenceCitations>>;
       try {
         evidence = await resolveDocxEvidenceCitations(userId, args.sources);
@@ -1179,9 +1154,7 @@ export async function runToolCalls(
       const title = args.title as string;
       devLog(`[generate_excel] title="${title}"`);
       const previewFilename = safeGeneratedFilename(title, "xlsx");
-      write(
-        `data: ${JSON.stringify({ type: "doc_created_start", filename: previewFilename })}\n\n`,
-      );
+      emit({ type: "doc_created_start", filename: previewFilename });
       const result = await generateExcel(
         title,
         args.sheets as unknown[],
@@ -1199,9 +1172,7 @@ export async function runToolCalls(
       const title = args.title as string;
       devLog(`[generate_ppt] title="${title}"`);
       const previewFilename = safeGeneratedFilename(title, "pptx");
-      write(
-        `data: ${JSON.stringify({ type: "doc_created_start", filename: previewFilename })}\n\n`,
-      );
+      emit({ type: "doc_created_start", filename: previewFilename });
       const result = await generatePpt(
         title,
         args.slides as unknown[],
@@ -1233,7 +1204,7 @@ export async function runToolCalls(
       searches: groupedFindInCaseEvents.map(findInCaseSearchSummary),
       ...(errors.length ? { error: errors.join("; ") } : {}),
     };
-    write(`data: ${JSON.stringify(groupEvent)}\n\n`);
+    emit(groupEvent);
     courtlistenerEvents.push(groupEvent);
   }
 

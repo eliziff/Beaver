@@ -392,23 +392,25 @@ describe("provider PDF consumers", () => {
         },
       },
     ] as ToolCall[];
-    const writes: string[] = [];
+    const events: unknown[] = [];
 
     const response = await runToolCalls(
       calls,
       new Map() as DocStore,
       "user-1",
       null as never,
-      (value) => writes.push(value),
+      (value) => events.push(value),
     );
 
     expect(JSON.parse((response.toolResults[0] as { content: string }).content))
       .toMatchObject({ ok: true, case_count: 1, opinion_count: 1 });
     expect(JSON.parse((response.toolResults[1] as { content: string }).content))
       .toMatchObject({ ok: true, total_matches: 1 });
-    expect(writes.join("")).toContain('"type":"case_opinions"');
-    expect(writes.join("")).toContain(
-      '"type":"courtlistener_find_in_case"',
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "case_opinions" }),
+        expect.objectContaining({ type: "courtlistener_find_in_case" }),
+      ]),
     );
   });
 

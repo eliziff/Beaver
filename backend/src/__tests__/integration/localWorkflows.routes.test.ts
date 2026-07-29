@@ -35,6 +35,43 @@ afterEach(() => {
 });
 
 describe("account-free starter workflows", () => {
+  it("returns the requested bounded workflow archive without Supabase", async () => {
+    const app = await loadApp();
+    const files = [
+      { path: "contract-review/SKILL.md", content: "---\nname: contract-review\n---\n" },
+      { path: "contract-review/table-config.yaml", content: "columns_config: []\n" },
+    ];
+    const response = await request(app)
+      .post("/workflows/archive")
+      .send({ files })
+      .buffer(true)
+      .parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      });
+    const zip = await (await import("jszip")).default.loadAsync(response.body);
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/application\/zip/);
+    expect(Object.keys(zip.files).filter((path) => !zip.files[path].dir)).toEqual(
+      files.map(({ path }) => path),
+    );
+    await Promise.all(
+      files.map(async ({ path, content }) =>
+        expect(await zip.file(path)!.async("text")).toBe(content),
+      ),
+    );
+    expect(
+      (
+        await request(app)
+          .post("/workflows/archive")
+          .send({ files: [...files, files[0]] })
+      ).status,
+    ).toBe(400);
+    expect(mocks.supabaseCalls).toBe(0);
+  });
+
   it("lists a small assistant and tabular set without Supabase", async () => {
     const app = await loadApp();
     const [assistant, tabular, hidden] = await Promise.all([

@@ -24,6 +24,13 @@ import { resolveTrackedChange } from "./docxTrackedChanges";
 
 export type LocalLibraryKind = "file" | "template";
 
+export type LocalDocumentMetadata = {
+  jurisdiction: string | null;
+  areas_of_law: string[];
+  document_types: string[];
+  description: string | null;
+};
+
 export type LocalTrackedEdit = {
   id: string;
   changeId: string;
@@ -103,6 +110,8 @@ type LocalDocument = {
   updatedAt: string;
   currentVersionId: string;
   versions: LocalVersion[];
+  metadata?: LocalDocumentMetadata;
+  notes?: string | null;
 };
 
 type LocalFolder = {
@@ -125,6 +134,7 @@ type LocalStore = {
 const dataRoot = mikeLocalDataHome();
 const indexPath = path.join(dataRoot, "library.json");
 let mutationTail: Promise<unknown> = Promise.resolve();
+let storePromise: Promise<LocalStore> | null = null;
 
 function emptyStore(): LocalStore {
   return { version: 1, documents: [], folders: [], legalSources: [] };
@@ -147,6 +157,44 @@ async function readStore(): Promise<LocalStore> {
   }
 }
 
+function emptyDocumentMetadata(): LocalDocumentMetadata {
+  return {
+    jurisdiction: null,
+    areas_of_law: [],
+    document_types: [],
+    description: null,
+  };
+}
+
+function cleanMetadata(value: unknown): LocalDocumentMetadata {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const text = (input: unknown, max: number) =>
+    typeof input === "string" && input.trim()
+      ? input.trim().slice(0, max)
+      : null;
+  const list = (input: unknown) =>
+    Array.isArray(input)
+      ? [...new Set(input.filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim()).filter(Boolean))].slice(0, 20)
+      : [];
+  return {
+    jurisdiction: text(source.jurisdiction, 160),
+    areas_of_law: list(source.areas_of_law),
+    document_types: list(source.document_types),
+    description: text(source.description, 500),
+  };
+}
+
+function loadStore() {
+  if (!storePromise) {
+    storePromise = readStore().catch((error) => {
+      storePromise = null;
+      throw error;
+    });
+  }
+  return storePromise;
+}
+
 async function writeStore(store: LocalStore) {
   await mkdir(dataRoot, { recursive: true });
   const temporaryPath = `${indexPath}.${crypto.randomUUID()}.tmp`;
@@ -156,10 +204,15 @@ async function writeStore(store: LocalStore) {
 
 function mutateStore<T>(operation: (store: LocalStore) => Promise<T> | T): Promise<T> {
   const result = mutationTail.then(async () => {
-    const store = await readStore();
-    const value = await operation(store);
-    await writeStore(store);
-    return value;
+    const store = await loadStore();
+    try {
+      const value = await operation(store);
+      await writeStore(store);
+      return value;
+    } catch (error) {
+      storePromise = null;
+      throw error;
+    }
   });
   mutationTail = result.catch(() => undefined);
   return result;
@@ -167,7 +220,11 @@ function mutateStore<T>(operation: (store: LocalStore) => Promise<T> | T): Promi
 
 async function currentStore() {
   await mutationTail;
-  return readStore();
+  return loadStore();
+}
+
+export async function warmLocalDocumentStore() {
+  await currentStore();
 }
 
 async function ensureLocalPdfRendition(
@@ -312,6 +369,8 @@ function localDocumentResponse(document: LocalDocument) {
       : undefined,
     created_at: document.createdAt,
     updated_at: document.updatedAt,
+    metadata: cleanMetadata(document.metadata),
+    notes: typeof document.notes === "string" ? document.notes : null,
   };
 }
 
@@ -421,6 +480,8 @@ export async function createLocalDocument(params: {
       updatedAt: now,
       currentVersionId: versionId,
       versions: [version],
+      metadata: emptyDocumentMetadata(),
+      notes: null,
     };
     store.documents.push(document);
     return { document, version };
@@ -798,24 +859,6 @@ export async function deleteLocalVersion(
   });
 }
 
-export async function renameLocalDocument(
-  userId: string,
-  kind: LocalLibraryKind,
-  documentId: string,
-  filename: string,
-) {
-  return mutateStore((store) => {
-    const document = store.documents.find(
-      (item) =>
-        item.id === documentId && item.userId === userId && item.kind === kind,
-    );
-    if (!document) return null;
-    activeVersion(document).filename = filename.slice(0, 200);
-    document.updatedAt = new Date().toISOString();
-    return localDocumentResponse(document);
-  });
-}
-
 export async function moveLocalDocument(
   userId: string,
   kind: LocalLibraryKind,
@@ -1079,6 +1122,39 @@ export async function getLocalLegalSource(userId: string, id: string) {
       (pointer) => pointer.userId === userId && pointer.id === id,
     ) ?? null
   );
+}
+
+export async function updateLocalDocument(params: {
+  userId: string;
+  kind: LocalLibraryKind;
+  documentId: string;
+  filename?: string;
+  metadata?: unknown;
+  notes?: unknown;
+}) {
+  return mutateStore((store) => {
+    const document = store.documents.find(
+      (item) =>
+        item.id === params.documentId &&
+        item.userId === params.userId &&
+        item.kind === params.kind,
+    );
+    if (!document) return null;
+    if (params.filename !== undefined) {
+      activeVersion(document).filename = params.filename.slice(0, 200);
+    }
+    if (params.metadata !== undefined) {
+      document.metadata = cleanMetadata(params.metadata);
+    }
+    if (params.notes !== undefined) {
+      document.notes =
+        typeof params.notes === "string" && params.notes.trim()
+          ? params.notes.trim().slice(0, 500)
+          : null;
+    }
+    document.updatedAt = new Date().toISOString();
+    return localDocumentResponse(document);
+  });
 }
 
 export async function saveLocalLegalSource(params: {

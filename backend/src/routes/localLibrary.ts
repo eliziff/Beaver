@@ -8,7 +8,7 @@ import {
   getLocalVersionFile,
   listLocalLibrary,
   moveLocalDocument,
-  renameLocalDocument,
+  updateLocalDocument,
   updateLocalFolder,
 } from "../lib/localDocumentStore";
 import {
@@ -533,18 +533,21 @@ localLibraryRouter.patch(
     );
     if (!current)
       return void res.status(404).json({ detail: "Document not found" });
-    const filename = normalizeDocumentFilename(
-      req.body?.filename,
-      current.filename,
-    );
+    const filename = normalizeDocumentFilename(req.body?.filename, current.filename);
     if (!filename)
       return void res.status(400).json({ detail: "filename is required" });
-    const document = await renameLocalDocument(
-      res.locals.userId as string,
+    const document = await updateLocalDocument({
+      userId: res.locals.userId as string,
       kind,
-      req.params.documentId,
+      documentId: req.params.documentId,
       filename,
-    );
+      ...(Object.hasOwn(req.body ?? {}, "metadata")
+        ? { metadata: req.body.metadata }
+        : {}),
+      ...(Object.hasOwn(req.body ?? {}, "notes")
+        ? { notes: req.body.notes }
+        : {}),
+    });
     if (!document)
       return void res.status(404).json({ detail: "Document not found" });
     res.json(document);

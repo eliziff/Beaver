@@ -193,11 +193,24 @@ describe("anonymous chat PDF evidence durability", () => {
             title: "Extract Key Terms",
           },
         },
+        attached_documents: [
+          {
+            filename: document.filename,
+            document_id: document.id,
+          },
+        ],
+        displayed_doc: {
+          filename: document.filename,
+          document_id: document.id,
+        },
       });
 
     expect(response.status).toBe(200);
     expect(mocks.providerMessages[0]?.at(-1)?.content).toContain(
       `- Lease.docx (document_id: ${document.id})`,
+    );
+    expect(mocks.systemPrompts[0]).toContain(
+      `Displayed document: "Lease.docx" (document_id: ${document.id})`,
     );
     expect(mocks.providerMessages[0]?.at(-1)?.content).toContain(
       "[Workflow: Extract Key Terms (id: builtin-extract-key-terms)]",
@@ -211,6 +224,48 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(mocks.systemPrompts[0]).toContain(
       "shows created and edited document cards automatically",
     );
+  });
+
+  it("uses an explicitly selected owned document without changing the project", async () => {
+    const localDocuments = await import("../lib/localDocumentStore");
+    const document = await localDocuments.createLocalDocument({
+      userId: USER_ID,
+      kind: "file",
+      filename: "Retainer.docx",
+      bytes: Buffer.from("test-docx-bytes"),
+    });
+    mocks.matterDocuments = [];
+    const loaded = await loadApp();
+    const created = await request(loaded.app)
+      .post("/chat/create")
+      .send({ project_id: PROJECT_ID });
+
+    const response = await request(loaded.app)
+      .post("/chat")
+      .send({
+        chat_id: created.body.id,
+        project_id: PROJECT_ID,
+        expected_version: 0,
+        current_turn: {
+          kind: "message",
+          content: "Review this document.",
+          files: [
+            {
+              filename: document.filename,
+              document_id: document.id,
+            },
+          ],
+        },
+        attached_documents: [
+          {
+            filename: document.filename,
+            document_id: document.id,
+          },
+        ],
+      });
+
+    expect(response.status).toBe(200);
+    expect(mocks.matterDocuments).toEqual([]);
   });
 
   it("carries a hidden registry across reload and compacted client history", async () => {
