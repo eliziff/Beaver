@@ -93,7 +93,9 @@ import {
 import {
   docxCautionNotes,
   docxPathologyReportFor,
+  REDLINE_VIEW_LEGEND,
 } from "./tools/docxPathologyNotes";
+import { projectDocxRedline } from "../docx/redline";
 import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
@@ -160,16 +162,16 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_read",
-    "Read the active version of a local Beaver Library document. mode=drafting adapts a DOCX precedent: it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
+    "Read the active version of a local Beaver Library document. mode=drafting adapts a DOCX precedent: it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown. mode=redline shows tracked changes, comments, and strike/colour redlines inline as markers.",
     {
       type: "object",
       properties: {
         document_id: { type: "string" },
         mode: {
           type: "string",
-          enum: ["text", "drafting"],
+          enum: ["text", "drafting", "redline"],
           description:
-            "Defaults to text. drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
+            "Defaults to text. drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data. redline is DOCX-only and returns the body text with editorial content visible: {++inserted++}, {--deleted--}, {>>author: comment<<}, [ink] for strike/colour formatting standing in for tracked changes.",
         },
         section: {
           type: "string",
@@ -1408,6 +1410,31 @@ export async function extractLocalDocument(userId: string, documentId: string) {
   return { filename: file.document.filename, text, cautions };
 }
 
+/**
+ * Opt-in redline view (3i-2): the active version's body text with tracked
+ * changes, comments, and manual ink redlines projected as markers. A read
+ * view only — the edit paths keep anchoring against the default text.
+ */
+async function extractLocalRedlineDocument(userId: string, documentId: string) {
+  const file = await getLocalVersionFile(userId, documentId);
+  if (!file) return null;
+  if (file.fileType.toLowerCase() !== "docx") {
+    throw new Error("Redline view requires a DOCX document");
+  }
+  const projection = await projectDocxRedline(await readFile(file.path));
+  return {
+    filename: file.document.filename,
+    document_id: documentId,
+    version_id: file.version.id,
+    version_number: file.version.version_number,
+    view: "redline" as const,
+    marker_legend: REDLINE_VIEW_LEGEND,
+    text: projection.text,
+    counts: projection.counts,
+    ...(projection.notes.length ? { notes: projection.notes } : {}),
+  };
+}
+
 async function extractLocalDraftingDocument(
   userId: string,
   documentId: string,
@@ -2231,6 +2258,22 @@ export async function runLocalAssistantTools(
             return fail(
               call,
               errorText(error, "Drafting source could not be read"),
+            );
+          }
+        }
+        if (call.name === "library_read" && args.mode === "redline") {
+          try {
+            const projection = await extractLocalRedlineDocument(
+              userId,
+              documentId,
+            );
+            return projection
+              ? result(call, { ok: true, ...projection })
+              : fail(call, "Document not found");
+          } catch (error) {
+            return fail(
+              call,
+              errorText(error, "Redline view could not be read"),
             );
           }
         }

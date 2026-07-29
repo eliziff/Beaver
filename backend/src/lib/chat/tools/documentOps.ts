@@ -31,7 +31,9 @@ import {
   docxCautionNotes,
   docxNotesBlock,
   docxPathologyReportFor,
+  REDLINE_VIEW_LEGEND,
 } from "./docxPathologyNotes";
+import { projectDocxRedline } from "../../docx/redline";
 import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
@@ -1131,7 +1133,7 @@ export async function readDocumentContent(
   db?: ReturnType<typeof createServerSupabase>,
   opts?: {
     emitEvents?: boolean;
-    mode?: "text" | "drafting";
+    mode?: "text" | "drafting" | "redline";
     /**
      * Text mode prefixes the pathology sniffer's cautions as a labeled
      * block. Callers that consume the return value as a search corpus
@@ -1220,6 +1222,31 @@ export async function readDocumentContent(
         ...source,
       });
     }
+    if (mode === "redline") {
+      // Opt-in read view (3i-2): editorial content projected as markers.
+      // Edit paths keep anchoring against the default text.
+      if (fileType !== "docx") {
+        emitDocRead();
+        return JSON.stringify({
+          ok: false,
+          error: "Redline view requires a DOCX document",
+        });
+      }
+      const projection = await projectDocxRedline(Buffer.from(raw));
+      emitDocRead();
+      return JSON.stringify({
+        ok: true,
+        filename: docInfo.filename,
+        document_id: documentId,
+        version_id: versionId,
+        version_number: versionNumber,
+        view: "redline",
+        marker_legend: REDLINE_VIEW_LEGEND,
+        text: projection.text,
+        counts: projection.counts,
+        ...(projection.notes.length ? { notes: projection.notes } : {}),
+      });
+    }
     const parser = textParserFor(fileType) ?? {
       parser: "mammoth-raw",
       version: 1,
@@ -1258,6 +1285,12 @@ export async function readDocumentContent(
         error: /^(?:Precedent|Drafting mode)/u.test(message)
           ? message
           : "Drafting source could not be read",
+      });
+    }
+    if (mode === "redline") {
+      return JSON.stringify({
+        ok: false,
+        error: "Redline view could not be read",
       });
     }
     return "Document could not be read.";
