@@ -88,6 +88,15 @@ const beaverTransportExecutor =
           SUPABASE_URL: "",
           SUPABASE_SECRET_KEY: "",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: manifestFile,
+          // The candidate arm IS the SLA workflow (outline-ledger context,
+          // deterministic audit + one revision pass); baseline stays the
+          // product default so the pair finally compares two strategies.
+          ...(arm === "beaver_candidate"
+            ? {
+                MIKE_SLA_WORKFLOW: "1",
+                MIKE_SLA_RECEIPT_PATH: path.join(armDir, "sla-receipts.jsonl"),
+              }
+            : {}),
         },
         stdio: "inherit",
         timeout: 20 * 60_000,

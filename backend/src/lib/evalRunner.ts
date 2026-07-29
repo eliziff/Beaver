@@ -332,7 +332,10 @@ const CONTEXT_STRATEGY: Record<EvalArm, string> = {
   bare_model: "bare_prompt",
   oracle_sources: "prompt_plus_full_source_packet",
   beaver_baseline: "product_default_full_history",
-  beaver_candidate: "product_default_full_history",
+  // Distinct by construction: eval-run.ts spawns the candidate arm with
+  // MIKE_SLA_WORKFLOW=1 (skeleton-outline ledger in the prompt, section-
+  // scoped reads, deterministic anchor audit + one revision pass).
+  beaver_candidate: "sla_workflow_v1",
 };
 
 // ---------------------------------------------------------------------------

@@ -218,7 +218,11 @@ describe("runEval isolation, traces, and report", () => {
       const trace = armTrace(runDir, arm);
       expect(trace.input_tokens).toBeNull();
       expect(trace.estimated_cost).toBeNull();
-      expect(trace.context_strategy).toBe("product_default_full_history");
+      expect(trace.context_strategy).toBe(
+        arm === "beaver_candidate"
+          ? "sla_workflow_v1"
+          : "product_default_full_history",
+      );
       expect(
         JSON.parse(
           readFileSync(path.join(runDir, arm, "receipts.json"), "utf8"),
