@@ -103,6 +103,7 @@ import {
 } from "../lib/anonymousProviderSessionStore";
 
 export const chatRouter = Router();
+chatRouter.use(requireAuth);
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -1670,7 +1671,7 @@ async function purgeExpiredCloudChats(db: Db, userId: string) {
     .lte("deleted_at", cutoff);
 }
 
-chatRouter.get("/", requireAuth, async (req, res) => {
+chatRouter.get("/", async (req, res) => {
   if (isAnonymousLocalMode()) {
     const userId = res.locals.userId as string;
     const limit = parseListLimit(req.query.limit, 20) as number;
@@ -1698,7 +1699,7 @@ chatRouter.get("/", requireAuth, async (req, res) => {
   }
 });
 
-chatRouter.get("/recycling-bin", requireAuth, async (_req, res) => {
+chatRouter.get("/recycling-bin", async (_req, res) => {
   const userId = res.locals.userId as string;
   if (isAnonymousLocalMode()) {
     res.json(
@@ -1724,7 +1725,7 @@ chatRouter.get("/recycling-bin", requireAuth, async (_req, res) => {
   res.json(data ?? []);
 });
 
-chatRouter.post("/create", requireAuth, async (req, res) => {
+chatRouter.post("/create", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const parsedProjectId = parseOptionalProjectId(req.body?.project_id);
@@ -1762,7 +1763,7 @@ chatRouter.post("/create", requireAuth, async (req, res) => {
   res.json({ id: data.id });
 });
 
-chatRouter.get("/:chatId", requireAuth, async (req, res) => {
+chatRouter.get("/:chatId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
@@ -1792,7 +1793,7 @@ chatRouter.get("/:chatId", requireAuth, async (req, res) => {
   res.json({ chat, messages: hydrated });
 });
 
-chatRouter.post("/:chatId/stop", requireAuth, async (req, res) => {
+chatRouter.post("/:chatId/stop", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
@@ -1939,7 +1940,7 @@ async function hydrateEditStatuses(
   return patchStoredEditEvents(messages, statusById, versionNumberById);
 }
 
-chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
+chatRouter.patch("/:chatId", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
@@ -2031,7 +2032,7 @@ chatRouter.patch("/:chatId", requireAuth, async (req, res) => {
   res.json(data);
 });
 
-chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
+chatRouter.delete("/:chatId", async (req, res) => {
   const userId = res.locals.userId as string;
   const { chatId } = req.params;
   if (isAnonymousLocalMode()) {
@@ -2057,7 +2058,7 @@ chatRouter.delete("/:chatId", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-chatRouter.post("/:chatId/restore", requireAuth, async (req, res) => {
+chatRouter.post("/:chatId/restore", async (req, res) => {
   const userId = res.locals.userId as string;
   const { chatId } = req.params;
   if (isAnonymousLocalMode()) {
@@ -2086,7 +2087,7 @@ chatRouter.post("/:chatId/restore", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-chatRouter.delete("/:chatId/permanent", requireAuth, async (req, res) => {
+chatRouter.delete("/:chatId/permanent", async (req, res) => {
   const userId = res.locals.userId as string;
   const { chatId } = req.params;
   if (isAnonymousLocalMode()) {
@@ -2111,7 +2112,7 @@ chatRouter.delete("/:chatId/permanent", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
+chatRouter.post("/:chatId/generate-title", async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { chatId } = req.params;
@@ -2155,7 +2156,7 @@ chatRouter.post("/:chatId/generate-title", requireAuth, async (req, res) => {
   }
 });
 
-chatRouter.post("/", requireAuth, async (req, res) => {
+chatRouter.post("/", async (req, res) => {
   const userId = res.locals.userId as string;
   const body =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
