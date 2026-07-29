@@ -106,23 +106,26 @@ async function deleteProjectDocumentsAndVersionFiles(
   return error ?? null;
 }
 
-async function attachDocumentOwnerLabels(
+async function loadDisplayNames(
   db: ReturnType<typeof createServerSupabase>,
-  docs: { user_id?: string | null }[],
+  rows: { user_id?: string | null }[],
+  subject: string,
 ) {
-  const ownerIds = docs
-    .map((doc) => doc.user_id)
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-    .filter((id, index, arr) => arr.indexOf(id) === index);
-  if (ownerIds.length === 0) return;
-
+  const ids = [
+    ...new Set(
+      rows
+        .map((row) => row.user_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
   const displayNameByUserId = new Map<string, string>();
+  if (ids.length === 0) return displayNameByUserId;
   const { data: profiles, error: profilesError } = await db
     .from("user_profiles")
     .select("user_id, display_name")
-    .in("user_id", ownerIds);
+    .in("user_id", ids);
   if (profilesError) {
-    console.warn("[projects] failed to load document owner profiles", profilesError);
+    console.warn(`[projects] failed to load ${subject} profiles`, profilesError);
   }
   for (const profile of profiles ?? []) {
     const displayName =
@@ -133,7 +136,14 @@ async function attachDocumentOwnerLabels(
       displayNameByUserId.set(profile.user_id as string, displayName);
     }
   }
+  return displayNameByUserId;
+}
 
+async function attachDocumentOwnerLabels(
+  db: ReturnType<typeof createServerSupabase>,
+  docs: { user_id?: string | null }[],
+) {
+  const displayNameByUserId = await loadDisplayNames(db, docs, "document owner");
   for (const doc of docs as ({
     user_id?: string | null;
     owner_email?: string | null;
@@ -149,30 +159,7 @@ async function attachChatCreatorLabels(
   db: ReturnType<typeof createServerSupabase>,
   chats: { user_id?: string | null }[],
 ) {
-  const creatorIds = chats
-    .map((chat) => chat.user_id)
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-    .filter((id, index, arr) => arr.indexOf(id) === index);
-  if (creatorIds.length === 0) return;
-
-  const displayNameByUserId = new Map<string, string>();
-  const { data: profiles, error: profilesError } = await db
-    .from("user_profiles")
-    .select("user_id, display_name")
-    .in("user_id", creatorIds);
-  if (profilesError) {
-    console.warn("[projects] failed to load chat creator profiles", profilesError);
-  }
-  for (const profile of profiles ?? []) {
-    const displayName =
-      typeof profile.display_name === "string"
-        ? profile.display_name.trim()
-        : "";
-    if (displayName) {
-      displayNameByUserId.set(profile.user_id as string, displayName);
-    }
-  }
-
+  const displayNameByUserId = await loadDisplayNames(db, chats, "chat creator");
   for (const chat of chats as ({
     user_id?: string | null;
     creator_display_name?: string | null;
