@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Loader2, UserPlus } from "lucide-react";

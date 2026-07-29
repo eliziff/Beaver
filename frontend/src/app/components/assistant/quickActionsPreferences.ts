@@ -1,14 +1,5 @@
-"use client";
-import { useCallback, useSyncExternalStore } from "react";
-export type QuickActionId =
-    | "projectChat"
-    | "proofread"
-    | "compareDocuments"
-    | "extractKeyTerms"
-    | "draftFromTemplate"
-    | "newProject"
-    | "newTabularReview";
-export const QUICK_ACTIONS: { id: QuickActionId; label: string }[] = [
+import { useSyncExternalStore } from "react";
+export const QUICK_ACTIONS = [
     { id: "proofread", label: "Proofread" },
     { id: "compareDocuments", label: "Compare documents" },
     { id: "extractKeyTerms", label: "Extract key terms" },
@@ -16,8 +7,13 @@ export const QUICK_ACTIONS: { id: QuickActionId; label: string }[] = [
     { id: "newProject", label: "New project" },
     { id: "newTabularReview", label: "New tabular review" },
     { id: "projectChat", label: "Start chat in project" },
-];
-export const DEFAULT_QUICK_ACTIONS: Record<QuickActionId, boolean> = {
+] as const;
+export type QuickActionId = (typeof QUICK_ACTIONS)[number]["id"];
+type QuickActionPreferences = Record<QuickActionId, boolean>;
+type QuickActionPreferenceUpdate =
+    | QuickActionPreferences
+    | ((previous: QuickActionPreferences) => QuickActionPreferences);
+const DEFAULT_QUICK_ACTIONS: QuickActionPreferences = {
     projectChat: true,
     proofread: true,
     compareDocuments: true,
@@ -29,23 +25,23 @@ export const DEFAULT_QUICK_ACTIONS: Record<QuickActionId, boolean> = {
 const QUICK_ACTIONS_STORAGE_KEY = "mike.quickActions.visible";
 const QUICK_ACTIONS_UPDATED_EVENT = "mike:quick-actions-updated";
 let cachedRawPreference: string | null | undefined;
-let cachedPreference: Record<QuickActionId, boolean> = DEFAULT_QUICK_ACTIONS;
-function normalizeQuickActions(value: unknown): Record<QuickActionId, boolean> {
+let cachedPreference: QuickActionPreferences = DEFAULT_QUICK_ACTIONS;
+function normalizeQuickActions(value: unknown): QuickActionPreferences {
     if (!value || typeof value !== "object") return DEFAULT_QUICK_ACTIONS;
     const record = value as Partial<Record<QuickActionId, unknown>>;
-    return QUICK_ACTIONS.reduce<Record<QuickActionId, boolean>>(
-        (next, action) => {
-            const storedValue = record[action.id];
-            next[action.id] =
+    return Object.fromEntries(
+        QUICK_ACTIONS.map(({ id }) => {
+            const storedValue = record[id];
+            return [
+                id,
                 typeof storedValue === "boolean"
                     ? storedValue
-                    : DEFAULT_QUICK_ACTIONS[action.id];
-            return next;
-        },
-        { ...DEFAULT_QUICK_ACTIONS },
-    );
+                    : DEFAULT_QUICK_ACTIONS[id],
+            ];
+        }),
+    ) as QuickActionPreferences;
 }
-function readQuickActionsPreference(): Record<QuickActionId, boolean> {
+function readQuickActionsPreference(): QuickActionPreferences {
     if (typeof window === "undefined") return DEFAULT_QUICK_ACTIONS;
     try {
         const stored = window.localStorage.getItem(QUICK_ACTIONS_STORAGE_KEY);
@@ -60,7 +56,7 @@ function readQuickActionsPreference(): Record<QuickActionId, boolean> {
     }
 }
 function persistQuickActionsPreference(
-    value: Record<QuickActionId, boolean>,
+    value: QuickActionPreferences,
 ) {
     if (typeof window === "undefined") return;
     const serialized = JSON.stringify(value);
@@ -92,38 +88,23 @@ export function useQuickActionsPreference() {
         readQuickActionsPreference,
         () => DEFAULT_QUICK_ACTIONS,
     );
-    const setVisibleActions = useCallback(
-        (
-            next:
-                | Record<QuickActionId, boolean>
-                | ((
-                      prev: Record<QuickActionId, boolean>,
-                  ) => Record<QuickActionId, boolean>),
-        ) => {
-            const prev = readQuickActionsPreference();
-            const resolved = typeof next === "function" ? next(prev) : next;
-            persistQuickActionsPreference(normalizeQuickActions(resolved));
-        },
-        [],
-    );
-    const showAllQuickActions = useCallback(() => {
-        setVisibleActions(DEFAULT_QUICK_ACTIONS);
-    }, [setVisibleActions]);
-    const hideAllQuickActions = useCallback(() => {
-        setVisibleActions(
-            QUICK_ACTIONS.reduce<Record<QuickActionId, boolean>>(
-                (next, action) => {
-                    next[action.id] = false;
-                    return next;
-                },
-                { ...DEFAULT_QUICK_ACTIONS },
+    const setVisibleActions = (next: QuickActionPreferenceUpdate) => {
+        const previous = readQuickActionsPreference();
+        persistQuickActionsPreference(
+            normalizeQuickActions(
+                typeof next === "function" ? next(previous) : next,
             ),
         );
-    }, [setVisibleActions]);
+    };
     return {
         visibleActions,
         setVisibleActions,
-        showAllQuickActions,
-        hideAllQuickActions,
+        showAllQuickActions: () => setVisibleActions(DEFAULT_QUICK_ACTIONS),
+        hideAllQuickActions: () =>
+            setVisibleActions(
+                Object.fromEntries(
+                    QUICK_ACTIONS.map(({ id }) => [id, false]),
+                ) as QuickActionPreferences,
+            ),
     };
 }

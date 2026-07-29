@@ -1,6 +1,5 @@
-"use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, MessageSquare, Table2, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,7 +14,6 @@ import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-type WorkflowPreviewMode = "auto" | "prompt" | "columns";
 type MobilePickerPane = "list" | "details";
 interface WorkflowPickerContentProps {
     workflows: Workflow[];
@@ -24,12 +22,7 @@ interface WorkflowPickerContentProps {
     search: string;
     onSearchChange: (value: string) => void;
     loading?: boolean;
-    workflowType?: Workflow["metadata"]["type"] | "all";
-    emptyMessage?: string;
-    previewMode?: WorkflowPreviewMode;
     disabledWorkflow?: (workflow: Workflow) => boolean;
-    showTypeIcon?: boolean;
-    allowClearPreview?: boolean;
 }
 export function WorkflowPickerContent({
     workflows,
@@ -38,12 +31,7 @@ export function WorkflowPickerContent({
     search,
     onSearchChange,
     loading = false,
-    workflowType = "all",
-    emptyMessage,
-    previewMode = "auto",
     disabledWorkflow,
-    showTypeIcon = false,
-    allowClearPreview = true,
 }: WorkflowPickerContentProps) {
     const selectedRowRef = useRef<HTMLButtonElement>(null);
     const selectedId = selected?.id ?? null;
@@ -81,13 +69,6 @@ export function WorkflowPickerContent({
                   .includes(normalizedSearch),
           )
         : workflows;
-    const resolvedEmptyMessage =
-        emptyMessage ??
-        (search
-            ? "No matches found"
-            : workflowType === "all"
-              ? "No workflows found"
-              : `No ${workflowType} workflows found`);
     const handleSelectWorkflow = (workflow: Workflow | null) => {
         onSelect(workflow);
         setMobilePane(workflow ? "details" : "list");
@@ -99,9 +80,11 @@ export function WorkflowPickerContent({
     return (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-visible md:flex-row">
             <div
-                className={`min-h-0 min-w-0 flex-1 flex-col overflow-visible ${
-                    selected ? "md:w-64 md:flex-none md:shrink-0" : ""
-                } ${mobilePane === "details" && selected ? "hidden md:flex" : "flex"}`}
+                className={`min-h-0 min-w-0 flex-1 flex-col overflow-visible md:w-64 md:flex-none md:shrink-0 ${
+                    mobilePane === "details" && selected
+                        ? "hidden md:flex"
+                        : "flex"
+                }`}
             >
                 <SearchBar
                     value={search}
@@ -128,7 +111,7 @@ export function WorkflowPickerContent({
                         </div>
                     ) : filteredWorkflows.length === 0 ? (
                         <p className="py-8 text-center text-sm text-gray-400">
-                            {resolvedEmptyMessage}
+                            {search ? "No matches found" : "No workflows found"}
                         </p>
                     ) : (
                         <div className="space-y-px">
@@ -136,10 +119,6 @@ export function WorkflowPickerContent({
                                 const disabled =
                                     disabledWorkflow?.(workflow) ?? false;
                                 const isSelected = selected?.id === workflow.id;
-                                const TypeIcon =
-                                    workflow.metadata.type === "tabular"
-                                        ? Table2
-                                        : MessageSquare;
                                 return (
                                     <button
                                         key={workflow.id}
@@ -166,15 +145,11 @@ export function WorkflowPickerContent({
                                         >
                                             {workflow.metadata.title}
                                         </span>
-                                        {showTypeIcon ? (
-                                            <TypeIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                                        ) : (
-                                            <span className="shrink-0 text-xs text-gray-400">
-                                                {workflow.is_system
-                                                    ? "System"
-                                                    : "Custom"}
-                                            </span>
-                                        )}
+                                        <span className="shrink-0 text-xs text-gray-400">
+                                            {workflow.is_system
+                                                ? "System"
+                                                : "Custom"}
+                                        </span>
                                     </button>
                                 );
                             })}
@@ -182,39 +157,30 @@ export function WorkflowPickerContent({
                     )}
                 </div>
             </div>
-            {selected && (
+            {selected ? (
                 <WorkflowPreview
                     workflow={selected}
-                    mode={previewMode}
                     onClear={handleClearPreview}
-                    allowClear={allowClearPreview}
                     className={
                         mobilePane === "details" ? "flex" : "hidden md:flex"
                     }
                 />
+            ) : (
+                <div className="hidden min-w-0 flex-1 md:block" />
             )}
         </div>
     );
 }
 function WorkflowPreview({
     workflow,
-    mode,
     onClear,
-    allowClear,
     className = "flex",
 }: {
     workflow: Workflow;
-    mode: WorkflowPreviewMode;
     onClear: () => void;
-    allowClear: boolean;
     className?: string;
 }) {
-    const resolvedMode =
-        mode === "auto"
-            ? workflow.metadata.type === "tabular"
-                ? "columns"
-                : "prompt"
-            : mode;
+    const showColumns = workflow.metadata.type === "tabular";
     return (
         <div
             className={`${className} min-h-0 min-w-0 flex-1 flex-col overflow-visible`}
@@ -224,18 +190,17 @@ function WorkflowPreview({
                     <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
                         {workflow.metadata.title}
                     </p>
-                    {allowClear ? (
-                        <button
-                            type="button"
-                            onClick={onClear}
-                            className={`rounded-md p-1 text-gray-400 hover:text-gray-600 ${APP_SURFACE_HOVER_CLASS}`}
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    ) : null}
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        aria-label="Close preview"
+                        className={`rounded-md p-1 text-gray-400 hover:text-gray-600 ${APP_SURFACE_HOVER_CLASS}`}
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
                 </div>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-                    {resolvedMode === "columns" ? (
+                    {showColumns ? (
                         <WorkflowColumnPreview
                             columns={workflow.columns_config ?? []}
                         />
@@ -254,7 +219,7 @@ function WorkflowPreview({
 function WorkflowPromptPreview({ content }: { content: string }) {
     const previewContent = stripLeadingMarkdownHeading(content);
     return (
-        <div className="min-w-0 flex-1 overflow-x-auto break-normal rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
+        <div className="min-w-0 flex-1 overflow-x-hidden break-words rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
             <WorkflowPromptMarkdown content={previewContent} />
         </div>
     );
@@ -265,76 +230,11 @@ function stripLeadingMarkdownHeading(content: string) {
 }
 function WorkflowPromptMarkdown({ content }: { content: string }) {
     return (
-        <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-                h1: ({ children }) => (
-                    <h1 className="mb-1 mt-4 text-base font-semibold text-gray-900 first:mt-0">
-                        {children}
-                    </h1>
-                ),
-                h2: ({ children }) => (
-                    <h2 className="mb-1 mt-3 text-sm font-semibold text-gray-900 first:mt-0">
-                        {children}
-                    </h2>
-                ),
-                h3: ({ children }) => (
-                    <h3 className="mb-0.5 mt-2 text-xs font-semibold text-gray-900 first:mt-0">
-                        {children}
-                    </h3>
-                ),
-                p: ({ children }) => (
-                    <p className="mb-2 last:mb-0">{children}</p>
-                ),
-                ul: ({ children }) => (
-                    <ul className="mb-2 list-disc space-y-0.5 pl-4">
-                        {children}
-                    </ul>
-                ),
-                ol: ({ children }) => (
-                    <ol className="mb-2 list-decimal space-y-0.5 pl-4">
-                        {children}
-                    </ol>
-                ),
-                li: ({ children }) => <li>{children}</li>,
-                table: ({ children }) => (
-                    <div className="my-3 overflow-x-auto rounded-md border border-gray-200 first:mt-0 last:mb-0">
-                        <table className="min-w-full border-collapse text-left text-xs">
-                            {children}
-                        </table>
-                    </div>
-                ),
-                thead: ({ children }) => (
-                    <thead className="bg-gray-50">{children}</thead>
-                ),
-                tbody: ({ children }) => (
-                    <tbody className="divide-y divide-gray-100">
-                        {children}
-                    </tbody>
-                ),
-                tr: ({ children }) => (
-                    <tr className="divide-x divide-gray-100">{children}</tr>
-                ),
-                th: ({ children }) => (
-                    <th className="px-3 py-2 font-medium text-gray-700">
-                        {children}
-                    </th>
-                ),
-                td: ({ children }) => (
-                    <td className="px-3 py-2 align-top text-gray-600">
-                        {children}
-                    </td>
-                ),
-                strong: ({ children }) => (
-                    <strong className="font-semibold text-gray-800">
-                        {children}
-                    </strong>
-                ),
-                em: ({ children }) => <em className="italic">{children}</em>,
-            }}
-        >
-            {content}
-        </ReactMarkdown>
+        <div className="[&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_h1]:mb-1 [&_h1]:mt-4 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-gray-900 [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h3]:mb-0.5 [&_h3]:mt-2 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-gray-900 [&_p]:mb-2 [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_pre]:whitespace-pre-wrap [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:border [&_table]:border-gray-200 [&_table]:text-xs [&_tr]:border-b [&_tr]:border-gray-100 [&_th]:break-words [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_td]:break-words [&_td]:px-3 [&_td]:py-2 [&_strong]:font-semibold [&_strong]:text-gray-800 [&_em]:italic">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content}
+            </ReactMarkdown>
+        </div>
     );
 }
 function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
@@ -379,7 +279,7 @@ function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
                                 />
                             </button>
                             {isExpanded ? (
-                                <div className="mt-1 min-w-0 space-y-3 overflow-x-auto break-normal rounded-md bg-white/60 px-4 py-3 font-serif text-sm leading-relaxed text-gray-600">
+                                <div className="mt-1 min-w-0 space-y-3 overflow-x-hidden break-words rounded-md bg-white/60 px-4 py-3 font-serif text-sm leading-relaxed text-gray-600">
                                     {column.tags && column.tags.length > 0 ? (
                                         <div>
                                             <p className="mb-1.5 font-sans text-[11px] font-medium text-gray-600">

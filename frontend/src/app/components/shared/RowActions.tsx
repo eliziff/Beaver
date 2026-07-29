@@ -1,4 +1,3 @@
-"use client";
 import { MoreHorizontal } from "lucide-react";
 import {
     NativeActionSelect,

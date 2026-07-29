@@ -1,4 +1,3 @@
-"use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type Dispatch, type SetStateAction } from "react";
@@ -257,11 +256,7 @@ function LoadingRows({ showProject }: { showProject: boolean }) {
                     className={rowPadding}
                 >
                     <TableStickyCell
-                        hover={false}
                         widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                        bgClassName={
-                            showProject ? "bg-transparent" : undefined
-                        }
                     >
                         <div className="flex min-w-0 items-center">
                             <TableSelectionPlaceholder />

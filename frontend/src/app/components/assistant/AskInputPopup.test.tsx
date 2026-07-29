@@ -5,7 +5,36 @@ import type { AssistantEvent } from "../shared/types";
 import { AskInputPopup } from "./AskInputPopup";
 
 vi.mock("../modals/AddDocumentsModal", () => ({
-    AddDocumentsModal: () => null,
+    AddDocumentsModal: ({
+        open,
+        onSelect,
+    }: {
+        open: boolean;
+        onSelect: (docs: unknown[]) => void;
+    }) =>
+        open ? (
+            <button
+                onClick={() =>
+                    onSelect([
+                        {
+                            id: "doc-1",
+                            project_id: null,
+                            filename: "brief.docx",
+                            file_type: "docx",
+                            storage_path: null,
+                            pdf_storage_path: null,
+                            size_bytes: 1,
+                            page_count: 1,
+                            structure_tree: null,
+                            status: "ready",
+                            created_at: null,
+                        },
+                    ])
+                }
+            >
+                Choose brief
+            </button>
+        ) : null,
 }));
 
 it("collapses the question body", async () => {
@@ -25,11 +54,202 @@ it("collapses the question body", async () => {
 
     render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
 
-    screen.getByRole("button", { name: /A client/ });
+    screen.getByRole("radio", { name: "A client" });
     await userEvent.click(
         screen.getByRole("button", { name: "1 question" }),
     );
+    expect(document.querySelector("[data-ask-input-panel]")).not.toHaveAttribute(
+        "open",
+    );
+});
+
+it("keeps a multi-question prompt in one fixed panel", async () => {
+    const onSubmit = vi.fn();
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [
+            {
+                id: "one",
+                kind: "choice",
+                question: "First question",
+                options: [{ value: "Yes" }],
+                allow_other: false,
+            },
+            {
+                id: "two",
+                kind: "choice",
+                question: "Second question",
+                options: [{ value: "No" }],
+                allow_other: false,
+            },
+        ],
+    };
+
+    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
+    expect(screen.getByText("First question")).toBeInTheDocument();
+    expect(screen.getByText("Second question")).not.toBeVisible();
+    expect(document.querySelector("[data-ask-input-panel]")).toHaveClass(
+        "open:h-[min(16rem,45dvh)]",
+    );
+    expect(document.querySelector("[data-ask-input-options]")).toHaveClass(
+        "min-h-0",
+        "flex-1",
+        "overflow-y-auto",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(screen.getByText("Second question")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "No" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            responses: [
+                expect.objectContaining({ answer: "Yes" }),
+                expect.objectContaining({ answer: "No" }),
+            ],
+        }),
+        expect.any(String),
+        [],
+    );
+});
+
+it("keeps skipped questions navigable and submits them", async () => {
+    const onSubmit = vi.fn();
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [
+            {
+                id: "one",
+                kind: "choice",
+                question: "First question",
+                options: [{ value: "Yes" }],
+                allow_other: false,
+            },
+            {
+                id: "two",
+                kind: "choice",
+                question: "Second question",
+                options: [{ value: "No" }],
+                allow_other: false,
+            },
+        ],
+    };
+
+    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await userEvent.click(
+        screen.getByRole("button", { name: "Previous question" }),
+    );
+    expect(screen.getByRole("button", { name: "Unskip" })).toBeInTheDocument();
+    await userEvent.click(
+        screen.getByRole("button", { name: "Next question" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            responses: [
+                expect.objectContaining({ id: "one", skipped: true }),
+                expect.objectContaining({ id: "two", skipped: true }),
+            ],
+        }),
+        expect.any(String),
+        [],
+    );
+});
+
+it("keeps every choice reachable inside the fixed panel", () => {
+    const options = Array.from({ length: 8 }, (_, index) => ({
+        value: `Option ${index + 1}`,
+    }));
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [
+            {
+                id: "many",
+                kind: "choice",
+                question: "Choose one",
+                options,
+                allow_other: true,
+                other_label: "Something else",
+            },
+        ],
+    };
+
+    render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
+
+    const choices = document.querySelector("[data-ask-input-options]")!;
+    for (const option of options) {
+        expect(screen.getByText(option.value)).toBeInTheDocument();
+    }
     expect(
-        screen.queryByRole("button", { name: /A client/ }),
-    ).not.toBeInTheDocument();
+        screen.getByRole("textbox", { name: "Something else" }),
+    ).toBeInTheDocument();
+    expect(choices).toHaveClass("overflow-y-auto");
+    expect(choices).not.toContainElement(
+        screen.getByRole("button", { name: "Confirm" }),
+    );
+});
+
+it("submits a native Other answer", async () => {
+    const onSubmit = vi.fn();
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [{
+            id: "forum",
+            kind: "choice",
+            question: "Which forum?",
+            options: [{ value: "Court" }],
+            allow_other: true,
+            other_label: "Another forum",
+        }],
+    };
+    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
+
+    await userEvent.type(
+        screen.getByRole("textbox", { name: "Another forum" }),
+        "Tribunal",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            responses: [expect.objectContaining({ answer: "Tribunal" })],
+        }),
+        expect.stringContaining("Tribunal"),
+        [],
+    );
+});
+
+it("submits selected documents", async () => {
+    const onSubmit = vi.fn();
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [{
+            id: "source",
+            kind: "documents",
+            document_types: ["Source document"],
+        }],
+    };
+    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Source document/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose brief" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose brief" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            responses: [
+                expect.objectContaining({
+                    filenames: ["brief.docx"],
+                    documents: [
+                        { document_id: "doc-1", filename: "brief.docx" },
+                    ],
+                }),
+            ],
+        }),
+        expect.stringContaining("brief.docx"),
+        [{ document_id: "doc-1", filename: "brief.docx" }],
+    );
 });

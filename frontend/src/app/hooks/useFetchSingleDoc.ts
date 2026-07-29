@@ -1,9 +1,8 @@
-"use client";
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";export type DocResult =
+import { apiFetch } from "@/app/lib/beaverApi";type DocResult =
     | { type: "pdf"; buffer: ArrayBuffer }
     | { type: "spreadsheet"; buffer: ArrayBuffer }
-    | { type: "docx" }
+    | { type: "docx"; buffer: ArrayBuffer }
     | null;
 type LoadedDoc = Exclude<DocResult, null>;
 let cached: { key: string; result: LoadedDoc } | null = null;
@@ -41,8 +40,7 @@ async function loadSingleDoc(
                 buffer: await response.arrayBuffer(),
             };
         } else {
-            await response.arrayBuffer().catch(() => {});
-            result = { type: "docx" };
+            result = { type: "docx", buffer: await response.arrayBuffer() };
         }
         cached = { key, result };
         return result;
@@ -61,6 +59,16 @@ export function preloadSingleDoc(
     revision?: string | number | null,
 ) {
     return loadSingleDoc(documentId, versionId, revision);
+}
+export function invalidateSingleDoc(
+    documentId: string,
+    versionId?: string | null,
+) {
+    const prefix =
+        versionId === undefined
+            ? `${documentId}:`
+            : `${documentId}:${versionId ?? "current"}:`;
+    if (cached?.key.startsWith(prefix)) cached = null;
 }
 export function useFetchSingleDoc(
     documentId: string | null | undefined,

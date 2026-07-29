@@ -1,14 +1,13 @@
-"use client";
 import type { ReactNode } from "react";
-import { ProjectWorkspaceLayout } from "@/app/components/projects/ProjectWorkspace";
-export default function ProjectLayout({
+import { ProjectWorkspaceProvider } from "@/app/components/projects/ProjectWorkspace";
+export default async function ProjectLayout({
     params,
     children,
-}: {
-    params: Promise<{ id: string }>;
-    children: ReactNode;
-}) {
+}: { params: Promise<{ id: string }>; children: ReactNode }) {
+    const { id } = await params;
     return (
-        <ProjectWorkspaceLayout params={params}>{children}</ProjectWorkspaceLayout>
+        <ProjectWorkspaceProvider key={id} projectId={id}>
+            {children}
+        </ProjectWorkspaceProvider>
     );
 }

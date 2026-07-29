@@ -1,5 +1,3 @@
-"use client";
-import { useEffect, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
@@ -9,19 +7,12 @@ import type {
     EditResolveHandlers,
 } from "../shared/types";
 import {
-    CaseLawPanel,
-    type CaseTab,
-} from "./CaseLawPanel";
-import {
     LegalSourceViewer,
+    type CaseTab,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
-import {
-    HORIZONTAL_RESIZE_HANDLE_CLASS,
-    horizontalDrag,
-} from "@/app/components/ui/horizontal-drag";
 import { AutomationRunPanel } from "./AutomationRun";
 type CommonTab = {
     id: string;
@@ -32,25 +23,24 @@ type CommonTab = {
     warning?: string | null;
     initialScrollTop?: number | null;
 };
-export type DocumentTab = CommonTab & { kind: "document" };
-export type CitationTab = CommonTab & {
+type DocumentTab = CommonTab & { kind: "document" };
+type CitationTab = CommonTab & {
     kind: "citation";
     citation: Citation;
 };
-export type EditTab = CommonTab & {
+type EditTab = CommonTab & {
     kind: "edit";
     edit: EditAnnotation;
     changeNumber?: number;
 };
-export type AutomationTab = {
+type AutomationTab = {
     kind: "automation";
     id: string;
     run: AutomationRunEvent;
 };
+export type AssistantDocumentTab = DocumentTab | CitationTab | EditTab;
 export type AssistantSidePanelTab =
-    | DocumentTab
-    | CitationTab
-    | EditTab
+    | AssistantDocumentTab
     | CaseTab
     | LegalSourceTab
     | AutomationTab;
@@ -68,16 +58,6 @@ interface Props {
     onEditError?: EditResolveHandlers["onError"];
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
-}
-const MIN_WIDTH = 300;
-const MAX_WIDTH_OFFSET = 56;
-const MIN_CHAT_WIDTH = 400;
-function maxPanelWidth() {
-    if (typeof window === "undefined") return 600;
-    return Math.max(
-        MIN_WIDTH,
-        window.innerWidth - MAX_WIDTH_OFFSET - MIN_CHAT_WIDTH,
-    );
 }
 function tabTitle(tab: AssistantSidePanelTab): string {
     if (tab.kind === "automation") return "Automation";
@@ -104,61 +84,24 @@ export function AssistantSidePanel({
     onWarningDismiss,
     onScrollChange,
 }: Props) {
-    const [panelWidth, setPanelWidth] = useState(() =>
-        typeof window !== "undefined"
-            ? Math.min(
-                  maxPanelWidth(),
-                  Math.round((window.innerWidth - MAX_WIDTH_OFFSET) / 2),
-              )
-            : 600,
-    );
-    const resizePanel = horizontalDrag((deltaX) =>
-        setPanelWidth((width) =>
-            Math.min(maxPanelWidth(), Math.max(MIN_WIDTH, width - deltaX)),
-        ),
-    );
-    useEffect(() => {
-        const onResize = () => {
-            setPanelWidth((width) =>
-                Math.min(maxPanelWidth(), Math.max(MIN_WIDTH, width)),
-            );
-        };
-        window.addEventListener("resize", onResize);
-        onResize();
-        return () => window.removeEventListener("resize", onResize);
-    }, []);
-    const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
+    const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     if (!active) return null;
     return (
         <div
             className={cn(
-                "relative flex h-full w-full shrink-0 flex-col md:my-3 md:mr-3 md:h-[calc(100%-1.5rem)] md:w-[var(--assistant-panel-width)]",
+                "relative flex h-full w-full shrink-0 flex-col md:my-3 md:mr-3 md:h-[calc(100%-1.5rem)] md:min-w-[360px] md:w-[min(46vw,680px)]",
                 LIQUID_PANEL_SURFACE_CLASS,
                 "overflow-hidden",
             )}
-            style={{
-                "--assistant-panel-width": `${panelWidth}px`,
-            } as CSSProperties}
         >
-            <div
-                onPointerDown={resizePanel}
-                className={cn(
-                    "absolute left-0 top-0 z-10 hidden h-full w-1 md:block",
-                    HORIZONTAL_RESIZE_HANDLE_CLASS,
-                )}
-                style={{ marginLeft: -2 }}
-            />
             <div className="flex items-start gap-2 border-b border-gray-300 bg-gray-100 p-2">
                 <div className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto">
                     {tabs.map((tab) => {
                         const isActive = tab.id === active.id;
                         const showVersionBadge =
-                            tab.kind !== "automation" &&
-                            tab.kind !== "case" &&
-                            tab.kind !== "legal" &&
-                            typeof tab.versionNumber === "number" &&
+                            "documentId" in tab &&
                             Number.isFinite(tab.versionNumber) &&
-                            tab.versionNumber >
+                            (tab.versionNumber ?? 0) >
                                 (tab.kind === "edit" ? 0 : 1);
                         const title = tabTitle(tab);
                         return (
@@ -173,18 +116,19 @@ export function AssistantSidePanel({
                                 )}
                             >
                                 <span
-                                    className={`min-w-0 flex-1 truncate text-xs ${isActive ? "font-medium" : "font-normal"}`}
+                                    className="min-w-0 flex-1 truncate text-xs font-medium"
                                     title={title}
                                 >
                                     {title}
                                 </span>
                                 {showVersionBadge && (
                                     <span
-                                        className={`shrink-0 inline-flex items-center rounded border px-1 py-px text-[9px] font-medium ${
+                                        className={cn(
+                                            "inline-flex shrink-0 items-center rounded border px-1 py-px text-[9px] font-medium",
                                             isActive
                                                 ? "border-gray-200 bg-white text-gray-600"
-                                                : "border-gray-300 bg-white/70 text-gray-500"
-                                        }`}
+                                                : "border-gray-300 bg-white/70 text-gray-500",
+                                        )}
                                     >
                                         V{tab.versionNumber}
                                     </span>
@@ -212,88 +156,42 @@ export function AssistantSidePanel({
                     <X className="h-4 w-4" />
                 </button>
             </div>
-            {/* Tab bodies — all mounted, inactive ones hidden. Each tab
-                preserves its state (scroll, docx-preview render, etc.)
-                when inactive. */}
             <div className="flex-1 min-h-0 relative">
                 {tabs.map((tab) => {
                     const isActive = tab.id === active.id;
-                    if (tab.kind === "automation") {
+                    const body = (() => {
+                        if (tab.kind === "automation") {
+                            return <AutomationRunPanel run={tab.run} />;
+                        }
+                        if (tab.kind === "case") {
+                            return <LegalSourceViewer caseTab={tab} compact />;
+                        }
+                        if (tab.kind === "legal") {
+                            return <LegalSourceViewer {...tab} compact />;
+                        }
+                        const mode: DocPanelMode =
+                            tab.kind === "citation"
+                                ? {
+                                      kind: "citation",
+                                      citation: tab.citation,
+                                  }
+                                : tab.kind === "edit"
+                                  ? {
+                                        kind: "edit",
+                                        edit: tab.edit,
+                                        isEditReloading:
+                                            isEditReloading?.(
+                                                tab.edit.edit_id,
+                                            ) ?? false,
+                                        onResolveStart: onEditResolveStart,
+                                        onResolved: onEditResolved,
+                                        onError: onEditError,
+                                    }
+                                  : { kind: "document" };
                         return (
-                            <div
-                                key={tab.id}
-                                className={`absolute inset-0 overflow-y-auto ${isActive ? "" : "invisible pointer-events-none"}`}
-                                aria-hidden={!isActive}
-                            >
-                                <AutomationRunPanel run={tab.run} />
-                            </div>
-                        );
-                    }
-                    if (tab.kind === "case") {
-                        return (
-                            <div
-                                key={tab.id}
-                                className={`absolute inset-0 flex flex-col ${isActive ? "" : "invisible pointer-events-none"}`}
-                                aria-hidden={!isActive}
-                            >
-                                <CaseLawPanel
-                                    tab={tab}
-                                    compactActions={panelWidth < 600}
-                                />
-                            </div>
-                        );
-                    }
-                    if (tab.kind === "legal") {
-                        return (
-                            <div
-                                key={tab.id}
-                                className={`absolute inset-0 flex flex-col ${isActive ? "" : "invisible pointer-events-none"}`}
-                                aria-hidden={!isActive}
-                            >
-                                <LegalSourceViewer
-                                    provider={tab.provider}
-                                    citation={tab.citation}
-                                    sourceId={tab.sourceId}
-                                    docType={tab.docType}
-                                    language={tab.language}
-                                    dataset={tab.dataset}
-                                    quotes={tab.quotes}
-                                    citationRef={tab.citationRef}
-                                    compact
-                                />
-                            </div>
-                        );
-                    }
-                    const mode: DocPanelMode =
-                        tab.kind === "citation"
-                            ? {
-                                  kind: "citation",
-                                  citation: tab.citation,
-                              }
-                            : tab.kind === "edit"
-                              ? {
-                                    kind: "edit",
-                                    edit: tab.edit,
-                                    isEditReloading:
-                                        isEditReloading?.(tab.edit.edit_id) ??
-                                        false,
-                                    onResolveStart: onEditResolveStart,
-                                    onResolved: onEditResolved,
-                                    onError: onEditError,
-                                }
-                              : { kind: "document" };
-                    return (
-                        <div
-                            key={tab.id}
-                            className={`absolute inset-0 flex flex-col ${isActive ? "" : "invisible pointer-events-none"}`}
-                            aria-hidden={!isActive}
-                        >
                             <DocPanel
-                                documentId={tab.documentId}
-                                filename={tab.filename}
+                                {...tab}
                                 projectId={projectId}
-                                versionId={tab.versionId}
-                                versionNumber={tab.versionNumber}
                                 mode={mode}
                                 isReloading={
                                     isEditorReloading?.(tab.documentId) ?? false
@@ -307,6 +205,21 @@ export function AssistantSidePanel({
                                     onScrollChange?.(tab.id, scrollTop)
                                 }
                             />
+                        );
+                    })();
+                    return (
+                        <div
+                            key={tab.id}
+                            className={cn(
+                                "absolute inset-0",
+                                tab.kind === "automation"
+                                    ? "overflow-y-auto"
+                                    : "flex flex-col",
+                                !isActive && "invisible pointer-events-none",
+                            )}
+                            aria-hidden={!isActive}
+                        >
+                            {body}
                         </div>
                     );
                 })}

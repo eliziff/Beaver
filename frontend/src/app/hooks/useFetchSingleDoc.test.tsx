@@ -42,4 +42,22 @@ describe("useFetchSingleDoc", () => {
         });
         await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     });
+
+    it("retains DOCX bytes from the display response", async () => {
+        const buffer = new ArrayBuffer(16);
+        const fetchMock = vi.fn(async () => ({
+            ok: true,
+            headers: {
+                get: () =>
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+            arrayBuffer: async () => buffer,
+        }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(
+            preloadSingleDoc("docx-prefetched", "version-2"),
+        ).resolves.toEqual({ type: "docx", buffer });
+        expect(fetchMock).toHaveBeenCalledOnce();
+    });
 });

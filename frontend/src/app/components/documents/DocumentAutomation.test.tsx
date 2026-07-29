@@ -65,9 +65,11 @@ describe("DocumentAutomation", () => {
             screen.queryByRole("button", { name: "Automation" }),
         ).toBeNull();
         rerender(<DocumentAutomation document={docx} />);
+        const trigger = screen.getByRole("button", { name: "Automation" });
+        expect(trigger).toBeVisible();
         expect(
-            screen.getByRole("button", { name: "Automation" }),
-        ).toBeVisible();
+            trigger.querySelector("svg.lucide-wand-sparkles"),
+        ).not.toBeNull();
     });
 
     it("keeps one stable disabled trigger until one DOCX is eligible", () => {
@@ -79,6 +81,9 @@ describe("DocumentAutomation", () => {
         );
         const trigger = screen.getByRole("button", { name: "Automation" });
         expect(trigger).toBeDisabled();
+        expect(
+            trigger.querySelector("svg.lucide-wand-sparkles"),
+        ).not.toBeNull();
 
         rerender(
             <DocumentAutomation
@@ -124,6 +129,26 @@ describe("DocumentAutomation", () => {
         expect(
             await screen.findByRole("complementary", { name: "Automation" }),
         ).toBeVisible();
+    });
+
+    it("does not open an inspection result for a different document", async () => {
+        const user = userEvent.setup();
+        let release!: (value: { supra_references: boolean }) => void;
+        vi.mocked(inspectLibraryDocumentAutomation).mockReturnValue(
+            new Promise((resolve) => {
+                release = resolve;
+            }),
+        );
+        const { rerender } = render(<DocumentAutomation document={docx} />);
+        await user.click(screen.getByRole("button", { name: "Automation" }));
+        rerender(
+            <DocumentAutomation
+                document={{ ...docx, id: "document-2" }}
+            />,
+        );
+        release({ supra_references: true });
+
+        expect(screen.queryByRole("complementary")).toBeNull();
     });
 
     it("uses the compact action list and server-gates supra repair", async () => {

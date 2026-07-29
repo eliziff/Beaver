@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useState } from "react";import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";import { useRouter } from "next/navigation";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
@@ -10,22 +10,18 @@ import type { Chat } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
-interface Props {
-    params: Promise<{ id: string }>;
-}
-export default function ProjectAssistantPage({ params }: Props) {
-    use(params);
-    const workspace = useProjectWorkspace();
+export default function ProjectAssistantPage() {
     const router = useRouter();
     const { user } = useAuth();
     const {
+        createChat,
         ensureProjectChats,
         projectChats,
         projectId,
         search,
         setProjectChats,
         setOwnerOnlyAction,
-    } = workspace;
+    } = useProjectWorkspace();
     const [selectedChatIds, setSelectedChatIds] = useState<string[]>([]);
     const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
     const [renameChatValue, setRenameChatValue] = useState("");
@@ -110,7 +106,7 @@ export default function ProjectAssistantPage({ params }: Props) {
                 renameChatValue={renameChatValue}
                 currentUserId={user?.id}
                 loading={loading}
-                onCreateChat={() => void workspace.createChat()}
+                onCreateChat={() => void createChat()}
                 onOpenChat={(chatId) =>
                     router.push(
                         `/projects/${projectId}/assistant/chat/${chatId}`,

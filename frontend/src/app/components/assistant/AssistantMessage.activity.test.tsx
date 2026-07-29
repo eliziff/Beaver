@@ -109,6 +109,10 @@ describe("AssistantMessage activity", () => {
         render(
             <AssistantMessage
                 events={[
+                    {
+                        type: "reasoning",
+                        text: "Analyzed request.",
+                    },
                     { type: "thinking", isStreaming: true },
                     {
                         type: "tool_call_start",

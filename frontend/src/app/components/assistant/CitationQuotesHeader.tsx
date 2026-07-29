@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Check, Minus, Quote, RectangleHorizontal, Rows3 } from "lucide-react";
+
 export type CitationQuoteHeaderItem = {
     id: string;
     quote: string;
@@ -9,9 +9,14 @@ export type CitationQuoteHeaderItem = {
     detail?: string | null;
     citationText?: string | null;
 };
-const QUOTE_GLASS_SURFACE =
-    "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const QUOTE_CARD_SURFACE = "rounded-2xl bg-gray-100";
+const VIEW_OPTIONS = [
+    ["closed", "Minimize", Minus],
+    ["single", "Single quote", RectangleHorizontal],
+    ["list", "Quote list", Rows3],
+] as const;
+type ViewMode = (typeof VIEW_OPTIONS)[number][0];
+
 interface Props {
     quotes: CitationQuoteHeaderItem[];
     error?: string | null;
@@ -23,6 +28,7 @@ interface Props {
     onSelect?: (quote: CitationQuoteHeaderItem, index: number) => void;
     onIndexChange?: (index: number) => void;
 }
+
 export function CitationQuotesHeader({
     quotes,
     error = null,
@@ -34,17 +40,19 @@ export function CitationQuotesHeader({
     onSelect,
     onIndexChange,
 }: Props) {
-    const [isExpanded, setIsExpanded] = useState(true);
-    const [viewMode, setViewMode] = useState<"single" | "list">("single");
+    const [viewMode, setViewMode] = useState<ViewMode>("single");
     const [isCopied, setIsCopied] = useState(false);
     const hasMultipleQuotes = quotes.length > 1;
     const currentQuote = quotes[currentIndex];
-    useEffect(() => {
-        if (!hasMultipleQuotes && viewMode === "list") {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- collapse list view when quotes drop to a single item
-            setViewMode("single");
-        }
-    }, [hasMultipleQuotes, viewMode]);
+    const visibleMode =
+        !hasMultipleQuotes && viewMode === "list" ? "single" : viewMode;
+    const visibleQuotes =
+        visibleMode === "list"
+            ? quotes.map((quote, index) => ({ quote, index }))
+            : currentQuote
+              ? [{ quote: currentQuote, index: currentIndex }]
+              : [];
+
     async function copyCitation() {
         if (!currentQuote) return;
         try {
@@ -59,18 +67,16 @@ export function CitationQuotesHeader({
     }
     return (
         <div className="px-3">
-            <div className={QUOTE_GLASS_SURFACE}>
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div className="flex h-10 items-center justify-between px-2">
-                    <div className="flex items-center gap-2">
-                        <p className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
-                            <span>Citation</span>
-                            {typeof citationRef === "number" && (
-                                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-gray-200 px-1 text-[9px] font-medium text-gray-600">
-                                    {citationRef}
-                                </span>
-                            )}
-                        </p>
-                    </div>
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                        <span>Citation</span>
+                        {typeof citationRef === "number" && (
+                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-gray-200 px-1 text-[9px] font-medium text-gray-600">
+                                {citationRef}
+                            </span>
+                        )}
+                    </p>
                     <div className="flex items-center gap-2">
                         {hasMultipleQuotes && (
                             <div className="flex items-center gap-1">
@@ -117,68 +123,32 @@ export function CitationQuotesHeader({
                             </button>
                         )}
                         <div
-                            className={`relative flex h-6 items-center justify-start gap-1 rounded-full bg-gray-200 p-1 ${
+                            className={`flex h-6 items-center gap-1 rounded-full bg-gray-200 p-1 ${
                                 hasMultipleQuotes ? "w-16" : "w-11"
                             }`}
                         >
-                            <div
-                                className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm ${
-                                    !isExpanded
-                                        ? "left-1"
-                                        : hasMultipleQuotes &&
-                                            viewMode === "list"
-                                          ? "left-11"
-                                          : "left-6"
-                                }`}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setIsExpanded(false)}
-                                className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full ${
-                                    !isExpanded
-                                        ? "text-gray-800"
-                                        : "text-gray-500 hover:text-gray-700"
-                                }`}
-                                title="Minimize"
-                            >
-                                <Minus className="h-3 w-3" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsExpanded(true);
-                                    setViewMode("single");
-                                }}
-                                className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full ${
-                                    isExpanded && viewMode === "single"
-                                        ? "text-gray-800"
-                                        : "text-gray-500 hover:text-gray-700"
-                                }`}
-                                title="Single quote"
-                            >
-                                <RectangleHorizontal className="h-3 w-3" />
-                            </button>
-                            {hasMultipleQuotes && (
+                            {VIEW_OPTIONS.slice(
+                                0,
+                                hasMultipleQuotes ? 3 : 2,
+                            ).map(([mode, title, Icon]) => (
                                 <button
+                                    key={mode}
                                     type="button"
-                                    onClick={() => {
-                                        setIsExpanded(true);
-                                        setViewMode("list");
-                                    }}
-                                    className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full ${
-                                        isExpanded && viewMode === "list"
-                                            ? "text-gray-800"
+                                    onClick={() => setViewMode(mode)}
+                                    className={`flex h-4 w-4 items-center justify-center rounded-full ${
+                                        visibleMode === mode
+                                            ? "bg-white text-gray-800 shadow-sm"
                                             : "text-gray-500 hover:text-gray-700"
                                     }`}
-                                    title="Quote list"
+                                    title={title}
                                 >
-                                    <Rows3 className="h-3 w-3" />
+                                    <Icon className="h-3 w-3" />
                                 </button>
-                            )}
+                            ))}
                         </div>
                     </div>
                 </div>
-                {isExpanded && (
+                {visibleMode !== "closed" && (
                     <div className="px-2 pb-2">
                         {isLoading ? (
                             <RelevantQuoteSkeleton />
@@ -187,9 +157,15 @@ export function CitationQuotesHeader({
                                 {error}
                             </RelevantQuoteMessage>
                         ) : quotes.length > 0 ? (
-                            viewMode === "list" ? (
-                                <div className="space-y-2">
-                                    {quotes.map((quote, index) => (
+                            visibleQuotes.length ? (
+                                <div
+                                    className={
+                                        visibleMode === "list"
+                                            ? "space-y-2"
+                                            : "flex flex-col gap-2"
+                                    }
+                                >
+                                    {visibleQuotes.map(({ quote, index }) => (
                                         <QuoteItem
                                             key={quote.id}
                                             quote={quote}
@@ -201,21 +177,6 @@ export function CitationQuotesHeader({
                                             }
                                         />
                                     ))}
-                                </div>
-                            ) : currentQuote ? (
-                                <div className="flex flex-col gap-2">
-                                    <QuoteItem
-                                        quote={currentQuote}
-                                        isActive={
-                                            activeQuoteId === currentQuote.id
-                                        }
-                                        onClick={() =>
-                                            onSelect?.(
-                                                currentQuote,
-                                                currentIndex,
-                                            )
-                                        }
-                                    />
                                 </div>
                             ) : null
                         ) : (
@@ -267,42 +228,36 @@ function QuoteItem({
     isActive: boolean;
     onClick: () => void;
 }) {
+    const metaTone = isActive ? "text-red-900" : "text-gray-500";
     return (
         <button
             type="button"
             onClick={onClick}
             className={`w-full rounded-xl px-3 py-2.5 text-left ${
-                isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"            }`}
+                isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"
+            }`}
         >
             <div className="flex flex-col gap-1.5">
                 {quote.eyebrow && (
-                    <p
-                        className={`font-serif text-xs ${
-                            isActive ? "text-red-900" : "text-gray-500"                        }`}
-                    >
+                    <p className={`font-serif text-xs ${metaTone}`}>
                         {quote.eyebrow}
                     </p>
                 )}
                 <p
                     className={`font-serif text-sm leading-6 ${
-                        isActive ? "text-red-950" : "text-gray-700"                    }`}
+                        isActive ? "text-red-950" : "text-gray-700"
+                    }`}
                 >
                     &ldquo;{quote.quote.replace(/"/g, "'")}&rdquo;
                     {quote.inlineDetail && (
-                        <span
-                            className={`text-sm ${
-                                isActive ? "text-red-900" : "text-gray-500"                            }`}
-                        >
+                        <span className={`text-sm ${metaTone}`}>
                             {" "}
                             ({quote.inlineDetail})
                         </span>
                     )}
                 </p>
                 {quote.detail && (
-                    <p
-                        className={`font-serif text-xs ${
-                            isActive ? "text-red-900" : "text-gray-500"                        }`}
-                    >
+                    <p className={`font-serif text-xs ${metaTone}`}>
                         {quote.detail}
                     </p>
                 )}

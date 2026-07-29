@@ -38,19 +38,18 @@ type LibraryViewCollection = {
     documents: Document[];
     folders: DocTableFolder[];
 };
+type LibraryView = LibraryViewCollection & {
+    search: string;
+    loaded: boolean;
+};
+type LibraryViews = Record<LibraryKind, LibraryView>;
+type LibraryViewPatch =
+    | Partial<LibraryView>
+    | ((view: LibraryView) => Partial<LibraryView>);
 type LibraryWorkspaceContextValue = {
-    collections: Record<LibraryKind, LibraryViewCollection | null>;
-    searchByKind: Record<LibraryKind, string>;
+    views: LibraryViews;
     loadLibrary: (kind: LibraryKind) => Promise<void>;
-    setSearchForKind: (kind: LibraryKind, value: string) => void;
-    setDocumentsForKind: (
-        kind: LibraryKind,
-        update: SetStateAction<Document[]>,
-    ) => void;
-    setFoldersForKind: (
-        kind: LibraryKind,
-        update: SetStateAction<DocTableFolder[]>,
-    ) => void;
+    updateView: (kind: LibraryKind, patch: LibraryViewPatch) => void;
 };
 export const LIBRARY_TABS = [
     { id: "files", label: "Files" },
@@ -60,9 +59,13 @@ export const LIBRARY_TABS = [
 export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
     return tab === "files" ? "/library" : `/library/${tab}`;
 }
-const EMPTY_COLLECTION: LibraryViewCollection = {
+const EMPTY_COLLECTION = {
     documents: [],
     folders: [],
+} satisfies LibraryViewCollection;
+const INITIAL_VIEWS: LibraryViews = {
+    files: { ...EMPTY_COLLECTION, search: "", loaded: false },
+    templates: { ...EMPTY_COLLECTION, search: "", loaded: false },
 };
 const LibraryWorkspaceContext =
     createContext<LibraryWorkspaceContextValue | null>(null);
@@ -75,99 +78,48 @@ function useLibraryWorkspace() {
     }
     return context;
 }
+function useStoredAction() {
+    const [action, setAction] = useState<(() => void) | null>(null);
+    const onChange = useCallback(
+        (next: (() => void) | null) => setAction(() => next),
+        [],
+    );
+    return [action, onChange] as const;
+}
 export function LibraryWorkspaceProvider({
     children,
 }: {
     children: ReactNode;
 }) {
-    const [collections, setCollections] = useState<
-        Record<LibraryKind, LibraryViewCollection | null>
-    >({
-        files: null,
-        templates: null,
-    });
-    const [searchByKind, setSearchByKind] = useState<
-        Record<LibraryKind, string>
-    >({
-        files: "",
-        templates: "",
-    });
+    const [views, setViews] = useState(INITIAL_VIEWS);
     const loadLibrary = useCallback(async (kind: LibraryKind) => {
+        let data: LibraryViewCollection;
         try {
-            const loaded = await getLibrary(kind);
-            setCollections((prev) => ({
-                ...prev,
-                [kind]: {
-                    documents: loaded.documents,
-                    folders: loaded.folders,
-                },
-            }));
+            data = await getLibrary(kind);
         } catch (error) {
             console.error("[library] failed to load", error);
-            setCollections((prev) => ({
-                ...prev,
-                [kind]: EMPTY_COLLECTION,
-            }));
+            data = EMPTY_COLLECTION;
         }
+        setViews((prev) => ({
+            ...prev,
+            [kind]: { ...prev[kind], ...data, loaded: true },
+        }));
     }, []);
-    const setSearchForKind = useCallback((kind: LibraryKind, value: string) => {
-        setSearchByKind((prev) => ({ ...prev, [kind]: value }));
+    const updateView = useCallback((kind: LibraryKind, patch: LibraryViewPatch) => {
+        setViews((prev) => {
+            const current = prev[kind];
+            return {
+                ...prev,
+                [kind]: {
+                    ...current,
+                    ...(typeof patch === "function" ? patch(current) : patch),
+                },
+            };
+        });
     }, []);
-    const setDocumentsForKind = useCallback(
-        (kind: LibraryKind, update: SetStateAction<Document[]>) => {
-            setCollections((prev) => {
-                const current = prev[kind] ?? EMPTY_COLLECTION;
-                const nextDocuments =
-                    typeof update === "function"
-                        ? update(current.documents)
-                        : update;
-                return {
-                    ...prev,
-                    [kind]: {
-                        ...current,
-                        documents: nextDocuments,
-                    },
-                };
-            });
-        },
-        [],
-    );
-    const setFoldersForKind = useCallback(
-        (kind: LibraryKind, update: SetStateAction<DocTableFolder[]>) => {
-            setCollections((prev) => {
-                const current = prev[kind] ?? EMPTY_COLLECTION;
-                const nextFolders =
-                    typeof update === "function"
-                        ? update(current.folders)
-                        : update;
-                return {
-                    ...prev,
-                    [kind]: {
-                        ...current,
-                        folders: nextFolders,
-                    },
-                };
-            });
-        },
-        [],
-    );
     const value = useMemo(
-        () => ({
-            collections,
-            searchByKind,
-            loadLibrary,
-            setSearchForKind,
-            setDocumentsForKind,
-            setFoldersForKind,
-        }),
-        [
-            collections,
-            loadLibrary,
-            searchByKind,
-            setDocumentsForKind,
-            setFoldersForKind,
-            setSearchForKind,
-        ],
+        () => ({ views, loadLibrary, updateView }),
+        [views, loadLibrary, updateView],
     );
     return (
         <LibraryWorkspaceContext.Provider value={value}>
@@ -186,90 +138,70 @@ export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
 }
 export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     const router = useRouter();
-    const {
-        collections,
-        searchByKind,
-        loadLibrary,
-        setSearchForKind,
-        setDocumentsForKind,
-        setFoldersForKind,
-    } = useLibraryWorkspace();
-    const collection = collections[kind];
-    const search = searchByKind[kind];
+    const { views, loadLibrary, updateView } = useLibraryWorkspace();
+    const view = views[kind];
     const title = kind === "files" ? "Files" : "Templates";
     useEffect(() => {
-        if (collection) return;
+        if (view.loaded) return;
         void loadLibrary(kind);
-    }, [collection, kind, loadLibrary]);
+    }, [kind, loadLibrary, view.loaded]);
     const setDocuments: Dispatch<SetStateAction<Document[]>> = useCallback(
-        (update) => setDocumentsForKind(kind, update),
-        [kind, setDocumentsForKind],
+        (update) =>
+            updateView(kind, ({ documents }) => ({
+                documents:
+                    typeof update === "function"
+                        ? update(documents)
+                        : update,
+            })),
+        [kind, updateView],
     );
     const setFolders: Dispatch<SetStateAction<DocTableFolder[]>> = useCallback(
-        (update) => setFoldersForKind(kind, update),
-        [kind, setFoldersForKind],
+        (update) =>
+            updateView(kind, ({ folders }) => ({
+                folders:
+                    typeof update === "function" ? update(folders) : update,
+            })),
+        [kind, updateView],
     );
-    const [addDocumentsAction, setAddDocumentsAction] = useState<
-        (() => void) | null
-    >(null);
-    const [createFolderAction, setCreateFolderAction] = useState<
-        (() => void) | null
-    >(null);
+    const [addDocumentsAction, handleAddDocumentsActionChange] =
+        useStoredAction();
+    const [createFolderAction, handleCreateFolderActionChange] =
+        useStoredAction();
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-    const loading = !collection;
-    const addCollectionLabel = kind === "templates" ? "Templates" : "Files";
-    const handleAddDocumentsActionChange = useCallback(
-        (action: (() => void) | null) => {
-            setAddDocumentsAction(() => action);
-        },
-        [],
-    );
-    const handleCreateFolderActionChange = useCallback(
-        (action: (() => void) | null) => {
-            setCreateFolderAction(() => action);
-        },
-        [],
-    );
+    const loading = !view.loaded;
     const operations = useMemo(
         () => ({
-            uploadDocument: (file: File) => uploadLibraryDocument(kind, file),
-            refreshCollection: () => loadLibrary(kind),
-            createFolder: (name: string, parentFolderId?: string | null) =>
-                createLibraryFolder(kind, name, parentFolderId),
-            renameFolder: (folderId: string, name: string) =>
-                renameLibraryFolder(kind, folderId, name),
-            deleteFolder: (folderId: string) =>
-                deleteLibraryFolder(kind, folderId),
-            moveFolder: (folderId: string, parentFolderId: string | null) =>
-                moveLibraryFolder(kind, folderId, parentFolderId),
-            moveDocument: (documentId: string, folderId: string | null) =>
-                moveLibraryDocument(kind, documentId, folderId),
-            renameDocument: (documentId: string, filename: string) =>
-                renameLibraryDocument(kind, documentId, filename),
+            uploadDocument: uploadLibraryDocument.bind(null, kind),
+            refreshCollection: loadLibrary.bind(null, kind),
+            createFolder: createLibraryFolder.bind(null, kind),
+            renameFolder: renameLibraryFolder.bind(null, kind),
+            deleteFolder: deleteLibraryFolder.bind(null, kind),
+            moveFolder: moveLibraryFolder.bind(null, kind),
+            moveDocument: moveLibraryDocument.bind(null, kind),
+            renameDocument: renameLibraryDocument.bind(null, kind),
         }),
         [kind, loadLibrary],
     );
     return (
-        <>
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
                 breadcrumbs={[{ label: "Library" }, { label: title }]}
                 actions={[
                     {
                         type: "search",
-                        value: search,
-                        onChange: (value) => setSearchForKind(kind, value),
+                        value: view.search,
+                        onChange: (search) => updateView(kind, { search }),
                         placeholder: `Search ${title.toLowerCase()}...`,
                     },
                     {
                         icon: <Upload className="h-3.5 w-3.5" />,
                         label: (
                             <span className="hidden sm:inline">
-                                {addCollectionLabel}
+                                {title}
                             </span>
                         ),
-                        title: `Add ${addCollectionLabel}`,
+                        title: `Add ${title}`,
                         onClick: addDocumentsAction ?? undefined,
                         disabled: !addDocumentsAction || loading,
                     },
@@ -308,12 +240,12 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                 />
                 <DocTable
                     scopeKey={kind}
-                    documents={collection?.documents ?? []}
+                    documents={view.documents}
                     setDocuments={setDocuments}
-                    folders={collection?.folders ?? []}
+                    folders={view.folders}
                     setFolders={setFolders}
                     loading={loading}
-                    search={search}
+                    search={view.search}
                     operations={operations}
                     onAddDocumentsActionChange={handleAddDocumentsActionChange}
                     onCreateFolderActionChange={
@@ -329,6 +261,5 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                 />
             </div>
         </div>
-        </>
     );
 }

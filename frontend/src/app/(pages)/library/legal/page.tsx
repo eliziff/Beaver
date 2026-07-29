@@ -1,4 +1,1 @@
-import { LegalLibraryPage } from "@/app/components/legal/LegalLibrary";
-export default function LegalSourcesPage() {
-    return <LegalLibraryPage />;
-}
+export { LegalLibraryPage as default } from "@/app/components/legal/LegalLibrary";

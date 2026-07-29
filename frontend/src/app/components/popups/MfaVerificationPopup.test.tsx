@@ -11,18 +11,14 @@ function TestInput() {
 }
 
 describe("VerificationCodeInput", () => {
-    it("keeps its accessible digit controls", () => {
+    it("uses one native one-time-code field", () => {
         render(<TestInput />);
 
-        const inputs = screen.getAllByRole("textbox");
-        expect(
-            screen.getByRole("group", {
-                name: "Six digit verification code",
-            }),
-        ).toBeInTheDocument();
-        expect(inputs).toHaveLength(6);
-        fireEvent.change(inputs[0], { target: { value: "7" } });
-        expect(inputs[0]).toHaveValue("7");
-        expect(inputs[1]).toHaveFocus();
+        const input = screen.getByRole("textbox", {
+            name: "Six digit verification code",
+        });
+        fireEvent.change(input, { target: { value: "12x34567" } });
+        expect(input).toHaveValue("123456");
+        expect(input).toHaveAttribute("autocomplete", "one-time-code");
     });
 });

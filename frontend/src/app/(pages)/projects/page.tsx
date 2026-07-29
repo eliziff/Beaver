@@ -1,3 +1,1 @@
-import { ProjectsOverview } from "@/app/components/projects/ProjectsOverview";export default function ProjectsPage() {
-    return <ProjectsOverview />;
-}
+export { ProjectsOverview as default } from "@/app/components/projects/ProjectsOverview";

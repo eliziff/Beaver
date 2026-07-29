@@ -1,4 +1,4 @@
-import type { ComponentProps, RefObject } from "react";
+import { createElement, type ComponentProps, type ElementType, type RefObject } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AssistantEvent, Citation } from "../../shared/types";
@@ -8,12 +8,17 @@ import { internalCaseHref } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
     return <ReactMarkdown {...props} remarkPlugins={[remarkGfm]} />;
 }
+function styled<T extends ElementType>(tag: T, className: string) {
+    return (props: ComponentProps<T> & { node?: unknown }) =>
+        createElement(tag, { className, ...withoutMarkdownNode(props) });
+}
 export function MarkdownContent({
     text,
     inlineCitationTargets,
     caseCitations,
     caseOpinions,
     onCitationClick,
+    citationTitle,
     onCaseClick,
     divRef,
 }: {
@@ -28,6 +33,7 @@ export function MarkdownContent({
         Extract<AssistantEvent, { type: "case_opinions" }>["case"]
     >;
     onCitationClick?: (c: Citation) => void;
+    citationTitle?: (c: Citation) => string;
     onCaseClick?: (
         c: Extract<AssistantEvent, { type: "case_citation" }>,
     ) => void;
@@ -54,67 +60,16 @@ export function MarkdownContent({
                             />
                         </div>
                     ),
-                    thead: (props) => (
-                        <thead
-                            className="bg-gray-100"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    tbody: (props) => (
-                        <tbody
-                            className="divide-y divide-gray-200"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    tr: (props) => <tr {...withoutMarkdownNode(props)} />,
-                    th: (props) => (
-                        <th
-                            className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    td: (props) => (
-                        <td
-                            className="whitespace-normal px-3 py-4 text-sm text-gray-900"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h1: (props) => (
-                        <h1
-                            className="mt-6 mb-4 text-3xl font-serif font-semibold"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h2: (props) => (
-                        <h2
-                            className="mt-5 mb-3 text-2xl font-serif font-semibold"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h3: (props) => (
-                        <h3
-                            className="text-xl font-semibold mt-4 mb-2"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h4: (props) => (
-                        <h4
-                            className="text-lg font-semibold mt-4 mb-2"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h5: (props) => (
-                        <h5
-                            className="text-base font-semibold mt-3 mb-2"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    h6: (props) => (
-                        <h6
-                            className="text-sm font-semibold mt-3 mb-2"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
+                    thead: styled("thead", "bg-gray-100"),
+                    tbody: styled("tbody", "divide-y divide-gray-200"),
+                    th: styled("th", "px-3 py-3.5 text-left text-sm font-semibold text-gray-900"),
+                    td: styled("td", "whitespace-normal px-3 py-4 text-sm text-gray-900"),
+                    h1: styled("h1", "mt-6 mb-4 text-3xl font-serif font-semibold"),
+                    h2: styled("h2", "mt-5 mb-3 text-2xl font-serif font-semibold"),
+                    h3: styled("h3", "text-xl font-semibold mt-4 mb-2"),
+                    h4: styled("h4", "text-lg font-semibold mt-4 mb-2"),
+                    h5: styled("h5", "text-base font-semibold mt-3 mb-2"),
+                    h6: styled("h6", "text-sm font-semibold mt-3 mb-2"),
                     p: ({ node, ...props }) => {
                         const parent =
                             node && typeof node === "object" && "parent" in node
@@ -131,33 +86,11 @@ export function MarkdownContent({
                         }
                         return <p className="mb-4 leading-7" {...props} />;
                     },
-                    ul: (props) => (
-                        <ul
-                            className="list-disc list-outside mb-4 pl-6"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    ol: (props) => (
-                        <ol
-                            className="list-decimal list-outside mb-4 pl-6"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    li: (props) => (
-                        <li
-                            className="mb-2 leading-7"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    strong: (props) => (
-                        <strong
-                            className="font-semibold"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
-                    em: (props) => (
-                        <em className="italic" {...withoutMarkdownNode(props)} />
-                    ),
+                    ul: styled("ul", "list-disc list-outside mb-4 pl-6"),
+                    ol: styled("ol", "list-decimal list-outside mb-4 pl-6"),
+                    li: styled("li", "mb-2 leading-7"),
+                    strong: styled("strong", "font-semibold"),
+                    em: styled("em", "italic"),
                     code: (props) => {
                         const { children, ...codeProps } =
                             withoutMarkdownNode(props);
@@ -167,7 +100,9 @@ export function MarkdownContent({
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];
                             if (annotation) {
-                                const tooltipText = citationTooltip(annotation);
+                                const tooltipText =
+                                    citationTitle?.(annotation) ??
+                                    citationTooltip(annotation);
                                 return (
                                     <button
                                         onClick={() =>
@@ -191,12 +126,7 @@ export function MarkdownContent({
                             </code>
                         );
                     },
-                    blockquote: (props) => (
-                        <blockquote
-                            className="border-l-4 border-gray-300 pl-4 italic my-4"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
+                    blockquote: styled("blockquote", "border-l-4 border-gray-300 pl-4 italic my-4"),
                     a: (props) => {
                         const { href, children, ...anchorProps } =
                             withoutMarkdownNode(props);
@@ -274,12 +204,7 @@ export function MarkdownContent({
                             </a>
                         );
                     },
-                    hr: (props) => (
-                        <hr
-                            className="my-6 border-gray-200"
-                            {...withoutMarkdownNode(props)}
-                        />
-                    ),
+                    hr: styled("hr", "my-6 border-gray-200"),
                 }}
             >
                 {text}

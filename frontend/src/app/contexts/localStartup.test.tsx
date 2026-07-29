@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
     onAuthStateChange: vi.fn(),
     unsubscribe: vi.fn(),
     getUserProfile: vi.fn(),
+    pathname: "/assistant",
+}));
+
+vi.mock("next/navigation", () => ({
+    usePathname: () => mocks.pathname,
 }));
 
 vi.mock("@/app/lib/supabase", () => {
@@ -34,6 +39,7 @@ describe("account-free startup", () => {
         vi.resetModules();
         vi.clearAllMocks();
         mocks.supabaseLoads = 0;
+        mocks.pathname = "/assistant";
         mocks.getUserProfile.mockReturnValue(new Promise(() => {}));
         mocks.onAuthStateChange.mockReturnValue({
             data: {
@@ -125,5 +131,57 @@ describe("account-free startup", () => {
         expect(mocks.onAuthStateChange).toHaveBeenCalledOnce();
         view.unmount();
         expect(mocks.unsubscribe).toHaveBeenCalledOnce();
+    });
+
+    it("reuses a loaded profile across route categories but still reloads explicitly", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+        mocks.getUserProfile.mockResolvedValue({
+            displayName: "Local user",
+            organisation: null,
+            messageCreditsUsed: 0,
+            creditsResetDate: "2026-08-01T00:00:00.000Z",
+            creditsRemaining: 999999,
+            tier: "Free",
+            titleModel: "test",
+            tabularModel: "test",
+            mfaOnLogin: false,
+            legalResearchUs: true,
+            apiKeyStatus: {},
+        });
+        const { AuthProvider } = await import("./AuthContext");
+        const { UserProfileProvider, useUserProfile } = await import(
+            "./UserProfileContext"
+        );
+
+        function Probe() {
+            const { profile, reloadProfile } = useUserProfile();
+            return (
+                <button onClick={() => void reloadProfile()}>
+                    {profile?.displayName ?? "loading"}
+                </button>
+            );
+        }
+
+        const app = () => (
+            <AuthProvider>
+                <UserProfileProvider>
+                    <Probe />
+                </UserProfileProvider>
+            </AuthProvider>
+        );
+        const view = render(app());
+        await screen.findByText("Local user");
+        expect(mocks.getUserProfile).toHaveBeenCalledOnce();
+
+        mocks.pathname = "/library";
+        view.rerender(app());
+        mocks.pathname = "/assistant";
+        view.rerender(app());
+        expect(mocks.getUserProfile).toHaveBeenCalledOnce();
+
+        fireEvent.click(screen.getByRole("button"));
+        await waitFor(() =>
+            expect(mocks.getUserProfile).toHaveBeenCalledTimes(2),
+        );
     });
 });

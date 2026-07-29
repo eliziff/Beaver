@@ -1,10 +1,6 @@
-"use client";
 import {
     useEffect,
-    useRef,
     useState,
-    type ClipboardEvent,
-    type KeyboardEvent,
 } from "react";
 import { Loader2 } from "lucide-react";
 import { Modal } from "../modals/Modal";
@@ -136,7 +132,6 @@ export function MfaVerificationPopup({
                                 id="mfa-popup-factor"
                                 value={selectedFactorId}
                                 onChange={setSelectedFactorId}
-                                searchable
                                 ariaLabel="Authenticator"
                                 options={factors.map((factor) => ({
                                     value: factor.id,
@@ -177,83 +172,26 @@ export function VerificationCodeInput({
     onSubmit?: () => void;
     canSubmit?: boolean;
 }) {
-    const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
-    const digits = Array.from({ length: 6 }, (_, index) => value[index] ?? "");
-    useEffect(() => {
-        if (!autoFocus || disabled) return;
-        const focusTimer = window.setTimeout(() => {
-            const firstEmptyIndex = digits.findIndex((digit) => !digit);
-            inputsRef.current[
-                firstEmptyIndex === -1 ? 0 : firstEmptyIndex
-            ]?.focus();
-        }, 0);
-        return () => window.clearTimeout(focusTimer);
-    }, [autoFocus, disabled]);
-    function updateDigit(index: number, nextValue: string) {
-        const digit = nextValue.replace(/\D/g, "").slice(-1);
-        const nextDigits = [...digits];
-        nextDigits[index] = digit;
-        onChange(nextDigits.join(""));
-        if (digit && index < inputsRef.current.length - 1) {
-            inputsRef.current[index + 1]?.focus();
-        }
-    }
-    function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
-        event.preventDefault();
-        const pasted = event.clipboardData
-            .getData("text")
-            .replace(/\D/g, "")
-            .slice(0, 6);
-        if (!pasted) return;
-        onChange(pasted);
-        inputsRef.current[Math.min(pasted.length, 6) - 1]?.focus();
-    }
-    function handleKeyDown(
-        event: KeyboardEvent<HTMLInputElement>,
-        index: number,
-    ) {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            if (canSubmit) onSubmit?.();
-            return;
-        }
-        if (event.key === "Backspace" && !digits[index] && index > 0) {
-            inputsRef.current[index - 1]?.focus();
-        }
-        if (event.key === "ArrowLeft" && index > 0) {
-            event.preventDefault();
-            inputsRef.current[index - 1]?.focus();
-        }
-        if (event.key === "ArrowRight" && index < digits.length - 1) {
-            event.preventDefault();
-            inputsRef.current[index + 1]?.focus();
-        }
-    }
     return (
-        <div
-            className="flex justify-center gap-2"
-            role="group"
+        <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={value}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            onChange={(event) =>
+                onChange(event.currentTarget.value.replace(/\D/gu, "").slice(0, 6))
+            }
+            onKeyDown={(event) => {
+                if (event.key !== "Enter" || !canSubmit) return;
+                event.preventDefault();
+                onSubmit?.();
+            }}
+            className="mx-auto block h-13 w-48 rounded-lg border border-gray-300 bg-gray-50 px-3 text-center font-serif text-2xl font-medium tracking-[0.35em] text-gray-950 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-300/45 disabled:cursor-not-allowed disabled:opacity-45"
             aria-label="Six digit verification code"
-        >
-            {digits.map((digit, index) => (
-                <input
-                    key={index}
-                    ref={(element) => {
-                        inputsRef.current[index] = element;
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    value={digit}
-                    disabled={disabled}
-                    onChange={(event) => updateDigit(index, event.target.value)}
-                    onPaste={handlePaste}
-                    onKeyDown={(event) => handleKeyDown(event, index)}
-                    className="h-13 w-12 rounded-lg border border-gray-300 bg-gray-50 text-center text-2xl font-medium font-serif text-gray-950 shadow-none outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-300/45 disabled:cursor-not-allowed disabled:opacity-45"
-                    aria-label={`Verification code digit ${index + 1}`}
-                    maxLength={1}
-                />
-            ))}
-        </div>
+            maxLength={6}
+            pattern="[0-9]{6}"
+        />
     );
 }

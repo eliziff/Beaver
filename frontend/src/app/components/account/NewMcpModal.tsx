@@ -1,8 +1,8 @@
-"use client";
-import { Check, ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
-import { Modal } from "@/app/components/modals/Modal";
 import type { McpConnectorSummary } from "@/app/lib/beaverApi";
+import { AccountToggle } from "@/app/(pages)/account/AccountToggle";
 import {
     accountGlassIconButtonClassName,
     accountGlassInputClassName,
@@ -13,186 +13,53 @@ export type McpConnectorDraft = {
     bearerToken: string;
     customHeaders: string;
 };
-export type NewMcpStep = "form" | "working" | "auth" | "success";
-interface NewMcpModalProps {
-    open: boolean;
-    draft: McpConnectorDraft;
-    step: NewMcpStep;
-    result: McpConnectorSummary | null;
-    error: string | null;
-    authMessage: string | null;
-    showToken: boolean;
-    showAdvanced: boolean;
-    onDraftChange: (draft: McpConnectorDraft) => void;
-    onShowTokenChange: (show: boolean) => void;
-    onShowAdvancedChange: (show: boolean) => void;
-    onClose: () => void;
-    onSubmit: () => Promise<void>;
-    onOpenConnector: (connectorId: string) => void;
-}
-export function NewMcpModal({
-    open,
-    draft,
-    step,
-    result,
-    error,
-    authMessage,
-    showToken,
-    showAdvanced,
-    onDraftChange,
-    onShowTokenChange,
-    onShowAdvancedChange,
-    onClose,
-    onSubmit,
-    onOpenConnector,
-}: NewMcpModalProps) {
-    const canSubmit =
-        draft.name.trim().length > 0 &&
-        draft.serverUrl.trim().length > 0 &&
-        step !== "working" &&
-        step !== "auth";
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            breadcrumbs={[
-                "Connectors",
-                step === "success"
-                    ? "Connector added"
-                    : step === "auth"
-                      ? "Authenticate connector"
-                      : "New MCP connector",
-            ]}
-            size="lg"
-            primaryAction={
-                step === "success" && result
-                    ? {
-                          label: "View connector",
-                          onClick: () => onOpenConnector(result.id),
-                      }
-                    : {
-                          label:
-                              step === "working"
-                                  ? "Connecting..."
-                                  : step === "auth"
-                                    ? "Authorizing..."
-                                    : "Connect",
-                          icon:
-                              step === "working" || step === "auth" ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : undefined,
-                          onClick: () => void onSubmit(),
-                          disabled: !canSubmit,
-                      }
-            }
-            cancelAction={
-                step === "working" || step === "auth"
-                    ? false
-                    : {
-                          label: step === "success" ? "Done" : "Cancel",
-                          onClick: onClose,
-                      }
-            }
-            footerStatus={
-                error ? (
-                    <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-red-600 shadow-sm">
-                        {error}
-                    </div>
-                ) : null
-            }
-        >
-            {step === "success" && result ? (
-                <NewMcpSuccess connector={result} />
-            ) : step === "auth" ? (
-                <NewMcpAuth
-                    message={
-                        authMessage ??
-                        "Complete authorization in the popup to finish connecting this MCP server."
-                    }
-                />
-            ) : (
-                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-                    <p className="text-sm text-gray-500">
-                        The assistant will have access to this MCP server and
-                        its enabled tools.
-                    </p>
-                    <McpConnectorFields
-                        draft={draft}
-                        showToken={showToken}
-                        showAdvanced={showAdvanced}
-                        showTokenNote
-                        disabled={step === "working"}
-                        onDraftChange={onDraftChange}
-                        onShowTokenChange={onShowTokenChange}
-                        onShowAdvancedChange={onShowAdvancedChange}
-                    />
-                </div>
-            )}
-        </Modal>
-    );
-}
+const connectorFields = [
+    ["name", "Label", "Connector label"],
+    ["serverUrl", "URL endpoint", "https://mcp.example.com/mcp"],
+] as const;
 export function McpConnectorFields({
     draft,
-    showToken,
-    showAdvanced,
     showTokenNote = false,
     tokenPlaceholder = "Bearer token",
-    tokenAction,
+    onClearToken,
+    clearingToken,
     disabled = false,
     onDraftChange,
-    onShowTokenChange,
-    onShowAdvancedChange,
 }: {
     draft: McpConnectorDraft;
-    showToken: boolean;
-    showAdvanced: boolean;
     showTokenNote?: boolean;
     tokenPlaceholder?: string;
-    tokenAction?: {
-        label: string;
-        active?: boolean;
-        loading?: boolean;
-        cleared?: boolean;
-        onClick: () => void;
-    };
+    onClearToken?: () => void;
+    clearingToken?: boolean;
     disabled?: boolean;
     onDraftChange: (draft: McpConnectorDraft) => void;
-    onShowTokenChange: (show: boolean) => void;
-    onShowAdvancedChange: (show: boolean) => void;
 }) {
+    const [showToken, setShowToken] = useState(false);
+    const setField = <K extends keyof McpConnectorDraft>(
+        field: K,
+        value: McpConnectorDraft[K],
+    ) => onDraftChange({ ...draft, [field]: value });
     return (
         <div className="grid gap-3 pt-1">
-            <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                <span className="text-xs font-medium text-gray-500">
-                    Label
-                </span>
-                <Input
-                    value={draft.name}
-                    onChange={(event) =>
-                        onDraftChange({ ...draft, name: event.target.value })
-                    }
-                    placeholder="Connector label"
-                    className={`h-8 text-sm ${accountGlassInputClassName}`}
-                    disabled={disabled}
-                />
-            </label>
-            <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                <span className="text-xs font-medium text-gray-500">
-                    URL endpoint
-                </span>
-                <Input
-                    value={draft.serverUrl}
-                    onChange={(event) =>
-                        onDraftChange({
-                            ...draft,
-                            serverUrl: event.target.value,
-                        })
-                    }
-                    placeholder="https://mcp.example.com/mcp"
-                    className={`h-8 text-sm ${accountGlassInputClassName}`}
-                    disabled={disabled}
-                />
-            </label>
+            {connectorFields.map(([field, label, placeholder]) => (
+                <label
+                    key={field}
+                    className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center"
+                >
+                    <span className="text-xs font-medium text-gray-500">
+                        {label}
+                    </span>
+                    <Input
+                        value={draft[field]}
+                        onChange={(event) =>
+                            setField(field, event.target.value)
+                        }
+                        placeholder={placeholder}
+                        className={`h-8 text-sm ${accountGlassInputClassName}`}
+                        disabled={disabled}
+                    />
+                </label>
+            ))}
             <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-start">
                 <span className="pt-2 text-xs font-medium text-gray-500">
                     Bearer token
@@ -202,15 +69,12 @@ export function McpConnectorFields({
                         <Input
                             value={draft.bearerToken}
                             onChange={(event) =>
-                                onDraftChange({
-                                    ...draft,
-                                    bearerToken: event.target.value,
-                                })
+                                setField("bearerToken", event.target.value)
                             }
                             type={showToken ? "text" : "password"}
                             placeholder={tokenPlaceholder}
                             className={`h-8 ${
-                                tokenAction
+                                onClearToken
                                     ? draft.bearerToken
                                         ? "pr-[6.5rem]"
                                         : "pr-16"
@@ -218,15 +82,16 @@ export function McpConnectorFields({
                             } text-sm ${accountGlassInputClassName}`}
                             autoComplete="off"
                             spellCheck={false}
+                            aria-label="Bearer token"
                             disabled={disabled}
                         />
                         {draft.bearerToken && (
                             <button
                                 type="button"
                                 className={`absolute inset-y-1 ${
-                                    tokenAction ? "right-[3.75rem]" : "right-1.5"
+                                    onClearToken ? "right-[3.75rem]" : "right-1.5"
                                 } flex items-center ${accountGlassIconButtonClassName}`}
-                                onClick={() => onShowTokenChange(!showToken)}
+                                onClick={() => setShowToken((shown) => !shown)}
                                 aria-label={
                                     showToken ? "Hide token" : "Show token"
                                 }
@@ -239,24 +104,16 @@ export function McpConnectorFields({
                                 )}
                             </button>
                         )}
-                        {tokenAction && (
+                        {onClearToken && (
                             <button
                                 type="button"
-                                onClick={tokenAction.onClick}
-                                disabled={
-                                    disabled ||
-                                    tokenAction.loading ||
-                                    tokenAction.cleared
-                                }
-                                className={`absolute inset-y-1 right-1.5 px-1 text-xs font-medium disabled:cursor-not-allowed disabled:text-gray-300 ${
-                                    tokenAction.active || tokenAction.cleared
-                                        ? "text-red-600 hover:text-red-700"
-                                        : "text-gray-500 hover:text-gray-900"
-                                }`}
+                                onClick={onClearToken}
+                                disabled={disabled || clearingToken}
+                                className="absolute inset-y-1 right-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
                             >
                                 <span className="inline-flex items-center gap-1">
-                                    {tokenAction.label}
-                                    {tokenAction.loading && (
+                                    Clear
+                                    {clearingToken && (
                                         <Loader2 className="h-3 w-3 animate-spin" />
                                     )}
                                 </span>
@@ -270,100 +127,112 @@ export function McpConnectorFields({
                     )}
                 </div>
             </div>
-            <div className="grid gap-2">
-                <button
-                    type="button"
-                    onClick={() => onShowAdvancedChange(!showAdvanced)}
-                    className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-gray-500 hover:text-gray-900"
-                    disabled={disabled}
+            <details className="group grid gap-2">
+                <summary
+                    className="inline-flex cursor-pointer list-none items-center gap-1 justify-self-start text-xs font-medium text-gray-500 hover:text-gray-900"
+                    aria-disabled={disabled}
+                    tabIndex={disabled ? -1 : undefined}
+                    onClick={(event) => {
+                        if (disabled) event.preventDefault();
+                    }}
                 >
                     Advanced
-                    <ChevronDown
-                        className={`h-3.5 w-3.5 ${
-                            showAdvanced ? "" : "-rotate-90"
-                        }`}
-                    />
-                </button>
-                {showAdvanced && (
-                    <label className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-start">
-                        <span className="text-xs font-medium text-gray-500">
-                            Custom headers
-                        </span>
-                        <div className="min-w-0">
-                            <textarea
-                                value={draft.customHeaders}
-                                onChange={(event) =>
-                                    onDraftChange({
-                                        ...draft,
-                                        customHeaders: event.target.value,
-                                    })
-                                }
-                                placeholder='{"X-API-Key":"secret"}'
-                                className={`min-h-20 w-full resize-y rounded-lg px-3 py-2 text-sm outline-none ${accountGlassInputClassName}`}
-                                autoComplete="off"
-                                spellCheck={false}
-                                disabled={disabled}
-                            />
-                            <p className="mt-1 text-right text-xs text-gray-500">
-                                Secrets are stored encrypted.
-                            </p>
-                        </div>
-                    </label>
-                )}
-            </div>
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 group-open:rotate-0" />
+                </summary>
+                <label className="mt-2 grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-start">
+                    <span className="text-xs font-medium text-gray-500">
+                        Custom headers
+                    </span>
+                    <div className="min-w-0">
+                        <textarea
+                            value={draft.customHeaders}
+                            onChange={(event) =>
+                                setField("customHeaders", event.target.value)
+                            }
+                            placeholder='{"X-API-Key":"secret"}'
+                            className={`min-h-20 w-full resize-y rounded-lg px-3 py-2 text-sm outline-none ${accountGlassInputClassName}`}
+                            autoComplete="off"
+                            spellCheck={false}
+                            disabled={disabled}
+                        />
+                        <p className="mt-1 text-right text-xs text-gray-500">
+                            Secrets are stored encrypted.
+                        </p>
+                    </div>
+                </label>
+            </details>
         </div>
     );
 }
-function NewMcpSuccess({ connector }: { connector: McpConnectorSummary }) {
-    return (
-        <div className="flex h-full min-h-0 flex-1 flex-col gap-4 pb-4">
-            <div className="flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-3 py-3 text-green-800">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                <p className="min-w-0 truncate text-sm font-medium">
-                    {connector.name} is connected.{" "}
-                    <span className="font-normal text-green-700">
-                        {connector.tools.length} tools discovered.
-                    </span>
-                </p>
+export function McpToolList({
+    connector,
+    busyKey,
+    onToolEnabled,
+}: {
+    connector: McpConnectorSummary;
+    busyKey?: string | null;
+    onToolEnabled?: (
+        connectorId: string,
+        toolId: string,
+        enabled: boolean,
+    ) => Promise<void>;
+}) {
+    if (connector.tools.length === 0) {
+        return (
+            <div className="min-h-0 flex-1 rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-500">
+                No tools discovered yet.
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-100 bg-white/60">
-                <div className="max-h-full overflow-y-auto divide-y divide-gray-100">
-                    {connector.tools.map((tool) => (
-                        <div
-                            key={tool.openaiToolName}
-                            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-2"
+        );
+    }
+    return (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-100 bg-white/60">
+            <div className="divide-y divide-gray-100">
+                {connector.tools.map((tool) => {
+                    const loading = busyKey === `tool:${tool.id}`;
+                    const toolLabel =
+                        tool.title ||
+                        (onToolEnabled
+                            ? tool.toolName
+                            : tool.openaiToolName);
+                    const Row = onToolEnabled ? "label" : "div";
+                    return (
+                        <Row
+                            key={tool.id}
+                            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2"
                         >
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-medium text-gray-800">
-                                    {tool.title ?? tool.openaiToolName}
+                                    {toolLabel}
                                 </p>
-                                {tool.description && (
+                                {!onToolEnabled && tool.description && (
                                     <p className="truncate text-xs text-gray-500">
                                         {tool.description}
                                     </p>
                                 )}
                             </div>
-                            <span className="text-xs text-gray-400">
-                                {tool.enabled ? "Enabled" : "Disabled"}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-function NewMcpAuth({ message }: { message: string }) {
-    return (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 pb-4 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700">
-                <Loader2 className="h-4 w-4 animate-spin" />
-            </div>
-            <div className="max-w-sm space-y-1">
-                <h3 className="text-sm font-medium text-gray-900">
-                    Authentication required
-                </h3>
-                <p className="text-sm text-gray-500">{message}</p>
+                            {onToolEnabled ? (
+                                <AccountToggle
+                                    checked={tool.enabled}
+                                    disabled={
+                                        loading || tool.requiresConfirmation
+                                    }
+                                    loading={loading}
+                                    onChange={(enabled) =>
+                                        void onToolEnabled(
+                                            connector.id,
+                                            tool.id,
+                                            enabled,
+                                        )
+                                    }
+                                />
+                            ) : (
+                                <span className="text-xs text-gray-400">
+                                    {tool.enabled ? "Enabled" : "Disabled"}
+                                </span>
+                            )}
+                        </Row>
+                    );
+                })}
             </div>
         </div>
     );

@@ -26,9 +26,6 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
         stagePendingChatMessage: vi.fn(),
     }),
 }));
-vi.mock("@/app/hooks/useGenerateChatTitle", () => ({
-    useGenerateChatTitle: () => ({ generate: vi.fn() }),
-}));
 vi.mock("@/app/contexts/SidebarContext", () => ({
     useSidebar: () => ({ setSidebarOpen: vi.fn() }),
 }));

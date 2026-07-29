@@ -1,5 +1,4 @@
-"use client";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import type { Document, Workflow } from "../shared/types";
 import { createTabularReview } from "@/app/lib/beaverApi";
 import { useRouter } from "next/navigation";
@@ -11,30 +10,34 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
-import { WorkflowPickerContent } from "./WorkflowPickerContent";
 interface Props {
-    workflows: Workflow[];
     workflow: Workflow | null;
     onClose: () => void;
-    skipSelect?: boolean;
 }
 export function UseWorkflowModal({
-    workflows,
     workflow,
     onClose,
-    skipSelect = false,
 }: Props) {
-    const [screen, setScreen] = useState<"select" | "details" | "documents">(
-        skipSelect ? "details" : "select",
+    if (!workflow) return null;
+    return (
+        <OpenUseWorkflowModal
+            key={workflow.id}
+            workflow={workflow}
+            onClose={onClose}
+        />
     );
-    const [selected, setSelected] = useState<Workflow | null>(workflow);
-    const [listSearch, setListSearch] = useState("");
+}
+function OpenUseWorkflowModal({
+    workflow: wf,
+    onClose,
+}: Props & { workflow: Workflow }) {
+    const [screen, setScreen] = useState<"details" | "documents">("details");
     const [inProject, setInProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
         null,
     );
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
-    const [assistantPrompt, setAssistantPrompt] = useState("");
+    const assistantPromptRef = useRef("");
     const [saving, setSaving] = useState(false);
     const router = useRouter();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
@@ -42,35 +45,6 @@ export function UseWorkflowModal({
         screen === "details",
         "projects",
     );
-    useEffect(() => {
-        if (workflow) {
-            setSelected(workflow);
-            setScreen(skipSelect ? "details" : "select");
-            setListSearch("");
-        } else {
-            setSelected(null);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [workflow?.id]);
-    useEffect(() => {
-        if (screen === "select") {
-            resetConfigureState();
-        }
-    }, [screen]);
-    function resetConfigureState() {
-        setInProject(false);
-        setSelectedProjectId(null);
-        setSelectedDocuments([]);
-        setAssistantPrompt("");
-    }
-    function handleClose() {
-        setSelected(null);
-        setScreen(skipSelect ? "details" : "select");
-        resetConfigureState();
-        onClose();
-    }
-    if (!workflow) return null;
-    const wf = selected ?? workflow;
     async function handleStartChat() {
         setSaving(true);
         try {
@@ -81,8 +55,9 @@ export function UseWorkflowModal({
                 filename: document.filename,
                 document_id: document.id,
             }));
-            const content = assistantPrompt.trim()
-                ? `implement workflow\n${assistantPrompt.trim()}`
+            const prompt = assistantPromptRef.current.trim();
+            const content = prompt
+                ? `implement workflow\n${prompt}`
                 : "implement workflow";
             stagePendingChatMessage(chatId, {
                 role: "user",
@@ -90,7 +65,7 @@ export function UseWorkflowModal({
                 files: files.length > 0 ? files : undefined,
                 workflow: { id: wf.id, title: wf.metadata.title },
             });
-            handleClose();
+            onClose();
             router.push(
                 projectId
                     ? `/projects/${projectId}/assistant/chat/${chatId}`
@@ -112,7 +87,7 @@ export function UseWorkflowModal({
                 workflow_id: wf.is_system ? undefined : wf.id,
                 project_id: projectId,
             });
-            handleClose();
+            onClose();
             router.push(
                 projectId
                     ? `/projects/${projectId}/tabular-reviews/${review.id}`
@@ -138,45 +113,26 @@ export function UseWorkflowModal({
                       label: "Project tabular reviews",
                   },
               ];
-    const breadcrumbs =
-        screen === "select"
-            ? ["Workflows", "Select workflow"]
-            : [
-                  skipSelect ? (
-                      "Workflows"
-                  ) : (
-                      <button
-                          key="workflows"
-                          type="button"
-                          onClick={() => setScreen("select")}
-                          className="hover:text-gray-700"                      >
-                          Workflows
-                      </button>
-                  ),
-                  wf.metadata.title,
-                  wf.metadata.type === "assistant" ? "New Chat" : "New Review",
-                  screen === "details" ? "Details" : "Attach Documents",
-              ];
+    const breadcrumbs = [
+        "Workflows",
+        wf.metadata.title,
+        wf.metadata.type === "assistant" ? "New Chat" : "New Review",
+        screen === "details" ? "Details" : "Attach Documents",
+    ];
     return (
         <Modal
-            open={!!workflow}
-            onClose={handleClose}
+            open
+            onClose={onClose}
             size="xl"
             breadcrumbs={breadcrumbs}
             primaryAction={
-                screen === "select"
+                screen === "details"
                     ? {
-                          label: "Use",
-                          onClick: () => setScreen("details"),
-                          disabled: !selected,
+                          label: "Next",
+                          onClick: () => setScreen("documents"),
+                          disabled:
+                              saving || (inProject && !selectedProjectId),
                       }
-                    : screen === "details"
-                      ? {
-                            label: "Next",
-                            onClick: () => setScreen("documents"),
-                            disabled:
-                                saving || (inProject && !selectedProjectId),
-                        }
                     : wf.metadata.type === "assistant"
                       ? {
                             label: saving ? "Starting…" : "Start Chat",
@@ -193,34 +149,13 @@ export function UseWorkflowModal({
                                 (inProject && !selectedProjectId),
                         }
             }
-            cancelAction={
-                screen === "select"
-                    ? false
-                    : {
-                          label: "Back",
-                          onClick: () =>
-                              screen === "documents"
-                                  ? setScreen("details")
-                                  : skipSelect
-                                    ? handleClose()
-                                    : setScreen("select"),
-                          disabled: saving,
-                      }
-            }
+            cancelAction={{
+                label: "Back",
+                onClick: () =>
+                    screen === "documents" ? setScreen("details") : onClose(),
+                disabled: saving,
+            }}
         >
-            {screen === "select" && (
-                <WorkflowPickerContent
-                    workflows={workflows}
-                    selected={selected}
-                    onSelect={setSelected}
-                    search={listSearch}
-                    onSearchChange={setListSearch}
-                    workflowType="all"
-                    previewMode="auto"
-                    showTypeIcon
-                    allowClearPreview
-                />
-            )}
             {screen === "details" && (
                 <div className="flex min-h-0 flex-1 flex-col">
                     <div className="space-y-6">
@@ -260,9 +195,9 @@ export function UseWorkflowModal({
                                 </ModalFieldLabel>
                                 <ModalTextarea
                                     id="workflow-additional-message"
-                                    value={assistantPrompt}
                                     onChange={(e) =>
-                                        setAssistantPrompt(e.target.value)
+                                        (assistantPromptRef.current =
+                                            e.target.value)
                                     }
                                     placeholder="Add any additional instructions..."
                                     rows={4}

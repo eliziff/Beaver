@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     parseCourtlistenerCaseSearches,
     parseCourtlistenerEventCases,
-} from "./assistantEvents";
+} from "./assistantStreamEvents";
 
 describe("CourtListener assistant event parsing", () => {
     it("keeps valid rows and normalizes untrusted fields", () => {

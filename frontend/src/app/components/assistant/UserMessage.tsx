@@ -1,4 +1,3 @@
-"use client";
 import { Library } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { GfmMarkdown } from "./message/MarkdownContent";

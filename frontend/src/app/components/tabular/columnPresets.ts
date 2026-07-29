@@ -1,5 +1,5 @@
 import type { ColumnFormat } from "../shared/types";
-export interface ColumnPreset {
+interface ColumnPreset {
     name: string;
     matches: RegExp;
     prompt: string;

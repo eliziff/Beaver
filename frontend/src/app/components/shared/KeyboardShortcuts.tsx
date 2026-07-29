@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 const OPEN_LAYER = '[data-shortcut-layer][data-shortcut-open="true"]';

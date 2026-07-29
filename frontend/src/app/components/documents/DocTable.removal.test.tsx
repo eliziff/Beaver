@@ -324,6 +324,11 @@ describe("DocTable document removal", () => {
     ).not.toBeNull();
     chooseAction("New subfolder inside");
 
-    expect(screen.getByPlaceholderText("Folder name")).toHaveFocus();
+    const input = screen.getByPlaceholderText("Folder name");
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(
+      screen.queryByPlaceholderText("Folder name"),
+    ).not.toBeInTheDocument();
   });
 });

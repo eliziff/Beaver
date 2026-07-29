@@ -3,536 +3,473 @@ import type {
   AutomationToolName,
   EditAnnotation,
 } from "@/app/components/shared/types";
-import {
-  parseCourtlistenerCaseSearches,
-  parseCourtlistenerEventCases,
-} from "./assistantEvents";
-export type StreamEventReduction = {
+
+type StreamEventReduction = {
   events: AssistantEvent[];
   deferPaint?: boolean;
 };
-const string = (value: unknown) =>
-  typeof value === "string" ? value : "";
-const number = (value: unknown) =>
-  typeof value === "number" ? value : 0;
-const clusterId = (value: unknown) =>
-  typeof value === "number" ? value : null;
-const error = (value: unknown) =>
-  typeof value === "string" ? value : undefined;
-const clean = (value: unknown) =>
-  typeof value === "string" && value.trim() ? value.trim() : undefined;
-const clusterIds = (value: unknown) =>
+type EventOf<T extends AssistantEvent["type"]> = Extract<
+  AssistantEvent,
+  { type: T }
+>;
+type AskItem = EventOf<"ask_inputs">["items"][number];
+
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+const clean = (value: unknown) => {
+  const valueText = text(value).trim();
+  return valueText || undefined;
+};
+const num = (value: unknown) => (typeof value === "number" ? value : 0);
+const id = (value: unknown) => (typeof value === "number" ? value : null);
+const numbers = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is number => typeof item === "number")
     : [];
+const records = (value: unknown) =>
+  Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item),
+      )
+    : [];
+
+export function parseCourtlistenerEventCases(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  return records(value)
+    .map((row) => ({
+      cluster_id: typeof row.cluster_id === "number" ? row.cluster_id : 0,
+      case_name: typeof row.case_name === "string" ? row.case_name : null,
+      citation: typeof row.citation === "string" ? row.citation : null,
+      dateFiled: typeof row.dateFiled === "string" ? row.dateFiled : null,
+      url: typeof row.url === "string" ? row.url : null,
+    }))
+    .filter((item) => item.cluster_id > 0);
+}
+export function parseCourtlistenerCaseSearches(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  return records(value).map((row) => ({
+    cluster_id: typeof row.cluster_id === "number" ? row.cluster_id : null,
+    query: text(row.query),
+    total_matches: num(row.total_matches),
+    case_name: typeof row.case_name === "string" ? row.case_name : null,
+    citation: typeof row.citation === "string" ? row.citation : null,
+    error: clean(row.error),
+  }));
+}
+
 const AUTOMATION_TOOLS = new Set<AutomationToolName>([
   "toa_submit_library_document",
   "toa_job_status",
   "library_fix_docx_supras",
   "library_link_docx_citations",
 ]);
+const START_EVENTS = new Set([
+  "doc_find",
+  "doc_created",
+  "doc_edited",
+  "doc_read",
+  "courtlistener_search_case_law",
+  "courtlistener_get_cases",
+  "courtlistener_find_in_case",
+  "courtlistener_read_case",
+  "courtlistener_verify_citations",
+]);
 
-export function parseAutomationRunEvent(
+function parseAutomationRunEvent(
   data: Record<string, unknown>,
-): Extract<AssistantEvent, { type: "automation_run" }> | null {
+): EventOf<"automation_run"> | null {
   const tool = data.tool;
-  if (typeof tool !== "string" || !AUTOMATION_TOOLS.has(tool as AutomationToolName)) return null;
-  const counts = Array.isArray(data.counts)
-    ? data.counts.flatMap((item) => {
-        if (!item || typeof item !== "object") return [];
-        const row = item as Record<string, unknown>;
-        return clean(row.label) && typeof row.value === "number"
-          ? [{ label: clean(row.label)!, value: row.value }]
-          : [];
-      })
-    : undefined;
-  const outputs = Array.isArray(data.outputs)
-    ? data.outputs.flatMap((item) => {
-        if (!item || typeof item !== "object") return [];
-        const row = item as Record<string, unknown>;
-        const name = clean(row.name);
-        return name ? [{ name, ...(clean(row.url) ? { url: clean(row.url) } : {}) }] : [];
-      })
-    : undefined;
+  if (
+    typeof tool !== "string" ||
+    !AUTOMATION_TOOLS.has(tool as AutomationToolName)
+  )
+    return null;
+  const counts = records(data.counts).flatMap((row) => {
+    const label = clean(row.label);
+    return label && typeof row.value === "number"
+      ? [{ label, value: row.value }]
+      : [];
+  });
+  const outputs = records(data.outputs).flatMap((row) => {
+    const name = clean(row.name);
+    const url = clean(row.url);
+    return name ? [{ name, ...(url ? { url } : {}) }] : [];
+  });
   return {
     type: "automation_run",
     id: clean(data.id) ?? `${tool}:${clean(data.job_id) ?? "run"}`,
     tool: tool as AutomationToolName,
     status: clean(data.status) ?? "unknown",
     stage: clean(data.stage) ?? "Automation",
-    ...(typeof data.progress === "number" ? { progress: data.progress } : {}),
-    ...(clean(data.message) ? { message: clean(data.message) } : {}),
-    ...(counts?.length ? { counts } : {}),
-    ...(clean(data.error) ? { error: clean(data.error) } : {}),
-    ...(outputs?.length ? { outputs } : {}),
-    ...(clean(data.app_url) ? { app_url: clean(data.app_url) } : {}),
-    ...(clean(data.job_id) ? { job_id: clean(data.job_id) } : {}),
-    ...(clean(data.document_id) ? { document_id: clean(data.document_id) } : {}),
-    ...(clean(data.version_id) ? { version_id: clean(data.version_id) } : {}),
-    ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
+    ...(typeof data.progress === "number" && { progress: data.progress }),
+    ...(clean(data.message) && { message: clean(data.message) }),
+    ...(counts.length && { counts }),
+    ...(clean(data.error) && { error: clean(data.error) }),
+    ...(outputs.length && { outputs }),
+    ...(clean(data.app_url) && { app_url: clean(data.app_url) }),
+    ...(clean(data.job_id) && { job_id: clean(data.job_id) }),
+    ...(clean(data.document_id) && { document_id: clean(data.document_id) }),
+    ...(clean(data.version_id) && { version_id: clean(data.version_id) }),
+    ...(typeof data.version_number === "number" && {
+      version_number: data.version_number,
+    }),
   };
 }
-type AskInputsItem = Extract<AssistantEvent, { type: "ask_inputs" }>["items"][number];
-function parseAskInputs(data: Record<string, unknown>): Extract<AssistantEvent, { type: "ask_inputs" }> | null {
-  const rawItems = Array.isArray(data.items) ? data.items : [];
-  const items = rawItems.reduce<AskInputsItem[]>((items, item, index) => {
-    if (!item || typeof item !== "object") return items;
-    const row = item as Record<string, unknown>;
+
+function parseAskInputs(data: Record<string, unknown>): EventOf<"ask_inputs"> | null {
+  const items = records(data.items).flatMap<AskItem>((row, index) => {
     const id = clean(row.id) ?? `input-${index + 1}`;
+    const responsePrefix = clean(row.response_prefix);
     if (row.kind === "choice") {
-      const options = Array.isArray(row.options)
-        ? row.options.flatMap((option) => {
-            if (!option || typeof option !== "object") return [];
-            const value = clean((option as Record<string, unknown>).value) ??
-              clean((option as Record<string, unknown>).label);
-            return value ? [{ value }] : [];
-          })
-        : [];
-      items.push({
+      const options = records(row.options).flatMap((option) => {
+        const value = clean(option.value) ?? clean(option.label);
+        return value ? [{ value }] : [];
+      });
+      return [{
         id,
-        kind: "choice" as const,
+        kind: "choice",
         question: clean(row.question) ?? "Please choose an option.",
         options,
         allow_other: row.allow_other !== false,
         other_label: clean(row.other_label) ?? "Other",
-        ...(clean(row.response_prefix) ? { response_prefix: clean(row.response_prefix) } : {}),
-      });
-      return items;
+        ...(responsePrefix && { response_prefix: responsePrefix }),
+      }];
     }
-    if (row.kind === "documents") {
-      const document_types = Array.isArray(row.document_types)
-        ? row.document_types.flatMap((value) => typeof value === "string" && value.trim() ? [value.trim()] : [])
-        : [];
-      items.push({
-        id,
-        kind: "documents" as const,
-        document_types,
-        ...(clean(row.response_prefix) ? { response_prefix: clean(row.response_prefix) } : {}),
-      });
-      return items;
-    }
-    return items;
-  }, []);
-  return items.length
-    ? { type: "ask_inputs", items }
-    : null;
+    if (row.kind !== "documents") return [];
+    return [{
+      id,
+      kind: "documents",
+      document_types: Array.isArray(row.document_types)
+        ? row.document_types.flatMap((value) => clean(value) ?? [])
+        : [],
+      ...(responsePrefix && { response_prefix: responsePrefix }),
+    }];
+  });
+  return items.length ? { type: "ask_inputs", items } : null;
 }
+
 export const isStreamingPlaceholder = (event: AssistantEvent) =>
   (event.type === "thinking" || event.type === "tool_call_start") &&
   !!event.isStreaming;
-function withoutPlaceholders(events: AssistantEvent[]) {
-  return events.filter((event) => !isStreamingPlaceholder(event));
+
+export function finishAssistantStreamEvents(events: AssistantEvent[]) {
+  let next: AssistantEvent[] | null = null;
+  events.forEach((event, index) => {
+    if (isStreamingPlaceholder(event)) {
+      next ??= events.slice(0, index);
+    } else if ("isStreaming" in event && event.isStreaming) {
+      next ??= events.slice(0, index);
+      const { isStreaming: _, ...finished } = event;
+      next.push(finished as AssistantEvent);
+    } else {
+      next?.push(event);
+    }
+  });
+  return next ?? events;
 }
-function finalizeReasoning(events: AssistantEvent[]) {
-  const last = events[events.length - 1];
+
+const withoutPlaceholders = (events: AssistantEvent[]) =>
+  events.filter((event) => !isStreamingPlaceholder(event));
+const finalizeReasoning = (events: AssistantEvent[]) => {
+  const last = events.at(-1);
   return last?.type === "reasoning" && last.isStreaming
     ? [...events.slice(0, -1), { type: "reasoning" as const, text: last.text }]
     : events;
+};
+const append = (events: AssistantEvent[], event: AssistantEvent) => [
+  ...finalizeReasoning(withoutPlaceholders(events)),
+  event,
+];
+const thinking = (events: AssistantEvent[]) => [
+  ...withoutPlaceholders(events),
+  { type: "thinking" as const, isStreaming: true },
+];
+
+export function assistantEventKey(event: AssistantEvent) {
+  if (event.type === "doc_read") return `doc-read:${event.filename}`;
+  if (event.type === "doc_find")
+    return `doc-find:${event.filename}:${event.query}`;
+  if (event.type === "doc_created") return `doc-created:${event.filename}`;
+  if (event.type === "doc_edited") return `doc-edited:${event.filename}`;
+  if (event.type === "workflow_applied")
+    return `workflow:${event.workflow_id}`;
+  if (event.type === "ask_inputs")
+    return `ask:${event.items.map((item) => item.id).join(",")}`;
+  if (event.type === "mcp_tool_call")
+    return `mcp:${event.openai_tool_name}`;
+  if (event.type === "tool_call_start") return `tool:${event.name}`;
+  if (event.type === "automation_run")
+    return `automation:${event.job_id ?? event.id}`;
+  if (event.type === "courtlistener_search_case_law")
+    return `case-search:${event.query}`;
+  if (event.type === "courtlistener_get_cases")
+    return `cases:${event.cluster_ids.join(",")}`;
+  if (event.type === "courtlistener_find_in_case")
+    return event.searches?.length
+      ? "case-find:batch"
+      : `case-find:${event.cluster_id}:${event.query}`;
+  if (event.type === "courtlistener_read_case")
+    return `case-read:${event.cluster_id}`;
+  if (event.type === "courtlistener_verify_citations") return "case-verify";
+  return event.type;
 }
-function append(events: AssistantEvent[], event: AssistantEvent) {
-  return [...finalizeReasoning(withoutPlaceholders(events)), event];
-}
-function thinking(events: AssistantEvent[]) {
-  const next = withoutPlaceholders(events);
-  return [
-    ...next,
-    { type: "thinking" as const, isStreaming: true },
-  ];
-}
-function replaceLast(
+function track(
   events: AssistantEvent[],
-  predicate: (event: AssistantEvent) => boolean,
-  replacement: AssistantEvent,
-) {
-  const index = events.findLastIndex(predicate);
-  if (index < 0) return events;
+  event: AssistantEvent,
+): StreamEventReduction {
+  if ("isStreaming" in event && event.isStreaming)
+    return { events: append(events, event) };
+  const key = assistantEventKey(event);
+  const index = events.findLastIndex(
+    (candidate) =>
+      candidate.type === event.type &&
+      "isStreaming" in candidate &&
+      !!candidate.isStreaming &&
+      assistantEventKey(candidate) === key,
+  );
+  if (index < 0) return { events: thinking(append(events, event)) };
   const next = [...events];
-  next[index] = replacement;
-  return next;
+  next[index] = event;
+  return { events: thinking(next) };
 }
+const reduceEvent = (events: AssistantEvent[], event: AssistantEvent) =>
+  "isStreaming" in event
+    ? track(events, event)
+    : { events: append(events, event) };
+
 export function reduceAssistantStreamEvent(
   events: AssistantEvent[],
   data: Record<string, unknown>,
 ): StreamEventReduction | null {
-  if (data.type === "automation_run") {
+  const rawType = text(data.type);
+  const baseType = rawType.replace(/_start$/u, "");
+  const streaming = rawType !== baseType && START_EVENTS.has(baseType);
+  const type = streaming ? baseType : rawType;
+
+  if (rawType === "automation_run") {
     const event = parseAutomationRunEvent(data);
-    return event ? { events: append(events, event) } : null;
+    return event ? reduceEvent(events, event) : null;
   }
-  if (data.type === "reasoning_delta") {
-    const text = string(data.text);
+  if (rawType === "reasoning_delta") {
     const cleaned = withoutPlaceholders(events);
-    const last = cleaned[cleaned.length - 1];
+    const last = cleaned.at(-1);
     return {
       deferPaint: true,
       events:
         last?.type === "reasoning" && last.isStreaming
           ? [
               ...cleaned.slice(0, -1),
-              { type: "reasoning", text: last.text + text, isStreaming: true },
+              { ...last, text: last.text + text(data.text) },
             ]
-          : [...finalizeReasoning(cleaned), { type: "reasoning", text, isStreaming: true }],
+          : [
+              ...finalizeReasoning(cleaned),
+              { type: "reasoning", text: text(data.text), isStreaming: true },
+            ],
     };
   }
-  if (data.type === "reasoning_block_end") {
+  if (rawType === "reasoning_block_end")
     return { events: thinking(finalizeReasoning(events)) };
-  }
-  if (data.type === "content_delta") {
-    const text = string(data.text);
+  if (rawType === "content_delta") {
     const cleaned = finalizeReasoning(withoutPlaceholders(events));
-    const contentIndex = cleaned.findLastIndex(
+    const index = cleaned.findLastIndex(
       (event) => event.type === "content" && !!event.isStreaming,
     );
-    const next = [...cleaned];
-    if (contentIndex >= 0) {
-      const content = cleaned[contentIndex] as Extract<
-        AssistantEvent,
-        { type: "content" }
-      >;
-      next[contentIndex] = {
-        type: "content",
-        text: content.text + text,
-        isStreaming: true,
+    if (index < 0)
+      return {
+        deferPaint: true,
+        events: [
+          ...cleaned,
+          { type: "content", text: text(data.text), isStreaming: true },
+        ],
       };
-    } else {
-      next.push({ type: "content", text, isStreaming: true });
-    }
-    return {
-      deferPaint: true,
-      events: next,
-    };
+    const next = [...cleaned];
+    const current = cleaned[index] as EventOf<"content">;
+    next[index] = { ...current, text: current.text + text(data.text) };
+    return { deferPaint: true, events: next };
   }
-  if (data.type === "tool_call_start") {
-    return { events: append(events, { type: "tool_call_start", name: string(data.name), isStreaming: true }) };
+  if (rawType === "tool_call_start")
+    return reduceEvent(events, {
+      type: "tool_call_start",
+      name: text(data.name),
+      isStreaming: true,
+    });
+  if (rawType === "mcp_tool_start") {
+    const name = text(data.name);
+    return reduceEvent(events, {
+      type: "mcp_tool_call",
+      connector_id: "",
+      connector_name: "",
+      tool_name: name,
+      openai_tool_name: name,
+      status: "ok",
+      isStreaming: true,
+    });
   }
-  if (data.type === "workflow_applied") {
-    return { events: append(events, { type: "workflow_applied", workflow_id: string(data.workflow_id), title: string(data.title) }) };
+  if (rawType === "mcp_tool_result") {
+    const name = text(data.name);
+    return reduceEvent(events, {
+      type: "mcp_tool_call",
+      connector_id: "",
+      connector_name: text(data.connector_name),
+      tool_name: text(data.tool_name) || name,
+      openai_tool_name: name,
+      status: data.status === "error" ? "error" : "ok",
+      ...(clean(data.error) && { error: clean(data.error) }),
+      isStreaming: false,
+    });
   }
-  if (data.type === "mcp_tool_start") {
-    const name = string(data.name);
-    return { events: append(events, { type: "mcp_tool_call", connector_id: "", connector_name: "", tool_name: name, openai_tool_name: name, status: "ok", isStreaming: true }) };
-  }
-  if (data.type === "mcp_tool_result") {
-    const name = string(data.name);
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) => event.type === "mcp_tool_call" && event.openai_tool_name === name && !!event.isStreaming,
-          {
-            type: "mcp_tool_call",
-            connector_id: "",
-            connector_name: string(data.connector_name),
-            tool_name: string(data.tool_name) || name,
-            openai_tool_name: name,
-            status: data.status === "error" ? "error" : "ok",
-            ...(typeof data.error === "string" ? { error: data.error } : {}),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
-  }
-  if (data.type === "ask_inputs") {
+  if (rawType === "ask_inputs") {
     const event = parseAskInputs(data);
-    return event ? { events: append(events, event) } : null;
+    return event ? reduceEvent(events, event) : null;
   }
-  if (data.type === "doc_find_start") {
-    return { events: append(events, { type: "doc_find", filename: string(data.filename), query: string(data.query), total_matches: 0, isStreaming: true }) };
-  }
-  if (data.type === "doc_find") {
-    const filename = string(data.filename);
-    const query = string(data.query);
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) => event.type === "doc_find" && event.filename === filename && event.query === query && !!event.isStreaming,
-          { type: "doc_find", filename, query, total_matches: number(data.total_matches), isStreaming: false },
-        ),
-      ),
-    };
-  }
-  if (data.type === "doc_created_start") {
-    return { events: append(events, { type: "doc_created", filename: string(data.filename), download_url: "", isStreaming: true }) };
-  }
-  if (data.type === "doc_download") {
-    return { events: append(events, { type: "doc_download", filename: string(data.filename), download_url: string(data.download_url) }) };
-  }
-  if (data.type === "doc_created") {
-    const filename = string(data.filename);
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) => event.type === "doc_created" && event.filename === filename && !!event.isStreaming,
-          {
-            type: "doc_created",
-            filename,
-            download_url: string(data.download_url),
-            ...(clean(data.document_id) ? { document_id: clean(data.document_id) } : {}),
-            ...(clean(data.version_id) ? { version_id: clean(data.version_id) } : {}),
-            ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
-  }
-  if (data.type === "doc_edited_start") {
-    return { events: append(events, { type: "doc_edited", filename: string(data.filename), document_id: "", version_id: "", download_url: "", annotations: [], isStreaming: true }) };
-  }
-  if (data.type === "doc_edited") {
-    const filename = string(data.filename);
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) => event.type === "doc_edited" && event.filename === filename && !!event.isStreaming,
-          {
-            type: "doc_edited",
-            filename,
-            document_id: string(data.document_id),
-            version_id: string(data.version_id),
-            ...(typeof data.version_number === "number" ? { version_number: data.version_number } : {}),
-            download_url: string(data.download_url),
-            annotations: Array.isArray(data.annotations) ? data.annotations as EditAnnotation[] : [],
-            ...(typeof data.error === "string" ? { error: data.error } : {}),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
-  }
-  if (data.type === "courtlistener_search_case_law_start") {
-    return {
-      events: append(events, {
-        type: "courtlistener_search_case_law",
-        query: string(data.query),
-        isStreaming: true,
-      }),
-    };
-  }
-  if (data.type === "courtlistener_search_case_law") {
-    const query = string(data.query);
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) =>
-            event.type === "courtlistener_search_case_law" &&
-            event.query === query &&
-            !!event.isStreaming,
-          {
-            type: "courtlistener_search_case_law",
-            query,
-            result_count: number(data.result_count),
-            error: error(data.error),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
-  }
-  if (data.type === "courtlistener_get_cases_start") {
-    return {
-      events: append(events, {
-        type: "courtlistener_get_cases",
-        cluster_ids: clusterIds(data.cluster_ids),
-        isStreaming: true,
-      }),
-    };
-  }
-  if (data.type === "courtlistener_get_cases") {
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) =>
-            event.type === "courtlistener_get_cases" && !!event.isStreaming,
-          {
-            type: "courtlistener_get_cases",
-            cluster_ids: clusterIds(data.cluster_ids),
-            case_count: number(data.case_count),
-            opinion_count: number(data.opinion_count),
-            cases: parseCourtlistenerEventCases(data.cases),
-            error: error(data.error),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
-  }
-  if (
-    data.type === "courtlistener_find_in_case_start" ||
-    data.type === "courtlistener_find_in_case"
-) {
-    const searches = parseCourtlistenerCaseSearches(data.searches);
-    const id = searches?.length ? null : clusterId(data.cluster_id);
-    const query = searches?.length ? "" : string(data.query);
-    const event: Extract<
-      AssistantEvent,
-      { type: "courtlistener_find_in_case" }
-    > = {
-      type: "courtlistener_find_in_case",
-      cluster_id: id,
+
+  if (type === "workflow_applied")
+    return reduceEvent(events, {
+      type,
+      workflow_id: text(data.workflow_id),
+      title: text(data.title),
+    });
+  if (type === "doc_find") {
+    const filename = text(data.filename);
+    const query = text(data.query);
+    return reduceEvent(events, {
+      type,
+      filename,
       query,
-      searches,
-      ...(data.type.endsWith("_start")
-        ? { isStreaming: true }
-        : {
-            total_matches: number(data.total_matches),
-            case_name: string(data.case_name) || null,
-            citation: string(data.citation) || null,
-            error: error(data.error),
-            isStreaming: false,
-          }),
-    };
-    if (data.type.endsWith("_start")) return { events: append(events, event) };
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (candidate) =>
-            candidate.type === "courtlistener_find_in_case" &&
-            !!candidate.isStreaming &&
-            (searches?.length
-              ? Array.isArray(candidate.searches)
-              : candidate.cluster_id === id && candidate.query === query),
-          event,
-        ),
-      ),
-    };
+      total_matches: num(data.total_matches),
+      isStreaming: streaming,
+    });
   }
-  if (
-    data.type === "courtlistener_read_case_start" ||
-    data.type === "courtlistener_read_case"
-  ) {
-    const id = clusterId(data.cluster_id);
-    const event: Extract<
-      AssistantEvent,
-      { type: "courtlistener_read_case" }
-    > = {
-      type: "courtlistener_read_case",
-      cluster_id: id,
-      ...(data.type.endsWith("_start")
-        ? { isStreaming: true }
-        : {
-            case_name: string(data.case_name) || null,
-            citation: string(data.citation) || null,
-            opinion_count: number(data.opinion_count),
-            error: error(data.error),
-            isStreaming: false,
-          }),
-    };
-    if (data.type.endsWith("_start")) return { events: append(events, event) };
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (candidate) =>
-            candidate.type === "courtlistener_read_case" &&
-            candidate.cluster_id === id &&
-            !!candidate.isStreaming,
-          event,
-        ),
-      ),
-    };
-  }
-  if (
-    data.type === "courtlistener_verify_citations_start" ||
-    data.type === "courtlistener_verify_citations"
-  ) {
-    const event: Extract<
-      AssistantEvent,
-      { type: "courtlistener_verify_citations" }
-    > = {
-      type: "courtlistener_verify_citations",
-      citation_count: number(data.citation_count),
-      ...(data.type.endsWith("_start")
-        ? { isStreaming: true }
-        : {
-            match_count: number(data.match_count),
-            error: error(data.error),
-            isStreaming: false,
-          }),
-    };
-    if (data.type.endsWith("_start")) return { events: append(events, event) };
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (candidate) =>
-            candidate.type === "courtlistener_verify_citations" &&
-            !!candidate.isStreaming,
-          event,
-        ),
-      ),
-    };
-  }
-  if (data.type === "case_citation") {
-    return {
-      events: append(events, {
-        type: "case_citation",
-        cluster_id: clusterId(data.cluster_id),
-        case_name: string(data.case_name) || null,
-        citation: string(data.citation) || null,
-        url: string(data.url),
-        pdfUrl: string(data.pdfUrl) || null,
-        dateFiled: string(data.dateFiled) || null,
+  if (type === "doc_created") {
+    const filename = text(data.filename);
+    return reduceEvent(events, {
+      type,
+      filename,
+      download_url: text(data.download_url),
+      ...(clean(data.document_id) && { document_id: clean(data.document_id) }),
+      ...(clean(data.version_id) && { version_id: clean(data.version_id) }),
+      ...(typeof data.version_number === "number" && {
+        version_number: data.version_number,
       }),
-    };
+      isStreaming: streaming,
+    });
   }
-  if (data.type === "case_opinions") {
-    return {
-      events: append(events, {
-        type: "case_opinions",
-        cluster_id: number(data.cluster_id),
-        case: data.case as Extract<
-          AssistantEvent,
-          { type: "case_opinions" }
-        >["case"],
+  if (type === "doc_edited") {
+    const filename = text(data.filename);
+    return reduceEvent(events, {
+      type,
+      filename,
+      document_id: text(data.document_id),
+      version_id: text(data.version_id),
+      download_url: text(data.download_url),
+      annotations: Array.isArray(data.annotations)
+        ? (data.annotations as EditAnnotation[])
+        : [],
+      ...(typeof data.version_number === "number" && {
+        version_number: data.version_number,
       }),
-    };
+      ...(clean(data.error) && { error: clean(data.error) }),
+      isStreaming: streaming,
+    });
   }
-  if (data.type === "doc_read_start") {
-    return {
-      events: append(events, {
-        type: "doc_read",
-        filename: string(data.filename),
-        document_id: string(data.document_id) || undefined,
-        isStreaming: true,
-      }),
-    };
-  }
-  if (data.type === "doc_read") {
-    const filename = string(data.filename);
+  if (type === "doc_read") {
+    const filename = text(data.filename);
     const current = events.findLast(
       (event) =>
-        event.type === "doc_read" &&
+        event.type === type &&
         event.filename === filename &&
         !!event.isStreaming,
     );
-    return {
-      events: thinking(
-        replaceLast(
-          events,
-          (event) =>
-            event.type === "doc_read" &&
-            event.filename === filename &&
-            !!event.isStreaming,
-          {
-            type: "doc_read",
-            filename,
-            document_id:
-              string(data.document_id) ||
-              (current?.type === "doc_read"
-                ? current.document_id
-                : undefined),
-            isStreaming: false,
-          },
-        ),
-      ),
-    };
+    return reduceEvent(events, {
+      type,
+      filename,
+      document_id:
+        text(data.document_id) ||
+        (current?.type === type ? current.document_id : undefined),
+      isStreaming: streaming,
+    });
   }
+  if (type === "courtlistener_search_case_law") {
+    const query = text(data.query);
+    return reduceEvent(events, {
+      type,
+      query,
+      ...(!streaming && {
+        result_count: num(data.result_count),
+        error: clean(data.error),
+      }),
+      isStreaming: streaming,
+    });
+  }
+  if (type === "courtlistener_get_cases")
+    return reduceEvent(events, {
+      type,
+      cluster_ids: numbers(data.cluster_ids),
+      ...(!streaming && {
+        case_count: num(data.case_count),
+        opinion_count: num(data.opinion_count),
+        cases: parseCourtlistenerEventCases(data.cases),
+        error: clean(data.error),
+      }),
+      isStreaming: streaming,
+    });
+  if (type === "courtlistener_find_in_case") {
+    const searches = parseCourtlistenerCaseSearches(data.searches);
+    const clusterId = searches?.length ? null : id(data.cluster_id);
+    const query = searches?.length ? "" : text(data.query);
+    return reduceEvent(events, {
+      type,
+      cluster_id: clusterId,
+      query,
+      searches,
+      ...(!streaming && {
+        total_matches: num(data.total_matches),
+        case_name: clean(data.case_name) ?? null,
+        citation: clean(data.citation) ?? null,
+        error: clean(data.error),
+      }),
+      isStreaming: streaming,
+    });
+  }
+  if (type === "courtlistener_read_case") {
+    const clusterId = id(data.cluster_id);
+    return reduceEvent(events, {
+      type,
+      cluster_id: clusterId,
+      ...(!streaming && {
+        case_name: clean(data.case_name) ?? null,
+        citation: clean(data.citation) ?? null,
+        opinion_count: num(data.opinion_count),
+        error: clean(data.error),
+      }),
+      isStreaming: streaming,
+    });
+  }
+  if (type === "courtlistener_verify_citations")
+    return reduceEvent(events, {
+      type,
+      citation_count: num(data.citation_count),
+      ...(!streaming && {
+        match_count: num(data.match_count),
+        error: clean(data.error),
+      }),
+      isStreaming: streaming,
+    });
+  if (type === "case_citation")
+    return reduceEvent(events, {
+      type,
+      cluster_id: id(data.cluster_id),
+      case_name: clean(data.case_name) ?? null,
+      citation: clean(data.citation) ?? null,
+      url: text(data.url),
+      pdfUrl: clean(data.pdfUrl) ?? null,
+      dateFiled: clean(data.dateFiled) ?? null,
+    });
+  if (type === "case_opinions")
+    return reduceEvent(events, {
+      type,
+      cluster_id: num(data.cluster_id),
+      case: data.case as EventOf<"case_opinions">["case"],
+    });
   return null;
 }

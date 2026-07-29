@@ -1,4 +1,3 @@
-"use client";
 const INLINE_METADATA_RE = /\[\[((?:[^\[\]]|\[[^\]]*\])+)\]\]/g;
 export interface ParsedCitation {
     page?: number;

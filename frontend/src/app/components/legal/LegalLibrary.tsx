@@ -27,15 +27,27 @@ import {
     type LegalSourceSearchResult,
 } from "@/app/lib/beaverApi";
 import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
-import { LegalSourceViewer } from "./LegalSourceViewer";
+import {
+    legalSourceKindLabel,
+    LegalSourceViewer,
+    type LegalSourceViewerProps,
+} from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-function sourceKindLabel(docType: LegalDocumentType) {
-    return docType === "laws"
-        ? "Legislation"
-        : docType === "articles"
-          ? "Journal article"
-          : "Decision";
+
+const SOURCE_KINDS = {
+    cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
+    laws: [["legislation", "Statutes"], ["regulation", "Regulations"]],
+    articles: [],
+} as const;
+const FILTER_LABEL = "min-w-0 text-xs font-medium text-gray-600";
+const FILTER_INPUT =
+    "mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800";
+const DATE_FILTERS = [["from", "From"], ["to", "To"]] as const;
+
+function errorMessage(reason: unknown, fallback: string) {
+    return reason instanceof Error ? reason.message : fallback;
 }
+
 function directSourceHref(result: LegalSourceSearchResult) {
     const query = new URLSearchParams({
         provider: result.provider,
@@ -47,73 +59,57 @@ function directSourceHref(result: LegalSourceSearchResult) {
     if (result.source_id) query.set("source_id", result.source_id);
     return `/library/legal/view?${query}`;
 }
+
+function savedSourceKey(source: {
+    provider: string;
+    citation: string;
+    dataset: string | null;
+}) {
+    return JSON.stringify([source.provider, source.dataset, source.citation]);
+}
+
 export function LegalLibraryPage() {
     const router = useRouter();
-    const [references, setReferences] = useState<LegalSourceReference[]>([]);
+    const [references, setReferences] = useState<LegalSourceReference[] | null>(
+        null,
+    );
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
-    const [query, setQuery] = useState("");
-    const [docType, setDocType] = useState<LegalDocumentType>("cases");
-    const [jurisdiction, setJurisdiction] = useState("");
-    const [sourceKind, setSourceKind] = useState("");
-    const [dataset, setDataset] = useState("");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
-    const [sortResults, setSortResults] = useState<
-        "default" | "newest_first" | "oldest_first"
-    >("default");
-    const [loadingLibrary, setLoadingLibrary] = useState(true);
+    const [filters, setFilters] = useState({
+        docType: "cases" as LegalDocumentType,
+        jurisdiction: "",
+        sourceKind: "",
+        dataset: "",
+    });
     const [searching, setSearching] = useState(false);
     const [savingCitation, setSavingCitation] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const { docType, jurisdiction, sourceKind, dataset } = filters;
+    const updateFilters = (next: Partial<typeof filters>) =>
+        setFilters((current) => ({ ...current, ...next }));
     useEffect(() => {
         for (const tab of LIBRARY_TABS) {
             router.prefetch(libraryRoute(tab.id));
         }
     }, [router]);
     useEffect(() => {
-        let cancelled = false;
         listLegalLibrary()
-            .then((loaded) => {
-                if (!cancelled) setReferences(loaded);
-            })
+            .then(setReferences)
             .catch((reason: unknown) => {
-                if (!cancelled) {
-                    setError(
-                        reason instanceof Error
-                            ? reason.message
-                            : "Could not load legal sources",
-                    );
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingLibrary(false);
+                setReferences([]);
+                setError(errorMessage(reason, "Could not load legal sources"));
             });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-    useEffect(() => {
-        let cancelled = false;
-        getLegalSourceCoverage()
-            .then((loaded) => {
-                if (!cancelled) setCoverage(loaded);
-            })
-            .catch(() => {
-            });
-        return () => {
-            cancelled = true;
-        };
+        getLegalSourceCoverage().then(setCoverage).catch(() => undefined);
     }, []);
     const typeCoverage = coverage.filter((item) => item.docType === docType);
-    const jurisdictions = [
-        ...new Map(
-            typeCoverage.map((item) => [
-                item.jurisdictionCode,
-                item.jurisdiction,
+    const jurisdictions = Array.from(
+        new Map(
+            typeCoverage.map(({ jurisdictionCode, jurisdiction }) => [
+                jurisdictionCode,
+                jurisdiction,
             ]),
         ),
-    ].sort((left, right) => left[1].localeCompare(right[1]));
+    ).sort((left, right) => left[1].localeCompare(right[1]));
     const availableSources = typeCoverage.filter(
         (item) =>
             (!jurisdiction || item.jurisdictionCode === jurisdiction) &&
@@ -122,27 +118,31 @@ export function LegalLibraryPage() {
     const selectedDatasets = dataset
         ? [dataset]
         : availableSources.map((item) => item.dataset);
-    async function runSearch(event: FormEvent) {
+    const savedSources = new Set(references?.map(savedSourceKey));
+    async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!query.trim()) return;
+        const form = new FormData(event.currentTarget);
+        const query = form.get("query")?.toString().trim() ?? "";
+        if (!query) return;
         setSearching(true);
         setError(null);
         try {
             setResults(
                 await searchLegalSources({
-                    query: query.trim(),
+                    query,
                     docType,
                     datasets:
                         docType === "articles" ? undefined : selectedDatasets,
-                    startDate: startDate || undefined,
-                    endDate: endDate || undefined,
-                    sortResults,
+                    startDate: form.get("from")?.toString() || undefined,
+                    endDate: form.get("to")?.toString() || undefined,
+                    sortResults: (form.get("sort")?.toString() || "default") as
+                        | "default"
+                        | "newest_first"
+                        | "oldest_first",
                 }),
             );
         } catch (reason) {
-            setError(
-                reason instanceof Error ? reason.message : "Search failed",
-            );
+            setError(errorMessage(reason, "Search failed"));
         } finally {
             setSearching(false);
         }
@@ -158,16 +158,12 @@ export function LegalLibraryPage() {
                 sourceId: result.source_id,
             });
             setReferences((current) =>
-                current.some((item) => item.id === saved.id)
+                current?.some((item) => item.id === saved.id)
                     ? current
-                    : [...current, saved],
+                    : [...(current ?? []), saved],
             );
         } catch (reason) {
-            setError(
-                reason instanceof Error
-                    ? reason.message
-                    : "Could not save legal source",
-            );
+            setError(errorMessage(reason, "Could not save legal source"));
         } finally {
             setSavingCitation(null);
         }
@@ -176,14 +172,10 @@ export function LegalLibraryPage() {
         try {
             await deleteLegalSource(reference.id);
             setReferences((current) =>
-                current.filter((item) => item.id !== reference.id),
+                (current ?? []).filter((item) => item.id !== reference.id),
             );
         } catch (reason) {
-            setError(
-                reason instanceof Error
-                    ? reason.message
-                    : "Could not remove legal source",
-            );
+            setError(errorMessage(reason, "Could not remove legal source"));
         }
     }
     return (
@@ -205,19 +197,17 @@ export function LegalLibraryPage() {
                         onSubmit={runSearch}
                         className="rounded-lg border border-gray-200 bg-white p-4"
                     >
-                        <h1 className="mb-3 text-lg font-semibold text-gray-900">
-                            Find Canadian law
-                        </h1>
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <select
                                 value={docType}
                                 onChange={(event) => {
-                                    setDocType(
-                                        event.target.value as LegalDocumentType,
-                                    );
-                                    setJurisdiction("");
-                                    setSourceKind("");
-                                    setDataset("");
+                                    updateFilters({
+                                        docType: event.target
+                                            .value as LegalDocumentType,
+                                        jurisdiction: "",
+                                        sourceKind: "",
+                                        dataset: "",
+                                    });
                                 }}
                                 aria-label="Legal source type"
                                 className="h-10 w-40 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand"
@@ -232,10 +222,8 @@ export function LegalLibraryPage() {
                                 <Search className="h-4 w-4 shrink-0 text-gray-400" />
                                 <span className="sr-only">Search A2AJ</span>
                                 <input
-                                    value={query}
-                                    onChange={(event) =>
-                                        setQuery(event.target.value)
-                                    }
+                                    name="query"
+                                    required
                                     placeholder={
                                         docType === "laws"
                                             ? "Statute title, citation, or provision"
@@ -248,7 +236,7 @@ export function LegalLibraryPage() {
                             </label>
                             <button
                                 type="submit"
-                                disabled={searching || !query.trim()}
+                                disabled={searching}
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-45"
                             >
                                 {searching ? (
@@ -259,20 +247,24 @@ export function LegalLibraryPage() {
                                 Search
                             </button>
                         </div>
-                        {docType !== "articles" ? (
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div
+                            hidden={docType === "articles"}
+                            className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+                        >
                                 <label
                                     htmlFor="legal-jurisdiction"
-                                    className="min-w-0 text-xs font-medium text-gray-600"
+                                    className={FILTER_LABEL}
                                 >
                                     Jurisdiction
                                     <ModalSelect
                                         id="legal-jurisdiction"
                                         value={jurisdiction}
-                                        onChange={(value) => {
-                                            setJurisdiction(value);
-                                            setDataset("");
-                                        }}
+                                        onChange={(value) =>
+                                            updateFilters({
+                                                jurisdiction: value,
+                                                dataset: "",
+                                            })
+                                        }
                                         options={[
                                             {
                                                 value: "",
@@ -288,39 +280,31 @@ export function LegalLibraryPage() {
                                         className="mt-1 !h-9 px-2 font-normal"
                                     />
                                 </label>
-                                <label className="min-w-0 text-xs font-medium text-gray-600">
+                                <label className={FILTER_LABEL}>
                                     Source type
                                     <select
                                         value={sourceKind}
-                                        onChange={(event) => {
-                                            setSourceKind(event.target.value);
-                                            setDataset("");
-                                        }}
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                        onChange={(event) =>
+                                            updateFilters({
+                                                sourceKind: event.target.value,
+                                                dataset: "",
+                                            })
+                                        }
+                                        className={FILTER_INPUT}
                                     >
                                         <option value="">All source types</option>
-                                        {docType === "cases" ? (
-                                            <>
-                                                <option value="court">Courts</option>
-                                                <option value="tribunal">
-                                                    Tribunals and boards
+                                        {SOURCE_KINDS[docType].map(
+                                            ([value, label]) => (
+                                                <option key={value} value={value}>
+                                                    {label}
                                                 </option>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <option value="legislation">
-                                                    Statutes
-                                                </option>
-                                                <option value="regulation">
-                                                    Regulations
-                                                </option>
-                                            </>
+                                            ),
                                         )}
                                     </select>
                                 </label>
                                 <label
                                     htmlFor="legal-dataset"
-                                    className="min-w-0 text-xs font-medium text-gray-600 lg:col-span-2"
+                                    className={`${FILTER_LABEL} lg:col-span-2`}
                                 >
                                     {docType === "cases"
                                         ? "Court or tribunal"
@@ -328,7 +312,9 @@ export function LegalLibraryPage() {
                                     <ModalSelect
                                         id="legal-dataset"
                                         value={dataset}
-                                        onChange={setDataset}
+                                        onChange={(value) =>
+                                            updateFilters({ dataset: value })
+                                        }
                                         options={[
                                             {
                                                 value: "",
@@ -345,38 +331,22 @@ export function LegalLibraryPage() {
                                         className="mt-1 !h-9 px-2 font-normal"
                                     />
                                 </label>
-                                <label className="min-w-0 text-xs font-medium text-gray-600">
-                                    From
-                                    <input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(event) =>
-                                            setStartDate(event.target.value)
-                                        }
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
-                                    />
-                                </label>
-                                <label className="min-w-0 text-xs font-medium text-gray-600">
-                                    To
-                                    <input
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(event) =>
-                                            setEndDate(event.target.value)
-                                        }
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
-                                    />
-                                </label>
-                                <label className="min-w-0 text-xs font-medium text-gray-600 sm:col-span-2">
+                                {DATE_FILTERS.map(([name, label]) => (
+                                    <label key={name} className={FILTER_LABEL}>
+                                        {label}
+                                        <input
+                                            type="date"
+                                            name={name}
+                                            className={FILTER_INPUT}
+                                        />
+                                    </label>
+                                ))}
+                                <label className={`${FILTER_LABEL} sm:col-span-2`}>
                                     Sort
                                     <select
-                                        value={sortResults}
-                                        onChange={(event) =>
-                                            setSortResults(
-                                                event.target.value as typeof sortResults,
-                                            )
-                                        }
-                                        className="mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800"
+                                        name="sort"
+                                        defaultValue="default"
+                                        className={FILTER_INPUT}
                                     >
                                         <option value="default">
                                             Most relevant
@@ -389,32 +359,30 @@ export function LegalLibraryPage() {
                                         </option>
                                     </select>
                                 </label>
-                            </div>
-                        ) : null}
+                        </div>
                     </form>
-                    {error ? (
+                    {error && (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
                         </p>
-                    ) : null}
-                    {results.length > 0 ? (
+                    )}
+                    {results.length > 0 && (
                         <section>
                             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Search results
                             </h2>
                             <div className="grid gap-2">
-                                {results.map((result) => (
-                                    <article
-                                        key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
-                                        className="rounded-md border border-gray-200 bg-white p-4"
-                                    >
+                                {results.map((result) => {
+                                    const saved = savedSources.has(
+                                        savedSourceKey(result),
+                                    );
+                                    return (
+                                        <article
+                                            key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
+                                            className="rounded-md border border-gray-200 bg-white p-4"
+                                        >
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">
-                                                    {sourceKindLabel(
-                                                        result.doc_type,
-                                                    )}
-                                                </p>
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
                                                     {result.name ||
                                                         result.citation}
@@ -430,11 +398,11 @@ export function LegalLibraryPage() {
                                                         .filter(Boolean)
                                                         .join(" / ")}
                                                 </p>
-                                                {result.snippet ? (
+                                                {result.snippet && (
                                                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">
                                                         {result.snippet}
                                                     </p>
-                                                ) : null}
+                                                )}
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
                                                 <Link
@@ -448,15 +416,7 @@ export function LegalLibraryPage() {
                                                     disabled={
                                                         savingCitation ===
                                                             result.citation ||
-                                                        references.some(
-                                                            (reference) =>
-                                                                reference.provider ===
-                                                                    result.provider &&
-                                                                reference.citation ===
-                                                                    result.citation &&
-                                                                reference.dataset ===
-                                                                    result.dataset,
-                                                        )
+                                                        saved
                                                     }
                                                     onClick={() =>
                                                         void saveResult(result)
@@ -469,19 +429,9 @@ export function LegalLibraryPage() {
                                                     ) : (
                                                         <LibraryBig className="h-3.5 w-3.5" />
                                                     )}
-                                                    {references.some(
-                                                        (reference) =>
-                                                            reference.provider ===
-                                                                result.provider &&
-                                                            reference.citation ===
-                                                                result.citation &&
-                                                            reference.dataset ===
-                                                                result.dataset,
-                                                    )
-                                                        ? "Saved"
-                                                        : "Save"}
+                                                    {saved ? "Saved" : "Save"}
                                                 </button>
-                                                {result.url ? (
+                                                {result.url && (
                                                     <a
                                                         href={result.url}
                                                         target="_blank"
@@ -491,24 +441,20 @@ export function LegalLibraryPage() {
                                                         View original source
                                                         <ExternalLink className="h-3.5 w-3.5" />
                                                     </a>
-                                                ) : null}
+                                                )}
                                             </div>
                                         </div>
-                                    </article>
-                                ))}
+                                        </article>
+                                    );
+                                })}
                             </div>
                         </section>
-                    ) : null}
+                    )}
                     <section>
-                        <div className="mb-2 flex items-center justify-between">
-                            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Saved sources
-                            </h2>
-                            <span className="text-xs text-gray-400">
-                                {references.length}
-                            </span>
-                        </div>
-                        {loadingLibrary ? (
+                        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Saved sources
+                        </h2>
+                        {references === null ? (
                             <div className="flex justify-center py-10">
                                 <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                             </div>
@@ -531,7 +477,7 @@ export function LegalLibraryPage() {
                                                 </p>
                                                 <p className="mt-0.5 text-[11px] text-gray-400">
                                                     {[
-                                                        sourceKindLabel(
+                                                        legalSourceKindLabel(
                                                             reference.doc_type,
                                                         ),
                                                         reference.dataset,
@@ -577,11 +523,10 @@ export function LegalLibraryPage() {
         </div>
     );
 }
-export function LegalLibraryDocumentPage({
-    referenceId,
-}: {
-    referenceId: string;
-}) {
+export function LegalLibrarySourcePage({
+    markingId,
+    ...viewerProps
+}: LegalSourceViewerProps & { markingId?: string }) {
     const router = useRouter();
     const [markingOpen, setMarkingOpen] = useState(false);
     return (
@@ -598,72 +543,33 @@ export function LegalLibraryDocumentPage({
                     },
                     { label: "Source" },
                 ]}
-                actions={[
-                    {
-                        label: markingOpen ? "Close" : "Mark",
-                        title: markingOpen
-                            ? "Close source marks"
-                            : "Mark source",
-                        onClick: () => setMarkingOpen((open) => !open),
-                    },
-                ]}
+                actions={
+                    markingId
+                        ? [
+                              {
+                                  label: markingOpen ? "Close" : "Mark",
+                                  title: markingOpen
+                                      ? "Close source marks"
+                                      : "Mark source",
+                                  onClick: () =>
+                                      setMarkingOpen((open) => !open),
+                              },
+                          ]
+                        : undefined
+                }
             />
             <div className="relative flex min-h-0 flex-1">
-                <div className="min-w-0 flex-1">
-                    <LegalSourceViewer referenceId={referenceId} />
+                <div className="min-h-0 min-w-0 flex-1">
+                    <LegalSourceViewer {...viewerProps} />
                 </div>
-                {markingOpen ? (
+                {markingId && markingOpen && (
                     <aside
                         aria-label="Project source marks"
                         className="absolute inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-gray-200 bg-gray-50 p-3 md:static md:z-0 md:w-80 md:max-w-none"
                     >
-                        <LegalSourceMarkingPanel sourceId={referenceId} />
+                        <LegalSourceMarkingPanel sourceId={markingId} />
                     </aside>
-                ) : null}
-            </div>
-        </div>
-    );
-}
-export function LegalLibraryDirectDocumentPage({
-    provider,
-    citation,
-    sourceId,
-    docType,
-    language,
-    dataset,
-}: {
-    provider: "a2aj" | "journal";
-    citation: string;
-    sourceId?: string | null;
-    docType: LegalDocumentType | "auto";
-    language: "en" | "fr";
-    dataset?: string | null;
-}) {
-    const router = useRouter();
-    return (
-        <div className="flex h-full min-h-0 flex-col">
-            <PageHeader
-                breadcrumbs={[
-                    {
-                        label: "Library",
-                        onClick: () => router.push("/library"),
-                    },
-                    {
-                        label: "Legal Sources",
-                        onClick: () => router.push("/library/legal"),
-                    },
-                    { label: "Source" },
-                ]}
-            />
-            <div className="min-h-0 flex-1">
-                <LegalSourceViewer
-                    provider={provider}
-                    citation={citation}
-                    sourceId={sourceId}
-                    docType={docType}
-                    language={language}
-                    dataset={dataset}
-                />
+                )}
             </div>
         </div>
     );

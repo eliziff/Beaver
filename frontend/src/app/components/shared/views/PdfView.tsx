@@ -1,5 +1,12 @@
-"use client";
-import { useCallback, useEffect, useRef, useState } from "react";import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useRef,
+    useState,
+    type MouseEvent as ReactMouseEvent,
+} from "react";
+import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import type { CitationQuote } from "../types";
 import {
@@ -22,12 +29,65 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3.0;
 const ZOOM_STEP = 0.25;
 type RenderedPage = {
-    page: import("pdfjs-dist").PDFPageProxy;
-    viewport: import("pdfjs-dist").PageViewport;
     wrapper: HTMLDivElement;
-    canvas: HTMLCanvasElement;
     textDivs: HTMLElement[];
 };
+const clampZoom = (value: number) =>
+    Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
+
+function applyHighlights(
+    pages: RenderedPage[],
+    list: QuoteEntry[],
+): number | null {
+    for (const page of pages) clearHighlights(page.textDivs);
+    let firstHit: number | null = null;
+    for (const entry of list) {
+        const hintedPage = entry.page ? pages[entry.page - 1] : undefined;
+        let hit =
+            entry.page &&
+            hintedPage &&
+            highlightQuote(hintedPage.textDivs, entry.quote)
+                ? entry.page
+                : null;
+        if (hit === null) {
+            console.warn(
+                `Quote not found on hinted page, scanning all pages: "${entry.quote.slice(0, 60)}..."`,
+            );
+            for (let index = 0; index < pages.length; index++) {
+                if (highlightQuote(pages[index].textDivs, entry.quote)) {
+                    hit = index + 1;
+                    break;
+                }
+            }
+        }
+        firstHit ??= hit;
+    }
+    return firstHit;
+}
+
+function scrollToHighlightOnPage(
+    pages: RenderedPage[],
+    scrollEl: HTMLDivElement | null,
+    pageNum: number,
+) {
+    const page = pages[pageNum - 1];
+    if (!page || !scrollEl) return;
+    const highlight = page.wrapper.querySelector<HTMLElement>(
+        ".pdf-text-highlight",
+    );
+    const rect = (highlight ?? page.wrapper).getBoundingClientRect();
+    const containerRect = scrollEl.getBoundingClientRect();
+    const centeredOffset = highlight
+        ? (rect.height - scrollEl.clientHeight) / 2
+        : 0;
+    scrollEl.scrollTo({
+        top: Math.max(
+            0,
+            scrollEl.scrollTop + rect.top - containerRect.top + centeredOffset,
+        ),
+        behavior: "instant" as ScrollBehavior,
+    });
+}
 export function PdfView({
     doc,
     quotes,
@@ -45,17 +105,12 @@ export function PdfView({
     const quoteListRef = useRef<QuoteEntry[]>([]);
     const zoomRef = useRef(1.0);
     const currentPageRef = useRef(1);
-    const onUnavailableRef = useRef(onUnavailable);
     const renderGenerationRef = useRef(0);
     const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
     const renderedWidthRef = useRef(0);
-    useEffect(() => {
-        onUnavailableRef.current = onUnavailable;
-    }, [onUnavailable]);
     const quoteList: QuoteEntry[] =        quotes?.map((q) => ({ page: q.page, quote: q.quote })) ?? [];    const quoteKey = quoteList
         .map((q) => `${q.page ?? ""}:${q.quote}`)
         .join("|");
-    const [containerWidth, setContainerWidth] = useState(0);
     const [zoom, setZoom] = useState(1.0);
     const [currentPage, setCurrentPage] = useState(1);
     const [numPages, setNumPages] = useState(0);
@@ -64,24 +119,13 @@ export function PdfView({
         doc?.version_id ?? null,
         revision,
     );
-    useEffect(() => {
-        if (error || (result && result.type !== "pdf")) {
-            onUnavailableRef.current?.();
-        }
-    }, [error, result]);
-    useEffect(() => {
-        const el = scrollContainerRef.current;
-        if (!el) return;
-        const ro = new ResizeObserver((entries) => {
-            setContainerWidth(entries[0]?.contentRect.width ?? 0);
-        });
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
+    const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
     useEffect(() => {
         const scrollEl = scrollContainerRef.current;
         if (!scrollEl) return;
-        const handleScroll = () => {
+        let frame: number | null = null;
+        const updateCurrentPage = () => {
+            frame = null;
             const pages = renderedPagesRef.current;
             if (!pages.length) return;
             const scrollCenter = scrollEl.scrollTop + scrollEl.clientHeight / 2;
@@ -96,92 +140,29 @@ export function PdfView({
                     closest = i;
                 }
             });
-            currentPageRef.current = closest + 1;
-            setCurrentPage(closest + 1);
+            const page = closest + 1;
+            if (page === currentPageRef.current) return;
+            currentPageRef.current = page;
+            setCurrentPage(page);
+        };
+        const handleScroll = () => {
+            if (frame === null)
+                frame = requestAnimationFrame(updateCurrentPage);
         };
         scrollEl.addEventListener("scroll", handleScroll, { passive: true });
-        return () => scrollEl.removeEventListener("scroll", handleScroll);
-    }, []);
-    const applyHighlights = useCallback(
-        async (list: QuoteEntry[]): Promise<number | null> => {
-            for (const p of renderedPagesRef.current)
-                clearHighlights(p.textDivs);
-            let firstHitPage: number | null = null;
-            for (const entry of list) {
-                let hitPage: number | null = null;
-                if (entry.page) {
-                    const target = renderedPagesRef.current[entry.page - 1];
-                    if (target) {
-                        const found = await highlightQuote(
-                            target.textDivs,
-                            entry.quote,
-                        );
-                        if (found) hitPage = entry.page;
-                    }
-                }
-                if (hitPage === null) {
-                    console.warn(
-                        `Quote not found on hinted page, scanning all pages: "${entry.quote.slice(0, 60)}..."`,
-                    );
-                    for (let i = 0; i < renderedPagesRef.current.length; i++) {
-                        const p = renderedPagesRef.current[i];
-                        const found = await highlightQuote(
-                            p.textDivs,
-                            entry.quote,
-                        );
-                        if (found) {
-                            hitPage = i + 1;
-                            break;
-                        }
-                    }
-                }
-                if (hitPage !== null && firstHitPage === null) {
-                    firstHitPage = hitPage;
-                }
-            }
-            return firstHitPage;
-        },
-        [],
-    );
-    const scrollToHighlightOnPage = useCallback((pageNum: number) => {
-        const pageEntry = renderedPagesRef.current[pageNum - 1];
-        const scrollEl = scrollContainerRef.current;
-        if (!pageEntry || !scrollEl) return;
-        const highlightEl = pageEntry.wrapper.querySelector<HTMLElement>(
-            ".pdf-text-highlight",
-        );
-        if (highlightEl) {
-            const containerRect = scrollEl.getBoundingClientRect();
-            const highlightRect = highlightEl.getBoundingClientRect();
-            const offsetWithinContainer = highlightRect.top - containerRect.top;
-            const targetTop =
-                scrollEl.scrollTop +
-                offsetWithinContainer -
-                scrollEl.clientHeight / 2 +
-                highlightRect.height / 2;
-            scrollEl.scrollTo({
-                top: Math.max(0, targetTop),
-                behavior: "instant" as ScrollBehavior,
-            });
-        } else {
-            const wrapperRect = pageEntry.wrapper.getBoundingClientRect();
-            const containerRect = scrollEl.getBoundingClientRect();
-            const targetTop =
-                scrollEl.scrollTop + (wrapperRect.top - containerRect.top);
-            scrollEl.scrollTo({
-                top: Math.max(0, targetTop),
-                behavior: "instant" as ScrollBehavior,
-            });
-        }
+        return () => {
+            scrollEl.removeEventListener("scroll", handleScroll);
+            if (frame !== null) cancelAnimationFrame(frame);
+            renderGenerationRef.current += 1;
+            renderTaskRef.current?.cancel();
+            getPdfJs().then((lib) => lib.TextLayer.cleanup());
+        };
     }, []);
     const renderPDF = useCallback(
-        async (
-            doc: import("pdfjs-dist").PDFDocumentProxy,
-            list: QuoteEntry[],
-            scrollToPage?: number,
-        ) => {
+        async (list: QuoteEntry[], scrollToPage?: number) => {
             const container = containerRef.current;
-            if (!container) return;
+            const doc = pdfDocRef.current;
+            if (!container || !doc) return;
             const generation = ++renderGenerationRef.current;
             renderTaskRef.current?.cancel();
             renderTaskRef.current = null;
@@ -190,17 +171,9 @@ export function PdfView({
             const lib = await getPdfJs();
             if (generation !== renderGenerationRef.current) return;
             lib.TextLayer.cleanup();
-            setNumPages(doc.numPages);
-            setCurrentPage(1);
-            currentPageRef.current = 1;
-            const hasCitation = list.length > 0;
-            if (hasCitation && scrollContainerRef.current) {
+            if (list.length && scrollContainerRef.current) {
                 scrollContainerRef.current.style.opacity = "0";
             }
-            const reveal = () => {
-                if (scrollContainerRef.current)
-                    scrollContainerRef.current.style.opacity = "1";
-            };
             const panelW = container.clientWidth;
             renderedWidthRef.current = panelW;
             const firstPage = await doc.getPage(1);
@@ -212,7 +185,8 @@ export function PdfView({
             );
             const scale = baseScale * zoomRef.current;
             for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-                const page = await doc.getPage(pageNum);
+                const page =
+                    pageNum === 1 ? firstPage : await doc.getPage(pageNum);
                 if (generation !== renderGenerationRef.current) return;
                 const viewport = page.getViewport({ scale });
                 const wrapper = document.createElement("div");
@@ -264,25 +238,22 @@ export function PdfView({
                 const textDivs = textLayer.textDivs;
                 container.appendChild(wrapper);
                 renderedPagesRef.current.push({
-                    page,
-                    viewport,
                     wrapper,
-                    canvas,
                     textDivs,
                 });
             }
             if (generation !== renderGenerationRef.current) return;
-            let targetPage: number | null = null;
-            if (list.length) {
-                targetPage = await applyHighlights(list);
-                if (targetPage === null) {
-                    const hint = list.find((e) => e.page)?.page ?? null;
-                    targetPage = hint;
-                }
-            }
+            let targetPage = list.length
+                ? applyHighlights(renderedPagesRef.current, list)
+                : null;
+            targetPage ??= list.find((entry) => entry.page)?.page ?? null;
             if (targetPage && targetPage >= 1) {
-                scrollToHighlightOnPage(targetPage);
-            } else if (!hasCitation && scrollToPage && scrollToPage > 1) {
+                scrollToHighlightOnPage(
+                    renderedPagesRef.current,
+                    scrollContainerRef.current,
+                    targetPage,
+                );
+            } else if (!list.length && scrollToPage && scrollToPage > 1) {
                 const pageEntry = renderedPagesRef.current[scrollToPage - 1];
                 if (pageEntry)
                     pageEntry.wrapper.scrollIntoView({
@@ -290,21 +261,35 @@ export function PdfView({
                         block: "start",
                     });
             }
-            reveal();
+            if (scrollContainerRef.current)
+                scrollContainerRef.current.style.opacity = "1";
         },
-        [applyHighlights, scrollToHighlightOnPage],
+        [],
     );
-    const rehighlightQuotes = useCallback(
-        async (list: QuoteEntry[]) => {
-            const targetPage = await applyHighlights(list);
-            const scrollPage =
-                targetPage ?? list.find((e) => e.page)?.page ?? null;
-            if (scrollPage && scrollPage >= 1) {
-                scrollToHighlightOnPage(scrollPage);
-            }
-        },
-        [applyHighlights, scrollToHighlightOnPage],
-    );
+    useEffect(() => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const observer = new ResizeObserver(() => {
+            if (!pdfDocRef.current) return;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                const width = containerRef.current?.clientWidth ?? 0;
+                if (
+                    pdfDocRef.current &&
+                    width > 0 &&
+                    Math.abs(width - renderedWidthRef.current) >= 1
+                ) {
+                    renderPDF(quoteListRef.current);
+                }
+            }, 150);
+        });
+        observer.observe(el);
+        return () => {
+            observer.disconnect();
+            if (timer) clearTimeout(timer);
+        };
+    }, [renderPDF]);
     useEffect(() => {
         const el = scrollContainerRef.current;
         if (!el) return;
@@ -313,36 +298,15 @@ export function PdfView({
             if (!e.ctrlKey) return;
             e.preventDefault();
             const delta = e.deltaMode === 0 ? e.deltaY / 300 : e.deltaY * 0.1;
-            const next = Math.min(
-                ZOOM_MAX,
-                Math.max(
-                    ZOOM_MIN,
-                    Math.round(zoomRef.current * Math.exp(-delta) * 100) / 100,
-                ),
-            );
+            const next = clampZoom(zoomRef.current * Math.exp(-delta));
             if (next === zoomRef.current) return;
             zoomRef.current = next;
             setZoom(next);
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                if (pdfDocRef.current) {
-                    renderPDF(
-                        pdfDocRef.current,
-                        quoteListRef.current,
-                        currentPageRef.current,
-                    );
-                }
+                renderPDF(quoteListRef.current, currentPageRef.current);
             }, 150);
         };
-        el.addEventListener("wheel", handleWheel, { passive: false });
-        return () => {
-            el.removeEventListener("wheel", handleWheel);
-            if (debounceTimer) clearTimeout(debounceTimer);
-        };
-    }, [renderPDF]);
-    useEffect(() => {
-        const el = scrollContainerRef.current;
-        if (!el) return;
         let initialDist = 0;
         let initialZoom = 1.0;
         function getTouchDist(touches: TouchList) {
@@ -359,16 +323,8 @@ export function PdfView({
         const handleTouchMove = (e: TouchEvent) => {
             if (e.touches.length !== 2 || initialDist === 0) return;
             e.preventDefault();
-            const next = Math.min(
-                ZOOM_MAX,
-                Math.max(
-                    ZOOM_MIN,
-                    Math.round(
-                        initialZoom *
-                            (getTouchDist(e.touches) / initialDist) *
-                            100,
-                    ) / 100,
-                ),
+            const next = clampZoom(
+                initialZoom * (getTouchDist(e.touches) / initialDist),
             );
             zoomRef.current = next;
             setZoom(next);
@@ -376,42 +332,38 @@ export function PdfView({
         const handleTouchEnd = (e: TouchEvent) => {
             if (e.touches.length < 2 && initialDist > 0) {
                 initialDist = 0;
-                if (pdfDocRef.current) {
-                    renderPDF(
-                        pdfDocRef.current,
-                        quoteListRef.current,
-                        currentPageRef.current,
-                    );
-                }
+                renderPDF(quoteListRef.current, currentPageRef.current);
             }
         };
+        el.addEventListener("wheel", handleWheel, { passive: false });
         el.addEventListener("touchstart", handleTouchStart, { passive: true });
         el.addEventListener("touchmove", handleTouchMove, { passive: false });
         el.addEventListener("touchend", handleTouchEnd, { passive: true });
         return () => {
+            el.removeEventListener("wheel", handleWheel);
             el.removeEventListener("touchstart", handleTouchStart);
             el.removeEventListener("touchmove", handleTouchMove);
             el.removeEventListener("touchend", handleTouchEnd);
+            if (debounceTimer) clearTimeout(debounceTimer);
         };
     }, [renderPDF]);
     useEffect(() => {
-        return () => {
-            renderGenerationRef.current += 1;
-            renderTaskRef.current?.cancel();
-            getPdfJs().then((lib) => lib.TextLayer.cleanup());
-        };
-    }, []);
-    useEffect(() => {
-        if (!result || result.type !== "pdf") return;
+        if (error || (result && result.type !== "pdf")) {
+            notifyUnavailable();
+            return;
+        }
+        if (!result) return;
         pdfDocRef.current = null;
         renderedPagesRef.current = [];
         quoteListRef.current = quoteList;
         zoomRef.current = 1.0;
+        currentPageRef.current = 1;
         const list = quoteList;
         let cancelled = false;
         queueMicrotask(() => {
             if (cancelled) return;
             setZoom(1.0);
+            setCurrentPage(1);
             setNumPages(0);
         });
         (async () => {
@@ -423,62 +375,36 @@ export function PdfView({
             }).promise;
             if (cancelled) return;
             pdfDocRef.current = pdfDoc;
-            await renderPDF(pdfDoc, list);
+            setNumPages(pdfDoc.numPages);
+            await renderPDF(list);
         })();
         return () => {
             cancelled = true;
             renderGenerationRef.current += 1;
             renderTaskRef.current?.cancel();
         };
-    }, [result, renderPDF]); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (!pdfDocRef.current) return;
-        const timer = setTimeout(() => {
-            const width = containerRef.current?.clientWidth ?? 0;
-            if (
-                pdfDocRef.current &&
-                width > 0 &&
-                Math.abs(width - renderedWidthRef.current) >= 1
-            ) {
-                renderPDF(pdfDocRef.current, quoteListRef.current);
-            }
-        }, 150);
-        return () => clearTimeout(timer);
-    }, [containerWidth, renderPDF]);
+    }, [error, result, renderPDF]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!pdfDocRef.current) return;
         quoteListRef.current = quoteList;
-        rehighlightQuotes(quoteList);
-    }, [quoteKey, quoteFocusKey, rehighlightQuotes]); // eslint-disable-line react-hooks/exhaustive-deps
-    function handleZoomIn() {
-        const next = Math.min(
-            ZOOM_MAX,
-            Math.round((zoomRef.current + ZOOM_STEP) * 100) / 100,
-        );
-        zoomRef.current = next;
-        setZoom(next);
-        if (pdfDocRef.current) {
-            renderPDF(
-                pdfDocRef.current,
-                quoteListRef.current,
-                currentPageRef.current,
+        const targetPage = applyHighlights(renderedPagesRef.current, quoteList);
+        const page = targetPage ?? quoteList.find((entry) => entry.page)?.page;
+        if (page && page >= 1) {
+            scrollToHighlightOnPage(
+                renderedPagesRef.current,
+                scrollContainerRef.current,
+                page,
             );
         }
-    }
-    function handleZoomOut() {
-        const next = Math.max(
-            ZOOM_MIN,
-            Math.round((zoomRef.current - ZOOM_STEP) * 100) / 100,
+    }, [quoteKey, quoteFocusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    function handleZoom(event: ReactMouseEvent<HTMLButtonElement>) {
+        const next = clampZoom(
+            zoomRef.current + Number(event.currentTarget.value),
         );
+        if (next === zoomRef.current) return;
         zoomRef.current = next;
         setZoom(next);
-        if (pdfDocRef.current) {
-            renderPDF(
-                pdfDocRef.current,
-                quoteListRef.current,
-                currentPageRef.current,
-            );
-        }
+        renderPDF(quoteListRef.current, currentPageRef.current);
     }
     return (
         <div
@@ -502,16 +428,15 @@ export function PdfView({
             </div>
             {numPages > 0 && (
                 <>
-                    {/* Page counter — bottom left */}
                     <div className="absolute bottom-4 left-4 pointer-events-none">
                         <span className="flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium tabular-nums text-gray-700 shadow-sm">
                             {currentPage}/{numPages}
                         </span>
                     </div>
-                    {/* Zoom controls — bottom right */}
                     <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white px-1 py-1 shadow-sm">
                         <button
-                            onClick={handleZoomOut}
+                            onClick={handleZoom}
+                            value={-ZOOM_STEP}
                             disabled={zoom <= ZOOM_MIN}
                             aria-label="Zoom out"
                             className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30"
@@ -522,7 +447,8 @@ export function PdfView({
                             {Math.round(zoom * 100)}%
                         </span>
                         <button
-                            onClick={handleZoomIn}
+                            onClick={handleZoom}
+                            value={ZOOM_STEP}
                             disabled={zoom >= ZOOM_MAX}
                             aria-label="Zoom in"
                             className="flex items-center justify-center w-7 h-7 rounded-full text-gray-600 hover:bg-white/80 disabled:opacity-30"

@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";import { Users } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
@@ -21,29 +20,31 @@ export function ProjectDetailsModal({
     onSave,
     onShareProject,
 }: ProjectDetailsModalProps) {
-    const [nameDraft, setNameDraft] = useState("");
-    const [cmDraft, setCmDraft] = useState("");
-    const [practiceDraft, setPracticeDraft] = useState("");
-    const [saving, setSaving] = useState(false);
-    const [saved, setSaved] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [draft, setDraft] = useState({ name: "", cm: "", practice: "" });
+    const [status, setStatus] = useState<
+        "idle" | "saving" | "saved" | "error"
+    >("idle");
     useEffect(() => {
         if (!open || !project) return;
-        setNameDraft(project.name);
-        setCmDraft(project.cm_number ?? "");
-        setPracticeDraft(project.practice ?? "");
-        setSaved(false);
-        setError(null);
+        setDraft({
+            name: project.name,
+            cm: project.cm_number ?? "",
+            practice: project.practice ?? "",
+        });
+        setStatus("idle");
     }, [open, project]);
-    const trimmedName = nameDraft.trim();
-    const trimmedCm = cmDraft.trim();
-    const trimmedPractice = practiceDraft.trim();
+    const trimmedName = draft.name.trim();
+    const trimmedCm = draft.cm.trim();
+    const trimmedPractice = draft.practice.trim();
     const hasChanges =        !!project &&        (trimmedName !== project.name ||            trimmedCm !== (project.cm_number ?? "") ||            trimmedPractice !== (project.practice ?? ""));    if (!project) return null;
+    const saving = status === "saving";
+    function updateDraft(update: Partial<typeof draft>) {
+        setDraft((current) => ({ ...current, ...update }));
+        setStatus("idle");
+    }
     async function handleSave() {
         if (!canEdit || saving || !hasChanges || !trimmedName) return;
-        setSaving(true);
-        setSaved(false);
-        setError(null);
+        setStatus("saving");
         try {
             await onSave({
                 name: trimmedName,
@@ -53,11 +54,9 @@ export function ProjectDetailsModal({
                         ? trimmedPractice
                         : "",
             });
-            setSaved(true);
+            setStatus("saved");
         } catch {
-            setError("Could not update project details.");
-        } finally {
-            setSaving(false);
+            setStatus("error");
         }
     }
     return (
@@ -75,9 +74,11 @@ export function ProjectDetailsModal({
                     : undefined
             }
             footerStatus={
-                error ? (
-                    <span className="text-sm text-red-600">{error}</span>
-                ) : saved ? (
+                status === "error" ? (
+                    <span className="text-sm text-red-600">
+                        Could not update project details.
+                    </span>
+                ) : status === "saved" ? (
                     <span className="text-sm text-gray-400">Updated</span>
                 ) : null
             }
@@ -99,12 +100,8 @@ export function ProjectDetailsModal({
                     </ModalFieldLabel>
                     <ModalTextInput
                         id="project-details-name"
-                        value={nameDraft}
-                        onChange={(e) => {
-                            setNameDraft(e.target.value);
-                            setSaved(false);
-                            setError(null);
-                        }}
+                        value={draft.name}
+                        onChange={(e) => updateDraft({ name: e.target.value })}
                         disabled={!canEdit || saving}
                         placeholder="Add project name"
                         variant="minimal"
@@ -116,12 +113,8 @@ export function ProjectDetailsModal({
                     </ModalFieldLabel>
                     <ModalTextInput
                         id="project-details-cm"
-                        value={cmDraft}
-                        onChange={(e) => {
-                            setCmDraft(e.target.value);
-                            setSaved(false);
-                            setError(null);
-                        }}
+                        value={draft.cm}
+                        onChange={(e) => updateDraft({ cm: e.target.value })}
                         disabled={!canEdit || saving}
                         placeholder="Add a CM number..."
                         variant="minimal"
@@ -134,12 +127,8 @@ export function ProjectDetailsModal({
                     </ModalFieldLabel>
                     <ProjectPracticeField
                         id="project-details-practice"
-                        value={practiceDraft}
-                        onChange={(value) => {
-                            setPracticeDraft(value);
-                            setSaved(false);
-                            setError(null);
-                        }}
+                        value={draft.practice}
+                        onChange={(practice) => updateDraft({ practice })}
                         disabled={!canEdit || saving}
                     />
                 </div>

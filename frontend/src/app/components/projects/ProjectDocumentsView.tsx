@@ -1,26 +1,14 @@
 "use client";
+
 import {
     type Dispatch,
     type SetStateAction,
     useCallback,
     useEffect,
-    useMemo,
     useState,
 } from "react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import {
-    createProjectFolder,
-    deleteProjectFolder,
-    getProject,
-    moveDocumentToFolder,
-    moveSubfolderToFolder,
-    renameProjectDocument,
-    renameProjectFolder,
-    removeProjectDocument,
-    uploadProjectDocument,
-} from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
-import type { Document } from "@/app/components/shared/types";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import {
     DocTable,
@@ -30,22 +18,19 @@ import {
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
+import { projectBreadcrumbLabel } from "./ProjectPageParts";
 import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
-interface Props {
-    projectId: string;
-}
-export function ProjectDocumentsView({ projectId }: Props) {
-    const workspace = useProjectWorkspace();
+import { useProjectFiles } from "./useProjectFiles";
+export function ProjectDocumentsView() {
     const {
+        projectId,
         project,
-        setProject,
-        folders,
-        setFolders,
-        projectLoading,
         prefetchProjectSections,
         search,
+        setAddDocumentsHeaderAction,
         setOwnerOnlyAction,
-    } = workspace;
+    } = useProjectWorkspace();
+    const projectLoading = project === undefined;
     const [createFolderAction, setCreateFolderAction] = useState<
         (() => void) | null
     >(null);
@@ -54,56 +39,11 @@ export function ProjectDocumentsView({ projectId }: Props) {
     useEffect(() => {
         if (!projectLoading) prefetchProjectSections();
     }, [projectLoading, prefetchProjectSections]);
-    const documents = project?.documents ?? [];
-    const setDocuments = useCallback(
-        (update: SetStateAction<Document[]>) => {
-            setProject((prev) => {
-                if (!prev) return prev;
-                const nextDocuments =
-                    typeof update === "function"
-                        ? update(prev.documents ?? [])
-                        : update;
-                return { ...prev, documents: nextDocuments };
-            });
-        },
-        [setProject],
-    );
-    const refreshCollection = useCallback(async () => {
-        const updated = await getProject(projectId);
-        setProject(updated);
-        setFolders(updated.folders ?? []);
-    }, [projectId, setFolders, setProject]);
-    const operations = useMemo(
-        () => ({
-            removeDocument: (documentId: string) =>
-                removeProjectDocument(projectId, documentId),
-            uploadDocument: (file: File) =>
-                uploadProjectDocument(projectId, file),
-            refreshCollection,
-            createFolder: (name: string, parentFolderId?: string | null) =>
-                createProjectFolder(projectId, name, parentFolderId),
-            renameFolder: (folderId: string, name: string) =>
-                renameProjectFolder(projectId, folderId, name),
-            deleteFolder: (folderId: string) =>
-                deleteProjectFolder(projectId, folderId),
-            moveFolder: (folderId: string, parentFolderId: string | null) =>
-                moveSubfolderToFolder(projectId, folderId, parentFolderId),
-            moveDocument: (documentId: string, folderId: string | null) =>
-                moveDocumentToFolder(projectId, documentId, folderId),
-            renameDocument: (documentId: string, filename: string) =>
-                renameProjectDocument(projectId, documentId, filename),
-        }),
-        [projectId, refreshCollection],
-    );
+    const { documents, folders, setDocuments, setFolders, operations } =
+        useProjectFiles();
     const handleCreateFolderActionChange = useCallback(
         (action: (() => void) | null) => {
             setCreateFolderAction(() => action);
-        },
-        [],
-    );
-    const handleSelectionActionsChange = useCallback(
-        (actions: DocTableSelectionActions | null) => {
-            setSelectionActions(actions);
         },
         [],
     );
@@ -178,11 +118,9 @@ export function ProjectDocumentsView({ projectId }: Props) {
                 loading={projectLoading}
                 search={search}
                 operations={operations}
-                onAddDocumentsActionChange={
-                    workspace.setAddDocumentsHeaderAction
-                }
+                onAddDocumentsActionChange={setAddDocumentsHeaderAction}
                 onCreateFolderActionChange={handleCreateFolderActionChange}
-                onSelectionActionsChange={handleSelectionActionsChange}
+                onSelectionActionsChange={setSelectionActions}
                 renderAddDocumentsModal={(open, onClose, onSelect) =>
                     project ? (
                         <AddDocumentsModal
@@ -191,10 +129,7 @@ export function ProjectDocumentsView({ projectId }: Props) {
                             onSelect={onSelect}
                             breadcrumb={[
                                 "Projects",
-                                project.name +
-                                    (project.cm_number
-                                        ? ` (${project.cm_number})`
-                                        : ""),
+                                projectBreadcrumbLabel(project),
                                 "Add Documents",
                             ]}
                             projectId={projectId}

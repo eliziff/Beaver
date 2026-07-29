@@ -1,242 +1,176 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Loader2, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import {
     McpConnectorFields,
-    NewMcpModal,
+    McpToolList,
     type McpConnectorDraft,
 } from "@/app/components/account/NewMcpModal";
+import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
-    MfaVerificationPopup,
-    needsMfaVerification,
-} from "@/app/components/popups/MfaVerificationPopup";
-import {    API_BASE,    type McpConnectorSummary,    BeaverApiError,
+    API_BASE,
+    BeaverApiError,
     createMcpConnector,
     deleteMcpConnector,
     getMcpConnector,
-    isMfaRequiredError,
     listMcpConnectors,
     refreshMcpConnectorTools,
     setMcpToolEnabled,
     startMcpConnectorOAuth,
+    type McpConnectorSummary,
     updateMcpConnector,
-} from "@/app/lib/beaverApi";import {
-    accountGlassPrimaryButtonClassName,
-} from "../accountStyles";
+} from "@/app/lib/beaverApi";
+import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
-type PendingMfaAction =
-    | { type: "create" }
-    | { type: "save"; connectorId: string }
-    | { type: "clear-token"; connectorId: string }
-    | { type: "delete"; connectorId: string }
-    | { type: "refresh"; connectorId: string }
-    | { type: "connector-enabled"; connectorId: string; enabled: boolean }
-    | {
-          type: "tool-enabled";
-          connectorId: string;
-          toolId: string;
-          enabled: boolean;
-      };
-type DetailDraft = McpConnectorDraft & {
-    clearBearerToken: boolean;
-};
-type AddStep = "form" | "working" | "auth" | "success";
 const emptyAddDraft: McpConnectorDraft = {
     name: "",
     serverUrl: "",
     bearerToken: "",
     customHeaders: "",
 };
-type McpOAuthPopupMessage = {
-    type?: string;
-    success?: boolean;
-    connectorId?: string;
-    detail?: string;
+type DetailState = {
+    id: string;
+    draft: McpConnectorDraft;
+    loading: boolean;
 };
-const mcpOAuthMessageOrigin = new URL(    API_BASE,).origin;function parseCustomHeaders(raw: string): Record<string, string> | undefined {
+const emptyAddState = {
+    draft: emptyAddDraft,
+    step: "form" as "form" | "auth" | "success",
+    result: null as McpConnectorSummary | null,
+    error: null as string | null,
+    authMessage: null as string | null,
+};
+const connectorDraft = (
+    connector?: Pick<McpConnectorSummary, "name" | "serverUrl">,
+): McpConnectorDraft => ({
+    ...emptyAddDraft,
+    name: connector?.name ?? "",
+    serverUrl: connector?.serverUrl ?? "",
+});
+const mcpOAuthMessageOrigin = new URL(API_BASE).origin;
+const errorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
     if (!text) return undefined;
     const parsed = JSON.parse(text) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("Custom headers must be a JSON object.");
     }
-    const headers: Record<string, string> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value !== "string") {
-            throw new Error("Custom header values must be strings.");
-        }
-        headers[key] = value;
+    if (Object.values(parsed).some((value) => typeof value !== "string")) {
+        throw new Error("Custom header values must be strings.");
     }
-    return headers;
+    return parsed as Record<string, string>;
 }
 function isGoogleMcpConnector(connector: McpConnectorSummary) {
     try {
-        return new URL(connector.serverUrl).hostname
-            .toLowerCase()
-            .endsWith("googleapis.com");
+        return new URL(connector.serverUrl).hostname.endsWith("googleapis.com");
     } catch {
         return false;
     }
 }
 export default function ConnectorsPage() {
-    const [connectors, setConnectors] = useState<McpConnectorSummary[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [connectors, setConnectors] =
+        useState<McpConnectorSummary[] | null>(null);
     const [busyKey, setBusyKey] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [pendingMfaAction, setPendingMfaAction] =
-        useState<PendingMfaAction | null>(null);
-    const [addOpen, setAddOpen] = useState(false);
-    const [addDraft, setAddDraft] =
-        useState<McpConnectorDraft>(emptyAddDraft);
-    const [addStep, setAddStep] = useState<AddStep>("form");
-    const [addResult, setAddResult] = useState<McpConnectorSummary | null>(
-        null,
-    );
-    const [addError, setAddError] = useState<string | null>(null);
-    const [addAuthMessage, setAddAuthMessage] = useState<string | null>(null);
-    const [showAddToken, setShowAddToken] = useState(false);
-    const [showAddAdvanced, setShowAddAdvanced] = useState(false);
-    const [selectedConnectorId, setSelectedConnectorId] = useState<
-        string | null
-    >(null);
-    const [selectedConnectorDetails, setSelectedConnectorDetails] =
-        useState<McpConnectorSummary | null>(null);
-    const [detailDraft, setDetailDraft] = useState<DetailDraft>({
-        ...emptyAddDraft,
-        clearBearerToken: false,
-    });
-    const [detailError, setDetailError] = useState<string | null>(null);
-    const [loadingConnectorId, setLoadingConnectorId] = useState<string | null>(
-        null,
-    );
-    const [clearedBearerTokenConnectorId, setClearedBearerTokenConnectorId] =
-        useState<string | null>(null);
-    const [showDetailToken, setShowDetailToken] = useState(false);
-    const [showDetailAdvanced, setShowDetailAdvanced] = useState(false);
-    const selectedConnector = selectedConnectorDetails;
-    const loadConnectors = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            setConnectors(await listMcpConnectors());
-        } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Failed to load connectors.",
-            );
-        } finally {
-            setLoading(false);
-        }
+    const { runMfa, mfaPopup } = useMfaAction();
+    const [add, setAdd] = useState<typeof emptyAddState | null>(null);
+    const [detail, setDetail] = useState<DetailState | null>(null);
+    const connectorList = connectors ?? [];
+    const selectedConnector =
+        connectorList.find(({ id }) => id === detail?.id) ?? null;
+    const adding = busyKey === "create";
+    const authorizing = add?.step === "auth";
+    const addSuccess = add?.step === "success";
+    const addBusy = adding || authorizing;
+    const addDraft = add?.draft ?? emptyAddDraft;
+    const updateAdd = (patch: Partial<typeof emptyAddState>) =>
+        setAdd((current) => (current ? { ...current, ...patch } : current));
+    const updateDetail = (
+        patch: Partial<DetailState>,
+        connectorId = detail?.id,
+    ) =>
+        setDetail((current) =>
+            current && current.id === connectorId
+                ? { ...current, ...patch }
+                : current,
+        );
+    useEffect(() => {
+        listMcpConnectors()
+            .then(setConnectors)
+            .catch((err) => {
+                setError(errorMessage(err, "Failed to load connectors."));
+                setConnectors([]);
+            });
     }, []);
-    useEffect(() => {
-        void loadConnectors();
-    }, [loadConnectors]);
-    useEffect(() => {
-        if (!selectedConnector) return;
-        setDetailDraft({
-            name: selectedConnector.name,
-            serverUrl: selectedConnector.serverUrl,
-            bearerToken: "",
-            customHeaders: "",
-            clearBearerToken: false,
-        });
-        setDetailError(null);
-        setClearedBearerTokenConnectorId(null);
-        setShowDetailToken(false);
-        setShowDetailAdvanced(false);
-    }, [
-        selectedConnector?.id,
-        selectedConnector?.name,
-        selectedConnector?.serverUrl,
-    ]);
     const replaceConnector = (
         connector: McpConnectorSummary,
-        options: { preserveToolsOnEmpty?: boolean } = {},
+        preserveTools = false,
     ) => {
-        const mergeConnector = (current: McpConnectorSummary) => {
-            if (
-                options.preserveToolsOnEmpty &&
-                connector.tools.length === 0 &&
-                current.tools.length > 0
-            ) {
-                return { ...connector, tools: current.tools };
-            }
-            return connector;
-        };
         setConnectors((prev) => {
-            const exists = prev.some((item) => item.id === connector.id);
-            if (!exists) return [connector, ...prev];
-            return prev.map((item) =>
-                item.id === connector.id ? mergeConnector(item) : item,
-            );
+            const current = prev ?? [];
+            const existing = current.find(({ id }) => id === connector.id);
+            const next =
+                preserveTools &&
+                !connector.tools.length &&
+                existing?.tools.length
+                    ? { ...connector, tools: existing.tools }
+                    : connector;
+            return existing
+                ? current.map((item) =>
+                      item.id === connector.id ? next : item,
+                  )
+                : [next, ...current];
         });
-        setSelectedConnectorDetails((current) =>
-            current?.id === connector.id ? mergeConnector(current) : current,
-        );
     };
     const openConnectorDetails = async (connectorId: string) => {
-        setSelectedConnectorId(connectorId);
-        setSelectedConnectorDetails((current) =>
-            current?.id === connectorId
-                ? current
-                : connectors.find((connector) => connector.id === connectorId) ??
-                  null,
-        );
-        setDetailError(null);
-        setLoadingConnectorId(connectorId);
+        setDetail({
+            id: connectorId,
+            draft: connectorDraft(
+                connectorList.find(({ id }) => id === connectorId),
+            ),
+            loading: true,
+        });
         try {
-            replaceConnector(await getMcpConnector(connectorId));
+            const connector = await getMcpConnector(connectorId);
+            replaceConnector(connector);
+            updateDetail({ draft: connectorDraft(connector) }, connectorId);
         } catch (err) {
-            setDetailError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to load connector details.",
-            );
+            setError(errorMessage(err, "Failed to load connector details."));
         } finally {
-            setLoadingConnectorId((current) =>
-                current === connectorId ? null : current,
-            );
+            updateDetail({ loading: false }, connectorId);
         }
     };
-    const runSensitiveAction = async (
-        action: PendingMfaAction,
+    const runSensitiveAction = (
+        key: string,
         fn: () => Promise<void>,
+        setActionError: (message: string) => void = setError,
     ) => {
         setError(null);
-        setDetailError(null);
-        try {
-            if (await needsMfaVerification()) {
-                setPendingMfaAction(action);
-                return;
-            }
-            await fn();
-        } catch (err) {
-            if (isMfaRequiredError(err)) {
-                setPendingMfaAction(action);
-                return;
-            }
-            const message =
-                err instanceof Error ? err.message : "Action failed.";
-            if (action.type === "create") setAddError(message);
-            else if (action.type === "save") setDetailError(message);
-            else setError(message);
-        }
+        return runMfa(
+            async () => {
+                setBusyKey(key);
+                await fn().finally(() => setBusyKey(null));
+            },
+            {
+                onError: (err) =>
+                    setActionError(errorMessage(err, "Action failed.")),
+            },
+        );
     };
     const closeAddModal = () => {
-        if (addStep === "working" || addStep === "auth") return;
-        setAddOpen(false);
-        setAddDraft(emptyAddDraft);
-        setAddStep("form");
-        setAddResult(null);
-        setAddError(null);
-        setAddAuthMessage(null);
-        setShowAddToken(false);
-        setShowAddAdvanced(false);
+        if (addBusy) return;
+        setAdd(null);
     };
-    const connectConnectorOAuth = async (
-        connectorId: string,
-    ): Promise<McpConnectorSummary | null> => {
+    const refreshTools = async (connectorId: string) => {
+        const connector = await refreshMcpConnectorTools(connectorId);
+        replaceConnector(connector);
+        return connector;
+    };
+    const connectConnectorOAuth = async (connectorId: string) => {
         const popup = window.open(
             "about:blank",
             "mike_mcp_oauth",
@@ -246,9 +180,7 @@ export default function ConnectorsPage() {
             await startMcpConnectorOAuth(connectorId);
         if (alreadyAuthorized) {
             popup?.close();
-            const refreshed = await refreshMcpConnectorTools(connectorId);
-            replaceConnector(refreshed);
-            return refreshed;
+            return refreshTools(connectorId);
         }
         if (!authorizationUrl) {
             popup?.close();
@@ -260,771 +192,460 @@ export default function ConnectorsPage() {
         }
         popup.location.href = authorizationUrl;
         await new Promise<void>((resolve, reject) => {
-            const timeout = window.setTimeout(() => {
-                cleanup();
-                reject(new Error("OAuth authorization timed out."));
-            }, 5 * 60 * 1000);
+            const controller = new AbortController();
             const poll = window.setInterval(() => {
-                if (popup.closed) {
-                    cleanup();
-                    reject(new Error("OAuth authorization window was closed."));
-                }
+                if (popup.closed)
+                    finish(new Error("OAuth authorization window was closed."));
             }, 700);
-            const cleanup = () => {
-                window.clearTimeout(timeout);
+            const timeout = window.setTimeout(
+                () => finish(new Error("OAuth authorization timed out.")),
+                5 * 60 * 1000,
+            );
+            const finish = (error?: Error) => {
+                controller.abort();
                 window.clearInterval(poll);
-                window.removeEventListener("message", onMessage);
+                window.clearTimeout(timeout);
+                if (error) reject(error);
+                else resolve();
             };
-            const onMessage = (event: MessageEvent<McpOAuthPopupMessage>) => {
+            window.addEventListener("message", (event) => {
                 if (event.origin !== mcpOAuthMessageOrigin) return;
-                if (event.data?.type !== "mcp_oauth_result") return;
-                if (
-                    event.data.connectorId &&
-                    event.data.connectorId !== connectorId
-                ) {
+                const result = event.data as Record<string, unknown>;
+                if (result?.type !== "mcp_oauth_result") return;
+                if (result.connectorId && result.connectorId !== connectorId)
                     return;
-                }
-                const sourceWindow = event.source as Window | null;
-                sourceWindow?.postMessage(
+                (event.source as Window | null)?.postMessage(
                     { type: "mcp_oauth_result_ack" },
                     event.origin,
                 );
-                cleanup();
-                if (event.data.success) {
-                    resolve();
-                    return;
-                }
-                reject(
-                    new Error(
-                        event.data.detail || "OAuth authorization failed.",
-                    ),
+                const failure =
+                    result.detail ?? "OAuth authorization failed.";
+                finish(
+                    result.success
+                        ? undefined
+                        : new Error(String(failure)),
                 );
-            };
-            window.addEventListener("message", onMessage);
+            }, { signal: controller.signal });
         });
-        const refreshed = await refreshMcpConnectorTools(connectorId);
-        replaceConnector(refreshed);
-        return refreshed;
+        return refreshTools(connectorId);
     };
-    const handleCreate = async () => {
-        await runSensitiveAction({ type: "create" }, async () => {
-            setBusyKey("create");
-            setAddStep("working");
-            setAddError(null);
-            setAddAuthMessage(null);
-            try {
-                const headers = parseCustomHeaders(addDraft.customHeaders);
-                const connector = await createMcpConnector({
-                    name: addDraft.name,
-                    serverUrl: addDraft.serverUrl,
-                    bearerToken: addDraft.bearerToken.trim() || null,
-                    ...(headers ? { headers } : {}),
-                });
-                let refreshed: McpConnectorSummary;
-                try {
-                    refreshed = await refreshMcpConnectorTools(connector.id);
-                } catch (err) {
-                    if (
-                        err instanceof BeaverApiError &&
-                        err.code === "oauth_required"
-                    ) {
-                        replaceConnector(connector);
-                        setAddAuthMessage(
-                            "Complete authorization in the popup to finish connecting this MCP server.",
-                        );
-                        setAddStep("auth");
-                        const authorized = await connectConnectorOAuth(
-                            connector.id,
-                        );
-                        if (authorized) {
-                            setAddAuthMessage(null);
-                            setAddResult(authorized);
-                            setAddStep("success");
-                        }
-                        return;
-                    }
-                    throw err;
-                }
-                replaceConnector(refreshed);
-                if (isGoogleMcpConnector(refreshed) && !refreshed.oauthConnected) {
-                    setAddAuthMessage(
-                        "Authorize Google in the popup to finish connecting this MCP server.",
-                    );
-                    setAddStep("auth");
-                    const authorized = await connectConnectorOAuth(refreshed.id);
-                    if (authorized) {
-                        setAddAuthMessage(null);
-                        setAddResult(authorized);
-                        setAddStep("success");
-                    }
-                    return;
-                }
-                setAddResult(refreshed);
-                setAddStep("success");
-            } catch (err) {
-                setAddStep("form");
-                setAddAuthMessage(null);
-                setAddError(
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to add connector.",
-                );
-            } finally {
-                setBusyKey(null);
+    const authorizeAddedConnector = (
+        connectorId: string,
+        message: string,
+    ) => {
+        updateAdd({ authMessage: message, step: "auth" });
+        return connectConnectorOAuth(connectorId);
+    };
+    const refreshConnector = async (
+        connector: McpConnectorSummary,
+        onOAuth: typeof authorizeAddedConnector = connectConnectorOAuth,
+    ) => {
+        let refreshed: McpConnectorSummary;
+        try {
+            refreshed = await refreshTools(connector.id);
+        } catch (err) {
+            if (
+                !(err instanceof BeaverApiError) ||
+                err.code !== "oauth_required"
+            ) {
+                throw err;
             }
-        });
+            replaceConnector(connector);
+            return onOAuth(
+                connector.id,
+                "Complete authorization in the popup to finish connecting this MCP server.",
+            );
+        }
+        return isGoogleMcpConnector(refreshed) && !refreshed.oauthConnected
+            ? onOAuth(
+                  refreshed.id,
+                  "Authorize Google in the popup to finish connecting this MCP server.",
+              )
+            : refreshed;
     };
-    const handleSaveSelectedConnector = async () => {
-        if (!selectedConnector) return;
-        await runSensitiveAction(
-            { type: "save", connectorId: selectedConnector.id },
+    const handleCreate = () => {
+        if (!add) return;
+        return runSensitiveAction(
+            "create",
             async () => {
-                setBusyKey(`save:${selectedConnector.id}`);
-                setDetailError(null);
+                updateAdd({ error: null, authMessage: null });
                 try {
-                    const headers = parseCustomHeaders(
-                        detailDraft.customHeaders,
-                    );
-                    const saved = await updateMcpConnector(selectedConnector.id, {
-                        name: detailDraft.name,
-                        serverUrl: detailDraft.serverUrl,
-                        ...(detailDraft.bearerToken.trim()
-                            ? { bearerToken: detailDraft.bearerToken.trim() }
-                            : {}),
+                    const headers = parseCustomHeaders(add.draft.customHeaders);
+                    const connector = await createMcpConnector({
+                        name: add.draft.name,
+                        serverUrl: add.draft.serverUrl,
+                        bearerToken: add.draft.bearerToken.trim() || null,
                         ...(headers ? { headers } : {}),
                     });
-                    const shouldRefreshTools =
-                        saved.serverUrl !== selectedConnector.serverUrl ||
-                        !!detailDraft.bearerToken.trim() ||
-                        !!headers;
-                    const refreshed = shouldRefreshTools
-                            ? await refreshMcpConnectorTools(saved.id)
-                            : saved;
-                    replaceConnector(refreshed, {
-                        preserveToolsOnEmpty: !shouldRefreshTools,
-                    });
-                    setDetailDraft({
-                        name: refreshed.name,
-                        serverUrl: refreshed.serverUrl,
-                        bearerToken: "",
-                        customHeaders: "",
-                        clearBearerToken: false,
-                    });
-                } finally {
-                    setBusyKey(null);
-                }
-            },
-        );
-    };
-    const handleClearBearerToken = async (connectorId: string) => {
-        await runSensitiveAction(
-            { type: "clear-token", connectorId },
-            async () => {
-                setBusyKey(`clear-token:${connectorId}`);
-                setDetailError(null);
-                setClearedBearerTokenConnectorId(null);
-                try {
-                    const saved = await updateMcpConnector(connectorId, {
-                        bearerToken: null,
-                    });
-                    replaceConnector(saved, { preserveToolsOnEmpty: true });
-                    setDetailDraft((prev) => ({
-                        ...prev,
-                        bearerToken: "",
-                        clearBearerToken: false,
-                    }));
-                    setClearedBearerTokenConnectorId(connectorId);
-                } finally {
-                    setBusyKey(null);
-                }
-            },
-        );
-    };
-    const handleRefresh = async (connectorId: string) => {
-        await runSensitiveAction({ type: "refresh", connectorId }, async () => {
-            setBusyKey(`refresh:${connectorId}`);
-            try {
-                try {
-                    replaceConnector(await refreshMcpConnectorTools(connectorId));
-                } catch (err) {
-                    if (
-                        err instanceof BeaverApiError &&
-                            err.code === "oauth_required"
-                    ) {
-                        await connectConnectorOAuth(connectorId);
-                        return;
-                    }
-                    throw err;
-                }
-            } finally {
-                setBusyKey(null);
-            }
-        });
-    };
-    const handleConnectorEnabled = async (
-        connectorId: string,
-        enabled: boolean,
-    ) => {
-        await runSensitiveAction(
-            { type: "connector-enabled", connectorId, enabled },
-            async () => {
-                setBusyKey(`connector:${connectorId}`);
-                try {
-                    replaceConnector(
-                        await updateMcpConnector(connectorId, { enabled }),
-                        { preserveToolsOnEmpty: true },
+                    const refreshed = await refreshConnector(
+                        connector,
+                        authorizeAddedConnector,
                     );
-                } finally {
-                    setBusyKey(null);
+                    if (refreshed) {
+                        updateAdd({
+                            authMessage: null,
+                            result: refreshed,
+                            step: "success",
+                        });
+                    }
+                } catch (err) {
+                    updateAdd({ step: "form", authMessage: null });
+                    throw err instanceof Error
+                        ? err
+                        : new Error("Failed to add connector.");
                 }
+            },
+            (message) => updateAdd({ error: message }),
+        );
+    };
+    const handleSaveSelectedConnector = () => {
+        if (!selectedConnector || !detail) return;
+        return runSensitiveAction(
+            `save:${selectedConnector.id}`,
+            async () => {
+                const headers = parseCustomHeaders(detail.draft.customHeaders);
+                const saved = await updateMcpConnector(selectedConnector.id, {
+                    name: detail.draft.name,
+                    serverUrl: detail.draft.serverUrl,
+                    ...(detail.draft.bearerToken.trim()
+                        ? { bearerToken: detail.draft.bearerToken.trim() }
+                        : {}),
+                    ...(headers ? { headers } : {}),
+                });
+                const shouldRefreshTools =
+                    saved.serverUrl !== selectedConnector.serverUrl ||
+                    !!detail.draft.bearerToken.trim() ||
+                    !!headers;
+                const refreshed = shouldRefreshTools
+                    ? await refreshMcpConnectorTools(saved.id)
+                    : saved;
+                replaceConnector(refreshed, !shouldRefreshTools);
+                updateDetail({ draft: connectorDraft(refreshed) });
             },
         );
     };
-    const handleToolEnabled = async (
+    const handleClearBearerToken = (connectorId: string) =>
+        runSensitiveAction(
+            `clear-token:${connectorId}`,
+            async () => {
+                const saved = await updateMcpConnector(connectorId, {
+                    bearerToken: null,
+                });
+                replaceConnector(saved, true);
+                updateDetail({ draft: connectorDraft(saved) }, connectorId);
+            },
+        );
+    const handleRefresh = (connectorId: string) =>
+        runSensitiveAction(`refresh:${connectorId}`, async () => {
+            const connector = connectorList.find(
+                ({ id }) => id === connectorId,
+            );
+            if (connector) await refreshConnector(connector);
+        });
+    const handleConnectorEnabled = (connectorId: string, enabled: boolean) =>
+        runSensitiveAction(`connector:${connectorId}`, async () =>
+            replaceConnector(
+                await updateMcpConnector(connectorId, { enabled }),
+                true,
+            ),
+        );
+    const handleToolEnabled = (
         connectorId: string,
         toolId: string,
         enabled: boolean,
-    ) => {
-        await runSensitiveAction(
-            { type: "tool-enabled", connectorId, toolId, enabled },
-            async () => {
-                setBusyKey(`tool:${toolId}`);
-                try {
-                    replaceConnector(
-                        await setMcpToolEnabled(connectorId, toolId, enabled),
-                    );
-                } finally {
-                    setBusyKey(null);
-                }
-            },
+    ) =>
+        runSensitiveAction(`tool:${toolId}`, async () =>
+            replaceConnector(
+                await setMcpToolEnabled(connectorId, toolId, enabled),
+            ),
         );
-    };
-    const handleDelete = async (connectorId: string) => {
-        await runSensitiveAction({ type: "delete", connectorId }, async () => {
-            setBusyKey(`delete:${connectorId}`);
-            try {
-                await deleteMcpConnector(connectorId);
-                setConnectors((prev) =>
-                    prev.filter((item) => item.id !== connectorId),
-                );
-                if (selectedConnectorId === connectorId) {
-                    setSelectedConnectorId(null);
-                    setSelectedConnectorDetails(null);
-                }
-            } finally {
-                setBusyKey(null);
-            }
-        });
-    };
-    const handleMfaVerified = async () => {
-        const action = pendingMfaAction;
-        setPendingMfaAction(null);
-        if (!action) return;
-        if (action.type === "create") await handleCreate();
-        if (action.type === "save") await handleSaveSelectedConnector();
-        if (action.type === "clear-token") {
-            await handleClearBearerToken(action.connectorId);
-        }
-        if (action.type === "refresh") await handleRefresh(action.connectorId);
-        if (action.type === "delete") await handleDelete(action.connectorId);
-        if (action.type === "connector-enabled") {
-            await handleConnectorEnabled(action.connectorId, action.enabled);
-        }
-        if (action.type === "tool-enabled") {
-            await handleToolEnabled(
-                action.connectorId,
-                action.toolId,
-                action.enabled,
+    const handleDelete = (connectorId: string) =>
+        runSensitiveAction(`delete:${connectorId}`, async () => {
+            await deleteMcpConnector(connectorId);
+            setConnectors((prev) =>
+                prev?.filter((item) => item.id !== connectorId) ?? [],
             );
-        }
-    };
+            setDetail((current) =>
+                current?.id === connectorId ? null : current,
+            );
+        });
+    const hasChanges =
+        !!selectedConnector &&
+        !!detail &&
+        (detail.draft.name.trim() !== selectedConnector.name ||
+            detail.draft.serverUrl.trim() !== selectedConnector.serverUrl ||
+            !!detail.draft.bearerToken.trim() ||
+            !!detail.draft.customHeaders.trim());
+    const selectedBusy = (action: string) =>
+        busyKey === `${action}:${selectedConnector?.id}`;
+    const isSaving = selectedBusy("save");
     return (
         <div>
-            <div className="mb-4">
-                <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-serif text-2xl font-medium text-gray-900">
-                        Connectors
-                    </h2>
-                    <button
-                        type="button"
-                        onClick={() => setAddOpen(true)}
-                        className={`inline-flex h-9 items-center gap-1.5 text-sm ${accountGlassPrimaryButtonClassName}`}
-                    >
-                        <Plus className="h-4 w-4" />
-                        Add
-                    </button>
-                </div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="font-serif text-2xl font-medium text-gray-900">
+                    Connectors
+                </h2>
+                <button
+                    type="button"
+                    onClick={() => setAdd(emptyAddState)}
+                    className={`inline-flex h-9 items-center gap-1.5 text-sm ${accountGlassPrimaryButtonClassName}`}
+                >
+                    <Plus className="h-4 w-4" />
+                    Add
+                </button>
             </div>
-            {error && (
+            {error && !detail && (
                 <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
                 </div>
             )}
             <div className="space-y-3">
-                {loading ? (
-                    <ConnectorsSkeleton />
-                ) : connectors.length === 0 ? (
+                {connectors === null ? (
+                    <AccountSection className="h-[228px] bg-gray-100" aria-hidden>{null}</AccountSection>
+                ) : connectorList.length === 0 ? (
                     <AccountSection className="p-4">
                         <p className="text-sm text-gray-500">
                             No connectors yet.
                         </p>
                     </AccountSection>
                 ) : (
-                    connectors.map((connector) => (
-                        <ConnectorRow
-                            key={connector.id}
-                            connector={connector}
-                            busyKey={busyKey}
-                            onOpen={() => void openConnectorDetails(connector.id)}
-                            onConnectorEnabled={handleConnectorEnabled}
-                        />
-                    ))
-                )}
-            </div>
-            <NewMcpModal
-                open={addOpen}
-                draft={addDraft}
-                step={addStep}
-                result={addResult}
-                error={addError}
-                authMessage={addAuthMessage}
-                showToken={showAddToken}
-                showAdvanced={showAddAdvanced}
-                onDraftChange={setAddDraft}
-                onShowTokenChange={setShowAddToken}
-                onShowAdvancedChange={setShowAddAdvanced}
-                onClose={closeAddModal}
-                onSubmit={handleCreate}
-                onOpenConnector={(connectorId) => {
-                    void openConnectorDetails(connectorId);
-                    closeAddModal();
-                }}
-            />
-            <McpConnectorDetailsModal
-                connector={selectedConnector}
-                draft={detailDraft}
-                error={detailError}
-                busyKey={busyKey}
-                toolsLoading={loadingConnectorId === selectedConnectorId}
-                clearTokenStatus={
-                    selectedConnectorId &&
-                    busyKey === `clear-token:${selectedConnectorId}`
-                        ? "clearing"
-                        : selectedConnectorId === clearedBearerTokenConnectorId
-                          ? "cleared"
-                          : "idle"
-                }
-                showToken={showDetailToken}
-                showAdvanced={showDetailAdvanced}
-                onDraftChange={setDetailDraft}
-                onShowTokenChange={setShowDetailToken}
-                onShowAdvancedChange={setShowDetailAdvanced}
-                onClose={() => {
-                    setSelectedConnectorId(null);
-                    setSelectedConnectorDetails(null);
-                }}
-                onSave={handleSaveSelectedConnector}
-                onClearBearerToken={handleClearBearerToken}
-                onRefresh={handleRefresh}
-                onDelete={handleDelete}
-                onConnectorEnabled={handleConnectorEnabled}
-                onToolEnabled={handleToolEnabled}
-            />
-            <MfaVerificationPopup
-                open={!!pendingMfaAction}
-                onCancel={() => setPendingMfaAction(null)}
-                onVerified={() => void handleMfaVerified()}
-            />
-        </div>
-    );
-}
-function ConnectorsSkeleton() {
-    return (
-        <>
-            {Array.from({ length: 3 }).map((_, index) => (
-                <AccountSection key={index} className="px-4 py-3">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3">
-                        <div className="flex min-h-5 min-w-0 items-center gap-2">
-                            <div className="h-3.5 w-28 rounded bg-gray-100" />
-                            <div className="h-1 w-1 rounded-full bg-gray-100" />
-                            <div className="h-3 w-12 rounded bg-gray-100" />
-                        </div>
-                        <div className="flex min-h-5 shrink-0 items-center justify-self-end gap-1.5">
-                            <div className="h-3 w-12 rounded bg-gray-100" />
-                            <div className="h-4 w-7 rounded-full bg-gray-100" />
-                        </div>
-                        <div className="flex min-h-4 min-w-0 items-center">
-                            <div className="h-3 w-full max-w-sm rounded bg-gray-100" />
-                        </div>
-                        <div className="flex min-h-4 items-center justify-self-end">
-                            <div className="h-3 w-12 rounded bg-gray-100" />
-                        </div>
-                    </div>
-                </AccountSection>
-            ))}
-        </>
-    );
-}
-function ConnectorRow({
-    connector,
-    busyKey,
-    onOpen,
-    onConnectorEnabled,
-}: {
-    connector: McpConnectorSummary;
-    busyKey: string | null;
-    onOpen: () => void;
-    onConnectorEnabled: (
-        connectorId: string,
-        enabled: boolean,
-    ) => Promise<void>;
-}) {
-    const toolCount = connector.toolCount ?? connector.tools.length;
-    return (
-        <AccountSection
-            className="cursor-pointer px-4 py-3 hover:bg-white/70"
-            role="button"
-            tabIndex={0}
-            onClick={onOpen}
-            onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onOpen();
-                }
-            }}
-        >
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-3">
-                <div className="min-w-0 text-left">
-                    <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-gray-900">
-                        <span className="truncate">{connector.name}</span>
-                        <span className="h-1 w-1 rounded-full bg-gray-300" />
-                        <span className="shrink-0 text-xs font-medium text-gray-500">
-                            {toolCount} {toolCount === 1 ? "tool" : "tools"}
-                        </span>
-                    </h3>
-                </div>
-                <div
-                    className="shrink-0 justify-self-end"
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <AccountToggle
-                        checked={connector.enabled}
-                        disabled={busyKey === `connector:${connector.id}`}
-                        loading={busyKey === `connector:${connector.id}`}
-                        label={connector.enabled ? "Enabled" : "Disabled"}
-                        onChange={(enabled) =>
-                            void onConnectorEnabled(connector.id, enabled)
-                        }
-                    />
-                </div>
-                <p className="min-w-0 truncate text-xs text-gray-500">
-                    {connector.serverUrl}
-                </p>
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onOpen();
-                    }}
-                    className="shrink-0 justify-self-end text-xs font-medium text-gray-500 hover:text-gray-950"
-                >
-                    Details
-                </button>
-            </div>
-        </AccountSection>
-    );
-}
-function McpConnectorDetailsModal({
-    connector,
-    draft,
-    error,
-    busyKey,
-    toolsLoading,
-    clearTokenStatus,
-    showToken,
-    showAdvanced,
-    onDraftChange,
-    onShowTokenChange,
-    onShowAdvancedChange,
-    onClose,
-    onSave,
-    onClearBearerToken,
-    onRefresh,
-    onDelete,
-    onConnectorEnabled,
-    onToolEnabled,
-}: {
-    connector: McpConnectorSummary | null;
-    draft: DetailDraft;
-    error: string | null;
-    busyKey: string | null;
-    toolsLoading: boolean;
-    clearTokenStatus: "idle" | "clearing" | "cleared";
-    showToken: boolean;
-    showAdvanced: boolean;
-    onDraftChange: (draft: DetailDraft) => void;
-    onShowTokenChange: (show: boolean) => void;
-    onShowAdvancedChange: (show: boolean) => void;
-    onClose: () => void;
-    onSave: () => Promise<void>;
-    onClearBearerToken: (connectorId: string) => Promise<void>;
-    onRefresh: (connectorId: string) => Promise<void>;
-    onDelete: (connectorId: string) => Promise<void>;
-    onConnectorEnabled: (
-        connectorId: string,
-        enabled: boolean,
-    ) => Promise<void>;
-    onToolEnabled: (
-        connectorId: string,
-        toolId: string,
-        enabled: boolean,
-    ) => Promise<void>;
-}) {
-    const hasChanges =
-        !!connector &&
-        (draft.name.trim() !== connector.name ||
-            draft.serverUrl.trim() !== connector.serverUrl ||
-            draft.bearerToken.trim().length > 0 ||
-            draft.customHeaders.trim().length > 0);
-    const isSaving = !!connector && busyKey === `save:${connector.id}`;
-    return (
-        <Modal
-            open={!!connector}
-            onClose={onClose}
-            breadcrumbs={["Connectors", connector?.name ?? "MCP connector"]}
-            headerAction={
-                connector ? (
-                    <AccountToggle
-                        checked={connector.enabled}
-                        disabled={busyKey === `connector:${connector.id}`}
-                        loading={busyKey === `connector:${connector.id}`}
-                        label={connector.enabled ? "Enabled" : "Disabled"}
-                        onChange={(enabled) =>
-                            void onConnectorEnabled(connector.id, enabled)
-                        }
-                    />
-                ) : null
-            }
-            size="md"
-            secondaryAction={
-                connector
-                    ? {
-                          label: "Delete connector",
-                          variant: "danger",
-                          onClick: () => void onDelete(connector.id),
-                          disabled: busyKey === `delete:${connector.id}`,
-                      }
-                    : undefined
-            }
-            primaryAction={{
-                label: isSaving ? "Saving..." : "Save",
-                icon: isSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                ) : undefined,
-                onClick: () => void onSave(),
-                disabled:
-                    !connector ||
-                    !hasChanges ||
-                    isSaving ||
-                    !draft.name.trim() ||
-                    !draft.serverUrl.trim(),
-            }}
-            cancelAction={{ label: "Close", onClick: onClose }}
-            footerStatus={
-                error ? (
-                    <span className="text-sm text-red-600">{error}</span>
-                ) : null
-            }
-        >
-            {connector && (
-                <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4">
-                    <McpConnectorFields
-                        draft={draft}
-                        showToken={showToken}
-                        showAdvanced={showAdvanced}
-                        tokenPlaceholder={
-                            connector.hasAuthConfig
-                                ? "Saved token encrypted"
-                                : "Bearer token"
-                        }
-                        tokenAction={
-                            connector.hasAuthConfig ||
-                            clearTokenStatus === "cleared"
-                                ? {
-                                      label:
-                                          clearTokenStatus === "cleared"
-                                              ? "Cleared"
-                                              : "Clear",
-                                      loading:
-                                          clearTokenStatus === "clearing",
-                                      cleared:
-                                          clearTokenStatus === "cleared",
-                                      onClick: () =>
-                                          void onClearBearerToken(connector.id),
-                                  }
-                                : undefined
-                        }
-                        onDraftChange={(next) =>
-                            onDraftChange({
-                                ...draft,
-                                name: next.name,
-                                serverUrl: next.serverUrl,
-                                bearerToken: next.bearerToken,
-                                customHeaders: next.customHeaders,
-                            })
-                        }
-                        onShowTokenChange={onShowTokenChange}
-                        onShowAdvancedChange={onShowAdvancedChange}
-                    />
-                    <div className="flex min-h-0 flex-1 flex-col">
-                        <div className="mb-2 flex items-center justify-between">
-                            <h3 className="text-xs font-medium text-gray-500">
-                                {toolsLoading
-                                    ? connector.toolCount
-                                    : connector.tools.length}{" "}
-                                {(toolsLoading
-                                    ? connector.toolCount
-                                    : connector.tools.length) === 1
-                                    ? "Tool"
-                                    : "Tools"}
-                            </h3>
-                            <div className="flex items-center">
-                                <button
-                                    type="button"
-                                    onClick={() => void onRefresh(connector.id)}
-                                    disabled={
-                                        busyKey === `refresh:${connector.id}`
-                                    }
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
-                                >
-                                    {busyKey === `refresh:${connector.id}` ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                        <RefreshCw className="h-3.5 w-3.5" />
-                                    )}
-                                    Refresh
-                                </button>
-                            </div>
-                        </div>
-                        {toolsLoading ? (
-                            <ToolListSkeleton count={connector.toolCount} fill />
-                        ) : (
-                            <ScrollableToolList
-                                connector={connector}
-                                busyKey={busyKey}
-                                onToolEnabled={onToolEnabled}
-                                fill
-                            />
-                        )}
-                    </div>
-                </div>
-            )}
-        </Modal>
-    );
-}
-function ToolListSkeleton({
-    count,
-    fill = false,
-}: {
-    count: number;
-    fill?: boolean;
-}) {
-    const rowCount = Math.min(Math.max(count || 3, 3), 8);
-    return (
-        <div
-            className={`overflow-hidden rounded-lg border border-gray-100 bg-white/60 ${
-                fill ? "min-h-0 flex-1" : "max-h-72"
-            }`}
-        >
-            <div className="divide-y divide-gray-100">
-                {Array.from({ length: rowCount }).map((_, index) => (
-                    <div key={index} className="px-3 py-2">
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-                            <div className="h-5 w-5" />
-                            <div className="h-3.5 w-full max-w-[220px] rounded bg-gray-100" />
-                            <div className="h-4 w-7 rounded-full bg-gray-100" />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-function ScrollableToolList({
-    connector,
-    busyKey,
-    onToolEnabled,
-    fill = false,
-}: {
-    connector: McpConnectorSummary;
-    busyKey?: string | null;
-    onToolEnabled?: (
-        connectorId: string,
-        toolId: string,
-        enabled: boolean,
-    ) => Promise<void>;
-    fill?: boolean;
-}) {
-    if (connector.tools.length === 0) {
-        return (
-            <div
-                className={`rounded-lg bg-gray-50 px-3 py-3 text-sm text-gray-500 ${
-                    fill ? "min-h-0 flex-1" : ""
-                }`}
-            >
-                No tools discovered yet.
-            </div>
-        );
-    }
-    return (
-        <div
-            className={`overflow-y-auto rounded-lg border border-gray-100 bg-white/60 ${
-                fill ? "min-h-0 flex-1" : "max-h-72"
-            }`}
-        >
-            <div className="divide-y divide-gray-100">
-                {connector.tools.map((tool) => {
-                    const disabled =
-                        !onToolEnabled ||
-                        busyKey === `tool:${tool.id}` ||
-                        tool.requiresConfirmation;
-                    const toolLabel = tool.title || tool.toolName;
-                    return (
-                        <div key={tool.id} className="px-3 py-2">
-                            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-                                <span className="h-5 w-5" />
-                                <p className="min-w-0 truncate text-sm font-medium text-gray-800">
-                                    {toolLabel}
-                                </p>
-                                {onToolEnabled ? (
-                                    <AccountToggle
-                                        checked={tool.enabled}
-                                        disabled={disabled}
-                                        loading={busyKey === `tool:${tool.id}`}
-                                        onChange={(enabled) =>
-                                            void onToolEnabled(
+                    connectorList.map((connector) => {
+                        const loading =
+                            busyKey === `connector:${connector.id}`;
+                        const toolCount =
+                            connector.toolCount ?? connector.tools.length;
+                        return (
+                            <AccountSection
+                                key={connector.id}
+                                className="px-4 py-3"
+                            >
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void openConnectorDetails(
                                                 connector.id,
-                                                tool.id,
+                                            )
+                                        }
+                                        className="min-w-0 text-left"
+                                        aria-label={`Open ${connector.name} connector`}
+                                    >
+                                        <h3 className="truncate text-sm font-semibold text-gray-900">
+                                            {connector.name}
+                                        </h3>
+                                        <p className="mt-1 truncate text-xs text-gray-500">
+                                            {toolCount}{" "}
+                                            {toolCount === 1 ? "tool" : "tools"}
+                                            {" / "}
+                                            {connector.serverUrl}
+                                        </p>
+                                    </button>
+                                    <AccountToggle
+                                        checked={connector.enabled}
+                                        disabled={loading}
+                                        loading={loading}
+                                        label={
+                                            connector.enabled
+                                                ? "Enabled"
+                                                : "Disabled"
+                                        }
+                                        onChange={(enabled) =>
+                                            void handleConnectorEnabled(
+                                                connector.id,
                                                 enabled,
                                             )
                                         }
                                     />
-                                ) : (
-                                    <span
-                                        className={`text-xs font-medium ${
-                                            tool.enabled
-                                                ? "text-green-600"
-                                                : "text-gray-500"
-                                        }`}
-                                    >
-                                        {tool.enabled ? "Enabled" : "Disabled"}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
+                                </div>
+                            </AccountSection>
+                        );
+                    })
+                )}
             </div>
+            <Modal
+                open={add !== null}
+                onClose={closeAddModal}
+                breadcrumbs={[
+                    "Connectors",
+                    addSuccess
+                        ? "Connector added"
+                        : authorizing
+                          ? "Authenticate connector"
+                          : "New MCP connector",
+                ]}
+                size="lg"
+                primaryAction={
+                    addSuccess && add?.result
+                        ? {
+                              label: "View connector",
+                              onClick: () => {
+                                  void openConnectorDetails(add.result!.id);
+                                  closeAddModal();
+                              },
+                          }
+                        : {
+                              label:
+                                  adding
+                                      ? "Connecting..."
+                                      : authorizing
+                                        ? "Authorizing..."
+                                        : "Connect",
+                              icon: addBusy ? (
+                                      <Loader2 className="size-4 animate-spin" />
+                                  ) : undefined,
+                              onClick: () => void handleCreate(),
+                              disabled:
+                                  !addDraft.name.trim() ||
+                                  !addDraft.serverUrl.trim() ||
+                                  addBusy,
+                          }
+                }
+                cancelAction={
+                    addBusy
+                        ? false
+                        : {
+                              label:
+                                  addSuccess ? "Done" : "Cancel",
+                              onClick: closeAddModal,
+                          }
+                }
+                footerStatus={
+                    add?.error ? (
+                        <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-red-600 shadow-sm">
+                            {add.error}
+                        </div>
+                    ) : null
+                }
+            >
+                {addSuccess && add?.result ? (
+                    <div className="flex h-full min-h-0 flex-1 flex-col gap-4 pb-4">
+                        <div className="flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-3 py-3 text-green-800">
+                            <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
+                            <p className="min-w-0 truncate text-sm font-medium">
+                                {add.result.name} is connected.{" "}
+                                <span className="font-normal text-green-700">
+                                    {add.result.tools.length} tools discovered.
+                                </span>
+                            </p>
+                        </div>
+                        <McpToolList connector={add.result} />
+                    </div>
+                ) : authorizing ? (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 pb-4 text-center">
+                        <Loader2 className="size-4 animate-spin text-gray-700" />
+                        <p className="max-w-sm text-sm text-gray-500">
+                            {add.authMessage ??
+                                "Complete authorization in the popup to finish connecting this MCP server."}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
+                        <p className="text-sm text-gray-500">
+                            The assistant will have access to this MCP server
+                            and its enabled tools.
+                        </p>
+                        <McpConnectorFields
+                            draft={addDraft}
+                            showTokenNote
+                            disabled={adding}
+                            onDraftChange={(draft) => updateAdd({ draft })}
+                        />
+                    </div>
+                )}
+            </Modal>
+            <Modal
+                open={!!selectedConnector}
+                onClose={() => setDetail(null)}
+                breadcrumbs={[
+                    "Connectors",
+                    selectedConnector?.name ?? "MCP connector",
+                ]}
+                size="md"
+                secondaryAction={
+                    selectedConnector
+                        ? {
+                              label: "Delete connector",
+                              variant: "danger",
+                              onClick: () =>
+                                  void handleDelete(selectedConnector.id),
+                              disabled: selectedBusy("delete"),
+                          }
+                        : undefined
+                }
+                primaryAction={{
+                    label: isSaving ? "Saving..." : "Save",
+                    icon: isSaving ? (
+                        <Loader2 className="size-4 animate-spin" />
+                    ) : undefined,
+                    onClick: () => void handleSaveSelectedConnector(),
+                    disabled:
+                        !hasChanges ||
+                        isSaving ||
+                        !detail?.draft.name.trim() ||
+                        !detail.draft.serverUrl.trim(),
+                }}
+                footerStatus={
+                    detail && error ? (
+                        <span className="text-sm text-red-600">{error}</span>
+                    ) : null
+                }
+            >
+                {selectedConnector && detail && (
+                    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-4">
+                        <McpConnectorFields
+                            key={selectedConnector.id}
+                            draft={detail.draft}
+                            tokenPlaceholder={
+                                selectedConnector.hasAuthConfig
+                                    ? "Saved token encrypted"
+                                    : "Bearer token"
+                            }
+                            onClearToken={
+                                selectedConnector.hasAuthConfig
+                                    ? () =>
+                                          void handleClearBearerToken(
+                                              selectedConnector.id,
+                                          )
+                                    : undefined
+                            }
+                            clearingToken={
+                                selectedBusy("clear-token")
+                            }
+                            onDraftChange={(draft) =>
+                                updateDetail({ draft })
+                            }
+                        />
+                        <div className="flex min-h-0 flex-1 flex-col">
+                            <button
+                                type="button"
+                                title="Refresh tools"
+                                aria-label="Refresh tools"
+                                onClick={() =>
+                                    void handleRefresh(selectedConnector.id)
+                                }
+                                disabled={selectedBusy("refresh")}
+                                className="mb-2 self-end text-gray-500 hover:text-gray-900 disabled:text-gray-300"
+                            >
+                                {selectedBusy("refresh") ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="size-4" />
+                                )}
+                            </button>
+                            {detail.loading ? (
+                                <div className="min-h-24 flex-1 rounded-lg border border-gray-100 bg-gray-50" />
+                            ) : (
+                                <McpToolList
+                                    connector={selectedConnector}
+                                    busyKey={busyKey}
+                                    onToolEnabled={handleToolEnabled}
+                                />
+                            )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+            {mfaPopup}
         </div>
     );
 }

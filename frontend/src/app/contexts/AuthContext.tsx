@@ -1,8 +1,8 @@
-"use client";
 import {
     createContext,
     useContext,
     useEffect,
+    useMemo,
     useState,
     type ReactNode,
 } from "react";
@@ -61,41 +61,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             unsubscribe?.();
         };
     }, []);
-    const signOut = async () => {
-        if (isAnonymousMode) return;
-        const { supabase } = await import("@/app/lib/supabase");
-        await supabase.auth.signOut({ scope: "local" });
-        setUser(null);
-    };
-    const updateEmail = async (email: string) => {
-        if (isAnonymousMode) {
-            throw new Error("Accounts are disabled in anonymous mode");
-        }
-        const { supabase } = await import("@/app/lib/supabase");
-        const redirectTo =
-            typeof window === "undefined"
-                ? undefined
-                : `${window.location.origin}/account`;
-        const { data, error } = await supabase.auth.updateUser(
-            { email },
-            redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-        );
-        if (error) throw error;
-        if (!data.user) throw new Error("Unable to update email");
-        const nextUser = toUser(data.user);
-        setUser(nextUser);
-        return nextUser;
-    };
+    const value = useMemo(() => ({
+        user,
+        isAuthenticated: !!user,
+        authLoading,
+        signOut: async () => {
+            if (isAnonymousMode) return;
+            const { supabase } = await import("@/app/lib/supabase");
+            await supabase.auth.signOut({ scope: "local" });
+            setUser(null);
+        },
+        updateEmail: async (email: string) => {
+            if (isAnonymousMode) {
+                throw new Error("Accounts are disabled in anonymous mode");
+            }
+            const { supabase } = await import("@/app/lib/supabase");
+            const emailRedirectTo =
+                typeof window === "undefined"
+                    ? undefined
+                    : `${window.location.origin}/account`;
+            const { data, error } = await supabase.auth.updateUser(
+                { email },
+                emailRedirectTo ? { emailRedirectTo } : undefined,
+            );
+            if (error) throw error;
+            if (!data.user) throw new Error("Unable to update email");
+            const nextUser = toUser(data.user);
+            setUser(nextUser);
+            return nextUser;
+        },
+    }), [authLoading, user]);
     return (
-        <AuthContext.Provider
-            value={{
-                user,
-                isAuthenticated: !!user,
-                authLoading,
-                signOut,
-                updateEmail,
-            }}
-        >
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );

@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";

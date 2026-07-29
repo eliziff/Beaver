@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLibrary, listProjects } from "@/app/lib/beaverApi";
 import type { Document, LibraryFolder, Project } from "./types";
@@ -8,28 +7,22 @@ const EMPTY_LOADING: Record<DirectoryTab, boolean> = {
     templates: false,
     projects: false,
 };
-const EMPTY_LOADED: Record<DirectoryTab, boolean> = {
-    files: false,
-    templates: false,
-    projects: false,
+type TabState = "idle" | "loading" | "loaded" | "failed";
+const EMPTY_STATE: Record<DirectoryTab, TabState> = {
+    files: "idle",
+    templates: "idle",
+    projects: "idle",
 };
 function sortDocuments(docs: Document[]) {
     return [...docs].sort((a, b) =>
         (b.created_at ?? "").localeCompare(a.created_at ?? ""),
     );
 }
-async function loadFiles() {
-    const files = await getLibrary("files");
+async function loadLibrary(kind: "files" | "templates") {
+    const library = await getLibrary(kind);
     return {
-        documents: sortDocuments(files.documents),
-        folders: files.folders,
-    };
-}
-async function loadTemplates() {
-    const templates = await getLibrary("templates");
-    return {
-        documents: sortDocuments(templates.documents),
-        folders: templates.folders,
+        documents: sortDocuments(library.documents),
+        folders: library.folders,
     };
 }
 async function loadProjects() {
@@ -51,46 +44,28 @@ export function useDirectoryData(
     const [projects, setProjects] = useState<Project[]>([]);
     const [loadingTabs, setLoadingTabs] =
         useState<Record<DirectoryTab, boolean>>(EMPTY_LOADING);
-    const loadingTabsRef = useRef<Record<DirectoryTab, boolean>>({
-        ...EMPTY_LOADING,
-    });
-    const loadedTabsRef = useRef<Record<DirectoryTab, boolean>>({
-        ...EMPTY_LOADED,
-    });
-    const settledTabsRef = useRef<Record<DirectoryTab, boolean>>({
-        ...EMPTY_LOADED,
-    });
+    const tabStateRef = useRef({ ...EMPTY_STATE });
     const loadTab = useCallback(
         async (tab: DirectoryTab) => {
-            if (
-                !enabled ||
-                loadingTabsRef.current[tab] ||
-                loadedTabsRef.current[tab]
-            ) {
-                return;
-            }
-            loadingTabsRef.current = {
-                ...loadingTabsRef.current,
-                [tab]: true,
-            };
+            const state = tabStateRef.current[tab];
+            if (!enabled || state === "loading" || state === "loaded") return;
+            tabStateRef.current[tab] = "loading";
             setLoadingTabs((prev) => ({ ...prev, [tab]: true }));
             try {
                 if (tab === "files") {
-                    const files = await loadFiles();
+                    const files = await loadLibrary("files");
                     setStandaloneDocuments(files.documents);
                     setFileFolders(files.folders);
                 } else if (tab === "templates") {
-                    const templates = await loadTemplates();
+                    const templates = await loadLibrary("templates");
                     setTemplateDocuments(templates.documents);
                     setTemplateFolders(templates.folders);
                 } else {
                     setProjects(await loadProjects());
                 }
-                loadedTabsRef.current = {
-                    ...loadedTabsRef.current,
-                    [tab]: true,
-                };
+                tabStateRef.current[tab] = "loaded";
             } catch {
+                tabStateRef.current[tab] = "failed";
                 if (tab === "files") {
                     setStandaloneDocuments([]);
                     setFileFolders([]);
@@ -101,14 +76,6 @@ export function useDirectoryData(
                     setProjects([]);
                 }
             } finally {
-                settledTabsRef.current = {
-                    ...settledTabsRef.current,
-                    [tab]: true,
-                };
-                loadingTabsRef.current = {
-                    ...loadingTabsRef.current,
-                    [tab]: false,
-                };
                 setLoadingTabs((prev) => ({ ...prev, [tab]: false }));
             }
         },
@@ -128,7 +95,7 @@ export function useDirectoryData(
     const resolvedLoadingTabs = {
         ...loadingTabs,
         [initialTab]:
-            enabled && !settledTabsRef.current[initialTab]
+            enabled && tabStateRef.current[initialTab] === "idle"
                 ? true
                 : loadingTabs[initialTab],
     };

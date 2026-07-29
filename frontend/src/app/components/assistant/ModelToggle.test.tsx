@@ -3,18 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-    getCodexModelCatalog,
+    getModelCatalog,
     type ApiKeyState,
-    type CodexModelCatalog,
+    type ModelCatalog,
 } from "@/app/lib/beaverApi";
-import { resetCodexModelCatalogSession } from "@/app/lib/codexModelCatalog";
+import { resetModelCatalogSession } from "@/app/lib/modelCatalog";
 import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 
 vi.mock("@/app/lib/beaverApi", () => ({
-    getCodexModelCatalog: vi.fn(),
+    getModelCatalog: vi.fn(),
 }));
 
-const getCatalogMock = vi.mocked(getCodexModelCatalog);
+const getCatalogMock = vi.mocked(getModelCatalog);
 const configuredApiKeys: ApiKeyState = {
     claude: { configured: true, source: "env" },
     gemini: { configured: true, source: "env" },
@@ -25,12 +25,12 @@ const configuredApiKeys: ApiKeyState = {
 };
 
 function catalog(
-    models: CodexModelCatalog["models"],
-): CodexModelCatalog {
+    models: ModelCatalog["models"],
+): ModelCatalog {
     return { source: "live", models };
 }
 
-function luna(overrides: Partial<CodexModelCatalog["models"][number]> = {}) {
+function luna(overrides: Partial<ModelCatalog["models"][number]> = {}) {
     return {
         slug: "gpt-5.6-luna",
         displayName: "GPT-5.6-Luna",
@@ -46,7 +46,7 @@ function luna(overrides: Partial<CodexModelCatalog["models"][number]> = {}) {
 
 beforeEach(() => {
     window.localStorage.clear();
-    resetCodexModelCatalogSession();
+    resetModelCatalogSession();
     getCatalogMock.mockReset();
 });
 
@@ -67,9 +67,28 @@ describe("ModelToggle", () => {
         screen.getByRole("combobox", { name: /GPT 5.6 Terra/ });
     });
 
+    it("shows configured desktop Qwen models before the catalog request completes", async () => {
+        getCatalogMock.mockResolvedValue({
+            source: "unavailable",
+            models: [],
+        });
+        render(
+            <ModelToggle value="codex:gpt-5.6-terra" onChange={vi.fn()} />,
+        );
+        await userEvent.click(screen.getByRole("combobox"));
+        const menu = screen.getByRole("listbox", { name: "Models" });
+        within(menu).getByRole("option", {
+            name: /Qwen 3.5 2B \(Q4_K_M\)/,
+        });
+        within(menu).getByRole("option", {
+            name: /Qwen 3.5 4B \(Q4_K_M\)/,
+        });
+        within(menu).getByRole("option", { name: /Qwen 3.5 9B/ });
+    });
+
     it("keeps one fixed control and its selection while options refresh", async () => {
         const user = userEvent.setup();
-        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        let resolveCatalog!: (value: ModelCatalog) => void;
         getCatalogMock.mockReturnValue(
             new Promise((resolve) => {
                 resolveCatalog = resolve;
@@ -98,7 +117,7 @@ describe("ModelToggle", () => {
     });
 
     it("shares one catalog request across controls and remounts", async () => {
-        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        let resolveCatalog!: (value: ModelCatalog) => void;
         getCatalogMock.mockReturnValue(
             new Promise((resolve) => {
                 resolveCatalog = resolve;
@@ -186,6 +205,77 @@ describe("ModelToggle", () => {
         expect(within(menu).queryByText("GPT-5.5")).not.toBeInTheDocument();
     });
 
+    it("shows installed desktop Ollama models without an API key", async () => {
+        getCatalogMock.mockResolvedValue({
+            ...catalog([]),
+            ollama: {
+                source: "live",
+                models: [
+                    {
+                        name: "qwen3:32b",
+                        displayName: "Qwen3 32B",
+                        supportsThinking: true,
+                    },
+                ],
+            },
+        });
+        render(
+            <>
+                <ModelToggle
+                    value="ollama:qwen3:32b"
+                    onChange={vi.fn()}
+                    apiKeys={configuredApiKeys}
+                />
+                <ReasoningEffortToggle
+                    model="ollama:qwen3:32b"
+                    onChange={vi.fn()}
+                />
+            </>,
+        );
+
+        const trigger = await screen.findByRole("combobox", {
+            name: /Qwen3 32B/,
+        });
+        await userEvent.click(trigger);
+        const menu = screen.getByRole("listbox", { name: "Models" });
+        within(menu).getByText("Desktop");
+        within(menu).getByRole("option", { name: "Qwen3 32B" });
+        expect(
+            screen.getByRole("combobox", { name: /Reasoning effort/i }),
+        ).toHaveValue("off");
+    });
+
+    it("labels configured desktop models offline when the host is unreachable", async () => {
+        getCatalogMock.mockResolvedValue({
+            ...catalog([]),
+            ollama: {
+                source: "unavailable",
+                models: [
+                    {
+                        name: "qwen3.5:9b",
+                        displayName: "Qwen 3.5 9B",
+                        supportsThinking: true,
+                    },
+                ],
+            },
+        });
+        render(
+            <ModelToggle
+                value="ollama:qwen3.5:9b"
+                onChange={vi.fn()}
+                apiKeys={configuredApiKeys}
+            />,
+        );
+        await userEvent.click(
+            await screen.findByRole("combobox", {
+                name: /Qwen 3.5 9B — desktop offline/,
+            }),
+        );
+        screen.getByRole("option", {
+            name: /Qwen 3.5 9B — desktop offline/,
+        });
+    });
+
     it("changes provider and model in one grouped control", async () => {
         const onChange = vi.fn();
         const user = userEvent.setup();
@@ -212,7 +302,7 @@ describe("ModelToggle", () => {
 
     it("uses the last good catalog when refresh is unavailable", async () => {
         window.localStorage.setItem(
-            "mike.codexModelCatalog.v1",
+            "beaver.modelCatalog.v1",
             JSON.stringify({
                 savedAt: 1,
                 catalog: catalog([
@@ -317,7 +407,7 @@ describe("ModelToggle", () => {
 
 describe("ReasoningEffortToggle", () => {
     it("keeps a disabled control while Codex capabilities load", async () => {
-        let resolveCatalog!: (value: CodexModelCatalog) => void;
+        let resolveCatalog!: (value: ModelCatalog) => void;
         getCatalogMock.mockReturnValue(
             new Promise((resolve) => {
                 resolveCatalog = resolve;

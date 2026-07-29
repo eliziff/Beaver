@@ -1,4 +1,3 @@
-"use client";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 export function ChatDeleteWarning({
     open,

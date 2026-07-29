@@ -1,4 +1,3 @@
-"use client";
 import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import type { Project } from "../shared/types";
