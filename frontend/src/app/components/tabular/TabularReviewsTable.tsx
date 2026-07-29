@@ -1,12 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-    useMemo,
-    useState,
-    type Dispatch,
-    type SetStateAction,
-} from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import type { Project, TabularReview } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -16,8 +11,6 @@ import {
     TableBody,
     TableCell,
     TableEmptyState,
-    TableFilters,
-    type TableFilterOption,
     TableHeaderCell,
     TableHeaderRow,
     TablePrimaryCell,
@@ -25,15 +18,10 @@ import {
     TableScrollArea,
     TableSelectionPlaceholder,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-import { PillButton } from "@/app/components/ui/pill-button";import { formatDate, sortRows } from "@/app/lib/utils";type ReviewSortKey = "name" | "columns" | "documents" | "created";
-const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
-    { value: "asc", label: "Ascending" },
-    { value: "desc", label: "Descending" },
-];
+import { PillButton } from "@/app/components/ui/pill-button";import { formatDate } from "@/app/lib/utils";
 const REVIEW_COLUMN = {
     columns: "hidden w-24 md:flex",
     documents: "hidden w-28 xl:flex",
@@ -49,8 +37,6 @@ export function TabularReviewsTable({
     creatingReview,
     createDisabled = false,
     projects,
-    projectFilter = null,
-    onProjectFilterChange,
     reviewHref,
     onCreateReview,
     onOpenDetails,
@@ -64,8 +50,6 @@ export function TabularReviewsTable({
     creatingReview: boolean;
     createDisabled?: boolean;
     projects?: Project[];
-    projectFilter?: string | null;
-    onProjectFilterChange?: (value: string | null) => void;
     reviewHref: (review: TabularReview) => string;
     onCreateReview: () => void;
     onOpenDetails: (review: TabularReview) => void;
@@ -73,12 +57,11 @@ export function TabularReviewsTable({
     loading?: boolean;
 }) {
     const router = useRouter();
-    const [sort, setSort] = useState<{
-        key: ReviewSortKey;
-        direction: TableSortDirection;
-    } | null>(null);    const showProject = projects !== undefined;    const projectNameById = projects        ? new Map(projects.map((project) => [project.id, project.name]))        : null;    const visibleReviews = useMemo(() => {
-        if (!sort) return filteredReviews;
-        return sortRows(filteredReviews, (a, b) => {            if (sort.key === "columns") {                return (                    ((a.columns_config?.length ?? 0) -                        (b.columns_config?.length ?? 0))                );            }            if (sort.key === "documents") {                return (a.document_count ?? 0) - (b.document_count ?? 0);            }            if (sort.key === "created") {                return (                    (new Date(a.created_at).getTime() -                        new Date(b.created_at).getTime())                );            }            return (a.title ?? "Untitled Review").localeCompare(                b.title ?? "Untitled Review",            );        }, sort.direction);    }, [filteredReviews, sort]);
+    const showProject = projects !== undefined;
+    const projectNameById = projects
+        ? new Map(projects.map((project) => [project.id, project.name]))
+        : null;
+    const visibleReviews = filteredReviews;
     const allSelected =
         visibleReviews.length > 0 &&
         visibleReviews.every((review) =>
@@ -89,22 +72,6 @@ export function TabularReviewsTable({
         visibleReviews.some((review) =>
             selectedReviewIds.includes(review.id),
         );
-    function handleSortChange(
-        key: ReviewSortKey,
-        direction: TableSortDirection | null,
-    ) {
-        setSort(direction ? { key, direction } : null);
-        setSelectedReviewIds([]);
-    }
-    const sortFilter = (key: ReviewSortKey, label: string) => (
-        <TableFilters
-            label={label}
-            value={sort?.key === key ? sort.direction : null}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange(key, direction)}
-        />
-    );
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
     return (
         <TableScrollArea
@@ -136,46 +103,27 @@ export function TabularReviewsTable({
                             />
                         )}
                         <span className="mr-1">Name</span>
-                        {sortFilter("name", "Sort by review name")}
                     </TableStickyCell>
                     <TableHeaderCell
                         className={`ml-auto ${REVIEW_COLUMN.columns}`}
                     >
                         <div className="flex items-center gap-1">
                             <span>Columns</span>
-                            {sortFilter("columns", "Sort by columns")}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className={REVIEW_COLUMN.documents}>
                         <div className="flex items-center gap-1">
                             <span>Documents</span>
-                            {sortFilter("documents", "Sort by documents")}
                         </div>
                     </TableHeaderCell>
                     {showProject && (
                         <TableHeaderCell className={REVIEW_COLUMN.project}>
-                            <div className="flex items-center gap-1">
-                                <span>Project</span>
-                                <TableFilters
-                                    label="Filter by project"
-                                    searchable
-                                    value={projectFilter}
-                                    allLabel="All Projects"
-                                    options={projects.map((project) => ({
-                                        value: project.id,
-                                        label: project.name,
-                                    }))}
-                                    onChange={(value) =>
-                                        onProjectFilterChange?.(value)
-                                    }
-                                />
-                            </div>
+                            <span>Project</span>
                         </TableHeaderCell>
                     )}
                     <TableHeaderCell className={REVIEW_COLUMN.created}>
                         <div className="flex items-center gap-1">
                             <span>Created</span>
-                            {sortFilter("created", "Sort by created date")}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className={REVIEW_COLUMN.actions} />
