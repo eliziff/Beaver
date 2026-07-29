@@ -116,6 +116,7 @@ workflowsRouter.use((req, res, next) => {
     .status(503)
     .json({ detail: "This feature requires Supabase persistence" });
 });
+workflowsRouter.use(requireAuth);
 
 function withWorkflowAccess<T extends object>(
   workflow: T,
@@ -312,7 +313,7 @@ function validateOpenSourceWorkflow(workflow: WorkflowRecord): string | null {
   return "Workflow type must be 'assistant' or 'tabular'.";
 }
 
-workflowsRouter.get("/", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.get("/", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { type } = req.query as { type?: string };
@@ -346,7 +347,7 @@ workflowsRouter.get("/", requireAuth, asyncRoute(async (req, res) => {
   res.json([...systemWorkflows, ...databaseWorkflows]);
 }));
 
-workflowsRouter.post("/", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.post("/", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const {
     metadata,
@@ -461,9 +462,9 @@ async function handleWorkflowUpdate(req: Request, res: Response) {
   );
 }
 
-workflowsRouter.patch("/:workflowId", requireAuth, asyncRoute(handleWorkflowUpdate));
+workflowsRouter.patch("/:workflowId", asyncRoute(handleWorkflowUpdate));
 
-workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.delete("/:workflowId", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
   const systemWorkflow = SYSTEM_WORKFLOWS.find(
@@ -483,7 +484,7 @@ workflowsRouter.delete("/:workflowId", requireAuth, asyncRoute(async (req, res) 
   res.status(204).send();
 }));
 
-workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (_req, res) => {
+workflowsRouter.get("/hidden", asyncRoute(async (_req, res) => {
   if (isAnonymousLocalMode()) {
     res.json([]);
     return;
@@ -498,7 +499,7 @@ workflowsRouter.get("/hidden", requireAuth, asyncRoute(async (_req, res) => {
   res.json((data ?? []).map((r) => r.workflow_id));
 }));
 
-workflowsRouter.post("/hidden", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.post("/hidden", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflow_id } = req.body as { workflow_id: string };
   if (!workflow_id?.trim())
@@ -511,7 +512,7 @@ workflowsRouter.post("/hidden", requireAuth, asyncRoute(async (req, res) => {
   res.status(204).send();
 }));
 
-workflowsRouter.delete("/hidden/:workflowId", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.delete("/hidden/:workflowId", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
   const db = createServerSupabase();
@@ -524,7 +525,7 @@ workflowsRouter.delete("/hidden/:workflowId", requireAuth, asyncRoute(async (req
   res.status(204).send();
 }));
 
-workflowsRouter.post("/:workflowId/open-source", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.post("/:workflowId/open-source", asyncRoute(async (req, res) => {
   if (!WORKFLOW_CONTRIBUTIONS_ENABLED) {
     return void res.status(404).json({ detail: "Workflow contributions are disabled" });
   }
@@ -650,7 +651,7 @@ workflowsRouter.post("/:workflowId/open-source", requireAuth, asyncRoute(async (
   });
 }));
 
-workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.get("/:workflowId", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { workflowId } = req.params;
@@ -684,7 +685,7 @@ workflowsRouter.get("/:workflowId", requireAuth, asyncRoute(async (req, res) => 
   );
 }));
 
-workflowsRouter.get("/:workflowId/shares", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.get("/:workflowId/shares", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId } = req.params;
   if (isAnonymousLocalMode()) {
@@ -714,7 +715,7 @@ workflowsRouter.get("/:workflowId/shares", requireAuth, asyncRoute(async (req, r
   res.json(shares ?? []);
 }));
 
-workflowsRouter.delete("/:workflowId/shares/:shareId", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.delete("/:workflowId/shares/:shareId", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const { workflowId, shareId } = req.params;
   const db = createServerSupabase();
@@ -731,7 +732,7 @@ workflowsRouter.delete("/:workflowId/shares/:shareId", requireAuth, asyncRoute(a
   res.status(204).send();
 }));
 
-workflowsRouter.post("/:workflowId/share", requireAuth, asyncRoute(async (req, res) => {
+workflowsRouter.post("/:workflowId/share", asyncRoute(async (req, res) => {
   const userId = res.locals.userId as string;
   const userEmail = res.locals.userEmail as string | undefined;
   const { workflowId } = req.params;
