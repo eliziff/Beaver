@@ -705,35 +705,25 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     );
 }
 function AssistantWorkflowEditorSkeleton() {
+    const widths = [
+        "w-24", "w-5/6", "w-3/4", "w-4/5", "w-28", "w-11/12",
+        "w-2/3", "w-10/12", "w-20", "w-4/6", "w-5/6",
+    ];
     return (
         <div className="min-h-0 flex-1 px-4 pb-2 pt-4 md:px-6 md:pb-3">
-            <div
-                className={`h-full px-5 py-4 ${LIQUID_TABLE_SURFACE_CLASS}`}
-            >
-                <div className="space-y-3">
-                    <div className="h-3 w-24 rounded bg-gray-100" />
-                    <div className="h-3 w-5/6 rounded bg-gray-100" />
-                    <div className="h-3 w-3/4 rounded bg-gray-100" />
-                    <div className="h-3 w-4/5 rounded bg-gray-100" />
-                </div>
-                <div className="mt-8 space-y-3">
-                    <div className="h-3 w-28 rounded bg-gray-100" />
-                    <div className="h-3 w-11/12 rounded bg-gray-100" />
-                    <div className="h-3 w-2/3 rounded bg-gray-100" />
-                    <div className="h-3 w-10/12 rounded bg-gray-100" />
-                </div>
-                <div className="mt-8 space-y-3">
-                    <div className="h-3 w-20 rounded bg-gray-100" />
-                    <div className="h-3 w-4/6 rounded bg-gray-100" />
-                    <div className="h-3 w-5/6 rounded bg-gray-100" />
-                </div>
+            <div className={`h-full space-y-3 px-5 py-4 ${LIQUID_TABLE_SURFACE_CLASS}`}>
+                {widths.map((width, index) => (
+                    <SkeletonLine key={index} className={`h-3 ${width} ${index === 4 || index === 8 ? "mt-8" : ""}`} />
+                ))}
             </div>
         </div>
     );
 }
 function TabularWorkflowEditorSkeleton() {
-    const titleWidths = ["w-36", "w-44", "w-40", "w-52", "w-48"];
-    const promptWidths = ["w-64", "w-80", "w-72", "w-96", "w-60"];
+    const widths = [
+        ["w-36", "w-64"], ["w-44", "w-80"], ["w-40", "w-72"],
+        ["w-52", "w-96"], ["w-48", "w-60"],
+    ];
     return (
         <div className="flex min-h-0 flex-1 flex-col pt-2">
             <TableToolbar
@@ -763,7 +753,7 @@ function TabularWorkflowEditorSkeleton() {
                 }
             >
                 <TableBody>
-                    {[1, 2, 3, 4, 5].map((i) => (
+                    {widths.map(([title, prompt], i) => (
                         <TableRow
                             key={i}
                             interactive={false}
@@ -775,18 +765,14 @@ function TabularWorkflowEditorSkeleton() {
                             >
                                 <div className="flex min-w-0 flex-1 items-center">
                                     <TableSelectionPlaceholder />
-                                    <SkeletonLine
-                                        className={`h-3 ${titleWidths[i - 1]}`}
-                                    />
+                                    <SkeletonLine className={`h-3 ${title}`} />
                                 </div>
                             </TableStickyCell>
                             <TableCell className="ml-auto w-36">
                                 <SkeletonLine className="w-16" />
                             </TableCell>
                             <TableCell className="min-w-[240px] flex-1 pr-4">
-                                <SkeletonLine
-                                    className={promptWidths[i - 1]}
-                                />
+                                <SkeletonLine className={prompt} />
                             </TableCell>
                             <TableCell className="w-8" />
                         </TableRow>
