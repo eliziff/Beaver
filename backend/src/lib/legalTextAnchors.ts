@@ -3,7 +3,7 @@
  *
  * Legal drafting concentrates its load-bearing specifics in a few
  * machine-recognizable forms: money, percentages, ratio multiples, dates,
- * durations, and statutory citations. This module extracts those anchors and
+ * durations, areas, and statutory citations. This module extracts those anchors and
  * canonicalizes each to a value-based key, so "$2.25 million" and
  * "$2,250,000" collide, as do "March 15, 2027" and "3/15/2027". Coverage
  * then diffs a draft against its sources in both directions:
@@ -29,6 +29,7 @@ export type AnchorClass =
   | "ratio"
   | "date"
   | "duration"
+  | "area"
   | "statute"
   | "cite";
 
@@ -167,6 +168,33 @@ function pushFrenchMoney(text: string, hits: AnchorHit[]) {
       norm: `money:${currency}:${cents(value)}`,
       index: match.index ?? 0,
     });
+  }
+}
+// Unit families (sqft/acre/sqm) never cross-normalize — conversion is a
+// judgment call. Abbreviations are uppercase-only with an attached number
+// so prose initials cannot read as areas.
+const AREA_WORDS_RE =
+  /\b(\d[\d,]*(?:\.\d+)?)[\s-]?(rentable\s+square\s+(?:feet|foot)|square\s+(?:feet|foot)|sq\.?\s?ft\.?|acres?|square\s+met(?:er|re)s?|pieds?[\s-]carr[ée]s?|m[èe]tres?[\s-]carr[ée]s?)\b/giu;
+const AREA_ABBREV_RE = /\b(\d[\d,]*(?:\.\d+)?)\s?(RSF|SF|m²)(?![\w²])/gu;
+
+function areaFamily(unit: string): "sqft" | "acre" | "sqm" {
+  const folded = unit.toLowerCase();
+  if (folded.includes("acre")) return "acre";
+  if (folded.includes("pied")) return "sqft";
+  if (folded.includes("m²") || /m[èe]t/u.test(folded)) return "sqm";
+  return "sqft";
+}
+
+function pushAreaMatches(text: string, hits: AnchorHit[]) {
+  for (const re of [AREA_WORDS_RE, AREA_ABBREV_RE]) {
+    for (const match of text.matchAll(re)) {
+      hits.push({
+        cls: "area",
+        raw: match[0],
+        norm: `area:${areaFamily(match[2])}:${numeric(match[1])}`,
+        index: match.index ?? 0,
+      });
+    }
   }
 }
 const PERCENT_RE = /(\d[\d,]*(?:\.\d+)?)\s?(?:%|percent\b|per cent\b)/giu;
@@ -437,6 +465,7 @@ export function extractAnchors(text: string): AnchorHit[] {
   pushMoneyMatches(text, hits);
   pushFrenchMoney(text, hits);
   pushWordedDurations(text, hits);
+  pushAreaMatches(text, hits);
   for (const match of text.matchAll(STATUTE_CANADIAN_FR_RE)) {
     const series =
       FR_STATUTE_SERIES[match[1].replace(/\./gu, "").toUpperCase()] ??
@@ -752,6 +781,7 @@ const ANCHOR_CLASSES: AnchorClass[] = [
   "money",
   "ratio",
   "percent",
+  "area",
   "statute",
   "cite",
 ];
