@@ -130,3 +130,10 @@ to improve a build number.
 - Git: pathspec-only staging (never `git add -A`; concurrent sessions
   share this tree). Pushing as eliziff requires `env -u GITHUB_TOKEN`
   (the env PAT is AlbertaLawReview and 403s).
+- npm `.CMD` shims (e.g. `claude.CMD`) re-parse argv through cmd.exe:
+  multi-line or quote-bearing args silently break (empty stdout). Keep
+  CLI args single-line and quote-free; ship rich payloads via stdin.
+- LAB experiment design: harness A/B with the MODEL HELD CONSTANT
+  (claude-code/claude-sonnet-4-6 via `claude -p`; ollama/qwen from the
+  desktop PC). Codex was pilot scaffolding only — never an experiment
+  cell. `cc-harness-*` results = Claude-Code-as-product side runs.
