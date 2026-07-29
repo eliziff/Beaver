@@ -1,14 +1,11 @@
 "use client";
-
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-
 export interface SegmentedToggleOption<T extends string> {
     value: T;
     label: string;
     icon?: LucideIcon;
 }
-
 interface ModalSegmentedToggleProps<T extends string> {
     value: T;
     onChange: (value: T) => void;
@@ -17,7 +14,6 @@ interface ModalSegmentedToggleProps<T extends string> {
     size?: "sm" | "md";
     className?: string;
 }
-
 export function ModalSegmentedToggle<T extends string>({
     value,
     onChange,

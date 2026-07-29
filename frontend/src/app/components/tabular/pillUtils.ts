@@ -1,9 +1,6 @@
 import type { ColumnConfig } from "../shared/types";
-
-/** Sequential colors assigned to tags by their position in the tags array. */
 export const TAG_COLORS = [
-    "bg-red-50 text-red-700",
-    "bg-violet-100 text-violet-700",
+    "bg-red-50 text-red-700",    "bg-violet-100 text-violet-700",
     "bg-pink-100 text-pink-700",
     "bg-orange-100 text-orange-700",
     "bg-teal-100 text-teal-700",
@@ -11,11 +8,9 @@ export const TAG_COLORS = [
     "bg-indigo-100 text-indigo-700",
     "bg-rose-100 text-rose-700",
 ];
-
 const CURRENCY_COLORS: Record<string, string> = {
     USD: "bg-green-100 text-green-700",
-    EUR: "bg-gray-100 text-gray-700",
-    GBP: "bg-purple-100 text-purple-700",
+    EUR: "bg-gray-100 text-gray-700",    GBP: "bg-purple-100 text-purple-700",
     JPY: "bg-red-100 text-red-700",
     CHF: "bg-orange-100 text-orange-700",
     AUD: "bg-cyan-100 text-cyan-700",
@@ -25,7 +20,6 @@ const CURRENCY_COLORS: Record<string, string> = {
     NZD: "bg-lime-100 text-lime-700",
     CNY: "bg-amber-100 text-amber-700",
 };
-
 export function getPillClass(content: string, column?: ColumnConfig): string {
     if (column?.format === "yes_no") {
         const lower = content.toLowerCase();

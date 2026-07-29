@@ -3,12 +3,10 @@ import {
   parseCourtlistenerCaseSearches,
   parseCourtlistenerEventCases,
 } from "./assistantEvents";
-
 export type StreamEventReduction = {
   events: AssistantEvent[];
   deferPaint?: boolean;
 };
-
 const string = (value: unknown) =>
   typeof value === "string" ? value : "";
 const number = (value: unknown) =>
@@ -21,26 +19,21 @@ const clusterIds = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is number => typeof item === "number")
     : [];
-
 export const isStreamingPlaceholder = (event: AssistantEvent) =>
   (event.type === "thinking" || event.type === "tool_call_start") &&
   !!event.isStreaming;
-
 function withoutPlaceholders(events: AssistantEvent[]) {
   return events.filter((event) => !isStreamingPlaceholder(event));
 }
-
 function finalizeReasoning(events: AssistantEvent[]) {
   const last = events[events.length - 1];
   return last?.type === "reasoning" && last.isStreaming
     ? [...events.slice(0, -1), { type: "reasoning" as const, text: last.text }]
     : events;
 }
-
 function append(events: AssistantEvent[], event: AssistantEvent) {
   return [...finalizeReasoning(withoutPlaceholders(events)), event];
 }
-
 function thinking(events: AssistantEvent[]) {
   const next = withoutPlaceholders(events);
   return [
@@ -48,7 +41,6 @@ function thinking(events: AssistantEvent[]) {
     { type: "thinking" as const, isStreaming: true },
   ];
 }
-
 function replaceLast(
   events: AssistantEvent[],
   predicate: (event: AssistantEvent) => boolean,
@@ -60,7 +52,6 @@ function replaceLast(
   next[index] = replacement;
   return next;
 }
-
 export function reduceAssistantStreamEvent(
   events: AssistantEvent[],
   data: Record<string, unknown>,
@@ -80,11 +71,9 @@ export function reduceAssistantStreamEvent(
           : [...finalizeReasoning(cleaned), { type: "reasoning", text, isStreaming: true }],
     };
   }
-
   if (data.type === "reasoning_block_end") {
     return { events: thinking(finalizeReasoning(events)) };
   }
-
   if (data.type === "content_delta") {
     const text = string(data.text);
     const cleaned = finalizeReasoning(withoutPlaceholders(events));
@@ -110,7 +99,6 @@ export function reduceAssistantStreamEvent(
       events: next,
     };
   }
-
   if (data.type === "courtlistener_search_case_law_start") {
     return {
       events: append(events, {
@@ -120,7 +108,6 @@ export function reduceAssistantStreamEvent(
       }),
     };
   }
-
   if (data.type === "courtlistener_search_case_law") {
     const query = string(data.query);
     return {
@@ -142,7 +129,6 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   if (data.type === "courtlistener_get_cases_start") {
     return {
       events: append(events, {
@@ -152,7 +138,6 @@ export function reduceAssistantStreamEvent(
       }),
     };
   }
-
   if (data.type === "courtlistener_get_cases") {
     return {
       events: thinking(
@@ -173,7 +158,6 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   if (
     data.type === "courtlistener_find_in_case_start" ||
     data.type === "courtlistener_find_in_case"
@@ -215,7 +199,6 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   if (
     data.type === "courtlistener_read_case_start" ||
     data.type === "courtlistener_read_case"
@@ -251,7 +234,6 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   if (
     data.type === "courtlistener_verify_citations_start" ||
     data.type === "courtlistener_verify_citations"
@@ -283,7 +265,6 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   if (data.type === "case_citation") {
     return {
       events: append(events, {
@@ -297,7 +278,6 @@ export function reduceAssistantStreamEvent(
       }),
     };
   }
-
   if (data.type === "case_opinions") {
     return {
       events: append(events, {
@@ -310,7 +290,6 @@ export function reduceAssistantStreamEvent(
       }),
     };
   }
-
   if (data.type === "doc_read_start") {
     return {
       events: append(events, {
@@ -321,7 +300,6 @@ export function reduceAssistantStreamEvent(
       }),
     };
   }
-
   if (data.type === "doc_read") {
     const filename = string(data.filename);
     const current = events.findLast(
@@ -352,6 +330,5 @@ export function reduceAssistantStreamEvent(
       ),
     };
   }
-
   return null;
 }

@@ -1,10 +1,8 @@
 "use client";
-
 import Link from "next/link";
 import { Modal } from "@/app/components/modals/Modal";
 import { ApiKeySettings } from "./ApiKeySettings";
 import { isAnonymousMode } from "@/app/lib/authMode";
-
 export function AppSettingsModal({
     open,
     onClose,

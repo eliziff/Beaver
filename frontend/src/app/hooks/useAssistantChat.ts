@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -22,13 +21,11 @@ import {
   readSelectedModel,
   readSelectedReasoningEffort,
 } from "./useSelectedModel";
-
 interface UseAssistantChatOptions {
   initialMessages?: Message[];
   chatId?: string;
   projectId?: string;
 }
-
 export type AssistantTurnOptions = {
   displayedDoc?: { filename: string; documentId: string } | null;
   turnId?: string;
@@ -37,24 +34,20 @@ export type AssistantTurnOptions = {
     { type: "ask_inputs_response" }
   >;
 };
-
 export type RejectedAssistantTurn = {
   message: Message;
   options?: AssistantTurnOptions;
 };
-
 function readableStreamError(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   return "Sorry, something went wrong.";
 }
-
 const AUTOMATION_TOOLS = new Set<AutomationToolName>([
   "toa_submit_library_document",
   "toa_job_status",
   "library_fix_docx_supras",
   "library_link_docx_citations",
 ]);
-
 export function parseAutomationRunEvent(
   data: Record<string, unknown>,
 ): Extract<AssistantEvent, { type: "automation_run" }> | null {
@@ -108,7 +101,6 @@ export function parseAutomationRunEvent(
       : {}),
   };
 }
-
 export function useAssistantChat({
   initialMessages = [],
   chatId: initialChatId,
@@ -122,7 +114,6 @@ export function useAssistantChat({
     stagePendingChatMessage,
   } = useChatHistoryContext();
   const { generate: generateTitle } = useGenerateChatTitle();
-
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isResponseLoading, setIsResponseLoading] = useState(false);
   const [isLoadingCitations, setIsLoadingCitations] = useState(false);
@@ -131,24 +122,19 @@ export function useAssistantChat({
     useState<RejectedAssistantTurn | null>(null);
   const transcriptVersionRef = useRef(0);
   const transcriptPollGenerationRef = useRef(0);
-
   const abortControllerRef = useRef<AbortController | null>(null);
-
   const clearRejectedTurn = useCallback(() => setRejectedTurn(null), []);
-
   useEffect(
     () => () => {
       transcriptPollGenerationRef.current += 1;
     },
     [],
   );
-
   const eventsRef = useRef<AssistantEvent[]>([]);
   const pendingEventsSnapshotRef = useRef<AssistantEvent[] | null>(null);
   const pendingEventsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-
   const updateLatestAssistantMessage = (
     updater: (message: Message) => Message,
   ) => {
@@ -166,10 +152,6 @@ export function useAssistantChat({
       return updated;
     });
   };
-
-  // Streaming deltas can arrive faster than the browser can paint. Keep the
-  // event ref authoritative, but publish at most once per short frame so the
-  // whole chat tree is not reconciled for every token-sized SSE chunk.
   const flushPendingEventsSnapshot = () => {
     if (pendingEventsTimerRef.current !== null) {
       clearTimeout(pendingEventsTimerRef.current);
@@ -180,7 +162,6 @@ export function useAssistantChat({
     if (!snapshot) return;
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
   };
-
   const scheduleEventsSnapshot = () => {
     pendingEventsSnapshotRef.current = [...eventsRef.current];
     if (pendingEventsTimerRef.current !== null) return;
@@ -192,7 +173,6 @@ export function useAssistantChat({
       updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
     }, 16);
   };
-
   useEffect(() => {
     return () => {
       if (pendingEventsTimerRef.current !== null) {
@@ -200,14 +180,6 @@ export function useAssistantChat({
       }
     };
   }, []);
-
-  /**
-   * Finalize any in-flight streaming content event so the next
-   * content_delta starts a fresh block. Called
-   * before any non-content event is appended, so interleaved content /
-   * reasoning / tool events stay in chronological order — without the
-   * later content block inheriting the earlier block's accumulated text.
-   */
   const finalizeStreamingContent = () => {
     const events = eventsRef.current;
     let contentIndex = -1;
@@ -232,10 +204,6 @@ export function useAssistantChat({
       events: next,
     }));
   };
-
-  // If the model transitions from reasoning into content/tool without a
-  // reasoning_block_end (or the events arrive out of order), the prior
-  // reasoning event would otherwise stay flagged isStreaming forever.
   const finalizeStreamingReasoning = () => {
     const events = eventsRef.current;
     const last = events[events.length - 1];
@@ -251,13 +219,8 @@ export function useAssistantChat({
       events: snapshot,
     }));
   };
-
-  // Transient placeholder events (tool_call_start, thinking) fill the
-  // latency gap between real SSE events so the wrapper doesn't look stuck.
-  // Anytime a real event arrives, drop any streaming placeholder first.
   const isStreamingPlaceholder = (e: AssistantEvent) =>
     (e.type === "tool_call_start" || e.type === "thinking") && !!e.isStreaming;
-
   const cancelStreamingEvents = (events: AssistantEvent[]) =>
     events
       .filter((event) => !isStreamingPlaceholder(event))
@@ -267,7 +230,6 @@ export function useAssistantChat({
         delete (rest as { isStreaming?: boolean }).isStreaming;
         return rest as AssistantEvent;
       });
-
   const appendCancellationEvent = (events: AssistantEvent[]) => {
     const cancelledEvents = cancelStreamingEvents(events);
     return [
@@ -275,7 +237,6 @@ export function useAssistantChat({
       { type: "content" as const, text: "Cancelled by user." },
     ];
   };
-
   const cancel = () => {
     if (abortControllerRef.current) {
       if (chatId) void stopChat(chatId).catch(() => undefined);
@@ -291,7 +252,6 @@ export function useAssistantChat({
       setIsLoadingCitations(false);
     }
   };
-
   const clearStreamingPlaceholders = () => {
     const before = eventsRef.current;
     const after = before.filter((e) => !isStreamingPlaceholder(e));
@@ -301,7 +261,6 @@ export function useAssistantChat({
     const snapshot = [...after];
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
   };
-
   const resetStreamingNarrative = () => {
     flushPendingEventsSnapshot();
     const snapshot = eventsRef.current.filter(
@@ -317,7 +276,6 @@ export function useAssistantChat({
       events: snapshot,
     }));
   };
-
   const pushThinkingPlaceholder = () => {
     const events = eventsRef.current;
     const last = events[events.length - 1];
@@ -330,7 +288,6 @@ export function useAssistantChat({
     const snapshot = [...eventsRef.current];
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
   };
-
   const pushEvent = (event: AssistantEvent) => {
     flushPendingEventsSnapshot();
     finalizeStreamingReasoning();
@@ -339,7 +296,6 @@ export function useAssistantChat({
     const snapshot = [...eventsRef.current];
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
   };
-
   const updateMatchingEvent = (
     predicate: (e: AssistantEvent) => boolean,
     updater: (e: AssistantEvent) => AssistantEvent,
@@ -361,7 +317,6 @@ export function useAssistantChat({
     updateLatestAssistantMessage((message) => ({ ...message, events: snapshot }));
     return true;
   };
-
   const pollForCompletedAnonymousTurn = (
     targetChatId: string,
     baselineVersion: number,
@@ -385,19 +340,16 @@ export function useAssistantChat({
             return;
           }
         } catch {
-          // The next bounded poll may recover a transient local read.
         }
         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
     })();
   };
-
   const handleChat = async (
     message: Message,
     opts?: AssistantTurnOptions,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
-
     const turnOptions =
       isAnonymousMode && !opts?.askInputsResponse
         ? { ...opts, turnId: opts?.turnId ?? crypto.randomUUID() }
@@ -406,13 +358,11 @@ export function useAssistantChat({
     setRejectedTurn(null);
     flushPendingEventsSnapshot();
     setIsResponseLoading(true);
-
     const lastMessage = messages[messages.length - 1];
     const isMessageAlreadyAdded =
       lastMessage &&
       lastMessage.role === "user" &&
       lastMessage.content === message.content;
-
     const apiMessagesForTurn: Message[] = isMessageAlreadyAdded
       ? messages
       : [...messages, message];
@@ -446,7 +396,6 @@ export function useAssistantChat({
           return updated;
         })()
       : apiMessagesForTurn;
-
     setMessages(
       optimisticResponseEvent
         ? displayMessages
@@ -455,18 +404,14 @@ export function useAssistantChat({
             { role: "assistant", content: "", citations: [], events: [] },
           ],
     );
-
     let streamedChatId: string | null = null;
-
     eventsRef.current = optimisticResponseEvent
       ? ([...displayMessages]
           .reverse()
           .find((item) => item.role === "assistant")?.events ?? [])
       : [];
-
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
     try {
       const apiMessages = apiMessagesForTurn.map((currentMessage) => ({
         role: currentMessage.role,
@@ -474,13 +419,10 @@ export function useAssistantChat({
         files: currentMessage.files,
         workflow: currentMessage.workflow,
       }));
-
       const model = message.model ?? readSelectedModel();
       const reasoningEffort =
         message.reasoningEffort ?? readSelectedReasoningEffort();
-
       const displayedDoc = turnOptions?.displayedDoc ?? null;
-
       const attachedDocs = (
         message.files?.filter((f) => !!f.document_id) ?? []
       ).map((f) => ({
@@ -501,7 +443,6 @@ export function useAssistantChat({
             files: message.files,
             workflow: message.workflow,
           };
-
       const response = await streamChat({
         ...(isAnonymousMode
           ? {
@@ -526,7 +467,6 @@ export function useAssistantChat({
           : turnOptions?.askInputsResponse,
         signal: controller.signal,
       });
-
       if (!response.ok) {
         if (isAnonymousMode && response.status === 409 && chatId) {
           const conflict = (await response.json().catch(() => ({}))) as {
@@ -594,20 +534,16 @@ export function useAssistantChat({
         const errText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errText}`);
       }
-
       if (!response.body) throw new Error("No response body");
       let sawDone = false;
       let sawFinalTranscriptVersion = !isAnonymousMode;
-
       for await (const dataStr of readSseData(response.body)) {
         if (dataStr === "[DONE]") {
           sawDone = true;
           continue;
         }
-
         try {
           const data = JSON.parse(dataStr);
-
             if (data.type === "chat_id") {
               streamedChatId = data.chatId;
               setChatId(data.chatId);
@@ -616,7 +552,6 @@ export function useAssistantChat({
               }
               continue;
             }
-
             if (
               data.type === "transcript_version" &&
               Number.isSafeInteger(data.transcriptVersion)
@@ -625,12 +560,10 @@ export function useAssistantChat({
               sawFinalTranscriptVersion = true;
               continue;
             }
-
             if (data.type === "content_done") {
               setIsLoadingCitations(true);
               continue;
             }
-
             if (data.type === "error") {
               const streamErrorMessage = readableStreamError(data.message);
               if (
@@ -659,7 +592,6 @@ export function useAssistantChat({
               setIsLoadingCitations(false);
               continue;
             }
-
             if (data.type === "content_final") {
               flushPendingEventsSnapshot();
               const text = typeof data.text === "string" ? data.text : "";
@@ -689,12 +621,10 @@ export function useAssistantChat({
               }));
               continue;
             }
-
             if (data.type === "content_reset") {
               resetStreamingNarrative();
               continue;
             }
-
             const reduction = reduceAssistantStreamEvent(eventsRef.current, data);
             if (reduction) {
               eventsRef.current = reduction.events;
@@ -710,7 +640,6 @@ export function useAssistantChat({
               }
               continue;
             }
-
             if (data.type === "tool_call_start") {
               pushEvent({
                 type: "tool_call_start",
@@ -719,13 +648,11 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "automation_run") {
               const event = parseAutomationRunEvent(data);
               if (event) pushEvent(event);
               continue;
             }
-
             if (data.type === "workflow_applied") {
               pushEvent({
                 type: "workflow_applied",
@@ -734,7 +661,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "mcp_tool_start") {
               pushEvent({
                 type: "mcp_tool_call",
@@ -747,7 +673,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "mcp_tool_result") {
               const openaiToolName = (data.name as string) ?? "";
               updateMatchingEvent(
@@ -778,7 +703,6 @@ export function useAssistantChat({
               pushThinkingPlaceholder();
               continue;
             }
-
             if (data.type === "ask_inputs") {
               const rawItems = Array.isArray(data.items)
                 ? (data.items as unknown[])
@@ -857,7 +781,6 @@ export function useAssistantChat({
               }
               continue;
             }
-
             if (data.type === "doc_find_start") {
               pushEvent({
                 type: "doc_find",
@@ -868,7 +791,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "doc_find") {
               updateMatchingEvent(
                 (e) =>
@@ -893,7 +815,6 @@ export function useAssistantChat({
               pushThinkingPlaceholder();
               continue;
             }
-
             if (data.type === "doc_created_start") {
               pushEvent({
                 type: "doc_created",
@@ -903,7 +824,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "doc_download") {
               pushEvent({
                 type: "doc_download",
@@ -912,7 +832,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "doc_created") {
               updateMatchingEvent(
                 (e) =>
@@ -942,7 +861,6 @@ export function useAssistantChat({
               pushThinkingPlaceholder();
               continue;
             }
-
             if (data.type === "doc_edited_start") {
               pushEvent({
                 type: "doc_edited",
@@ -955,7 +873,6 @@ export function useAssistantChat({
               });
               continue;
             }
-
             if (data.type === "doc_edited") {
               updateMatchingEvent(
                 (e) =>
@@ -985,7 +902,6 @@ export function useAssistantChat({
               pushThinkingPlaceholder();
               continue;
             }
-
             if (data.type === "citations") {
               const status =
                 data.status === "started" ||
@@ -1004,11 +920,6 @@ export function useAssistantChat({
                 }));
                 continue;
               }
-              // End-of-stream signal — scrub any lingering
-              // placeholders so they don't persist into the
-              // finalised message. First finalize content so adding
-              // citations cannot re-render the markdown/citation view
-              // against a streaming block.
               finalizeStreamingContent();
               clearStreamingPlaceholders();
               updateLatestAssistantMessage((message) => ({
@@ -1029,12 +940,10 @@ export function useAssistantChat({
       if (!sawDone || !sawFinalTranscriptVersion) {
         throw new Error("Chat stream ended before completion.");
       }
-
       flushPendingEventsSnapshot();
       finalizeStreamingReasoning();
       setIsResponseLoading(false);
       setIsLoadingCitations(false);
-
       const finalChatId = streamedChatId || chatId || null;
       if (finalChatId && finalChatId !== chatId) {
         if (chatId) {
@@ -1049,9 +958,7 @@ export function useAssistantChat({
           : `/assistant/chat`;
         router.replace(`${chatBasePath}/${finalChatId}`);
       }
-
       await loadChats();
-
       const finalChatIdForTitle = streamedChatId || chatId || null;
       if (finalChatIdForTitle && apiMessagesForTurn.length === 1) {
         const titleParts = [message.content];
@@ -1063,7 +970,6 @@ export function useAssistantChat({
           );
         void generateTitle(finalChatIdForTitle, titleParts.join("\n"));
       }
-
       return streamedChatId || null;
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -1132,7 +1038,6 @@ export function useAssistantChat({
           ];
         });
       }
-
       setIsResponseLoading(false);
       setIsLoadingCitations(false);
       return null;
@@ -1142,34 +1047,28 @@ export function useAssistantChat({
       }
     }
   };
-
   const retryRejectedTurn = async () => {
     const pending = rejectedTurn;
     if (!pending) return null;
     setRejectedTurn(null);
     return handleChat(pending.message, pending.options);
   };
-
   const handleNewChat = async (
     message: Message,
     projectId?: string,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
-
     transcriptPollGenerationRef.current += 1;
     setRejectedTurn(null);
     setMessages([message]);
-
     const newChatId = await saveChat(projectId);
     if (newChatId) {
       stagePendingChatMessage(newChatId, message);
       transcriptVersionRef.current = 0;
       setChatId(newChatId);
     }
-
     return newChatId;
   };
-
   return {
     messages,
     isResponseLoading,

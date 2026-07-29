@@ -1,12 +1,10 @@
 "use client";
-
 import {
     type ReactNode,
     useEffect,
     useRef,
     useState,
 } from "react";
-
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -23,8 +21,7 @@ import type { ColumnConfig, Document, TabularCell } from "../shared/types";
 import { isSpreadsheetFilename } from "../shared/types";
 import { preprocessCitations, type ParsedCitation } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
-import { DocumentViewer } from "../shared/views/DocumentViewer";
-import { FileTypeIcon } from "../shared/FileTypeIcon";
+import { DocumentViewer } from "../shared/views/DocumentViewer";import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { CitationQuotesHeader } from "../assistant/CitationQuotesHeader";
 import { cn } from "@/app/lib/utils";
 import {
@@ -36,7 +33,6 @@ import {
     HORIZONTAL_RESIZE_HANDLE_CLASS,
     horizontalDrag,
 } from "@/app/components/ui/horizontal-drag";
-
 function isDocxDocument(d: {
     file_type?: string | null;
     filename?: string;
@@ -46,7 +42,6 @@ function isDocxDocument(d: {
     const ext = d.filename?.split(".").pop()?.toLowerCase();
     return ext === "docx" || ext === "doc";
 }
-
 interface Props {
     cell: TabularCell;
     document: Document;
@@ -56,20 +51,13 @@ interface Props {
     onClose: () => void;
     onNavigate: (documentId: string, columnIndex: number) => void;
     onRegenerate?: () => Promise<void>;
-    /** If true, open the document panel immediately */
     displayDocument?: boolean;
-    /** Quote to highlight when opening document panel */
     citationQuote?: string;
-    /** Page to scroll to when opening document panel */
     citationPage?: number;
-    /** Spreadsheet worksheet containing the cited cell */
     citationSheet?: string;
-    /** Spreadsheet A1 cell address or range */
     citationCell?: string;
-    /** One-based citation number shown in the cell content */
     citationRef?: number;
 }
-
 type TRPanelCitation = {
     quote: string;
     page?: number;
@@ -77,23 +65,16 @@ type TRPanelCitation = {
     cell?: string;
     citationRef?: number;
 };
-
 const FLAG_BADGE: Record<string, string> = {
     green: "bg-emerald-600 border border-emerald-700 text-white shadow-sm",
     grey: "bg-slate-500 border border-slate-600 text-white shadow-sm",
     yellow: "bg-amber-500 border border-amber-600 text-white shadow-sm",
     red: "bg-red-600 border border-red-700 text-white shadow-sm",
 };
-
 const MIN_DOCUMENT_PANE_WIDTH = 420;
 const DEFAULT_DOCUMENT_PANE_WIDTH = 600;
 const MAX_DOCUMENT_PANE_WIDTH = 1000;
 const INFO_PANE_WIDTH = 300;
-
-// ---------------------------------------------------------------------------
-// TRSidePanel
-// ---------------------------------------------------------------------------
-
 export function TRSidePanel({
     cell,
     document: doc,
@@ -133,8 +114,6 @@ export function TRSidePanel({
         DEFAULT_DOCUMENT_PANE_WIDTH,
     );
     const panelRef = useRef<HTMLDivElement>(null);
-
-    // Internal state — initialised from props, also toggled by badge clicks inside the panel
     const [docCitation, setDocCitation] = useState<TRPanelCitation | undefined>(
         displayDocument && citationQuote
             ? {
@@ -146,8 +125,6 @@ export function TRSidePanel({
               }
             : undefined,
     );
-
-    // Re-sync when the panel opens for a different cell or citation
     useEffect(() => {
         setDocCitation(
             displayDocument && citationQuote
@@ -170,7 +147,6 @@ export function TRSidePanel({
         citationRef,
         citationSheet,
     ]);
-
     useEffect(() => {
         const handleOutsidePointerDown = (event: PointerEvent) => {
             const target = event.target;
@@ -182,7 +158,6 @@ export function TRSidePanel({
             }
             onClose();
         };
-
         document.addEventListener("pointerdown", handleOutsidePointerDown);
         return () =>
             document.removeEventListener(
@@ -190,7 +165,6 @@ export function TRSidePanel({
                 handleOutsidePointerDown,
             );
     }, [onClose]);
-
     const resizeDocument = horizontalDrag((deltaX) => {
         setDocumentPaneWidth((width) => {
             const viewportMax =
@@ -205,17 +179,14 @@ export function TRSidePanel({
             );
         });
     });
-
     function handleCitationOpen(citation: TRPanelCitation) {
         setDocCitation(citation);
         setDocumentPaneOpen(true);
     }
-
     const { processed: summaryText, citations: summaryCitations } =
         preprocessCitations(cell.content?.summary ?? "");
     const { processed: reasoningText, citations: reasoningCitations } =
         preprocessCitations(cell.content?.reasoning ?? "");
-
     return (
         <div
             ref={panelRef}
@@ -276,39 +247,8 @@ export function TRSidePanel({
                             />
                         </div>
                     )}
-                    <DocumentViewer
-                        documentId={doc.id}
-                        kind={
-                            isDocxDocument(doc) && !doc.pdf_storage_path
-                                ? "docx"
-                                : isSpreadsheetFilename(doc.filename ?? "")
-                                  ? "spreadsheet"
-                                  : "pdf"
-                        }
-                        quotes={
-                            docCitation
-                                ? [
-                                      {
-                                          page: docCitation.page,
-                                          quote: docCitation.quote,
-                                      },
-                                  ]
-                                : undefined
-                        }
-                        highlightCells={
-                            docCitation?.sheet || docCitation?.cell
-                                ? [
-                                      {
-                                          sheet: docCitation.sheet,
-                                          cell: docCitation.cell,
-                                      },
-                                  ]
-                                : undefined
-                        }
-                    />
-                </div>
+                    <DocumentViewer                        documentId={doc.id}                        kind={                            isDocxDocument(doc) && !doc.pdf_storage_path                                ? "docx"                                : isSpreadsheetFilename(doc.filename ?? "")                                  ? "spreadsheet"                                  : "pdf"                        }                        quotes={                            docCitation                                ? [                                      {                                          page: docCitation.page,                                          quote: docCitation.quote,                                      },                                  ]                                : undefined                        }                        highlightCells={                            docCitation?.sheet || docCitation?.cell                                ? [                                      {                                          sheet: docCitation.sheet,                                          cell: docCitation.cell,                                      },                                  ]                                : undefined                        }                    />                </div>
             )}
-
             {/* Info column — right, 300px fixed */}
             <div className="flex w-[300px] shrink-0 flex-col overflow-hidden">
                 {/* Header */}
@@ -364,7 +304,6 @@ export function TRSidePanel({
                         <X className="h-3.5 w-3.5" />
                     </button>
                 </div>
-
                 {/* Analysis panel */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="pb-2 px-5">
@@ -386,7 +325,6 @@ export function TRSidePanel({
                                 </div>
                             </div>
                         </div>
-
                         {/* Column field */}
                         <div className="mb-4">
                             <div className="mb-3 text-xs font-medium text-gray-900">
@@ -396,7 +334,6 @@ export function TRSidePanel({
                                 {column.name}
                             </div>
                         </div>
-
                         {/* Flag section */}
                         {cell.content?.flag && (
                             <div className="mb-5">
@@ -411,7 +348,6 @@ export function TRSidePanel({
                                 </span>
                             </div>
                         )}
-
                         {/* Results */}
                         <div className="mb-6">
                             <h4 className="mb-2 text-xs font-medium text-gray-900">
@@ -427,7 +363,6 @@ export function TRSidePanel({
                                 </MarkdownContent>
                             </div>
                         </div>
-
                         {/* Reasoning */}
                         {cell.content?.reasoning && (
                             <div>
@@ -506,7 +441,6 @@ export function TRSidePanel({
         </div>
     );
 }
-
 function CellNavigatorButton({
     label,
     title,
@@ -540,25 +474,18 @@ function CellNavigatorButton({
         </button>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Markdown renderer
-// ---------------------------------------------------------------------------
-
 function formatCitationLocation(citation: ParsedCitation): string {
     if (citation.sheet && citation.cell) {
         return `${citation.sheet}, cell ${citation.cell}`;
     }
     return `Page ${citation.page ?? 1}`;
 }
-
 function citationKey(cellId: string, citation: ParsedCitation): string {
     const location = citation.sheet
         ? `${citation.sheet}:${citation.cell ?? ""}`
         : `page:${citation.page ?? 1}`;
     return `tr-cell:${cellId}:${location}`;
 }
-
 function CitationBadge({
     index,
     citation,
@@ -591,7 +518,6 @@ function CitationBadge({
         </button>
     );
 }
-
 function MarkdownContent({
     children,
     citations,
@@ -608,7 +534,6 @@ function MarkdownContent({
     column?: ColumnConfig;
 }) {
     if (!children) return null;
-
     const pills: string[] = [];
     let processed = children.replace(/\[\[([^\]]+)\]\]/g, (_, content) => {
         const idx = pills.length;
@@ -616,7 +541,6 @@ function MarkdownContent({
         return `\`§p${idx}§\``;
     });
     processed = processed.replace(/§(\d+)§/g, (_, idx) => `\`§c${idx}§\``);
-
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}

@@ -1,5 +1,4 @@
 import type { Workflow } from "../shared/types";
-
 export function workflowDetailPath(
     workflow: Pick<Workflow, "id" | "metadata">,
 ) {

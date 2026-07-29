@@ -1,11 +1,9 @@
 import type { Citation } from "../../shared/types";
-
 export function preprocessCitations(
     text: string,
     citations: Citation[],
     inlineCitationTargets: Citation[],
 ): string {
-    // Replace [N] or [N, M, ...] inline markers with internal §idx§ tokens backed by citations.
     return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (full, refsStr) => {
         const refs = (refsStr as string)
             .split(",")
@@ -20,11 +18,6 @@ export function preprocessCitations(
         return tokens.length > 0 ? tokens.join("") : full;
     });
 }
-
-// ---------------------------------------------------------------------------
-// Markdown renderer (shared config)
-// ---------------------------------------------------------------------------
-
 export function internalCaseHref(
     value: string | number | null | undefined,
 ): string | null {
@@ -33,4 +26,3 @@ export function internalCaseHref(
     const match = value.match(/^us-case-(\d+)$/);
     return match ? `us-case-${match[1]}` : null;
 }
-

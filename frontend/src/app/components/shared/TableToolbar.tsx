@@ -1,19 +1,15 @@
 import type { ReactNode } from "react";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
-
 interface ToolbarItem<T extends string> {
     id: T;
     label: string;
 }
-
 interface Props<T extends string> {
     items?: readonly ToolbarItem<T>[];
     active?: T;
     onChange?: (id: T) => void;
-    /** Optional content rendered on the right side of the toolbar */
     actions?: ReactNode;
 }
-
 export function TableToolbar<T extends string>({
     items = [],
     active,

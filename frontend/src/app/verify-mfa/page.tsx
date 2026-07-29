@@ -1,5 +1,4 @@
 "use client";
-
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -13,16 +12,13 @@ import {
 } from "@/app/components/popups/MfaVerificationPopup";
 import { markMfaVerifiedForGate } from "@/app/components/shared/MfaLoginGate";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-
 type MfaFactor = {
     id: string;
     friendly_name?: string | null;
     factor_type: string;
 };
-
 const authGlassCardClassName =
     "rounded-2xl border border-gray-200 bg-white px-8 py-8 shadow-sm";
-
 export default function VerifyMfaPage() {
     return (
         <Suspense
@@ -36,7 +32,6 @@ export default function VerifyMfaPage() {
         </Suspense>
     );
 }
-
 function VerifyMfaContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -47,20 +42,16 @@ function VerifyMfaContent() {
     const [loading, setLoading] = useState(true);
     const [verifying, setVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     const nextPath = safeNextPath(searchParams.get("next"));
     const canVerify =
         !loading && !verifying && !!selectedFactorId && code.trim().length === 6;
-
     useEffect(() => {
         if (authLoading) return;
         if (!user) {
             router.replace("/login");
             return;
         }
-
         let cancelled = false;
-
         async function loadMfaState() {
             setLoading(true);
             setError(null);
@@ -72,12 +63,10 @@ function VerifyMfaContent() {
                     router.replace(nextPath);
                     return;
                 }
-
                 const { data, error: factorError } =
                     await supabase.auth.mfa.listFactors();
                 if (cancelled) return;
                 if (factorError) throw factorError;
-
                 const verified = (data.totp ?? []) as MfaFactor[];
                 setFactors(verified);
                 setSelectedFactorId(verified[0]?.id ?? "");
@@ -97,17 +86,13 @@ function VerifyMfaContent() {
                 if (!cancelled) setLoading(false);
             }
         }
-
         void loadMfaState();
-
         return () => {
             cancelled = true;
         };
     }, [authLoading, nextPath, router, user]);
-
     async function verify() {
         if (!canVerify) return;
-
         setVerifying(true);
         setError(null);
         const { error: verifyError } =
@@ -116,22 +101,18 @@ function VerifyMfaContent() {
                 code: code.trim(),
             });
         setVerifying(false);
-
         if (verifyError) {
             setError(verifyError.message);
             return;
         }
-
         setCode("");
         markMfaVerifiedForGate();
         router.replace(nextPath);
     }
-
     async function cancel() {
         await signOut();
         router.replace("/login");
     }
-
     return (
         <MfaPageFrame>
                 <div className="mb-8 space-y-2">
@@ -143,7 +124,6 @@ function VerifyMfaContent() {
                         continue.
                     </p>
                 </div>
-
                 <div className="space-y-6">
                     {loading ? (
                         <div className="flex h-13 items-center justify-center text-sm text-gray-500">
@@ -183,9 +163,7 @@ function VerifyMfaContent() {
                             />
                         </>
                     )}
-
                     {error && <p className="text-sm text-red-600">{error}</p>}
-
                     <div className="flex items-center justify-end gap-2 pt-4">
                         <button
                             type="button"
@@ -216,7 +194,6 @@ function VerifyMfaContent() {
         </MfaPageFrame>
     );
 }
-
 function MfaPageFrame({ children }: { children: ReactNode }) {
     return (
         <div className="relative flex min-h-dvh items-start justify-center bg-gray-50/80 px-6 pb-10 pt-32 md:pt-40">
@@ -229,7 +206,6 @@ function MfaPageFrame({ children }: { children: ReactNode }) {
         </div>
     );
 }
-
 function safeNextPath(value: string | null) {
     if (!value || !value.startsWith("/") || value.startsWith("//")) {
         return "/assistant";

@@ -1,5 +1,4 @@
 "use client";
-
 import {
     useCallback,
     useEffect,
@@ -28,7 +27,6 @@ import {
     type CaseLawOpinion,
 } from "@/app/lib/beaverApi";
 import { cn } from "@/app/lib/utils";
-
 export type CaseTab = {
     kind: "case";
     id: `case:${number}`;
@@ -43,13 +41,11 @@ export type CaseTab = {
     quotes?: CaseCitationQuote[];
     opinions?: CaseLawOpinion[];
 };
-
 const courtlistenerOpinionsCache = new Map<number, CaseLawOpinion[]>();
 const caseOpinionsRequestCache = new Map<
     string,
     ReturnType<typeof getCourtlistenerOpinions>
 >();
-
 const CASE_OPINION_SANITIZER_CONFIG = {
     ALLOWED_TAGS: [
         "a",
@@ -110,14 +106,12 @@ const CASE_OPINION_SANITIZER_CONFIG = {
     ],
     RETURN_TRUSTED_TYPE: false,
 };
-
 function sanitizeCaseOpinionHtml(value: string): string {
     const sanitized = DOMPurify.sanitize(
         value,
         CASE_OPINION_SANITIZER_CONFIG,
     );
     if (typeof document === "undefined") return sanitized;
-
     const template = document.createElement("template");
     template.innerHTML = sanitized;
     template.content.querySelectorAll("a[href]").forEach((anchor) => {
@@ -128,7 +122,6 @@ function sanitizeCaseOpinionHtml(value: string): string {
     });
     return template.innerHTML;
 }
-
 function friendlyCaseError(message: string): string {
     try {
         const parsed = JSON.parse(message) as { detail?: unknown };
@@ -136,9 +129,7 @@ function friendlyCaseError(message: string): string {
             message = parsed.detail;
         }
     } catch {
-        /* keep original message */
     }
-
     if (message.includes("429") || /rate limit|throttled/i.test(message)) {
         const waitMatch = message.match(/available in\s+(\d+)\s+seconds/i);
         const wait = waitMatch?.[1];
@@ -151,7 +142,6 @@ function friendlyCaseError(message: string): string {
     }
     return "Could not load this case from CourtListener. Please try again shortly.";
 }
-
 function formatCaseDate(value: string | null | undefined): string | null {
     if (!value) return null;
     const date = new Date(`${value}T00:00:00`);
@@ -163,7 +153,6 @@ function formatCaseDate(value: string | null | undefined): string | null {
         timeZone: "UTC",
     }).format(date);
 }
-
 function hashString(value: string): string {
     let hash = 0;
     for (let i = 0; i < value.length; i += 1) {
@@ -171,7 +160,6 @@ function hashString(value: string): string {
     }
     return Math.abs(hash).toString(36);
 }
-
 function caseTabQuoteKey(tab: CaseTab): string {
     const quoteKey =
         tab.quotes
@@ -180,15 +168,12 @@ function caseTabQuoteKey(tab: CaseTab): string {
             .join("\n---\n") ?? "";
     return [tab.clusterId, tab.citationRef ?? "source", hashString(quoteKey)].join(":");
 }
-
 function relevantQuoteKey(quote: CaseCitationQuote, index: number): string {
     return `${quote.opinionId ?? "unknown"}:${index}:${hashString(quote.quote)}`;
 }
-
 function caseCitationRequestKey(tab: CaseTab) {
     return String(tab.clusterId);
 }
-
 export function CaseLawPanel({
     tab,
     compactActions = false,
@@ -213,7 +198,6 @@ export function CaseLawPanel({
     });
     const opinionScrollRef = useRef<HTMLDivElement | null>(null);
     const opinionContentRef = useRef<HTMLElement | null>(null);
-
     useEffect(() => {
         if (tab.opinions?.length) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- sync path of an async fetch effect: serve prop/cache data without a loading flash
@@ -229,7 +213,6 @@ export function CaseLawPanel({
             setError(null);
             return;
         }
-
         let cancelled = false;
         setLoading(true);
         setError(null);
@@ -264,7 +247,6 @@ export function CaseLawPanel({
             cancelled = true;
         };
     }, [tab]);
-
     useEffect(() => {
         const firstOpinionId =
             orderOpinions(opinions).find(
@@ -273,12 +255,10 @@ export function CaseLawPanel({
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reset active opinion after opinions load
         setActiveOpinionId(firstOpinionId);
     }, [opinions]);
-
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- sync quote list when the tab prop changes
         setRelevantQuotes(tab.quotes ?? []);
     }, [tab.quotes]);
-
     const title = tab.caseName;
     const citation = tab.citation;
     const courtlistenerUrl = tab.url;
@@ -310,7 +290,6 @@ export function CaseLawPanel({
                     : null,
         }),
     );
-
     const selectRelevantQuote = useCallback(
         (quote: CaseCitationQuote, index: number) => {
             const key = relevantQuoteKey(quote, index);
@@ -322,7 +301,6 @@ export function CaseLawPanel({
         },
         [quoteCacheKey],
     );
-
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reset quote selection when the quote set changes
         setQuoteIndexState({ cacheKey: quoteCacheKey, index: 0 });
@@ -332,13 +310,11 @@ export function CaseLawPanel({
             setActiveOpinionId(firstQuote.opinionId);
         }
     }, [quoteCacheKey, relevantQuotes]);
-
     useEffect(() => {
         const root = opinionContentRef.current;
         if (!root) return;
         clearDocxQuoteHighlights(root);
         if (!activeQuoteKey) return;
-
         const activeEntry = relevantQuotes
             .map((quote, index) => ({ quote, index }))
             .find(
@@ -352,7 +328,6 @@ export function CaseLawPanel({
         ) {
             return;
         }
-
         const match = highlightDocxQuote(root, activeEntry.quote.quote);
         if (!match) return;
         window.setTimeout(() => {
@@ -366,9 +341,7 @@ export function CaseLawPanel({
         activeQuoteKey,
         relevantQuotes,
     ]);
-
     const opinionSurfaceClassName = "bg-white";
-
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-start gap-3 px-3 pt-4 pb-3">
@@ -522,7 +495,6 @@ export function CaseLawPanel({
         </div>
     );
 }
-
 function opinionTypeLabel(value: string | null): string {
     if (!value) return "Opinion";
     const type = value.replace(/^\d+/, "").replace(/_/g, " ").trim();
@@ -538,7 +510,6 @@ function opinionTypeLabel(value: string | null): string {
     if (compactType === "combined") return "Combined Opinion";
     return type.replace(/\b\w/g, (char) => char.toUpperCase());
 }
-
 function opinionOrderRank(value: string | null): number {
     const type = value?.replace(/^\d+/, "").toLowerCase() ?? "";
     if (
@@ -554,7 +525,6 @@ function opinionOrderRank(value: string | null): number {
     if (type.includes("combined")) return 4;
     return 3;
 }
-
 function orderOpinions(opinions: CaseLawOpinion[]) {
     return opinions
         .map((opinion, index) => ({ opinion, index }))
@@ -565,7 +535,6 @@ function orderOpinions(opinions: CaseLawOpinion[]) {
             return rankDelta || a.index - b.index;
         });
 }
-
 function opinionTitle(opinion: CaseLawOpinion, index?: number): string {
     const type = opinionTypeLabel(opinion.type);
     const fallbackType = opinion.type ? type : `Opinion ${index ?? ""}`.trim();
@@ -573,7 +542,6 @@ function opinionTitle(opinion: CaseLawOpinion, index?: number): string {
         ? `${fallbackType} by ${opinion.author}`
         : fallbackType;
 }
-
 function OpinionBlock({
     opinion,
     contentRef,
@@ -588,7 +556,6 @@ function OpinionBlock({
                 : "",
         [opinion.html],
     );
-
     return (
         <article
             ref={contentRef}

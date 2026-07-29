@@ -1,11 +1,8 @@
 "use client";
-
 import * as React from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-
 type SearchBarSize = "sm" | "normal";
-
 type SearchBarProps = Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
     "onChange" | "size" | "type" | "value"
@@ -17,7 +14,6 @@ type SearchBarProps = Omit<
     wrapperClassName?: string;
     inputClassName?: string;
 };
-
 const sizeClasses: Record<
     SearchBarSize,
     { wrapper: string; input: string; icon: string; clear: string }
@@ -35,7 +31,6 @@ const sizeClasses: Record<
         clear: "h-6 w-6",
     },
 };
-
 export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
     (
         {
@@ -52,7 +47,6 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         ref,
     ) => {
         const classes = sizeClasses[size];
-
         return (
             <div
                 className={cn(
@@ -98,5 +92,4 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
         );
     },
 );
-
 SearchBar.displayName = "SearchBar";

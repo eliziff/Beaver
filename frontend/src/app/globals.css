@@ -1,10 +1,7 @@
-@import "tailwindcss";
-
-.overflow-y-auto,
+@import "tailwindcss";.overflow-y-auto,
 .overflow-auto {
     scrollbar-gutter: stable;
 }
-
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -30,7 +27,6 @@
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
 }
-
 :root {
     --radius: 0.625rem;
     --font-inter: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -53,37 +49,28 @@
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
 }
-
-@layer base {
-    html {
+@layer base {    html {
         font-size: 17px;
     }
-
-    * {
         @apply border-border outline-ring/50;
     }
-
     body {
         @apply bg-background text-foreground;
     }
-
     button {
         cursor: pointer;
     }
-
     select {
         @apply box-border h-9 w-full min-w-0 max-w-full;
         font: inherit;
     }
 }
-
 .maple-leaf-mark {
     display: inline-block;
     flex-shrink: 0;
     line-height: 0;
     transform-origin: 50% 82%;
 }
-
 .app-symbol-icon,
 .file-type-symbol {
     display: inline-flex;
@@ -96,72 +83,58 @@
     font-weight: 700;
     line-height: 1;
 }
-
 .app-symbol-icon {
     color: var(--brand-red);
     font-size: 1.1rem;
 }
-
 .file-type-symbol {
     color: #2f343a;
     font-size: 1rem;
 }
-
 .file-type-symbol[data-file-kind="pdf"],
 .file-type-symbol[data-file-kind="image"] {
     color: var(--brand-red);
 }
-
 .chat-input-container {
     container-type: inline-size;
 }
-
 .reasoning-effort-toggle {
     width: 8rem;
 }
-
 @container (max-width: 560px) {
     .chat-input-control-label {
         display: none;
     }
-
     .reasoning-effort-toggle {
         width: 5.5rem;
     }
 }
-
 @media (max-width: 639px) {
     .document-table .min-w-max {
         width: 100%;
         min-width: 0;
     }
-
     .document-table .min-w-max > :first-child {
         position: static;
         width: auto;
         min-width: 0;
         flex: 1 1 0%;
     }
-
     .document-table .min-w-max > :nth-child(n + 2):not(:last-child) {
         display: none;
     }
 }
-
 @media (max-height: 640px) {
     .modal-scroll-body {
         overflow-y: auto;
         overscroll-behavior: contain;
     }
 }
-
 @layer utilities {
     .font-eb-garamond {
         font-family: var(--font-eb-garamond);
     }
 }
-
-/* PDF text layer */
 .pdf-text-layer {
     overflow: hidden;
     opacity: 1;
@@ -169,7 +142,6 @@
     user-select: none;
     pointer-events: none;
 }
-
 .pdf-text-layer > span {
     color: transparent;
     position: absolute;
@@ -177,66 +149,41 @@
     cursor: text;
     transform-origin: 0% 0%;
 }
-
-.pdf-text-layer .pdf-text-highlight {
-    background-color: rgba(213, 43, 30, 0.22);
-    border-radius: 2px;
+.pdf-text-layer .pdf-text-highlight {    background-color: rgba(213, 43, 30, 0.22);    border-radius: 2px;
     position: static;
 }
-
-.docx-view-container span.docx-text-highlight,
-.docx-view-container .docx-text-highlight {
-    background-color: rgba(213, 43, 30, 0.3) !important;
-    border-radius: 2px;
+.docx-view-container span.docx-text-highlight,.docx-view-container .docx-text-highlight {    background-color: rgba(213, 43, 30, 0.3) !important;    border-radius: 2px;
     padding: 0 1px;
     color: inherit !important;
 }
-
-.case-opinion-content span.docx-text-highlight,
-.case-opinion-content .docx-text-highlight {
-    background-color: rgba(213, 43, 30, 0.35) !important;
-    border-radius: 2px;
+.case-opinion-content span.docx-text-highlight,.case-opinion-content .docx-text-highlight {    background-color: rgba(213, 43, 30, 0.35) !important;    border-radius: 2px;
     padding: 0 1px;
     color: inherit !important;
 }
-
-/* docx-preview tracked-change styling */
 .docx-view-container ins {
     color: #16a34a;
     text-decoration: none;
     background-color: rgba(22, 163, 74, 0.08);
 }
-
 .docx-view-container del {
     color: #dc2626;
     text-decoration: line-through;
     background-color: rgba(220, 38, 38, 0.08);
 }
-
-/* Kill docx-preview's default dark-gray wrapper chrome — let the scroll
-   container's own bg show through. */
 .docx-view-container .docx-wrapper {
     background: transparent !important;
     padding: 0 !important;
 }
-
 .docx-view-container .docx-wrapper > section.docx {
     margin: 0 auto 16px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-
 .docx-view-container section.docx img {
     object-fit: contain;
 }
-
 .docx-view-container section.docx img.docx-media-unavailable {
     visibility: hidden;
 }
-
-/* Footnote/endnote area (see docxNotes.ts). The list markers docx-preview
-   would otherwise draw restart at 1 on every rendered page; our own labels
-   run continuously, so the browser's are suppressed. The short rule above
-   the notes is Word's footnote separator. */
 .docx-view-container .docx-notes {
     list-style: none;
     margin: 1.5em 0 0;
@@ -244,7 +191,6 @@
     max-height: none;
     overflow: visible;
 }
-
 .docx-view-container .docx-notes::before {
     content: "";
     display: block;
@@ -253,53 +199,30 @@
     margin-bottom: 0.6em;
     border-top: 1px solid rgba(0, 0, 0, 0.35);
 }
-
 .docx-view-container a.docx-note-ref,
 .docx-view-container a.docx-note-label {
     color: inherit;
     text-decoration: none;
 }
-
 .docx-view-container a.docx-note-label {
     vertical-align: super;
     font-size: 0.75em;
     margin-right: 0.25em;
 }
-
 .docx-view-container .docx-edit-flash {
     animation: docxEditFlash 2s ease-out;
     border-radius: 2px;
 }
-
-/* Optimistic Accept/Reject: instantly hide rejected side / de-style kept side.
-   These are ephemeral DOM mutations; the real re-render replaces the markup. */
 .docx-view-container .docx-edit-hidden {
     display: none !important;
 }
-
 .docx-view-container ins.docx-edit-kept,
 .docx-view-container del.docx-edit-kept {
     color: inherit !important;
     background-color: transparent !important;
     text-decoration: none !important;
 }
-
-@keyframes docxEditFlash {
-    0%, 20% {
-        background-color: rgba(213, 43, 30, 0.22);
-        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0.3);
-    }
-    100% {
-        background-color: rgba(213, 43, 30, 0);
-        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
+@keyframes docxEditFlash {    0%, 20% {        background-color: rgba(213, 43, 30, 0.22);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0.3);    }    100% {        background-color: rgba(213, 43, 30, 0);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0);    }}@media (prefers-reduced-motion: reduce) {        scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;

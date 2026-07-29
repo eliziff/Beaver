@@ -3,14 +3,12 @@ import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { displayCitationQuote, formatCitationPage } from "../../shared/types";
 import type { Citation } from "../../shared/types";
 import { RESPONSE_GLASS_ANNOTATION, RESPONSE_GLASS_SURFACE } from "./messageStyles";
-
 type CitationSourceRow = {
     key: string;
     label: string;
     source: Citation;
     entries: { annotation: Citation; index: number }[];
 };
-
 function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "case") {
         return `case:${annotation.cluster_id}`;
@@ -23,7 +21,6 @@ function citationSourceKey(annotation: Citation): string {
     }
     return `document:${annotation.document_id}`;
 }
-
 function citationSourceLabel(annotation: Citation): string {
     if (annotation.kind === "case") {
         const caseName = annotation.case_name?.trim();
@@ -39,13 +36,11 @@ function citationSourceLabel(annotation: Citation): string {
     }
     return annotation.filename;
 }
-
 export function citationTooltip(annotation: Citation): string {
     const locator = formatCitationPage(annotation);
     const quote = displayCitationQuote(annotation);
     return locator ? `${locator}: "${quote}"` : `"${quote}"`;
 }
-
 function CitationSourceIcon({
     annotation,
 }: {
@@ -62,7 +57,6 @@ function CitationSourceIcon({
         <FileTypeIcon fileType={annotation.filename} className="h-3.5 w-3.5" />
     );
 }
-
 function buildCitationSourceRows(
     citations: Citation[],
 ): CitationSourceRow[] {
@@ -83,7 +77,6 @@ function buildCitationSourceRows(
     });
     return Array.from(rows.values());
 }
-
 function escapeHtmlText(value: string): string {
     return value
         .replace(/&/g, "&amp;")
@@ -92,11 +85,9 @@ function escapeHtmlText(value: string): string {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 }
-
 function ensureTerminalPeriod(value: string): string {
     return /[.!?]$/.test(value.trim()) ? value.trim() : `${value.trim()}.`;
 }
-
 export function buildCitationAppendix(citations: Citation[]) {
     if (citations.length === 0) return { html: "", text: "" };
     let previousSourceKey: string | null = null;
@@ -135,7 +126,6 @@ export function buildCitationAppendix(citations: Citation[]) {
     ].join("");
     return { html, text: textLines.join("\n") };
 }
-
 export function CitationsBlock({
     citations,
     onCitationClick,
@@ -153,7 +143,6 @@ export function CitationsBlock({
 }) {
     const rows = buildCitationSourceRows(citations);
     if (rows.length === 0 && !showWhenEmpty) return null;
-
     return (
         <div className="mt-2 mb-3">
             <div className={`overflow-hidden ${RESPONSE_GLASS_SURFACE}`}>
@@ -219,4 +208,3 @@ export function CitationsBlock({
         </div>
     );
 }
-

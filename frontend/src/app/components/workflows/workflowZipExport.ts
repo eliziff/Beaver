@@ -1,15 +1,11 @@
 import type { ColumnConfig, Workflow } from "@/app/components/shared/types";
 import { downloadBlob } from "@/app/lib/download";
-
 type ZipFile = {
     path: string;
     content: string;
 };
-
 const textEncoder = new TextEncoder();
-
 const TABLE_CONFIG_SCHEMA = "../schema/table-config.schema.yaml";
-
 const CRC_TABLE = (() => {
     const table = new Uint32Array(256);
     for (let i = 0; i < 256; i++) {
@@ -21,7 +17,6 @@ const CRC_TABLE = (() => {
     }
     return table;
 })();
-
 function crc32(bytes: Uint8Array): number {
     let crc = 0xffffffff;
     for (const byte of bytes) {
@@ -29,19 +24,16 @@ function crc32(bytes: Uint8Array): number {
     }
     return (crc ^ 0xffffffff) >>> 0;
 }
-
 function uint16(value: number): Uint8Array {
     const bytes = new Uint8Array(2);
     new DataView(bytes.buffer).setUint16(0, value, true);
     return bytes;
 }
-
 function uint32(value: number): Uint8Array {
     const bytes = new Uint8Array(4);
     new DataView(bytes.buffer).setUint32(0, value, true);
     return bytes;
 }
-
 function concatBytes(parts: Uint8Array[]): Uint8Array {
     const total = parts.reduce((sum, part) => sum + part.length, 0);
     const out = new Uint8Array(total);
@@ -52,13 +44,11 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
     }
     return out;
 }
-
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
     const buffer = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(buffer).set(bytes);
     return buffer;
 }
-
 function dosDateTime(date = new Date()): { date: number; time: number } {
     const year = Math.max(1980, date.getFullYear());
     return {
@@ -72,13 +62,11 @@ function dosDateTime(date = new Date()): { date: number; time: number } {
             date.getDate(),
     };
 }
-
 function createZip(files: ZipFile[]): Blob {
     const localParts: Uint8Array[] = [];
     const centralParts: Uint8Array[] = [];
     const { date, time } = dosDateTime();
     let offset = 0;
-
     for (const file of files) {
         const name = textEncoder.encode(file.path);
         const content = textEncoder.encode(file.content);
@@ -117,12 +105,10 @@ function createZip(files: ZipFile[]): Blob {
             uint32(offset),
             name,
         ]);
-
         localParts.push(localHeader, content);
         centralParts.push(centralHeader);
         offset += localHeader.length + content.length;
     }
-
     const centralDirectory = concatBytes(centralParts);
     const endOfCentralDirectory = concatBytes([
         uint32(0x06054b50),
@@ -134,7 +120,6 @@ function createZip(files: ZipFile[]): Blob {
         uint32(offset),
         uint16(0),
     ]);
-
     const zipBytes = concatBytes([
         ...localParts,
         centralDirectory,
@@ -144,7 +129,6 @@ function createZip(files: ZipFile[]): Blob {
         type: "application/zip",
     });
 }
-
 function slugify(input: string, fallback: string): string {
     const slug = input
         .trim()
@@ -154,12 +138,10 @@ function slugify(input: string, fallback: string): string {
         .replace(/^-+|-+$/g, "");
     return slug || fallback;
 }
-
 function yamlScalar(value: string | null): string {
     if (value === null) return "null";
     return JSON.stringify(value);
 }
-
 function yamlBlock(value: string): string {
     return value
         .replace(/\r\n/g, "\n")
@@ -168,7 +150,6 @@ function yamlBlock(value: string): string {
         .map((line) => `      ${line}`)
         .join("\n");
 }
-
 function tableConfigYaml(columns: ColumnConfig[]): string {
     const lines = [`$schema: ${yamlScalar(TABLE_CONFIG_SCHEMA)}`, "columns_config:"];
     columns
@@ -191,7 +172,6 @@ function tableConfigYaml(columns: ColumnConfig[]): string {
         });
     return `${lines.join("\n")}\n`;
 }
-
 function skillFrontmatter(workflow: Workflow, slug: string): string {
     const contributors =
         workflow.metadata.contributors.length > 0
@@ -234,7 +214,6 @@ function skillFrontmatter(workflow: Workflow, slug: string): string {
     ];
     return lines.join("\n");
 }
-
 function workflowFiles(
     workflow: Workflow,
     skillMd: string,
@@ -249,17 +228,14 @@ function workflowFiles(
             content: `${skillFrontmatter(workflow, slug)}${skillMd.trimEnd()}\n`,
         },
     ];
-
     if (type === "tabular") {
         files.push({
             path: `${basePath}/table-config.yaml`,
             content: tableConfigYaml(columns),
         });
     }
-
     return { files, slug };
 }
-
 export function downloadWorkflowZip(
     workflow: Workflow,
     skillMd: string,

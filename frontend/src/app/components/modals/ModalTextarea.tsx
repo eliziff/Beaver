@@ -1,10 +1,7 @@
 "use client";
-
 import { forwardRef, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/app/lib/utils";
-
 type ModalTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
-
 export const ModalTextarea = forwardRef<
     HTMLTextAreaElement,
     ModalTextareaProps
@@ -18,5 +15,4 @@ export const ModalTextarea = forwardRef<
         {...props}
     />
 ));
-
 ModalTextarea.displayName = "ModalTextarea";

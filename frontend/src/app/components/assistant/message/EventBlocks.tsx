@@ -1,22 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { apiFetch } from "@/app/lib/beaverApi";
-import { downloadBlob } from "@/app/lib/download";
+import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
 import type { AssistantEvent } from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import { GfmMarkdown } from "./MarkdownContent";
-
-// ---------------------------------------------------------------------------
-// Event block primitives
-// ---------------------------------------------------------------------------
-
 function EventConnector() {
     return (
         <div className="absolute w-[1px] bg-gray-300 top-[14px] left-[3px] translate-x-[-50%] h-[calc(100%+10px)]" />
     );
 }
-
 export function EventBlock({
     showConnector,
     isStreaming,
@@ -53,9 +46,6 @@ export function EventBlock({
         </div>
     );
 }
-
-// ---------------------------------------------------------------------------
-
 export function ReasoningBlock({
     text,
     isStreaming,
@@ -66,7 +56,6 @@ export function ReasoningBlock({
     showConnector?: boolean;
 }) {
     const normalizedText = text.replace(/\r\n?/g, "\n").trim();
-
     return (
         <EventBlock
             showConnector={showConnector}
@@ -92,7 +81,6 @@ export function ReasoningBlock({
         </EventBlock>
     );
 }
-
 export function DocReadBlock({
     filename,
     onClick,
@@ -154,7 +142,6 @@ export function DocReadBlock({
         </EventBlock>
     );
 }
-
 export function DocFindBlock({
     filename,
     query,
@@ -188,7 +175,6 @@ export function DocFindBlock({
         </EventBlock>
     );
 }
-
 export function DocCreatedBlock({
     filename,
     showConnector,
@@ -211,7 +197,6 @@ export function DocCreatedBlock({
         </EventBlock>
     );
 }
-
 export function DocDownloadBlock({
     filename,
     download_url,
@@ -234,12 +219,7 @@ export function DocDownloadBlock({
     const basename = extMatch
         ? filename.slice(0, -extMatch[0].length)
         : filename;
-    // Only backend-relative URLs are accepted. The download fetch carries
-    // the user's bearer token, so any absolute URL from tool output is
-    // refused to keep the token from leaking off-origin.
-    const href = download_url.startsWith("/") ? download_url : null;
-    const [busy, setBusy] = useState(false);
-
+    const href = download_url.startsWith("/") ? download_url : null;    const [busy, setBusy] = useState(false);
     const handleDownload = async (e?: {
         stopPropagation?: () => void;
         preventDefault?: () => void;
@@ -249,16 +229,13 @@ export function DocDownloadBlock({
         if (busy || isReloading || !href) return;
         setBusy(true);
         try {
-            const resp = await apiFetch(href);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const resp = await apiFetch(href);            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             downloadBlob(await resp.blob(), filename);
         } finally {
             setBusy(false);
         }
     };
-
     const spinning = busy || isReloading;
-
     const body = (
         <div className="flex items-center gap-3 px-4 py-3 min-w-0 flex-1">
             <div className="min-w-0 flex-1">
@@ -272,11 +249,9 @@ export function DocDownloadBlock({
                         </span>
                     )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{ext}</p>
-            </div>
+                <p className="text-xs text-gray-500 mt-0.5">{ext}</p>            </div>
         </div>
     );
-
     const downloadIcon = spinning ? (
         <div
             aria-disabled
@@ -293,7 +268,6 @@ export function DocDownloadBlock({
             <Download size={13} />
         </button>
     );
-
     if (onOpen) {
         return (
             <div
@@ -310,7 +284,6 @@ export function DocDownloadBlock({
             </div>
         );
     }
-
     if (spinning) {
         return (
             <div
@@ -321,7 +294,6 @@ export function DocDownloadBlock({
             </div>
         );
     }
-
     return (
         <div
             className={`flex items-stretch overflow-hidden w-full font-sans ${RESPONSE_GLASS_SURFACE}`}
@@ -337,7 +309,6 @@ export function DocDownloadBlock({
         </div>
     );
 }
-
 export function WorkflowAppliedBlock({
     title,
     showConnector,
@@ -363,7 +334,6 @@ export function WorkflowAppliedBlock({
         </EventBlock>
     );
 }
-
 export function AskInputsBlock({
     event,
     response,
@@ -424,7 +394,6 @@ export function AskInputsBlock({
         </EventBlock>
     );
 }
-
 export type CourtListenerBlockItem = {
     caseName: string | null;
     citation: string | null;
@@ -434,7 +403,6 @@ export type CourtListenerBlockItem = {
     totalMatches?: number;
     hasError?: boolean;
 };
-
 export function CourtListenerBlock({
     label,
     detail,
@@ -526,7 +494,6 @@ export function CourtListenerBlock({
         </EventBlock>
     );
 }
-
 export function DocEditedBlock({
     filename,
     showConnector,

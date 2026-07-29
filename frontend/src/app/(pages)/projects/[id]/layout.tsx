@@ -1,8 +1,6 @@
 "use client";
-
 import type { ReactNode } from "react";
 import { ProjectWorkspaceLayout } from "@/app/components/projects/ProjectWorkspace";
-
 export default function ProjectLayout({
     params,
     children,

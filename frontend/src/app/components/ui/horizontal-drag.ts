@@ -1,8 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
-
 export const HORIZONTAL_RESIZE_HANDLE_CLASS =
     "cursor-col-resize touch-none select-none bg-transparent hover:bg-gray-400";
-
 export function horizontalDrag(onDelta: (deltaX: number) => void) {
     return (event: ReactPointerEvent<HTMLDivElement>) => {
         event.preventDefault();

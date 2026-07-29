@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
@@ -14,7 +13,6 @@ import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-
 interface Props {
     chat: Chat;
     isActive: boolean;
@@ -23,7 +21,6 @@ interface Props {
     projectName?: string;
     onMoveToProject?: () => void;
 }
-
 export function SidebarChatItem({
     chat,
     isActive,
@@ -40,25 +37,19 @@ export function SidebarChatItem({
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const editInputRef = useRef<HTMLInputElement>(null);
-    // Sidebar can show collaborator chats from projects the user owns;
-    // rename/delete are still creator-only on the backend, so guard here.
     const isChatOwner = !!user?.id && chat.user_id === user.id;
-
     useEffect(() => {
         if (isRenaming) editInputRef.current?.focus();
     }, [isRenaming]);
-
     const handleRenameSave = async () => {
         const trimmed = editTitle.trim();
         if (trimmed) await renameChat(chat.id, trimmed);
         setIsRenaming(false);
     };
-
     const handleRenameCancel = () => {
         setIsRenaming(false);
         setEditTitle(chat.title ?? "");
     };
-
     return (
         <div
             className={cn(
@@ -80,8 +71,7 @@ export function SidebarChatItem({
                             if (e.key === "Enter") void handleRenameSave();
                             if (e.key === "Escape") handleRenameCancel();
                         }}
-                        className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"
-                    />
+                        className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"                    />
                     <button
                         type="button"
                         aria-label="Save rename"
@@ -120,7 +110,6 @@ export function SidebarChatItem({
                         )}
                         {chat.title ?? "Untitled chat"}
                     </Link>
-
                     <div
                         className={`flex shrink-0 items-center ${onMoveToProject ? "w-[72px]" : "w-12"} ${
                             isActive

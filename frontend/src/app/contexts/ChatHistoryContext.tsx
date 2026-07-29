@@ -1,12 +1,7 @@
 "use client";
-
 import {
     createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useRef,
-    useState,
+    useCallback,    useContext,    useEffect,    useRef,    useState,
     type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -18,7 +13,6 @@ import {
     renameChat,
 } from "@/app/lib/beaverApi";
 import type { Chat, Message } from "@/app/components/shared/types";
-
 interface ChatHistoryContextType {
     chats: Chat[] | null;
     hasMoreChats: boolean;
@@ -36,14 +30,11 @@ interface ChatHistoryContextType {
     ) => void;
     deleteChat: (chatId: string) => Promise<void>;
 }
-
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(
     undefined,
 );
-
 const INITIAL_CHAT_LIMIT = 20;
 const CHAT_LIMIT_INCREMENT = 10;
-
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
     const pathname = usePathname();
@@ -77,14 +68,12 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         pendingChatMessageRef.current = null;
         return message;
     }, []);
-
     const loadChats = useCallback(async () => {
         if (!user) {
             setChats([]);
             setHasMoreChats(false);
             return;
         }
-
         try {
             const data = await listChats({ limit: chatLimit + 1 });
             setChats(data.slice(0, chatLimit));
@@ -94,7 +83,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             setHasMoreChats(false);
         }
     }, [chatLimit, user]);
-
     useEffect(() => {
         if (!user) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- clear chat state on logout inside the effect that loads chats
@@ -103,28 +91,22 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
             setHasMoreChats(false);
             return;
         }
-
         if (!displaysAssistantHistory) return;
         void loadChats();
     }, [user, displaysAssistantHistory, loadChats]);
-
     const loadMoreChats = useCallback(() => {
         setChatLimit((prev) => prev + CHAT_LIMIT_INCREMENT);
     }, []);
-
     const replaceChatId = useCallback(
         (oldChatId: string, newChatId: string, title?: string) => {
             if (!oldChatId || !newChatId || oldChatId === newChatId) return;
-
             setChats((prev) => {
                 if (!prev) return prev;
-
                 const nextChats = prev.map((chat) =>
                     chat.id === oldChatId
                         ? { ...chat, id: newChatId, title: title ?? chat.title }
                         : chat,
                 );
-
                 const seen = new Set<string>();
                 return nextChats.filter((chat) => {
                     if (seen.has(chat.id)) return false;
@@ -135,7 +117,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         },
         [],
     );
-
     const saveChat = useCallback(
         async (projectId?: string): Promise<string | null> => {
             try {
@@ -158,7 +139,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         },
         [user],
     );
-
     const renameChatFn = useCallback(
         async (chatId: string, title: string) => {
             setChats((prev) =>
@@ -174,7 +154,6 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         },
         [loadChats],
     );
-
     const deleteChatFn = useCallback(
         async (chatId: string) => {
             setChats((prev) => (prev ?? []).filter((c) => c.id !== chatId));
@@ -186,28 +165,12 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
         },
         [loadChats],
     );
-
-    const value = {
-        chats,
-        hasMoreChats,
-        loadChats,
-        loadMoreChats,
-        saveChat,
-        renameChat: renameChatFn,
-        stagePendingChatMessage,
-        peekPendingChatMessage,
-        claimPendingChatMessage,
-        replaceChatId,
-        deleteChat: deleteChatFn,
-    };
-
-    return (
+    const value = {        chats,        hasMoreChats,        loadChats,        loadMoreChats,        saveChat,        renameChat: renameChatFn,        stagePendingChatMessage,        peekPendingChatMessage,        claimPendingChatMessage,        replaceChatId,        deleteChat: deleteChatFn,    };    return (
         <ChatHistoryContext.Provider value={value}>
             {children}
         </ChatHistoryContext.Provider>
     );
 }
-
 export function useChatHistoryContext() {
     const context = useContext(ChatHistoryContext);
     if (!context) {

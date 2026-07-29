@@ -1,12 +1,10 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useQuickActionsPreference } from "@/app/components/assistant/quickActionsPreferences";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
-
 export default function FeaturesPage() {
     const { profile, updateLegalResearchUs } = useUserProfile();
     const { visibleActions, showAllQuickActions, hideAllQuickActions } =
@@ -18,20 +16,17 @@ export default function FeaturesPage() {
         boolean | null
     >(null);
     const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     useEffect(() => {
         return () => {
             if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
         };
     }, []);
-
     const persistedLegalResearchUs = profile?.legalResearchUs ?? true;
     const usEnabled = draftLegalResearchUs ?? persistedLegalResearchUs;
     const hasChanges =
         draftLegalResearchUs !== null &&
         draftLegalResearchUs !== persistedLegalResearchUs;
     const quickActionsEnabled = Object.values(visibleActions).some(Boolean);
-
     const handleUpdateLegalResearch = async () => {
         if (saving) return;
         setSaved(false);
@@ -48,7 +43,6 @@ export default function FeaturesPage() {
             setSaveError("Could not update. Try again.");
         }
     };
-
     return (
         <div className="space-y-8">
             <section className="space-y-3">
@@ -82,7 +76,6 @@ export default function FeaturesPage() {
                     </div>
                 </AccountSection>
             </section>
-
             <section className="space-y-3">
                 <div className="flex items-center gap-2">
                     <h2 className="text-2xl font-medium font-serif text-gray-900">

@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import type { Document, Workflow } from "../shared/types";
 import { createTabularReview } from "@/app/lib/beaverApi";
@@ -13,14 +12,12 @@ import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
-
 interface Props {
     workflows: Workflow[];
     workflow: Workflow | null;
     onClose: () => void;
     skipSelect?: boolean;
 }
-
 export function UseWorkflowModal({
     workflows,
     workflow,
@@ -32,7 +29,6 @@ export function UseWorkflowModal({
     );
     const [selected, setSelected] = useState<Workflow | null>(workflow);
     const [listSearch, setListSearch] = useState("");
-
     const [inProject, setInProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
         null,
@@ -40,14 +36,12 @@ export function UseWorkflowModal({
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
     const [assistantPrompt, setAssistantPrompt] = useState("");
     const [saving, setSaving] = useState(false);
-
     const router = useRouter();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
     const { loading: dirLoading, projects } = useDirectoryData(
         screen === "details",
         "projects",
     );
-
     useEffect(() => {
         if (workflow) {
             setSelected(workflow);
@@ -58,30 +52,25 @@ export function UseWorkflowModal({
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workflow?.id]);
-
     useEffect(() => {
         if (screen === "select") {
             resetConfigureState();
         }
     }, [screen]);
-
     function resetConfigureState() {
         setInProject(false);
         setSelectedProjectId(null);
         setSelectedDocuments([]);
         setAssistantPrompt("");
     }
-
     function handleClose() {
         setSelected(null);
         setScreen(skipSelect ? "details" : "select");
         resetConfigureState();
         onClose();
     }
-
     if (!workflow) return null;
     const wf = selected ?? workflow;
-
     async function handleStartChat() {
         setSaving(true);
         try {
@@ -111,11 +100,9 @@ export function UseWorkflowModal({
             setSaving(false);
         }
     }
-
     async function handleCreateReview() {
         const docIds = selectedDocuments.map((document) => document.id);
         const projectId = inProject ? selectedProjectId! : undefined;
-
         setSaving(true);
         try {
             const review = await createTabularReview({
@@ -135,7 +122,6 @@ export function UseWorkflowModal({
             setSaving(false);
         }
     }
-
     const selectedProject = projects.find((p) => p.id === selectedProjectId);
     const projectDocs = selectedProject?.documents ?? [];
     const location = inProject ? "project" : "workspace";
@@ -152,7 +138,6 @@ export function UseWorkflowModal({
                       label: "Project tabular reviews",
                   },
               ];
-
     const breadcrumbs =
         screen === "select"
             ? ["Workflows", "Select workflow"]
@@ -164,8 +149,7 @@ export function UseWorkflowModal({
                           key="workflows"
                           type="button"
                           onClick={() => setScreen("select")}
-                          className="hover:text-gray-700"
-                      >
+                          className="hover:text-gray-700"                      >
                           Workflows
                       </button>
                   ),
@@ -173,7 +157,6 @@ export function UseWorkflowModal({
                   wf.metadata.type === "assistant" ? "New Chat" : "New Review",
                   screen === "details" ? "Details" : "Attach Documents",
               ];
-
     return (
         <Modal
             open={!!workflow}
@@ -238,7 +221,6 @@ export function UseWorkflowModal({
                     allowClearPreview
                 />
             )}
-
             {screen === "details" && (
                 <div className="flex min-h-0 flex-1 flex-col">
                     <div className="space-y-6">
@@ -254,7 +236,6 @@ export function UseWorkflowModal({
                                 options={locationOptions}
                             />
                         </div>
-
                         {inProject && (
                             <div>
                                 <ModalFieldLabel as="p">
@@ -272,7 +253,6 @@ export function UseWorkflowModal({
                                 />
                             </div>
                         )}
-
                         {wf.metadata.type === "assistant" && (
                             <div>
                                 <ModalFieldLabel htmlFor="workflow-additional-message">
@@ -292,7 +272,6 @@ export function UseWorkflowModal({
                     </div>
                 </div>
             )}
-
             {screen === "documents" && (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div className="flex min-h-0 flex-1 flex-col">

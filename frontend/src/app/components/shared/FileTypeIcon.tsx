@@ -5,7 +5,6 @@ export type FileTypeKind =
     | "ppt"
     | "image"
     | "other";
-
 const FILE_SYMBOLS: Record<FileTypeKind, string> = {
     pdf: "§",
     word: "≡",
@@ -14,7 +13,6 @@ const FILE_SYMBOLS: Record<FileTypeKind, string> = {
     image: "▧",
     other: "□",
 };
-
 export function fileTypeKind(value: string | null | undefined): FileTypeKind {
     const raw = (value ?? "").toLowerCase().trim();
     const ext = raw.includes("/")
@@ -29,7 +27,6 @@ export function fileTypeKind(value: string | null | undefined): FileTypeKind {
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "image";
     return "other";
 }
-
 export function FileTypeIcon({
     fileType,
     className = "h-3.5 w-3.5",
@@ -40,7 +37,6 @@ export function FileTypeIcon({
     muted?: boolean;
 }) {
     const kind = fileTypeKind(fileType);
-
     return (
         <span
             aria-hidden="true"

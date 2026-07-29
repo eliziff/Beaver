@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -10,9 +9,7 @@ import {
     restoreChat,
 } from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
-
 const RETENTION_DAYS = 30;
-
 function daysRemaining(chat: Chat) {
     const deleted = Date.parse(chat.deleted_at ?? "");
     if (!Number.isFinite(deleted)) return RETENTION_DAYS;
@@ -22,7 +19,6 @@ function daysRemaining(chat: Chat) {
         RETENTION_DAYS - Math.floor(elapsed / (24 * 60 * 60 * 1000)),
     );
 }
-
 export function RecyclingBinModal({
     open,
     onClose,
@@ -36,7 +32,6 @@ export function RecyclingBinModal({
     const [error, setError] = useState(false);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [pendingPermanent, setPendingPermanent] = useState<Chat | null>(null);
-
     useEffect(() => {
         if (!open) return;
         let active = true;
@@ -56,7 +51,6 @@ export function RecyclingBinModal({
             active = false;
         };
     }, [open]);
-
     async function handleRestore(chatId: string) {
         setBusyId(chatId);
         try {
@@ -69,7 +63,6 @@ export function RecyclingBinModal({
             setBusyId(null);
         }
     }
-
     async function handlePermanentDelete() {
         if (!pendingPermanent) return;
         const chatId = pendingPermanent.id;
@@ -84,7 +77,6 @@ export function RecyclingBinModal({
             setBusyId(null);
         }
     }
-
     return (
         <>
             <Modal

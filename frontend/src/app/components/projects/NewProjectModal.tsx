@@ -1,5 +1,4 @@
 "use client";
-
 import { useRef, useState } from "react";
 import { Upload, User, X } from "lucide-react";
 import {
@@ -16,13 +15,11 @@ import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectPracticeField } from "./ProjectPracticeField";
-
 interface Props {
     open: boolean;
     onClose: () => void;
     onCreated: (project: Project) => void;
 }
-
 export function NewProjectModal({ open, onClose, onCreated }: Props) {
     const [step, setStep] = useState<"details" | "documents">("details");
     const [name, setName] = useState("");
@@ -37,9 +34,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
     const { user } = useAuth();
     const ownEmail = user?.email?.trim().toLowerCase() ?? null;
     const formId = "new-project-modal-form";
-
     if (!open) return null;
-
     function submitterValue(e: React.FormEvent<HTMLFormElement>) {
         return (
             (e.nativeEvent as SubmitEvent).submitter as
@@ -47,14 +42,12 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                 | null
         )?.value;
     }
-
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files ?? []);
         e.target.value = "";
         if (!files.length) return;
         setPendingFiles((prev) => [...prev, ...files.filter((f) => !prev.some((p) => p.name === f.name))]);
     }
-
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (!name.trim()) return;
@@ -95,7 +88,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
             setLoading(false);
         }
     }
-
     function resetForm() {
         setStep("details");
         setName("");
@@ -106,12 +98,10 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
         setPendingFiles([]);
         setError("");
     }
-
     function handleClose() {
         resetForm();
         onClose();
     }
-
     function validateShareUser(email: string) {
         if (ownEmail && email === ownEmail) {
             return "You cannot share a project with yourself.";
@@ -125,7 +115,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
         }
         return null;
     }
-
     function handleAddShareUser(user: UserLookupResult) {
         setSharedUsers((prev) => [
             ...prev,
@@ -135,7 +124,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
             },
         ]);
     }
-
     function handleRemoveShareUser(email: string) {
         setSharedUsers((prev) =>
             prev.filter(
@@ -145,7 +133,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
             ),
         );
     }
-
     return (
         <Modal
             open={open}
@@ -223,7 +210,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                 autoFocus
                             />
                         </div>
-
                         <div>
                             <ModalFieldLabel htmlFor="new-project-cm-number">
                                 CM number
@@ -238,7 +224,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                 className="text-xl text-gray-600"
                             />
                         </div>
-
                         <div>
                             <ModalFieldLabel htmlFor="new-project-practice">
                                 Practice
@@ -249,7 +234,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                 onChange={setPractice}
                             />
                         </div>
-
                         <div className="space-y-2">
                             <ModalFieldLabel as="p">
                                 Share with
@@ -319,7 +303,6 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                         />
                     </div>
                 )}
-
                 {error && (
                     <p className="mt-3 text-sm text-red-500">{error}</p>
                 )}

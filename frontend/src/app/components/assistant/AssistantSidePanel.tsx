@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
@@ -23,7 +22,6 @@ import {
     horizontalDrag,
 } from "@/app/components/ui/horizontal-drag";
 import { AutomationRunPanel } from "./AutomationRun";
-
 type CommonTab = {
     id: string;
     documentId: string;
@@ -33,26 +31,21 @@ type CommonTab = {
     warning?: string | null;
     initialScrollTop?: number | null;
 };
-
 export type DocumentTab = CommonTab & { kind: "document" };
-
 export type CitationTab = CommonTab & {
     kind: "citation";
     citation: Citation;
 };
-
 export type EditTab = CommonTab & {
     kind: "edit";
     edit: EditAnnotation;
     changeNumber?: number;
 };
-
 export type AutomationTab = {
     kind: "automation";
     id: string;
     run: AutomationRunEvent;
 };
-
 export type AssistantSidePanelTab =
     | DocumentTab
     | CitationTab
@@ -60,7 +53,6 @@ export type AssistantSidePanelTab =
     | CaseTab
     | LegalSourceTab
     | AutomationTab;
-
 interface Props {
     tabs: AssistantSidePanelTab[];
     activeTabId: string | null;
@@ -68,17 +60,7 @@ interface Props {
     onActivateTab: (id: string) => void;
     onCloseTab: (id: string) => void;
     onCloseAll: () => void;
-    /**
-     * Parent-driven reloading flag per document. Download buttons in
-     * DocPanel show a spinner iff this returns true for the tab's
-     * documentId. Used to signal "accept/reject in flight".
-     */
     isEditorReloading?: (documentId: string) => boolean;
-    /**
-     * True while an accept/reject for this exact edit is in flight.
-     * Disables the panel's Accept/Reject buttons for only the edit
-     * currently being resolved — sibling edits stay clickable.
-     */
     isEditReloading?: (editId: string) => boolean;
     onEditResolveStart?: (args: {
         editId: string;
@@ -101,11 +83,9 @@ interface Props {
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
 }
-
 const MIN_WIDTH = 300;
 const MAX_WIDTH_OFFSET = 56;
 const MIN_CHAT_WIDTH = 400;
-
 function maxPanelWidth() {
     if (typeof window === "undefined") return 600;
     return Math.max(
@@ -113,7 +93,6 @@ function maxPanelWidth() {
         window.innerWidth - MAX_WIDTH_OFFSET - MIN_CHAT_WIDTH,
     );
 }
-
 function tabTitle(tab: AssistantSidePanelTab): string {
     if (tab.kind === "automation") return "Automation";
     if (tab.kind === "case") {
@@ -124,7 +103,6 @@ function tabTitle(tab: AssistantSidePanelTab): string {
     }
     return tab.filename;
 }
-
 export function AssistantSidePanel({
     tabs,
     activeTabId,
@@ -153,7 +131,6 @@ export function AssistantSidePanel({
             Math.min(maxPanelWidth(), Math.max(MIN_WIDTH, width - deltaX)),
         ),
     );
-
     useEffect(() => {
         const onResize = () => {
             setPanelWidth((width) =>
@@ -164,10 +141,8 @@ export function AssistantSidePanel({
         onResize();
         return () => window.removeEventListener("resize", onResize);
     }, []);
-
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
     if (!active) return null;
-
     return (
         <div
             className={cn(
@@ -187,7 +162,6 @@ export function AssistantSidePanel({
                 )}
                 style={{ marginLeft: -2 }}
             />
-
             <div className="flex items-start gap-2 border-b border-gray-300 bg-gray-100 p-2">
                 <div className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto">
                     {tabs.map((tab) => {
@@ -252,7 +226,6 @@ export function AssistantSidePanel({
                     <X className="h-4 w-4" />
                 </button>
             </div>
-
             {/* Tab bodies — all mounted, inactive ones hidden. Each tab
                 preserves its state (scroll, docx-preview render, etc.)
                 when inactive. */}

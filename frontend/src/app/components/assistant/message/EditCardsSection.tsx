@@ -1,21 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { apiFetch } from "@/app/lib/beaverApi";
-import type { EditAnnotation } from "../../shared/types";
+import { apiFetch } from "@/app/lib/beaverApi";import type { EditAnnotation } from "../../shared/types";
 import { applyOptimisticResolution } from "../EditCard";
-
-/**
- * Card rendered above the per-edit EditCards when a message produced
- * multiple tracked-change proposals. Lets the user resolve every pending
- * edit in one click by firing the per-edit accept/reject endpoint for each
- * pending annotation and forwarding each response to `onResolved` so the
- * parent can bump the viewer version, persist override URLs, etc.
- *
- * This intentionally doesn't apply the optimistic DOM mutation that
- * EditCard does — bulk operations touch many edits at once and the real
- * re-render from the latest version will reconcile within a second or so.
- */
 function BulkEditActions({
     pending,
     onViewClick,
@@ -52,16 +39,12 @@ function BulkEditActions({
         done: number;
         total: number;
     } | null>(null);
-
     if (pending.length === 0) return null;
-
     const handleAll = async (verb: "accept" | "reject") => {
         if (busy) return;
         setBusy(verb);
         setProgress({ done: 0, total: pending.length });
         try {
-            // Sequential so the per-document version counter advances in a
-            // predictable order and the viewer doesn't race between bumps.
             let done = 0;
             for (const { annotation } of pending) {
                 onResolveStart?.({
@@ -69,8 +52,6 @@ function BulkEditActions({
                     documentId: annotation.document_id,
                     verb,
                 });
-                // Optimistically mutate the DOM so the viewer reflects the
-                // resolution immediately. Revert if the backend call fails.
                 let revert: (() => void) | null = null;
                 try {
                     revert = applyOptimisticResolution(annotation, verb);
@@ -81,11 +62,7 @@ function BulkEditActions({
                     );
                 }
                 try {
-                    const resp = await apiFetch(
-                        `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
-                        { method: "POST" },
-                    );
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const resp = await apiFetch(                        `/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,                        { method: "POST" },                    );                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     const data = (await resp.json()) as {
                         ok: boolean;
                         status?: "accepted" | "rejected";
@@ -130,11 +107,7 @@ function BulkEditActions({
             setProgress(null);
         }
     };
-
-    // Optional: show a tiny "View first" action so bulk doesn't lose the
-    // in-viewer scroll-to behaviour entirely.
     const first = pending[0];
-
     return (
         <div className="flex items-center gap-2">
             <PillButton
@@ -166,8 +139,7 @@ function BulkEditActions({
             )}
             {onViewClick && first && (
                 <PillButton
-                    tone="black"
-                    size="sm"
+                    tone="black"                    size="sm"
                     onClick={() =>
                         onViewClick(first.annotation, first.filename)
                     }
@@ -180,12 +152,6 @@ function BulkEditActions({
         </div>
     );
 }
-
-/**
- * Wraps the bulk accept/reject card and the per-edit EditCards in a single
- * minimisable container. The bulk actions and summary stay visible in the
- * header; the individual cards collapse via the chevron toggle.
- */
 export function EditCardsSection({
     pending,
     filenameByDocId,
@@ -225,7 +191,6 @@ export function EditCardsSection({
 }) {
     const [isOpen, setIsOpen] = useState(true);
     if (cards.length === 0) return null;
-
     const docCount = filenameByDocId.size;
     const summary =
         pending.length > 0
@@ -235,7 +200,6 @@ export function EditCardsSection({
             : docCount > 1
               ? `${resolvedCount} resolved tracked changes across ${docCount} documents`
               : `${resolvedCount} resolved tracked ${resolvedCount === 1 ? "change" : "changes"}`;
-
     return (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             {/* Row 1: summary + chevron */}

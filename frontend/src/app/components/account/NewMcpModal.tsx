@@ -1,5 +1,4 @@
 "use client";
-
 import { Check, ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { Modal } from "@/app/components/modals/Modal";
@@ -8,16 +7,13 @@ import {
     accountGlassIconButtonClassName,
     accountGlassInputClassName,
 } from "@/app/(pages)/account/accountStyles";
-
 export type McpConnectorDraft = {
     name: string;
     serverUrl: string;
     bearerToken: string;
     customHeaders: string;
 };
-
 export type NewMcpStep = "form" | "working" | "auth" | "success";
-
 interface NewMcpModalProps {
     open: boolean;
     draft: McpConnectorDraft;
@@ -34,7 +30,6 @@ interface NewMcpModalProps {
     onSubmit: () => Promise<void>;
     onOpenConnector: (connectorId: string) => void;
 }
-
 export function NewMcpModal({
     open,
     draft,
@@ -56,7 +51,6 @@ export function NewMcpModal({
         draft.serverUrl.trim().length > 0 &&
         step !== "working" &&
         step !== "auth";
-
     return (
         <Modal
             open={open}
@@ -137,7 +131,6 @@ export function NewMcpModal({
         </Modal>
     );
 }
-
 export function McpConnectorFields({
     draft,
     showToken,
@@ -321,7 +314,6 @@ export function McpConnectorFields({
         </div>
     );
 }
-
 function NewMcpSuccess({ connector }: { connector: McpConnectorSummary }) {
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col gap-4 pb-4">
@@ -361,7 +353,6 @@ function NewMcpSuccess({ connector }: { connector: McpConnectorSummary }) {
         </div>
     );
 }
-
 function NewMcpAuth({ message }: { message: string }) {
     return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 pb-4 text-center">

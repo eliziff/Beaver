@@ -1,15 +1,12 @@
 "use client";
-
 import { createPortal } from "react-dom";
 import { WarningPopup } from "../popups/WarningPopup";
-
 interface Props {
     open: boolean;
     label?: string;
     warning?: string | null;
     onWarningClose?: () => void;
 }
-
 export function UploadOverlay({
     open,
     label = "Drop files here to add to chat",

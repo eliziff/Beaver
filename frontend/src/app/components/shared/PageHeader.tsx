@@ -1,5 +1,4 @@
 "use client";
-
 import {
     type ButtonHTMLAttributes,
     type ReactNode,
@@ -11,7 +10,6 @@ import {
     APP_SURFACE_HOVER_CLASS,
     APP_SURFACE_PRESSED_CLASS,
 } from "@/app/components/ui/liquid-surface";
-
 export interface PageHeaderBreadcrumb {
     label?: ReactNode;
     onClick?: () => void;
@@ -19,7 +17,6 @@ export interface PageHeaderBreadcrumb {
     skeletonClassName?: string;
     title?: string;
 }
-
 type PageHeaderButtonAction = {
     type?: never;
     icon?: ReactNode;
@@ -29,14 +26,12 @@ type PageHeaderButtonAction = {
     title?: string;
     iconOnly?: boolean;
 };
-
 type PageHeaderSearchAction = {
     type: "search";
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
 };
-
 type PageHeaderNewAction = {
     type: "new";
     onClick?: () => void;
@@ -44,22 +39,18 @@ type PageHeaderNewAction = {
     loading?: boolean;
     title?: string;
 };
-
 type PageHeaderCustomAction = {
     type: "custom";
     render: ReactNode;
 };
-
 export type PageHeaderAction =
     | PageHeaderButtonAction
     | PageHeaderSearchAction
     | PageHeaderNewAction
     | PageHeaderCustomAction;
-
 type MaybePageHeaderAction = PageHeaderAction | null | false | undefined;
 const CONTROL_CLASS =
     "flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400";
-
 interface PageHeaderProps {
     children?: ReactNode;
     actions?: MaybePageHeaderAction[];
@@ -67,7 +58,6 @@ interface PageHeaderProps {
     breadcrumbs?: PageHeaderBreadcrumb[];
     loading?: boolean;
 }
-
 export function PageHeader({
     children,
     actions,
@@ -84,7 +74,6 @@ export function PageHeader({
         loading || !!breadcrumbs?.some((item) => item.loading);
     const actionItems = actions?.filter(isPresentAction) ?? [];
     const hasActions = actionItems.length > 0;
-
     return (
         <div
             className={cn(
@@ -106,7 +95,6 @@ export function PageHeader({
         </div>
     );
 }
-
 function PageHeaderActions({
     actions,
     actionsDisabled,
@@ -126,11 +114,9 @@ function PageHeaderActions({
         </div>
     );
 }
-
 function isPresentAction(action: MaybePageHeaderAction): action is PageHeaderAction {
     return Boolean(action);
 }
-
 function PageHeaderActionRenderer({
     action,
     disabled,
@@ -173,7 +159,6 @@ function PageHeaderActionRenderer({
             );
     }
 }
-
 function PageHeaderButtonActionControl({
     action,
     disabled,
@@ -195,7 +180,6 @@ function PageHeaderButtonActionControl({
         </PageHeaderActionButton>
     );
 }
-
 function PageHeaderNewActionControl({
     action,
     disabled,
@@ -222,7 +206,6 @@ function PageHeaderNewActionControl({
         </PageHeaderActionButton>
     );
 }
-
 function PageHeaderSearchActionControl({
     action,
     disabled,
@@ -231,7 +214,6 @@ function PageHeaderSearchActionControl({
     disabled: boolean;
 }) {
     const placeholder = action.placeholder ?? "Search\u2026";
-
     return (
         <div
             className={cn(
@@ -255,14 +237,12 @@ function PageHeaderSearchActionControl({
         </div>
     );
 }
-
 type PageHeaderActionButtonProps = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     "className"
 > & {
     iconOnly?: boolean;
 };
-
 function PageHeaderActionButton({
     children,
     iconOnly = false,
@@ -285,13 +265,11 @@ function PageHeaderActionButton({
         </button>
     );
 }
-
 function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
     const parent = [...items]
         .slice(0, -1)
         .reverse()
         .find((item) => item.onClick);
-
     return (
         <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 text-2xl font-medium font-serif md:flex-1">
             {parent?.onClick && (
@@ -316,7 +294,6 @@ function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
         </div>
     );
 }
-
 function BreadcrumbItem({
     item,
     current,
@@ -334,7 +311,6 @@ function BreadcrumbItem({
     ) : (
         <span className="truncate">{item.label}</span>
     );
-
     const className = cn(
         "min-w-0 truncate",
         current && "w-full",
@@ -348,7 +324,6 @@ function BreadcrumbItem({
         "min-w-0 items-center gap-1.5",
         current ? "flex flex-1" : "hidden max-w-40 sm:flex",
     );
-
     return (
         <span className={wrapperClassName}>
             {current ? (

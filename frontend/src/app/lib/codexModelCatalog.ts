@@ -2,13 +2,11 @@ import {
     getCodexModelCatalog,
     type CodexModelCatalog,
 } from "@/app/lib/beaverApi";
-
 const STORAGE_KEY = "mike.codexModelCatalog.v1";
 const REFRESH_MS = 30_000;
 let catalog: CodexModelCatalog | null = null;
 let refreshedAt = 0;
 let pending: Promise<CodexModelCatalog> | null = null;
-
 function readCachedCatalog() {
     if (typeof window === "undefined") return null;
     try {
@@ -29,7 +27,6 @@ function readCachedCatalog() {
         return null;
     }
 }
-
 function cacheCatalog(value: CodexModelCatalog) {
     if (typeof window === "undefined" || value.models.length === 0) return;
     try {
@@ -39,11 +36,9 @@ function cacheCatalog(value: CodexModelCatalog) {
         );
     } catch {}
 }
-
 export function getSessionCodexModelCatalog() {
     return catalog;
 }
-
 export function preloadCodexModelCatalog() {
     catalog ??= readCachedCatalog();
     if (catalog && Date.now() - refreshedAt < REFRESH_MS) {
@@ -74,7 +69,6 @@ export function preloadCodexModelCatalog() {
         });
     return pending;
 }
-
 export function resetCodexModelCatalogSession() {
     catalog = null;
     refreshedAt = 0;

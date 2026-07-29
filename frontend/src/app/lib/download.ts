@@ -6,7 +6,6 @@ export function downloadUrl(url: string, filename: string) {
     anchor.click();
     anchor.remove();
 }
-
 export function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     downloadUrl(url, filename);

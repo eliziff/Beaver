@@ -1,33 +1,27 @@
 "use client";
-
 import { Fragment, type FormEvent, useState } from "react";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
-
 export interface LegalResearchGraphNode {
     id: string;
     kind: string;
     name: string;
     color?: string;
 }
-
 export interface LegalResearchGraphEdge {
     sourceId: string;
     targetId: string;
     kind: string;
 }
-
 export interface LegalResearchProjectChoice {
     id: string;
     name: string;
 }
-
 export interface CreateLegalResearchLabelInput {
     name: string;
     color: string;
     parentId: string | null;
 }
-
 export interface LegalResearchLabelsPanelProps {
     nodes: readonly LegalResearchGraphNode[];
     edges: readonly LegalResearchGraphEdge[];
@@ -42,7 +36,6 @@ export interface LegalResearchLabelsPanelProps {
     onSave?: () => void;
     isSaving?: boolean;
 }
-
 function labelPaths(
     nodes: readonly LegalResearchGraphNode[],
     edges: readonly LegalResearchGraphEdge[],
@@ -50,7 +43,6 @@ function labelPaths(
     const labels = nodes.filter((node) => node.kind === "label");
     const labelsById = new Map(labels.map((node) => [node.id, node]));
     const parentByChild = new Map<string, string>();
-
     for (const edge of edges) {
         if (
             edge.kind === "parent" &&
@@ -61,22 +53,18 @@ function labelPaths(
             parentByChild.set(edge.sourceId, edge.targetId);
         }
     }
-
     return labels.map((node) => {
         const path: LegalResearchGraphNode[] = [];
         const visited = new Set<string>();
         let current: LegalResearchGraphNode | undefined = node;
-
         while (current && !visited.has(current.id)) {
             visited.add(current.id);
             path.unshift(current);
             current = labelsById.get(parentByChild.get(current.id) ?? "");
         }
-
         return { node, path };
     });
 }
-
 export function LegalResearchLabelsPanel({
     nodes,
     edges,
@@ -97,7 +85,6 @@ export function LegalResearchLabelsPanel({
     const assignedLabelCount = paths.filter(({ node }) =>
         assigned.has(node.id),
     ).length;
-
     function toggleNode(nodeId: string) {
         onAssignedNodeIdsChange(
             assigned.has(nodeId)
@@ -105,16 +92,13 @@ export function LegalResearchLabelsPanel({
                 : [...assignedNodeIds, nodeId],
         );
     }
-
     function createLabel(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (!onCreateLabel) return;
-
         const form = event.currentTarget;
         const data = new FormData(form);
         const name = String(data.get("name") ?? "").trim();
         if (!name) return;
-
         const parentId = String(data.get("parentId") ?? "");
         onCreateLabel({
             name,
@@ -124,7 +108,6 @@ export function LegalResearchLabelsPanel({
         form.reset();
         setNewParentId("");
     }
-
     return (
         <section
             aria-label="Mark source"
@@ -139,7 +122,6 @@ export function LegalResearchLabelsPanel({
                     {assignedLabelCount} selected
                 </span>
             </div>
-
             {projectChoices?.length ? (
                 <label
                     htmlFor="legal-research-project"
@@ -165,7 +147,6 @@ export function LegalResearchLabelsPanel({
                     />
                 </label>
             ) : null}
-
             <fieldset className="mt-4 min-w-0">
                 <legend className="mb-2 text-sm font-medium text-gray-800">
                     Labels
@@ -177,7 +158,6 @@ export function LegalResearchLabelsPanel({
                             const pathName = path
                                 .map((part) => part.name)
                                 .join(" › ");
-
                             return (
                                 <label
                                     key={node.id}
@@ -232,7 +212,6 @@ export function LegalResearchLabelsPanel({
                     <p className="text-sm text-gray-500">No labels yet.</p>
                 )}
             </fieldset>
-
             {onCreateLabel ? (
                 <details className="mt-3 rounded-md border border-gray-200 bg-gray-50">
                     <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-800">
@@ -302,7 +281,6 @@ export function LegalResearchLabelsPanel({
                     </form>
                 </details>
             ) : null}
-
             <label className="mt-4 block min-w-0 text-sm font-medium text-gray-800">
                 Note
                 <textarea
@@ -313,7 +291,6 @@ export function LegalResearchLabelsPanel({
                     placeholder="Add a note"
                 />
             </label>
-
             {onSave ? (
                 <div className="mt-4 flex justify-end">
                     <button
