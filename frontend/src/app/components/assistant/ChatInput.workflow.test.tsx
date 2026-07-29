@@ -41,7 +41,6 @@ vi.mock("../modals/AddDocumentsModal", () => ({
 vi.mock("./AssistantWorkflowModal", () => ({
     AssistantWorkflowModal: () => null,
 }));
-vi.mock("./UploadOverlay", () => ({ UploadOverlay: () => null }));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
     ApiKeyMissingPopup: () => null,
 }));
