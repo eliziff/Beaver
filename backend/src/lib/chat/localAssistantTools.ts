@@ -64,6 +64,7 @@ import {
   executeA2AJTool,
 } from "./tools/a2ajTools";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
+import { executeHansardTool, HANSARD_TOOLS } from "./tools/hansardTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
   createPublicLegalSourceState,
@@ -568,6 +569,7 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
         ...(COURTLISTENER_TOOLS as OpenAIToolSchema[]),
         ...(A2AJ_TOOLS as OpenAIToolSchema[]),
         ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
+        ...HANSARD_TOOLS,
       ]),
 ];
 
@@ -1222,13 +1224,14 @@ export async function runLocalAssistantTools(
             },
           });
           if (!version) return fail(call, "version_id is no longer active");
-          // Markup deliverables get deterministic same-turn feedback: the
-          // structural lint runs on the freshly produced version.
-          const lint = annotate
-            ? await lintLocalDocxStructure(userId, documentId, version.id).catch(
-                () => null,
-              )
-            : null;
+          // Every revision gets deterministic same-turn feedback: the
+          // structural lint runs on the freshly produced version (the
+          // determinism plan's receipt hook — not gated on annotate).
+          const lint = await lintLocalDocxStructure(
+            userId,
+            documentId,
+            version.id,
+          ).catch(() => null);
           const downloadUrl =
             `/single-documents/${encodeURIComponent(documentId)}/file` +
             `?version_id=${encodeURIComponent(version.id)}`;
@@ -1245,9 +1248,11 @@ export async function runLocalAssistantTools(
             source_sha256: version.source_sha256,
             change_count: edited.changes.length,
             comment_count: edited.comments,
-            edits_without_reason: annotate
-              ? edits.filter((edit) => !edit.reason?.trim()).length
-              : undefined,
+            // Counted on every revision so rationale coverage is a
+            // measurable variable (annotate mode forces it to zero by
+            // rejecting reason-free edits).
+            edits_without_reason: edits.filter((edit) => !edit.reason?.trim())
+              .length,
             structural_lint: lint
               ? {
                   finding_count: lint.findings.length,
@@ -1878,6 +1883,9 @@ export async function runLocalAssistantTools(
           );
         }
       }
+
+      const hansard = executeHansardTool(call.name, args);
+      if (hansard) return result(call, hansard);
 
       const a2aj = await executeA2AJTool(call.name, args);
       if (a2aj) {
