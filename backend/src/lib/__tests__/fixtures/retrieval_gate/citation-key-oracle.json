@@ -1,0 +1,425 @@
+{
+  "generated": "2026-07-28",
+  "oracle": "local_a2aj._citation_lookup_key + LocalA2AJCorpus._exact_rows",
+  "corpus_revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "citation_keys": [
+    {
+      "input": "RSA 2000, c A-4.2",
+      "oracle_key": "rsa2000ca4dot2"
+    },
+    {
+      "input": "R.S.O. 1990, c. A.13",
+      "oracle_key": "rso1990ca13"
+    },
+    {
+      "input": "SOR/86-1078",
+      "oracle_key": "sor86dash1078"
+    },
+    {
+      "input": "SOR/97-555",
+      "oracle_key": "sor97dash555"
+    },
+    {
+      "input": "SI/2019-25",
+      "oracle_key": "si2019dash25"
+    },
+    {
+      "input": "RSC 1985, c I-21",
+      "oracle_key": "rsc1985ci21"
+    },
+    {
+      "input": "RSC 1985, c I‑21",
+      "oracle_key": "rsc1985ci21"
+    },
+    {
+      "input": "2019–2020 Interim Act",
+      "oracle_key": "2019dash2020interimact"
+    },
+    {
+      "input": "2019—2020 Interim Act",
+      "oracle_key": "2019dash2020interimact"
+    },
+    {
+      "input": "Loi de 2001, ch  32",
+      "oracle_key": "loide2001ch32"
+    },
+    {
+      "input": "Québec Official Publisher Act",
+      "oracle_key": "qubecofficialpublisheract"
+    },
+    {
+      "input": "ＲＳＣ １９８５",
+      "oracle_key": "rsc1985"
+    },
+    {
+      "input": "Oﬃce Consolidation Act",
+      "oracle_key": "officeconsolidationact"
+    },
+    {
+      "input": "Straße Act 2000",
+      "oracle_key": "strasseact2000"
+    },
+    {
+      "input": "  RSBC 1996,   c 37  ",
+      "oracle_key": "rsbc1996c37"
+    },
+    {
+      "input": "",
+      "oracle_key": ""
+    },
+    {
+      "input": "RSC 1927, c 124",
+      "oracle_key": "rsc1927c124"
+    },
+    {
+      "input": "RSC 1985, c A-13",
+      "oracle_key": "rsc1985ca13"
+    },
+    {
+      "input": "RSC 1985, c D-4",
+      "oracle_key": "rsc1985cd4"
+    },
+    {
+      "input": "RSC 1985, c M-9",
+      "oracle_key": "rsc1985cm9"
+    },
+    {
+      "input": "RSC 1985, c T-18",
+      "oracle_key": "rsc1985ct18"
+    },
+    {
+      "input": "SC 1991, c 16",
+      "oracle_key": "sc1991c16"
+    },
+    {
+      "input": "SC 1994, c 34",
+      "oracle_key": "sc1994c34"
+    },
+    {
+      "input": "SC 1997, c 33",
+      "oracle_key": "sc1997c33"
+    },
+    {
+      "input": "SC 2002, c 25",
+      "oracle_key": "sc2002c25"
+    },
+    {
+      "input": "SC 2006, c 10",
+      "oracle_key": "sc2006c10"
+    },
+    {
+      "input": "SC 2013, c 14, s 11",
+      "oracle_key": "sc2013c14s11"
+    },
+    {
+      "input": "SC 2019, c 13, s 50",
+      "oracle_key": "sc2019c13s50"
+    },
+    {
+      "input": "RSO 1990, c A13",
+      "oracle_key": "rso1990ca13"
+    },
+    {
+      "input": "RSO 1990, c D10",
+      "oracle_key": "rso1990cd10"
+    },
+    {
+      "input": "RSO 1990, c H5",
+      "oracle_key": "rso1990ch5"
+    },
+    {
+      "input": "RSO 1990, c M41",
+      "oracle_key": "rso1990cm41"
+    },
+    {
+      "input": "RSO 1990, c P51",
+      "oracle_key": "rso1990cp51"
+    },
+    {
+      "input": "SO 1992, c 18",
+      "oracle_key": "so1992c18"
+    },
+    {
+      "input": "SO 1997, c 27",
+      "oracle_key": "so1997c27"
+    },
+    {
+      "input": "SO 2002, c 16",
+      "oracle_key": "so2002c16"
+    },
+    {
+      "input": "SO 2006, c 34, Sched A",
+      "oracle_key": "so2006c34scheda"
+    },
+    {
+      "input": "SO 2011, c 10",
+      "oracle_key": "so2011c10"
+    },
+    {
+      "input": "SO 2016, c 6, Sched 2",
+      "oracle_key": "so2016c6sched2"
+    },
+    {
+      "input": "SO 2020, c 11, Sched 15",
+      "oracle_key": "so2020c11sched15"
+    },
+    {
+      "input": "RSBC 1996, c 112",
+      "oracle_key": "rsbc1996c112"
+    },
+    {
+      "input": "RSBC 1996, c 219",
+      "oracle_key": "rsbc1996c219"
+    },
+    {
+      "input": "RSBC 1996, c 287",
+      "oracle_key": "rsbc1996c287"
+    },
+    {
+      "input": "RSBC 1996, c 37",
+      "oracle_key": "rsbc1996c37"
+    },
+    {
+      "input": "RSBC 1996, c 448",
+      "oracle_key": "rsbc1996c448"
+    },
+    {
+      "input": "RSBC 1996, c 86",
+      "oracle_key": "rsbc1996c86"
+    },
+    {
+      "input": "SBC 2002, c 29",
+      "oracle_key": "sbc2002c29"
+    },
+    {
+      "input": "SBC 2004, c 15",
+      "oracle_key": "sbc2004c15"
+    },
+    {
+      "input": "SBC 2007, c 39",
+      "oracle_key": "sbc2007c39"
+    },
+    {
+      "input": "SBC 2012, c 29",
+      "oracle_key": "sbc2012c29"
+    },
+    {
+      "input": "SBC 2016, c 1",
+      "oracle_key": "sbc2016c1"
+    },
+    {
+      "input": "SBC 2021, c 7",
+      "oracle_key": "sbc2021c7"
+    },
+    {
+      "input": "RSA 2000, c A-11",
+      "oracle_key": "rsa2000ca11"
+    },
+    {
+      "input": "RSA 2000, c C-30",
+      "oracle_key": "rsa2000cc30"
+    },
+    {
+      "input": "RSA 2000, c F-26",
+      "oracle_key": "rsa2000cf26"
+    },
+    {
+      "input": "RSA 2000, c J-4",
+      "oracle_key": "rsa2000cj4"
+    },
+    {
+      "input": "RSA 2000, c N-3",
+      "oracle_key": "rsa2000cn3"
+    },
+    {
+      "input": "RSA 2000, c P-42",
+      "oracle_key": "rsa2000cp42"
+    },
+    {
+      "input": "RSA 2000, c S-2",
+      "oracle_key": "rsa2000cs2"
+    },
+    {
+      "input": "SA 2001, c E-5.5",
+      "oracle_key": "sa2001ce5dot5"
+    },
+    {
+      "input": "SA 2006, c L-16.2",
+      "oracle_key": "sa2006cl16dot2"
+    },
+    {
+      "input": "SA 2009, c A-26.8",
+      "oracle_key": "sa2009ca26dot8"
+    },
+    {
+      "input": "SA 2015, c S-29",
+      "oracle_key": "sa2015cs29"
+    },
+    {
+      "input": "SA 2021, c C-2.4",
+      "oracle_key": "sa2021cc2dot4"
+    }
+  ],
+  "exact_gold": [
+    {
+      "citation": "RSA 2000, c A-11",
+      "citation_key": "rsa2000ca11",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act,\n(a) “Director” means the person designated by the Minister as the Director for the purposes of this Act;\n(b) “Minister” means the Minister determined under section 16 of the Government Organization Act as the Minister responsible for this Act;\n(c) “society” means\n(i) an agricultural society organized under this Act or under The Agricultural Societies Ordinance , ONWT 1903 c17, or any earlier ordinance relating to agricultural societies, or\n(ii) an organization designated in the regulations as a society for the purposes of this Act;\n(iii) to (vi) repealed 2015 c4 s2;\n(d) “special resolution” means\n(i) a resolution passed\n(A) at a meeting of which not less than 21 days’ notice specifying the intention to propose the resolution has been duly given, and\n(B) by the vote of not less than 75% of members who are entitled to vote and do so, in person or by proxy,\n(ii) a resolution proposed and passed as a special resolution at a meeting of which less than 21 days’ notice has been given, if all the members entitled to attend and vote at the meeting so agree, or\n(iii) a resolution consented to in writing by all the members who would have been entitled to vote on the resolution in person or by proxy, at a meeting.",
+        "sec8.1": "A member of a society is not, in the member’s individual capacity, liable for any debt or liability of the society.",
+        "sec28": "(1) A society may not hold real estate outside Alberta.\n(2) The directors shall not sell, mortgage, lease for over one year or otherwise dispose of any real property owned by the society unless authorized to do so by a special resolution.\n(3) Repealed 2006 c9 s5.\n(4) The Director may, by written notice to a society, prohibit the society from encumbering or disposing of real property without the permission of the Director."
+      }
+    },
+    {
+      "citation": "RSA 2000, c C-30",
+      "citation_key": "rsa2000cc30",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act,\n(a) “Court” means the Court of Appeal of Alberta;\n(b) “judge” includes a supernumerary judge of the Court of Appeal of Alberta.",
+        "sec5": "Each judge, before entering on the duties of that office, shall take the oath prescribed by the Oaths of Office Act before the Lieutenant Governor, the Chief Justice of Alberta or the Chief Justice of the Court of King’s Bench.",
+        "sec13": "In accordance with the Public Service Act , there may be appointed Registrars, Deputy Registrars and case management officers of the Court and all other officers and employees that the business of the Court requires."
+      }
+    },
+    {
+      "citation": "RSA 2000, c F-26",
+      "citation_key": "rsa2000cf26",
+      "found": true,
+      "sections": {
+        "sec2": "(1) A tax in respect of each taxable mineral right, calculated by the Minister in accordance with the regulations, shall be paid to the Crown in right of Alberta in respect of each taxation year.\n(2) The tax in respect of a taxation year must be paid in accordance with the regulations on or before the prescribed date for payment.",
+        "sec5.1": "(1) On the filing of the material referred to in section 5(1) to (5), the matter is deemed to be an action in the Court.\n(2) A fact or statutory provision not set out in the notice of appeal or reply may be pleaded or referred to in any manner and on any terms that the Court directs.\n(3) The Court may\n(a) dismiss the appeal, or\n(b) allow the appeal and\n(i) vary the amount of the tax, interest or penalty payable, or\n(ii) order that no tax, interest or penalty is payable,\nand order the Minister to refund any or all of the tax, interest or penalty.",
+        "sec12.1": "(1) Where all or part of an amount that is payable in respect of a penalty assessed under section 8.1 has not been paid, the Minister may issue a certificate stating the amount that has not been paid.\n(2) A certificate issued under subsection (1) may be filed in the Court as if it were a judgment of the Court.\n(3) When a certificate issued under subsection (1) is filed in the Court,\n(a) the certificate has the same force and effect as if it were a judgment of the Court in the amount stated in the certificate, together with interest, to the day of payment, and\n(b) proceedings may be taken to enforce payment of the amount owing as stated in the certificate in the same manner as if the certificate were a judgment of the Court."
+      }
+    },
+    {
+      "citation": "RSA 2000, c J-4",
+      "citation_key": "rsa2000cj4",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act,\n(a) “Chief Justice” means the Chief Justice of the Alberta Court of Justice;\n(b) “Judicial Council” means the Judicial Council established under Part 6 of the Judicature Act ;\n(b.1) “justice of the peace” means a justice of the peace who is appointed or approved to continue in office under this Act as a justice of the peace and includes an ad hoc justice of the peace;\n(b.2) “Minister” means the Minister determined under section 16 of the Government Organization Act as the Minister responsible for this Act;\n(c) “non-presiding justice of the peace” means a justice of the peace who is appointed by the Minister under section 5(1);\n(d), (e) repealed 2011 c20 s8.",
+        "sec5": "(1) The Minister may appoint a person as a justice of the peace designated as a non-presiding justice of the peace.\n(2) A non-presiding justice of the peace is appointed as a justice of the peace solely for the purposes of exercising the following, to the extent that their exercise is consistent with the constitutional requirements for independence, if any:\n(a) administering oaths or affirmations or taking declarations;\n(b) processing judicial interim release orders;\n(c) adjourning cases where a judge of the Court of Justice or a justice of the peace is not present;\n(d) performing any other functions and duties prescribed by the regulations.",
+        "sec10.1": "Unless otherwise authorized by the Lieutenant Governor in Council,\n(a) a justice of the peace who is designated as a full-time justice of the peace shall not practise law;\n(b) a justice of the peace who is designated as a part-time justice of the peace shall not practise criminal law or family law, appear as counsel on any matter in the Alberta Court of Justice, represent any client in any proceeding involving the Government of Alberta or the Government of Canada, or represent the Government of Alberta or the Government of Canada in any proceeding."
+      }
+    },
+    {
+      "citation": "RSBC 1996, c 112",
+      "citation_key": "rsbc1996c112",
+      "found": true,
+      "sections": {
+        "sec11": "(1) In this section, *permanent establishment* has the same meaning as in the Income Tax Act.\n(2) An employee venture capital corporation must establish a permanent establishment in Canada within 30 days after being registered and must afterward maintain a permanent establishment in Canada.\n(3) An employee venture capital corporation\n(a) may establish and maintain only one permanent establishment in Canada, and\n(b) must not establish or maintain a permanent establishment outside of Canada.",
+        "sec29": "(1) The administrator must maintain a register containing the information required by subsection (3).\n(2) The register must be open for public inspection during normal business hours at places in British Columbia determined by the administrator.\n(3) The register must contain the following information:\n(a) the name and registered office of each corporation that caused a plan to be registered and the place at which all documents, other than documents containing financial information of the corporation, pertaining to the plan may be examined;\n(b) the date that the plan was registered;\n(c) a contact name and address for any employee group associated with the plan if any;\n(d) other information that may be prescribed.",
+        "sec39": "Every person appointed under section 37 must provide the administrator with a complete report of the investigation made including any transcript of evidence and material in the person's possession relating to the investigation."
+      }
+    },
+    {
+      "citation": "RSBC 1996, c 219",
+      "citation_key": "rsbc1996c219",
+      "found": true,
+      "sections": {
+        "sec23": "A regulation under section 20 or 21 (1),\n(a) if made before March 1 of a calendar year, may be made to apply starting with that calendar year or with the next calendar year, or\n(b) if made on or after March 1 of a calendar year, may be made to apply starting with the next calendar year.",
+        "sec25": "After or in anticipation of a proclamation under section 17, the Lieutenant Governor in Council by regulation may establish an advisory council to represent all the residents of an area over which an Indian district has jurisdiction.",
+        "sec30": "A person appointed as an approving officer by an Indian district, with respect to the area over which the Indian district has jurisdiction, may exercise the jurisdiction conferred on an approving officer by the Land Title Act, by a regulation under that Act or by any other enactment."
+      }
+    },
+    {
+      "citation": "RSBC 1996, c 287",
+      "citation_key": "rsbc1996c287",
+      "found": true,
+      "sections": {
+        "sec3": "A member must not exercise an official power or perform an official duty or function if the member has a conflict of interest or an apparent conflict of interest.",
+        "sec14": "(1) There must be appointed a commissioner who is an officer of the Legislative Assembly.\n(2) On the motion of the Premier in the Legislative Assembly and on the recommendation of 2/3 of the members present, the Lieutenant Governor in Council must appoint the person so recommended to the office of commissioner.\n(3) The commissioner holds office for a term of 5 years and may be reappointed for a further term or terms.\n(4) The commissioner may be removed or suspended before the end of the term of office by the Lieutenant Governor in Council for cause on the recommendation of the Legislative Assembly.\n(5) The commissioner must be paid compensation as may be set by the Lieutenant Governor in Council.\n(6) If\n(a) the commissioner is removed or suspended or the office of the commissioner becomes vacant when the Legislature is sitting but no recommendation under this Act is made by the Legislative Assembly before the end of that session, or\n(b) the commissioner is suspended or the office of the commissioner is or becomes vacant when the Legislature is not sitting,\nthe Lieutenant Governor in Council may appoint an acting commissioner.\n(7) The appointment of an acting commissioner under this section terminates\n(a) on the appointment of a new commissioner under subsection (2),\n(b) at the end of the period of suspension of the commissioner, or\n(c) immediately after the expiry of 20 sitting days after the day on which the acting commissioner was appointed,\nwhichever the case may be and whichever occurs first.\n(8) The commissioner may employ or retain persons that the commissioner considers necessary and may\n(a) specify their duties and responsibilities, and\n(b) establish their remuneration and other terms and conditions of employment, or retainer.\n(9) The Labour Relations Code and the Public Service Labour Relations Act do not apply to a person employed or retained under subsection (8).\n(10) [Repealed 1999-44-85.]",
+        "sec21": "(1) On receiving a request under section 19, and on giving the member concerned reasonable notice, the commissioner may conduct an inquiry.\n(2) For the purposes of preparing an opinion under section 19 or conducting a special assignment under section 20, the commissioner may order a person to do either or both of the following:\n(a) attend, in person or by electronic means, before the commissioner to give evidence on oath or affirmation or in any other manner;\n(b) produce for the commissioner a record or thing in the person's possession or control.\n(2.1) An order under subsection (2) must be in the form of a summons, served on the person by personal delivery or registered mail to the person's last known address.\n(3) If the request for an opinion is made under section 19 (1), the commissioner must report the commissioner's opinion to the Speaker of the Legislative Assembly who must cause the report to be laid before the Legislative Assembly if it is in session or, if not in session, to the Clerk of the Legislative Assembly who must send a copy of it to all members of the Legislative Assembly.\n(4) If it appears to the commissioner that the report may adversely affect the member, the commissioner must inform the member of the particulars and give the member the opportunity to make representations, either orally or in writing, at the discretion of the commissioner, before the commissioner finalizes the report.\n(5) If the commissioner is of the opinion that the member making the application under section 19 (1) had no reasonable and probable grounds for making it, the commissioner may state that in the commissioner's report, and if the commissioner does so, the commissioner must report the matter to the Speaker who must lay the report before the Legislative Assembly and the Legislative Assembly may, after considering the matter, hold the member in contempt of the Legislative Assembly.\n(6) If the request for an opinion is made under section 19 (3), the commissioner must report the commissioner's opinion to the Secretary of the Executive Council."
+      }
+    },
+    {
+      "citation": "RSBC 1996, c 37",
+      "citation_key": "rsbc1996c37",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act, *company* means the British Columbia Railway Company.",
+        "sec9": "The notes, bonds, debentures and other securities authorized and issued by the company under this Act must be in a form determined by the company or by the minister as agent for the company.",
+        "sec14": "(1) The minister must in each year, on or before the fiscal year end of the company, review the debt and capital expenditures of the company and determine the amount of a grant to be paid in respect of the company's debt charges and capital expenditures.\n(2) The minister must, subject to an appropriation of the Legislature, pay the amount of the grant to the company for the purpose the minister specifies under subsection (1)."
+      }
+    },
+    {
+      "citation": "RSC 1985, c A-13",
+      "citation_key": "rsc1985ca13",
+      "found": true,
+      "sections": {
+        "sec1": "This Act may be cited as the Asia-Pacific Foundation of Canada Act.",
+        "sec14": "The Board may elect from among its members a Vice-Chairperson who, in the event of the absence or incapacity of the Chairperson, or if the office of Chairperson is vacant, has all the duties and functions of the Chairperson.",
+        "sec25": "The Board may appoint an Executive Committee or advisory or other committees under such terms and conditions as the Board may by by-law provide."
+      }
+    },
+    {
+      "citation": "RSC 1985, c D-4",
+      "citation_key": "rsc1985cd4",
+      "found": true,
+      "sections": {
+        "sec1": "This Act may be cited as the Dry Docks Subsidies Act.",
+        "sec7": "Dry docks constructed under this Act shall, for the purposes of this Act, be divided into three classes as follows:\n\n(a) dry docks of the first class for naval and general purposes costing, for the purposes of the subsidy calculation, not more than five million five hundred thousand dollars in the case of dry docks specified in subparagraph (i), and not more than four million dollars in the case of dry docks specified in subparagraph (ii), being\n\n(i) dry docks, other than floating dry docks, of dimensions when completed of not less than the following principal dimensions, that is to say, clear length on bottom from caisson groove or hollowquoin to head, eleven hundred and fifty feet, clear width of entrance, one hundred and twenty-five feet, depth of water over sill at high water ordinary spring tides, thirty-eight feet, and\n\n(ii) floating dry docks of a lifting capacity of at least twenty-five thousand tons in which vessels can be received and repaired with ease and safety,\n\nbut any such dry dock shall not for the purposes of this Act be deemed to be a dry dock of the first class unless there can be received and repaired therein with ease and safety the largest ships or vessels of the British Navy existing at the time at which the contract is entered into;\n\n(b) dry docks of the second class, costing for the purposes of subsidy calculation not more than two and one-half million dollars, being\n\n(i) dry docks, other than floating dry docks, of dimensions when completed of not less than the following principal dimensions, that is to say, clear length on bottom from caisson groove or hollowquoin to head, six hundred and fifty feet, clear width of entrance, eighty-five feet, depth of water over the sill at high water ordinary spring tides, thirty feet if constructed on tidal waters and twenty-five feet over the sill at ordinary low water if constructed on non-tidal waters, and\n\n(ii) floating dry docks of a lifting capacity of at least fifteen thousand tons in which vessels can be received and repaired with ease and safety; and\n\n(c) dry docks of the third class, costing for the purposes of subsidy calculation not more than one and one-half million dollars, being\n\n(i) dry docks, other than floating dry docks, of dimensions when completed of not less than the following principal dimensions, that is to say, clear length on bottom from caisson groove or hollowquoin to head, four hundred feet, clear width of entrance, sixty-five feet, depth of water over the sill at high water ordinary spring tides, twenty-two feet if constructed on tidal waters and eighteen feet over the sill at ordinary low water if constructed on non-tidal waters, and\n\n(ii) floating dry docks of a lifting capacity of at least three thousand five hundred tons in which vessels can be received and repaired with ease and safety.",
+        "sec12": "Any agreement under this Act shall be for the construction of a dry dock in accordance with the plans and specifications referred to in section 8."
+      }
+    },
+    {
+      "citation": "RSC 1985, c M-9",
+      "citation_key": "rsc1985cm9",
+      "found": true,
+      "sections": {
+        "sec1": "This Act may be cited as the Motor Vehicle Fuel Consumption Standards Act.",
+        "sec13": "(1) Where the Minister issues an assessment against a company under section 11, he shall forthwith serve a notice of the assessment on the company and cause notice of the assessment to be published in the Canada Gazette.\n\n(2) A company that objects to an assessment under section 11 may, within thirty days from the day on which it is served with the notice of assessment, serve on the Minister a notice of objection, in prescribed form, setting out the reasons for objecting to the assessment.\n\n(3) On receipt of a notice of objection under subsection (2), the Minister shall forthwith\n\n(a) reconsider the assessment objected to;\n\n(b) confirm, cancel or vary the assessment; and\n\n(c) serve a copy of his decision on the company.\n\n(4) The Minister’s decision under subsection (3) to confirm, cancel or vary an assessment shall be based solely on the following criteria:\n\n(a) whether the information on which the original assessment was based was correct; and\n\n(b) whether this Act and the regulations were correctly applied to that information.\n\n(5) Documents required to be served under this section may be served personally or by registered mail, and, if served by registered mail, shall be deemed to have been served on the day of actual receipt.",
+        "sec23": "(1) The Minister may designate as an inspector for the purposes of this Act any person who, in his opinion, is qualified to be so designated.\n\n(2) The Minister shall furnish every inspector with a certificate of his designation as an inspector and on entering any place described in subsection 24(1) an inspector shall, if so required, produce the certificate to the person in charge of that place."
+      }
+    },
+    {
+      "citation": "RSC 1985, c T-18",
+      "citation_key": "rsc1985ct18",
+      "found": true,
+      "sections": {
+        "sec1": "This Act may be cited as the Department of Transport Act.",
+        "sec6": "The Secretary shall, unless otherwise directed in any case by the Minister,\n\n(a) keep separate accounts of the moneys appropriated for and expended on each railway or canal under the management, charge and direction of the Minister;\n\n(b) submit those accounts to be audited in such manner as is determined by law or by the Governor in Council;\n\n(c) have charge of all plans, contracts, estimates, documents, titles, models and other like things relating to any railway or canal under the management, charge and direction of the Minister;\n\n(d) keep proper accounts with each contractor or other person employed by or under the Department;\n\n(e) ensure that all contracts are properly drawn up and executed;\n\n(f) prepare all certificates on which any certificate for the payment of money is to issue;\n\n(g) keep minutes of all proceedings of the Department;\n\n(h) prepare reports and conduct, under the direction of the Minister, the correspondence of the Department; and\n\n(i) generally, do and perform all such acts and things appertaining to the business of the Department as are required by the Minister.",
+        "sec12": "(1) No deed, contract, document or writing relating to any matter under the control or direction of the Minister shall be binding on Her Majesty unless\n\n(a) it is signed by the Minister;\n\n(b) it is signed by the Deputy Minister and countersigned by the Secretary; or\n\n(c) it is signed by a person specially authorized in writing by the Minister for that purpose.\n\n(2) The authorization given by the Minister under paragraph (1)(c) to a person professing to act for the Minister shall not be called in question except by the Minister or by a person acting for the Minister or for Her Majesty.\n\n(3) This section does not apply in respect of any instrument or act the execution of which is provided for by or under the Federal Real Property and Federal Immovables Act."
+      }
+    },
+    {
+      "citation": "RSO 1990, c A13",
+      "citation_key": "rso1990ca13",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act,\n“agricultural lands” means those lands described in the regulations made under this Act; (“terres agricoles”)\n“board of directors” means the board of directors of the Corporation; (“conseil d’administration”)\n“Corporation” means Agricultural Research and Innovation Ontario continued under section 2; (“société”)\n“innovation” means new and emerging research, technology and processes or other products or services; (“innovation”)\n“knowledge translation and transfer” means transformation of knowledge into use through synthesis, exchange, dissemination, dialogue, collaboration and brokering among researchers and research users; (“application et transfert des connaissances”)\n“Managing Director” means the administrator of the Corporation appointed under section 9; (“directeur général”)\n“Minister” means the Minister of Agriculture, Food and Rural Affairs; (“ministre”)\n“research” means a systematic investigation designed to develop or establish principles, facts or generalizable knowledge, or any combination of them, and includes the development, testing and evaluation of research (“recherche”). \u0003 \u0003;",
+        "sec3.3": "The Corporation’s fiscal year begins on April 1 in each year and ends on March 31 in the following year.",
+        "sec6": "(1) The Managing Director shall appoint one or more licensed public accountants to audit the Corporation’s accounts and financial transactions annually.\n(2) The Auditor General may also audit the Corporation’s accounts and financial transactions for any fiscal year.\n(3) The Minister may at any time appoint a licensed public accountant, other than the person appointed under subsection (1), to audit the Corporation’s accounts and financial transactions for any period of time specified by the Minister."
+      }
+    },
+    {
+      "citation": "RSO 1990, c H5",
+      "citation_key": "rso1990ch5",
+      "found": true,
+      "sections": {
+        "sec1": "In this Act,\n“ambulance service” has the same meaning as in the Ambulance Act; (“service d’ambulance”)\n“Board” means the Health Services Appeal and Review Board under the Ministry of Health and Long-Term Care Appeal and Review Boards Act, 1998; (“Commission”)\n“health facility” means,\n(a) an ambulance service under the Ambulance Act,\n(b) Repealed: 2007, c. 8, s. 208 (1).\n(c) a private hospital under the Private Hospitals Act,\n(d) a laboratory or a specimen collection centre under the Laboratory and Specimen Collection Centre Licensing Act; (“établissement de santé”)\n“laboratory” has the same meaning as in the Laboratory and Specimen Collection Centre Licensing Act;\n“licence” means a certificate issued under the Ambulance Act to the operator of an ambulance service or any of the following licences:\n1. Repealed: 2007, c. 8, s. 208 (2).\n2. A licence to use a house as a private hospital under the Private Hospitals Act.\n3. A licence to establish, operate or maintain a laboratory or specimen collection centre under the Laboratory and Specimen Collection Centre Licensing Act; (“permis”)\n“licensee” means the holder of a licence; (“titulaire d’un permis”)\n“Minister” means the Minister of Health; (“ministre”)\n“Ministry” means the Ministry of Health; (“ministère”)\n“operate” means carry on the activity permitted by a licence; (“exploiter”)\n“private hospital” has the same meaning as in the Private Hospitals Act; (“hôpital privé”)\n“specimen collection centre” has the same meaning as in the Laboratory and Specimen Collection Centre Licensing Act. (“centre de prélèvement”) R.S.O. 1990, c. H.5, s. 1",
+        "sec11": "(1) The Minister, the licensee who has required the hearing and such other persons as the Board may specify are parties to proceedings before the Board under this Act. \u0003 \u0003\n(2), (3) Repealed: 2007, c. 8, s. 208 (4).\n(4) A party to proceedings under subsection (1) shall be afforded an opportunity to examine before the hearing any written or documentary evidence that will be produced or any report the contents of which will be given in evidence at the hearing.\n(5) Members of the Board holding a hearing shall not communicate directly or indirectly in relation to the subject-matter of the hearing with any person or with any party or his, her or its representative except upon notice to and opportunity for all parties to participate, but the Board may seek legal advice from an adviser independent from the parties and in such case the nature of the advice shall be made known to the parties in order that they may make submissions as to the law. \u0003 \u0003\n(6) The oral evidence taken before the Board at a hearing shall be recorded and, if so required, copies or a transcript thereof shall be furnished upon the same terms as in the Superior Court of Justice. \u0003 \u0003;\n(7) Repealed: 1998, c. 18, Sched. G, s. 53 (2).\n(8) Documents and things put in evidence at the hearing shall, upon the request of the person who produced them, be released to the person by the Board within a reasonable time after the matter in issue has been finally determined. \u0003 \u0003",
+        "sec16": "(1) Every individual who knowingly fails to comply with an order under this Act is guilty of an offence and on conviction is liable,\n(a) for a first offence, to a fine of not more than $25,000 or to a term of imprisonment of not more than 12 months, or to both;\n(b) for each subsequent offence, to a fine of not more than $50,000 or to a term of imprisonment of not more than 12 months, or to both.\n(2) Every corporation that knowingly fails to comply with an order under this Act is guilty of an offence and on conviction is liable to a fine of not more than $50,000 for a first offence and to a fine of not more than $200,000 for a subsequent offence.\n(3) A director or officer of the corporation who authorizes or permits a contravention by the corporation under subsection (2) is guilty of an offence and on conviction is liable to a fine of not more than $50,000 for a first offence and to a fine of not more than $200,000 for a subsequent offence.\n(4) The court that convicts a person of an offence under this section may, in addition to any other penalty, order that the person pay compensation or make restitution to any person who suffered a loss as a result of the offence.\n(5) Section 76 of the Provincial Offences Act does not apply to a prosecution under this section."
+      }
+    },
+    {
+      "citation": "RSO 1990, c M41",
+      "citation_key": "rso1990cm41",
+      "found": true,
+      "sections": {
+        "sec1": "(1) In this Act,\n“Chief Executive Officer” means the Chief Executive Officer appointed under subsection 10 (2) of the Financial Services Regulatory Authority of Ontario Act, 2016; (“directeur général”)\n“designated insurer” means an insurer named as a designated insurer under subsection (3) and its estate; (“assureur désigné”)\n“Director” means the Director of the Motor Vehicle Accident Claims Fund appointed for the purposes of this Act; (“directeur”)\n“driver’s licence” means a driver’s licence issued under the Highway Traffic Act; (“permis de conduire”)\n“Fund” means the Motor Vehicle Accident Claims Fund; (“Fonds”)\n“insured motor vehicle” means a motor vehicle,\n(a) that is insured under a motor vehicle liability policy in accordance with the Insurance Act, or\n(b) in respect of which there is on deposit with the Registrar money, securities or a bond in an amount equal to the minimum limit of liability prescribed under section 251 of the Insurance Act, or\n(c) in respect of which the owner is exempt from the payment of registration fees under the regulations made under the Highway Traffic Act, or\n(d) that is registered under the Highway Traffic Act in the name of a municipality; (“véhicule automobile assuré”)\n“licence” means a driver’s licence issued under the Highway Traffic Act; (“permis”)\n“Minister” means the member of the Executive Council to whom the administration of this Act is assigned; (“ministre”)\n“Ministry” means the Ministry of the Minister; (“ministère”)\n“permit” means an owner’s permit issued under the Highway Traffic Act; (“certificat d’immatriculation”)\n“Registrar” means the Registrar of Motor Vehicles; (“registrateur”)\n“Superintendent” means the former position of Superintendent of Financial Services under the repealed Financial Services Commission of Ontario Act, 1997; (“surintendant”)\n“uninsured motor vehicle” means a motor vehicle that is not an insured motor vehicle. (“véhicule automobile non assuré”) \u0003 \u0003;\n(2) Even though a motor vehicle is insured under a motor vehicle liability policy, it shall be deemed to be an uninsured motor vehicle for the purposes of this Act while it is being operated by an excluded driver as defined in the Insurance Act with respect to that policy unless the excluded driver is a named insured under another motor vehicle liability policy.\n(3) Where the Lieutenant Governor in Council is of the opinion that an insurer is not paying or is unable to pay, within a reasonable period of time, claims made against the insurer or claims for which final judgments have been given, the Lieutenant Governor in Council may, by regulation, name the insurer as a designated insurer for the purposes of this Act. \u0003 \u0003",
+        "sec11": "(1) The Lieutenant Governor in Council may make regulations providing for the restoration of the drivers’ licences and owners’ permits of persons indebted to the Fund who are making repayment to the Fund in instalments.\n(2) The regulations shall prescribe the classes of cases to which they apply, and shall provide for the manner of determining the amount of the instalment payments, the time and place of payment and the terms and conditions, including proof of financial responsibility, of the restoration of the licences and permits.\n(3) When a person is in default of any such payment for a period of ten days, the Registrar upon receiving notice of such default from the Director shall forthwith suspend the driver’s licence and owner’s permit or permits of such person. \u0003 \u0003",
+        "sec24": "(1) This section applies only to payments out of the Fund made by reason of an insurer being named a designated insurer.\n(2) Where a payment is made out of the Fund by reason of an insurer being named as a designated insurer, the limits payable out of the Fund shall be those prescribed by this section and not those prescribed by section 23.\n(3) In respect of any application for payment of damages arising out of motor vehicle accidents occurring in Ontario on or after the 1st day of March, 1981, the Minister shall not pay out of the Fund more than the total amount of $200,000, exclusive of costs, for all damages on account of injury or death to one or more persons, or loss of or damage to property occasioned in Ontario by any one motor vehicle insured with a designated insurer and arising out of any one accident, provided that any claims arising out of any loss of or damage to property shall have priority over any claims arising out of any bodily injury or death to the extent of $10,000.\n(4) In respect of any application for payment of damages arising out of motor vehicle accidents occurring in Ontario on or after the 1st day of January, 1977, and before the 1st day of March, 1981, the Minister shall not pay out of the Fund more than the total amount of $100,000, exclusive of costs, for all damages on account of injury or death to one or more persons, or loss of or damage to property occasioned in Ontario by any one motor vehicle insured with a designated insurer and arising out of any one accident, provided that any claims arising out of any loss of or damage to property shall have priority over any claims arising out of any bodily injury or death to the extent of $5,000.\n(5) In respect of any application for payment of damages arising out of motor vehicle accidents occurring in Ontario on or after the 1st day of September, 1969, and before the 1st day of January, 1977, the Minister shall not pay out of the Fund more than the total amount of $50,000, exclusive of costs, for all damages on account of injury or death to one or more persons, or loss of or damage to property occasioned in Ontario by any one motor vehicle insured with a designated insurer and arising out of any one accident, provided that any claims arising out of any loss of or damage to property shall have priority over any claims arising out of any bodily injury or death to the extent of $5,000.\n(6) Where a payment has been made out of the Fund by reason of an insurer being named as a designated insurer and the amount of the judgment, excluding interest thereon, exceeds the limits of the Fund as determined under subsections (3) to (5), upon receiving the final payment by the designated insurer, the Minister shall pay to the original judgment creditor an additional amount determined in accordance with the following formula:\nA = (J - F) × R / J\nwhere,\nA = The amount to be paid to the original judgment creditor under this subsection.\nF = The amount paid out of the Fund.\nJ = The lesser of,\n(a) the amount of the judgment, excluding interest thereon and costs therein; or\n(b) the liability limit of the motor vehicle liability policy issued by the designated insurer.\nR = The total amount recovered from the designated insurer with respect to the judgment by the Minister.\n(7) Where any amount is recovered from any other source in partial discharge of the judgment debt, the maximum amount prescribed in this section shall be reduced by the amount so paid, and any amount paid out of the Fund in excess of the amount authorized by this section may be recovered by action brought by the Minister.\n(8) The Minister shall not pay out of the Fund any amount for interest on a judgment or interest on costs. \u0003 \u0003"
+      }
+    },
+    {
+      "citation": "RSO 1990, c P51",
+      "citation_key": "rso1990cp51",
+      "found": true,
+      "sections": {
+        "sec2": "(1) A deputy of the Public Guardian and Trustee has the powers and duties that the Public Guardian and Trustee delegates to him or her.\n(2) If the Public Guardian and Trustee is unable to act because of absence or illness, the deputy who was appointed first shall act in his or her place.\n(3) If the Public Guardian and Trustee dies or resigns the office, the deputy who was appointed first shall act as Public Guardian and Trustee until a successor is appointed.\n(4) The Public Guardian and Trustee may in writing delegate any of his or her powers or duties to an employee in his or her office.\n(5) Despite paragraph 3 of subsection 118 (1) of the Business Corporations Act, the Public Guardian and Trustee may act as a director of a corporation in which,\n(a) a deceased person was the sole shareholder and for whose estate the Public Guardian and Trustee acts as estate trustee if it is necessary and expedient to do so to protect or preserve the interest of the deceased person’s estate in the corporation or to provide for the orderly winding-up or dissolution of the corporation; or\n(b) a mentally incapable person is the sole shareholder and for whom the Public Guardian and Trustee acts as the guardian of property if it is necessary and expedient to do so to protect or preserve the interest of the mentally incapable person in the corporation or to provide for the orderly winding-up or dissolution of the corporation.",
+        "sec8.1": "(1) The Public Guardian and Trustee has a lien on the real and personal property of a person, estate or trust for whom he or she acts or has acted, for the following amounts:\n1. Fees and expenses charged to the person, estate or trust under section 8.\n2. An amount advanced for or on behalf of the person, estate or trust or for the support of dependants.\n3. The amount of a liability incurred for a purpose referred to in paragraph 2.\n(2) In the case of real property, the Public Guardian and Trustee may register in the proper land registry office a notice claiming a lien and identifying the real property against which it is claimed.",
+        "sec12": "The Public Guardian and Trustee may accept and administer any charitable or public trust. \u0003 \u0003;"
+      }
+    }
+  ]
+}

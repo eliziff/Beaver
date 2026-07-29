@@ -1,0 +1,712 @@
+{
+  "schema_version": 1,
+  "created": "2026-07-29T04:29:04.885Z",
+  "set_id": "retrieval-gate-set-v1",
+  "corpus_revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "retriever": {
+    "id": "lexical-bm25-v1",
+    "description": "Okapi BM25 over the frozen slice; one document per section; field = act name + heading + section text; deterministic locator tie-break.",
+    "params": {
+      "k1": 1.2,
+      "b": 0.75,
+      "top_k": 10,
+      "stopwords": 54
+    }
+  },
+  "pool": {
+    "docs": 48,
+    "sections": 2162
+  },
+  "timing_ms": {
+    "index_build_ms": 86.734,
+    "retrieval_total_ms": 50.054,
+    "retrieval_mean_ms": 1.043,
+    "retrieval_p95_ms": 1.87
+  },
+  "metrics": {
+    "items": 48,
+    "recall_at_5": 0.8541666666666666,
+    "recall_at_10": 0.8958333333333334,
+    "locator_accuracy": 0.8125,
+    "claims": 43,
+    "unsupported_claims": 0,
+    "unsupported_claim_rate": 0
+  },
+  "by_jurisdiction": {
+    "CA": {
+      "items": 12,
+      "recall_at_10": 0.9166666666666666
+    },
+    "CA-ON": {
+      "items": 12,
+      "recall_at_10": 0.8333333333333334
+    },
+    "CA-BC": {
+      "items": 12,
+      "recall_at_10": 0.8333333333333334
+    },
+    "CA-AB": {
+      "items": 12,
+      "recall_at_10": 1
+    }
+  },
+  "items": [
+    {
+      "item_id": "RG-001",
+      "gold_full_locators": [
+        "rsc1985ca13#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-002",
+      "gold_full_locators": [
+        "rsc1985ca13#sec14"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-003",
+      "gold_full_locators": [
+        "rsc1985ca13#sec25"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-004",
+      "gold_full_locators": [
+        "rsc1985cd4#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-005",
+      "gold_full_locators": [
+        "rsc1985cd4#sec7"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-006",
+      "gold_full_locators": [
+        "rsc1985cd4#sec12"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-007",
+      "gold_full_locators": [
+        "rsc1985cm9#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-008",
+      "gold_full_locators": [
+        "rsc1985cm9#sec13"
+      ],
+      "hit_rank": null,
+      "recall_at_5": false,
+      "recall_at_10": false,
+      "top1_locator_match": false,
+      "claim": null
+    },
+    {
+      "item_id": "RG-009",
+      "gold_full_locators": [
+        "rsc1985cm9#sec23"
+      ],
+      "hit_rank": 6,
+      "recall_at_5": false,
+      "recall_at_10": true,
+      "top1_locator_match": false,
+      "claim": {
+        "rank": 6,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-010",
+      "gold_full_locators": [
+        "rsc1985ct18#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-011",
+      "gold_full_locators": [
+        "rsc1985ct18#sec6"
+      ],
+      "hit_rank": 3,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": false,
+      "claim": {
+        "rank": 3,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-012",
+      "gold_full_locators": [
+        "rsc1985ct18#sec12"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-013",
+      "gold_full_locators": [
+        "rso1990ca13#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-014",
+      "gold_full_locators": [
+        "rso1990ca13#sec3.3"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-015",
+      "gold_full_locators": [
+        "rso1990ca13#sec6"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-016",
+      "gold_full_locators": [
+        "rso1990ch5#sec1"
+      ],
+      "hit_rank": null,
+      "recall_at_5": false,
+      "recall_at_10": false,
+      "top1_locator_match": false,
+      "claim": null
+    },
+    {
+      "item_id": "RG-017",
+      "gold_full_locators": [
+        "rso1990ch5#sec11"
+      ],
+      "hit_rank": 7,
+      "recall_at_5": false,
+      "recall_at_10": true,
+      "top1_locator_match": false,
+      "claim": {
+        "rank": 7,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-018",
+      "gold_full_locators": [
+        "rso1990ch5#sec16"
+      ],
+      "hit_rank": 2,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": false,
+      "claim": {
+        "rank": 2,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-019",
+      "gold_full_locators": [
+        "rso1990cm41#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-020",
+      "gold_full_locators": [
+        "rso1990cm41#sec11"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-021",
+      "gold_full_locators": [
+        "rso1990cm41#sec24"
+      ],
+      "hit_rank": null,
+      "recall_at_5": false,
+      "recall_at_10": false,
+      "top1_locator_match": false,
+      "claim": null
+    },
+    {
+      "item_id": "RG-022",
+      "gold_full_locators": [
+        "rso1990cp51#sec2"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-023",
+      "gold_full_locators": [
+        "rso1990cp51#sec8.1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-024",
+      "gold_full_locators": [
+        "rso1990cp51#sec12"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-025",
+      "gold_full_locators": [
+        "rsbc1996c112#sec11"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-026",
+      "gold_full_locators": [
+        "rsbc1996c112#sec29"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-027",
+      "gold_full_locators": [
+        "rsbc1996c112#sec39"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-028",
+      "gold_full_locators": [
+        "rsbc1996c219#sec23"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-029",
+      "gold_full_locators": [
+        "rsbc1996c219#sec25"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-030",
+      "gold_full_locators": [
+        "rsbc1996c219#sec30"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-031",
+      "gold_full_locators": [
+        "rsbc1996c287#sec3"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-032",
+      "gold_full_locators": [
+        "rsbc1996c287#sec14"
+      ],
+      "hit_rank": null,
+      "recall_at_5": false,
+      "recall_at_10": false,
+      "top1_locator_match": false,
+      "claim": null
+    },
+    {
+      "item_id": "RG-033",
+      "gold_full_locators": [
+        "rsbc1996c287#sec21"
+      ],
+      "hit_rank": null,
+      "recall_at_5": false,
+      "recall_at_10": false,
+      "top1_locator_match": false,
+      "claim": null
+    },
+    {
+      "item_id": "RG-034",
+      "gold_full_locators": [
+        "rsbc1996c37#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-035",
+      "gold_full_locators": [
+        "rsbc1996c37#sec9"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-036",
+      "gold_full_locators": [
+        "rsbc1996c37#sec14"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-037",
+      "gold_full_locators": [
+        "rsa2000ca11#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-038",
+      "gold_full_locators": [
+        "rsa2000ca11#sec8.1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-039",
+      "gold_full_locators": [
+        "rsa2000ca11#sec28"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-040",
+      "gold_full_locators": [
+        "rsa2000cc30#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-041",
+      "gold_full_locators": [
+        "rsa2000cc30#sec5"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-042",
+      "gold_full_locators": [
+        "rsa2000cc30#sec13"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-043",
+      "gold_full_locators": [
+        "rsa2000cf26#sec2"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-044",
+      "gold_full_locators": [
+        "rsa2000cf26#sec5.1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-045",
+      "gold_full_locators": [
+        "rsa2000cf26#sec12.1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-046",
+      "gold_full_locators": [
+        "rsa2000cj4#sec1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-047",
+      "gold_full_locators": [
+        "rsa2000cj4#sec5"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    },
+    {
+      "item_id": "RG-048",
+      "gold_full_locators": [
+        "rsa2000cj4#sec10.1"
+      ],
+      "hit_rank": 1,
+      "recall_at_5": true,
+      "recall_at_10": true,
+      "top1_locator_match": true,
+      "claim": {
+        "rank": 1,
+        "supported": true
+      }
+    }
+  ]
+}
