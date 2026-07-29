@@ -156,3 +156,86 @@ describe("applyTrackedEdits annotate mode", () => {
     }
   });
 });
+
+describe("applyTrackedEdits anchor diagnosis", () => {
+  it("answers an ambiguous anchor with the real contexts that disambiguate", async () => {
+    const bytes = await draft(
+      [
+        "The Tenant shall pay the Rent on the first day of each month.",
+        "",
+        "The Landlord may increase the Rent once in any twelve-month period.",
+      ].join("\n"),
+    );
+    const edit = await applyTrackedEdits(bytes, [
+      { find: "the Rent", replace: "the Base Rent" },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    const reason = edit.errors[0].reason;
+    expect(reason).toContain("Ambiguous match");
+    expect(reason).toContain("2 occurrences");
+    // The document's own words, ready to paste into the retry.
+    expect(reason).toContain("The Tenant shall pay ");
+    expect(reason).toContain(" on the first day of each month.");
+    expect(reason).toContain("The Landlord may increase ");
+  });
+
+  it("shows the document's wording at the point the quote diverges", async () => {
+    const bytes = await draft(
+      "The Purchaser shall deliver the Closing Deliverables to the Vendor no later than 5:00 p.m. on the Closing Date.",
+    );
+    const edit = await applyTrackedEdits(bytes, [
+      {
+        // Verbatim up to "no later than", then paraphrased.
+        find: "deliver the Closing Deliverables to the Vendor no later than 5:00 pm on the Closing Date",
+        replace: "deliver the Closing Deliverables to the Vendor by noon on the Closing Date",
+      },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    const reason = edit.errors[0].reason;
+    expect(reason).toContain("Could not locate");
+    expect(reason).toMatch(/first \d+ characters do match/u);
+    expect(reason).toContain("5:00 p.m. on the Closing Date");
+  });
+
+  it("recognises an edit whose replacement is already in the document", async () => {
+    const bytes = await draft("Notice shall be given within thirty days.");
+    const edit = await applyTrackedEdits(bytes, [
+      { find: "within ten days", replace: "within thirty days" },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    expect(edit.errors[0].reason).toContain("replacement text already is");
+    expect(edit.errors[0].reason).toContain("applied already");
+  });
+
+  it("names the parts it cannot reach when nothing matches", async () => {
+    const bytes = await draft("The parties agree to arbitrate in Toronto.");
+    const edit = await applyTrackedEdits(bytes, [
+      { find: "governed by the laws of Alberta", replace: "governed by the laws of Ontario" },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    expect(edit.errors[0].reason).toContain("no part of this wording");
+    expect(edit.errors[0].reason).toContain("header, footer, footnote");
+  });
+
+  it("diagnoses a pure insertion by its context anchor", async () => {
+    const bytes = await draft(
+      [
+        "Each Party shall keep the Confidential Information confidential.",
+        "",
+        "Each Party shall bear its own costs.",
+      ].join("\n"),
+    );
+    const edit = await applyTrackedEdits(bytes, [
+      { find: "", replace: " at all times", context_before: "Each Party shall" },
+    ]);
+
+    expect(edit.changes).toHaveLength(0);
+    const reason = edit.errors[0].reason;
+    expect(reason).toContain("context_before");
+    expect(reason).toContain("Ambiguous match");
+  });
+});
