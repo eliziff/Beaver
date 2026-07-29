@@ -1,16 +1,16 @@
 import { api, type Chat, type LibraryCollection, type Project, type StreamEvent } from "./api";
 import "./styles.css";
 
-type Route = "assistant" | "library" | "projects";
+type Route = "assistant" | "library" | "projects" | "authorities";
 type Message = { role: "user" | "assistant"; text: string };
 type State = { route: Route; chats: Chat[]; library: LibraryCollection | null; projects: Project[] | null; messages: Message[]; chatId: string | null; version: number; busy: boolean; status: string; error: string };
 
 const root = document.querySelector<HTMLDivElement>("#root")!;
 const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
 
-function routeFromPath(): Route { const route = location.pathname.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : "assistant"; }
+function routeFromPath(): Route { const route = location.pathname.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
 function escape(value: unknown) { return String(value ?? "").replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
-function navigate(route: Route) { history.pushState({}, "", `/${route}`); state.route = route; state.error = ""; render(); void loadRoute(); }
+function navigate(route: Route) { history.pushState({}, "", route === "authorities" ? "/authorities" : `/${route}`); state.route = route; state.error = ""; render(); void loadRoute(); }
 function text(event: StreamEvent) { return event.type === "error" ? event.message || "Request failed" : event.text || ""; }
 function messageText(value: unknown): string {
   if (typeof value === "string") return value;
@@ -23,7 +23,7 @@ function messageText(value: unknown): string {
 }
 
 function shell(content: string) {
-  return `<header class="topbar"><a class="brand" href="/assistant">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><a class="nav" href="/table-of-authorities">Authorities</a><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
+  return `<header class="topbar"><a class="brand" href="/assistant">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><button data-route="authorities" class="nav ${state.route === "authorities" ? "active" : ""}">Authorities</button><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
 }
 
 function assistant() {
@@ -42,7 +42,11 @@ function projects() {
   return shell(`<section class="workspace"><div class="section-heading"><h1>Projects</h1></div><form id="project" class="project-form"><input class="project-name" name="name" placeholder="New project name" aria-label="New project name" ${state.busy ? "disabled" : ""} /><button class="primary" ${state.busy ? "disabled" : ""}>${state.busy ? "Creating…" : "Create"}</button></form><section class="panel list" aria-live="polite">${state.projects ? rows || `<p class="empty">No projects yet.</p>` : `<p class="empty">Loading projects…</p>`}</section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
 }
 
-function render() { root.innerHTML = state.route === "library" ? library() : state.route === "projects" ? projects() : assistant(); bind(); }
+function authorities() {
+  return shell(`<section class="workspace"><div class="section-heading"><h1>Authorities</h1></div><section class="panel authorities-panel" aria-live="polite"><p class="empty" id="authorities-status">Checking the local Authorities host…</p><button id="launch-authorities" class="primary" disabled>Open Authorities</button></section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
+}
+
+function render() { root.innerHTML = state.route === "library" ? library() : state.route === "projects" ? projects() : state.route === "authorities" ? authorities() : assistant(); bind(); }
 
 function bind() {
   root.querySelectorAll<HTMLElement>("[data-route]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.route as Route)));
@@ -50,6 +54,7 @@ function bind() {
   root.querySelector<HTMLFormElement>("#prompt")?.addEventListener("submit", send);
   root.querySelector<HTMLFormElement>("#project")?.addEventListener("submit", createProject);
   root.querySelector<HTMLInputElement>("#upload")?.addEventListener("change", upload);
+  root.querySelector<HTMLButtonElement>("#launch-authorities")?.addEventListener("click", launchAuthorities);
 }
 
 async function openChat(id: string) {
@@ -87,6 +92,7 @@ function updateMessages() { const target = document.querySelector<HTMLDivElement
 function updateStatus(value: string) { state.status = value; const target = document.querySelector<HTMLElement>("#status"); if (target) target.textContent = value; }
 async function upload(event: Event) { const input = event.currentTarget as HTMLInputElement; const file = input.files?.[0]; input.value = ""; if (!file) return; state.status = "Uploading…"; state.error = ""; render(); try { await api.upload("files", file); state.library = await api.library("files"); state.status = "Ready"; } catch (error) { state.error = error instanceof Error ? error.message : "Upload failed"; state.status = "Ready"; } render(); }
 async function createProject(event: SubmitEvent) { event.preventDefault(); const input = (event.currentTarget as HTMLFormElement).elements.namedItem("name") as HTMLInputElement; const name = input.value.trim(); if (!name || state.busy) return; state.busy = true; state.status = "Creating…"; state.error = ""; render(); try { await api.createProject(name); state.projects = await api.projects(); state.status = "Ready"; } catch (error) { state.error = error instanceof Error ? error.message : "Project creation failed"; state.status = "Ready"; } state.busy = false; render(); }
+async function launchAuthorities() { const button = document.querySelector<HTMLButtonElement>("#launch-authorities"); if (!button) return; button.disabled = true; button.textContent = "Starting…"; state.error = ""; try { const result = await api.launchAuthorities(); location.href = result.url; } catch (error) { state.error = error instanceof Error ? error.message : "Authorities unavailable"; button.disabled = false; button.textContent = "Open Authorities"; render(); } }
 async function loadRoute() {
   const route = state.route;
   if (route === "projects") {
@@ -99,6 +105,16 @@ async function loadRoute() {
     try { state.library = await api.library("files"); }
     catch (error) { if (state.route === route) state.error = error instanceof Error ? error.message : "Library unavailable"; }
     if (state.route === route) render();
+    return;
+  }
+  if (route === "authorities") {
+    try {
+      const result = await api.authoritiesStatus();
+      const target = document.querySelector<HTMLElement>("#authorities-status");
+      const button = document.querySelector<HTMLButtonElement>("#launch-authorities");
+      if (target) target.textContent = result.running ? "Authorities is ready." : result.available ? "Authorities is available locally." : "Authorities is not installed locally.";
+      if (button) button.disabled = !result.available;
+    } catch (error) { if (state.route === route) state.error = error instanceof Error ? error.message : "Authorities unavailable"; render(); }
     return;
   }
   try { state.chats = await api.chats(); }

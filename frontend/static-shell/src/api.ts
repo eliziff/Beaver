@@ -29,12 +29,15 @@ export type Project = { id: string; name: string; practice?: string | null; cm_n
 export type LibraryDocument = { id: string; filename?: string | null; file_type?: string | null; updated_at?: string | null };
 export type LibraryCollection = { documents: LibraryDocument[]; folders: { id: string; name: string }[] };
 export type StreamEvent = { type?: string; text?: string; message?: string; chatId?: string; transcriptVersion?: number };
+export type AuthoritiesStatus = { available: boolean; running: boolean; url: string };
 
 export const api = {
   chats: () => request<Chat[]>("/chat?limit=20"),
   chat: (id: string) => request<ChatTranscript>(`/chat/${encodeURIComponent(id)}`),
   projects: () => request<Project[]>("/projects"),
   createProject: (name: string) => request<Project>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  authoritiesStatus: () => request<AuthoritiesStatus>("/table-of-authorities/status"),
+  launchAuthorities: () => request<{ ok: boolean; url: string }>("/table-of-authorities/launch", { method: "POST" }),
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
   upload: (kind: string, file: File) => {
     const body = new FormData();
