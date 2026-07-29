@@ -27,7 +27,7 @@ it("collapses the question body", async () => {
 
     screen.getByRole("button", { name: /A client/ });
     await userEvent.click(
-        screen.getByRole("button", { name: "Question 1 of 1" }),
+        screen.getByRole("button", { name: "1 question" }),
     );
     expect(
         screen.queryByRole("button", { name: /A client/ }),
