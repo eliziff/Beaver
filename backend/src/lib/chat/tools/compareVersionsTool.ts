@@ -24,7 +24,7 @@ const tool = (
 export const COMPARE_VERSIONS_TOOLS: OpenAIToolSchema[] = [
   tool(
     "library_compare_versions",
-    "Produce a Word tracked-changes redline between two versions of a Library DOCX (defaults: the current version against the one before it). Saves the redline as a new Library document and returns change counts plus typed abstentions for anything the diff cannot honestly represent (tables, content controls, headers/footers, fields). The redline document itself is the deliverable; this tool never returns the diff text.",
+    "Word tracked-changes redline between two versions of a Library DOCX (default: current against the one before), saved as a new Library document. Returns change counts plus typed abstentions for what the diff cannot honestly represent (tables, content controls, headers/footers, fields). The redline document is the deliverable; the diff text is never returned.",
     {
       type: "object",
       properties: {

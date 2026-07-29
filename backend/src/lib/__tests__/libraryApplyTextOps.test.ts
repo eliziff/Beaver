@@ -105,9 +105,9 @@ describe("library_apply_text_ops tool flow", () => {
       expect(annotation.del_w_id).toMatch(/^\d+$/u);
       expect(annotation.ins_w_id).toMatch(/^\d+$/u);
     }
-    expect(applied.next_required_action).toContain(
-      "tracked-edit card is shown automatically",
-    );
+    // Card/URL etiquette is a prompt rule, not restated per tool result; the
+    // receipt carries only what the prompt cannot know.
+    expect(applied.next_required_action).toContain("unchanged_sites");
 
     // The persisted version is accept/reject compatible via the store.
     const store = await import("../localDocumentStore");
@@ -202,7 +202,8 @@ describe("library_apply_text_ops tool flow", () => {
       { site: "recieve", reason: "possible misspelling" },
     ]);
     expect(spelling.ops[0].unchanged_sites[0].suggestions).toContain("receive");
-    expect(spelling.next_required_action).toContain("replace_text");
+    // How to correct a flagged word is taught once, in the op enum schema.
+    expect(spelling.next_required_action).toContain("per-op notes");
 
     const [badOpResponse] = await tools.runLocalAssistantTools(
       "local-user",

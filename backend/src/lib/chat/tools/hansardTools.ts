@@ -20,7 +20,7 @@ const tool = (
 export const HANSARD_TOOLS: OpenAIToolSchema[] = [
   tool(
     "hansard_search",
-    "Search the locally imported A2AJ Hansard corpus (Ontario Legislative Assembly debates): full text with optional speaker and date filters. Returns interventions as snippets with stable ids; fetch full text with hansard_fetch. Reports hansard_not_installed when no local Hansard database has been imported.",
+    "Search the locally imported A2AJ Hansard corpus (Ontario Legislative Assembly debates), with optional speaker and date filters. Returns snippets with stable ids for hansard_fetch. Reports hansard_not_installed when no local database has been imported.",
     {
       type: "object",
       properties: {

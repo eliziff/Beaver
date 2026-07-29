@@ -261,11 +261,11 @@ async function execute(
         pdf_fallback: pdfFallbacks.get(caseRecord.clusterId) ?? null,
       })),
       ...(error ? { error } : {}),
-      next_required_action: cases.some(
-        ({ opinions }) => opinions.length > 1,
-      )
-        ? "Opinion text is cached server-side only. Use courtlistener_find_in_case with short 1-3 word keyword probes for relevant passages. At least one fetched case has multiple opinions; if snippets are insufficient, choose the needed opinion_id(s) from the text-free opinion metadata and call courtlistener_read_case with only those IDs. Do not read all opinions unless the question requires it."
-        : "Opinion text is cached server-side only. Use courtlistener_find_in_case with short 1-3 word keyword probes for relevant passages, or courtlistener_read_case if snippets are insufficient.",
+      // The schemas teach probe shape and opinion selection; only the cache
+      // fact and the multi-opinion warning are new here.
+      next_required_action: cases.some(({ opinions }) => opinions.length > 1)
+        ? "Opinion text is cached server-side only; at least one case has multiple opinions."
+        : "Opinion text is cached server-side only.",
     };
   }
 

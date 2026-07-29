@@ -1104,9 +1104,7 @@ export function duplicateReadDocumentResult(identity: {
     document_id: identity.documentId,
     version_id: identity.versionId ?? null,
     content:
-      "This document/version was already read earlier in this response. The full text is not repeated to avoid unnecessary token use.",
-    next_required_action:
-      "Use the prior read_document/fetch_documents result, call find_in_document for targeted checks, or proceed to edit_document.",
+      "Already read earlier in this response; the text is not repeated. Use the prior result or find_in_document.",
   });
 }
 

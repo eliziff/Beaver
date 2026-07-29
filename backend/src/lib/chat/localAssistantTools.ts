@@ -110,13 +110,13 @@ const DOCUMENT_ID_PROPERTY = {
 };
 const OPTIONAL_VERSION_ID_PROPERTY = {
   type: "string",
-  description: "Optional explicit Library version id. Omit for the active version.",
+  description: "Optional Library version id. Omit for the active version.",
 };
 
 const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   tool(
     "library_list",
-    "List documents in the user's local Beaver Library with deterministic Beaver app_url fields. Use this before claiming a Library document is unavailable. Optionally filter filenames with query.",
+    "List documents in the user's local Beaver Library with their app_url.",
     {
       type: "object",
       properties: {
@@ -134,7 +134,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_update_metadata",
-    "Save lightweight jurisdiction, practice-area, document-type, description, and note metadata for a local Library item. Use only when the user asks to classify or annotate a document; do not invent facts.",
+    "Save jurisdiction, practice-area, document-type, description, and note metadata for a Library item. Only when the user asks to classify or annotate; do not invent facts.",
     {
       type: "object",
       properties: {
@@ -156,7 +156,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_read",
-    "Read the active version of a document from the local Beaver Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
+    "Read the active version of a local Beaver Library document. mode=drafting adapts a DOCX precedent: it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
     {
       type: "object",
       properties: {
@@ -165,25 +165,25 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["text", "drafting"],
           description:
-            "Defaults to text. Drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
+            "Defaults to text. drafting is DOCX-only, version-bound, and returns bounded semantic HTML as document data.",
         },
         section: {
           type: "string",
           description:
-            "Optional structural locator parsed from the document's own numbering — 'Section 8.01(b)', '8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'. Returns only that span (children included) instead of the full text. Call library_outline first for the exact handles.",
+            "Structural locator from the document's own numbering ('8.01', 'Article VIII', 'Schedule 7.01', 's. 8(2)'). Returns only that span, children included. library_outline lists the exact handles.",
         },
         offset: {
           type: "integer",
           minimum: 0,
           description:
-            "Character offset to start reading from (text mode, no section). Compose with library_find hits' `at` offsets to read a window around a match in documents without numbered structure.",
+            "Character offset to start from (text mode, no section). Pairs with library_find hits' `at` offsets.",
         },
         max_chars: {
           type: "integer",
           minimum: 200,
           maximum: 300000,
           description:
-            "How many characters to read, starting at `offset`. Defaults to 24000 — that is a portion of the document, not all of it, and the reply sets `truncated` to true when there is more. For a long document, prefer calling library_outline to see its sections and then reading one section, or searching with library_find and reading around a match. Raise this only when you really need one long continuous stretch of text.",
+            "Characters to read from `offset`. Defaults to 24000 — a portion, not the whole document; the reply sets `truncated` when there is more.",
         },
       },
       required: ["document_id"],
@@ -191,7 +191,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_outline",
-    "Deterministic structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the exact handle library_read's section parameter accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens with nothing structural omitted — prefer this over reading full text when deciding what exists or planning pinpoint reads.",
+    "Structural map of a Library document parsed from its own numbering: the ARTICLE/PART tree, every Section and (a)/(i) subsection with the handle library_read section= accepts, defined terms with their defining section, schedules/exhibits, and cross-reference counts. A ~100-page agreement maps to 1-3k tokens.",
     {
       type: "object",
       properties: {
@@ -208,7 +208,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_find",
-    "Search inside a local Beaver Library document and return exact matching excerpts with surrounding context. Each hit carries its enclosing structural handle (`section`, when the document has numbered structure) and character offset (`at`), so the follow-up is library_read section=... or a windowed read — not a whole-document read. Use this for notes, footnotes, clauses, names, and other targeted lookups.",
+    "Search inside a local Beaver Library document and return matching excerpts with context. Each hit carries its enclosing structural handle (`section`, when numbered) and character offset (`at`), so the follow-up is a scoped or windowed library_read, not a whole-document read.",
     {
       type: "object",
       properties: {
@@ -217,7 +217,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         regex: {
           type: "boolean",
           description:
-            "Treat query as a JavaScript regex matched line-by-line (grep semantics: ^ and $ anchor to lines). Default false (literal, whitespace/quote tolerant).",
+            "Query is a line-by-line JavaScript regex (^ and $ anchor to lines). Default false: literal, whitespace/quote tolerant.",
         },
         case_insensitive: {
           type: "boolean",
@@ -231,30 +231,30 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_lookup",
-    "Return only an exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an exactly encoded section/provision. Prefer this over library_read for pinpoint requests. It never guesses or reparses the whole document.",
+    "Return one exact structural unit from a parsed local Library PDF: page/range, artifact paragraph/range, paired footnote/range with propositions, or an encoded section/provision. Never guesses or reparses the whole document.",
     {
       type: "object",
       properties: {
         document_id: { type: "string" },
         version_id: {
           type: "string",
-          description: "Optional exact Library version. Defaults to active.",
+          description: "Optional Library version. Defaults to active.",
         },
         locator_kind: {
           type: "string",
           enum: [...LOCAL_PDF_LOCATOR_KINDS],
           description:
-            "paragraph means parser artifact order; use provision_paragraph for an explicitly encoded legal provision.",
+            "paragraph is parser artifact order; provision_paragraph is an encoded legal provision.",
         },
         locator: {
           type: "string",
           description:
-            "Exact start locator, pair_id, symbol note label, heading, or provider-encoded provision ID.",
+            "Exact start locator, pair_id, note label, heading, or encoded provision ID.",
         },
         end_locator: {
           type: "string",
           description:
-            "Optional inclusive range end for page, paragraph, or footnote; maximum 20 units.",
+            "Optional inclusive range end; maximum 20 units.",
         },
         context_blocks: {
           type: "integer",
@@ -266,13 +266,13 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "integer",
           minimum: 1,
           description:
-            "Optional reference/body page to disambiguate a restarted footnote label.",
+            "Optional page disambiguating a restarted footnote label.",
         },
         occurrence: {
           type: "integer",
           minimum: 1,
           description:
-            "Optional occurrence to disambiguate a restarted footnote label.",
+            "Optional occurrence disambiguating a restarted footnote label.",
         },
       },
       required: ["document_id", "locator_kind", "locator"],
@@ -280,7 +280,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_evidence",
-    "Rehydrate a prior mike-evidence handle from its exact immutable Library PDF version. Use this after compaction or in a later turn instead of asking for the same locator again. The server verifies source, parser, artifact IDs, and text hash before returning text.",
+    "Rehydrate a prior mike-evidence handle from its immutable Library PDF version. The server verifies source, parser, artifact IDs, and text hash first.",
     {
       type: "object",
       properties: {
@@ -294,19 +294,19 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "provider_pdf_lookup",
-    "Resolve an opaque provider PDF reference returned by a legal-source tool and return one exact parsed structural unit. If parsing is still queued, this reports that state without reading the whole PDF. To rehydrate prior exact evidence, pass its handle with the same reference_id instead of a locator.",
+    "Resolve a provider PDF reference returned by a legal-source tool into one exact parsed structural unit; reports a queued state rather than reading the whole PDF. To rehydrate prior evidence, pass its handle with the same reference_id instead of a locator.",
     {
       type: "object",
       properties: {
         reference_id: {
           type: "string",
           description:
-            "Opaque mike-provider-pdf:v1 reference returned by a source tool.",
+            "mike-provider-pdf:v1 reference returned by a source tool.",
         },
         handle: {
           type: "string",
           description:
-            "Optional mike-evidence:v1 handle previously returned for this exact provider PDF reference.",
+            "Optional mike-evidence:v1 handle returned earlier for this reference.",
         },
         locator_kind: { type: "string", enum: [...LOCAL_PDF_LOCATOR_KINDS] },
         locator: { type: "string" },
@@ -320,7 +320,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_link_docx_citations",
-    "Create a new version of a local Library DOCX with verified provider links on its footnote citations. This bounded workflow splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
+    "Create a new version of a local Library DOCX with verified provider links on its footnote citations. It splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
     {
       type: "object",
       properties: { document_id: DOCUMENT_ID_PROPERTY },
@@ -329,7 +329,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_fix_docx_supras",
-    "Run the deterministic first pass for a local Library DOCX: turn unambiguous plain 'supra note N' numbers into native updating Word footnote cross-references. It creates a new version when it changes anything and reports ambiguous/restarted/split cases for review. Call this before asking the model to reason through or manually rewrite supra references.",
+    "Turn unambiguous plain 'supra note N' numbers in a local Library DOCX into native updating Word footnote cross-references. Creates a new version when it changes anything and reports ambiguous/restarted/split cases for review.",
     {
       type: "object",
       properties: { document_id: DOCUMENT_ID_PROPERTY },
@@ -338,7 +338,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_lint_docx_structure",
-    "Run the deterministic structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, literal numbering gaps and duplicates, and duplicate or unused defined terms. Read-only; returns verified findings with paragraph locations plus a receipt of what was checked and what was abstained from. Call this instead of asking the model to scan a document for these drafting errors.",
+    "Structural lint on a local Library DOCX: broken internal cross-references, references to missing schedules/exhibits, numbering gaps and duplicates, duplicate or unused defined terms. Read-only; returns located findings plus a receipt of what was checked and abstained from.",
     {
       type: "object",
       properties: {
@@ -350,7 +350,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_anchor_coverage",
-    "Diff typed anchors (money, percentages, ratios, dates, durations, areas, citations) between source documents and drafts by canonical value. Reports source-only anchors (candidate omissions), draft-only anchors (candidate unsourced figures), and words-vs-numerals mismatches. Mechanical; triage rows for relevance yourself.",
+    "Diff typed anchors (money, percentages, ratios, dates, durations, areas, citations) between source documents and drafts by canonical value. Reports source-only anchors (candidate omissions), draft-only anchors (candidate unsourced figures), and words-vs-numerals mismatches. Triage rows for relevance.",
     {
       type: "object",
       properties: {
@@ -363,14 +363,14 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Library document_ids of the draft deliverables to audit.",
+            "Library document_ids of the drafts to audit.",
         },
         max_rows_per_class: {
           type: "integer",
           minimum: 1,
           maximum: 100,
           description:
-            "Cap on reported rows per anchor class and direction. Defaults to 40.",
+            "Rows per anchor class and direction. Defaults to 40.",
         },
       },
       required: ["source_document_ids", "draft_document_ids"],
@@ -378,14 +378,14 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_conflict_scan",
-    "Check that stated arithmetic closes across documents: parts against wholes and percentages, subtotals against totals, for money and physical quantities at each figure's stated precision. Returns findings with the arithmetic shown and abstentions for figures it could not pair. Read-only; judge materiality yourself.",
+    "Check that stated arithmetic closes across documents: parts against wholes and percentages, subtotals against totals, for money and quantities at each figure's stated precision. Returns the arithmetic shown plus abstentions for unpaired figures. Judge materiality yourself.",
     {
       type: "object",
       properties: {
         document_ids: {
           type: "array",
           items: { type: "string" },
-          description: "Library document_ids to reconcile against each other.",
+          description: "Library document_ids to reconcile.",
         },
       },
       required: ["document_ids"],
@@ -393,7 +393,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_apply_amendment",
-    "Deterministically consolidate an amending instrument against a source Library document: amendment prose (US cut-and-bite and Canadian replace-style) is compiled into typed edit ops addressed by section labels, applied with hard failures (target not found, quoted text absent or ambiguous, overlapping ops), and verified by recompiling the result. DRY-RUN REPORT ONLY: returns per-op receipts, refusals, and the consolidation preview; it never writes a new version. Instructions the grammar cannot compile are refused and listed, never guessed at.",
+    "Consolidate an amending instrument against a source Library document: US cut-and-bite and Canadian replace-style prose compiles into typed edit ops addressed by section label, applied with hard failures and verified by recompiling. DRY-RUN ONLY: returns per-op receipts, refusals, and a preview; never writes a version. Uncompilable instructions are refused, never guessed at.",
     {
       type: "object",
       properties: {
@@ -404,19 +404,19 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
         amendment_document_id: {
           type: "string",
           description:
-            "Library document_id of the amending instrument. Provide this or amendment_text.",
+            "Library document_id of the amending instrument; this or amendment_text.",
         },
         amendment_text: {
           type: "string",
           description:
-            "Amendment prose pasted directly (e.g. one resolution), when it is not a Library document.",
+            "Amendment prose pasted directly, when it is not a Library document.",
         },
         preview_chars: {
           type: "integer",
           minimum: 0,
           maximum: 20000,
           description:
-            "Length of consolidated-text preview to return. Defaults to 0 (receipts only).",
+            "Consolidated-text preview length. Defaults to 0 (receipts only).",
         },
       },
       required: ["source_document_id"],
@@ -424,7 +424,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_deadline",
-    "Compute a legal deadline deterministically with a derivation trace: Interpretation Act s. 27(2) exclude-first-include-last day counting, s. 27(1) clear/'at least' days, s. 28 month anniversaries with month-end clamping, s. 26 holiday rollover (direction-aware), and business-day counting over computed statutory holiday tables (CA federal, CA-ON, CA-BC, CA-QC, US). NEVER compute limitation periods, notice deadlines, or business-day arithmetic in prose — call this and quote its trace.",
+    "Compute a legal deadline with a derivation trace: Interpretation Act s. 27(2) exclude-first-include-last counting, s. 27(1) clear days, s. 28 month anniversaries with month-end clamping, s. 26 holiday rollover, and business days over statutory holiday tables (CA federal, CA-ON, CA-BC, CA-QC, US). Quote the returned trace.",
     {
       type: "object",
       properties: {
@@ -448,7 +448,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["sat_sun", "sun_only"],
           description:
-            "Non-working weekend days. Federal s. 35 'holiday' includes only Sunday; commercial Business Day definitions exclude both. Defaults to sat_sun.",
+            "Non-working weekend days. Federal s. 35 'holiday' is Sunday only; commercial Business Day excludes both. Defaults to sat_sun.",
         },
         extra_holidays: {
           type: "array",
@@ -461,7 +461,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_term_drift",
-    "Deterministically diff defined terms across a deal stack of Library documents: the same term defined with divergent bodies (first difference located and excerpted), terms used in a document that defines them nowhere (imported uses), and in-document duplicate definitions. Divergences shown are real wording differences — normalization touches only whitespace and quote glyphs. Requires at least two documents.",
+    "Diff defined terms across a deal stack of Library documents: the same term defined with divergent bodies (first difference excerpted), terms used where nothing defines them, and in-document duplicate definitions. Divergences are real wording differences — normalization touches only whitespace and quote glyphs. Needs two or more documents.",
     {
       type: "object",
       properties: {
@@ -475,7 +475,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "integer",
           minimum: 1,
           maximum: 100,
-          description: "Cap on reported rows per list. Defaults to 40.",
+          description: "Rows per list. Defaults to 40.",
         },
       },
       required: ["document_ids"],
@@ -483,7 +483,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_drafting_lint",
-    "Deterministic modal-force and ambiguous-syntax lint over a Library document: 'may not' prohibition ambiguity, 'and/or', stacked-modal typos, and mixed shall/must obligation registers, each with exact spans, bounded excerpts, severity, and autofix eligibility, plus a document modal profile. The linter DETECTS; whether a flagged span is genuinely defective is judged over the excerpt alone — never rescan the document for these patterns yourself.",
+    "Modal-force and ambiguous-syntax lint over a Library document — 'may not' ambiguity, 'and/or', stacked-modal typos, mixed shall/must registers — each with exact spans, bounded excerpts, severity, and autofix eligibility, plus a modal profile. It DETECTS; judge each finding over its excerpt alone.",
     {
       type: "object",
       properties: {
@@ -492,7 +492,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "integer",
           minimum: 1,
           maximum: 200,
-          description: "Cap on returned findings. Defaults to 50.",
+          description: "Max findings. Defaults to 50.",
         },
       },
       required: ["document_id"],
@@ -500,7 +500,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "library_bilingual_concordance",
-    "Concordance gate for equally-authentic bilingual instruments: every value-bearing anchor (money, dates, durations incl. worded forms, percentages, statute refs, neutral citations) must appear in BOTH language versions — French productions normalize to the same keys ('2 250 000 $' = '$2,250,000', 'L.R.C. (1985), ch. C-46, art. 231' = 'R.S.C. 1985, c. C-46, s. 231', '2015 CSC 5' = '2015 SCC 5'). Anchors present in one version only are drafting or translation drift. Purely mechanical; triage rows for relevance.",
+    "Concordance gate for equally-authentic bilingual instruments: every value-bearing anchor (money, dates, durations, percentages, statute refs, neutral citations) must appear in BOTH versions, French forms normalizing to the same keys ('2 250 000 $' = '$2,250,000'). Anchors in one version only are drafting or translation drift; triage rows for relevance.",
     {
       type: "object",
       properties: {
@@ -516,7 +516,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "integer",
           minimum: 1,
           maximum: 100,
-          description: "Cap on reported rows per anchor class. Defaults to 40.",
+          description: "Rows per anchor class. Defaults to 40.",
         },
       },
       required: ["english_document_id", "french_document_id"],
@@ -524,7 +524,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "toa_submit_library_document",
-    "Submit one owned DOCX Library version to the existing local Table of Authorities workflow. Detection is deterministic first and can use a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
+    "Submit one owned DOCX Library version to the local Table of Authorities workflow. Detection is deterministic first, with a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
     {
       type: "object",
       properties: {
@@ -534,7 +534,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           type: "string",
           enum: ["off", "auto"],
           description:
-            "Use auto to invoke the cached bounded Codex splitter only when deterministic citation splitting is incomplete. Defaults to auto.",
+            "auto invokes the cached Codex splitter only when deterministic splitting is incomplete. Defaults to auto.",
         },
       },
       required: ["document_id"],
@@ -542,7 +542,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
   ),
   tool(
     "toa_job_status",
-    "Inspect one Table of Authorities job returned by toa_submit_library_document. Returns bounded progress, review readiness, output downloads, and the exact Beaver page to open.",
+    "Inspect one Table of Authorities job from toa_submit_library_document: progress, review readiness, output downloads, and the Beaver page to open.",
     {
       type: "object",
       properties: { job_id: { type: "string", pattern: "^[0-9a-f]{32}$" } },
@@ -561,7 +561,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
         function: {
           ...schema.function,
           name: "library_create_docx",
-          description: `${schema.function.description} Store it as a durable new item in the local Library; matter chats attach it to that matter automatically.`,
+          description: `${schema.function.description} Stored as a durable new item in the local Library; matter chats attach it automatically.`,
         },
       },
     ];
@@ -574,7 +574,7 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
     return [
       tool(
         "library_revise_docx",
-        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Beaver shows the resulting document card automatically. Use this for action requests instead of replying with proposed or suggested changes in prose. The server edits the active version; non-DOCX documents fail without changing anything.",
+        "Apply requested edits, revisions, or redlines to an existing local Library DOCX as tracked changes. Use this for action requests instead of replying with proposed or suggested changes in prose. Beaver shows the resulting document card; the server edits the active version and non-DOCX documents fail unchanged.",
         {
           type: "object",
           properties: {
@@ -585,13 +585,13 @@ const LOCAL_DOCX_TOOLS: OpenAIToolSchema[] = (
             version_id: {
               type: "string",
               description:
-                "Optional. Omit to edit the active version; provide only to assert a specific version, which fails if it is no longer active.",
+                "Optional. Omit for the active version; a specific id fails if it is no longer active.",
             },
             edits: sharedProperties.edits,
             annotate: {
               type: "boolean",
               description:
-                "OFF BY DEFAULT and stays off unless the user EXPLICITLY asks for in-document Word comments. Word comments make large documents laggy, and edit reasons already reach the user through the tracked-edit card, so plain tracked changes are the normal deliverable. When true: each reasoned edit gets an anchored comment, unreasoned edits are counted in the receipt, and the new version is auto-checked by the structural lint.",
+                "Off by default; set true ONLY if the user EXPLICITLY asks for in-document Word comments — edit reasons already reach the user through the tracked-edit card. When true, each reasoned edit gets an anchored comment and the version is auto-linted.",
             },
           },
           required: ["document_id", "edits"],
@@ -992,8 +992,7 @@ async function runLocalReviseDocx(
         reason: edit.reason,
         status: edit.status,
       })),
-      next_required_action:
-        "The tracked-edit card is shown automatically. Briefly confirm completion; do not repeat a document URL or substitute a prose change list.",
+      
     });
   } catch {
     return fail(call, "DOCX revision failed");
@@ -1985,8 +1984,7 @@ export async function runLocalAssistantTools(
             source_sha256: document.source_sha256,
             attached_to_matter: Boolean(matterId),
             download_url: downloadUrl,
-            next_required_action:
-              "The document card is shown automatically. Briefly confirm completion; do not repeat a document URL or paste the draft into chat.",
+            
           });
         } catch {
           return fail(call, "DOCX creation failed");
@@ -2035,7 +2033,7 @@ export async function runLocalAssistantTools(
               change_count: 0,
               ops: opReports,
               next_required_action:
-                "No tracked changes were created and no new version was saved. Report the per-op notes (flagged spellings, skipped sites) to the user; to correct a flagged word, call this tool again with replace_text scoped to that exact text.",
+                "No tracked changes and no new version. Report the per-op notes to the user.",
             });
           }
           if (!applied.edits.length) {
@@ -2119,7 +2117,7 @@ export async function runLocalAssistantTools(
               status: edit.status,
             })),
             next_required_action:
-              "The tracked-edit card is shown automatically. Briefly confirm what was changed and mention any unchanged_sites; do not repeat a document URL or paste the transformed text.",
+              "Mention any unchanged_sites when you confirm.",
           });
         } catch (error) {
           return fail(
@@ -2677,7 +2675,7 @@ export async function runLocalAssistantTools(
             filename: file.version.filename,
             job,
             next_required_action:
-              "Use toa_job_status with this job id until detection is complete, then link the user to job.app_url.",
+              "Poll toa_job_status with this job id until detection is complete.",
           });
         } catch (error) {
           return fail(

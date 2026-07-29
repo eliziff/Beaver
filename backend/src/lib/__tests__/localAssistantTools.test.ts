@@ -36,7 +36,7 @@ describe("local assistant tools", () => {
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_lint_docx_structure",
       )?.function.description,
-    ).toContain("instead of asking the model");
+    ).toContain("receipt of what was checked");
     expect(names).toContain("provider_pdf_lookup");
     expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
@@ -49,12 +49,12 @@ describe("local assistant tools", () => {
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_revise_docx",
       )?.function.parameters.required,
-    ).toEqual(["document_id", "version_id", "edits"]);
+    ).toEqual(["document_id", "edits"]);
     expect(
       LOCAL_ASSISTANT_TOOLS.find(
         (tool) => tool.function.name === "library_fix_docx_supras",
       )?.function.description,
-    ).toContain("before asking the model");
+    ).toContain("ambiguous/restarted/split cases");
     expect(names).toContain("toa_submit_library_document");
     expect(names).toContain("toa_job_status");
     expect(names).toContain("list_workflows");
@@ -138,9 +138,9 @@ describe("local assistant tools", () => {
         `/single-documents/${created.document_id}/file?version_id=${created.version_id}`,
       );
       expect(created.app_url).toBeUndefined();
-      expect(created.next_required_action).toContain(
-        "document card is shown automatically",
-      );
+      // Card/URL etiquette lives once, in the system prompt; the receipt does
+      // not re-teach it on every create.
+      expect(created.next_required_action).toBeUndefined();
       expect(allowedDocumentIds).toContain(created.document_id);
       expect(graph.listMatterDocumentIds("local-user", matter.id)).toEqual([
         created.document_id,
@@ -176,7 +176,7 @@ describe("local assistant tools", () => {
       expect(draftingRead.html).toMatch(
         /<h1>(?:<strong>)?Background(?:<\/strong>)?<\/h1>/u,
       );
-      expect(draftingRead.html).toContain("footnote");
+      expect(draftingRead.html).toContain("[^");
 
       const [revisedResponse] = await tools.runLocalAssistantTools(
         "local-user",
@@ -235,9 +235,7 @@ describe("local assistant tools", () => {
       expect(revised.annotations[0].edit_id).toMatch(
         /^[0-9a-f-]{36}$/u,
       );
-      expect(revised.next_required_action).toContain(
-        "tracked-edit card is shown automatically",
-      );
+      expect(revised.next_required_action).toBeUndefined();
       expect(revised.version_id).not.toBe(created.version_id);
       expect(revised.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
 

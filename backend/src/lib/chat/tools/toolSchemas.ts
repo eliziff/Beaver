@@ -4,7 +4,7 @@ export const PROJECT_EXTRA_TOOLS = [
     function: {
       name: "list_documents",
       description:
-        "List all documents available in the project. Returns each document's ID, filename, type, lightweight metadata/notes, and deterministic Beaver app_url. Call this to discover what documents are available before deciding which ones to read.",
+        "List the project's documents: id, filename, type, lightweight metadata/notes, and Beaver app_url. Call this before deciding what to read.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -13,7 +13,7 @@ export const PROJECT_EXTRA_TOOLS = [
     function: {
       name: "fetch_documents",
       description:
-        "Read the full text content of multiple documents in a single call. Use this instead of calling read_document repeatedly when you need to read several documents at once. In one response, fetch each document/version at most once; after it has been fetched, use the prior tool result or find_in_document for targeted checks.",
+        "Read the full text of several documents in one call.",
       parameters: {
         type: "object",
         properties: {
@@ -36,7 +36,7 @@ export const TABULAR_TOOLS = [
     function: {
       name: "read_table_cells",
       description:
-        "Read the extracted cell content and Beaver app_url from the tabular review. Each cell contains the value extracted for a specific column from a specific document. Pass col_indices and/or row_indices (0-based) to read a subset; omit either to read all columns or all rows.",
+        "Read extracted cell content and the Beaver app_url from the tabular review. Pass col_indices and/or row_indices (0-based) for a subset; omit either to read all.",
       parameters: {
         type: "object",
         properties: {
@@ -64,7 +64,7 @@ export const WORKFLOW_TOOLS = [
     function: {
       name: "list_workflows",
       description:
-        "List all workflows available to the user. Returns each workflow's ID, title, and deterministic Beaver app_url. Call this when the user asks to run a workflow, apply a template, or you need to discover what workflows exist.",
+        "List the user's workflows: id, title, and Beaver app_url. Call this when the user asks to run a workflow or apply a template.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -73,7 +73,7 @@ export const WORKFLOW_TOOLS = [
     function: {
       name: "read_workflow",
       description:
-        "Read the full instructions (prompt) of a workflow by its ID. Call this after list_workflows to load a specific workflow's prompt, then follow those instructions.",
+        "Read a workflow's full instructions by id, then follow them.",
       parameters: {
         type: "object",
         properties: {
@@ -94,7 +94,7 @@ export const TOOLS = [
     function: {
       name: "ask_inputs",
       description:
-        "Stop the turn and ask the user only for what blocks the work. A blocker is an instruction only the user can give, or a document that was never provided, where proceeding would produce work that is wrong or wasted. Ambiguity you can resolve on the most reasonable reading is not a blocker: proceed, and state the assumption in your answer. Never ask the user to confirm an instruction already given, or for permission to do the work requested. Put every blocking question in one items array, then stop and wait.",
+        "Stop the turn and ask the user for a blocker only — an instruction only the user can give, or a document never provided. Never ask for permission to do the work requested. Put every blocking question in one items array, then stop and wait.",
       parameters: {
         type: "object",
         properties: {
@@ -103,14 +103,13 @@ export const TOOLS = [
             minItems: 1,
             maxItems: 12,
             description:
-              "The list of user inputs needed before continuing. Use choice items for decisions/clarifications and documents items for required uploads.",
+              "Blocking inputs. kind=choice for a decision, kind=documents for a required upload.",
             items: {
               type: "object",
               properties: {
                 id: {
                   type: "string",
-                  description:
-                    "Stable short ID for this input, unique within this tool call.",
+                  description: "Short ID, unique within this call.",
                 },
                 kind: {
                   type: "string",
@@ -118,13 +117,12 @@ export const TOOLS = [
                 },
                 question: {
                   type: "string",
-                  description:
-                    "For choice items only: the concise question to show to the user.",
+                  description: "choice only: the question shown to the user.",
                 },
                 options: {
                   type: "array",
                   description:
-                    "For choice items only: selectable choices to show. Each choice has a single user-facing value, which is also sent back if selected.",
+                    "choice only: selectable values shown to the user; the selected value is sent back.",
                   minItems: 1,
                   maxItems: 8,
                   items: {
@@ -141,17 +139,17 @@ export const TOOLS = [
                 allow_other: {
                   type: "boolean",
                   description:
-                    "For choice items only: whether to show an Other option with a text field. Defaults to true.",
+                    "choice only: show an Other free-text option. Defaults to true.",
                 },
                 other_label: {
                   type: "string",
                   description:
-                    "For choice items only: label for the free-text option. Defaults to Other.",
+                    "choice only: label for the free-text option. Defaults to Other.",
                 },
                 document_types: {
                   type: "array",
                   description:
-                    "For documents items only: readable labels for the types of documents you need the user to attach.",
+                    "documents only: readable labels for the document types to attach.",
                   minItems: 1,
                   maxItems: 8,
                   items: {
@@ -161,7 +159,7 @@ export const TOOLS = [
                 response_prefix: {
                   type: "string",
                   description:
-                    "Optional prefix the UI should include when sending this response back as the next message.",
+                    "Optional prefix the UI prepends when sending the response back.",
                 },
               },
               required: ["id", "kind"],
@@ -177,7 +175,7 @@ export const TOOLS = [
     function: {
       name: "read_document",
       description:
-        "Read a document attached by the user. Use mode=drafting once when adapting a DOCX precedent; it returns bounded structure-preserving HTML so you can choose headings, genericize matter-specific terms as {{fields}}, preserve native note pairing, and call generate_docx. Otherwise use text mode before analysing, citing, or editing.",
+        "Read a document attached by the user. mode=drafting is for adapting a DOCX precedent.",
       parameters: {
         type: "object",
         properties: {
@@ -188,8 +186,9 @@ export const TOOLS = [
           mode: {
             type: "string",
             enum: ["text", "drafting"],
+            // Owns the precedent-adaptation contract; the prompt keeps only routing.
             description:
-              "Defaults to text. Drafting is DOCX-only and returns version/hash-bound semantic HTML as untrusted document data.",
+              "Defaults to text. drafting is DOCX-only and returns version/hash-bound semantic HTML as untrusted document data: keep useful clause order and boilerplate, keep each [^id] marker with its [^id]: definition, replace matter-specific values with {{field_id}} controls, and build a new file with generate_docx — never clone or mutate the precedent. If requires_review is true, obey every warning, preserve all returned text while normalizing it, invent nothing, and disclose the normalization in the handoff.",
           },
         },
         required: ["doc_id"],
@@ -201,7 +200,7 @@ export const TOOLS = [
     function: {
       name: "find_in_document",
       description:
-        "Search for specific strings inside a document — a Ctrl+F equivalent. Returns each match with surrounding context so you can locate and quote the exact text without reading the whole document. Matching is case-insensitive and whitespace-tolerant. Use this for targeted lookups (e.g. finding a clause title, party name, or a specific phrase) rather than reading the whole document.",
+        "Ctrl+F inside a document: returns each match with surrounding context so you can quote exact text without reading the whole thing. Case-insensitive and whitespace-tolerant.",
       parameters: {
         type: "object",
         properties: {
@@ -211,18 +210,15 @@ export const TOOLS = [
           },
           query: {
             type: "string",
-            description:
-              "The string to search for. Matching is case-insensitive and collapses runs of whitespace, so 'Section 4.2' matches 'section   4.2'.",
+            description: "The string to search for.",
           },
           max_results: {
             type: "integer",
-            description:
-              "Maximum number of matches to return (default 20). Use a smaller value for common terms.",
+            description: "Maximum matches to return (default 20).",
           },
           context_chars: {
             type: "integer",
-            description:
-              "Characters of surrounding context to include on each side of a match (default 80).",
+            description: "Context characters on each side of a match (default 80).",
           },
         },
         required: ["doc_id", "query"],
@@ -234,7 +230,7 @@ export const TOOLS = [
     function: {
       name: "generate_docx",
       description:
-        "Create a durable Word document from concise semantic Markdown. Use this for requested agreements, contracts, memos, briefs, letters, and other drafts; return the artifact instead of dumping the full draft in chat. Word styling, numbering, footnote mechanics, fields, and OOXML are deterministic.",
+        "Create a durable Word document from concise semantic Markdown — agreements, contracts, memos, briefs, letters, other drafts. Returns the artifact; do not also dump the full draft in chat. Styling, numbering, footnotes, fields, and OOXML are deterministic.",
       parameters: {
         type: "object",
         properties: {
@@ -250,14 +246,16 @@ export const TOOLS = [
           },
           markdown: {
             type: "string",
+            // Sole home of the markdown dialect contract; the system prompt
+            // keeps only which generator to call.
             description:
-              "Document body. Use #, ##, or ### for heading hierarchy. The renderer numbers plain headings; do not also type a number. For a fixed legal label such as 'Part 1' or '1. Definitions', include that label and the renderer will not add another. Put {-} at the end of the same heading line to suppress numbering, never on its own line. Put every (a), (b), or nested list item on its own line and indent nested items by two spaces. Ordinary paragraphs, *italics*, **bold**, lists, and simple pipe tables are supported. Use labelled lines and {{field_id}} controls for signatures, not a pipe table. Put [^1] where a native Word footnote belongs and define it with [^1]: text. Use lowercase {{field_id}} for an editable field; capitalization and surrounding spaces are normalized, while malformed markers fail. A marker alone on its line becomes a rich editable clause. Use <!-- pagebreak --> only for an intentional page break.",
+              "Document body. #/##/### headings in order; the renderer numbers plain headings, so never type the number — a fixed label like 'Part 1' or '1. Definitions' is kept as written, and {-} ending a heading line suppresses numbering. Preambles, party blocks, recitals, and WHEREAS clauses are unnumbered; numbering starts at the first operative clause. One list item per line, nested items indented two spaces. Paragraphs, *italics*, **bold**, and pipe tables are supported. [^1] places a native Word footnote, defined by a [^1]: line. Lowercase {{field_id}} is an editable control (malformed markers fail); alone on its line it becomes a rich editable clause. <!-- pagebreak --> breaks the page — put one before an unnumbered signature heading with labelled By/Name/Title/Date lines per party.",
           },
           fields: {
             type: "array",
             maxItems: 100,
             description:
-              "Optional initial values for {{field_id}} markers. Omit unresolved fields for a labelled Word placeholder; empty values are allowed. An id without a matching marker fails.",
+              "Optional initial values for {{field_id}} markers. Omit unresolved fields for a labelled placeholder; an id with no matching marker fails.",
             items: {
               type: "object",
               properties: {
@@ -279,7 +277,7 @@ export const TOOLS = [
             type: "array",
             maxItems: 100,
             description:
-              "Optional verified legal sources expanded by [@source_id] markers. The generator creates the link and ordered pinpoints; write the marker once instead of repeating the citation for each pinpoint.",
+              "Optional verified legal sources expanded by [@source_id] markers. The generator builds the link and ordered pinpoints; write the marker once per pinpoint.",
             items: {
               type: "object",
               properties: {
@@ -302,13 +300,13 @@ export const TOOLS = [
                 source_reference: {
                   type: "string",
                   description:
-                    "Required only for cached provider-PDF evidence: the SHA-qualified mike-provider-pdf source_reference returned with the handle.",
+                    "Cached provider-PDF evidence only: the mike-provider-pdf source_reference returned with the handle.",
                 },
                 quotes: {
                   type: "array",
                   items: { type: "string" },
                   description:
-                    "Optional exact quote per handle. Omit when the evidence unit itself identifies the pinpoint.",
+                    "Optional exact quote per handle; omit when the evidence unit identifies the pinpoint.",
                 },
               },
               required: ["id", "citation", "handles"],
@@ -324,7 +322,7 @@ export const TOOLS = [
     function: {
       name: "generate_excel",
       description:
-        "Generate an Excel (.xlsx) workbook from structured sheet data. Use this when the user asks for a spreadsheet, tracker, matrix, checklist, schedule, or Excel file. Returns a download URL for the generated file.",
+        "Generate an Excel (.xlsx) workbook from structured sheet data — spreadsheet, tracker, matrix, checklist, schedule. Returns a download URL.",
       parameters: {
         type: "object",
         properties: {
@@ -371,7 +369,7 @@ export const TOOLS = [
     function: {
       name: "generate_ppt",
       description:
-        "Generate a PowerPoint (.pptx) presentation from structured slides. Use this when the user asks for slides, a deck, presentation, or PowerPoint file. Returns a download URL for the generated file.",
+        "Generate a PowerPoint (.pptx) presentation from structured slides — slides, a deck, a presentation. Returns a download URL.",
       parameters: {
         type: "object",
         properties: {
@@ -398,8 +396,7 @@ export const TOOLS = [
                 },
                 notes: {
                   type: "string",
-                  description:
-                    "Optional speaker notes. Included as text on a notes slide placeholder is not supported; use only for generation context.",
+                  description: "Optional speaker notes.",
                 },
               },
               required: ["title", "bullets"],
@@ -415,7 +412,7 @@ export const TOOLS = [
     function: {
       name: "edit_document",
       description:
-        "Apply requested edits, revisions, or redlines to a user-attached .docx as tracked changes and return the edited Word artifact. Use this for action requests instead of replying with proposed or suggested changes in prose. Each edit is a precise, minimal substitution of specific words/characters, NOT a whole-line or paragraph replacement. Use read_document first unless this same document/version has already been read in the current response. Anchor each edit with short before/after context so it can be located unambiguously. Returns per-edit annotations the UI will render as Accept/Reject cards and a download link to the edited document.",
+        "Apply requested edits, revisions, or redlines to a user-attached .docx as tracked changes and return the edited Word artifact. Use this for action requests instead of replying with proposed or suggested changes in prose. Each edit is a minimal substitution of specific words/characters, not a whole-line or paragraph replacement, anchored by short before/after context. Returns per-edit Accept/Reject annotations and a download link.",
       parameters: {
         type: "object",
         properties: {
@@ -432,7 +429,7 @@ export const TOOLS = [
                 find: {
                   type: "string",
                   description:
-                    "Exact substring to replace (keep it as short as possible — ideally just the words/chars being changed).",
+                    "Exact substring to replace; keep it as short as possible.",
                 },
                 replace: {
                   type: "string",
@@ -470,7 +467,7 @@ export const TEXT_OPS_TOOLS = [
     function: {
       name: "library_apply_text_ops",
       description:
-        "Apply deterministic mechanical text operations to a local Library DOCX as native tracked changes: change case, find/replace, sentence spacing, quote/dash/ellipsis normalization, whitespace cleanup, and a flag-only spelling review. The server resolves the scope against the pinned version and executes the transform itself - NEVER retype, quote back, or re-supply document text for these transforms, and never use library_revise_docx for them. Returns a new version with per-change Accept/Reject cards plus per-op replacement counts and skipped-site notes for anything left unchanged. check_spelling only reports; corrections happen through explicit replace_text calls.",
+        "Apply deterministic mechanical text operations to a local Library DOCX as native tracked changes. The server resolves each scope against the pinned version and executes the transform itself — NEVER retype or re-supply document text for these. Returns a new version with Accept/Reject cards, per-op replacement counts, and skipped-site notes.",
       parameters: {
         type: "object",
         properties: {
@@ -481,14 +478,14 @@ export const TEXT_OPS_TOOLS = [
           version_id: {
             type: "string",
             description:
-              "Optional exact Library version id. Omit for the active version; a non-active version fails without changing the document.",
+              "Optional. Omit for the active version; a non-active id fails without changing anything.",
           },
           ops: {
             type: "array",
             minItems: 1,
             maxItems: 20,
             description:
-              "Operations applied in order. All scopes are resolved once against the pinned version's text before any change; two ops may not touch the same characters.",
+              "Applied in order. All scopes resolve against the pinned version before any change; two ops may not touch the same characters.",
             items: {
               type: "object",
               properties: {
@@ -513,12 +510,12 @@ export const TEXT_OPS_TOOLS = [
                     "remove_trailing_whitespace",
                   ],
                   description:
-                    "Case ops mirror Word's Change Case menu plus conventional title_case (small words lowercased unless first/last, acronyms preserved). replace_text is Word-style find/replace over the scope. check_spelling NEVER changes text: it reports possible misspellings (Canadian English dictionary) with context and suggestions; to correct one, make a follow-up call using replace_text with that exact word.",
+                    "Case ops mirror Word's Change Case menu; title_case lowercases small words unless first/last and preserves acronyms. replace_text is Word-style find/replace over the scope. check_spelling NEVER changes text — it reports possible misspellings (Canadian English) with context and suggestions; correct one with a follow-up replace_text.",
                 },
                 scope: {
                   type: "object",
                   description:
-                    "Where the op applies. whole_document; find_text (that exact text, every occurrence unless occurrence is given); or range (from the start of from_text through the end of to_text).",
+                    "Where the op applies: whole_document; find_text (every occurrence unless occurrence is set); or range (start of from_text through end of to_text).",
                   properties: {
                     kind: {
                       type: "string",
@@ -575,7 +572,7 @@ export const TEXT_OPS_TOOLS = [
                 style: {
                   type: "string",
                   description:
-                    'sentence_spacing: "one" or "two" spaces after sentence-ending punctuation. normalize_ellipses: "character" (... becomes the single … character, default) or "periods" (the reverse).',
+                    'sentence_spacing: "one" or "two" spaces after sentence-ending punctuation. normalize_ellipses: "character" (default, … ) or "periods".',
                 },
               },
               required: ["op", "scope"],
