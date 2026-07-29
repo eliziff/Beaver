@@ -1322,6 +1322,59 @@ export function findTextMatches(params: {
 }
 
 /**
+ * Grep-mode sibling of findTextMatches: the pattern runs line by line over
+ * the ORIGINAL text (grep semantics — ^ and $ anchor to lines, runaway
+ * backtracking is bounded by line length), hits carry absolute offsets.
+ * Returns a typed error string instead of throwing so the tool layer can
+ * hand the model something actionable.
+ */
+export function findRegexMatches(params: {
+  text: string;
+  pattern: string;
+  maxResults: number;
+  contextChars: number;
+  caseInsensitive?: boolean;
+}): { hits: TextMatch[]; totalMatches: number } | { error: string } {
+  const { text, pattern, maxResults, contextChars } = params;
+  if (pattern.length > 300) {
+    return { error: "regex pattern too long (max 300 chars)" };
+  }
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern, params.caseInsensitive ? "giu" : "gu");
+  } catch (error) {
+    return { error: `invalid regex: ${(error as Error).message}` };
+  }
+  const hits: TextMatch[] = [];
+  let totalMatches = 0;
+  let lineStart = 0;
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.replace(/\r$/u, "");
+    for (const match of line.matchAll(re)) {
+      if (!match[0]) continue;
+      totalMatches++;
+      if (hits.length < maxResults) {
+        const at = lineStart + (match.index ?? 0);
+        const end = at + match[0].length;
+        const ctxStart = Math.max(0, at - contextChars);
+        const ctxEnd = Math.min(text.length, end + contextChars);
+        hits.push({
+          index: hits.length,
+          excerpt: text.slice(at, end),
+          context:
+            (ctxStart > 0 ? "…" : "") +
+            text.slice(ctxStart, ctxEnd).replace(/\s+/g, " ").trim() +
+            (ctxEnd < text.length ? "…" : ""),
+          at,
+        });
+      }
+    }
+    lineStart += rawLine.length + 1;
+  }
+  return { hits, totalMatches };
+}
+
+/**
  * Ctrl+F helper. Returns a JSON-serializable result with up to `maxResults`
  * hits, each containing the original-text excerpt plus surrounding context.
  */

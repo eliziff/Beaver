@@ -64,6 +64,11 @@ import {
   executeA2AJTool,
 } from "./tools/a2ajTools";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
+import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
+import {
+  COMPARE_VERSIONS_TOOLS,
+  executeCompareVersionsTool,
+} from "./tools/compareVersionsTool";
 import { executeHansardTool, HANSARD_TOOLS } from "./tools/hansardTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
@@ -78,6 +83,7 @@ import {
 } from "../docxTextOps";
 import { TEXT_OP_NAMES } from "../textOps";
 import {
+  findRegexMatches,
   findTextMatches,
   renderMarkdownDocx,
   textParserFor,
@@ -184,6 +190,15 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
       properties: {
         document_id: { type: "string" },
         query: { type: "string" },
+        regex: {
+          type: "boolean",
+          description:
+            "Treat query as a JavaScript regex matched line-by-line (grep semantics: ^ and $ anchor to lines). Default false (literal, whitespace/quote tolerant).",
+        },
+        case_insensitive: {
+          type: "boolean",
+          description: "Regex mode only. Default false.",
+        },
         max_results: { type: "integer", minimum: 1, maximum: 50 },
         context_chars: { type: "integer", minimum: 40, maximum: 2000 },
       },
@@ -574,6 +589,7 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
   ...LOCAL_LIBRARY_TOOLS,
   ...LOCAL_DOCX_TOOLS,
+  ...COMPARE_VERSIONS_TOOLS,
   ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
   ...(WORKFLOW_TOOLS as OpenAIToolSchema[]),
   ...(RESEARCH_TOOLS_DISABLED
@@ -583,6 +599,7 @@ export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
         ...(A2AJ_TOOLS as OpenAIToolSchema[]),
         ...(PUBLIC_LEGAL_SOURCE_TOOLS as OpenAIToolSchema[]),
         ...HANSARD_TOOLS,
+        ...CITATOR_TOOLS,
       ]),
 ];
 
@@ -1537,12 +1554,22 @@ export async function runLocalAssistantTools(
           });
         }
         const query = trimmed(args.query);
-        const matches = findTextMatches({
-          text: document.text,
-          query,
-          maxResults: clampInt(args.max_results, 1, 50, 20),
-          contextChars: clampInt(args.context_chars, 40, 2000, 500),
-        });
+        const matches =
+          args.regex === true
+            ? findRegexMatches({
+                text: document.text,
+                pattern: query,
+                maxResults: clampInt(args.max_results, 1, 50, 20),
+                contextChars: clampInt(args.context_chars, 40, 2000, 500),
+                caseInsensitive: args.case_insensitive === true,
+              })
+            : findTextMatches({
+                text: document.text,
+                query,
+                maxResults: clampInt(args.max_results, 1, 50, 20),
+                contextChars: clampInt(args.context_chars, 40, 2000, 500),
+              });
+        if ("error" in matches) return fail(call, matches.error);
         // The grep-analog composes like file:line does for code: each hit
         // carries its offset plus the deepest enclosing structural handle,
         // so the follow-up is a section read, not a whole-document read.
@@ -1916,6 +1943,12 @@ export async function runLocalAssistantTools(
 
       const hansard = executeHansardTool(call.name, args);
       if (hansard) return result(call, hansard);
+
+      const citator = executeCitatorTool(call.name, args);
+      if (citator) return result(call, citator);
+
+      const compared = await executeCompareVersionsTool(userId, call.name, args);
+      if (compared) return result(call, compared);
 
       const a2aj = await executeA2AJTool(call.name, args);
       if (a2aj) {
