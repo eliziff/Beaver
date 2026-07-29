@@ -21,7 +21,12 @@ the model constant?
      no temperature pin. Adaptive thinking is ACTIVE over this transport
      (probe-verified: thinking blocks on hard prompts) and effort passes
      through as `--effort`; experiment runs pin effort HIGH to match
-     Harvey's published `claude-sonnet-4-6-high` config label. Known cap:
+     Harvey's published `claude-sonnet-4-6-high` config label. Effort
+     provenance: the CLI default is `high` on effort-capable models
+     (docs) AND this machine's ~/.claude/settings.json sets
+     `effortLevel: high`, so runs made BEFORE the explicit pin
+     (cc-harness-* rows, judge calls) also ran at high — all sonnet rows
+     are tier-parity with Harvey's config. Known cap:
      the CLI limits output to 32,000 tokens per call — a whole-deliverable
      turn approaches it. Calls stream (`--include-partial-messages`) with
      a 240s inactivity watchdog instead of a total-time cap.
