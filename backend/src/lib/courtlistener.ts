@@ -1,3 +1,4 @@
+import { cachedContent } from "./contentCache";
 import { downloadFile, listFiles } from "./storage";
 import { createServerSupabase } from "./supabase";
 import type { SourceDoc, SourceDocLocatorKind } from "./sourceDoc";
@@ -88,23 +89,38 @@ async function courtlistenerFetch<T>(
     throw new Error("Refusing CourtListener request to a foreign origin.");
   }
   const method = init?.method ?? "GET";
-  devLog("[courtlistener/api] request", { method, path: pathOrUrl, url });
-  const response = await fetch(url, {
-    ...init,
-    signal: init?.signal ?? AbortSignal.timeout(15_000),
-    headers: {
-      ...courtlistenerHeaders(apiToken),
-      ...(init?.headers ?? {}),
-    },
+  const perform = async () => {
+    devLog("[courtlistener/api] request", { method, path: pathOrUrl, url });
+    const response = await fetch(url, {
+      ...init,
+      signal: init?.signal ?? AbortSignal.timeout(15_000),
+      headers: {
+        ...courtlistenerHeaders(apiToken),
+        ...(init?.headers ?? {}),
+      },
+    });
+    devLog("[courtlistener/api] response", {
+      method, path: pathOrUrl, status: response.status,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(parseCourtlistenerError(response.status, detail));
+    }
+    return response.json() as Promise<T>;
+  };
+  if (method !== "GET") return perform();
+  // Downloaded-authority cache: opinions and clusters are effectively
+  // immutable; searches tolerate a bounded staleness ceiling. Also relieves
+  // CourtListener rate limits across sessions. The token never enters the
+  // key (it rides in headers only).
+  return cachedContent({
+    scope: "shared",
+    kind: "courtlistener-api",
+    key: url,
+    version: 1,
+    ttlMs: 24 * 60 * 60 * 1_000,
+    produce: perform,
   });
-  devLog("[courtlistener/api] response", {
-    method, path: pathOrUrl, status: response.status,
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(parseCourtlistenerError(response.status, detail));
-  }
-  return response.json() as Promise<T>;
 }
 
 const asString = (value: unknown): string | null =>
