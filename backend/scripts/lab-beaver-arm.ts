@@ -9,8 +9,11 @@
  * reference-harness run.
  *
  * Deviations, recorded in beaver-receipts.json per run:
- *  - Documents outside ALLOWED_DOCUMENT_TYPES (e.g. .eml) are wrapped as
- *    .docx before upload — content unchanged, Beaver has no ingester for them.
+ *  - Documents outside ALLOWED_DOCUMENT_TYPES are wrapped as .docx before
+ *    upload — content unchanged, Beaver has no ingester for them. Email is
+ *    NOT one of these: .eml uploads natively and is decoded by
+ *    lib/emailText.ts, because wrapping a quoted-printable message verbatim
+ *    splits numbers mid-digit and changes the facts the task is scored on.
  *  - Deliverables prefer documents Beaver authored itself via its
  *    library_create_docx tool (harvested from doc_created SSE events and
  *    downloaded through the real /single-documents API); when the turn
@@ -36,6 +39,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { ALLOWED_DOCUMENT_TYPES } from "../src/lib/documentTypes";
 
 function argument(name: string, fallback?: string): string {
   const index = process.argv.indexOf(`--${name}`);
@@ -49,9 +53,13 @@ function argument(name: string, fallback?: string): string {
 
 const DEFAULT_LAB_ROOT = "C:/Users/elias/Desktop/harvey-labs";
 
-// Mirror of ALLOWED_DOCUMENT_TYPES (src/lib/documentTypes.ts) minus images —
-// images can't carry LAB document content.
-const UPLOADABLE = new Set(["pdf", "docx", "doc", "xlsx", "xlsm", "xls", "pptx", "ppt"]);
+// Derived from the real gate rather than mirrored by hand: a stale copy is
+// how .eml ended up wrapped as .docx long after Beaver could read it.
+// Images are excluded because they can't carry LAB document content.
+const IMAGE_TYPES = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
+const UPLOADABLE = new Set(
+  [...ALLOWED_DOCUMENT_TYPES].filter((type) => !IMAGE_TYPES.has(type)),
+);
 
 type SseEvent = { type?: string; [key: string]: unknown };
 
