@@ -17,11 +17,11 @@ import {
     X,
 } from "lucide-react";
 import { AddDocButton } from "./AddDocButton";
-import { UploadOverlay } from "./UploadOverlay";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
+import { WarningPopup } from "../popups/WarningPopup";
 import {
     ModelToggle,
     ReasoningEffortToggle,
@@ -105,7 +105,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
     const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
-    const dragDepthRef = useRef(0);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => {
@@ -240,44 +239,30 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         },
         [addAttachedDocuments, onDocumentsUploaded, projectId],
     );
-    useEffect(() => {
-        const hasFiles = (dataTransfer: DataTransfer | null) =>
-            !!dataTransfer && Array.from(dataTransfer.types).includes("Files");
-        const handleDragEnter = (event: DragEvent) => {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            dragDepthRef.current += 1;
-            setIsDraggingFiles(true);
-        };
-        const handleDragOver = (event: DragEvent) => {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-        };
-        const handleDragLeave = (event: DragEvent) => {
-            if (!hasFiles(event.dataTransfer)) return;
-            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-            if (dragDepthRef.current === 0) setIsDraggingFiles(false);
-        };
-        const handleDrop = (event: DragEvent) => {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            dragDepthRef.current = 0;
+    const hasFiles = (event: React.DragEvent) =>
+        Array.from(event.dataTransfer.types).includes("Files");
+    const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        setIsDraggingFiles(true);
+    };
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+    };
+    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
             setIsDraggingFiles(false);
-            void handleDroppedFiles(Array.from(event.dataTransfer?.files ?? []));
-        };
-        window.addEventListener("dragenter", handleDragEnter);
-        window.addEventListener("dragover", handleDragOver);
-        window.addEventListener("dragleave", handleDragLeave);
-        window.addEventListener("drop", handleDrop);
-        return () => {
-            window.removeEventListener("dragenter", handleDragEnter);
-            window.removeEventListener("dragover", handleDragOver);
-            window.removeEventListener("dragleave", handleDragLeave);
-            window.removeEventListener("drop", handleDrop);
-        };
-    }, [handleDroppedFiles]);
+        }
+    };
+    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        setIsDraggingFiles(false);
+        void handleDroppedFiles(Array.from(event.dataTransfer.files));
+    };
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setValue(e.target.value);
         const el = e.target;
@@ -327,7 +312,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     };
     return (
         <>
-            <div className="chat-input-container w-full">
+            <div
+                className={cn(
+                    "chat-input-container w-full",
+                    isDraggingFiles && "rounded-[22px] ring-2 ring-brand/30",
+                )}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
                 <div className="rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]">
                     {/* Attached chips */}
                     {(selectedWorkflow || attachedDocs.length > 0) && (
@@ -511,10 +505,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                 provider={apiKeyModalProvider}
                 onClose={() => setApiKeyModalProvider(null)}
             />
-            <UploadOverlay
-                open={isDraggingFiles}
-                warning={uploadWarning}
-                onWarningClose={() => setUploadWarning(null)}
+            <WarningPopup
+                open={!!uploadWarning}
+                message={uploadWarning}
+                onClose={() => setUploadWarning(null)}
             />
         </>
     );
