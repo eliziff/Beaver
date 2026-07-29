@@ -631,8 +631,7 @@ export class LegalKnowledgeGraphStore {
     if (projectId === GENERAL_RESEARCH_PROJECT_ID) {
       throw new Error("General research cannot be deleted");
     }
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
+    return this.transaction(() => {
       this.database
         .prepare(
           `DELETE FROM legal_knowledge_source_marks
@@ -658,12 +657,8 @@ export class LegalKnowledgeGraphStore {
              WHERE user_id = ? AND id = ?`,
           )
           .run(userId, projectId).changes > 0;
-      this.database.exec("COMMIT");
       return deleted;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   private node(userId: string, projectId: string, nodeId: string) {
@@ -951,8 +946,7 @@ export class LegalKnowledgeGraphStore {
   }
 
   deleteNode(userId: string, projectId: string, nodeId: string) {
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
+    return this.transaction(() => {
       const deleted =
         this.database
           .prepare(
@@ -961,12 +955,8 @@ export class LegalKnowledgeGraphStore {
           )
           .run(nodeId, userId, projectId).changes > 0;
       this.deleteEmptyMarks(userId, projectId);
-      this.database.exec("COMMIT");
       return deleted;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   upsertEvidence(params: {
@@ -1202,20 +1192,15 @@ export class LegalKnowledgeGraphStore {
     };
     visit(labelId);
 
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
+    return this.transaction(() => {
       const remove = this.database.prepare(
         `DELETE FROM legal_knowledge_nodes
          WHERE id = ? AND user_id = ? AND project_id = ? AND kind = 'label'`,
       );
       for (const nodeId of subtree) remove.run(nodeId, userId, projectId);
       this.deleteEmptyMarks(userId, projectId);
-      this.database.exec("COMMIT");
       return true;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   listMarks(
