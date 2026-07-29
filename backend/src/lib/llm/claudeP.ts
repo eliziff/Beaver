@@ -34,7 +34,11 @@ Reply with ONLY one JSON object — no prose, no code fences:
 
 Rules: to act, emit tool_use blocks (one or several); tool input must satisfy that tool's schema; ids must be unique. When the task is fully complete, reply with text blocks only and no tool_use.`;
 
-const CALL_TIMEOUT_MS = 900_000;
+// A healthy generation streams partial chunks continuously (we pass
+// --include-partial-messages); silence means a wedged call. Whole-document
+// turns legitimately run 10-30 min, so patience is inactivity-based.
+const INACTIVITY_LIMIT_MS = 240_000;
+const HARD_LIMIT_MS = 3_600_000;
 
 export function claudePModelSlug(model: string): string | null {
   return model.startsWith("claude-p:")
@@ -69,6 +73,7 @@ type Envelope = {
 function runClaudeP(
   model: string,
   payload: string,
+  effort?: string,
   abortSignal?: AbortSignal,
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   const { file, shell } = resolveCli();
@@ -77,10 +82,13 @@ function runClaudeP(
     "--model",
     model,
     "--output-format",
-    "json",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
     "--system-prompt",
     shell ? `"${SYSTEM_ARG}"` : SYSTEM_ARG,
   ];
+  if (effort) args.push("--effort", effort);
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
       shell,
@@ -89,30 +97,57 @@ function runClaudeP(
     });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error("claude -p call timed out"));
-    }, CALL_TIMEOUT_MS);
+    let lastActivity = Date.now();
+    const started = Date.now();
+    const watchdog = setInterval(() => {
+      const now = Date.now();
+      if (now - lastActivity > INACTIVITY_LIMIT_MS) {
+        child.kill();
+        reject(new Error(`claude -p silent for ${INACTIVITY_LIMIT_MS / 1000}s — killed`));
+      } else if (now - started > HARD_LIMIT_MS) {
+        child.kill();
+        reject(new Error("claude -p exceeded hard time limit — killed"));
+      }
+    }, 5_000);
     const onAbort = () => {
       child.kill();
       reject(abortError());
     };
     abortSignal?.addEventListener("abort", onAbort, { once: true });
-    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+      lastActivity = Date.now();
+    });
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
     child.on("error", (error) => {
-      clearTimeout(timer);
+      clearInterval(watchdog);
       abortSignal?.removeEventListener("abort", onAbort);
       reject(error);
     });
     child.on("close", (code) => {
-      clearTimeout(timer);
+      clearInterval(watchdog);
       abortSignal?.removeEventListener("abort", onAbort);
       resolve({ stdout, stderr, code });
     });
     child.stdin.write(payload, "utf8");
     child.stdin.end();
   });
+}
+
+/** Last `type:"result"` event line of a stream-json transcript. */
+function resultEnvelope(stdout: string): Envelope {
+  const lines = stdout.split(/\r?\n/u);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const stripped = lines[i].trim();
+    if (!stripped.startsWith("{")) continue;
+    try {
+      const event = JSON.parse(stripped) as Envelope & { type?: string };
+      if (event.type === "result") return event;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("stream ended without a result envelope");
 }
 
 function extractJson(text: string): { content?: unknown } {
@@ -173,11 +208,16 @@ export async function streamClaudeP(
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
       throwIfAborted(params.abortSignal);
-      const run = await runClaudeP(slug, payload, params.abortSignal);
+      const run = await runClaudeP(
+        slug,
+        payload,
+        params.reasoningEffort,
+        params.abortSignal,
+      );
       try {
         if (run.code !== 0)
           throw new Error(`claude -p exit ${run.code}: ${run.stderr.slice(0, 300)}`);
-        const envelope = JSON.parse(run.stdout) as Envelope;
+        const envelope = resultEnvelope(run.stdout);
         if (envelope.is_error)
           throw new Error(`claude -p error result: ${String(envelope.result).slice(0, 300)}`);
         const reply = extractJson(String(envelope.result ?? ""));
