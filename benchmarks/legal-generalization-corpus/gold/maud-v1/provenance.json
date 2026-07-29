@@ -1,0 +1,46 @@
+{
+  "dataset_id": "maud-v1",
+  "dataset_version": "MAUD v1 (test split only)",
+  "source_url": "https://huggingface.co/datasets/theatticusproject/maud/tree/37d5c3b95d18dcd8404cc5ce3fd5069be062392f/MAUD_v1",
+  "source_urls": [
+    "https://huggingface.co/datasets/theatticusproject/maud/resolve/37d5c3b95d18dcd8404cc5ce3fd5069be062392f/MAUD_v1/MAUD_test.csv",
+    "https://huggingface.co/datasets/theatticusproject/maud/resolve/37d5c3b95d18dcd8404cc5ce3fd5069be062392f/MAUD%20v1%20README%20(1).pdf"
+  ],
+  "upstream_home": "https://www.atticusprojectai.org/maud",
+  "upstream_repository": "https://github.com/TheAtticusProject/maud",
+  "paper": "arXiv:2301.00876 (EMNLP 2023)",
+  "hf_revision": "37d5c3b95d18dcd8404cc5ce3fd5069be062392f",
+  "accessed_utc": "2026-07-28T21:39:00Z",
+  "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International). The Atticus Project, Inc. Commercial use permitted with attribution.",
+  "license_source": "https://huggingface.co/datasets/theatticusproject/maud (cardData.license = cc-by-4.0); https://www.atticusprojectai.org/maud",
+  "attribution_required": "The Atticus Project, Merger Agreement Understanding Dataset (MAUD) v1, CC BY 4.0. Derived from the American Bar Association 2021 Public Target Deal Points Study.",
+  "sha256_of_archive": "1c7a302a83c44a3a51a70bbbc993727b72c2dd83a8e3f34243e31b1a31879e41",
+  "sha256_of_archive_note": "Manifest digest = sha256 over sorted lines \"<file sha256>  <relative path>\\n\". Only the test split was fetched; MAUD_train.csv (81.3 MB) and MAUD_dev.csv (21.2 MB) were deliberately NOT fetched so this slice stays a held-out evaluation set.",
+  "files": [
+    {
+      "path": "MAUD_test.csv",
+      "bytes": 20550295,
+      "sha256": "afcbc88a4f14e8c14056469446e79f610a6eaf3a1425e61729637bd69251e697"
+    },
+    {
+      "path": "MAUD_v1_README.pdf",
+      "bytes": 65153,
+      "sha256": "104356b913a7e0a955eaca62f991c28c5d801c67a80e3e4f37629420e9aad778"
+    }
+  ],
+  "total_bytes": 20615448,
+  "shape": {
+    "rows": 6651,
+    "merger_agreements": 152,
+    "distinct_deal_point_questions": 92,
+    "columns": ["data_type", "contract_name", "text", "answer", "label", "question", "subquestion", "text_type", "id", "category"],
+    "data_type_counts": {"main": 3896, "abridged": 2755},
+    "note": "`text` is the verbatim excerpt from the merger agreement (with `<omitted>` elisions and trailing `(Page N)` markers); `answer` is the expert-adjudicated deal-point choice; `label` is its integer index within the question's answer space."
+  },
+  "what_ground_truth": {
+    "a_typed_anchor_extraction": "MODERATE, and uniquely valuable for DURATION NORMALIZATION. Five deal points carry expert-normalized duration answers that explicitly separate business days from calendar days and from months: 'Initial matching rights period (COR)' (73 rows), 'Initial matching rights period (FTR)' (62), 'Additional matching rights period for modifications (COR)' (64), '... (FTR)' (26), 'Tail Period Length' (64) = 289 rows. Answer vocabulary includes '3 business days', '4 business days', '5 business days', '3 calendar days', '4 calendar days', '2 business days or less', 'Greater than 5 business days', 'within 6/9/12 months'. 'Type of Consideration' (62 rows) pairs money anchors ('$177.50 in cash') with All Cash / All Stock / Mixed labels. This is bucketed-value gold, NOT a character span: the excerpt is given, the normalized duration class is the label.",
+    "b_structural_parsing": "WEAK. No section tree is annotated. The excerpt text does retain section numbering ('Section 2.1(b)', '(a)', '(i)') and cross-references, which makes it good adversarial input, but there is no gold parse.",
+    "c_tracked_changes_markup": "NONE."
+  },
+  "leakage_warning": "LegalBench maud_* tasks and LegalBench-RAG's 'maud' benchmark are derived from this dataset. LegalBench's maud_* configs use the MAUD test split, so any model tuned on LegalBench maud_* has seen these rows. Treat MAUD as a duration-normalization probe, not as a clean holdout, if LegalBench maud_* was used anywhere upstream."
+}

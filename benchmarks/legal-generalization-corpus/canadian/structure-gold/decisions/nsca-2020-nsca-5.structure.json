@@ -1,0 +1,1377 @@
+{
+ "artifact_id": "nsca-2020-nsca-5",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2020 NSCA 5",
+ "citation_secondary": "",
+ "name": "R. v. Livingstone; R. v. Lungal; R. v. Terris",
+ "document_date": "2020-01-23",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/460063/index.do",
+ "scraped_timestamp": "2026-04-09 17:44:47.590000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2020-nsca-5.txt",
+ "raw_text_chars": 62256,
+ "raw_text_sha256": "10ade088fc9b7841e427d257423833181d2a588e50e1fb5879b87ad49cde6cf5",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 85,
+  "spine_count": 83,
+  "quoted_count": 2,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "46",
+   "10",
+   "23",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 4159,
+     "end": 4347
+    },
+    "body_chars": 183,
+    "body_sha256": "2a401bd0ff42a2ab11ea1c922a52ccc80ef4263afe7d298fd6286bc0a4af0e65",
+    "body": "The Crown appeals the sentences imposed in R. v. Livingstone (CAC 483935), R. v. Lungal (CAC 483936) and R. v. Terris (CAC 488160). The appeals were heard together on October 9, 2019."
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 4347,
+     "end": 4649
+    },
+    "body_chars": 297,
+    "body_sha256": "256a60cb1162ab7c5636c7de04e54eedc807655b13db8f3f832a66645aeb2c08",
+    "body": "Mr. Livingstone, Ms. Lungal and Mr. Terris were each charged with possession with intent to traffic a Schedule I substance contrary to s. 5(2) of the Controlled Drugs and Substances Act, S.C. 1996, c. 19 (CDSA). They were not co-accused; they do not know each other and the offences are unrelated."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 4649,
+     "end": 5036
+    },
+    "body_chars": 382,
+    "body_sha256": "c8579001e8837dc3ea62caa40745f0a1093ac0909434e35e58c7d27d31d0c371",
+    "body": "Each of the respondents was convicted and sentenced by Judge Del Atwood of the Provincial Court in Pictou. Judge Atwood acknowledged that the circumstances of each of the offences were different but imposed the same sentence: a suspended sentence with three years probation for each of the respondents, because he determined the moral culpability of each offender was similarly low."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 5036,
+     "end": 5079
+    },
+    "body_chars": 38,
+    "body_sha256": "4246086b8702dfac33bd9edfa8edfba88bc040577f906aa3e4c2ea1be59fc635",
+    "body": "The Crown appeals all three sentences."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 5079,
+     "end": 5323
+    },
+    "body_chars": 239,
+    "body_sha256": "c6d4a077518c3f200e6f5267905819c0a11801e36af2e741c4bfec5eb7befb53",
+    "body": "For the reasons that follow I would grant leave to appeal in each case, dismiss the appeal in R. v. Lungal and allow the appeals in R. v. Livingstone and R. v. Terris, but stay the imposition of the sentences in both of those cases.\nIssues"
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 5323,
+     "end": 5654
+    },
+    "body_chars": 326,
+    "body_sha256": "2cb610304e283ca025ef58b7cc710549723d4feeff1e8eb46f4da8bdf7db73de",
+    "body": "The grounds of appeal in all three cases are the same. I would summarize and restate the issues on appeal as follows:\n1. Did the trial judge err in his interpretation and application of the applicable principles of sentencing? or\n2. Are these sentences otherwise demonstrably unfit or manifestly inadequate?\nStandard of Review"
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 5654,
+     "end": 6048
+    },
+    "body_chars": 389,
+    "body_sha256": "faa81c9c514114adc0adace6b25a5fe04bfa37a8b7eb8b98219ee64c15720f4c",
+    "body": "Appellate review of sentencing decisions is highly deferential; an appellate court may not intervene absent an error in principle, or unless the trial judge failed to consider a relevant factor, overemphasized the appropriate factors or where the sentence is demonstrably unfit (R. v. Stone, [1999] S.C.J. No. 27, [1999] 2 S.C.R. 290, at ¶230. See also: R. v. Oickle, 2015 NSCA 87 at ¶21)."
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 6048,
+     "end": 6327
+    },
+    "body_chars": 274,
+    "body_sha256": "41435a596d381f87c03c604cdbc15db30a69273f60413fd0c7e50664c101d37b",
+    "body": "The range of sentence in Nova Scotia for Schedule I trafficking offences is typically a custodial sentence of two years or more: (R. v. Butt, 2010 NSCA 56; R. v. Conway, 2009 NSCA 95; R. v. Knickle, 2009 NSCA 59; R. v. Steeves, 2007 NSCA 130; and R. v. Dawe, 2002 NSCA 147)."
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 6327,
+     "end": 6625
+    },
+    "body_chars": 293,
+    "body_sha256": "555dc2caee26c1d0c0ca3eea0a9621d1a0c1f12fdc202ff1c31063adae9753a2",
+    "body": "A deviation from a sentencing range is not an error in principle unless it “departs significantly and for no reason from the contemplated” range (R. c. Lacasse, 2015 SCC 64, ¶67). In other words, as succinctly stated by Green, J. of the Ontario Court of Justice in R. v. McGill, 2016 ONCJ 138:"
+   },
+   {
+    "label": "46",
+    "marker_order": 9,
+    "role": "quoted_or_foreign",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 6625,
+     "end": 7102
+    },
+    "body_chars": 471,
+    "body_sha256": "f53edf4de3b2f4e5af63c94b950d096eb4a799dafdfa7556238196c0c4046216",
+    "body": "The weight of appellate authority clearly favours sentences of incarceration, and often lengthy ones, for cocaine trafficking. Non-custodial dispositions represent a departure from this general rule. Accordingly, and independent of any statutory direction, a court bears a common law obligation to demonstrate, through its reasons, that a community-supervised sentence honours the recognized purposes and principles of sentencing in the individual case\n[Underlining mine]"
+   },
+   {
+    "label": "10",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 7102,
+     "end": 7234
+    },
+    "body_chars": 126,
+    "body_sha256": "df5032b37bb8029ae494bcf14d1432f7447b1314a9d63df78ae0fb3e73a283c6",
+    "body": "Recently, in R. v. Chase, 2019 NSCA 36, this Court identified three fundamental steps in the sentence appeal analysis process:"
+   },
+   {
+    "label": "23",
+    "marker_order": 11,
+    "role": "quoted_or_foreign",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 7234,
+     "end": 8603
+    },
+    "body_chars": 1363,
+    "body_sha256": "dc95acc763e39cf2e8aa7a6e80935f21ee0660ea2da7bb89504ddc76d1b6378c",
+    "body": "To set the stage for the analysis that follows, three discrete points are particularly relevant in this case. First, demonstrating that the sentencing judge made a mistake is not enough. The legal error must have been one that impacted the result (Lacasse at ¶44). Second, the principle of proportionality is fundamental to the sentencing process. Proportionality is to be determined both on an individual basis (linking the accused to the crime) and by comparing sentences imposed for similar offences committed in similar circumstances. Accordingly, individualization and parity of sentences must be reconciled if a sentence is to be proportionate (Lacasse at ¶53). Proportionality will be reached through “complicated calculus” whose elements trial judges understand better than anyone else (L.M. at ¶22). Proportionality “is grounded in elemental notions of justice and fairness, and is indispensable to the public’s confidence in the justice system”. (R. v. Safarzadeh-Markhali, 2016 SCC 14 at ¶70). Third, the principle of parity of sentences is secondary to the fundamental principle of proportionality. Trial judges are seized with the responsibility of properly weighing the “various principles and objectives, whose relative importance will necessarily vary with the nature of the crime and the circumstances in which it was committed” (Lacasse at ¶54)."
+   },
+   {
+    "label": "11",
+    "marker_order": 12,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 8603,
+     "end": 8721
+    },
+    "body_chars": 112,
+    "body_sha256": "4a8c2a650a3b1a616282faab7b8551b8a90186e252d11d28beff67799b6c2bc6",
+    "body": "With these principles in mind, I will review the sentences imposed on the respondents individually.\nR. v. Lungal"
+   },
+   {
+    "label": "12",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 8721,
+     "end": 8893
+    },
+    "body_chars": 166,
+    "body_sha256": "740134c8585d24f2c29e25034a39a10bce4f383b143352f5212574e14682f33a",
+    "body": "Ms. Lungal was arrested shortly after 9:30 p.m. on January 15, 2018, at the home she shared with her common law partner, Martin Dennis Savoie, and their two children."
+   },
+   {
+    "label": "13",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 8893,
+     "end": 9104
+    },
+    "body_chars": 205,
+    "body_sha256": "c4ee27ea3d8113488f2ca1dae06c95fd3b638e697db41e3a8b3ae0d8912474d1",
+    "body": "Mr. Savoie and Ms. Lungal ran a delivery service in Pictou County. The business was struggling and Mr. Savoie convinced Ms. Lungal to get involved in the business of selling methamphetamine to stay afloat."
+   },
+   {
+    "label": "14",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 9104,
+     "end": 9205
+    },
+    "body_chars": 95,
+    "body_sha256": "53b858b89b26290eb91c7535a2df855f8b2bd2799b428ecbb384ae78a7137128",
+    "body": "At the time Ms. Lungal was dealing with a substance abuse problem that dated back to her teens."
+   },
+   {
+    "label": "15",
+    "marker_order": 16,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 9205,
+     "end": 9438
+    },
+    "body_chars": 227,
+    "body_sha256": "fa52f7aa55bbe7ee1919931cc97decce97b001f028ed40187bc0159afca9c522",
+    "body": "An undercover officer made contact with Ms. Lungal and Mr. Savoie. The officer became aware of Ms. Lungal and Mr. Savoie dealing in controlled substances. As a result, the police obtained a search warrant for the couple’s home."
+   },
+   {
+    "label": "16",
+    "marker_order": 17,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 9438,
+     "end": 9898
+    },
+    "body_chars": 454,
+    "body_sha256": "dbac7635367f8e951b7da0e00a784ebecf4624279283fac6351dd2e732649fb8",
+    "body": "The police conducted a search of the home and seized a plastic dime bag containing 11 methamphetamine pills from a small safe in the living room, a mortar and pestle containing one methamphetamine pill from a coffee table in the living room and a decoy can with a concealment compartment from a safe under a kitchen island, which contained 93 methamphetamine pills. In total, Ms. Lungal possessed 105 methamphetamine pills for the purpose of trafficking."
+   },
+   {
+    "label": "17",
+    "marker_order": 18,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 9898,
+     "end": 10090
+    },
+    "body_chars": 186,
+    "body_sha256": "acaa2dc65e008cec06c51591a62f5e9e60549b38a29c34b3cfe284f547cd7606",
+    "body": "On May 7, 2018, Ms. Lungal elected to be tried in the Provincial Court and pleaded guilty to possession of methamphetamine for the purpose of trafficking contrary to s. 5(2) of the CDSA."
+   },
+   {
+    "label": "18",
+    "marker_order": 19,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 10090,
+     "end": 10259
+    },
+    "body_chars": 163,
+    "body_sha256": "09632072aa2e7bf21e2e838a7a78a93574a733e58d1a198c7c270b79e7d66402",
+    "body": "Three counts of trafficking in methamphetamine and one count of possession of marihuana against her at that time were withdrawn. A pre-sentence report was ordered."
+   },
+   {
+    "label": "19",
+    "marker_order": 20,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 10259,
+     "end": 10617
+    },
+    "body_chars": 352,
+    "body_sha256": "87cb08ceb21addc0a4c1fd3da7e282d8b0e1deac493783c0e47c5881f149618f",
+    "body": "Ms. Lungal also pleaded guilty to assaulting a police officer on January 16, 2018. She admitted that, upon arrest and detention at the New Glasgow Police Station, she momentarily became irate at the presence of the undercover officer who had entered the detention room. She kicked the table in the interview room and it struck the officer in the chest."
+   },
+   {
+    "label": "20",
+    "marker_order": 21,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 10617,
+     "end": 10694
+    },
+    "body_chars": 71,
+    "body_sha256": "2b51085df55372e9742008995feb4596d2be2c712ea91252b721664fa0590330",
+    "body": "The sentencing hearing for both charges was held on September 10, 2018."
+   },
+   {
+    "label": "21",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 10694,
+     "end": 11627
+    },
+    "body_chars": 927,
+    "body_sha256": "70827e2a5c79aaafbcb9830f04f3b9f42a8c41c55e9f187007c7595a32c15b4b",
+    "body": "On December 11, 2018, in an oral decision, the sentencing judge suspended the passing of sentence and placed Ms. Lungal on probation for three years. In addition to the suspension of sentence, Ms. Lungal was required to:\n• report to a probation officer as directed;\n• not possess, take or consume controlled substances;\n• complete 100 hours of community service work within the first 24 months of the order;\n• remain away from any place of business where alcohol is the primary product for sale, including liquor stores, agencies of liquor stores, taverns, lounges, bars, pool halls, show bars or cabarets;\n• attend for assessment and counselling for substance abuse or any other program as directed by a probation officer and report any missed appointments;\n• comply immediately with any urinalysis demand made by a peace officer or a probation officer; and\n• abide by a curfew from 10 p.m. to 7 a.m. for the first six months."
+   },
+   {
+    "label": "22",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 11627,
+     "end": 11760
+    },
+    "body_chars": 127,
+    "body_sha256": "5060a026fb98a04188e68af7cb7032b6f0797e7116f5de293528348240e65840",
+    "body": "The issue is whether the sentencing judge erred in principle or imposed a demonstrably unfit or manifestly inadequate sentence."
+   },
+   {
+    "label": "23",
+    "marker_order": 24,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 11760,
+     "end": 12193
+    },
+    "body_chars": 427,
+    "body_sha256": "984223c0c3c5288d34783428e9bfc4e30428e4712696b3b55d2493356d57a151",
+    "body": "Attached as a schedule to this decision is a summary of the recent decisions under s. 5(2) of the CDSA in which suspended sentences were imposed in Nova Scotia and other jurisdictions in Canada. I have provided this summary for two reasons: to illustrate that suspended sentences are not, as suggested by the Crown, an aberration from the norm; and to illustrate the circumstances where courts suspend the passing of sentences."
+   },
+   {
+    "label": "24",
+    "marker_order": 25,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 12193,
+     "end": 12579
+    },
+    "body_chars": 380,
+    "body_sha256": "bfd2c6d847492777b380e127cd1e7dc5970a77ea806167a02287a8d60cd85680",
+    "body": "Based on a review of this case law, Schedule I trafficking cases in which sentencing is suspended are cases wherein:\n1. the mitigating factors substantially outweigh the aggravating factors;\n2. specific and general deterrence are satisfied by the imposition of a community-based sentence; and\n3. a custodial sentence would negatively impact the offender’s rehabilitation progress."
+   },
+   {
+    "label": "25",
+    "marker_order": 26,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 12579,
+     "end": 12917
+    },
+    "body_chars": 332,
+    "body_sha256": "fe9af7b5a1fb4411a4b41d1dc82ed03701cbf66764617ca80e89aa70ee863856",
+    "body": "As noted earlier, the range of sentences in Nova Scotia for Schedule I trafficking offences is typically a custodial sentence of two years or more. However, deviation from a sentencing range is not an error in principle unless it departs significantly and for no reason from the contemplated range (R. v. Lacasse, 2015 SCC 64, ¶67)."
+   },
+   {
+    "label": "26",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 12917,
+     "end": 13156
+    },
+    "body_chars": 233,
+    "body_sha256": "966f36f147a3b2df2b99c37658dc9584864ec8b42d2bba58a0122f3d538ba38a",
+    "body": "With respect, I am not satisfied that the sentencing judge erred in his interpretation and application of the applicable principles of sentencing or that Ms. Lungal’s sentence is otherwise demonstrably unfit or manifestly inadequate."
+   },
+   {
+    "label": "27",
+    "marker_order": 28,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 13156,
+     "end": 13540
+    },
+    "body_chars": 378,
+    "body_sha256": "49a39dd25f90359530e63c44403b21baad55d28947a99f3cb106d60ee60989de",
+    "body": "The sentencing judge outlined in detail the general sentencing principles (2018 NSPC 61 at ¶31-49). He clearly appreciated the principles and purposes of sentencing. He did not overemphasize the principles of restraint and rehabilitation. He acknowledged the seriousness of methamphetamine trafficking offences. He did not minimize the seriousness or the gravity of the offence."
+   },
+   {
+    "label": "28",
+    "marker_order": 29,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 13540,
+     "end": 14304
+    },
+    "body_chars": 758,
+    "body_sha256": "b04731b087948d42910373a6a662415e8d69b2e096c882d81616854e740a27f4",
+    "body": "Judge Atwood considered the factors, which I have identified from the case law, where the sentence was suspended. He identified the following mitigating factors with respect to Ms. Lungal:\n• low level addict retailer;\n• petty retailing in small quantities;\n• participating in a dial-a-dope operation due to financial difficulties and pressure from intimate partner;\n• lesser involvement then co-accused partner;\n• troubled upbringing including drug use at a young age;\n• addict relatively young (37 years of age);\n• first time offender;\n• timely guilty plea;\n• expression of remorse and understanding of responsibilities;\n• excellent rehabilitative prospects;\n• no charges since arrest; and\n• compliance with strict release conditions including house arrest."
+   },
+   {
+    "label": "29",
+    "marker_order": 30,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 14304,
+     "end": 14429
+    },
+    "body_chars": 119,
+    "body_sha256": "d83a0e21b604e29ccb08399cae3e388807dff2d455e6d04fd562163ff2599204",
+    "body": "It was reasonable for the sentencing judge to determine that the mitigating factors outweighed the aggravating factors."
+   },
+   {
+    "label": "30",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 14429,
+     "end": 14592
+    },
+    "body_chars": 157,
+    "body_sha256": "afbbb007463cc1b9874741ad87fb3695c28857ed64ea1388807b3c1769c0ae13",
+    "body": "It was unnecessary to incarcerate her for specific deterrence, and the potential augmentation of general deterrence did not warrant imprisonment (¶136, 137)."
+   },
+   {
+    "label": "31",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 14592,
+     "end": 14767
+    },
+    "body_chars": 169,
+    "body_sha256": "042edf02b1890b076a0f17c97db8775c1ac93671332bd077c4527875f69a0f38",
+    "body": "Finally, he found that imposing a sentence that would allow Ms. Lungal to remain in the community would have a number of positive effects on her rehabilitative progress."
+   },
+   {
+    "label": "32",
+    "marker_order": 33,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 14767,
+     "end": 15393
+    },
+    "body_chars": 620,
+    "body_sha256": "1a9919292bad8363095bf890a06f63cfa7adb00962f8fe3e8db51c04abaf2c6b",
+    "body": "Rehabilitative progress is a key consideration as described by Clayton C. Ruby, Gerald J. Chan, and Nader R. Hassan in Sentencing, 8th ed. (Markham, Ont: LexisNexis, 2012) at 1139:\n§23.784 Where the offender’s participation in moderate- to low-level cocaine trafficking is seen to result partly from drug dependency, brief incarceration or non-custodial sentences may be imposed when the offender shows potential to overcome the habit. [...] For low-level cocaine trafficking, weight will be given to evidence demonstrating that the offender wishes to reform his life, whether or not he is an addict [citations omitted]."
+   },
+   {
+    "label": "33",
+    "marker_order": 34,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 15393,
+     "end": 15787
+    },
+    "body_chars": 388,
+    "body_sha256": "33de2d077110006fcc134766dd955c956b881c40daff9a854ff1a09fd466046a",
+    "body": "In addition, Ms. Lungal has continued to make remarkable strides following her arrest in overcoming addiction issues that she has been dealing with her entire adult life. This Court received a post-sentence report and letters of support from her employer, for whom she has worked in a fulltime position since May 13, 2019. She continues with rehabilitation to overcome her drug addiction."
+   },
+   {
+    "label": "34",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 15787,
+     "end": 15985
+    },
+    "body_chars": 192,
+    "body_sha256": "3188a0d48202e1ab638becd721a3b8cb592723d12fb0a4e057ab186612c7bf36",
+    "body": "I am not satisfied that the sentencing judge erred in his interpretation and application of the applicable principles of sentencing, nor am I satisfied that the sentence is demonstrably unfit."
+   },
+   {
+    "label": "35",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 15985,
+     "end": 16096
+    },
+    "body_chars": 105,
+    "body_sha256": "17f1825c4596d4b6fc1e15b760622738447d88179594b971222a5cd57893f1ab",
+    "body": "I would grant leave to appeal but dismiss the Crown’s appeal in relation to Ms. Lungal.\nR. v. Livingstone"
+   },
+   {
+    "label": "36",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 16096,
+     "end": 16327
+    },
+    "body_chars": 225,
+    "body_sha256": "758cfd4aa59f2851481d56ae4ca64dd3a90d789eb6d648853e3b61e17eac574c",
+    "body": "On February 22, 2017, the police obtained a search warrant for Mr. Livingstone’s home. They carried out the search that afternoon. Mr. Livingstone was at home. The police indicated to him why they were there and arrested him."
+   },
+   {
+    "label": "37",
+    "marker_order": 38,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 16327,
+     "end": 16438
+    },
+    "body_chars": 105,
+    "body_sha256": "791d939006604d322b62144e0b611ab71aff700c71c33e4c15a1c5df6e915ee2",
+    "body": "Mr. Livingstone cooperated, admitted he had cocaine on site, and revealed where the police could find it."
+   },
+   {
+    "label": "38",
+    "marker_order": 39,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 16438,
+     "end": 16911
+    },
+    "body_chars": 467,
+    "body_sha256": "86ad6bacecf38a61cc63d598c57eaa08e2119f2f9bae0a54878f4324e8e80def",
+    "body": "The search revealed a plate sitting on a dresser containing white powder, an electronic scale with white powder residue and baggies, another baggie containing powder and pieces of white material, a plastic bag containing 13 small, clear plastic bags inside of it (later quantified as 14 grams of cocaine), and a clear plastic resealable bag from the top shelf of the bedroom closet, containing white powder and a white clump (later quantified at 22 grams of cocaine)."
+   },
+   {
+    "label": "39",
+    "marker_order": 40,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 16911,
+     "end": 17165
+    },
+    "body_chars": 248,
+    "body_sha256": "e365d3bf6c306e0ebeb298ff4e7f0056e7be6013caeff559d122bb64643803c2",
+    "body": "The police also found two cellphones. A search of one of the seized phones showed a text conversation that was consistent with trafficking as it indicated Mr. Livingstone was experiencing slower sales and that he owed a substantial amount of money."
+   },
+   {
+    "label": "40",
+    "marker_order": 41,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 17165,
+     "end": 17235
+    },
+    "body_chars": 64,
+    "body_sha256": "b218d6188d17b05dd685aa02ad3438baf3cca73c5dbb6b83f15aa1963bf3c169",
+    "body": "Mr. Livingstone described himself as a “good guy in a bad time”."
+   },
+   {
+    "label": "41",
+    "marker_order": 42,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 17235,
+     "end": 17387
+    },
+    "body_chars": 146,
+    "body_sha256": "d8ca87b12003890c8aebca7442dbfbf65b6f17cfd09fefee81ba519098f44ed0",
+    "body": "In his statement to police, he indicated that he used cocaine once or twice a week on Fridays and Saturdays. He only used a gram or two each week."
+   },
+   {
+    "label": "42",
+    "marker_order": 43,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 17387,
+     "end": 17531
+    },
+    "body_chars": 138,
+    "body_sha256": "621834f705ee53bc65424d48d07b00dfd0582e9786ca2768ac62da54d146c328",
+    "body": "Mr. Livingstone pleaded guilty to a single count of possession of cocaine for the purpose of trafficking, contrary to s. 5(2) of the CDSA."
+   },
+   {
+    "label": "43",
+    "marker_order": 44,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 17531,
+     "end": 17627
+    },
+    "body_chars": 90,
+    "body_sha256": "13a3c41fbf49d4d42d1ddee1e1093be303a369238213a00283468c4c74ffc9a5",
+    "body": "The sentencing judge imposed the same sentence on Mr. Livingstone as he did on Ms. Lungal."
+   },
+   {
+    "label": "44",
+    "marker_order": 45,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 17627,
+     "end": 17955
+    },
+    "body_chars": 322,
+    "body_sha256": "21b3ba992d0e3bcc20993c543d9fd63f8c0830a0ea077fdb160a6eb22222a007",
+    "body": "However, the sentencing judge highlighted that there were differences between Mr. Livingstone and Ms. Lungal, including that:\n• There was no evidence of Mr. Livingstone being pressured into dealing by an intimate partner; and\n• Mr. Livingstone matched the typical profile of a petty retailer – a younger, middle-aged male."
+   },
+   {
+    "label": "45",
+    "marker_order": 46,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 17955,
+     "end": 18362
+    },
+    "body_chars": 401,
+    "body_sha256": "effe9ba616e6a5f115f97d423843462e5c48500543d79bf4a5d506c4be47fb9f",
+    "body": "Judge Atwood identified the following mitigating factors with respect to Mr. Livingstone:\n• First-time offender;\n• Petty-retail possession of small quantity of Schedule I contraband;\n• Offence committed along with a substance-use habit;\n• No record;\n• No aggravating factors under the statute;\n• Cooperation with police;\n• Early guilty plea;\n• Bail compliance; and\n• Good prospects for rehabilitation."
+   },
+   {
+    "label": "46",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 18362,
+     "end": 18797
+    },
+    "body_chars": 429,
+    "body_sha256": "fc8d73f6f3def886ab9a41aadf0dfac59638db931f5f5e9f5c24e7f55b07af86",
+    "body": "The sentencing judge identified two mitigating factors that are not supported by the evidence. First, that Mr. Livingstone was supporting his individual use of controlled substances through low level dealing; and secondly, that he had a substance abuse habit. Neither of these factors are borne out by the evidence. As well, the absence of an aggravating factor is not a mitigating factor (R. v. Barrett, 2013 QCCA 1351, ¶24-25)."
+   },
+   {
+    "label": "47",
+    "marker_order": 48,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 18797,
+     "end": 18878
+    },
+    "body_chars": 75,
+    "body_sha256": "a791510b5311a47b8c983206259c1e6affd85e812db422dc3c01dd70560a22fb",
+    "body": "I am not satisfied that, under these circumstances, this is a fit sentence."
+   },
+   {
+    "label": "48",
+    "marker_order": 49,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 18878,
+     "end": 19245
+    },
+    "body_chars": 361,
+    "body_sha256": "a0a2b2ca66a4f2daaab681b2542978ae0b9b8fe552a7efb798c9e5c1d8de0f2e",
+    "body": "Mr. Livingstone made a considered and deliberate choice to traffic cocaine. There was no suggestion he was recruited or pressured to do so in any way. He was not an addict selling to support an addiction. His only apparent motive was profit. He had cocaine on his person and in his residence. He was in the business and had all the necessary tools of the trade."
+   },
+   {
+    "label": "49",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 19245,
+     "end": 19516
+    },
+    "body_chars": 265,
+    "body_sha256": "75b90eb7c46fe5f1604f1923f460c28a63add7cce8aaa6a6f0c3bf7e1912fd56",
+    "body": "One of the cellphones seized revealed a text conversation relating to his trafficking activity, which indicated he was experiencing slower sales and that he owed a substantial amount of money. Mr. Livingstone was entrenched in trafficking in a controlled substance."
+   },
+   {
+    "label": "50",
+    "marker_order": 51,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 19516,
+     "end": 19611
+    },
+    "body_chars": 89,
+    "body_sha256": "878097246598de4ce3ad9d58a9d1c6afbaf1150a82fb1407237e2442ee35fcec",
+    "body": "Further, unlike Ms. Lungal, there was no evidence of substantial rehabilitative progress."
+   },
+   {
+    "label": "51",
+    "marker_order": 52,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 19611,
+     "end": 19822
+    },
+    "body_chars": 205,
+    "body_sha256": "b283b58724e52fcd8cf7b4ead29641fa84edf5f347e13f50b92c7085d6d56ee9",
+    "body": "Finally, as I have identified above, the sentencing judge was influenced by his finding that Mr. Livingstone was supporting a drug habit through the sale of cocaine, which is not supported by the evidence."
+   },
+   {
+    "label": "52",
+    "marker_order": 53,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 19822,
+     "end": 20466
+    },
+    "body_chars": 638,
+    "body_sha256": "21b379ea9092023a2267be74a1df872c6bcff30f68aef0460b7b876af6d4ee60",
+    "body": "I am satisfied the sentencing judge erred in principle in imposing a suspended sentence for Mr. Livingstone. His reasons do not explain why a suspended sentence, in these circumstances, honours the purposes and principles of sentencing. An appropriate sentence for Mr. Livingstone’s circumstances would be 18 months incarceration. This is somewhat less than the typical two year custodial sentence, taking into account the appropriate mitigating factors identified by the sentencing judge, but sending the clear message that trafficking in controlled substances is a serious offence, at any level, and will usually result in imprisonment."
+   },
+   {
+    "label": "53",
+    "marker_order": 54,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 20466,
+     "end": 20577
+    },
+    "body_chars": 105,
+    "body_sha256": "2b06209ad355a595a852e115ac98f540282d783c49b56467592bd6f6809639e9",
+    "body": "However, I am of the view that it is in the interests of justice to stay the imposition of that sentence."
+   },
+   {
+    "label": "54",
+    "marker_order": 55,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 20577,
+     "end": 20677
+    },
+    "body_chars": 94,
+    "body_sha256": "fc171c37394f659172deae3859b128cab37f3019e85d2f9bd3709724b3cc3ba9",
+    "body": "In R. v. Best, 2012 NSCA 34, this Court considered the rare circumstances that warrant a stay."
+   },
+   {
+    "label": "55",
+    "marker_order": 56,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 20677,
+     "end": 20880
+    },
+    "body_chars": 197,
+    "body_sha256": "4787d04951e20998f11466a7e10202d8e7a6507e7a544ba2452ac36a768e54d0",
+    "body": "This Court determined Mr. Best’s case was “one of those rare cases where, despite the initial inadequate sentence, it is no longer in the interests of justice to re-incarcerate” the offender (¶34)."
+   },
+   {
+    "label": "56",
+    "marker_order": 57,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 20880,
+     "end": 21136
+    },
+    "body_chars": 250,
+    "body_sha256": "c15150fb3244cb39dadfa29b5cbc41ec30e1022cb2271cec6f5535e6521b5284",
+    "body": "Mr. Best had completed his term of incarceration and was well into his period of probation at the time the appeal was heard. He was doing well. This Court determined that sending Mr. Best back to jail “would not serve the interests of justice” (¶58)."
+   },
+   {
+    "label": "57",
+    "marker_order": 58,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 21136,
+     "end": 22046
+    },
+    "body_chars": 904,
+    "body_sha256": "b4ee2f39096b256958c925f6105e8737832a949fcdd186b269740eaaed33cb3e",
+    "body": "A similar conclusion was reached in R. v. Butler, 2008 NSCA 102, in which the Crown appealed a community sentence for armed robbery. This Court found the disposition to be demonstrably unfit in the circumstances and declared a 30 month sentence appropriate. However, this Court held that it would not be in the interests of justice to commit Mr. Butler to a prison environment “which may adversely affect his rehabilitation” in light of the drug rehabilitation and educational progress he had made since his arrest (¶40) (See also R. v. Oickle, 2015 NSCA 87). In R. v. MacDonald, 2014 NSCA 102, this Court noted the long period of jeopardy experienced by the accused and recognized he had not breached any of the conditions during that time (¶58). Finally, in R. v. Smickle, 2014 ONCA 49 the Ontario Court of Appeal held the hardship of a lengthy period in “legal limbo” must be taken into account (¶11)."
+   },
+   {
+    "label": "58",
+    "marker_order": 59,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 22046,
+     "end": 23590
+    },
+    "body_chars": 1538,
+    "body_sha256": "4d753766eb20ea1b2dfc9553dec3a0c7e470a8f9ac8fff3e1ab17f6d31df1772",
+    "body": "From these cases, the following factors should be considered in determining whether it is in the interests of justice to incarcerate or re-incarcerate the offender:\n1. Time since the arrest\nFirst, courts will consider whether the offender has served his or her original sentence, either entirely or in part. Courts will attribute credit for sentences served, even if in the community. Courts will consider the period the offender has been in jeopardy, taking account of the hardship experienced by the offender as a result of the period of time spent in “legal limbo.”\n2. Rehabilitation of the offender\nIf incarceration poses a significant risk to the stability of the offender’s present life and, therefore, to his or her ultimate rehabilitation, it is likely not in the interests of justice to incarcerate or reincarcerate the offender. This factor includes an assessment of whether the offender has made progress in terms of addiction issues, as well as removal from negative peer groups, employment and family stability, and the offender’s ability to support themselves and their family financially.\n3. Compliance with conditions of release\nCourts will consider whether the offender has been compliant with the conditions of his or her release and, more broadly, whether the offender has lived a positive and law-abiding lifestyle since his or her conviction.\n4. Denunciation and deterrence.\nFinally, courts consider whether the principles of denunciation and deterrence can be adequately served without re-incarcerating the offender."
+   },
+   {
+    "label": "59",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 23590,
+     "end": 23641
+    },
+    "body_chars": 45,
+    "body_sha256": "7107f9e9b4a165b3836d9384e7fb43150e30f3f3c63d435642113477d5350ac5",
+    "body": "Mr. Livingstone meets most of these criteria."
+   },
+   {
+    "label": "60",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 23641,
+     "end": 24279
+    },
+    "body_chars": 632,
+    "body_sha256": "a830e5c249f94b84b66232e913ec3bcedb1d25f937839b76221b278c1dc6414f",
+    "body": "Mr. Livingstone has experienced a significant period of jeopardy. His original information was sworn February 23, 2017. He pleaded guilty on April 5, 2018 and was not sentenced until December 11, 2018. Thus, he has been awaiting final disposition for two and a half years. Judge Atwood acknowledged that there was a significant delay between the time of Mr. Livingstone’s plea and his sentencing, because he wanted to sentence Mr. Livingstone together with Ms. Lungal. With respect to the sentencing judge, there was no justification for delaying the sentencing of Mr. Livingstone to coincide with a sentencing in an unrelated case."
+   },
+   {
+    "label": "61",
+    "marker_order": 62,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 24279,
+     "end": 24408
+    },
+    "body_chars": 123,
+    "body_sha256": "718969fa1ba5d4fe1e26b3398b26e7b988d68ee49a34073ce0b4f968803da71f",
+    "body": "At the time of the offence, Mr. Livingstone was a regular drug user. Since then, he has not had any involvement with drugs."
+   },
+   {
+    "label": "62",
+    "marker_order": 63,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 24408,
+     "end": 25088
+    },
+    "body_chars": 674,
+    "body_sha256": "f2de493d81fa468f59db032c826484a545ba0f05031ad2bdf91b9e6a3dcb14eb",
+    "body": "Mr. Livingstone was employed part-time as a janitor at Sobeys at the time of his sentencing. That job has since concluded, which was expected. On appeal, Mr. Livingstone’s counsel explained that Mr. Livingstone has not yet found further employment, due to the death of his mother. She passed away in July 2019, and he travelled to Saskatchewan to be with her when she died and to mourn with his family. Mr. Livingstone’s counsel also advised that Mr. Livingstone is currently seeking employment. Mr. Livingstone was ordered to complete counselling and community service, which he has not yet begun. His counsel attributed this delay to the death of Mr. Livingstone’s mother."
+   },
+   {
+    "label": "63",
+    "marker_order": 64,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 25088,
+     "end": 25636
+    },
+    "body_chars": 542,
+    "body_sha256": "c51d49c837b9eba4e4f7a702a46d090a603401b86fc007f6f7c3109e8cd9f44f",
+    "body": "Mr. Livingstone has no recorded breaches of his conditions. At the time the appeal was heard, Mr. Livingstone had successfully served eight months of his 36-month probation order. Mr. Livingstone incurred two low-level common assault charges and was also charged with two counts of mischief arising out of a domestic dispute following the index offence. He was sentenced for those charges on August 13, 2019. Mr. Livingstone was not charged with any breaches of probation arising out of those offences. Thus, he has been “sentence compliant.”"
+   },
+   {
+    "label": "64",
+    "marker_order": 65,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 25636,
+     "end": 25785
+    },
+    "body_chars": 143,
+    "body_sha256": "bf5ef0b757966516ff570976490b658c7976000ccfb3f878bf4992674bd26291",
+    "body": "He has experienced hardship as a result of long-term uncertainty and involvement with the justice system arising from his drug-related offence."
+   },
+   {
+    "label": "65",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 25785,
+     "end": 25982
+    },
+    "body_chars": 191,
+    "body_sha256": "cd065ffbe0ba3945e063c3d92db0a30141d919fbd6c2d1d0f644d40a281ff1b5",
+    "body": "For these reasons, it is appropriate to stay the enforcement of this sentence. However, this should not be seen as diluting the seriousness with which the Court views drug trafficking crimes."
+   },
+   {
+    "label": "66",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 25982,
+     "end": 26241
+    },
+    "body_chars": 253,
+    "body_sha256": "e0ebce0c6edbde9d8438fa663b42e61956a5caf5c96003e7db79cfe6c9e57809",
+    "body": "I would grant leave to appeal and allow the Crown’s appeal in relation to Mr. Livingstone and impose a sentence of 18 months incarceration. However, I would stay the sentence. The sentence imposed by Judge Atwood will continue to be served.\nR. v. Terris"
+   },
+   {
+    "label": "67",
+    "marker_order": 68,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 26241,
+     "end": 26343
+    },
+    "body_chars": 96,
+    "body_sha256": "9b504d7805c46a6592565e24f6195126bfaf8480a1a23a422ed1b25a9327d4c5",
+    "body": "The facts read into the record with respect to the circumstances of this offence are very brief."
+   },
+   {
+    "label": "68",
+    "marker_order": 69,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 26343,
+     "end": 26858
+    },
+    "body_chars": 509,
+    "body_sha256": "47743c66e6e57769111f6026fda41cca92bf0119c0ffcbd3d8ec9d1cd57ddd45",
+    "body": "On April 6, 2018, a CDSA Warrant to Search was obtained for Mr. Terris’ residence. The police executed the search and found 52 grams of cocaine. The defence did not dispute the facts and Mr. Terris pleaded guilty to possession of cocaine for the purpose of trafficking pursuant to s. 5(2) of the CDSA. At the time of his sentencing on April 25, 2019, Mr. Terris was 28 years of age. He had no record, either as an adult or a young person. His family and friends were shocked by his involvement in the offence."
+   },
+   {
+    "label": "69",
+    "marker_order": 70,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 26858,
+     "end": 26951
+    },
+    "body_chars": 87,
+    "body_sha256": "c9900d4a6caca5726a67ff9c0cd46da893641758986bc244e6e01177fe6accf5",
+    "body": "His childhood and adolescence were unremarkable and he enjoyed abundant family support."
+   },
+   {
+    "label": "70",
+    "marker_order": 71,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 26951,
+     "end": 27161
+    },
+    "body_chars": 204,
+    "body_sha256": "5472fb2951498de994041810ef3ade1179b2b822822b8c258b1ec1f6979254fb",
+    "body": "Mr. Terris was in a stable, common-law relationship for two years; his partner just gave birth to their child. He had a 4-year-old son with a former companion and he exercised parental access recurrently."
+   },
+   {
+    "label": "71",
+    "marker_order": 72,
+    "role": "spine",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 27161,
+     "end": 27397
+    },
+    "body_chars": 230,
+    "body_sha256": "6eed5aa5a4f9727b703a8a8f7623c6267cca8135e910dd31cb9ef2381dc236a9",
+    "body": "The pre-sentence report sets out Mr. Terris’ intermittent employment history. At the date of sentencing he had been employed full-time as a cleaner for approximately two months. His employer described him as reliable and punctual."
+   },
+   {
+    "label": "72",
+    "marker_order": 73,
+    "role": "spine",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 27397,
+     "end": 27669
+    },
+    "body_chars": 266,
+    "body_sha256": "84faae4dbe0b398fa66dc21d7a4cd18856d34c12ee97685acf51cb87c4de49ff",
+    "body": "The pre-sentence report indicated Mr. Terris holds a status card from the Confederacy of Nova Scotia Métis. It also notes Mr. Terris has never resided in an Aboriginal community; he does not speak an Aboriginal language and he is not connected to Aboriginal culture."
+   },
+   {
+    "label": "73",
+    "marker_order": 74,
+    "role": "spine",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 27669,
+     "end": 27864
+    },
+    "body_chars": 189,
+    "body_sha256": "2c2884bae0e5e3aed5093870860d6404c7fbc51ec8a8116dabe8b8477c0560ed",
+    "body": "Mr. Terris’ Métis status was not mentioned by either counsel in making sentencing submissions and the sentencing judge, although noting it, did not take it into account in passing sentence."
+   },
+   {
+    "label": "74",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 27864,
+     "end": 28222
+    },
+    "body_chars": 352,
+    "body_sha256": "6d6f56669e81d753cdd76a6be765f06961a8e04f30d7a2befa3e5bf50339a00c",
+    "body": "The respondent raised Mr. Terris’ Métis status as an issue for the first time on appeal. However as it was not raised by counsel below and the sentencing judge was not asked to consider it, this Court is left with no basis upon which to conclude Mr. Terris’ Métis heritage would warrant a departure from what would otherwise be an appropriate sentence."
+   },
+   {
+    "label": "75",
+    "marker_order": 76,
+    "role": "spine",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 28222,
+     "end": 28590
+    },
+    "body_chars": 362,
+    "body_sha256": "1dba75c1b72e35fef347283740f4cab71c19e1f4e4dc0d9e2cd2b7eb40f77e37",
+    "body": "The sentencing judge noted that unlike the Lungal case, there was no evidence Mr. Terris was being pressured into dealing by an intimate partner. He noted that Mr. Terris matches a more typical profile of a low level, petty retailer – adult but youthful male dealing in small quantities of Schedule I substance, which would suggest a greater need for deterrence."
+   },
+   {
+    "label": "76",
+    "marker_order": 77,
+    "role": "spine",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 28590,
+     "end": 28832
+    },
+    "body_chars": 236,
+    "body_sha256": "bc14b565301304f6086f6c9d25c08dea359f4a611353f0c35818f233ad3af1a0",
+    "body": "Additionally, there was no evidence of Mr. Terris getting ensnared in dealing to help support a drug habit. Thus, his conduct might be more voluntary and calculated for profit and less driven by dependency or need (2019 NSPC 11 at ¶25)."
+   },
+   {
+    "label": "77",
+    "marker_order": 78,
+    "role": "spine",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 28832,
+     "end": 29053
+    },
+    "body_chars": 215,
+    "body_sha256": "e7f2592511aaa4009572a6a20dbf603f31fa0886386674f6ce846bf9dcbb1f42",
+    "body": "Despite noting these differences between Ms. Lungal and Mr. Terris the sentencing judge imposed the same sentence, finding Mr. Terris’ circumstances to be strikingly similar to both the Lungal and Livingstone cases."
+   },
+   {
+    "label": "78",
+    "marker_order": 79,
+    "role": "spine",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 29053,
+     "end": 29577
+    },
+    "body_chars": 518,
+    "body_sha256": "8ee3f8d9df8eec1fbd2e856a5656cc54c414c9a7e731e8cab602c1ad8c66c50d",
+    "body": "Although Mr. Terris’ situation is similar to Mr. Livingstone’s, it is very dissimilar to that of Ms. Lungal. In passing sentence, Judge Atwood made reference to the following factors:\n• First-time offender;\n• Petty-retail possession of small quantity of Schedule I contraband;\n• Solid employment history and good family support;\n• No aggravating factors under the statute;\n• No evidence of weapons or violence;\n• Cooperation with police;\n• Early guilty plea;\n• Bail compliance; and\n• Good prospects for rehabilitation."
+   },
+   {
+    "label": "79",
+    "marker_order": 80,
+    "role": "spine",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 29577,
+     "end": 29670
+    },
+    "body_chars": 87,
+    "body_sha256": "2c7274f346cf0ea4951e6cfbdc066a307f61f4a60b9d5f4d14dce8f6f25d65f9",
+    "body": "As with Mr. Livingstone, the absence of aggravating factors is not a mitigating factor."
+   },
+   {
+    "label": "80",
+    "marker_order": 81,
+    "role": "spine",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 29670,
+     "end": 30106
+    },
+    "body_chars": 430,
+    "body_sha256": "8559858d7db9c5629d689383eb5303959ecaf5d3b4dd6c2a5d4de27c7d83f24f",
+    "body": "Unlike Lungal, there was nothing to suggest the respondent was pressured into dealing drugs or that drug abuse problems had anything to do with his motivation for committing the offences. The sentencing judge himself recognized that the absence of such a consideration indicated a greater need for deterrence (¶25). Further, there was no evidence the custodial sentence would negatively impact Mr. Terris’ rehabilitation progress."
+   },
+   {
+    "label": "81",
+    "marker_order": 82,
+    "role": "spine",
+    "marker": "[81]",
+    "raw_span": {
+     "start": 30106,
+     "end": 30296
+    },
+    "body_chars": 184,
+    "body_sha256": "0b6fe9e20c794162d0f3d27cf81a8c22ccdb8c58d3f72788dfbdc58e2dc45e5e",
+    "body": "In my view, similar to Mr. Livingstone, the sentencing judge erred in principle and failed to take into consideration the need for general deterrence in the circumstances of this case."
+   },
+   {
+    "label": "82",
+    "marker_order": 83,
+    "role": "spine",
+    "marker": "[82]",
+    "raw_span": {
+     "start": 30296,
+     "end": 30551
+    },
+    "body_chars": 249,
+    "body_sha256": "c1adb2f2845173727dfdf98eb347b8cc451202f3f79a9ada7f206f872c141548",
+    "body": "As a result, for essentially the same reasons as I set out above in relation to Mr. Livingstone’s appeal, I would impose a sentence of 18 months’ imprisonment but stay the sentence. The interests of justice do not justify reincarcerating Mr. Terris."
+   },
+   {
+    "label": "83",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[83]",
+    "raw_span": {
+     "start": 30551,
+     "end": 62256
+    },
+    "body_chars": 31699,
+    "body_sha256": "d49ae0b8a0f48b981dfdffffb7fdade6fa423b8324c945e55ccd03177a7bc7cd",
+    "body": "As a result, I would grant leave to appeal and allow the Crown’s appeal in relation to Mr. Terris, impose a sentence of 18 months’ imprisonment but stay the sentence. Mr. Terris will continue to be bound by the sentence imposed by Judge Atwood.\nFarrar, J.A\nConcurred in:\nBeveridge, J.A.\nHamilton, J.A.\nSCHEDULE\nRecent CDSA s. 5(2) jurisprudence in which suspended sentences were imposed\nCASE\nSUMMARY\nCIRCUMSTANCES\nCase\nSummary\nCircumstances\nR. v. Saldanha, 2018 NSSC 169\nAccused sold cocaine to two undercover police officers on two occasions that were several months apart. Police executed a search warrant on apartment and found more cocaine in his bedroom. Accused pleaded guilty to possession of cocaine for purpose of trafficking and to trafficking of cocaine. Sentence suspended. Accused sentenced to three years’ probation and ordered to perform 40 hours of community service.\nAmount of drugs was small, cocaine powder form is less addictive than “crack” more of a delivery person than trafficker, catering more to his own habit had only been introduced to the party scene a brief months before he was charged Accused abided by various onerous conditions of release Accused achieved academic success Accused stopped using drugs Accused highly regarded by many people—received award in recognition of his contribution to the promotion of class activities and spirit voted by his classmates Accused had support of caring and loving family, closely affiliated with church\n• Accused had successfully begun career; was excelling in supervisory role\nR. v. Casey, 2017 NSPC 55\nYouthful, remorseful offender trafficked in a small quantity of crack cocaine; good prospects for rehabilitation; limited prior record. Three-year suspended sentence.\n• Small quantity\n• Young offender (21 years old), African Nova Scotian\n• Father of two young daughters, strong family and community support\n• Works and is the sole financial support for the family full-time\n• Employer provided letter of support, valued and reliable employee\n• Accepts responsibility for his actions and is remorseful\n• Only one prior unrelated conviction\n• Volunteering at youth drop-in program at the Dartmouth Boys and Girls Club, also scheduled to begin as a mentor in SMART program\n• Early guilty plea\n• No further offending behavior since arrest over a year prior\nR. v. Halliday (5 Feb. 2018), Pictou 8024037 (NSPC)\nSuspended sentence and a two-year term of probation for possession of a small quantity of methamphetamine for purposes of trafficking.\n• No prior drug offences\n• Small quantity\n• Limited record\n• Introduced to drugs by a violent and abusive former partner\nR. v. Christmas, 2017 NSPC 48\nAccused pleaded guilty to possession of Percocet and hydromorphone for the purpose of trafficking. Accused sentenced to suspended sentence with 3 years’ probation.\n• Accused was Mi’kmaq, Gladue report described exposure to violence and substance abuse in childhood, early drug use; experiences of suicide and loss\n• Following arrest accused quit drugs and maintained sobriety\n• Accused found good employment\n• Accused had the support of his family and community\n• Accused accepted responsibility, apologized to court and to his community\n• Showed remorse, understood extreme impact drugs had on his actions\nR. v. Rushton, 2017 NSPC 2\nAccused pleaded guilty to possession for the purpose of trafficking of cocaine, cannabis, methamphetamine, and failure to comply with youth sentence or disposition by possessing controlled drug, and failure to comply with youth sentence disposition by failing to keep the peace and be of good behaviour. Police seized: 6 grams powder cocaine, 2 dime bags of cocaine; 2.5 lbs of cannabis; 5 tablets of methamphetamine; $510 in cash; 2 digital scales and new dime bags and zip lock bags.\nSentence suspended for each offence, accused placed on probation for three years total.\n• Accused in community on a Recognizance since his release from custody 2 years prior. For first 10 months, Recognizance included house arrest. For following 14 months included a curfew.\n• Young offender (just turned 18 at time of offence)\n• Difficult childhood involving moving, domestic abuse\n• Mental health issues including anxiety, depression and sleeping difficulties; began using medications to self-medicate, impacted by addiction\n• Accused had not used drugs or alcohol since the offence\n• Accused saw a clinical therapist with Mental Health and Addictions Services for almost a year\n• Since arrest, completed community service hours ordered as part of a YCJA probation order; continued those activities after completion of court-ordered hours (coaching youth basketball and volunteering with Habitat for Humanity)\n• Held full-time seasonal employment in addition to part-time employment, which was ongoing at the time of sentencing\n• No breaches of his Recognizance despite its strict terms\n• Graduated high school and enrolled in trade program at NSSC\n• Letters of support confirming good character from teachers and coaches as well as employer\n• 3 days in custody at time of arrest had significant impact\n• Took responsibility for the offences and was remorseful\nR. v. George-McCool, 2018 ONSC 6885\nAccused convicted of possession for purposes of trafficking in MDMA (a Schedule I substance) and possession of proceeds of crime.\nSentence suspended. Accused sentenced to two years’ probation.\n• Young offender—23 years old at time of the offence\n• No criminal record\n• Support of family\n• Accused had 6-year-old son\n• Accused gainfully employed and had employment awaiting him\n• Accused wanted to continue his education\n• Accused expressed remorse and took responsibility for his actions\n• Accused distanced himself from all contact with anyone who had a criminal record\nR. v. Duncan, 2016 ONCJ 498\nAccused pleaded guilty to one count of trafficking in cocaine. Undercover police officer contacted accused and she sold him 1.69 grams of crack cocaine for $160. Suspended sentence and two years’ probation. Sentencing judge determined that incarcerating the accused would jeopardize the steps she had taken to rehabilitate herself.\n• Accused was 19 years old when she committed the offence\n• She was a first-time offender\n• Was employed at time of sentencing and planned to study to become a registered massage therapist\n• She had not been in trouble since being arrested and charged.\n• Her pre-sentence report was very positive\n• She had had a very difficult upbringing, involving sexual abuse by her father and physical abuse by her grandmother\nR. v. Peters, 2015 MBCA 119\nThe Manitoba Court of Appeal upheld a suspended sentence with three years’ probation for an offender who pleaded guilty to possession of cocaine for the purpose of trafficking and two breaches.\n31-year-old Aboriginal man living in First Nations community and raising children on social assistance. Accused had 54 prior convictions. Pre-sentence report assessed the accused at a high risk to re-offend.\n• Significant Gladue and Ipelee factors\n• Support of his family\n• Had custody of three young children: twins who were 18 months old and 2-month-old infant; was raising the children well with the approval of Child and Family Services\n• Accused had taken residential treatment program and participated in AA and NA meetings\n• Accused “turned his life around since the time of his arrest”\nMBCA determined that the sentence was unusual but not unfit.\nR. v. Tran (A), 2015 MBCA 120\nCourt sentenced accused to a conditional sentence order of 2 years less a day, followed by probation, for possession for the purpose of trafficking cocaine and for possessing proceeds of crime. A CSO was a legal sentence for those offences at the time.\nThe MBCA upheld the sentence.\n• The accused was young, a student\n• No prior criminal involvement\n• He sold drugs to earn money to pay his university tuition\n• Time between arrest and sentencing was 4 years and accused had been on strict bail conditions for that entire period, and he had complied with them successfully\nR. v. Wiebe, 2016 MBPC\nAccused pleaded guilty to trafficking in cocaine. There were two transactions. Sentence suspended, probation ordered.\n• Young accused – 26 years old\n• Addict trafficker\n• He had regular and long-term employment\n• Had been on bail for two years with a strict curfew, complied with all conditions\n• He was in recovery and doing well\nR. v. Dzinic, 2018 MBQB 143\nAccused pleaded guilty to trafficking cocaine. Trial judge suspended sentence and imposed three years’ probation.\n• Accused was young (24 years old)\n• Guilty plea\n• On bail for three years on strict release (some minor violations)\n• Accused stopped drinking and using drugs, and ceased association with gangs\n• Accused was employed\n• Accused was a parent\nR. v. Voong, 2015 BCCA 285\nDial-a-dope operation. Pleaded guilty to possession of cocaine for the purposes of trafficking. BCCA upheld suspended sentence and 30 months’ probation. Excellent rehabilitation; would be counterproductive to incarcerate.\n• Following his arrest, the accused attended counselling, completed a methadone support program, and was free of illegal substances\n• Guilty plea\n• Addict trafficker – was dealing in drugs in order to receive a discount on drugs\n• Lived with mother\n• Has anxiety and panic disorders\n• Had completely left drug business at time of sentencing\nR. v. Van Der Walt, 2017 BCSC 557\nAccused pleaded guilty to one count of trafficking in cocaine. She sold .16 grams of crack cocaine to an undercover officer for $20. Sentence suspended. Accused sentenced to 18 months probation.\n• Accused was 28-year-old woman\n• No criminal record\n• Accused was in poor health, on prescription medication\n• Accused became involved in the offence because of financial pressures she and her boyfriend experienced after he lost his job\n• Accused used lengthy delay between the offence and her sentencing to put together reliable track record. She had been able to extricate herself from the operation, even before she was charged. Demonstrated remorse\nR. v. Naccarato, 2017 BCSC 645\nAccused was convicted of one count of possession of heroin for the purpose of trafficking. TJ suspended the passing of sentence and ordered a three‑year period of probation with strict conditions, including being confined to her residence for the first year, subject to certain stipulated exceptions, and being subject to a daily curfew for the second and third years.\n• Accused was a young offender – 24 years old\n• At time of offence she was addicted to crystal methamphetamine and was a street-level drug dealer\n• Accused held a variety of jobs in hotel industry and worked as a personal trainer\n• She planned to return to school\n• Accused was remorseful\n• Accused was working hard to recover from addiction\n• Accused had no criminal record\nR. v. Orr, 2015 BCPC 206\nThis case was decided following the release of the Voong decision and applied the principles set out therein. Orr was a dial-a-dope case involving a plea to trafficking in cocaine by Mr. Lai and a plea by Mr. Orr to aiding and abetting the trafficking in cocaine. The BCPC imposed suspended sentences with significant periods of probation which included performing 100 and 75 hours of community service respectively.\nMr. Orr:\n• He was 22 at the time of the offence (young)\n• No criminal record\n• Gainfully employed, Prospects for ongoing employment were positive\n• 2 years had passed without any criminal activity\n• Changed his peer associations and become closer to family\n• Found guilty at trial but accepting responsibility\nMr. Lai:\n• He was 21 at the time of the offence\n• No criminal record\n• He was employed part-time but was seeking full-time\n• Lived with his mother and was her principal caregiver, used drug proceeds to pay their living expenses\n• Pled guilty\n• Had reconfigured his life\nR. v. Dickey, 2015 BCSC 1210\nAccused sold undercover officer $100 worth of cocaine. Accused convicted of trafficking in cocaine and possession of cocaine for the purpose of trafficking. Trial judge sentenced accused to suspended sentence and 20 months’ probation.\n• The amount of cocaine was quite small\n• Small, unsophisticated dial-a-dope operation\n• Accused unemployed at the time of the offence and was selling cocaine to support his own addiction, which began when he had an operation\n• Accused was relatively young (27 years old)\n• Had overcome his addiction to cocaine and maintained employment\n• Had the support of many friends and family\n• No prior record for drug-related offences, no drug history with police\nR. v. Dalal, 2018 ONSC 715\nMr. Dallal pleaded guilty to one count of trafficking cocaine. Sentence suspended. Accused sentenced to one year of probation.\n• Accused was of senior age (65 years old)\n• No past criminal record\n• Pleaded guilty\n• The amount of cocaine involved was small\n• He suffered serious health condition and faced future surgery\n• He had family support\n• Prospective employment and community work\nR. v. Azeez, 2014 ONCJ 311\nAccused pleaded guilty to four counts of trafficking in heroin. Trial judge sentenced accused to two years’ probation and suspended sentence on three other trafficking counts. Court found exceptional circumstances justifying suspended sentence based primarily on rehabilitative progress made by accused and importance of counselling continuity.\n• 33 years old, had experienced a disrupted childhood including foster care\n• Longstanding heroin addiction, had tried to overcome on his own\n• Diagnosed with heroin intoxication, PTSD, depression\n• Low-level middleman engaged in street transactions as “addict trafficker”\n• Accused under the care of a highly respected forensic psychiatrist while on bail\n• Since arrest, he participated in counselling and treatment programs, maintained a drug-free status and dedicated himself to permanently overcoming his addiction\n• While released, the accused complied with very strict house arrest conditions\n• Accused had potential for rehabilitation and had made strides toward that goal\nR. v. Rutter, 2016 BCPC 321\nAccused was partner and active participant in dial-a-dope operation for 5 months before his arrest. Accused charged with one count each of trafficking in fentanyl and cocaine. On second day of trial accused withdrew his not guilty pleas and he pleaded to guilty to both offences. Sentence suspended and three years’ probation imposed with strict conditions.\n• Addict trafficker\n• Young offender (22 years old). Began to use illicit drugs when he was 17 and by the age of 20, he had become addicted to cocaine, heroin and fentanyl\n• Accused completed residential program for drug treatment and rehabilitation\n• Attended AA meetings regularly to deal with addiction to alcohol\n• Accused had new intimate partner who was not an addict\n• Accused was good employee, currently employed\n• No criminal record (but he did breach terms of bail)\n• Court determined that if accused was not sentenced to jail it was more likely that he would continue to be abstinent, employed and responsible citizen\nR. v. Thevarajah, 2016 ONSC 6739\nAccused sold 4.95 grams of MDMA to an undercover officer using Craigslist. Accused pleaded guilty to trafficking MDMA. Sentence suspended with one-year period of probation.\n• Young accused (21 years old)\n• No criminal record and no outstanding charges\n• Small quantity of MDMA, considered not as bad as cocaine\n• Accused lived with his parents in stable family environment\n• Accused was pursuing post-secondary education\n• Accused had been consistently employed\n• Spoke and wrote to the court and offered sincere apology\n• Distanced himself from old friends and becoming active in his religion\n• Gave up smoking and drinking; no evidence of emotional or substance problems\nR. v. Satkunananthan, 2019 ONSC 1179\nAccused convicted of possession of Oxycodone for the purpose of trafficking. She was a passenger in a car stopped by police, driven by her boyfriend. Drugs found in her purse. Suspended sentence with 2 years’ probation.\n• No criminal record\n• Young accused (25 years old at the time of the offence)\n• Came from a close-knit family; provided for her grandmother\n• Consistently employed as a retail manager; university educated\n• Understood the seriousness of the circumstances of her offence\nR. v. Smith, [2016] O.J. No. 1701\nAccused convicted at trial on one count of trafficking in oxycodone. She pleaded guilty to other counts on indictment. She met with undercover policeman and arranged for the officer to buy drugs from her brother, who was an addict. Accused had her youngest child with her in her vehicle when the drug-buy was being facilitated.\nSuspended sentence followed by probation for 18 months including 100 hours of community service.\n• Aboriginal offender, Court considered Gladue report\n• No criminal record, 33-years old at the time\n• Accused had troubled upbringing and started experimenting with drugs at age of 14 after her parents divorced\n• Accused had been clean of prescription drug abuse for 6 years\n• Accused’s partner was employed full time and accused was a stay-at-home mom, supporting children and children were doing well\n• Accused faithfully followed Methadone regime as prescribed by her doctor and submitted to weekly urine tests\n• Accused expressed remorse at sentencing hearing\n• Accused’s rehabilitation began before involvement with criminal justice system\nR. v. Dias, 2016 ONCJ 500\n20-year-old honours student posted an online listing selling MDMA “as a joke” after being given some. Undercover police officer responded; accused sold to him three times in small quantities. Suspended sentence with “lengthy” period of probation.\n• Very early plea\n• No youth or criminal record\n• Prior to entering plea accused engaged in considerable activity to rehabilitate himself and to restore him to good standing in the community\n• Struggled with ADHD but maintained excellent grades\n• Strong personal network\nR. v. Rutter, 2016 BCPC 321\nAccused was partner and active participant in dial-a-dope operation for 5 months before his arrest. Accused charged with one count each of trafficking in fentanyl and cocaine. On second day of trial accused withdrew his not guilty pleas and pleaded guilty to both offences. Sentence suspended and three years’ probation imposed with strict conditions.\n• Addict trafficker\n• Young-- Accused was 22 years old. Began to use illicit drugs when he was 17 and by the age of 20 he had become addicted to cocaine, heroin and fentanyl\n• Accused attended residential program for drug treatment and rehabilitation Completed program successfully\n• Attended AA meetings regularly to deal with addiction to alcohol\n• Accused had new intimate partner who was not an addict\n• Accused employed at log sorting operation and was highly regarded employee\n• Accused did not have a criminal record but he did breach the terms of his bail\nR. v. Faraj, 2019 BCSC 612\nPolice searched accused’s apartment and located 15 grams of cocaine with street value of $1500; 20 grams of heroin with street value of $4000 and nine grams of methamphetamine with street value of $900. Involved in mid-level of trafficking. Accused pleaded guilty to possession of heroin for the purpose of trafficking. Sentence suspended and one year of probation imposed.\n• Sentencing was 4 years after offence; no criminal activity since\n• Addict trafficker – accused was a 42-year-old man who started using drugs when he was 20 years old\n• At time of offence accused was using crystal methamphetamine and was selling drugs primarily to support his habit (although he earned more than he needed)\n• Accused made steps toward his rehabilitation\n• 5-month adjournment of sentencing and continued making progress\n• Accused was drug-free, employed and had the support of his employer\n• The best way to protect the public was to keep accused out of the drug business\nR. v. Charlton, 2014 BCPC 292\nAffirmed in R. v. Voong, 2015 BCCA 285\nAccused was employed as a courier in a dial-a-dope operation. Accused pleaded guilty to possession of cocaine for the purpose of trafficking, possession of heroin for the purpose of trafficking and breach of probation. Sentence suspended. Accused placed on three years’ probation.\n• Quantities of drugs and cash involved were small\n• Accused appeared to be working at low level of drug trade\n• Addicted to cocaine\n• Accused had not breached probation or bail conditions\n• Accused was receiving substance abuse counselling\n• Accused had found employment\n• Accused had taken meaningful, practical and successful steps to leave life of crime and become contributing member of society\nR. v. Voss, 2014 BCPC 43\nPolice seized 78.7 grams of cocaine from accused’s apartment, $857 from accused’s pocket, and various drug paraphernalia (crack pipes, scales, cutting agent) after forcing entry into accused’s apartment following drug investigation lead. Accused made attempt to throw drugs out the window. Accused pleaded guilty to possession of cocaine for the purpose of trafficking. Sentence suspended and period of 30 months’ probation imposed.\n• Accused was Aboriginal, grandmother and other family members residential school survivors. Court had a Gladue report\n• Very difficult family background, drug and alcohol use\n• May have been affected by intrauterine exposure to alcohol\n• Suffered traumatic life events involving losses of loved ones, became addicted to prescription painkillers following an injury\n• Had taken significant steps to turn his life around since being arrested for this offence—acquired certificates and credentials toward pursuing an oilfields career\n• Clean and sober since his arrest; taking steps to set himself up for a lawful career\n• Had support from family members who attended court\n• No criminal record\nR. v. Zachar, 2018 ONCJ 631\nYouthful first time accused had just turned 18 when she was arrested for trafficking in close to one ounce of both heroin and cocaine. Court found accused’s role was more that of a courier and she was likely exploited by others.\nAccused in this case was not an addict trafficker. Not a small amount of drugs. Accused was convicted of trafficking; sentence suspended, and probation of two years ordered, without curfew.\n• Youthful offender\n• No criminal or youth record\n• More of a courier, not involved in sophisticated capacity in the drug trade\n• Accused was product of a broken home, presented as immature and vulnerable\n• Accused had turned her life around since her arrest\n• Accused had exemplary work and academic record\n• Accused had spent 4 days in adult remand custody; significant deterrent effect\n• Accused had complied with strict interim release conditions\n• Mother was big support, lived with her\n• Mother and offender moved cities to remove offender from negative peer group\n• Expressed earnest remorse to the court\nR. v. Diedricksen, 2018 BCCA 336\nUndercover officers attended at a night club for the purpose of purchasing drugs. Officers approached the accused, who facilitated a drug transaction between the officer and another individual. Sentencing judge characterized the accused’s position as that of a party to a dial-a-dope operation and sentenced the accused to six months imprisonment. Accused appealed. Appeal allowed. Accused’s sentence suspended.\n• Accused was a first-time offender\n• Accused pleaded guilty to the offence and took responsibility for his actions\n• Accused complied with his bail since his arrest, cooperative with the police\n• Accused was employed and a custodial sentence would impair employment;\n• Accused expressed remorse and displayed insight into the effect of his actions\n• Accused had considerable support in the community, including from employer\n• Accused took active steps to reduce or eliminate his own substance abuse issues, including participation with the Assessment & Treatment Matching Team at Whistler Mental Health & Substance Use Services\nR. v. Khan, 2019 ONCJ 29\nPolice were informed about an online advertisement that offered cocaine for sale. Undercover officer called the number and the accused agreed to sell the officer 1.08 grams of powder cocaine for $150. Accused was arrested following completion of the transaction. Accused pleaded guilty to trafficking cocaine.\nSentence suspended. Accused sentenced to 30 months’ probation. Accused had to perform 200 hours of community service and it had to be completed within the first 18 months of probation.\n• Accused started to use cocaine when he was unemployed and broke, and he sold cocaine so that he could pay for his online gaming addiction; faced significant financial difficulties due to addiction\n• Accused stopped using cocaine on the day he was arrested\n• Accused obtained employment and was successful in his work\n• Accused also had to be available for his work on weekends and evenings (intermittent sentence would interfere with ability to work)\n• Accused no longer associated with the people who had supplied him cocaine\n• Saw therapist for help with gaming addiction; stopped playing game\n• Accused deeply remorseful for selling cocaine, acknowledged the seriousness of his offence\nR. c. Stewart, 2019 QCCQ 1557\nAccused pleaded guilty to one charge of trafficking cocaine and two charges of possession of cocaine and cannabis for the purpose of trafficking.\nAccused had many prior convictions, including violence and possession of illegal substances. He had no prior conviction in trafficking in substances or for possession of substances for the purpose of trafficking. Sentence suspended. 3-year period of probation imposed.\n• 45-year-old Aboriginal accused; Court had the benefit of a Gladue report in addition to the PSR; grandmother and both parents attended residential schools Cree Nation was one of the First Nations most affected by this tragedy\n• 5 children and 7 grandchildren, expecting another child at time of sentencing\n• Distant relationships with mother, step-father and biological father\n• Graduated from high school and had earned many certificates\n• Was employed by the Band Council of the community as a maintenance worker and had been for around 2 years. Was described as a good, dependable worker\n• Accused was First responder in his community and had been coaching hockey\n• Accused was an addict and had been struggling with his addiction for years\n• Accused demonstrated that he now understands the effect of drugs on community; demonstrated remorse for his role\n• Accused had close family support from siblings\n• Accused participated in traditional Aboriginal healing practices\n• Active in community promoting healthy ways of life\n• Completely changed his social circle and activities\nR. v. Olenik, 2017 BCPC 390\nAccused charged with possession of heroin and fentanyl for the purpose of trafficking. Large quantity of highly-addictive drugs.\nSentence suspended and 3-year probation imposed. Accused ordered to complete 120 hours of community service.\n• Youthful offender – 25 years old at the time of the offence\n• No criminal record\n• Pleaded guilty –indicative of remorse\n• Addict trafficker – pre-sentence report indicated that at the time he was arrested, the accused was spending $300-$400 on cocaine and heroin\n• Influenced by a negative peer group in high school\n• Since being charged, accused stopped using drugs and moved away from negative influences. He excelled at his employment (commercial painter) and formed positive relationships, including with roommates\nR. v. Cole, 2014 BCSC 2516\nAccused convicted of possession of methamphetamine for purpose of trafficking and possession of heroin and cocaine.\nPolice executed search warrant at residence of accused and co-accused and found drugs, money, score sheets, packaging material and video surveillance system for hallway outside apartment.\nTrial judge sentenced accused to suspended sentence and 18 months’ probation.\n• Young offender (22 years old)\n• Had one-year-old son and she was responsible for his upbringing\n• Had no criminal record\n• No evidence accused was involved in any actual sales of drugs; involvement the result of relationship with her older criminally involved partner\n• Accused had fetal alcohol spectrum disorder\n• Accused had been able to get and keep jobs in the past\n• Accused had goal of getting her high school equivalency, becoming hairdresser\n• Accused had been a heavy alcohol user in the past and at time of the offences was addicted to methamphetamine but was not using any intoxicants at time of sentencing\n• Offences were treated as unusual events in the life of a person who was struggling to extract herself from a negative situation\nR. v. Dickey, 2015 BCSC 1210\nAccused agreed to sell undercover officer $100 worth of cocaine. Accused convicted of trafficking in cocaine and possession of cocaine for the purpose of trafficking. Accused was 27-years old at the time of the offence. Had a previous criminal record for assault and refusal to provide a breath sample. TJ sentenced accused to suspended sentence and 20 months’ probation.\n• Accused had become addicted to cocaine following a workplace injury to his knee and was selling cocaine to support his own addiction.\n• After arrest, the accused obtained a steady job; had maintained for 2 years\n• Accused had support of family and friends\n• Accused’s dial-a-dope operation was unsophisticated—was not operating from a motor vehicle, amount of cocaine was small, did not possess other paraphernalia\n• Overcame addiction immediately following arrest\n• Accused had not breached his release conditions\n• Accused was now rehabilitated and was pursuing a new career path\nR. v. Lo, 2015 BCSC 1821\nAccused found guilty of two counts of possession of cocaine and heroin for the purpose of trafficking in dial-a-dope operation of heroin, a Schedule I substance. Sole motive was profit; he was not addicted to drugs.\nSuspended sentence and three years’ probation.\n• Short period of drug trafficking\n• Lack of criminal record\n• Relative youth (26 years old)\n• Father of a young daughter\n• Steps taken towards rehabilitation since offence\n• Full-time permanent employment\n• Supportive family who are aware of conviction\n• Expressed remorse and acknowledged the harm caused by his actions\nR. v. Madison, 2015 BCPC 323\nAccused pleaded guilty to possession of cocaine for the purposes of trafficking (dial-a-dope operation). Court suspended sentence and imposed a period of probation of 18 months.\n• Pre-sentence report detailed chaotic abusive childhood\n• Attended Alcoholic Anonymous daily; sober 2 years; gained control of emotions\n• Guilty plea\n• Showed remorse and insight into harmful effects of his actions\n• Extensive progress toward rehabilitation, helping others with their rehabilitation\nR. v. McGill, 2016 ONCJ 138\nPolice executed a search warrant at accused’s residence and seized approximately 300 grams of cocaine and $3000 in cash. Accused pleaded guilty to possession of cocaine for purposes of trafficking.\nTrial judge ordered a suspended sentence and 30 months’ probation, including a curfew condition. Trial judge also made a DNA order and issued a weapons prohibition.\n• 40 year old Aboriginal father with troubled upbringing, drug addiction\n• In the 2+ years since arrest, accused had secured employment, pursued schooling, abstained from illicit drug use, and attended counselling.\n• Accused had a limited dated criminal record (not drug-related), was genuinely and sincerely remorseful, and had no history of disobeying court orders.\n• Difficult childhood and adolescence\n• Self-directed and demonstrable rehabilitation since release on bail\n• Vibrant and salutary reclamation of Aboriginal cultural identity (Gladue principles in play)\n• Immediate and ongoing investment in family, education and employment"
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 49,
+  "values": [
+   "2019 NSPC 11",
+   "2018 NSPC 61",
+   "2018 NSPC 62",
+   "2015 NSCA 87",
+   "2010 NSCA 56",
+   "2009 NSCA 95",
+   "2009 NSCA 59",
+   "2007 NSCA 130",
+   "2002 NSCA 147",
+   "2015 SCC 64",
+   "2016 ONCJ 138",
+   "2019 NSCA 36",
+   "2016 SCC 14",
+   "2013 QCCA 1351",
+   "2012 NSCA 34",
+   "2008 NSCA 102",
+   "2014 NSCA 102",
+   "2014 ONCA 49",
+   "2018 NSSC 169",
+   "2017 NSPC 55",
+   "2017 NSPC 48",
+   "2017 NSPC 2",
+   "2018 ONSC 6885",
+   "2016 ONCJ 498",
+   "2015 MBCA 119",
+   "2015 MBCA 120",
+   "2018 MBQB 143",
+   "2015 BCCA 285",
+   "2017 BCSC 557",
+   "2017 BCSC 645",
+   "2015 BCPC 206",
+   "2015 BCSC 1210",
+   "2018 ONSC 715",
+   "2014 ONCJ 311",
+   "2016 BCPC 321",
+   "2016 ONSC 6739",
+   "2019 ONSC 1179",
+   "2016 ONCJ 500",
+   "2019 BCSC 612",
+   "2014 BCPC 292",
+   "2014 BCPC 43",
+   "2018 ONCJ 631",
+   "2018 BCCA 336",
+   "2019 ONCJ 29",
+   "2019 QCCQ 1557",
+   "2017 BCPC 390",
+   "2014 BCSC 2516",
+   "2015 BCSC 1821",
+   "2015 BCPC 323"
+  ]
+ }
+}

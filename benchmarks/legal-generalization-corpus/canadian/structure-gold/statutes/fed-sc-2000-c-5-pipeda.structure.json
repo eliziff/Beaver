@@ -1,0 +1,1536 @@
+{
+ "artifact_id": "fed-sc-2000-c-5-pipeda",
+ "doc_type": "statute",
+ "jurisdiction": "CA-FED",
+ "dataset": "LEGISLATION-FED",
+ "citation": "SC 2000, c 5",
+ "citation_secondary": "P-8.6",
+ "name": "Personal Information Protection and Electronic Documents Act",
+ "document_date": "2000-04-13",
+ "language": "en",
+ "source_url": "https://laws-lois.justice.gc.ca/eng/XML/P-8.6.xml",
+ "scraped_timestamp": "2026-07-24 13:31:42+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-laws",
+  "revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "file": "LEGISLATION-FED/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "unofficial_sections_en",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "See upstream license, including requirements related to attribution, non-endorsement, and reproduction of the upstream license. The upstream license is the Open Goverment License - Canada, as specificed at Department of Justice Github data source: https://perma.cc/B4ER-VTMQ. Details of Open Government License - Canada are available here: https://perma.cc/CDW7-A2VN. Note: This is an unofficial reproduction of Federal legislation, made without endorsement or affiliation by Goverment of Canada. The reproduction contains information licensed under the Open Government Licence - Canada.",
+  "upstream_license_id": "OGL-Canada-2.0"
+ },
+ "raw_text_file": "fed-sc-2000-c-5-pipeda.txt",
+ "raw_text_chars": 105164,
+ "raw_text_sha256": "2f7a321d14b8733b62d9c35623428c06f36c9e2f2b44efb193ef9e845f79b300",
+ "structure_provenance": "provider-native",
+ "structure_derivation": {
+  "labels_and_bodies": "verbatim from unofficial_sections_en (provider-native, zero annotation)",
+  "raw_span": "derived: each label located in the raw text by a line-anchored heading match, disambiguated by verifying the native body follows; span ends at the next located heading",
+  "warning": "the provider's section-map key order is NOT document order for decimal labels (e.g. 83.01, 83.1, 83.02, 83.2 ...); use doc_order, not map_order"
+ },
+ "structure": {
+  "kind": "section_map",
+  "native_field": "unofficial_sections_en",
+  "label_count": 92,
+  "anchored_count": 71,
+  "anchor_kinds": {
+   "unique": 64,
+   "body-verified": 1,
+   "range-collapsed": 6
+  },
+  "body_classes": {
+   "substantive": 71,
+   "blank": 1,
+   "amendments": 20
+  },
+  "map_order_equals_doc_order": true,
+  "labels_map_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "4.01",
+   "4.1",
+   "5",
+   "6",
+   "6.1",
+   "7",
+   "7.1",
+   "7.2",
+   "7.3",
+   "7.4",
+   "8",
+   "9",
+   "10",
+   "10.1",
+   "10.2",
+   "10.3",
+   "11",
+   "12",
+   "12.1",
+   "12.2",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "17.1",
+   "17.2",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "23.1",
+   "24",
+   "25",
+   "26",
+   "27",
+   "27.1",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "Schedule 1",
+   "Schedule 2",
+   "Schedule 3",
+   "Schedule 4"
+  ],
+  "labels_doc_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "4.01",
+   "4.1",
+   "5",
+   "6",
+   "6.1",
+   "7",
+   "7.1",
+   "7.2",
+   "7.3",
+   "7.4",
+   "8",
+   "9",
+   "10",
+   "10.1",
+   "10.2",
+   "10.3",
+   "11",
+   "12",
+   "12.1",
+   "12.2",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "17.1",
+   "17.2",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "23.1",
+   "24",
+   "25",
+   "26",
+   "27",
+   "27.1",
+   "28",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "57",
+   "58",
+   "59",
+   "60",
+   "71"
+  ],
+  "sections": [
+   {
+    "label": "1",
+    "map_order": 0,
+    "doc_order": 0,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 602,
+     "end": 807
+    },
+    "body_chars": 90,
+    "body_sha256": "d8268cf6dfebba31cc8bb48bd52c3b02ca5c82039e9f6ac9232124d56d424394",
+    "body": "This Act may be cited as the Personal Information Protection and Electronic Documents Act."
+   },
+   {
+    "label": "2",
+    "map_order": 1,
+    "doc_order": 1,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 807,
+     "end": 5919
+    },
+    "body_chars": 5053,
+    "body_sha256": "7ac9fa051835ff56d11c0bd5709061cb7414aa388422e04aff9fd8a9ef2e1f80",
+    "body": "(1) The definitions in this subsection apply in this Part.\n\n**alternative format**, with respect to personal information, means a format that allows a person with a sensory disability to read or listen to the personal information. (**support de substitution**)\n\n**breach of security safeguards** means the loss of, unauthorized access to or unauthorized disclosure of personal information resulting from a breach of an organization’s security safeguards that are referred to in clause 4.7 of Schedule 1 or from a failure to establish those safeguards. (**atteinte aux mesures de sécurité**)\n\n**business contact information** means any information that is used for the purpose of communicating or facilitating communication with an individual in relation to their employment, business or profession such as the individual’s name, position name or title, work address, work telephone number, work fax number or work electronic address. (**coordonnées d’affaires**)\n\n**business transaction** includes\n\n(a) the purchase, sale or other acquisition or disposition of an organization or a part of an organization, or any of its assets;\n\n(b) the merger or amalgamation of two or more organizations;\n\n(c) the making of a loan or provision of other financing to an organization or a part of an organization;\n\n(d) the creating of a charge on, or the taking of a security interest in or a security on, any assets or securities of an organization;\n\n(e) the lease or licensing of any of an organization’s assets; and\n\n(f) any other prescribed arrangement between two or more organizations to conduct a business activity. (**transaction commerciale**)\n\n**commercial activity** means any particular transaction, act or conduct or any regular course of conduct that is of a commercial character, including the selling, bartering or leasing of donor, membership or other fundraising lists. (**activité commerciale**)\n\n**Commissioner** means the Privacy Commissioner appointed under section 53 of the Privacy Act. (**commissaire**)\n\n**Court** means the Federal Court. (**Cour**)\n\n**federal work, undertaking or business** means any work, undertaking or business that is within the legislative authority of Parliament. It includes\n\n(a) a work, undertaking or business that is operated or carried on for or in connection with navigation and shipping, whether inland or maritime, including the operation of ships and transportation by ship anywhere in Canada;\n\n(b) a railway, canal, telegraph or other work or undertaking that connects a province with another province, or that extends beyond the limits of a province;\n\n(c) a line of ships that connects a province with another province, or that extends beyond the limits of a province;\n\n(d) a ferry between a province and another province or between a province and a country other than Canada;\n\n(e) aerodromes, aircraft or a line of air transportation;\n\n(f) a radio broadcasting station;\n\n(g) a bank or an authorized foreign bank as defined in section 2 of the Bank Act;\n\n(h) a work that, although wholly situated within a province, is before or after its execution declared by Parliament to be for the general advantage of Canada or for the advantage of two or more provinces;\n\n(i) a work, undertaking or business outside the exclusive legislative authority of the legislatures of the provinces; and\n\n(j) a work, undertaking or business to which federal laws, within the meaning of section 2 of the Oceans Act, apply under section 20 of that Act and any regulations made under paragraph 26(1)(k) of that Act. (**entreprises fédérales**)\n\n**organization** includes an association, a partnership, a person and a trade union. (**organisation**)\n\n**personal health information**, with respect to an individual, whether living or deceased, means\n\n(a) information concerning the physical or mental health of the individual;\n\n(b) information concerning any health service provided to the individual;\n\n(c) information concerning the donation by the individual of any body part or any bodily substance of the individual or information derived from the testing or examination of a body part or bodily substance of the individual;\n\n(d) information that is collected in the course of providing health services to the individual; or\n\n(e) information that is collected incidentally to the provision of health services to the individual. (**renseignement personnel sur la santé**)\n\n**personal information** means information about an identifiable individual. (**renseignement personnel**)\n\n**prescribed** means prescribed by regulation. (**Version anglaise seulement**)\n\n**record** includes any correspondence, memorandum, book, plan, map, drawing, diagram, pictorial or graphic work, photograph, film, microform, sound recording, videotape, machine-readable record and any other documentary material, regardless of physical form or characteristics, and any copy of any of those things. (**document**)\n\n(2) In this Part, a reference to clause 4.3 or 4.9 of Schedule 1 does not include a reference to the note that accompanies that clause."
+   },
+   {
+    "label": "3",
+    "map_order": 2,
+    "doc_order": 2,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 5919,
+     "end": 6450
+    },
+    "body_chars": 489,
+    "body_sha256": "a2d23fd6b07c174949f9fa5f1b2be28862165fce267896cdb3486c4ae60f448d",
+    "body": "The purpose of this Part is to establish, in an era in which technology increasingly facilitates the circulation and exchange of information, rules to govern the collection, use and disclosure of personal information in a manner that recognizes the right of privacy of individuals with respect to their personal information and the need of organizations to collect, use or disclose personal information for purposes that a reasonable person would consider appropriate in the circumstances."
+   },
+   {
+    "label": "4",
+    "map_order": 3,
+    "doc_order": 3,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 6450,
+     "end": 7905
+    },
+    "body_chars": 1369,
+    "body_sha256": "811ca62e522cc75d22feda0e5d3ca1743dc09e27122b08d895dac2450e8ede36",
+    "body": "(1) This Part applies to every organization in respect of personal information that\n\n(a) the organization collects, uses or discloses in the course of commercial activities; or\n\n(b) is about an employee of, or an applicant for employment with, the organization and that the organization collects, uses or discloses in connection with the operation of a federal work, undertaking or business.\n\n(1.1) This Part applies to an organization set out in column 1 of Schedule 4 in respect of personal information set out in column 2.\n\n(2) This Part does not apply to\n\n(a) any government institution to which the Privacy Act applies;\n\n(b) any individual in respect of personal information that the individual collects, uses or discloses for personal or domestic purposes and does not collect, use or disclose for any other purpose; or\n\n(c) any organization in respect of personal information that the organization collects, uses or discloses for journalistic, artistic or literary purposes and does not collect, use or disclose for any other purpose.\n\n[\\*](3) Every provision of this Part applies despite any provision, enacted after this subsection comes into force, of any other Act of Parliament, unless the other Act expressly declares that that provision operates despite the provision of this Part.\n\n[\\*] [Note: Subsection 4(3) in force January 1, 2001, *see* SI/2000-29.]"
+   },
+   {
+    "label": "4.01",
+    "map_order": 4,
+    "doc_order": 4,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 7905,
+     "end": 8263
+    },
+    "body_chars": 304,
+    "body_sha256": "f566475f75841c1be769e0b8e8a5b050993b97fd8b0fe6a7fac88fc112e9241d",
+    "body": "This Part does not apply to an organization in respect of the business contact information of an individual that the organization collects, uses or discloses solely for the purpose of communicating or facilitating communication with the individual in relation to their employment, business or profession."
+   },
+   {
+    "label": "4.1",
+    "map_order": 5,
+    "doc_order": 5,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "body-verified",
+    "raw_span": {
+     "start": 8263,
+     "end": 10397
+    },
+    "body_chars": 1931,
+    "body_sha256": "d4e8b076d82cb543bd4c789547ec29632f867199e430154f84e8cb0762361cbb",
+    "body": "(1) If a certificate under section 38.13 or 38.41 of the Canada Evidence Act prohibiting the disclosure of personal information of a specific individual is issued before a complaint is filed by that individual under this Part in respect of a request for access to that information, the provisions of this Part respecting that individual’s right of access to their personal information do not apply to the information that is subject to the certificate.\n\n(2) Despite any other provision of this Part, if a certificate under section 38.13 or 38.41 of the Canada Evidence Act prohibiting the disclosure of personal information of a specific individual is issued after the filing of a complaint under this Part in relation to a request for access to that information:\n\n(a) all proceedings under this Part in respect of that information, including an investigation, audit, appeal or judicial review, are discontinued;\n\n(b) the Commissioner shall not disclose the information and shall take all necessary precautions to prevent its disclosure; and\n\n(c) the Commissioner shall, within 10 days after the certificate is published in the Canada Gazette, return the information to the organization that provided the information.\n\n(3) The Commissioner and every person acting on behalf or under the direction of the Commissioner, in carrying out their functions under this Part, shall not disclose information subject to a certificate issued under section 38.13 or 38.41 of the Canada Evidence Act, and shall take every reasonable precaution to avoid the disclosure of that information.\n\n(4) The Commissioner may not delegate the investigation of any complaint relating to information subject to a certificate issued under section 38.13 or 38.41 of the Canada Evidence Act except to one of a maximum of four officers or employees of the Commissioner specifically designated by the Commissioner for the purpose of conducting that investigation."
+   },
+   {
+    "label": "5",
+    "map_order": 6,
+    "doc_order": 6,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 10397,
+     "end": 10882
+    },
+    "body_chars": 387,
+    "body_sha256": "3d61fab9129fe87d4d0ada8e8729a1ed56ac4cfae895e9af6008de1dc973d714",
+    "body": "(1) Subject to sections 6 to 9, every organization shall comply with the obligations set out in Schedule 1.\n\n(2) The word **should**, when used in Schedule 1, indicates a recommendation and does not impose an obligation.\n\n(3) An organization may collect, use or disclose personal information only for purposes that a reasonable person would consider are appropriate in the circumstances."
+   },
+   {
+    "label": "6",
+    "map_order": 7,
+    "doc_order": 7,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 10882,
+     "end": 11081
+    },
+    "body_chars": 172,
+    "body_sha256": "39bfdbc2c0161eaec7e9cd7b06a231d52f19c649aaf025f0e03a60c2d371bcae",
+    "body": "The designation of an individual under clause 4.1 of Schedule 1 does not relieve the organization of the obligation to comply with the obligations set out in that Schedule."
+   },
+   {
+    "label": "6.1",
+    "map_order": 8,
+    "doc_order": 8,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 11081,
+     "end": 11473
+    },
+    "body_chars": 337,
+    "body_sha256": "b3c5c3c6b4904c93128de1559bd6ca8a30b58b1bada474833ebe95d017aff53d",
+    "body": "For the purposes of clause 4.3 of Schedule 1, the consent of an individual is only valid if it is reasonable to expect that an individual to whom the organization’s activities are directed would understand the nature, purpose and consequences of the collection, use or disclosure of the personal information to which they are consenting."
+   },
+   {
+    "label": "7",
+    "map_order": 9,
+    "doc_order": 9,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 11473,
+     "end": 20208
+    },
+    "body_chars": 8570,
+    "body_sha256": "c1daebe4407246d22296ca212b276d0bcb2743c05d3a46bea984cf12bf932ef1",
+    "body": "(1) For the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, an organization may collect personal information without the knowledge or consent of the individual only if\n\n(a) the collection is clearly in the interests of the individual and consent cannot be obtained in a timely way;\n\n(b) it is reasonable to expect that the collection with the knowledge or consent of the individual would compromise the availability or the accuracy of the information and the collection is reasonable for purposes related to investigating a breach of an agreement or a contravention of the laws of Canada or a province;\n\n(b.01) it was disclosed under paragraph (3)(d.21);\n\n(b.1) it is contained in a witness statement and the collection is necessary to assess, process or settle an insurance claim;\n\n(b.2) it was produced by the individual in the course of their employment, business or profession and the collection is consistent with the purposes for which the information was produced;\n\n(c) the collection is solely for journalistic, artistic or literary purposes;\n\n(d) the information is publicly available and is specified by the regulations; or\n\n(e) the collection is made for the purpose of making a disclosure\n\n(i) under subparagraph (3)(c.1)(i) or (d)(ii), or\n\n(ii) that is required by law.\n\n(2) For the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, an organization may, without the knowledge or consent of the individual, use personal information only if\n\n(a) in the course of its activities, the organization becomes aware of information that it has reasonable grounds to believe could be useful in the investigation of a contravention of the laws of Canada, a province or a foreign jurisdiction that has been, is being or is about to be committed, and the information is used for the purpose of investigating that contravention;\n\n(b) it is used for the purpose of acting in respect of an emergency that threatens the life, health or security of an individual;\n\n(b.1) the information is contained in a witness statement and the use is necessary to assess, process or settle an insurance claim;\n\n(b.2) the information was produced by the individual in the course of their employment, business or profession and the use is consistent with the purposes for which the information was produced;\n\n(c) it is used for statistical, or scholarly study or research, purposes that cannot be achieved without using the information, the information is used in a manner that will ensure its confidentiality, it is impracticable to obtain consent and the organization informs the Commissioner of the use before the information is used;\n\n(c.1) it is publicly available and is specified by the regulations; or\n\n(d) it was collected under paragraph (1)(a), (b), (b.01) or (e).\n\n(3) For the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, an organization may disclose personal information without the knowledge or consent of the individual only if the disclosure is\n\n(a) made to, in the Province of Quebec, an advocate or notary or, in any other province, a barrister or solicitor who is representing the organization;\n\n(b) for the purpose of collecting a debt owed by the individual to the organization;\n\n(c) required to comply with a subpoena or warrant issued or an order made by a court, person or body with jurisdiction to compel the production of information, or to comply with rules of court relating to the production of records;\n\n(c.1) made to a government institution or part of a government institution that has made a request for the information, identified its lawful authority to obtain the information and indicated that\n\n(i) it suspects that the information relates to national security, the defence of Canada or the conduct of international affairs,\n\n(ii) the disclosure is requested for the purpose of enforcing any law of Canada, a province or a foreign jurisdiction, carrying out an investigation relating to the enforcement of any such law or gathering intelligence for the purpose of enforcing any such law,\n\n(iii) the disclosure is requested for the purpose of administering any law of Canada or a province, or\n\n(iv) the disclosure is requested for the purpose of communicating with the next of kin or authorized representative of an injured, ill or deceased individual;\n\n(c.2) made to the government institution mentioned in section 7 of the Proceeds of Crime (Money Laundering) and Terrorist Financing Act as required by that section;\n\n(d) made on the initiative of the organization to a government institution or a part of a government institution and the organization\n\n(i) has reasonable grounds to believe that the information relates to a contravention of the laws of Canada, a province or a foreign jurisdiction that has been, is being or is about to be committed, or\n\n(ii) suspects that the information relates to national security, the defence of Canada or the conduct of international affairs;\n\n(d.1) made to another organization and is reasonable for the purposes of investigating a breach of an agreement or a contravention of the laws of Canada or a province that has been, is being or is about to be committed and it is reasonable to expect that disclosure with the knowledge or consent of the individual would compromise the investigation;\n\n(d.2) made to another organization and is reasonable for the purposes of detecting or suppressing fraud or of preventing fraud that is likely to be committed and it is reasonable to expect that the disclosure with the knowledge or consent of the individual would compromise the ability to prevent, detect or suppress the fraud;\n\n(d.21) made to another organization under subsection 11.01(1) of the Proceeds of Crime (Money Laundering) and Terrorist Financing Act;\n\n(d.3) made on the initiative of the organization to a government institution, a part of a government institution or the individual’s next of kin or authorized representative and\n\n(i) the organization has reasonable grounds to believe that the individual has been, is or may be the victim of financial abuse,\n\n(ii) the disclosure is made solely for purposes related to preventing or investigating the abuse, and\n\n(iii) it is reasonable to expect that disclosure with the knowledge or consent of the individual would compromise the ability to prevent or investigate the abuse;\n\n(d.4) necessary to identify the individual who is injured, ill or deceased, made to a government institution, a part of a government institution or the individual’s next of kin or authorized representative and, if the individual is alive, the organization informs that individual in writing without delay of the disclosure;\n\n(e) made to a person who needs the information because of an emergency that threatens the life, health or security of an individual and, if the individual whom the information is about is alive, the organization informs that individual in writing without delay of the disclosure;\n\n(e.1) of information that is contained in a witness statement and the disclosure is necessary to assess, process or settle an insurance claim;\n\n(e.2) of information that was produced by the individual in the course of their employment, business or profession and the disclosure is consistent with the purposes for which the information was produced;\n\n(f) for statistical, or scholarly study or research, purposes that cannot be achieved without disclosing the information, it is impracticable to obtain consent and the organization informs the Commissioner of the disclosure before the information is disclosed;\n\n(g) made to an institution whose functions include the conservation of records of historic or archival importance, and the disclosure is made for the purpose of such conservation;\n\n(h) made after the earlier of\n\n(i) one hundred years after the record containing the information was created, and\n\n(ii) twenty years after the death of the individual whom the information is about;\n\n(h.1) of information that is publicly available and is specified by the regulations; or\n\n(h.2) [Repealed, 2015, c. 32, s. 6]\n\n(i) required by law.\n\n(4) Despite clause 4.5 of Schedule 1, an organization may use personal information for purposes other than those for which it was collected in any of the circumstances set out in subsection (2).\n\n(5) Despite clause 4.5 of Schedule 1, an organization may disclose personal information for purposes other than those for which it was collected in any of the circumstances set out in paragraphs (3)(a) to (h.1)."
+   },
+   {
+    "label": "7.1",
+    "map_order": 10,
+    "doc_order": 10,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 20208,
+     "end": 22067
+    },
+    "body_chars": 1694,
+    "body_sha256": "e482441eeab186b8933985970db14332ce639dde52bd17d13fadb6697a32a606",
+    "body": "(1) The following definitions apply in this section.\n\n**access** means to program, to execute programs on, to communicate with, to store data in, to retrieve data from, or to otherwise make use of any resources, including data or programs on a computer system or a computer network. (**utiliser**)\n\n**computer program** has the same meaning as in subsection 342.1(2) of the Criminal Code. (**programme d’ordinateur**)\n\n**computer system** has the same meaning as in subsection 342.1(2) of the Criminal Code. (**ordinateur**)\n\n**electronic address** means an address used in connection with\n\n(a) an electronic mail account;\n\n(b) an instant messaging account; or\n\n(c) any similar account. (**adresse électronique**)\n\n(2) Paragraphs 7(1)(a) and (b.1) to (d) and (2)(a) to (c.1) and the exception set out in clause 4.3 of Schedule 1 do not apply in respect of\n\n(a) the collection of an individual’s electronic address, if the address is collected by the use of a computer program that is designed or marketed primarily for use in generating or searching for, and collecting, electronic addresses; or\n\n(b) the use of an individual’s electronic address, if the address is collected by the use of a computer program described in paragraph (a).\n\n(3) Paragraphs 7(1)(a) to (d) and (2)(a) to (c.1) and the exception set out in clause 4.3 of Schedule 1 do not apply in respect of\n\n(a) the collection of personal information, through any means of telecommunication, if the collection is made by accessing a computer system or causing a computer system to be accessed in contravention of an Act of Parliament; or\n\n(b) the use of personal information that is collected in a manner described in paragraph (a)."
+   },
+   {
+    "label": "7.2",
+    "map_order": 11,
+    "doc_order": 11,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 22067,
+     "end": 24762
+    },
+    "body_chars": 2581,
+    "body_sha256": "d84a8a829399a0bc6ad5ee3ae55f6f5e9b50e1f14c33eaec350fd6413a0036d6",
+    "body": "(1) In addition to the circumstances set out in subsections 7(2) and (3), for the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, organizations that are parties to a prospective business transaction may use and disclose personal information without the knowledge or consent of the individual if\n\n(a) the organizations have entered into an agreement that requires the organization that receives the personal information\n\n(i) to use and disclose that information solely for purposes related to the transaction,\n\n(ii) to protect that information by security safeguards appropriate to the sensitivity of the information, and\n\n(iii) if the transaction does not proceed, to return that information to the organization that disclosed it, or destroy it, within a reasonable time; and\n\n(b) the personal information is necessary\n\n(i) to determine whether to proceed with the transaction, and\n\n(ii) if the determination is made to proceed with the transaction, to complete it.\n\n(2) In addition to the circumstances set out in subsections 7(2) and (3), for the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, if the business transaction is completed, organizations that are parties to the transaction may use and disclose personal information, which was disclosed under subsection (1), without the knowledge or consent of the individual if\n\n(a) the organizations have entered into an agreement that requires each of them\n\n(i) to use and disclose the personal information under its control solely for the purposes for which the personal information was collected, permitted to be used or disclosed before the transaction was completed,\n\n(ii) to protect that information by security safeguards appropriate to the sensitivity of the information, and\n\n(iii) to give effect to any withdrawal of consent made under clause 4.3.8 of Schedule 1;\n\n(b) the personal information is necessary for carrying on the business or activity that was the object of the transaction; and\n\n(c) one of the parties notifies the individual, within a reasonable time after the transaction is completed, that the transaction has been completed and that their personal information has been disclosed under subsection (1).\n\n(3) An organization shall comply with the terms of any agreement into which it enters under paragraph (1)(a) or (2)(a).\n\n(4) Subsections (1) and (2) do not apply to a business transaction of which the primary purpose or result is the purchase, sale or other acquisition or disposition, or lease, of personal information."
+   },
+   {
+    "label": "7.3",
+    "map_order": 12,
+    "doc_order": 12,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 24762,
+     "end": 25438
+    },
+    "body_chars": 641,
+    "body_sha256": "7153c71f9a47b625bbc595c9507f597a356121fd85208281390648d643b1ae1f",
+    "body": "In addition to the circumstances set out in section 7, for the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, a federal work, undertaking or business may collect, use and disclose personal information without the consent of the individual if\n\n(a) the collection, use or disclosure is necessary to establish, manage or terminate an employment relationship between the federal work, undertaking or business and the individual; and\n\n(b) the federal work, undertaking or business has informed the individual that the personal information will be or may be collected, used or disclosed for those purposes."
+   },
+   {
+    "label": "7.4",
+    "map_order": 13,
+    "doc_order": 13,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 25438,
+     "end": 25946
+    },
+    "body_chars": 445,
+    "body_sha256": "0e45f6ba6d3b8de4d8fd577dbfa19ca58b0170e9fa0a50260839e4dc1d5600e8",
+    "body": "(1) Despite clause 4.5 of Schedule 1, an organization may use personal information for purposes other than those for which it was collected in any of the circumstances set out in subsection 7.2(1) or (2) or section 7.3.\n\n(2) Despite clause 4.5 of Schedule 1, an organization may disclose personal information for purposes other than those for which it was collected in any of the circumstances set out in subsection 7.2(1) or (2) or section 7.3."
+   },
+   {
+    "label": "8",
+    "map_order": 14,
+    "doc_order": 14,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 25946,
+     "end": 28105
+    },
+    "body_chars": 1973,
+    "body_sha256": "337bc3a246f32843f9a0a1d48839f48c93ab412df9e480b63fd6356b84442869",
+    "body": "(1) A request under clause 4.9 of Schedule 1 must be made in writing.\n\n(2) An organization shall assist any individual who informs the organization that they need assistance in preparing a request to the organization.\n\n(3) An organization shall respond to a request with due diligence and in any case not later than thirty days after receipt of the request.\n\n(4) An organization may extend the time limit\n\n(a) for a maximum of thirty days if\n\n(i) meeting the time limit would unreasonably interfere with the activities of the organization, or\n\n(ii) the time required to undertake any consultations necessary to respond to the request would make the time limit impracticable to meet; or\n\n(b) for the period that is necessary in order to be able to convert the personal information into an alternative format.\n\nIn either case, the organization shall, no later than thirty days after the date of the request, send a notice of extension to the individual, advising them of the new time limit, the reasons for extending the time limit and of their right to make a complaint to the Commissioner in respect of the extension.\n\n(5) If the organization fails to respond within the time limit, the organization is deemed to have refused the request.\n\n(6) An organization may respond to an individual’s request at a cost to the individual only if\n\n(a) the organization has informed the individual of the approximate cost; and\n\n(b) the individual has advised the organization that the request is not being withdrawn.\n\n(7) An organization that responds within the time limit and refuses a request shall inform the individual in writing of the refusal, setting out the reasons and any recourse that they may have under this Part.\n\n(8) Despite clause 4.5 of Schedule 1, an organization that has personal information that is the subject of a request shall retain the information for as long as is necessary to allow the individual to exhaust any recourse under this Part that they may have."
+   },
+   {
+    "label": "9",
+    "map_order": 15,
+    "doc_order": 15,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 28105,
+     "end": 33488
+    },
+    "body_chars": 5161,
+    "body_sha256": "15efbbea68d422607f7e5d97c8ed0a33e88ee6b37f74de49e130c627e8dfa27c",
+    "body": "(1) Despite clause 4.9 of Schedule 1, an organization shall not give an individual access to personal information if doing so would likely reveal personal information about a third party. However, if the information about the third party is severable from the record containing the information about the individual, the organization shall sever the information about the third party before giving the individual access.\n\n(2) Subsection (1) does not apply if the third party consents to the access or the individual needs the information because an individual’s life, health or security is threatened.\n\n(2.1) An organization shall comply with subsection (2.2) if an individual requests that the organization\n\n(a) inform the individual about\n\n(i) any disclosure of information to a government institution or a part of a government institution under paragraph 7(3)(c), subparagraph 7(3)(c.1)(i) or (ii) or paragraph 7(3)(c.2) or (d), or\n\n(ii) the existence of any information that the organization has relating to a disclosure referred to in subparagraph (i), to a subpoena, warrant or order referred to in paragraph 7(3)(c) or to a request made by a government institution or a part of a government institution under subparagraph 7(3)(c.1)(i) or (ii); or\n\n(b) give the individual access to the information referred to in subparagraph (a)(ii).\n\n(2.2) An organization to which subsection (2.1) applies\n\n(a) shall, in writing and without delay, notify the institution or part concerned of the request made by the individual; and\n\n(b) shall not respond to the request before the earlier of\n\n(i) the day on which it is notified under subsection (2.3), and\n\n(ii) thirty days after the day on which the institution or part was notified.\n\n(2.3) Within thirty days after the day on which it is notified under subsection (2.2), the institution or part shall notify the organization whether or not the institution or part objects to the organization complying with the request. The institution or part may object only if the institution or part is of the opinion that compliance with the request could reasonably be expected to be injurious to\n\n(a) national security, the defence of Canada or the conduct of international affairs;\n\n(a.1) the detection, prevention or deterrence of money laundering or the financing of terrorist activities; or\n\n(b) the enforcement of any law of Canada, a province or a foreign jurisdiction, an investigation relating to the enforcement of any such law or the gathering of intelligence for the purpose of enforcing any such law.\n\n(2.4) Despite clause 4.9 of Schedule 1, if an organization is notified under subsection (2.3) that the institution or part objects to the organization complying with the request, the organization\n\n(a) shall refuse the request to the extent that it relates to paragraph (2.1)(a) or to information referred to in subparagraph (2.1)(a)(ii);\n\n(b) shall notify the Commissioner, in writing and without delay, of the refusal; and\n\n(c) shall not disclose to the individual\n\n(i) any information that the organization has relating to a disclosure to a government institution or a part of a government institution under paragraph 7(3)(c), subparagraph 7(3)(c.1)(i) or (ii) or paragraph 7(3)(c.2) or (d) or to a request made by a government institution under either of those subparagraphs,\n\n(ii) that the organization notified an institution or part under paragraph (2.2)(a) or the Commissioner under paragraph (b), or\n\n(iii) that the institution or part objects.\n\n(3) Despite the note that accompanies clause 4.9 of Schedule 1, an organization is not required to give access to personal information only if\n\n(a) the information is protected by solicitor-client privilege or the professional secrecy of advocates and notaries or by litigation privilege;\n\n(b) to do so would reveal confidential commercial information;\n\n(c) to do so could reasonably be expected to threaten the life or security of another individual;\n\n(c.1) the information was collected under paragraph 7(1)(b);\n\n(d) the information was generated in the course of a formal dispute resolution process; or\n\n(e) the information was created for the purpose of making a disclosure under the Public Servants Disclosure Protection Act or in the course of an investigation into a disclosure under that Act.\n\nHowever, in the circumstances described in paragraph (b) or (c), if giving access to the information would reveal confidential commercial information or could reasonably be expected to threaten the life or security of another individual, as the case may be, and that information is severable from the record containing any other information for which access is requested, the organization shall give the individual access after severing.\n\n(4) Subsection (3) does not apply if the individual needs the information because an individual’s life, health or security is threatened.\n\n(5) If an organization decides not to give access to personal information in the circumstances set out in paragraph (3)(c.1), the organization shall, in writing, so notify the Commissioner, and shall include in the notification any information that the Commissioner may specify."
+   },
+   {
+    "label": "10",
+    "map_order": 16,
+    "doc_order": 16,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 33488,
+     "end": 34045
+    },
+    "body_chars": 468,
+    "body_sha256": "91a1f6ad3e4bc72198e8f9c168533f483c78f5c90ae3251baf8cf5f2a345990e",
+    "body": "An organization shall give access to personal information in an alternative format to an individual with a sensory disability who has a right of access to personal information under this Part and who requests that it be transmitted in the alternative format if\n\n(a) a version of the information already exists in that format; or\n\n(b) its conversion into that format is reasonable and necessary in order for the individual to be able to exercise rights under this Part."
+   },
+   {
+    "label": "10.1",
+    "map_order": 17,
+    "doc_order": 17,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 34045,
+     "end": 36419
+    },
+    "body_chars": 2108,
+    "body_sha256": "4bc2f21311ea03dd8c08c92107b50cbec2728d11eac77801e38add036f7fed4d",
+    "body": "(1) An organization shall report to the Commissioner any breach of security safeguards involving personal information under its control if it is reasonable in the circumstances to believe that the breach creates a real risk of significant harm to an individual.\n\n(2) The report shall contain the prescribed information and shall be made in the prescribed form and manner as soon as feasible after the organization determines that the breach has occurred.\n\n(3) Unless otherwise prohibited by law, an organization shall notify an individual of any breach of security safeguards involving the individual’s personal information under the organization’s control if it is reasonable in the circumstances to believe that the breach creates a real risk of significant harm to the individual.\n\n(4) The notification shall contain sufficient information to allow the individual to understand the significance to them of the breach and to take steps, if any are possible, to reduce the risk of harm that could result from it or to mitigate that harm. It shall also contain any other prescribed information.\n\n(5) The notification shall be conspicuous and shall be given directly to the individual in the prescribed form and manner, except in prescribed circumstances, in which case it shall be given indirectly in the prescribed form and manner.\n\n(6) The notification shall be given as soon as feasible after the organization determines that the breach has occurred.\n\n(7) For the purpose of this section, **significant harm** includes bodily harm, humiliation, damage to reputation or relationships, loss of employment, business or professional opportunities, financial loss, identity theft, negative effects on the credit record and damage to or loss of property.\n\n(8) The factors that are relevant to determining whether a breach of security safeguards creates a real risk of significant harm to the individual include\n\n(a) the sensitivity of the personal information involved in the breach;\n\n(b) the probability that the personal information has been, is being or will be misused; and\n\n(c) any other prescribed factor."
+   },
+   {
+    "label": "10.2",
+    "map_order": 18,
+    "doc_order": 18,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 36419,
+     "end": 37942
+    },
+    "body_chars": 1396,
+    "body_sha256": "1915e861233cb6556904e3c9a8c7ef1184132e326dfd32e3889af61d31bf43ea",
+    "body": "(1) An organization that notifies an individual of a breach of security safeguards under subsection 10.1(3) shall notify any other organization, a government institution or a part of a government institution of the breach if the notifying organization believes that the other organization or the government institution or part concerned may be able to reduce the risk of harm that could result from it or mitigate that harm, or if any of the prescribed conditions are satisfied.\n\n(2) The notification shall be given as soon as feasible after the organization determines that the breach has occurred.\n\n(3) In addition to the circumstances set out in subsection 7(3), for the purpose of clause 4.3 of Schedule 1, and despite the note that accompanies that clause, an organization may disclose personal information without the knowledge or consent of the individual if\n\n(a) the disclosure is made to the other organization, the government institution or the part of a government institution that was notified of the breach under subsection (1); and\n\n(b) the disclosure is made solely for the purposes of reducing the risk of harm to the individual that could result from the breach or mitigating that harm.\n\n(4) Despite clause 4.5 of Schedule 1, an organization may disclose personal information for purposes other than those for which it was collected in the circumstance set out in subsection (3)."
+   },
+   {
+    "label": "10.3",
+    "map_order": 19,
+    "doc_order": 19,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 37942,
+     "end": 38352
+    },
+    "body_chars": 295,
+    "body_sha256": "91c954f9ce9b3409361c7e85e854b7056320243ab010b6a63a7b799e558e3e6a",
+    "body": "(1) An organization shall, in accordance with any prescribed requirements, keep and maintain a record of every breach of security safeguards involving personal information under its control.\n\n(2) An organization shall, on request, provide the Commissioner with access to, or a copy of, a record."
+   },
+   {
+    "label": "11",
+    "map_order": 20,
+    "doc_order": 20,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 38352,
+     "end": 39281
+    },
+    "body_chars": 770,
+    "body_sha256": "f83ea2ec796b41d8ed8a5ee0795e4b8d6233e8f96ac06f9c911ff9f3601ca589",
+    "body": "(1) An individual may file with the Commissioner a written complaint against an organization for contravening a provision of Division 1 or 1.1 or for not following a recommendation set out in Schedule 1.\n\n(2) If the Commissioner is satisfied that there are reasonable grounds to investigate a matter under this Part, the Commissioner may initiate a complaint in respect of the matter.\n\n(3) A complaint that results from the refusal to grant a request under section 8 must be filed within six months, or any longer period that the Commissioner allows, after the refusal or after the expiry of the time limit for responding to the request, as the case may be.\n\n(4) The Commissioner shall give notice of a complaint to the organization against which the complaint was made."
+   },
+   {
+    "label": "12",
+    "map_order": 21,
+    "doc_order": 21,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 39281,
+     "end": 41094
+    },
+    "body_chars": 1719,
+    "body_sha256": "2882aba990db6a464cbd0de0c099bc4cc6427450ad17bf177a0f3e2cf280fee3",
+    "body": "(1) The Commissioner shall conduct an investigation in respect of a complaint, unless the Commissioner is of the opinion that\n\n(a) the complainant ought first to exhaust grievance or review procedures otherwise reasonably available;\n\n(b) the complaint could more appropriately be dealt with, initially or completely, by means of a procedure provided for under the laws of Canada, other than this Part, or the laws of a province; or\n\n(c) the complaint was not filed within a reasonable period after the day on which the subject matter of the complaint arose.\n\n(2) Despite subsection (1), the Commissioner is not required to conduct an investigation in respect of an act alleged in a complaint if the Commissioner is of the opinion that the act, if proved, would constitute a contravention of any of sections 6 to 9 of An Act to promote the efficiency and adaptability of the Canadian economy by regulating certain activities that discourage reliance on electronic means of carrying out commercial activities, and to amend the Canadian Radio-television and Telecommunications Commission Act, the Competition Act, the Personal Information Protection and Electronic Documents Act and the Telecommunications Act or section 52.01 of the Competition Act or would constitute conduct that is reviewable under section 74.011 of that Act.\n\n(3) The Commissioner shall notify the complainant and the organization that the Commissioner will not investigate the complaint or any act alleged in the complaint and give reasons.\n\n(4) The Commissioner may reconsider a decision not to investigate under subsection (1), if the Commissioner is satisfied that the complainant has established that there are compelling reasons to investigate."
+   },
+   {
+    "label": "12.1",
+    "map_order": 22,
+    "doc_order": 22,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 41094,
+     "end": 43213
+    },
+    "body_chars": 1952,
+    "body_sha256": "b9f028f0e7f580716b03934c3b121e1b2b68598162ad68f6a659319edefa5e7e",
+    "body": "(1) In the conduct of an investigation of a complaint, the Commissioner may\n\n(a) summon and enforce the appearance of persons before the Commissioner and compel them to give oral or written evidence on oath and to produce any records and things that the Commissioner considers necessary to investigate the complaint, in the same manner and to the same extent as a superior court of record;\n\n(b) administer oaths;\n\n(c) receive and accept any evidence and other information, whether on oath, by affidavit or otherwise, that the Commissioner sees fit, whether or not it is or would be admissible in a court of law;\n\n(d) at any reasonable time, enter any premises, other than a dwelling-house, occupied by an organization on satisfying any security requirements of the organization relating to the premises;\n\n(e) converse in private with any person in any premises entered under paragraph (d) and otherwise carry out in those premises any inquiries that the Commissioner sees fit; and\n\n(f) examine or obtain copies of or extracts from records found in any premises entered under paragraph (d) that contain any matter relevant to the investigation.\n\n(2) The Commissioner may attempt to resolve complaints by means of dispute resolution mechanisms such as mediation and conciliation.\n\n(3) The Commissioner may delegate any of the powers set out in subsection (1) or (2).\n\n(4) The Commissioner or the delegate shall return to a person or an organization any record or thing that they produced under this section within 10 days after they make a request to the Commissioner or the delegate, but nothing precludes the Commissioner or the delegate from again requiring that the record or thing be produced.\n\n(5) Any person to whom powers set out in subsection (1) are delegated shall be given a certificate of the delegation and the delegate shall produce the certificate, on request, to the person in charge of any premises to be entered under paragraph (1)(d)."
+   },
+   {
+    "label": "12.2",
+    "map_order": 23,
+    "doc_order": 23,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 43213,
+     "end": 44969
+    },
+    "body_chars": 1667,
+    "body_sha256": "10ec3454a965907efe163110e0a1b17882501f93fd404ee38afdf2c18b2d6d29",
+    "body": "(1) The Commissioner may discontinue the investigation of a complaint if the Commissioner is of the opinion that\n\n(a) there is insufficient evidence to pursue the investigation;\n\n(b) the complaint is trivial, frivolous or vexatious or is made in bad faith;\n\n(c) the organization has provided a fair and reasonable response to the complaint;\n\n(c.1) the matter is the object of a compliance agreement entered into under subsection 17.1(1);\n\n(d) the matter is already the object of an ongoing investigation under this Part;\n\n(e) the matter has already been the subject of a report by the Commissioner;\n\n(f) any of the circumstances mentioned in paragraph 12(1)(a), (b) or (c) apply; or\n\n(g) the matter is being or has already been addressed under a procedure referred to in paragraph 12(1)(a) or (b).\n\n(2) The Commissioner may discontinue an investigation in respect of an act alleged in a complaint if the Commissioner is of the opinion that the act, if proved, would constitute a contravention of any of sections 6 to 9 of An Act to promote the efficiency and adaptability of the Canadian economy by regulating certain activities that discourage reliance on electronic means of carrying out commercial activities, and to amend the Canadian Radio-television and Telecommunications Commission Act, the Competition Act, the Personal Information Protection and Electronic Documents Act and the Telecommunications Act or section 52.01 of the Competition Act or would constitute conduct that is reviewable under section 74.011 of that Act.\n\n(3) The Commissioner shall notify the complainant and the organization that the investigation has been discontinued and give reasons."
+   },
+   {
+    "label": "13",
+    "map_order": 24,
+    "doc_order": 24,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 44969,
+     "end": 45767
+    },
+    "body_chars": 726,
+    "body_sha256": "0ec2a7dbc58fad61308459a86efe114efd6b36bf4f476165e15dd07a65e7de7e",
+    "body": "(1) The Commissioner shall, within one year after the day on which a complaint is filed or is initiated by the Commissioner, prepare a report that contains\n\n(a) the Commissioner’s findings and recommendations;\n\n(b) any settlement that was reached by the parties;\n\n(c) if appropriate, a request that the organization give the Commissioner, within a specified time, notice of any action taken or proposed to be taken to implement the recommendations contained in the report or reasons why no such action has been or is proposed to be taken; and\n\n(d) the recourse, if any, that is available under section 14.\n\n(2) [Repealed, 2010, c. 23, s. 84]\n\n(3) The report shall be sent to the complainant and the organization without delay."
+   },
+   {
+    "label": "14",
+    "map_order": 25,
+    "doc_order": 25,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 45767,
+     "end": 46818
+    },
+    "body_chars": 951,
+    "body_sha256": "b4690aa874a56ae84192944be6aa1c0eb28e17a26a8a66c60db88d9c0c071015",
+    "body": "(1) A complainant may, after receiving the Commissioner’s report or being notified under subsection 12.2(3) that the investigation of the complaint has been discontinued, apply to the Court for a hearing in respect of any matter in respect of which the complaint was made, or that is referred to in the Commissioner’s report, and that is referred to in clause 4.1.3, 4.2, 4.3.3, 4.4, 4.6, 4.7 or 4.8 of Schedule 1, in clause 4.3, 4.5 or 4.9 of that Schedule as modified or clarified by Division 1 or 1.1, in subsection 5(3) or 8(6) or (7), in section 10 or in Division 1.1.\n\n(2) A complainant shall make an application within one year after the report or notification is sent or within any longer period that the Court may, either before or after the expiry of that year, allow.\n\n(3) For greater certainty, subsections (1) and (2) apply in the same manner to complaints referred to in subsection 11(2) as to complaints referred to in subsection 11(1)."
+   },
+   {
+    "label": "15",
+    "map_order": 26,
+    "doc_order": 26,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 46818,
+     "end": 47316
+    },
+    "body_chars": 475,
+    "body_sha256": "b85a4c92cd8efc5c0f35f5593c84baff56daa40239e9c9895dee5f8699eb0a54",
+    "body": "The Commissioner may, in respect of a complaint that the Commissioner did not initiate,\n\n(a) apply to the Court, within the time limited by section 14, for a hearing in respect of any matter described in that section, if the Commissioner has the consent of the complainant;\n\n(b) appear before the Court on behalf of any complainant who has applied for a hearing under section 14; or\n\n(c) with leave of the Court, appear as a party to any hearing applied for under section 14."
+   },
+   {
+    "label": "16",
+    "map_order": 27,
+    "doc_order": 27,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 47316,
+     "end": 47798
+    },
+    "body_chars": 451,
+    "body_sha256": "b701bfea5fdfcbb0f332d394bc19ccaf0d7ea2baa8097ee1189eebde24100f74",
+    "body": "The Court may, in addition to any other remedies it may give,\n\n(a) order an organization to correct its practices in order to comply with Divisions 1 and 1.1;\n\n(b) order an organization to publish a notice of any action taken or proposed to be taken to correct its practices, whether or not ordered to correct them under paragraph (a); and\n\n(c) award damages to the complainant, including damages for any humiliation that the complainant has suffered."
+   },
+   {
+    "label": "17",
+    "map_order": 28,
+    "doc_order": 28,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 47798,
+     "end": 48478
+    },
+    "body_chars": 600,
+    "body_sha256": "04207ded4c9ff7ed3ec448f22f28597a5ee5e1e62c8ab332944acd9741faaaec",
+    "body": "(1) An application made under section 14 or 15 shall be heard and determined without delay and in a summary way unless the Court considers it inappropriate to do so.\n\n(2) In any proceedings arising from an application made under section 14 or 15, the Court shall take every reasonable precaution, including, when appropriate, receiving representations ex parte and conducting hearings in camera, to avoid the disclosure by the Court or any person of any information or other material that the organization would be authorized to refuse to disclose if it were requested under clause 4.9 of Schedule 1."
+   },
+   {
+    "label": "17.1",
+    "map_order": 29,
+    "doc_order": 29,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 48478,
+     "end": 49691
+    },
+    "body_chars": 1082,
+    "body_sha256": "90b1e1389e73acbfcd3a7689438cc31437472712708689dd23d2e02c35e7251a",
+    "body": "(1) If the Commissioner believes on reasonable grounds that an organization has committed, is about to commit or is likely to commit an act or omission that could constitute a contravention of a provision of Division 1 or 1.1 or a failure to follow a recommendation set out in Schedule 1, the Commissioner may enter into a compliance agreement, aimed at ensuring compliance with this Part, with that organization.\n\n(2) A compliance agreement may contain any terms that the Commissioner considers necessary to ensure compliance with this Part.\n\n(3) When a compliance agreement is entered into, the Commissioner, in respect of any matter covered under the agreement,\n\n(a) shall not apply to the Court for a hearing under subsection 14(1) or paragraph 15(a); and\n\n(b) shall apply to the court for the suspension of any pending applications that were made by the Commissioner under those provisions.\n\n(4) For greater certainty, a compliance agreement does not preclude\n\n(a) an individual from applying for a hearing under section 14; or\n\n(b) the prosecution of an offence under the Act."
+   },
+   {
+    "label": "17.2",
+    "map_order": 30,
+    "doc_order": 30,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 49691,
+     "end": 50842
+    },
+    "body_chars": 1030,
+    "body_sha256": "7bd5449ffc3b141d5acd04f46fcd0503fdc3098103e881944f52078e8bbeaad9",
+    "body": "(1) If the Commissioner is of the opinion that a compliance agreement has been complied with, the Commissioner shall provide written notice to that effect to the organization and withdraw any applications that were made under subsection 14(1) or paragraph 15(a) in respect of any matter covered under the agreement.\n\n(2) If the Commissioner is of the opinion that an organization is not complying with the terms of a compliance agreement, the Commissioner shall notify the organization and may apply to the Court for\n\n(a) an order requiring the organization to comply with the terms of the agreement, in addition to any other remedies it may give; or\n\n(b) a hearing under subsection 14(1) or paragraph 15(a) or to reinstate proceedings that have been suspended as a result of an application made under paragraph 17.1(3)(b).\n\n(3) Despite subsection 14(2), the application shall be made within one year after notification is sent or within any longer period that the Court may, either before or after the expiry of that year, allow."
+   },
+   {
+    "label": "18",
+    "map_order": 31,
+    "doc_order": 31,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 50842,
+     "end": 53030
+    },
+    "body_chars": 2065,
+    "body_sha256": "7124c9b094ef4ce5e1c5cff22f29daf903df71ae2774b72e6498be02a4581944",
+    "body": "(1) The Commissioner may, on reasonable notice and at any reasonable time, audit the personal information management practices of an organization if the Commissioner has reasonable grounds to believe that the organization has contravened a provision of Division 1 or 1.1 or is not following a recommendation set out in Schedule 1, and for that purpose may\n\n(a) summon and enforce the appearance of persons before the Commissioner and compel them to give oral or written evidence on oath and to produce any records and things that the Commissioner considers necessary for the audit, in the same manner and to the same extent as a superior court of record;\n\n(b) administer oaths;\n\n(c) receive and accept any evidence and other information, whether on oath, by affidavit or otherwise, that the Commissioner sees fit, whether or not it is or would be admissible in a court of law;\n\n(d) at any reasonable time, enter any premises, other than a dwelling-house, occupied by the organization on satisfying any security requirements of the organization relating to the premises;\n\n(e) converse in private with any person in any premises entered under paragraph (d) and otherwise carry out in those premises any inquiries that the Commissioner sees fit; and\n\n(f) examine or obtain copies of or extracts from records found in any premises entered under paragraph (d) that contain any matter relevant to the audit.\n\n(2) The Commissioner may delegate any of the powers set out in subsection (1).\n\n(3) The Commissioner or the delegate shall return to a person or an organization any record or thing they produced under this section within ten days after they make a request to the Commissioner or the delegate, but nothing precludes the Commissioner or the delegate from again requiring that the record or thing be produced.\n\n(4) Any person to whom powers set out in subsection (1) are delegated shall be given a certificate of the delegation and the delegate shall produce the certificate, on request, to the person in charge of any premises to be entered under paragraph (1)(d)."
+   },
+   {
+    "label": "19",
+    "map_order": 32,
+    "doc_order": 32,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 53030,
+     "end": 53398
+    },
+    "body_chars": 265,
+    "body_sha256": "e19fba80b41bccc5e05abd3d4b8a1272be50af4ee0d34c5a02d3a26ca50a032e",
+    "body": "(1) After an audit, the Commissioner shall provide the audited organization with a report that contains the findings of the audit and any recommendations that the Commissioner considers appropriate.\n\n(2) The report may be included in a report made under section 25."
+   },
+   {
+    "label": "20",
+    "map_order": 33,
+    "doc_order": 33,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 53398,
+     "end": 57204
+    },
+    "body_chars": 3517,
+    "body_sha256": "8729eedcd6316e5d00d73f486d4ae2f213ed865ae3356117e5de9563fa18ec4a",
+    "body": "(1) Subject to subsections (2) to (7), 12(3), 12.2(3), 13(3), 19(1), 23(3) and 23.1(1) and section 25, the Commissioner or any person acting on behalf or under the direction of the Commissioner shall not disclose any information that comes to their knowledge as a result of the performance or exercise of any of the Commissioner’s duties or powers under this Part other than those referred to in subsection 10.1(1) or 10.3(2).\n\n(1.1) Subject to subsections (2) to (7), 12(3), 12.2(3), 13(3), 19(1), 23(3) and 23.1(1) and section 25, the Commissioner or any person acting on behalf or under the direction of the Commissioner shall not disclose any information contained in a report made under subsection 10.1(1) or in a record obtained under subsection 10.3(2).\n\n(2) The Commissioner may, if the Commissioner considers that it is in the public interest to do so, make public any information that comes to his or her knowledge in the performance or exercise of any of his or her duties or powers under this Part.\n\n(3) The Commissioner may disclose, or may authorize any person acting on behalf or under the direction of the Commissioner to disclose, information that in the Commissioner’s opinion is necessary to\n\n(a) conduct an investigation or audit under this Part; or\n\n(b) establish the grounds for findings and recommendations contained in any report under this Part.\n\n(4) The Commissioner may disclose, or may authorize any person acting on behalf or under the direction of the Commissioner to disclose, information in the course of\n\n(a) a prosecution for an offence under section 28;\n\n(b) a prosecution for an offence under section 132 of the Criminal Code (perjury) in respect of a statement made under this Part;\n\n(c) a hearing before the Court under this Part;\n\n(d) an appeal from a decision of the Court; or\n\n(e) a judicial review in relation to the performance or exercise of any of the Commissioner’s duties or powers under this Part.\n\n(5) The Commissioner may disclose to the Attorney General of Canada or of a province, as the case may be, information relating to the commission of an offence against any law of Canada or a province on the part of an officer or employee of an organization if, in the Commissioner’s opinion, there is evidence of an offence.\n\n(6) The Commissioner may disclose, or may authorize any person acting on behalf or under the direction of the Commissioner to disclose to a government institution or a part of a government institution, any information contained in a report made under subsection 10.1(1) or in a record obtained under subsection 10.3(2) if the Commissioner has reasonable grounds to believe that the information could be useful in the investigation of a contravention of the laws of Canada or a province that has been, is being or is about to be committed.\n\n(7) The Commissioner may disclose information, or may authorize any person acting on behalf or under the direction of the Commissioner to disclose information, in the course of proceedings in which the Commissioner has intervened under paragraph 50(c) of An Act to promote the efficiency and adaptability of the Canadian economy by regulating certain activities that discourage reliance on electronic means of carrying out commercial activities, and to amend the Canadian Radio-television and Telecommunications Commission Act, the Competition Act, the Personal Information Protection and Electronic Documents Act and the Telecommunications Act or in accordance with subsection 58(3) or 60(1) of that Act."
+   },
+   {
+    "label": "21",
+    "map_order": 34,
+    "doc_order": 34,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 57204,
+     "end": 57827
+    },
+    "body_chars": 582,
+    "body_sha256": "027a0f01e9e5dadc0b2360ae78876f45f499dbe37c21622f64a0af37041dd323",
+    "body": "The Commissioner or person acting on behalf or under the direction of the Commissioner is not a competent witness in respect of any matter that comes to their knowledge as a result of the performance or exercise of any of the Commissioner’s duties or powers under this Part in any proceeding other than\n\n(a) a prosecution for an offence under section 28;\n\n(b) a prosecution for an offence under section 132 of the Criminal Code (perjury) in respect of a statement made under this Part;\n\n(c) a hearing before the Court under this Part; or\n\n(d) an appeal from a decision of the Court."
+   },
+   {
+    "label": "22",
+    "map_order": 35,
+    "doc_order": 35,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 57827,
+     "end": 58649
+    },
+    "body_chars": 763,
+    "body_sha256": "fa422a5fb5e40a7f0f560dbc5cd260a43a6e485ad77ec8277fce045362c6b342",
+    "body": "(1) No criminal or civil proceedings lie against the Commissioner, or against any person acting on behalf or under the direction of the Commissioner, for anything done, reported or said in good faith as a result of the performance or exercise or purported performance or exercise of any duty or power of the Commissioner under this Part.\n\n(2) No action lies in defamation with respect to\n\n(a) anything said, any information supplied or any record or thing produced in good faith in the course of an investigation or audit carried out by or on behalf of the Commissioner under this Part; and\n\n(b) any report made in good faith by the Commissioner under this Part and any fair and accurate account of the report made in good faith for the purpose of news reporting."
+   },
+   {
+    "label": "23",
+    "map_order": 36,
+    "doc_order": 36,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 58649,
+     "end": 60750
+    },
+    "body_chars": 1921,
+    "body_sha256": "a941cce1f79936356b08058806ef155c7578a488d142dea64ed032ec908a699e",
+    "body": "(1) If the Commissioner considers it appropriate to do so, or on the request of an interested person, the Commissioner may, in order to ensure that personal information is protected in as consistent a manner as possible, consult with any person who, under provincial legislation, has functions and duties similar to those of the Commissioner with respect to the protection of such information.\n\n(2) The Commissioner may enter into agreements or arrangements with any person referred to in subsection (1) in order to\n\n(a) coordinate the activities of their offices and the office of the Commissioner, including to provide for mechanisms for the handling of any complaint in which they are mutually interested;\n\n(b) undertake and publish research or develop and publish guidelines or other instruments related to the protection of personal information;\n\n(c) develop model contracts or other instruments for the protection of personal information that is collected, used or disclosed interprovincially or internationally; and\n\n(d) develop procedures for sharing information referred to in subsection (3).\n\n(3) The Commissioner may, in accordance with any procedure established under paragraph (2)(d), share information with any person referred to in subsection (1), if the information\n\n(a) could be relevant to an ongoing or potential investigation of a complaint or audit under this Part or provincial legislation that has objectives that are similar to this Part; or\n\n(b) could assist the Commissioner or that person in the exercise of their functions and duties with respect to the protection of personal information.\n\n(4) The procedures referred to in paragraph (2)(d) shall\n\n(a) restrict the use of the information to the purpose for which it was originally shared; and\n\n(b) stipulate that the information be treated in a confidential manner and not be further disclosed without the express consent of the Commissioner."
+   },
+   {
+    "label": "23.1",
+    "map_order": 37,
+    "doc_order": 37,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 60750,
+     "end": 63568
+    },
+    "body_chars": 2687,
+    "body_sha256": "991461b220423c68f74e1d505be898891439951a4992da459559c28c1579bef2",
+    "body": "(1) Subject to subsection (3), the Commissioner may, in accordance with any procedure established under paragraph (4)(b), disclose information referred to in subsection (2) that has come to the Commissioner’s knowledge as a result of the performance or exercise of any of the Commissioner’s duties or powers under this Part to any person or body who, under the legislation of a foreign state, has\n\n(a) functions and duties similar to those of the Commissioner with respect to the protection of personal information; or\n\n(b) responsibilities that relate to conduct that is substantially similar to conduct that would be in contravention of this Part.\n\n(2) The information that the Commissioner is authorized to disclose under subsection (1) is information that the Commissioner believes\n\n(a) would be relevant to an ongoing or potential investigation or proceeding in respect of a contravention of the laws of a foreign state that address conduct that is substantially similar to conduct that would be in contravention of this Part; or\n\n(b) is necessary to disclose in order to obtain from the person or body information that may be useful to an ongoing or potential investigation or audit under this Part.\n\n(3) The Commissioner may only disclose information to the person or body referred to in subsection (1) if the Commissioner has entered into a written arrangement with that person or body that\n\n(a) limits the information to be disclosed to that which is necessary for the purpose set out in paragraph (2)(a) or (b);\n\n(b) restricts the use of the information to the purpose for which it was originally shared; and\n\n(c) stipulates that the information be treated in a confidential manner and not be further disclosed without the express consent of the Commissioner.\n\n(4) The Commissioner may enter into arrangements with one or more persons or bodies referred to in subsection (1) in order to\n\n(a) provide for cooperation with respect to the enforcement of laws protecting personal information, including the sharing of information referred to in subsection (2) and the provision of mechanisms for the handling of any complaint in which they are mutually interested;\n\n(b) establish procedures for sharing information referred to in subsection (2);\n\n(c) develop recommendations, resolutions, rules, standards or other instruments with respect to the protection of personal information;\n\n(d) undertake and publish research related to the protection of personal information;\n\n(e) share knowledge and expertise by different means, including through staff exchanges; or\n\n(f) identify issues of mutual interest and determine priorities pertaining to the protection of personal information."
+   },
+   {
+    "label": "24",
+    "map_order": 38,
+    "doc_order": 38,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 63568,
+     "end": 64169
+    },
+    "body_chars": 573,
+    "body_sha256": "bdd1d5120334e921bcd331f75003350d88575251a6e4d8e4619359fd67365022",
+    "body": "The Commissioner shall\n\n(a) develop and conduct information programs to foster public understanding, and recognition of the purposes, of this Part;\n\n(b) undertake and publish research that is related to the protection of personal information, including any such research that is requested by the Minister of Industry;\n\n(c) encourage organizations to develop detailed policies and practices, including organizational codes of practice, to comply with Divisions 1 and 1.1; and\n\n(d) promote, by any means that the Commissioner considers appropriate, the purposes of this Part."
+   },
+   {
+    "label": "25",
+    "map_order": 39,
+    "doc_order": 39,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 64169,
+     "end": 64824
+    },
+    "body_chars": 611,
+    "body_sha256": "582eea2864487510cbd1a01489a6d1bb512f3a150db262f1f5ead98dc47412c8",
+    "body": "(1) The Commissioner shall, within three months after the end of each financial year, submit to Parliament a report concerning the application of this Part, the extent to which the provinces have enacted legislation that is substantially similar to this Part and the application of any such legislation.\n\n(2) Before preparing the report, the Commissioner shall consult with those persons in the provinces who, in the Commissioner’s opinion, are in a position to assist the Commissioner in making a report respecting personal information that is collected, used or disclosed interprovincially or internationally."
+   },
+   {
+    "label": "26",
+    "map_order": 40,
+    "doc_order": 40,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 64824,
+     "end": 66018
+    },
+    "body_chars": 1153,
+    "body_sha256": "cb2bd342b05a8a82f2027cdd71813f68e01c709ca9334ae48683645ce55a2b57",
+    "body": "(1) The Governor in Council may make regulations for carrying out the purposes and provisions of this Part, including regulations\n\n(a) specifying, by name or by class, what is a government institution or part of a government institution for the purposes of any provision of this Part;\n\n(a.01) [Repealed, 2015, c. 32, s. 21]\n\n(a.1) specifying information or classes of information for the purpose of paragraph 7(1)(d), (2)(c.1) or (3)(h.1);\n\n(b) specifying information to be kept and maintained under subsection 10.3(1); and\n\n(c) prescribing anything that by this Part is to be prescribed.\n\n(2) The Governor in Council may, by order,\n\n(a) provide that this Part is binding on any agent of Her Majesty in right of Canada to which the Privacy Act does not apply;\n\n(b) if satisfied that legislation of a province that is substantially similar to this Part applies to an organization, a class of organizations, an activity or a class of activities, exempt the organization, activity or class from the application of this Part in respect of the collection, use or disclosure of personal information that occurs within that province; and\n\n(c) amend Schedule 4."
+   },
+   {
+    "label": "27",
+    "map_order": 41,
+    "doc_order": 41,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 66018,
+     "end": 66566
+    },
+    "body_chars": 501,
+    "body_sha256": "cd9eae3d805b20e420bdabc8652c0c41499e1ba25a0afa0cb760609c86d94767",
+    "body": "(1) Any person who has reasonable grounds to believe that a person has contravened or intends to contravene a provision of Division 1 or 1.1 may notify the Commissioner of the particulars of the matter and may request that their identity be kept confidential with respect to the notification.\n\n(2) The Commissioner shall keep confidential the identity of a person who has notified the Commissioner under subsection (1) and to whom an assurance of confidentiality has been provided by the Commissioner."
+   },
+   {
+    "label": "27.1",
+    "map_order": 42,
+    "doc_order": 42,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 66566,
+     "end": 67807
+    },
+    "body_chars": 1173,
+    "body_sha256": "35b87736bdd9405b390eab20b63e4289d1597de3b17528ed7ba388d2502228a6",
+    "body": "(1) No employer shall dismiss, suspend, demote, discipline, harass or otherwise disadvantage an employee, or deny an employee a benefit of employment, by reason that\n\n(a) the employee, acting in good faith and on the basis of reasonable belief, has disclosed to the Commissioner that the employer or any other person has contravened or intends to contravene a provision of Division 1 or 1.1;\n\n(b) the employee, acting in good faith and on the basis of reasonable belief, has refused or stated an intention of refusing to do anything that is a contravention of a provision of Division 1 or 1.1;\n\n(c) the employee, acting in good faith and on the basis of reasonable belief, has done or stated an intention of doing anything that is required to be done in order that a provision of Division 1 or 1.1 not be contravened; or\n\n(d) the employer believes that the employee will do anything referred to in paragraph (a), (b) or (c).\n\n(2) Nothing in this section impairs any right of an employee either at law or under an employment contract or collective agreement.\n\n(3) In this section, **employee** includes an independent contractor and **employer** has a corresponding meaning."
+   },
+   {
+    "label": "28",
+    "map_order": 43,
+    "doc_order": 43,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 67807,
+     "end": 69054
+    },
+    "body_chars": 417,
+    "body_sha256": "668c16f52ea1a037faefc64944b087ed51d38bf5852f1350f653b4575f6ed727",
+    "body": "Every organization that knowingly contravenes subsection 8(8), section 10.1 or subsection 10.3(1) or 27.1(1) or that obstructs the Commissioner or the Commissioner’s delegate in the investigation of a complaint or in conducting an audit is guilty of\n\n(a) an offence punishable on summary conviction and liable to a fine not exceeding $10,000; or\n\n(b) an indictable offence and liable to a fine not exceeding $100,000."
+   },
+   {
+    "label": "29",
+    "map_order": 44,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 667,
+    "body_sha256": "6fda46f85f10fd79e6e45be59714e431e1b0458bceb78fdf2741a4f185fb640d",
+    "body": "(1) The administration of this Part shall, every five years after this Part comes into force, be reviewed by the committee of the House of Commons, or of both Houses of Parliament, that may be designated or established by Parliament for that purpose.\n\n[\\*] [Note: Part 1 in force January 1, 2001, *see* SI/2000-29.]\n\n(2) The committee shall undertake a review of the provisions and operation of this Part and shall, within a year after the review is undertaken or within any further period that the House of Commons may authorize, submit a report to Parliament that includes a statement of any changes to this Part or its administration that the committee recommends."
+   },
+   {
+    "label": "30",
+    "map_order": 45,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "31",
+    "map_order": 46,
+    "doc_order": 44,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 69054,
+     "end": 71185
+    },
+    "body_chars": 2079,
+    "body_sha256": "ee1afaac77defdff1277096cdcec18b394c44d96dbc065f51bd1a7748354179a",
+    "body": "(1) The definitions in this subsection apply in this Part.\n\n**data** means representations of information or concepts, in any form. (**données**)\n\n**electronic document** means data that is recorded or stored on any medium in or by a computer system or other similar device and that can be read or perceived by a person or a computer system or other similar device. It includes a display, printout or other output of that data. (**document électronique**)\n\n**electronic signature** means a signature that consists of one or more letters, characters, numbers or other symbols in digital form incorporated in, attached to or associated with an electronic document. (**signature électronique**)\n\n**federal law** means an Act of Parliament or an instrument, regardless of its name, issued, made or established under an Act of Parliament or a prerogative of the Crown, other than an instrument issued, made or established under the Yukon Act, the Northwest Territories Act or the Nunavut Act. (**texte législatif**)\n\n**responsible authority**, in respect of a provision of a federal law, means\n\n(a) if the federal law is an Act of Parliament, the minister responsible for that provision;\n\n(b) if the federal law is an instrument issued, made or established under an Act of Parliament or a prerogative of the Crown, the person or body who issued, made or established the instrument; or\n\n(c) despite paragraph (a) or (b), the person or body designated by the Governor in Council under subsection (2). (**autorité responsable**)\n\n**secure electronic signature** means an electronic signature that results from the application of a technology or process prescribed by regulations made under subsection 48(1). (**signature électronique sécurisée**)\n\n(2) The Governor in Council may, by order, for the purposes of this Part, designate any person, including any member of the Queen’s Privy Council for Canada, or body to be the responsible authority in respect of a provision of a federal law if the Governor in Council is of the opinion that it is appropriate to do so in the circumstances."
+   },
+   {
+    "label": "32",
+    "map_order": 47,
+    "doc_order": 45,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 71185,
+     "end": 71473
+    },
+    "body_chars": 219,
+    "body_sha256": "a7028e6612aaca8fa4690250468422c0d645ab4eeb8fa9cbd66c2f7d27d1fc10",
+    "body": "The purpose of this Part is to provide for the use of electronic alternatives in the manner provided for in this Part where federal laws contemplate the use of paper to record or communicate information or transactions."
+   },
+   {
+    "label": "33",
+    "map_order": 48,
+    "doc_order": 46,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 71473,
+     "end": 71925
+    },
+    "body_chars": 419,
+    "body_sha256": "3a81644a3b78bdb0d60ab521a3e0957ab816736766c5c59451e2311d1f1c81ea",
+    "body": "A minister of the Crown and any department, branch, office, board, agency, commission, corporation or body for the administration of affairs of which a minister of the Crown is accountable to the Parliament of Canada may use electronic means to create, collect, receive, store, transfer, distribute, publish or otherwise deal with documents or information whenever a federal law does not specify the manner of doing so."
+   },
+   {
+    "label": "34",
+    "map_order": 49,
+    "doc_order": 47,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 71925,
+     "end": 72121
+    },
+    "body_chars": 145,
+    "body_sha256": "1b6fd20bf917e9d78589596059b0f3c9c47f5482b8ccdf5bf1d99f21f44af8a6",
+    "body": "A payment that is required to be made to the Government of Canada may be made in electronic form in any manner specified by the Receiver General."
+   },
+   {
+    "label": "35",
+    "map_order": 50,
+    "doc_order": 48,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 72121,
+     "end": 73927
+    },
+    "body_chars": 1609,
+    "body_sha256": "0d3732cc9ae5de34853cd6a9c6b478735cf54d7788c176d143f08b2e0e7723b9",
+    "body": "(1) If a provision of an Act of Parliament establishes a form, the responsible authority in respect of that provision may make regulations respecting an electronic form that is substantially the same as the form established in the provision, and the electronic form may be used for the same purposes as the form established in the provision.\n\n(2) If a non-electronic manner of filing a document is set out in a provision of an Act of Parliament, the responsible authority in respect of that provision may make regulations respecting the filing of an electronic version of the document, and an electronic version of the document filed in accordance with those regulations is to be considered as a document filed in accordance with the provision.\n\n(3) If a non-electronic manner of submitting information is set out in a provision of an Act of Parliament, the responsible authority in respect of that provision may make regulations respecting the manner of submitting the information using electronic means, and information submitted in accordance with those regulations is to be considered as information submitted in accordance with the provision.\n\n(4) The authority under a federal law to issue, prescribe or in any other manner establish a form, or to establish the manner of filing a document or submitting information, includes the authority to issue, prescribe or establish an electronic form, or to establish an electronic manner of filing the document or submitting information, as the case may be.\n\n(5) In this section, **filing** includes all manner of submitting, regardless of how it is designated."
+   },
+   {
+    "label": "36",
+    "map_order": 51,
+    "doc_order": 49,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 73927,
+     "end": 74367
+    },
+    "body_chars": 403,
+    "body_sha256": "d6cd9855d5d568fc4748e157162141ae36ed36957a954b9f50e91e1b76e5759f",
+    "body": "A provision of a federal law that provides that a certificate or other document signed by a minister or public officer is proof of any matter or thing, or is admissible in evidence, is, subject to the federal law, satisfied by an electronic version of the certificate or other document if the electronic version is signed by the minister or public officer with that person’s secure electronic signature."
+   },
+   {
+    "label": "37",
+    "map_order": 52,
+    "doc_order": 50,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 74367,
+     "end": 75280
+    },
+    "body_chars": 886,
+    "body_sha256": "b14f8d2764936ab7617438332a3559a8c7becbfbc3d62d4bd687c0a57fe943dc",
+    "body": "A requirement under a provision of a federal law to retain a document for a specified period is satisfied, with respect to an electronic document, by the retention of the electronic document if\n\n(a) the electronic document is retained for the specified period in the format in which it was made, sent or received, or in a format that does not change the information contained in the electronic document that was originally made, sent or received;\n\n(b) the information in the electronic document will be readable or perceivable by any person who is entitled to have access to the electronic document or who is authorized to require the production of the electronic document; and\n\n(c) if the electronic document was sent or received, any information that identifies the origin and destination of the electronic document and the date and time when it was sent or received is also retained."
+   },
+   {
+    "label": "38",
+    "map_order": 53,
+    "doc_order": 51,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 75280,
+     "end": 75664
+    },
+    "body_chars": 364,
+    "body_sha256": "14600a1fb7f764fbcc093018b315627118f21e93d72fd4bcfe3028b19b4258e8",
+    "body": "A reference in a provision of a federal law to a document recognized as a notarial act in the province of Quebec is deemed to include an electronic version of the document if\n\n(a) the electronic version of the document is recognized as a notarial act under the laws of the province of Quebec; and\n\n(b) the federal law or the provision is listed in Schedule 2 or 3."
+   },
+   {
+    "label": "39",
+    "map_order": 54,
+    "doc_order": 52,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 75664,
+     "end": 75976
+    },
+    "body_chars": 249,
+    "body_sha256": "be2615b0b941adbde6021b76c362ae869d4c4086c5f450b002c9eb006fd5d2c0",
+    "body": "A requirement under a provision of a federal law for a person’s seal is satisfied by a secure electronic signature that identifies the secure electronic signature as the person’s seal if the federal law or the provision is listed in Schedule 2 or 3."
+   },
+   {
+    "label": "40",
+    "map_order": 55,
+    "doc_order": 53,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 75976,
+     "end": 76627
+    },
+    "body_chars": 616,
+    "body_sha256": "ccb7606a56b89bdcb448a4951c2070a104d2f3ea1a36f2205fe07c6ebc232a7b",
+    "body": "A provision of a federal law requiring a person to provide another person with a document or information, other than a provision referred to in any of sections 41 to 47, is satisfied by the provision of the document or information in electronic form if\n\n(a) the federal law or the provision is listed in Schedule 2 or 3;\n\n(b) both persons have agreed to the document or information being provided in electronic form; and\n\n(c) the document or information in electronic form will be under the control of the person to whom it is provided and will be readable or perceivable so as to be usable for subsequent reference."
+   },
+   {
+    "label": "41",
+    "map_order": 56,
+    "doc_order": 54,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 76627,
+     "end": 76960
+    },
+    "body_chars": 300,
+    "body_sha256": "852d1db33b9d858f0102283f20093ae86586c0fc3f718988b360f28eb3fc1d28",
+    "body": "A requirement under a provision of a federal law for a document to be in writing is satisfied by an electronic document if\n\n(a) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(b) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "42",
+    "map_order": 57,
+    "doc_order": 55,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 76960,
+     "end": 77543
+    },
+    "body_chars": 558,
+    "body_sha256": "32c83442802a39a45340671daa89d3c5b1bae0f38609624e3503a71848bc8419",
+    "body": "A requirement under a provision of a federal law for a document to be in its original form is satisfied by an electronic document if\n\n(a) the federal law or the provision is listed in Schedule 2 or 3;\n\n(b) the electronic document contains a secure electronic signature that was added when the electronic document was first generated in its final form and that can be used to verify that the electronic document has not been changed since that time; and\n\n(c) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "43",
+    "map_order": 58,
+    "doc_order": 56,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 77543,
+     "end": 77899
+    },
+    "body_chars": 315,
+    "body_sha256": "88f608a8bcedd593165673009ff4ae0544a9864207151598e6ea5961e5ed84be",
+    "body": "Subject to sections 44 to 46, a requirement under a provision of a federal law for a signature is satisfied by an electronic signature if\n\n(a) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(b) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "44",
+    "map_order": 59,
+    "doc_order": 57,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 77899,
+     "end": 78538
+    },
+    "body_chars": 592,
+    "body_sha256": "0991343fa57b20acd605415c667b84e9e86af7b03bbce49723f6de78a94630b6",
+    "body": "A statement required to be made under oath or solemn affirmation under a provision of a federal law may be made in electronic form if\n\n(a) the person who makes the statement signs it with that person’s secure electronic signature;\n\n(b) the person before whom the statement was made, and who is authorized to take statements under oath or solemn affirmation, signs it with that person’s secure electronic signature;\n\n(c) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(d) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "45",
+    "map_order": 60,
+    "doc_order": 58,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 78538,
+     "end": 79038
+    },
+    "body_chars": 465,
+    "body_sha256": "c2d17971a798c7c0bd198ad3fc02c8be421931a1bda51d735a5d07ebda4e8aa8",
+    "body": "A statement required to be made under a provision of a federal law declaring or certifying that any information given by a person making the statement is true, accurate or complete may be made in electronic form if\n\n(a) the person signs it with that person’s secure electronic signature;\n\n(b) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(c) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "46",
+    "map_order": 61,
+    "doc_order": 59,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 79038,
+     "end": 79479
+    },
+    "body_chars": 420,
+    "body_sha256": "bc54ae3a9ccfc86883970fc0a94316b2b9f68c8791fa32c1a4f2f6828b3c18d0",
+    "body": "A requirement under a provision of a federal law for a signature to be witnessed is satisfied with respect to an electronic document if\n\n(a) each signatory and each witness signs the electronic document with their secure electronic signature;\n\n(b) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(c) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "47",
+    "map_order": 62,
+    "doc_order": 60,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 79479,
+     "end": 79872
+    },
+    "body_chars": 339,
+    "body_sha256": "8b551943a30c2d4d23218f7d254f87d57f53ee1f50e00b33374272d9c7931f30",
+    "body": "A requirement under a provision of a federal law for one or more copies of a document to be submitted is satisfied by the submission of an electronic document if\n\n(a) the federal law or the provision is listed in Schedule 2 or 3; and\n\n(b) the regulations respecting the application of this section to the provision have been complied with."
+   },
+   {
+    "label": "48",
+    "map_order": 63,
+    "doc_order": 61,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 79872,
+     "end": 81363
+    },
+    "body_chars": 1398,
+    "body_sha256": "87a37b322a8a1895bf7b7d2453dc9dc2ae74209a69a7777c2718556fb024d4b0",
+    "body": "(1) Subject to subsection (2), the Governor in Council may, on the recommendation of the Treasury Board, make regulations prescribing technologies or processes for the purpose of the definition **secure electronic signature** in subsection 31(1).\n\n(2) The Governor in Council may prescribe a technology or process only if the Governor in Council is satisfied that it can be proved that\n\n(a) the electronic signature resulting from the use by a person of the technology or process is unique to the person;\n\n(b) the use of the technology or process by a person to incorporate, attach or associate the person’s electronic signature to an electronic document is under the sole control of the person;\n\n(c) the technology or process can be used to identify the person using the technology or process; and\n\n(d) the electronic signature can be linked with an electronic document in such a way that it can be used to determine whether the electronic document has been changed since the electronic signature was incorporated in, attached to or associated with the electronic document.\n\n(3) An amendment to or repeal of any provision of a regulation made under subsection (1) that has the effect of removing a prescribed technology or process from the regulation does not, by itself, affect the validity of any electronic signature resulting from the use of that technology or process while it was prescribed."
+   },
+   {
+    "label": "49",
+    "map_order": 64,
+    "doc_order": 62,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 81363,
+     "end": 81605
+    },
+    "body_chars": 216,
+    "body_sha256": "935b2426bcf87c8b545e2f6de1e49ec258b80d988ee89564ecf5332dcd2f56f5",
+    "body": "For the purposes of sections 38 to 47, the responsible authority in respect of a provision of a federal law may, by order, amend Schedule 2 or 3 by adding or striking out a reference to that federal law or provision."
+   },
+   {
+    "label": "50",
+    "map_order": 65,
+    "doc_order": 63,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 81605,
+     "end": 83440
+    },
+    "body_chars": 1716,
+    "body_sha256": "9772d1d31c6ca92f4646042e5c28bc642caa7274be2408da53a8fdbe7b884dd3",
+    "body": "(1) For the purposes of sections 41 to 47, the responsible authority in respect of a provision of a federal law may make regulations respecting the application of those sections to the provision.\n\n(2) Without restricting the generality of subsection (1), the regulations that may be made may include rules respecting any of the following:\n\n(a) the technology or process that must be used to make or send an electronic document;\n\n(b) the format of an electronic document;\n\n(c) the place where an electronic document is to be made or sent;\n\n(d) the time and circumstances when an electronic document is to be considered to be sent or received and the place where it is considered to have been sent or received;\n\n(e) the technology or process to be used to make or verify an electronic signature and the manner in which it is to be used; and\n\n(f) any matter necessary for the purposes of the application of sections 41 to 47.\n\n(3) Without restricting the generality of subsection (1), if a provision referred to in any of sections 41 to 47 requires a person to provide another person with a document or information, the rules set out in the regulations respecting the application of that section to the provision may be that\n\n(a) both persons have agreed to the document or information being provided in electronic form; and\n\n(b) the document or information in electronic form will be under the control of the person to whom it is provided and will be readable or perceivable so as to be usable for subsequent reference.\n\n(4) Regulations may incorporate by reference the standards or specifications of any government, person or organization, either as they read at a fixed time or as they are amended from time to time."
+   },
+   {
+    "label": "51",
+    "map_order": 66,
+    "doc_order": 64,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 83440,
+     "end": 83766
+    },
+    "body_chars": 266,
+    "body_sha256": "99175ec7d03cc27abb608a15c0b1bb9fee2341ade4198ae84ddf120190169079",
+    "body": "The striking out of a reference to a federal law or provision in Schedule 2 or 3 does not affect the validity of anything done in compliance with any regulation made under section 50 that relates to that federal law or provision while it was listed in that Schedule."
+   },
+   {
+    "label": "52",
+    "map_order": 67,
+    "doc_order": 65,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83766,
+     "end": 83850
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "53",
+    "map_order": 68,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "54",
+    "map_order": 69,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "55",
+    "map_order": 70,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "56",
+    "map_order": 71,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "57",
+    "map_order": 72,
+    "doc_order": 66,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83766,
+     "end": 83850
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "58",
+    "map_order": 73,
+    "doc_order": 67,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83850,
+     "end": 83930
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "59",
+    "map_order": 74,
+    "doc_order": 68,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83850,
+     "end": 83930
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "60",
+    "map_order": 75,
+    "doc_order": 69,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83930,
+     "end": 105164
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "61",
+    "map_order": 76,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "62",
+    "map_order": 77,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "63",
+    "map_order": 78,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "64",
+    "map_order": 79,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "65",
+    "map_order": 80,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "66",
+    "map_order": 81,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "67",
+    "map_order": 82,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "68",
+    "map_order": 83,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "69",
+    "map_order": 84,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "70",
+    "map_order": 85,
+    "doc_order": null,
+    "body_class": "amendments",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "71",
+    "map_order": 86,
+    "doc_order": 70,
+    "body_class": "amendments",
+    "anchored": true,
+    "anchor_kind": "range-collapsed",
+    "raw_span": {
+     "start": 83930,
+     "end": 105164
+    },
+    "body_chars": 12,
+    "body_sha256": "d20663c9091fd2220fe41dbd68b81413d116747eeb8938fd50edc9dc60ffa91e",
+    "body": "[Amendments]"
+   },
+   {
+    "label": "72",
+    "map_order": 87,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 495,
+    "body_sha256": "cb160ad2d013af694866cab9ff4b6090f22e9905da1f2adc69910d034a9e6e04",
+    "body": "Parts 1 to 5 or any provision of those Parts come into force on a day or days to be fixed by order of the Governor in Council made on the recommendation of\n\n(a) in the case of Parts 1 and 2 or any provision of those Parts, the Minister of Industry; and\n\n(b) in the case of Parts 3 to 5 or any provision of those Parts, the Minister of Justice.\n\n[\\*] [Note: Parts 2, 3 and 4 in force May 1, 2000; Part 1 in force January 1, 2001, *see* SI/2000-29; Part 5 in force June 1, 2009, *see* SI/2009-42.]"
+   },
+   {
+    "label": "Schedule 1",
+    "map_order": 88,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 19433,
+    "body_sha256": "4be9a049cae40a32c463f4745d45d24ca2ab9553df47fb16da208e586163a12a",
+    "body": "**4.1 Principle 1 — Accountability**\n\nAn organization is responsible for personal information under its control and shall designate an individual or individuals who are accountable for the organization’s compliance with the following principles.\n\n**4.1.1**\n\nAccountability for the organization’s compliance with the principles rests with the designated individual(s), even though other individuals within the organization may be responsible for the day-to-day collection and processing of personal information. In addition, other individuals within the organization may be delegated to act on behalf of the designated individual(s).\n\n**4.1.2**\n\nThe identity of the individual(s) designated by the organization to oversee the organization’s compliance with the principles shall be made known upon request.\n\n**4.1.3**\n\nAn organization is responsible for personal information in its possession or custody, including information that has been transferred to a third party for processing. The organization shall use contractual or other means to provide a comparable level of protection while the information is being processed by a third party.\n\n**4.1.4**\n\nOrganizations shall implement policies and practices to give effect to the principles, including\n\n(a) implementing procedures to protect personal information;\n\n(b) establishing procedures to receive and respond to complaints and inquiries;\n\n(c) training staff and communicating to staff information about the organization’s policies and practices; and\n\n(d) developing information to explain the organization’s policies and procedures.\n\n**4.2 Principle 2 — Identifying Purposes**\n\nThe purposes for which personal information is collected shall be identified by the organization at or before the time the information is collected.\n\n**4.2.1**\n\nThe organization shall document the purposes for which personal information is collected in order to comply with the Openness principle (Clause 4.8) and the Individual Access principle (Clause 4.9).\n\n**4.2.2**\n\nIdentifying the purposes for which personal information is collected at or before the time of collection allows organizations to determine the information they need to collect to fulfil these purposes. The Limiting Collection principle (Clause 4.4) requires an organization to collect only that information necessary for the purposes that have been identified.\n\n**4.2.3**\n\nThe identified purposes should be specified at or before the time of collection to the individual from whom the personal information is collected. Depending upon the way in which the information is collected, this can be done orally or in writing. An application form, for example, may give notice of the purposes.\n\n**4.2.4**\n\nWhen personal information that has been collected is to be used for a purpose not previously identified, the new purpose shall be identified prior to use. Unless the new purpose is required by law, the consent of the individual is required before information can be used for that purpose. For an elaboration on consent, please refer to the Consent principle (Clause 4.3).\n\n**4.2.5**\n\nPersons collecting personal information should be able to explain to individuals the purposes for which the information is being collected.\n\n**4.2.6**\n\nThis principle is linked closely to the Limiting Collection principle (Clause 4.4) and the Limiting Use, Disclosure, and Retention principle (Clause 4.5).\n\n**4.3 Principle 3 - Consent**\n\nThe knowledge and consent of the individual are required for the collection, use, or disclosure of personal information, except where inappropriate.\n\n> Note: In certain circumstances personal information can be collected, used, or disclosed without the knowledge and consent of the individual. For example, legal, medical, or security reasons may make it impossible or impractical to seek consent. When information is being collected for the detection and prevention of fraud or for law enforcement, seeking the consent of the individual might defeat the purpose of collecting the information. Seeking consent may be impossible or inappropriate when the individual is a minor, seriously ill, or mentally incapacitated. In addition, organizations that do not have a direct relationship with the individual may not always be able to seek consent. For example, seeking consent may be impractical for a charity or a direct-marketing firm that wishes to acquire a mailing list from another organization. In such cases, the organization providing the list would be expected to obtain consent before disclosing personal information.\n\n**4.3.1**\n\nConsent is required for the collection of personal information and the subsequent use or disclosure of this information. Typically, an organization will seek consent for the use or disclosure of the information at the time of collection. In certain circumstances, consent with respect to use or disclosure may be sought after the information has been collected but before use (for example, when an organization wants to use information for a purpose not previously identified).\n\n**4.3.2**\n\nThe principle requires “knowledge and consent”. Organizations shall make a reasonable effort to ensure that the individual is advised of the purposes for which the information will be used. To make the consent meaningful, the purposes must be stated in such a manner that the individual can reasonably understand how the information will be used or disclosed.\n\n**4.3.3**\n\nAn organization shall not, as a condition of the supply of a product or service, require an individual to consent to the collection, use, or disclosure of information beyond that required to fulfil the explicitly specified, and legitimate purposes.\n\n**4.3.4**\n\nThe form of the consent sought by the organization may vary, depending upon the circumstances and the type of information. In determining the form of consent to use, organizations shall take into account the sensitivity of the information. Although some information (for example, medical records and income records) is almost always considered to be sensitive, any information can be sensitive, depending on the context. For example, the names and addresses of subscribers to a newsmagazine would generally not be considered sensitive information. However, the names and addresses of subscribers to some special-interest magazines might be considered sensitive.\n\n**4.3.5**\n\nIn obtaining consent, the reasonable expectations of the individual are also relevant. For example, an individual buying a subscription to a magazine should reasonably expect that the organization, in addition to using the individual’s name and address for mailing and billing purposes, would also contact the person to solicit the renewal of the subscription. In this case, the organization can assume that the individual’s request constitutes consent for specific purposes. On the other hand, an individual would not reasonably expect that personal information given to a health-care professional would be given to a company selling health-care products, unless consent were obtained. Consent shall not be obtained through deception.\n\n**4.3.6**\n\nThe way in which an organization seeks consent may vary, depending on the circumstances and the type of information collected. An organization should generally seek express consent when the information is likely to be considered sensitive. Implied consent would generally be appropriate when the information is less sensitive. Consent can also be given by an authorized representative (such as a legal guardian or a person having power of attorney).\n\n**4.3.7**\n\nIndividuals can give consent in many ways. For example:\n\n(a) an application form may be used to seek consent, collect information, and inform the individual of the use that will be made of the information. By completing and signing the form, the individual is giving consent to the collection and the specified uses;\n\n(b) a checkoff box may be used to allow individuals to request that their names and addresses not be given to other organizations. Individuals who do not check the box are assumed to consent to the transfer of this information to third parties;\n\n(c) consent may be given orally when information is collected over the telephone; or\n\n(d) consent may be given at the time that individuals use a product or service.\n\n**4.3.8**\n\nAn individual may withdraw consent at any time, subject to legal or contractual restrictions and reasonable notice. The organization shall inform the individual of the implications of such withdrawal.\n\n**4.4 Principle 4 — Limiting Collection**\n\nThe collection of personal information shall be limited to that which is necessary for the purposes identified by the organization. Information shall be collected by fair and lawful means.\n\n**4.4.1**\n\nOrganizations shall not collect personal information indiscriminately. Both the amount and the type of information collected shall be limited to that which is necessary to fulfil the purposes identified. Organizations shall specify the type of information collected as part of their information-handling policies and practices, in accordance with the Openness principle (Clause 4.8).\n\n**4.4.2**\n\nThe requirement that personal information be collected by fair and lawful means is intended to prevent organizations from collecting information by misleading or deceiving individuals about the purpose for which information is being collected. This requirement implies that consent with respect to collection must not be obtained through deception.\n\n**4.4.3**\n\nThis principle is linked closely to the Identifying Purposes principle (Clause 4.2) and the Consent principle (Clause 4.3).\n\n**4.5 Principle 5 —Limiting Use, Disclosure, and Retention**\n\nPersonal information shall not be used or disclosed for purposes other than those for which it was collected, except with the consent of the individual or as required by law. Personal information shall be retained only as long as necessary for the fulfilment of those purposes.\n\n**4.5.1**\n\nOrganizations using personal information for a new purpose shall document this purpose (see Clause 4.2.1).\n\n**4.5.2**\n\nOrganizations should develop guidelines and implement procedures with respect to the retention of personal information. These guidelines should include minimum and maximum retention periods. Personal information that has been used to make a decision about an individual shall be retained long enough to allow the individual access to the information after the decision has been made. An organization may be subject to legislative requirements with respect to retention periods.\n\n**4.5.3**\n\nPersonal information that is no longer required to fulfil the identified purposes should be destroyed, erased, or made anonymous. Organizations shall develop guidelines and implement procedures to govern the destruction of personal information.\n\n**4.5.4**\n\nThis principle is closely linked to the Consent principle (Clause 4.3), the Identifying Purposes principle (Clause 4.2), and the Individual Access principle (Clause 4.9).\n\n**4.6 Principle 6 — Accuracy**\n\nPersonal information shall be as accurate, complete, and up-to-date as is necessary for the purposes for which it is to be used.\n\n**4.6.1**\n\nThe extent to which personal information shall be accurate, complete, and up-to-date will depend upon the use of the information, taking into account the interests of the individual. Information shall be sufficiently accurate, complete, and up-to-date to minimize the possibility that inappropriate information may be used to make a decision about the individual.\n\n**4.6.2**\n\nAn organization shall not routinely update personal information, unless such a process is necessary to fulfil the purposes for which the information was collected.\n\n**4.6.3**\n\nPersonal information that is used on an ongoing basis, including information that is disclosed to third parties, should generally be accurate and up-to-date, unless limits to the requirement for accuracy are clearly set out.\n\n**4.7 Principle 7 — Safeguards**\n\nPersonal information shall be protected by security safeguards appropriate to the sensitivity of the information.\n\n**4.7.1**\n\nThe security safeguards shall protect personal information against loss or theft, as well as unauthorized access, disclosure, copying, use, or modification. Organizations shall protect personal information regardless of the format in which it is held.\n\n**4.7.2**\n\nThe nature of the safeguards will vary depending on the sensitivity of the information that has been collected, the amount, distribution, and format of the information, and the method of storage. More sensitive information should be safeguarded by a higher level of protection. The concept of sensitivity is discussed in Clause 4.3.4.\n\n**4.7.3**\n\nThe methods of protection should include\n\n(a) physical measures, for example, locked filing cabinets and restricted access to offices;\n\n(b) organizational measures, for example, security clearances and limiting access on a “need-to-know” basis; and\n\n(c) technological measures, for example, the use of passwords and encryption.\n\n**4.7.4**\n\nOrganizations shall make their employees aware of the importance of maintaining the confidentiality of personal information.\n\n**4.7.5**\n\nCare shall be used in the disposal or destruction of personal information, to prevent unauthorized parties from gaining access to the information (see Clause 4.5.3).\n\n**4.8 Principle 8 — Openness**\n\nAn organization shall make readily available to individuals specific information about its policies and practices relating to the management of personal information.\n\n**4.8.1**\n\nOrganizations shall be open about their policies and practices with respect to the management of personal information. Individuals shall be able to acquire information about an organization’s policies and practices without unreasonable effort. This information shall be made available in a form that is generally understandable.\n\n**4.8.2**\n\nThe information made available shall include\n\n(a) the name or title, and the address, of the person who is accountable for the organization’s policies and practices and to whom complaints or inquiries can be forwarded;\n\n(b) the means of gaining access to personal information held by the organization;\n\n(c) a description of the type of personal information held by the organization, including a general account of its use;\n\n(d) a copy of any brochures or other information that explain the organization’s policies, standards, or codes; and\n\n(e) what personal information is made available to related organizations (e.g., subsidiaries).\n\n**4.8.3**\n\nAn organization may make information on its policies and practices available in a variety of ways. The method chosen depends on the nature of its business and other considerations. For example, an organization may choose to make brochures available in its place of business, mail information to its customers, provide online access, or establish a toll-free telephone number.\n\n**4.9 Principle 9 — Individual Access**\n\nUpon request, an individual shall be informed of the existence, use, and disclosure of his or her personal information and shall be given access to that information. An individual shall be able to challenge the accuracy and completeness of the information and have it amended as appropriate.\n\n> Note: In certain situations, an organization may not be able to provide access to all the personal information it holds about an individual. Exceptions to the access requirement should be limited and specific. The reasons for denying access should be provided to the individual upon request. Exceptions may include information that is prohibitively costly to provide, information that contains references to other individuals, information that cannot be disclosed for legal, security, or commercial proprietary reasons, and information that is subject to solicitor-client or litigation privilege.\n\n**4.9.1**\n\nUpon request, an organization shall inform an individual whether or not the organization holds personal information about the individual. Organizations are encouraged to indicate the source of this information. The organization shall allow the individual access to this information. However, the organization may choose to make sensitive medical information available through a medical practitioner. In addition, the organization shall provide an account of the use that has been made or is being made of this information and an account of the third parties to which it has been disclosed.\n\n**4.9.2**\n\nAn individual may be required to provide sufficient information to permit an organization to provide an account of the existence, use, and disclosure of personal information. The information provided shall only be used for this purpose.\n\n**4.9.3**\n\nIn providing an account of third parties to which it has disclosed personal information about an individual, an organization should attempt to be as specific as possible. When it is not possible to provide a list of the organizations to which it has actually disclosed information about an individual, the organization shall provide a list of organizations to which it may have disclosed information about the individual.\n\n**4.9.4**\n\nAn organization shall respond to an individual’s request within a reasonable time and at minimal or no cost to the individual. The requested information shall be provided or made available in a form that is generally understandable. For example, if the organization uses abbreviations or codes to record information, an explanation shall be provided.\n\n**4.9.5**\n\nWhen an individual successfully demonstrates the inaccuracy or incompleteness of personal information, the organization shall amend the information as required. Depending upon the nature of the information challenged, amendment involves the correction, deletion, or addition of information. Where appropriate, the amended information shall be transmitted to third parties having access to the information in question.\n\n**4.9.6**\n\nWhen a challenge is not resolved to the satisfaction of the individual, the substance of the unresolved challenge shall be recorded by the organization. When appropriate, the existence of the unresolved challenge shall be transmitted to third parties having access to the information in question.\n\n**4.10 Principle 10 — Challenging Compliance**\n\nAn individual shall be able to address a challenge concerning compliance with the above principles to the designated individual or individuals accountable for the organization’s compliance.\n\n**4.10.1**\n\nThe individual accountable for an organization’s compliance is discussed in Clause 4.1.1.\n\n**4.10.2**\n\nOrganizations shall put procedures in place to receive and respond to complaints or inquiries about their policies and practices relating to the handling of personal information. The complaint procedures should be easily accessible and simple to use.\n\n**4.10.3**\n\nOrganizations shall inform individuals who make inquiries or lodge complaints of the existence of relevant complaint procedures. A range of these procedures may exist. For example, some regulatory bodies accept complaints about the personal-information handling practices of the companies they regulate.\n\n**4.10.4**\n\nAn organization shall investigate all complaints. If a complaint is found to be justified, the organization shall take appropriate measures, including, if necessary, amending its policies and practices."
+   },
+   {
+    "label": "Schedule 2",
+    "map_order": 89,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 299,
+    "body_sha256": "ba1c934f9d7368ab56db2c40e52e8bd6c42c2665385534e280c474fce9e9bf28",
+    "body": "**Acts of Parliament**\n\n|  | Column 1 | Column 2 |\n| --- | --- | --- |\n| Item | Act of Parliament | Provisions |\n| 1 | Federal Real Property and Federal Immovables Act | Sections 3, 5 to 7, 11 and 16 |\n| 2 | Canada Labour Code | Subsection 254(1) |\n| 3 | Canada Lands Surveys Act | Subsection 3(2) |"
+   },
+   {
+    "label": "Schedule 3",
+    "map_order": 90,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 301,
+    "body_sha256": "be4262d7918ea2f3933264102b3cbfca850ff27562138c914fcd289d3460d028",
+    "body": "**Regulations and Other Instruments**\n\n|  | Column 1 | Column 2 |\n| --- | --- | --- |\n| Item | Regulations or Other Instrument | Provisions |\n| 1 | Federal Real Property Regulations | Sections 9 and 11 [SOR/2005-407] |\n| 1 | Federal Real Property Regulations | Sections 9 and 11 [SOR/2004-309, s. 2] |"
+   },
+   {
+    "label": "Schedule 4",
+    "map_order": 91,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 285,
+    "body_sha256": "cc9ed0845d48261d964f1810a0d23f27a6f100c034b756e5de1afa6994ea456d",
+    "body": "**Organizations**\n\n|  | Column 1 | Column 2 |\n| --- | --- | --- |\n| Item | Organization | Personal Information |\n| 1 | - World Anti-Doping Agency | Personal information that the organization collects, uses or discloses in the course of its interprovincial or international activities |"
+   }
+  ]
+ }
+}

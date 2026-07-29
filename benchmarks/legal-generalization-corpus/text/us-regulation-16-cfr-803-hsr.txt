@@ -1,0 +1,357 @@
+PART 803--TRANSMITTAL RULES
+
+Authority:15 U.S.C. 18a(d).
+
+Link to an amendment published at 89 FR 89338, Nov. 12, 2024.
+
+Source:43 FR 33548, July 31, 1978, unless otherwise noted.
+
+§ 803.1 Notification and Report Form.
+
+(a) The notification required by the act shall be the Notification and Report Form set forth in the appendix to this part, as amended from time to time. All acquiring and acquired persons required to file notification by the act and these rules shall do so by completing and filing the Notification and Report Form, in accordance with the instructions thereon and these rules. The current version of the Form can be obtained at http://www.ftc.gov.
+
+(b) Any person filing notification may, in addition to the submissions required by this section, submit any other information or documentary material which such person believes will be helpful to the Federal Trade Commission and Assistant Attorney General in assessing the impact of the acquisition upon competition.
+
+[43 FR 33548, July 31, 1978, as amended at 66 FR 8695, Feb. 1, 2001; 71 FR 35998, June 23, 2006; 81 FR 60259, Sept. 1, 2016]
+
+§ 803.2 Instructions applicable to Notification and Report Form.
+
+Link to an amendment published at 89 FR 89338, Nov. 12, 2024.
+
+(a) The notification required by the act shall be filed by the preacquisition ultimate parent entity, or by any entity included within the person authorized by such preacquisition ultimate parent entity to file notification on its behalf. In the case of a natural person required by the act to file notification, such notification may be filed by his or her legal representative: Provided however, That notwithstanding §§ 801.1(c)(2) and 801.2, only one notification shall be filed by or on behalf of a natural person, spouse and minor children with respect to an acquisition as a result of which more than one such natural person will hold voting securities of the same issuer.
+
+Example:Jane Doe, her husband and minor child collectively hold more than 50 percent of the shares of family corporation F. Therefore, Jane Doe (or her husband or minor child) is the "ultimate parent entity" of a "person" composed to herself (or her husband or minor child) and F; see paragraphs (a)(3), (b) and (c)(2) of § 801.1. If corporation F is to acquire corporation X, under this paragraph only one notification is to be filed by Jane Doe, her husband and minor child collectively.
+
+(b) Except as provided in paragraph (b)(2) of this section and paragraph (c) of this section:
+
+(1) Items 5-8 of the Notification and Report Form must be completed--
+
+(i) By acquiring persons, with respect to all entities included within the acquiring person;
+
+(ii) By acquired persons, in the case of an acquisition of assets, only with respect to the assets to be acquired;
+
+(iii) By acquired persons, in the case of an acquisition of voting securities, with respect to only the issuer whose voting securities are being acquired, and all entities controlled by such issuer; and
+
+(iv) By acquired persons, in the case of an acquisition of non-corporate interests, with respect to the unincorporated entity whose non-corporate interests are being acquired, and all entities controlled by such unincorporated entity; and
+
+(v) By persons which are both acquiring and acquired persons, separately in the manner that would be required of acquiring and acquired persons under this paragraph, if different.
+
+(2) For purposes of item 7 of the Notification and Report Form, the acquiring person shall regard the acquired person in the manner described in paragraphs (b)(1)(ii), (iii) and (iv) of this section.
+
+Example:Person "A" is comprised of entities separately engaged in grocery retailing, auto rental, and coal mining. Person "B" is comprised of entities separately engaged in wholesale magazine distribution, auto rental and book publishing. "A" proposes to purchase 100 percent of the voting securities of "B"s book publishing subsidiary. For purposes of item 5, under clause (b)(1)(i), "A" reports the activities of all its entities; under clause (b)(1)(iii), "B" reports only the operations of its book publishing subsidiary. For purposes of items 7 and 8, under paragraph (b)(2) of this section, "A" must regard "B" as consisting only of its book publishing subsidiary and must disregard the fact that "A" and "B" are both engaged in the auto rental business.
+
+(c) In response to items 5, 7, and 8 of the Notification and Report Form--Information need not be supplied with respect to assets or voting securities to be acquired, the acquisition of which is exempt from the requirements of the act.
+
+(d) The term dollar revenues, as used in the Notification and Report Form, means value of shipments for manufacturing operations, and sales, receipts, revenues, or other appropriate dollar value measure for operations other than manufacturing, f.o.b. the plant or establishment less returns, after discounts and allowances and excluding freight charges and excise taxes. Dollar revenues including delivery may be supplied if delivery is an integral part of the sales price. Dollar revenues include interplant transfers.
+
+(e) For documents required by item 4(b) of the Notification and Report Form, a person filing the notification may, instead of submitting a document, provide a cite to an operative Internet address directly linking to the document, if the linked document is complete and payment is not required to access the document. If an Internet address becomes inoperative during the waiting period, or the document is otherwise rendered inaccessible or incomplete, upon notification by the Commission or Assistant Attorney General, the parties must make the document available to the agencies by either referencing an operative Internet address where the complete document may be accessed or by providing paper copies to the agencies as provided in § 803.10(c)(1) by 5 p.m. on the next regular business day. Failure to make the document available, by the Internet or by providing paper copies, by 5 p.m. on the next regular business day, will result in notice of a deficient filing pursuant to § 803.10(c)(2).
+
+(f) Filings made via DVD must comply with all format requirements set forth at the Premerger Notification Office pages at http://www.ftc.gov. The use of any format not specified as acceptable, or any other failure to comply with the applicable format requirements, shall render the entire filing deficient within the meaning of § 803.10(c)(2).
+
+[43 FR 33548, July 31, 1978, as amended at 48 FR 34438, July 29, 1983; 66 FR 8695, Feb. 1, 2001; 66 FR 23565, May 9, 2001; 70 FR 11514, Mar. 8, 2005; 70 FR 73372, Dec. 12, 2005; 71 FR 35998, June 23, 2006; 76 FR 42483, July 19, 2011; 81 FR 60259, Sept. 1, 2016]
+
+§ 803.3 Statement of reasons for noncompliance.
+
+A complete response shall be supplied to each item on the Notification and Report Form and to any request for additional information pursuant to section 7A(e) and § 803.20. Whenever the person filing notification is unable to supply a complete response, that person shall provide, for each item for which less than a complete response has been supplied, a statement of reasons for noncompliance. The statement of reasons for noncompliance shall contain all information upon which a person relies in explanation of its noncompliance and shall include at least the following:
+
+(a) Why the person is unable to supply a complete response;
+
+(b) What information, and what specific documents or categories of documents, would have been required for a complete response;
+
+(c) Who, if anyone, has the required information, and specific documents or categories of documents; and a description of all efforts made to obtain such information and documents, including the names of persons who searched for required information and documents, and where the search was conducted. If no such efforts were made, provide an explanation of the reasons why, and a description of all efforts necessary to obtain required information and documents;
+
+(d) Where noncompliance is based on a claim of privilege, a statement of the claim of privilege and all facts relied on in support thereof, including the identity of each document, its author, the author's title/position, addressee, the addressee's title/position, date, subject matter, all recipients of the original and of any copies, the recipients' titles/positions, the document's present location, and who has control of it.
+
+[48 FR 34439, July 29, 1983, as amended at 81 FR 60259, Sept. 1, 2016]
+
+§ 803.4 Foreign persons refusing to file notification.
+
+(a) In an acquisition to which § 801.30 does not apply, and in which no assets (other than investment assets) located in the United States and no voting securities of a United States issuer will be acquired directly or indirectly, if a foreign acquired person refuses to file notification, then any other person which is a party to the acquisition may file notification on behalf of the foreign person. Such notification shall constitute the notification required of the foreign person by the act and these rules.
+
+(b) Any person filing on behalf of the foreign person pursuant to this section must state in the affidavit required by § 803.5(b) that such foreign person has refused to file notification and must explain all efforts made by the person filing on behalf of the foreign person to obtain compliance with the act and these rules by such foreign person.
+
+(c) Any notification filed on behalf of a foreign person pursuant to this section must contain all information and documentary material reasonably available to the person filing on behalf of the foreign person which such foreign person would be required to provide. Whenever information or documentary material is not reasonably available, the person filing on behalf of the foreign person shall so indicate on the Notification and Report Form, and need not supply the statement of reasons for noncompliance required by § 803.3.
+
+(d) Any foreign person on whose behalf notification has been filed by another person pursuant to this section shall be a "person filing notification" for purposes of the act and these rules. Nothing in this section shall exempt a foreign person from the requirements of the act or these rules with respect to a request for additional information or an extension of the waiting period pursuant to section 7A(e) and these rules.
+
+§ 803.5 Affidavits required.
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+(a)(1) Section 801.30 acquisitions. For acquisitions to which § 801.30 applies, the notification required by the Act from each acquiring person shall contain an affidavit, attached to the front of the notification, or with the DVD submission, attesting that the issuer or unincorporated entity whose voting securities or non-corporate interests are to be acquired has received written notice delivered to an officer (or a person exercising similar functions in the case of an entity without officers) by email, certified or registered mail, wire, or hand delivery, at its principal executive offices, of:
+
+(i) The identity of the acquiring person;
+
+(ii) The fact that the acquiring person intends to acquire voting securities or non-corporate interests of the issuer or unincorporated entity;
+
+(iii) The specific classes of voting securities or non-corporate interests of the issuer or unincorporated entity sought to be acquired; and if known, the number of voting securities or non-corporate interests of each such class that would be held by the acquiring person as a result of the acquisition or, if the number of voting securities is not known in the case of an issuer, the specific notification threshold that the acquiring person intends to meet or exceed; and, if designated by the acquiring person, a higher threshold for additional voting securities it may hold in the year following the expiration of the waiting period;
+
+(iv) The fact that the acquisition may be subject to the act, and that the acquiring person will file notification under the act with the Federal Trade Commission and Assistant Attorney General;
+
+(v) The anticipated date of receipt of such notification under § 803.10(c); and
+
+(vi) The fact that the person within which the issuer or unincorporated entity is included may be required to file notification under the act.
+
+Example to paragraph (a)(1)(vi):1. Company A intends to acquire voting securities of Company B. "A" sends, via email, a notice letter to a general email account, information@CompanyB.com. "A" has not provided sufficient notice. Alternatively, "A" sends, via email, a notice letter to "B's" President, Jane Doe, at Jane.Doe@CompanyB.com. "A" has provided email notice to a specific officer of "B."
+
+(2) The affidavit required by this paragraph must also state the good faith intention of the person filing notification to make the acquisition, and, in the case of a tender offer, that the intention to make the tender offer has been publicly announced.
+
+Examples to paragraph (a)(2)1. This paragraph permits the tender offeror to file notification at any time after the intention to make the tender offer has been publicly announced.
+
+In examples 2-5 assume that one percent of B's shares are valued at $15 million.
+
+2. "A" holds 100,000 shares of the voting securities of Company B. "A" has a good faith intention to acquire an additional 900,000 shares of Company B's voting securities. "A" states in its notice to B, inter alia, that as a result of the acquisition it will hold 1,000,000 shares. If 1,000,000 shares of Company B represent 20 percent of Company B's outstanding voting securities, the statement will be deemed by the enforcement agencies a notification for the $100 million threshold (as adjusted).
+
+3. Company A intends to acquire voting securities of Company B. "A" does not know exactly how many shares it will acquire, but it knows it will definitely acquire in excess of $50 million (as adjusted) worth and may acquire 50 percent of Company B's shares. "A"'s notice to the acquired person would meet the requirements of Sec. 803.5(a)(1)(iii) if it states, inter alia, either: "Company A has a present good faith intention to acquire in excess of $50 million (as adjusted) of the outstanding voting securities of Company B, and depending on market conditions, may acquire more of the voting securities of Company B and thus designates the 50 percent threshold," or "Company A has a present good faith intention to acquire in excess of $50 million (as adjusted) of the outstanding voting securities of Company B, and depending on market conditions may acquire 50 percent or more of the voting securities of Company B." The Commission would deem either of these statements as intending to give notice for the 50 percent threshold.
+
+4. "A" states, inter alia, that, "depending on market conditions, it may acquire 100 percent of the shares of B." "A"'s notice does not comply with § 803.5 because it does not state an intent to meet or exceed any notification threshold. "A" 's filing will be considered deficient within the meaning of § 803.10(c)(2).
+
+5. "A" states, inter alia, that it has commenced a tender offer for "up to 55 percent of the outstanding voting securities of Company B." "A" 's notice does not comply with § 803.5 because use of the term "up to" does not state an intent to meet or exceed any notification threshold. The filing will therefore be considered deficient within the meaning of § 803.10 (c)(2).
+
+(3) The affidavit required by this paragraph must have attached to it a copy of the written notice received by the acquired person pursuant to paragraph (a)(1) of this section. For DVD filings, the written notice (in a form specified in the instructions) must be included on the DVD.
+
+(b) Non-section 801.30 acquisitions. For acquisitions to which § 801.30 does not apply, the notification required by the act shall contain an affidavit, attached to the front of the notification, or with the DVD submission, attesting that a contract, agreement in principle or letter of intent to merge or acquire has been executed, and further attesting to the good faith intention of the person filing notification to complete the transaction.
+
+[43 FR 33548, July 31, 1978, as amended at 48 FR 34439, July 29, 1983; 52 FR 7082, Mar. 6, 1987; 66 FR 8695, Feb. 1, 2001; 70 FR 4996, Jan. 31, 2005; 71 FR 35998, June 23, 2006; 76 FR 42483, July 19, 2011; 81 FR 60259, Sept. 1, 2016; 83 FR 32771, July 16, 2018]
+
+§ 803.6 Certification.
+
+(a) The notification required by the act shall be certified:
+
+(1) In the case of a partnership, by any general partner thereof;
+
+(2) In the case of a corporation, by any officer or director thereof;
+
+(3) In the case of a person lacking officers, directors, or partners, by any individual exercising similar functions;
+
+(4) In the case of a natural person, by such natural person or his or her legal representative;
+
+(5) In the case of the estate of a deceased natural person, by any duly authorized legal representative of such estate.
+
+(b) Additional information or documentary material submitted in response to a request pursuant to section 7A(e) and § 803.20 shall be accompanied by a certification in the format appearing at the end of the Notification and Report Form, completed in accordance with paragraph (a) of this section by the person or individual to whom it was directed.
+
+(c) In all cases, the certifying individual must possess actual authority to make the certification on behalf of the person filing notification.
+
+[43 FR 33548, July 31, 1978, as amended at 48 FR 34429, July 29, 1983]
+
+§ 803.7 Expiration of notification.
+
+(a) One year after waiting period expired. Notification with respect to an acquisition shall expire 1 year following the expiration of the waiting period. If the acquiring person's holdings do not, within such time period, meet or exceed the notification threshold with respect to which the notification was filed, the requirements of the act must thereafter be observed with respect to any notification threshold not met or exceeded.
+
+Example:"A" files notification that in excess of $100 million (as adjusted) of the voting securities of corporation B are to be acquired. One year after the expiration of the waiting period, "A" has acquired less than $100 million (as adjusted) of B's voting securities. Although § 802.21 will permit "A" to purchase any amount of B's voting securities short of $100 million (as adjusted) within 5 years from the expiration of the waiting period, A's holdings may not meet or exceed the $100 million (as adjusted) notification threshold without "A" and "B" again filing notification and observing a waiting period.
+
+(b) Upon failure to comply with request for additional information. An acquiring person's notification and, in the case of an acquisition to which § 801.30 does not apply, an acquired person's notification, shall expire eighteen months following the date of receipt of such person's notification if a request for additional information or documentary material remains outstanding to such person (or entities included therein, officers, directors, partners, agents or employees thereof), without a certification as required by § 803.6(b), on such date. If either person's notification expires pursuant to this paragraph, both parties must file a new notification in order to carry out the transaction.
+
+Example:A files notification on January 15 of Year 1 to acquire voting securities of B. On February 15 of Year 1, prior to expiration of the waiting period, requests for additional information or documentary material are issued to A and B. Before A supplies the information and documentary material requested, business conditions change, and A and B decide not to go forward with the transaction. A does not withdraw its filing and takes the position that it will comply with the request for additional information and documentary material if and when the proposed transaction is ever revived. A's notification expires July 15 of Year 2, eighteen months following the date of receipt of its notification. If A and B wish to revive their transaction, both parties must file a new notification and observe the waiting period in order to carry out the transaction.
+
+[70 FR 73372, Dec. 12, 2005]
+
+§ 803.8 Foreign language documents.
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+(a) Whenever at the time of filing a Notification and Report Form there is an English language outline, summary, extract or verbatim translation of any information or of all or portions of any documentary materials in a foreign language required to be submitted by the act or these rules, all such English language versions shall be filed along with the foreign language information or materials.
+
+(b) Documentary materials or information in a foreign language required to be submitted in responses to a request for additional information or documentary material shall be submitted with verbatim English language translations, or all existing English language versions, or both, as specified in such request.
+
+[48 FR 34440, July 29, 1983]
+
+§ 803.9 Filing fee.
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+(a) Each acquiring person shall pay the filing fee required by the act to the Federal Trade Commission, except as provided in paragraphs (b), (c), and (f) of this section. No additional fee is to be submitted to the Antitrust Division of the Department of Justice. Examples:
+
+(1) "A" wishes to acquire voting securities issued by B, where the greater of the acquisition price and the market price is in excess of $50 million (as adjusted) but less than $100 million (as adjusted) pursuant to § 801.10 of this chapter. When "A" files notification for the transaction, it must indicate the $50 million (as adjusted) threshold. If the value of the voting securities is less than $161.5 million (as adjusted), "A" must pay a filing fee of $30,000 (as adjusted) because the aggregate total amount of the acquisition is greater than $50 million (as adjusted) but less than $161.5 million (as adjusted). If the aggregate total value of the voting securities is at least $161.5 million (as adjusted), but less than $500 million (as adjusted), "A" must pay a filing fee of $100,000 (as adjusted).
+
+(2) In April 2024, "A" acquires $75 million of assets from "B." The parties meet the size of person criteria of section 7A(a)(2)(B) of the act, but the transaction is not reportable because it does not exceed the $50 million (as adjusted) size of transaction threshold of that provision. Two months later "A" acquires additional assets from "B" valued at $175 million. Pursuant to the aggregation requirements of § 801.13(b)(2)(ii) of this chapter, the aggregate total amount of "B's" assets that "A" will hold as a result of the second acquisition is $250 million. Accordingly, when "A" files notification for the second transaction, "A" must pay a filing fee of $100,000 (as adjusted) because the aggregate total amount of the acquisition is less than $500 million (as adjusted), but not less than $161.5 million (as adjusted).
+
+(3) In April 2024, "A" acquires $120 million of voting securities issued by B after submitting its notification and $30,000 (as adjusted) filing fee and indicates the $50 million (as adjusted) threshold. Later in 2024, "A" files to acquire additional voting securities issued by B valued at $120 million because it will exceed the next higher reporting threshold (see § 801.1(h) of this chapter). Assuming the second transaction is reportable, and the value of its initial holdings is unchanged (see §§ 801.13(a)(2) and 801.10(c) of this chapter), the provisions of § 801.13(a)(1) of this chapter require that "A" report that the total value of the second transaction is $240 million, which is in excess of $100 million (as adjusted) notification threshold. This is because "A" must aggregate previously acquired securities in calculating the value of B's voting securities that it will hold as a result of the second acquisition. "A" should pay a filing fee of $100,000 (as adjusted) because the total value is greater than $161.5 million (as adjusted) but less than $500 million (as adjusted).
+
+(4) In April 2024, "A" signs a contract with a stated purchase price of $174 million, subject to adjustments, to acquire all of the assets of "B." If the amount of adjustments can be reasonably estimated, the acquisition price--as adjusted to reflect that estimate--is determined. If the amount of adjustments cannot be reasonably estimated, the acquisition price is undetermined. In either case the board or its delegee must also determine in good faith the fair market value. (§ 801.10(b) of this chapter states that the value of an asset acquisition is to be the fair market value or the acquisition price, if determined and greater than fair market value.) "A" files notification and submits a $30,000 (as adjusted) filing fee. "A's" decision to pay that fee may be justified on either of two bases. First, "A" may have concluded that the acquisition price can be reasonably estimated to be less than $173.3 million, because of anticipated adjustments--e.g., based on due diligence by "A's" accounting firm indicating that one third of the inventory is not saleable. If fair market value is also determined in good faith to be less than $173.3 million, the $30,000 (as adjusted) fee is appropriate. Alternatively, "A" may conclude that because the adjustments cannot reasonably be estimated, the acquisition price is undetermined. If so, "A" would base the valuation on the good faith determination of fair market value. The acquiring party's execution of the Certification also attests to the good faith valuation of the value of the transaction.
+
+(5) In April 2024, "A" contracts to acquire all of the assets of "B" for $550 million. The assets include hotels, office buildings, and rental retail property, all of which are exempted by § 802.2 of this chapter. Section 802.2 directs that these assets--which are valued at $300 million--are exempt from the requirements of the act and that reporting requirements for the transaction should be determined by analyzing the remainder of the acquisition as if it were a separate transaction. Furthermore, § 801.15(a)(2) of this chapter states that those exempt assets are never held as a result of the acquisition. Accordingly, the aggregate amount of the transaction is in excess of $161.5 million (as adjusted), but less than $500 million (as adjusted). "A" will be liable for a filing fee of $100,000 (as adjusted), rather than $250,000 (as adjusted), because the value of the transaction is not less than $161.5 million (adjusted) but is less than $500 million (as adjusted).
+
+(6) In April 2024, "A" acquires coal reserves from "B" valued at $150 million. No notification or filing fee is required because the acquisition is exempted by § 802.3(b) of this chapter. Three months later, A proposes to acquire additional coal reserves from "B" valued at $500 million. This transaction is subject to the notification requirements of the act because the value of the acquisition exceeds the $200 million limitation on the exemption in § 802.3(b). As a result of § 801.13(b)(2)(ii) of this chapter, the prior $150 million acquisition must be added because the additional $500 million of coal reserves were acquired from the same person within 180 days of the initial acquisition. Because aggregating the two acquisitions exceeds the $200 million exemption limitation, § 801.15(b) of this chapter directs that "A" will also hold the previously exempt $150 million acquisition; thus, the aggregate amount held as a result of the $500 million acquisition is $650 million. Accordingly, "A" must file notification to acquire the coal reserves valued in excess of $500 million (as adjusted) but less than $1 billion (as adjusted) and pay a filing fee of $250,000 (as adjusted).
+
+(7) In April 2024, "A" intends to acquire 20 percent of the voting securities of B, a non-publicly traded issuer. The agreed upon acquisition price is $172.3 million subject to post-closing adjustments of up to plus or minus $2 million. "A" estimates that the adjustments will be minus $1 million. In this example, since "A" is able in good faith to reasonably estimate the adjustments to the agreed-on price, the acquisition price is deemed to be determined and the appropriate filing fee threshold is $50 million (as adjusted). Even if the post-closing adjustments cause the final price actually paid to exceed $172.3 million, "A" would be deemed to hold $171.3 million in B voting securities as a result of this acquisition. Note, that any additional acquisition by "A" of B voting may trigger another filing and require the appropriate fee.
+
+(8) In April 2024, "A" intends to make a cash tender offer for a minimum of 50 percent plus one share of the voting securities of B, a non-publicly traded issuer, but will accept up to 100 percent of the shares if they are tendered. There are 12 million shares of B voting stock outstanding and the tender offer price is $100 per share. In this instance, since there is no cap on the number of shares that can be tendered, the value of the transaction will be the value of 100 percent of B's voting securities, and "A" must pay the $400,000 (as adjusted) fee for the $1 billion (as adjusted) filing fee threshold. Note that if the tender offer had been for a maximum of 50 percent plus one share the value of the transaction would be $600 million, and the appropriate fee would be $250,000 (as adjusted), based on the $500 million (as adjusted) filing fee threshold. This would be true even if the tender offer were to be followed by a merger which would be exempt under section 7A(c)(3) of the act.
+
+(b) For a transaction described by § 801.2(d)(2)(iii), the parties shall pay only one filing fee. In accordance with § 801.2(d)(2)(iii), both parties to a consolidation are acquiring and acquired persons and must submit a Notification and Report Form where the transaction meets the reporting requirements of that act; however, only one filing fee is required in connection with such a transaction, and is payable by either party to the transaction. The filing fee is based on the greater of the two sizes of transaction in the consolidation.
+
+(c) For a reportable transaction in which the acquiring entity has two ultimate parent entities, both ultimate parent entities are acquiring persons; however, if the responses for both ultimate parent entities would be the same for item 5 of the Notification and Report Form, only one filing fee is required in connection with the transaction.
+
+(d) Manner of payment. Fees may be paid by United States postal money order, bank money order, bank cashier's check, certified check or by electronic wire transfer (EWT). The fee must be paid in U.S. currency.
+
+(1) Fees paid by money order or check shall be made payable to the "Federal Trade Commission," omitting the name or title of any official of the Commission, and shall be submitted to the Premerger Notification Office of the Federal Trade Commission along with the Notification and Report Form.
+
+(2) Fees paid by EWT shall be deposited to the Treasury's account at the New York Federal Reserve Bank. Specific instructions for making EWT payments are contained in the Instructions to the Notification and Report Form.
+
+(e) Refunds. Except as provided in this paragraph, no filing fee received by the Commission will be returned to the payer and no part of the filing fee shall be refunded. The filing fee shall be refunded only if the Commission's staff determines, based on the information and representations contained in the filing person's notification, that premerger notification was not required by the act. Once the Commission's staff has determined that the notification was required, the filing fee shall not be refunded even if it appears at the time of consummation that the transaction does not meet the reporting requirements established in the act.
+
+(f) For a transaction described by paragraph (c) of § 803.12, the parties shall pay no additional filing fee.
+
+[66 FR 8695, Feb. 1, 2001, as amended at 68 FR 2431, Jan. 17, 2003; 70 FR 4997, Jan. 31, 2005; 78 FR 41296, July 10, 2013; 88 FR 5750, Jan. 30, 2023; 89 FR 7611, Feb. 5, 2024]
+
+§ 803.10 Running of time.
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+(a) Beginning of waiting period. The waiting period required by the act shall begin on the date of receipt of the notification required by the act, in the manner provided by these rules (or, if such notification is not completed, the notification to the extent completed and a statement of the reasons for such noncompliance in accordance with § 803.3) from:
+
+(1) In the case of acquisitions to which § 801.30 applies, the acquiring person;
+
+(2) In the case of the formation of a corporation covered by Sec. 801.40 or an unincorporated entity covered by Sec. 801.50, all persons contributing to the formation of the joint venture or other corporation that are required by the act and these rules to file notification;
+
+(3) In the case of all other acquisitions, all persons required by the act and these rules to file notification.
+
+(b) Expiration of waiting period. (1) Subject to paragraph (b)(3) of this section, for purposes of Section 7A(b)(1)(B), the waiting period shall expire at 11:59 p.m. Eastern Time on the 30th (or in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), the 15th) calendar day (or if § 802.23 applies, such other day as that section may provide) following the beginning of the waiting period as determined under paragraph (a) of this section, unless extended pursuant to Section 7A(e) and § 803.20, or Section 7A(g)(2), or unless terminated pursuant to Section 7A(b)(2) and § 803.11.
+
+(2) Unless further extended pursuant to Section 7A(g)(2), or terminated pursuant to Section 7A(b)(2) and § 803.11, any waiting period which has been extended pursuant to Section 7A(e)(2) and § 803.20 shall, subject to paragraph (b)(3) of this section, expire at 11:59 p.m. Eastern Time--
+
+(i) On the 30th (or, in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), the 10th) day following the date of receipt of all additional information or documentary material requested from all persons to whom such requests have been directed (or, if a request is not fully complied with, the information and documentary material submitted and a statement of the reasons for such noncompliance in accordance with § 803.3), by the Federal Trade Commission or Assistant Attorney General, whichever requested additional information or documentary material, at the office designated in paragraph (c) of this section, or
+
+(ii) As provided in paragraph (b)(1) of this section, whichever is later.
+
+(3) If any waiting period would expire on a Saturday, Sunday, or legal public holiday (as defined in 5 U.S.C. 6103(a)) the waiting period shall be extended to 11:59 p.m. Eastern Time of the next regular business day.
+
+(c)(1) Date of receipt and means of delivery. For purposes of this section, these procedures shall apply.
+
+(i) For paper copy filings and DVD filings, the date of receipt shall be the date on which delivery is effected to the designated offices (Premerger Notification Office, Federal Trade Commission, Room 5301, 400 7th Street SW., Washington, DC 20024, and Director of Civil Enforcement, Office of Operations, Antitrust Division, Department of Justice, 950 Pennsylvania Avenue NW., Room #3335, Washington, DC 20530) during normal business hours. Delivery should be effected directly to the designated offices, either by hand or by certified or registered mail (including FedEx and UPS). In the event one or both of the delivery sites are unavailable, the FTC and DOJ may designate alternate sites for delivery of the filing. Notification of the alternate delivery sites will normally be made through a press release and, if possible, on the http://www.ftc.gov Web site.
+
+(ii) Delivery effected after 5 p.m. eastern time on a business day, or at any time on any day other than a business day, shall be deemed effected on the next following business day. If delivery of all required filings to all offices required to receive such filings is not effected on the same date, the date of receipt shall be the latest of the dates on which delivery is effected.
+
+Example:In an acquisition other than a tender offer, assume that requests for additional information are issued to both the acquiring and acquired persons on the 26th day of the waiting period. One person submits the additional information on the 35th day, while the other responds on the 44th day. Under this section, the waiting period expires thirty days following the last receipt of additional information, that is, it expires on the 74th day (unless that day is a Saturday, Sunday or legal public holiday).
+
+(2) Deficient filings. If notification or a response to a request for additional information or documentary material received by the Commission or Assistant Attorney General does not comply with these rules, the Commission or the Assistant Attorney General shall promptly notify the person filing such notification or response of the deficiencies in such filing, and the date of receipt shall be the date on which a filing which complies with these rules is received.
+
+[43 FR 33548, July 31, 1978; 43 FR 36054, Aug. 15, 1978, as amended at 52 FR 7083, Mar. 6, 1987; 66 FR 8696, Feb. 1, 2001; 70 FR 11514, Mar. 8, 2005; 71 FR 35998, June 23, 2006; 79 FR 25663, May 6, 2014; 81 FR 60260, Sept. 1, 2016]
+
+§ 803.11 Termination of waiting period.
+
+(a) Except as provided in paragraph (c) of this section, no waiting period shall be terminated pursuant to section 7A(b)(2) unless--
+
+(1) All notifications required to be filed with respect to the acquisition by the act and these rules (or, if such notification is not completed, the notification to the extent completed and a statement of the reasons for such noncompliance in accordance with § 803.3) have been received,
+
+(2) It has been determined that no additional information or documentary material pursuant to section 7A(e) and § 803.20 will be requested, or, if such additional information or documentary material has been requested, it (or, if a request is not fully complied with, the information and documentary material submitted and a statement of the reasons for such noncompliance in accordance with § 803.3) has been received, and
+
+(3) The Federal Trade Commission and the Assistant Attorney General have concluded that neither intends to take any further action within the waiting period.
+
+(b) Any request for additional information or documentary material pursuant to section 7A(e) and § 803.20 shall constitute a denial of all pending requests for termination of the waiting period.
+
+(c) The Federal Trade Commission and the Assistant Attorney General may, in their discretion, terminate a waiting period upon the written request of any person filing notification or, notwithstanding paragraph (a) of this section, sua sponte. A request for termination of the waiting period shall be sent to the offices designated in § 803.10(c). Termination shall be effective upon notice to any requesting person by either email or telephone, and such notice shall be given as soon as possible. Such notice shall be made to each person which has filed notification, and notice of termination shall be published in the Federal Register in accordance with section 7A(b)(2) of the Clayton Act (the "act"). The Federal Trade Commission and the Assistant Attorney General also may use other means to make the termination public, prior to publication in the Federal Register in a manner that will make the information equally accessible to all members of the public.
+
+[43 FR 33548, July 31, 1978, as amended at 54 FR 21427, May 18, 1989; 83 FR 32771, July 16, 2018]
+
+§ 803.12 Withdraw and refile notification.
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+(a) Voluntary. An acquiring person, and in the case of an acquisition to which § 801.30 does not apply, an acquired person, may withdraw its notification by notifying the Federal Trade Commission and the Antitrust Division in writing by email or mail of such withdrawal.
+
+(b) Upon public announcement of termination. An acquiring person's notification or, in the case of an acquisition to which § 801.30 of this chapter does not apply, an acquiring or an acquired person's notification, will be deemed to have been withdrawn if any filing that publicly announces the expiration, termination or withdrawal of a tender offer or the termination of an agreement or letter of intent is made by the acquiring person or the acquired person with the U.S. Securities and Exchange Commission ("SEC") under the Securities Exchange Act of 1934 (15 U.S.C. 78a et seq.) and rules promulgated under that act. The acquiring person or acquired person must notify the Federal Trade Commission and the Antitrust Division in writing by email or mail that such filing has been made with the SEC and the withdrawal shall be deemed effective on the date of the SEC filing. Withdrawal of the HSR notification(s) shall occur even if statements are made in the SEC filing indicating a desire to recommence the tender offer or enter into a new or amended agreement or letter of intent. This paragraph is inapplicable if the initial 15-day or 30-day waiting period has expired without issuance of a request for additional information or documentary material and without an agreement in place with the Agencies to delay closing of the transaction ("a timing agreement"); or early termination of that waiting period has been granted, without a timing agreement in place; or if a request for additional information or documentary material has been issued and the Agencies have either granted early termination or allowed the extended waiting period to expire following certification of compliance without a timing agreement in place.
+
+(c) Resubmission without a new filing fee. (1) An acquiring person whose notification has been voluntarily withdrawn pursuant to paragraph (a) of this section, or an acquiring person whose notification is deemed to have been automatically withdrawn under paragraph (b) of this section, may resubmit its notification, thereby initiating a new waiting period for the same transaction without an additional filing fee pursuant to § 803.9(f). This procedure may be used only one time, and only under the following circumstances:
+
+(i) The notification is withdrawn prior to the expiration or early termination of the waiting period and prior to the issuance of a request for additional information pursuant to § 803.20 and section 7A(e) of the act;
+
+(ii) The proposed acquisition does not change in any material way;
+
+(iii) The resubmitted notification is recertified, and the submission, as it relates to Items 4(a), 4(b), 4(c), and 4(d) of the Notification and Report Form, is updated to the date of the resubmission;
+
+(iv) A new executed affidavit is provided with the resubmitted HSR filing; and
+
+(v) The resubmitted notification is refiled prior to the close of the second business day after withdrawal.
+
+(2) If the acquired person, in the case of an acquisition to which § 801.30 of this chapter does not apply, withdraws its notification under paragraph (a) of this section or if its notification is automatically withdrawn under paragraph (b) of this section, no resubmission is available under this paragraph.
+
+Examples:1. A commences a tender offer to acquire 100% of B's voting securities and files a Schedule TO with the SEC and a premerger notification filing with the Federal Trade Commission and the Antitrust Division ("the Agencies"). Subsequently, A decides to withdraw the tender offer and files an amended Schedule TO announcing the withdrawal. A states in its amended filing, designated as a Schedule TO-T/A on EDGAR, the SEC's Electronic Data Gathering, Analysis, and Retrieval system, which announces the tender offer withdrawal that it reserves the right to recommence the tender offer, should circumstances change. A's premerger notification filing is deemed to have been withdrawn on the date of the filing of the Schedule TO-T/A with the SEC.
+
+2. A commences a tender offer for at least 75% of B's voting securities and files a Schedule TO with the SEC stating that the tender offer will expire after 30 days. A also files a premerger notification filing with the Agencies and a request for additional information or documentary material ("Second Request") is issued. At the end of the 30 day effective period of the tender offer sufficient shares have not been tendered and the tender offer expires. A files a closing Schedule TO-T/A with the SEC announcing the expiration of the tender offer. A's premerger notification filing is deemed to have been withdrawn on the date of the filing of the Schedule TO-T/A with the SEC.
+
+3. A commences a tender offer for 100% of B's voting securities and files a Schedule TO with the SEC stating that shareholders tendering their shares will receive $2.00 per share. During the effective period of the tender offer, A increases the amount it will pay per share to $2.25 and files a Schedule TO-T/A with the SEC announcing the increased share price. A's premerger notification filing is not deemed to have been withdrawn on the date of the filing of the Schedule TO-T/A with the SEC because it is not notifying the SEC that the tender offer has expired or is being withdrawn.
+
+4. A commences a tender offer for 100% of B's voting securities and files a Schedule TO with the SEC. During the effective period of the tender offer, A and B enter into a merger agreement and A files a Schedule TO-T/A with the SEC announcing the withdrawal of the tender offer. A's premerger notification filing is deemed to have been withdrawn on the date of the filing of the Schedule TO-T/A with the SEC. A can, however, refile within two business days on the merger agreement, commencing a new waiting period, without paying an additional filing fee, if it meets the requirements of § 803.12(c).
+
+5. A and B enter into a merger agreement conditioned on successful completion of due diligence. A and B file premerger notification filings with the Agencies and also Form 8-Ks with the SEC announcing they have entered into an agreement to merge. Subsequent findings in the course of due diligence cause A and B to terminate the merger agreement and A files an additional Form 8-K announcing the termination of an agreement. A states that it may seek to enter into a new or amended merger agreement with B. A's premerger notification filing is deemed to have been withdrawn on the date of the filing of the Form 8-K announcing the termination of the merger agreement. A can, however, refile within two business days on a new merger agreement, commencing a new waiting period, without paying an additional filing fee, if it meets the requirements of § 803.12(c).
+
+6. A and B enter into a merger agreement and file premerger notification filings with the Agencies and Form 8-Ks with the SEC. Second requests are issued. A and B subsequently certify compliance with the second request, starting the extended waiting period. Prior to the expiration of the extended waiting period, the parties enter into an agreement with the agency conducting the investigation to delay closing of the transaction, allowing the consummation of the acquisition only after 30-days' notice (a "timing agreement"), and the extended waiting period expires. During the pendency of the timing agreement, A and B terminate the merger agreement and A files a Form 8-K with the SEC announcing the termination of an agreement. A's premerger notification filing is deemed withdrawn on the date of the SEC filing as a result of that filing, even though the extended waiting period has expired and the parties are still within the one year period following that expiration under § 803.7(a). Note that had the extended waiting period expired and no timing agreement had been entered into, a filing with the SEC announcing the termination of the agreement would not result in the withdrawal of A's premerger notification filing.
+
+7. A and B enter into a merger agreement and file premerger notification filings with the Agencies and Form 8-Ks with the SEC. The agencies complete their review and early termination of the initial 30-day waiting period is granted. Prior to the expiration of the one year period following the grant of early termination, A and B terminate the merger agreement and A files a Form 8-K with the SEC announcing the termination of an agreement. A's premerger notification filing is not deemed withdrawn as a result of the SEC filing because the initial 30-day premerger notification waiting period had been granted early termination. Therefore, the parties still have the full one year period prior to the expiration of the notification under § 803.7(a) to consummate the transaction should it be recommenced.
+
+[78 FR 41296, July 10, 2013, as amended at 83 FR 32771, July 16, 2018]
+
+§ 803.20 Requests for additional information or documentary material.
+
+(a)(1) Persons and individuals subject to request. Pursuant to section 7A(e)(1), the submission of additional information or documentary material relevant to the acquisition may be required from one or more persons required to file notification, and, with respect to each such person, from one or more entities included therein, or from one or more officers, directors, partners, agents, or employees thereof, if so required by the same request.
+
+Example:A request for additional information may require a corporation and, in addition, a named officer or employee to provide certain information or documents, if both the corporation and the officer or employee are named in the same request. See subparagraph (b)(3) of this section.
+
+(2) All the information and documentary material required to be submitted pursuant to a request under paragraph (a)(1) of this section shall be supplied to the Commission or to the Assistant Attorney General, whichever made such request, at such location as may be designated in the request, or, if no such location is designated, at the office designated in § 803.10(c). If such request is not fully complied with, a statement of reasons for noncompliance pursuant to § 803.3 shall be provided for each item or portion of such request which is not fully complied with.
+
+(b)(1) Who may require submission. A request for additional information or documentary material with respect to an acquisition may be issued by the Federal Trade Commission or its designee, or by the Assistant Attorney General or his or her designee, but not by both to the same person, any entities included therein, or any officers, directors, partners, agents, or employees of that person.
+
+(2) When request effective. A request for additional information or documentary material shall be effective--
+
+(i) In the case of a written request, upon receipt of the request by the ultimate parent entity of the person to which the request is directed (or, if another entity included within the person filed notification pursuant to § 803.2(a), then by such entity), within the original 30-day (or, in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), 15-day) waiting period (or, if § 802.23 applies, such other period as that section provides); or
+
+(ii) In the case of a written request, upon notice of the issuance of such request to the person to which it is directed within the original 30-day (or, in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), 15-day) waiting period (or, if § 802.23 applies, such other period as that section provides), provided that written confirmation of the request is emailed or mailed to the person to which the request is directed within the original 30-day (or, in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), 15-day) waiting period (or, if § 802.23 applies, such other period as that section provides). Notice to the person to which the request is directed may be given by email, telephone or in person. The person filing notification shall keep a designated individual reasonably available during normal business hours throughout the waiting period at the email or telephone number supplied in the Notification and Report Form. Notice of a request for additional information or documentary material need be given by email or telephone only to that individual or to the individual designated in accordance with paragraph (b)(2)(iii) of this section. The written confirmation of the request shall be emailed or mailed to the ultimate parent entity of the person filing notification, or if another entity within the person filed notification pursuant to § 803.2(a), then to such entity.
+
+(iii) When the individual designated in accordance with paragraph (b)(2)(ii) of this section is not located in the United States, the person filing notification shall designate an additional individual located within the United States to be reasonably available during normal business hours throughout the waiting period through a telephone number supplied on the certification page of the Notification and Report Form. This individual shall be designated for the limited purpose of receiving notification of the issuance of requests for additional information or documentary material in accordance with the procedure described in paragraph (b)(2)(ii) of this section.
+
+(3) Requests to natural persons. A request addressed to an individual, requiring that he or she submit additional information or documentary material, shall be transmitted to the person filing notification of which the individual is an ultimate parent entity, officer, director, partner, agent or employee, and shall be effective as to that individual when effective as to the person filing notification pursuant to paragraph (b)(2) of this section. A written copy of the request shall also be delivered to the individual by email, by hand, or by registered or certified mail at his or her home or business address.
+
+Example:A designee of the Federal Trade Commission sends, by email, a written request for additional information to the CEO of corporation W, the ultimate parent entity within a person that filed notification. The request is effective under paragraph (b)(2)(i) of this section. If the email also addressed a request for documentary material to the Secretary of corporation W, a named individual, under this paragraph (b)(3), the request would likewise be effective as to the individual upon receipt of the email by corporation W. In the latter case, the Federal Trade Commission also would send a copy of the request to the Secretary of the corporation at his or her home or business address, or email.
+
+(c) Waiting period extended. (1) During the time period when a request for additional information or documentary material remains outstanding to any person other than either:
+
+(i) In the case of a tender offer, the person whose voting securities are sought to be acquired by the tender offeror (or any officer, director, partner, agent or employee thereof), or
+
+(ii) In the case of an acquisition covered by 11 U.S.C. 363(b), the acquired person, the waiting period shall remain in effect, even though the waiting period would have expired (see § 803.10(b)) if no such request had been made.
+
+(2) A request for additional information or documentary material to any person other than either:
+
+(i) In the case of a tender offer, the person whose voting securities are being acquired pursuant to the tender offer (or any officer, director, partner, agent or employee thereof), or
+
+(ii) In the case of an acquisition covered by 11 U.S.C. 363(b), the acquired person, shall in every instance extend the waiting period for a period of 30 (or, in the case of a cash tender offer or of an acquisition covered by 11 U.S.C. 363(b), 10) calendar days from the date of receipt (as determined under § 803.10) of the additional information or documentary material requested.
+
+Example:Acquiring person "A" makes a non-cash tender offer for voting securities of corporation "X", and files notification. Under § 801.30, the waiting period begins upon filing by "A," and "X" must file within 15 days thereafter (10 days if it were a cash tender offer). Assume that before the end of the waiting period, the Assistant Attorney General issues a request for additional information to "A" and "X." Since the transaction is a non-cash tender offer, the waiting period is extended for 30 days (10 days if it were a cash tender offer) beyond the date on which "A" responds. Note that under § 803.21, even though the waiting period is not affected by the second request to "X" or by "X" supplying the requested information, "X" is obliged to respond to the request within a reasonable time. Nevertheless, the Federal Trade Commission and Assistant Attorney General could, notwithstanding the pendency of the request for additional information, terminate the waiting period sua sponte pursuant to § 803.11(c).
+
+(d)(1) Identification of requests. Every request for additional information or documentary material shall be clearly identified as such, whether communicated in person, by telephone or in writing, and shall clearly identify the person, entity or entities, or individual(s) to which it is addressed.
+
+(2) Request for clarification. No request for clarification or amplification of a response to any item on the Notification and Report Form, whether communicated in person, by telephone or in writing, shall be considered a request for additional information or documentary material within the meaning of section 7A(e) and this section.
+
+[43 FR 33548, July 31, 1978, as amended at 48 FR 34441, July 29, 1983; 66 FR 8697, Feb. 1, 2001; 68 FR 2431, Jan. 17, 2003; 83 FR 32772, July 16, 2018]
+
+§ 803.21 Additional information shall be supplied within reasonable time.
+
+All additional information or documentary material requested pursuant to section 7A(e) and § 803.20 (or, if such request is not fully complied with, the information or documentary material submitted and a statement of the reasons for such noncompliance in accordance with § 803.3) shall be supplied within a reasonable time.
+
+§ 803.30 Formal and informal interpretations of requirements under the Act and the rules.
+
+(a) The Commission staff may consider requests for formal or informal interpretations as to the obligations under the act and these rules of any party to an acquisition. A request for a formal interpretation shall be made in writing to the offices designated in § 803.10(c), and shall state: (1) all facts which the applicant believes to be material, (2) the reasons why the requirements of the act are or may be applicable and (3) the question(s) that the applicant wishes resolved. The Commission staff may, in its discretion, render a formal or informal response to any request, however made, or may decline to render such advice.
+
+(b) In the sole discretion of the staff, any request for interpretation may be referred to the Commission.
+
+(c) Formal interpretations by the Commission staff or by the Commission shall be rendered with the concurrence of the Assistant Attorney General or his or her designee.
+
+(d) Any formal interpretation shall be without prejudice to the right of either the Commission or the Assistant Attorney General to rescind any such interpretation rendered pursuant to this section. In the event of such rescission, the party which requested the interpretation shall be so notified in writing.
+
+(e) The Commission shall publish a summary of formal interpretations by the Commission, and any rescissions thereof, in the Federal Register.
+
+§ 803.90 Separability.
+
+If any provision of the rules in this subchapter (H) (including the Notification and Report Form) or the application of any such provision to any person or circumstances is held invalid, neither the other provisions of the rules nor the application of such provision to other persons or circumstances shall be affected thereby.
+
+Appendix A to Part 803--Notification and Report Form for Certain Mergers and Acquisitions
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+[88 FR 5751, Jan. 30, 2023]
+
+Appendix B to Part 803--Instructions to the Notification and Report Form for Certain Mergers and Acquisitions
+
+Link to an amendment published at 89 FR 89339, Nov. 12, 2024.
+
+[88 FR 5764, Jan. 30, 2023]

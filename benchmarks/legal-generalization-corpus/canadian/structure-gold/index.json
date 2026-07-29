@@ -1,0 +1,180 @@
+{
+ "statutes": [
+  {
+   "artifact_id": "fed-rsc-1985-c-c46-criminal-code",
+   "citation": "RSC 1985, c C-46",
+   "name": "Criminal Code",
+   "sections": 1713,
+   "anchored": 1608,
+   "chars": 2262608,
+   "map_order_equals_doc_order": false
+  },
+  {
+   "artifact_id": "fed-sc-2001-c-27-irpa",
+   "citation": "SC 2001, c 27",
+   "name": "Immigration and Refugee Protection Act",
+   "sections": 357,
+   "anchored": 266,
+   "chars": 281978,
+   "map_order_equals_doc_order": false
+  },
+  {
+   "artifact_id": "fed-rsc-1985-c-h6-human-rights",
+   "citation": "RSC 1985, c H-6",
+   "name": "Canadian Human Rights Act",
+   "sections": 91,
+   "anchored": 91,
+   "chars": 82106,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "fed-sc-2000-c-5-pipeda",
+   "citation": "SC 2000, c 5",
+   "name": "Personal Information Protection and Electronic Documents Act",
+   "sections": 92,
+   "anchored": 71,
+   "chars": 105164,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "on-so-2002-c-24-schedb-limitations",
+   "citation": "SO 2002, c 24, Sched B",
+   "name": "Limitations Act, 2002",
+   "sections": 54,
+   "anchored": 28,
+   "chars": 29530,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "on-rso-1990-c-o2-occupiers-liability",
+   "citation": "RSO 1990, c O2",
+   "name": "Occupiers' Liability Act",
+   "sections": 12,
+   "anchored": 12,
+   "chars": 11770,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "on-so-2000-c-41-employment-standards",
+   "citation": "SO 2000, c 41",
+   "name": "Employment Standards Act, 2000",
+   "sections": 259,
+   "anchored": 259,
+   "chars": 411541,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "on-oreg-267-03-esa-general",
+   "citation": "O Reg 267/03",
+   "name": "general",
+   "sections": 235,
+   "anchored": 228,
+   "chars": 360390,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "ab-rsa-2000-c-l12-limitations",
+   "citation": "RSA 2000, c L-12",
+   "name": "Limitations Act",
+   "sections": 17,
+   "anchored": 17,
+   "chars": 25796,
+   "map_order_equals_doc_order": true
+  },
+  {
+   "artifact_id": "ab-rsa-2000-c-o4-occupiers-liability",
+   "citation": "RSA 2000, c O-4",
+   "name": "Occupiers' Liability Act",
+   "sections": 18,
+   "anchored": 18,
+   "chars": 11251,
+   "map_order_equals_doc_order": true
+  }
+ ],
+ "decisions": [
+  {
+   "artifact_id": "nsca-2013-nsca-65",
+   "citation": "2013 NSCA 65",
+   "name": "Young v. Hayward",
+   "markers": 120,
+   "spine": 91,
+   "quoted": 29,
+   "native_citations": 7,
+   "chars": 49796
+  },
+  {
+   "artifact_id": "nsca-2016-nsca-89",
+   "citation": "2016 NSCA 89",
+   "name": "Shannex Inc. v. Dora Construction Ltd.",
+   "markers": 95,
+   "spine": 70,
+   "quoted": 25,
+   "native_citations": 9,
+   "chars": 46475
+  },
+  {
+   "artifact_id": "nsca-2020-nsca-5",
+   "citation": "2020 NSCA 5",
+   "name": "R. v. Livingstone; R. v. Lungal; R. v. Terris",
+   "markers": 85,
+   "spine": 83,
+   "quoted": 2,
+   "native_citations": 49,
+   "chars": 62256
+  },
+  {
+   "artifact_id": "nsca-2021-nsca-29",
+   "citation": "2021 NSCA 29",
+   "name": "R. v. Dawson; R. v. Ross",
+   "markers": 132,
+   "spine": 111,
+   "quoted": 21,
+   "native_citations": 39,
+   "chars": 61765
+  },
+  {
+   "artifact_id": "nsca-2023-nsca-3",
+   "citation": "2023 NSCA 3",
+   "name": "R. v. Seyeon Lee",
+   "markers": 78,
+   "spine": 40,
+   "quoted": 38,
+   "native_citations": 13,
+   "chars": 53866
+  },
+  {
+   "artifact_id": "nsca-2024-nsca-103",
+   "citation": "2024 NSCA 103",
+   "name": "R. v. Alexander",
+   "markers": 145,
+   "spine": 78,
+   "quoted": 67,
+   "native_citations": 47,
+   "chars": 69274
+  },
+  {
+   "artifact_id": "nsca-2025-nsca-5",
+   "citation": "2025 NSCA 5",
+   "name": "Ward v. Murphy",
+   "markers": 174,
+   "spine": 93,
+   "quoted": 81,
+   "native_citations": 26,
+   "chars": 65386
+  },
+  {
+   "artifact_id": "nsca-2026-nsca-36",
+   "citation": "2026 NSCA 36",
+   "name": "R. v. White",
+   "markers": 231,
+   "spine": 119,
+   "quoted": 112,
+   "native_citations": 52,
+   "chars": 53063
+  }
+ ],
+ "counts": {
+  "statutes": 10,
+  "decisions": 8
+ }
+}

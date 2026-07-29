@@ -1,0 +1,509 @@
+# Limitations Act, 2002
+
+S.O. 2002, c. 24, Sched. B
+
+### Definitions and Application
+
+### Definitions
+
+1 In this Act,
+“adverse effect” has the same meaning as in the Environmental Protection Act; (“conséquence préjudiciable”)
+“assault” includes a battery; (“voies de fait”)
+“claim” means a claim to remedy an injury, loss or damage that occurred as a result of an act or omission; (“réclamation”)
+“contaminant” has the same meaning as in the Environmental Protection Act; (“contaminant”)
+“discharge” has the same meaning as in the Environmental Protection Act; (“rejet”, “rejeter”)
+“environmental claim” means a claim based on an act or omission that caused, contributed to, or permitted the discharge of a contaminant into the natural environment that has caused or is likely to cause an adverse effect; (“réclamation relative à l’environnement”)
+“natural environment” has the same meaning as in the Environmental Protection Act. (“environnement naturel”)
+
+### Application
+
+2 (1) This Act applies to claims pursued in court proceedings other than,
+(a) proceedings to which the Real Property Limitations Act applies;
+(b) proceedings in the nature of an appeal, if the time for commencing them is governed by an Act or rule of court;
+(c) proceedings under the Judicial Review Procedure Act;
+(d) proceedings to which the Provincial Offences Act applies;
+(e) proceedings based on the existing aboriginal and treaty rights of the aboriginal peoples of Canada which are recognized and affirmed in section 35 of the Constitution Act, 1982;
+(f) proceedings based on equitable claims by aboriginal peoples against the Crown; and
+(g) proceedings to which the Limitation Convention or the Amended Limitation Convention, as defined in the International Sales Conventions Act, applies.
+
+### Exception, aboriginal rights
+
+(2) Proceedings referred to in clause (1) (e) and (f) are governed by the law that would have been in force with respect to limitation of actions if this Act had not been passed.
+
+### Crown
+
+3 This Act binds the Crown.
+
+### Basic Limitation Period
+
+### Basic limitation period
+
+4 Unless this Act provides otherwise, a proceeding shall not be commenced in respect of a claim after the second anniversary of the day on which the claim was discovered.
+
+### Discovery
+
+5 (1) A claim is discovered on the earlier of,
+(a) the day on which the person with the claim first knew,
+(i) that the injury, loss or damage had occurred,
+(ii) that the injury, loss or damage was caused by or contributed to by an act or omission,
+(iii) that the act or omission was that of the person against whom the claim is made, and
+(iv) that, having regard to the nature of the injury, loss or damage, a proceeding would be an appropriate means to seek to remedy it; and
+(b) the day on which a reasonable person with the abilities and in the circumstances of the person with the claim first ought to have known of the matters referred to in clause (a).
+
+### Presumption
+
+(2) A person with a claim shall be presumed to have known of the matters referred to in clause (1) (a) on the day the act or omission on which the claim is based took place, unless the contrary is proved.
+
+### Demand obligations
+
+(3) For the purposes of subclause (1) (a) (i), the day on which injury, loss or damage occurs in relation to a demand obligation is the first day on which there is a failure to perform the obligation, once a demand for the performance is made.
+
+### Same
+
+(4) Subsection (3) applies in respect of every demand obligation created on or after January 1, 2004.
+
+### Minors
+
+6 The limitation period established by section 4 does not run during any time in which the person with the claim,
+(a) is a minor; and
+(b) is not represented by a litigation guardian in relation to the claim.
+
+### Incapable persons
+
+7 (1) The limitation period established by section 4 does not run during any time in which the person with the claim,
+(a) is incapable of commencing a proceeding in respect of the claim because of his or her physical, mental or psychological condition; and
+(b) is not represented by a litigation guardian in relation to the claim.
+
+### Presumption
+
+(2) A person shall be presumed to have been capable of commencing a proceeding in respect of a claim at all times unless the contrary is proved.
+
+### Extension
+
+(3) If the running of a limitation period is postponed or suspended under this section and the period has less than six months to run when the postponement or suspension ends, the period is extended to include the day that is six months after the day on which the postponement or suspension ends.
+(4) Repealed: 2016, c. 2, Sched. 2, s. 1.
+
+### Litigation guardians
+
+8 If a person is represented by a litigation guardian in relation to the claim, section 5 applies as if the litigation guardian were the person with the claim.
+
+### Appointment of litigation guardian on application or motion by potential defendant
+
+### Definitions
+
+9 (1) In this section,
+“potential defendant” means a person against whom another person may have a claim but against whom the other person has not commenced a proceeding in respect of the claim; (“défendeur éventuel”)
+“potential plaintiff” means a person who may have a claim against another person but has not commenced a proceeding against that person in respect of the claim. (“demandeur éventuel”)
+
+### Appointment of litigation guardian on application or motion by potential defendant
+
+(2) If the running of a limitation period in relation to a claim is postponed or suspended under section 6 or 7, a potential defendant may make an application or a motion to have a litigation guardian appointed for a potential plaintiff.
+
+### Effect of appointment
+
+(3) Subject to subsection (4), the appointment of a litigation guardian ends the postponement or suspension of the running of the limitation period if the following conditions are met:
+1. The appointment is made by a judge on the application or motion of a potential defendant.
+2. The judge is satisfied that the litigation guardian,
+i. has been served with the motion,
+ii. has consented to the appointment in writing, or in person before the judge,
+iii. in connection with the claim, knows of the matters referred to in clause 5 (1) (a),
+iv. does not have an interest adverse to that of the potential plaintiff, and
+v. agrees to attend to the potential plaintiff’s interests diligently and to take all necessary steps for their protection, including the commencement of a claim if appropriate.
+
+### Non-expiry
+
+(4) The limitation period shall be deemed not to expire against the potential plaintiff until the later of,
+(a) the date that is six months after the potential defendant files, with proof of service on the litigation guardian,
+(i) a notice that complies with subsection (5), and
+(ii) a declaration that, on the filing date, the potential defendant is not aware of any proceeding by the litigation guardian against the potential defendant in respect of the claim; and
+(b) the date on which the limitation period would otherwise expire after it resumes running under subsection (3).
+
+### Notice
+
+(5) The notice,
+(a) shall not be served before the first anniversary of the appointment;
+(b) shall identify the potential plaintiff, the potential defendant and the claim; and
+(c) shall indicate that the claim could be extinguished if a proceeding is not promptly commenced.
+10 Repealed: 2016, c. 2, Sched. 2, s. 2.
+
+### Attempted resolution
+
+11 (1) If a person with a claim and a person against whom the claim is made have agreed to have an independent third party resolve the claim or assist them in resolving it, the limitation periods established by sections 4 and 15 do not run from the date the agreement is made until,
+(a) the date the claim is resolved;
+(b) the date the attempted resolution process is terminated; or
+(c) the date a party terminates or withdraws from the agreement.
+
+### Same
+
+(2) For greater certainty, a person or entity that provides resolution of claims or assistance in resolving claims, on an impartial basis, is an independent third party no matter how it is funded.
+
+### Successors
+
+12 (1) For the purpose of clause 5 (1) (a), in the case of a proceeding commenced by a person claiming through a predecessor in right, title or interest, the person shall be deemed to have knowledge of the matters referred to in that clause on the earlier of the following:
+1. The day the predecessor first knew or ought to have known of those matters.
+2. The day the person claiming first knew or ought to have known of them.
+
+### Principals and agents
+
+(2) For the purpose of clause 5 (1) (a), in the case of a proceeding commenced by a principal, if the agent had a duty to communicate knowledge of the matters referred to in that clause to the principal, the principal shall be deemed to have knowledge of the matters referred to in that clause on the earlier of the following:
+1. The day the agent first knew or ought to have known of those matters.
+2. The day the principal first knew or ought to have known of them.
+
+### Same
+
+(3) The day on which a predecessor or agent first ought to have known of the matters referred to in clause 5 (1) (a) is the day on which a reasonable person in the predecessor’s or agent’s circumstances and with the predecessor’s or agent’s abilities first ought to have known of them.
+
+### Acknowledgments
+
+13 (1) If a person acknowledges liability in respect of a claim for payment of a liquidated sum, the recovery of personal property, the enforcement of a charge on personal property or relief from enforcement of a charge on personal property, the act or omission on which the claim is based shall be deemed to have taken place on the day on which the acknowledgment was made.
+
+### Interest
+
+(2) An acknowledgment of liability in respect of a claim for interest is an acknowledgment of liability in respect of a claim for the principal and for interest falling due after the acknowledgment is made.
+
+### Collateral
+
+(3) An acknowledgment of liability in respect of a claim to realize on or redeem collateral under a security agreement or to recover money in respect of the collateral is an acknowledgment by any other person who later comes into possession of it.
+
+### Realization
+
+(4) A debtor’s performance of an obligation under or in respect of a security agreement is an acknowledgment by the debtor of liability in respect of a claim by the creditor for realization on the collateral under the agreement.
+
+### Redemption
+
+(5) A creditor’s acceptance of a debtor’s payment or performance of an obligation under or in respect of a security agreement is an acknowledgment by the creditor of liability in respect of a claim by the debtor for redemption of the collateral under the agreement.
+
+### Trustees
+
+(6) An acknowledgment by a trustee is an acknowledgment by any other person who is or who later becomes a trustee of the same trust.
+
+### Personal property
+
+(7) An acknowledgment of liability in respect of a claim to recover or enforce an equitable interest in personal property by a person in possession of it is an acknowledgment by any other person who later comes into possession of it.
+
+### Liquidated sum
+
+(8) Subject to subsections (9) and (10), this section applies to an acknowledgment of liability in respect of a claim for payment of a liquidated sum even though the person making the acknowledgment refuses or does not promise to pay the sum or the balance of the sum still owing.
+
+### Restricted application
+
+(9) This section does not apply unless the acknowledgment is made to the person with the claim, the person’s agent or an official receiver or trustee acting under the Bankruptcy and Insolvency Act (Canada) before the expiry of the limitation period applicable to the claim.
+
+### Same
+
+(10) Subsections (1), (2), (3), (6) and (7) do not apply unless the acknowledgment is in writing and signed by the person making it or the person’s agent.
+
+### Same
+
+(11) In the case of a claim for payment of a liquidated sum, part payment of the sum by the person against whom the claim is made or by the person’s agent has the same effect as the acknowledgment referred to in subsection (10).
+
+### Notice of possible claim
+
+14 (1) A person against whom another person may have a claim may serve a notice of possible claim on the other person.
+
+### Contents
+
+(2) A notice of possible claim shall be in writing and signed by the person issuing it or that person’s lawyer, and shall,
+(a) describe the injury, loss or damage that the issuing person suspects may have occurred;
+(b) identify the act or omission giving rise to the injury, loss or damage;
+(c) indicate the extent to which the issuing person suspects that the injury, loss or damage may have been caused by the issuing person;
+(d) state that any claim that the other person has could be extinguished because of the expiry of a limitation period; and
+(e) state the issuing person’s name and address for service.
+
+### Effect
+
+(3) The fact that a notice of possible claim has been served on a person may be considered by a court in determining when the limitation period in respect of the person’s claim began to run.
+
+### Exception
+
+(4) Subsection (3) does not apply to a person who is not represented by a litigation guardian in relation to the claim and who, when served with the notice,
+(a) is a minor; or
+(b) is incapable of commencing a proceeding because of his or her physical, mental or psychological condition.
+
+### Acknowledgment
+
+(5) A notice of possible claim is not an acknowledgment for the purpose of section 13.
+
+### Admission
+
+(6) A notice of possible claim is not an admission of the validity of the claim.
+
+### Ultimate Limitation Periods
+
+### Ultimate limitation periods
+
+15 (1) Even if the limitation period established by any other section of this Act in respect of a claim has not expired, no proceeding shall be commenced in respect of the claim after the expiry of a limitation period established by this section.
+
+### General
+
+(2) No proceeding shall be commenced in respect of any claim after the 15th anniversary of the day on which the act or omission on which the claim is based took place.
+
+### Exception, purchasers for value
+
+(3) Despite subsection (2), no proceeding against a purchaser of personal property for value acting in good faith shall be commenced in respect of conversion of the property after the second anniversary of the day on which the property was converted.
+
+### Period not to run
+
+(4) The limitation period established by subsection (2) does not run during any time in which,
+(a) the person with the claim,
+(i) is incapable of commencing a proceeding in respect of the claim because of his or her physical, mental or psychological condition, and
+(ii) is not represented by a litigation guardian in relation to the claim;
+(b) the person with the claim is a minor and is not represented by a litigation guardian in relation to the claim; or
+(c) the person against whom the claim is made,
+(i) wilfully conceals from the person with the claim the fact that injury, loss or damage has occurred, that it was caused by or contributed to by an act or omission or that the act or omission was that of the person against whom the claim is made, or
+(ii) wilfully misleads the person with the claim as to the appropriateness of a proceeding as a means of remedying the injury, loss or damage.
+
+### Burden
+
+(5) The burden of proving that subsection (4) applies is on the person with the claim.
+
+### Day of occurrence
+
+(6) For the purposes of this section, the day an act or omission on which a claim is based takes place is,
+(a) in the case of a continuous act or omission, the day on which the act or omission ceases;
+(b) in the case of a series of acts or omissions in respect of the same obligation, the day on which the last act or omission in the series occurs;
+(c) in the case of an act or omission in respect of a demand obligation, the first day on which there is a failure to perform the obligation, once a demand for the performance is made.
+
+### Application, demand obligations
+
+(7) Clause (6) (c) applies in respect of every demand obligation created on or after January 1, 2004.
+
+### No Limitation Period
+
+### No limitation period
+
+16 (1) There is no limitation period in respect of,
+(a) a proceeding for a declaration if no consequential relief is sought;
+(b) a proceeding to enforce an order of a court, or any other order that may be enforced in the same way as an order of a court;
+(c) a proceeding to obtain support under the Family Law Act or to enforce a provision for support or maintenance contained in a contract or agreement that could be filed under section 35 of that Act;
+(d) Revoked: 2017, c. 2, Sched. 5, s. 14 (1);
+(e) a proceeding under section 8 or 11.2 of the Civil Remedies Act, 2001;
+(f) a proceeding by a debtor in possession of collateral to redeem it;
+(g) a proceeding by a creditor in possession of collateral to realize on it;
+(h) a proceeding based on a sexual assault;
+(h.1) a proceeding based on any other misconduct of a sexual nature if, at the time of the misconduct, the person with the claim was a minor or any of the following applied with respect to the relationship between the person with the claim and the person who committed the misconduct:
+(i) the other person had charge of the person with the claim,
+(ii) the other person was in a position of trust or authority in relation to the person with the claim,
+(iii) the person with the claim was financially, emotionally, physically or otherwise dependent on the other person;
+(h.2) a proceeding based on an assault if, at the time of the assault, the person with the claim was a minor or any of the following applied with respect to the relationship between the person with the claim and the person who committed the assault:
+(i) they had an intimate relationship,
+(ii) the person with the claim was financially, emotionally, physically or otherwise dependent on the other person;
+(i) a proceeding to recover money owing to the Crown in respect of,
+(i) fines, taxes and penalties, or
+(ii) interest that may be added to a tax or penalty under an Act;
+(j) a proceeding described in subsection (2) that is brought by,
+(i) the Crown, or
+(ii) a delivery agent under the Ontario Disability Support Program Act, 1997 or the Ontario Works Act, 1997;
+(k) a proceeding to recover money owing in respect of student loans, medical resident loans, awards or grants made under the Ministry of Training, Colleges and Universities Act, the Canada Student Financial Assistance Act or the Canada Student Loans Act; or
+(l) a proceeding under subsection 4 (1) of the Justice for Victims of Terrorism Act (Canada).
+
+### Same
+
+(1.1) Clauses (1) (h), (h.1), (h.2) and (l) apply to a proceeding whenever the act on which the claim is based occurred or the proceeding was commenced, and regardless of the expiry of any previously applicable limitation period.
+
+### Same
+
+(1.2) Subsection (1.1) does not apply in the case of a proceeding that,
+(a) has been dismissed by a court and no further appeal is available; or
+(b) has been settled by the parties and the settlement is legally binding.
+
+### Same
+
+(1.3) For greater certainty, clauses (1) (h), (h.1) and (h.2) are not limited in any way with respect to the claims that may be made in the proceeding in relation to the applicable act, which may include claims for negligence, for breach of fiduciary or any other duty or for vicarious liability.
+
+### Same
+
+(2) Clause (1) (j) applies to proceedings in respect of claims relating to,
+(a) the administration of social, health or economic programs; or
+(b) the provision of direct or indirect support to members of the public in connection with social, health or economic policy.
+
+### Same
+
+(3) Without limiting the generality of subsection (2), clause (1) (j) applies to proceedings in respect of claims for,
+(a) the recovery of social assistance payments, student loans, awards, grants, contributions and economic development loans; and
+(b) the reimbursement of money paid in connection with social, health or economic programs or policies as a result of fraud, misrepresentation, error or inadvertence.
+
+### Conflict with s. 15
+
+(4) This section and section 17 prevail over anything in section 15.
+
+### Undiscovered environmental claims
+
+17 There is no limitation period in respect of an environmental claim that has not been discovered.
+
+### General Rules
+
+### Contribution and indemnity
+
+18 (1) For the purposes of subsection 5 (2) and section 15, in the case of a claim by one alleged wrongdoer against another for contribution and indemnity, the day on which the first alleged wrongdoer was served with the claim in respect of which contribution and indemnity is sought shall be deemed to be the day the act or omission on which that alleged wrongdoer’s claim is based took place.
+
+### Application
+
+(2) Subsection (1) applies whether the right to contribution and indemnity arises in respect of a tort or otherwise.
+
+### Other Acts, etc.
+
+19 (1) A limitation period set out in or under another Act that applies to a claim to which this Act applies is of no effect unless,
+(a) the provision establishing it is listed in the Schedule to this Act; or
+(b) the provision establishing it,
+(i) is in existence on January 1, 2004, and
+(ii) incorporates by reference a provision listed in the Schedule to this Act.
+
+### Act prevails
+
+(2) Subsection (1) applies despite any other Act.
+
+### Interpretation
+
+(3) The fact that a provision is listed in the Schedule shall not be construed as a statement that the limitation period established by the provision would otherwise apply to a claim as defined in this Act.
+
+### Same
+
+(4) If there is a conflict between a limitation period established by a provision referred to in subsection (1) and one established by any other provision of this Act, the limitation period established by the provision referred to in subsection (1) prevails.
+
+### Period not to run
+
+(5) Sections 6, 7 and 11 apply, with necessary modifications, to a limitation period established by a provision referred to in subsection (1).
+
+### Statutory variation of time limits
+
+20 This Act does not affect the extension, suspension or other variation of a limitation period or other time limit by or under another Act.
+
+### Adding party
+
+21 (1) If a limitation period in respect of a claim against a person has expired, the claim shall not be pursued by adding the person as a party to any existing proceeding.
+
+### Misdescription
+
+(2) Subsection (1) does not prevent the correction of a misnaming or misdescription of a party.
+
+### Limitation periods apply despite agreements
+
+22 (1) A limitation period under this Act applies despite any agreement to vary or exclude it, subject only to the exceptions in subsections (2) to (6).
+
+### Exception
+
+(2) A limitation period under this Act may be varied or excluded by an agreement made before January 1, 2004.
+
+### Same
+
+(3) A limitation period under this Act, other than one established by section 15, may be suspended or extended by an agreement made on or after October 19, 2006.
+
+### Same
+
+(4) A limitation period established by section 15 may be suspended or extended by an agreement made on or after October 19, 2006, but only if the relevant claim has been discovered.
+
+### Same
+
+(5) The following exceptions apply only in respect of business agreements:
+1. A limitation period under this Act, other than one established by section 15, may be varied or excluded by an agreement made on or after October 19, 2006.
+2. A limitation period established by section 15 may be varied by an agreement made on or after October 19, 2006, except that it may be suspended or extended only in accordance with subsection (4).
+
+### Definitions
+
+(6) In this section,
+“business agreement” means an agreement made by parties none of whom is a consumer as defined in the Consumer Protection Act, 2002; (“accord commercial”)
+“vary” includes extend, shorten and suspend. (“modifier”)
+
+### Conflict of laws
+
+23 For the purpose of applying the rules regarding conflict of laws, the limitations law of Ontario or any other jurisdiction is substantive law.
+
+### Transition
+
+### Definition
+
+24 (1) In this section,
+“former limitation period” means the limitation period that applied in respect of the claim before January 1, 2004.
+
+### Application
+
+(2) Subject to subsection (2.1), this section applies to claims based on acts or omissions that took place before January 1, 2004 and in respect of which no proceeding has been commenced before that date.
+
+### Exception
+
+(2.1) This section does not apply to a claim in respect of which clause 16 (1) (h), (h.1) or (h.2) applies.
+
+### Former limitation period expired
+
+(3) If the former limitation period expired before January 1, 2004, no proceeding shall be commenced in respect of the claim.
+
+### Former limitation period unexpired
+
+(4) If the former limitation period did not expire before January 1, 2004 and if no limitation period under this Act would apply were the claim based on an act or omission that took place on or after that date, there is no limitation period.
+
+### Same
+
+(5) If the former limitation period did not expire before January 1, 2004 and if a limitation period under this Act would apply were the claim based on an act or omission that took place on or after that date, the following rules apply:
+1. If the claim was not discovered before January 1, 2004, this Act applies as if the act or omission had taken place on that date.
+2. If the claim was discovered before January 1, 2004, the former limitation period applies.
+
+### No former limitation period
+
+(6) If there was no former limitation period and if a limitation period under this Act would apply were the claim based on an act or omission that took place on or after January 1, 2004, the following rules apply:
+1. If the claim was not discovered before January 1, 2004, this Act applies as if the act or omission had taken place on that date.
+2. If the claim was discovered before January 1, 2004, there is no limitation period.
+(7) Repealed: 2016, c. 2, Sched. 2, s. 5 (3).
+
+### Claims re payments alleged to be ultra vires
+
+(7.1) For the purposes of this section, clause 45 (1) (g) of the Limitations Act, as it read immediately before its repeal, applies to a claim respecting amounts paid to the Crown or to another public authority for which it is alleged that no valid legal authority existed at the time of payment.
+
+### Agreements
+
+(8) This section is subject to any agreement to vary or exclude a limitation period that was made before January 1, 2004.
+25-49 Omitted (amends or repeals other Acts).
+50 Omitted (amends the schedule to this Act).
+51 Omitted (provides for coming into force of provisions of this Act).
+52 Omitted (enacts short title of this Act).
+
+## Schedule (Section 19)
+
+| Act | Provision |
+| --- | --- |
+| Arbitration Act, 1991 | subsection 52 (3) |
+| Assignments and Preferences Act | subsections 26 (2) and 27 (2) |
+| Business Corporations Act | subsections 157 (2), 185 (18) and (19), 188 (9), (13) and (14), and 189 (5) |
+| City of Toronto Act, 2006 | subsections 214 (4), 250 (2), 270 (4) and 351 (5) |
+| Civil Remedies Act, 2001 | subsections 3 (5) and 13 (7) |
+| Commodity Futures Act | section 60.4 |
+| Construction Act | subsections 13.18 (2) and 13.20 (2) and sections 31 and 36 |
+| Corporations Act | subsection 37 (2) |
+| Creditors’ Relief Act, 2010 | subsection 12 (1) |
+| Drainage Act | section 111 |
+| Education Act | subsection 218 (2) and subsection 11 (3) of Schedule 1 |
+| Election Act | subsection 99 (4) |
+| Electricity Act, 1998 | section 36.1.1 |
+| Environmental Bill of Rights, 1993 | section 102 |
+| Estates Act | subsections 44 (2) and 45 (2) and section 47 |
+| Estates Administration Act | subsection 17 (5) |
+| Expropriations Act | section 43 |
+| Family Law Act | subsection 7 (3) |
+| Fines and Forfeitures Act | subsection 6 (2) |
+| Forestry Workers Lien for Wages Act | subsections 8 (1) and 26 (1) |
+| Fuel Tax Act | subsection 8 (13) |
+| Gasoline Tax Act | subsection 5 (13) |
+| Income Tax Act | section 38 |
+| Insurance Act | section 148, statutory condition 14 and section 259.1 |
+| International Commercial Arbitration Act, 2017 | section 10 |
+| Libel and Slander Act | section 6 |
+| Liquor Licence and Control Act, 2019 | subsection 59 (4) |
+| Mortgages Act | subsections 21 (2) and 54 (2) |
+| Municipal Act, 2001 | subsections 273 (5), 380 (5) and 415 (2) |
+| Municipal Conflict of Interest Act | subsections 8 (2) and (6) |
+| Municipal Elections Act, 1996 | subsections 58 (2), 63 (1) and 83 (2) |
+| Not-for-Profit Corporations Act, 2010 | subsections 98 (3) and 187 (14) and (15) |
+| Ontario Home Ownership Savings Plan Act | section 18 |
+| Opioid Damages and Health Care Costs Recovery Act, 2019 | subsections 6 (1) and (1.1) |
+| Personal Property Security Act | subsections 44 (13) and (14) |
+| Prohibiting Profiting from Recounting Crimes Act, 2002 | subsections 4 (5) and 6 (6) |
+| Public Lands Act | subsection 34 (3) |
+| Reciprocal Enforcement of Judgments Act | subsection 2 (1) |
+| Reciprocal Enforcement of Judgments (U.K.) Act | paragraph 1 of article iii of the Schedule |
+| Securities Act | section 129.1, subsection 136 (6) and sections 138 and 138.14 |
+| Succession Law Reform Act | section 61 |
+| Taxation Act, 2007 | section 139 |
+| Tile Drainage Act | subsection 2 (3) |
+| Tobacco Damages and Health Care Costs Recovery Act, 2009 | subsection 6 (1) |
+| Tobacco Tax Act | subsections 6 (10) and 24 (5) |
+| Trustee Act | subsection 38 (3) |

@@ -1,0 +1,363 @@
+R. v. White
+Court
+Court of Appeal
+Date
+2026-05-05
+Citation
+2026 NSCA 36
+Docket
+CAC 541603 / CAC 541342
+Judge/Registrar/Adjudicator
+Bryson, Peter M.S. (Honourable Justice) (CA); Beaton, Carole A. (Honourable Justice) (CA); Gogan, Robin (Honourable Justice) (CA)
+Document Type
+Decision
+Decision Content
+Nova Scotia Court of Appeal
+Citation: R. v. White, 2026 NSCA 36
+Date: 20260505
+Docket: CAC 541603 / CAC 541342
+Registry: Halifax
+Between:
+His Majesty the King
+Appellant
+v.
+Nathaniel Dominic White
+Respondent
+and
+African Nova Scotian Justice Institute
+Intervenor
+Judges:
+Bryson, Beaton and Gogan, JJ.A.
+Appeal Heard:
+March 25, 2026, in Halifax, Nova Scotia
+Written Release:
+May 5, 2026
+Held:
+Appeal allowed, per reasons for judgment of Bryson, J.A.; Beaton and Gogan, JJ.A. concurring
+Counsel:
+Paul Adams and Scott Millar for the appellant (Federal Crown)
+Glenn Hubbard for the appellant (Provincial Crown)
+Nicholaus Fitch, for the respondent
+Lee V. Seshagiri and Brandon Rolle, for the intervenor
+Reasons for judgment:
+Introduction
+[1] On May 17, 2024 Nathaniel Dominic White was convicted of drug trafficking and firearms offences.[1] He had been charged with these offences in 2020, but was acquitted owing to Charter breaches during a search of the vehicle in which he was sitting. That acquittal was set aside and a new trial ordered.[2]
+[2] Mr. White was found in possession of cocaine and cannabis as well as a loaded .32 calibre Smith and Wesson handgun and ammunition. His brother was with him. He had a .357 magnum handgun. The guns and drugs were seized in the early afternoon in a busy downtown Halifax parking lot. Mr. White was one of three occupants of the car in which the guns and drugs were discovered.
+[3] Justice Peter Rosinski described Mr. White’s possession of the loaded handgun as “a tool of his trade”. He was on probation at the time of these offences.
+[4] Mr. White was then 24. He had 16 prior adult convictions, including for possession of a weapon. Mr. White did not remain crime-free after his arrest. While on bail, he breached his conditions.
+[5] Mr. White is an African Nova Scotian. The judge had the benefit of two impact of race and culture assessments,[3] which he considered when passing sentence.
+[6] Taking into account all of the circumstances of the offence and the offender, the judge said he would have ordinarily imposed a sentence of between 3.5 and 5 years’ imprisonment, reduced to between 3 and 4 years’ imprisonment for totality.[4] But then the judge took an unexpected turn. Citing a decision of this Court[5] that upheld a conditional sentence order[6] for an 18-year-old first time offender, he decided that such a sentence was appropriate for Mr. White.[7]
+[7] Bratzer was not cited to the judge by either of the parties and was not argued before him, no doubt because neither Crown nor defence thought it had any relevance to Mr. White’s case. They were right.
+[8] The judge erred in law by relying on an exceptional precedent that bore no resemblance to the case before him. As a result, he discounted an otherwise appropriate sentence range and instead imposed an unfit sentence, that also offended principles of proportionality given the gravity of the offences and Mr. White’s responsibility for them. The judge’s sentence effectively ignored the primacy of deterrence and denunciation which typically prevail in very serious crimes like these.
+[9] The judge’s sentence should be set aside and a sentence of 4 years should be substituted for the conditional sentence order.
+[10] Since Mr. White has already served part of the conditional sentence order, a question arises whether he should be incarcerated now. That question will be addressed at the conclusion of the sentencing analysis which follows.
+[11] The intervenor properly takes no position on outcome, but challenges some of the judge’s obiter[8] language. The intervenor’s submissions will be briefly addressed following discussion of the issues.
+Issues:
+[12] The federal and provincial Crown both appeal, alleging the judge erred by:
+1.
+imposing a sentence which failed:
+(a)
+to properly interpret and apply the principle of proportionality, taking into account the gravity of the offence and the degree of responsibility of the offender;
+(b)
+to give appropriate emphasis to applicable sentencing principles, particularly denunciation, deterrence and protection of the public, by overemphasizing the personal circumstances of Mr. White.
+2.
+imposing a sentence which was demonstrably unfit considering the circumstances of the offence and the offender.
+[13] This is a sentence appeal. The appellants require leave. Leave should be granted and the appeal allowed.
+[14] This Court observes a deferential standard of review on sentencing. We may intervene if the sentence “implicates a flawed process (material errors in reasoning) or flawed outcome (demonstrable unfitness)”.[9] Appellate intervention is justified where:
+(a)
+a sentence is demonstrably unfit; or
+(b)
+the sentence was affected by an error in principle. These include errors of law, a failure to consider a relevant factor, or erroneous consideration of an aggravating or mitigating factor.[10]
+[15] When considering whether a sentence is demonstrably unfit, the focus is on whether the sentence is proportionate to the gravity of the offence and the offender’s responsibility. Proportionality is the fundamental principle of sentencing.[11]
+[16] It is possible for a sentence to be demonstrably unfit even in the absence of an error in imposing it.[12]
+[17] It will be useful to preface detailed discussion of the grounds of appeal with identification of the judge’s error which warrants that greater legal analysis.
+The Bratzer error
+[18] Following a lengthy consideration of both the principles of sentencing and the circumstances of the offence and the offender, including the two IRCA reports, the judge reached this preliminary conclusion:[13]
+[166] All other things being equal, normally I would have seriously considered a total sentence between 3.5 and 5 years’ imprisonment, but for the principle of totality; in light of which I would have considered further reducing the total sentence to between 3 and 4 years’ imprisonment.
+[19] At sentencing, Mr. White, relying on this Court’s decisions in Anderson[14] and Wournell, argued for a conditional sentence order. The judge initially dispensed with that submission because Mr. White’s circumstances bore no resemblance to those of Mr. Anderson or Mr. Wournell. Citing Anderson, he concluded:
+[24] The upshot of these comments in Anderson, demonstrate that Mr. Anderson’s circumstances are substantially different from those of Mr. White, who is guilty of simultaneous firearms and cocaine/cannabis trafficking offences.
+[25] Mr. White’s cumulative moral blameworthiness and the seriousness of his offences are substantially greater than in Mr. Anderson’s case.
+[20] Those findings alone should have precluded a conditional sentence order as an appropriate disposition in this case. But the judge was then diverted by Bratzer, to impose a conditional sentence on Mr. White. It was an error of law for the judge to rely on Bratzer because it was materially different from Mr. White’s case, and so caused him to ignore proportionality.
+[21] Mr. White was a 24-year-old with a lengthy record, including 16 adult offences. He was convicted of trafficking in marijuana and cocaine. He was convicted of gun charges. His gun was described as a “tool of the trade”. Neither Mr. White’s personal circumstances nor the objective seriousness of the offences for which he was convicted, bore comparison to Mr. Bratzer.
+[22] Mr. Bratzer pleaded guilty to three counts of robbery and one of committing an offence while masked. He and another individual or individuals robbed three gas stations over a period of eight days in January of 2000. Mr. Bratzer was armed with a sledgehammer. He was 18 years old. He had been diagnosed with attention deficit disorder and short-term memory loss during his junior high school years. He had attended a school for children with moderate to severe learning disabilities. At the time of the offences, Mr. Bratzer’s family had followed his father to Cambodia. Mr. Bratzer was left in the care of his older brother with whom he had a falling out. The offences occurred after he had moved out and was living alone.
+[23] Mr. Bratzer had been granted interim release. He used the time wisely. Although the release conditions were stringent, the Court described his “substantial progress while on interim release”. He was a member of the militia and “had attracted the confidence of his superiors; he had a long-standing and attainable career objective; he had a good relationship with a loving and very supportive family… he was a youthful offender without a serious or longstanding past record; he had received psychiatric counseling to address his feelings of anger and inadequacy”, receiving a “positive report from his doctor”. He had successfully completed grade 12 equivalency. He had abided strictly by stringent conditions of release over 13 months.
+[24] As Mr. Hubbard for the provincial Crown appropriately summarizes, Mr. Bratzer:
+107. […]
+a. took significant steps towards rehabilitation while on bail,
+b. made efforts to give back to the community,
+c. the offences he committed were found to be out of character,
+d. the offences committed were found to form a “spree”, justifying concurrent sentences,
+e. Mr. Bratzer complied with house arrest bail conditions for a significant period of time,
+f. Mr. Bratzer had no criminal record, and,
+g. Mr. Bratzer plead guilty before trial, demonstrating remorse.
+[25] Mr. Bratzer made efforts to make amends to the community he had offended. He performed 50 hours of community service work, volunteered at two orphanages and taught English as a second language, all while completing his high school education. Mr. Bratzer demonstrated remorse, expressed an interest in meeting his victims, and wrote individual letters of apology to each one of them.
+[26] Mr. Bratzer’s three robberies were called a “spree” by the judge who sentenced him. His offending was described as shockingly out of character by all who knew him. Mr. Bratzer had acted impulsively and uncharacteristically over a nine-day period.
+[27] After a lengthy summary of Mr. Bratzer’s personal circumstances, this Court observed:
+[43] It is difficult to imagine what more Jesse Bratzer could have done to turn his life around in the time available to him before sentence. All information supported the judge’s conclusion that he was not the callous and brazen offender revealed in the interview immediately following his arrest.
+[28] By contrast, Mr. White’s offending was not an uncharacteristic or transient moment. He was engaged in the retail business of drug trafficking. He had customers and a contact system for selling and operating his business. He was found in possession of a cutting agent, intended to be mixed with powdered cocaine which would increase his level of profit.[15] He was found with drug trafficking paraphernalia, instrumental to his drug trafficking operation.[16] Mr. White’s possession of an illegal handgun would have required planning and deliberation. He knew another occupant of the vehicle had possession of a larger handgun.[17]
+[29] Mr. White committed his offences while on probation. Following arrest, he committed further offences. His bail conditions were not especially limiting. He was not under house arrest or a curfew. He had virtually no geographic restrictions on his freedom of movement.
+[30] The judge described Mr. White’s compliance with bail as mitigating. That was an error in this case. Mr. White’s compliance with very relaxed bail conditions would be relevant to a “Proulx”[18] analysis with respect to the risk of reoffending, but it could not be substantially mitigating as the judge here suggested. Those charged with crimes do not receive extra credit simply for not breaking the law.
+[31] Unlike Mr. Bratzer, Mr. White did not accept responsibility for his actions or express any remorse. He does not receive the mitigating benefit of a guilty plea. At trial, Mr. White denied knowledge of the illegal items located in the vehicle he occupied. The judge did not believe him.
+[32] Mr. White has a significant criminal record with repeated breaches of court orders. The trial judge was satisfied beyond a reasonable doubt that had he not been arrested, Mr. White would have continued with this drug trafficking enterprise.
+[33] The judge’s inappropriate comparison of Mr. White with Mr. Bratzer was augmented by assumptions without evidentiary foundation. Mr. Hubbard for the provincial Crown refers us to these passages in the judge’s decision:
+[175] Is he to be precluded from consideration for a Conditional Sentence Order merely because he was unable to take more rehabilitative steps on account of his simply not having access to such rehabilitative services and greater family and community support?
+[176] Without anywhere near the supports of the kind Mr. Bratzer had, Mr. White remained on release for a long time and committed no further crimes after December 18, 2020.
+[34] Mr. White did not seek out counseling[19] as did Mr. Bratzer. No evidence sustains the assertion that Mr. White would not have had access to counseling if he had sought it. One of the IRCA reports says the opposite. It details options available to Mr. White as listed by Dr. Patrina Duhaney:[20]
+a.
+The Nova Scotia Brotherhood Initiative – a free program for Black men that offers support for improved health and well-being. Some of the services provided include both physical and mental health services addressing experiences of grief, depression, and anger management;
+b.
+The Black Business Initiative – provides support for Black entrepreneurs including programs, training, mentorship and networking;
+c.
+The Black Entrepreneurship Program – provides mentoring, resources, marketing strategies, and funding opportunities for Black entrepreneurs living in Nova Scotia;
+d.
+The Nova Scotia Association of Black Social Workers – offers the Black community Toll-Free Support Line, which provides free counselling support over the telephone;
+e.
+The Pause Mental Health Program – provides the United Pause African Ancestry Support Line, which is also a free telephone-based support service for individuals of African descent.
+[35] There is nothing in the record supporting the judge’s statement that Mr. White could not have performed community service work or volunteered his time within his community. Further speculation of the judge followed:
+[186] Sending him to jail for 4 years now, where he would be exposed to the full array of federally imprisoned offenders - all day, each day and with little programming suited to his specific needs, would likely reinforce his previous criminogenic perspective and significantly increase the likelihood of his returning to a life of crime.
+[36] In fact, the most recent IRCA report showed that Mr. White’s life changed significantly when previously incarcerated. It was during that time that he studied the Quaran and converted to Islam.
+[37] The judge also concluded that Mr. White did not have the support offered to Mr. Bratzer. To the contrary, letters of reference from Mr. White’s brother, sister and grandmother and comments made by staff at the Phoenix Youth Program are to the opposite effect. Mr. White had the support of his employer who provided a letter confirming his employment at the time of sentencing.
+[38] There is simply no comparison between the circumstances of Mr. Bratzer and those of Mr. White. The materiality of the difference makes it an error of law for the judge to have relied on Bratzer. The judge himself earlier recognized that Mr. White’s moral culpability was much higher than Mr. Anderson or Mr. Wournell, both of whom received conditional sentences. The move from a sentencing range of 3 to 4 years of federal incarceration to a conditional sentence order was unjustified on the authority of Bratzer. It is an unfit sentence.
+[39] The judge’s error obliges this Court to perform a new sentencing analysis.[21] However, absent an error in principle, the Court must defer to the judge’s findings of fact that are untainted by error, and the presence of aggravating or mitigating factors.[22]
+The Judge erred by imposing a sentence that did not accord with the fundamental principle of proportionality
+The Proportionality Principle
+[40] Proportionality requires consideration of the gravity of the offences and the moral blameworthiness of the offender. Proportional sentences must also respect the parity principle – like offences and offenders should receive comparable sentences.[23]
+[41] In Lacasse, the Supreme Court of Canada described application of the proportionality principle and its interplay with parity:
+[…] Proportionality is determined both on an individual basis, that is, in relation to the accused him or herself and to the offence committed by the accused, and by comparison with sentences imposed for similar offences committed in similar circumstances. Individualization and parity of sentences must be reconciled for a sentence to be proportionate: s. 718.2(a) and (b) of the Criminal Code.[24]
+[42] “Proportionality is a ‘central tenet’ of Canada’s sentencing regime, with roots that predate the recognition of it as the fundamental principle of sentencing in s. 718.1 of the Criminal Code”.[25]
+[43] Proportionality requires that the “…amount of punishment an offender receives must be proportionate to the gravity of the offence and the offender’s moral blameworthiness”.[26] The judge’s failure to respect proportionality constitutes an error of law resulting in an unfit sentence, requiring the sentence to be set aside. It requires this Court to fix a proper sentence.
+[44] The gravity of the offence refers to the “…seriousness of the offence in a general sense and is reflected in the potential penalty imposed by Parliament and in any specific features of the commission of the crime”.[27] The gravity of the offence includes and is measured by the consequences of the offender’s actions on victims and public safety, and the physical and psychological harms flowing from the offence[28].
+[45] An offender’s moral culpability is measured against the offence’s intent requirement (mens rea), the offender’s conduct while committing the offence, any motive the offender may have had, as well as the offender’s background that may increase or decrease responsibility for the crime, including personal circumstances and mental capacity.[29]
+[46] A sentence that fails to respect the proportionality principle is an unfit sentence[30]. Applying proportionality, the gravity of Mr. White’s offences will be considered first. Next, Mr. White’s moral blameworthiness will be addressed.
+Gravity of Mr. White’s offences
+[47] Mr. White was found guilty of possessing 8.5 grams of cocaine and approximately 160 grams of cannabis marijuana and resin for the purpose of trafficking. He was also convicted of possessing a loaded .32 calibre handgun and ammunition while conducting his violent and socially destructive trade.[31]
+[48] As earlier described, Mr. White was arrested by police responding to a call relating to a motor vehicle accident in a busy downtown Halifax parking lot. Upon arrival, the police found Mr. White, his brother Decoda White and his partner, Miriam L. Husseni in a Volkswagon Jetta. Police received confidential information there were firearms in the car. The three were arrested and a search of the vehicle turned up the loaded .32 Smith and Weston, with extra ammunition for that gun, 17.5 grams of cocaine, 160 grams of cannabis marijuana and cannabis resin, $2,900 in cash, a cutting agent for the cocaine and two working digital scales. Police also found a .357 Magnum. The judge found that Mr. White knew his brother, Decoda had possession of that weapon.
+[49] The judge determined that Mr. White and his brother were conducting a cocaine and cannabis trafficking enterprise which preceded his arrest and would have continued but for his apprehension by police. The guns were to protect themselves and their enterprise.[32]
+[50] Both possession of a loaded firearm and trafficking in “hard drugs” such as cocaine are very serious crimes owing to the grave social harm and violence involved in both. Our courts routinely condemn these crimes for these reasons.[33]
+[51] The Supreme Court of Canada has reiterated the gravity of trafficking in hard drugs and the tragic consequences that flow from that trade.[34] Trafficking in hard drugs is a fundamental threat to public safety and an “offence of violence”.[35]
+[52] Mere possession of a loaded illegal handgun is also a serious crime. In Nur Justice Moldaver observed that the s. 95(1) Criminal Code prohibition against possession of illegal firearms was introduced in response to perennial gun violence.[36] In Nur, McLachlin C.J. opined that a 3 year sentence may be appropriate for the “vast majority” of s. 95 (possession) cases. Gun violence has not diminished since Nur.[37]
+[53] Parliament’s setting of maximum sentences is indicative of the seriousness of an offence.[38]
+[54] In 2023 Parliament increased the maximum penalty for possession of illegal firearms from 10 to 14 years. Parliament’s upward amendment of the maximum sentence emphasizes the seriousness of this offence.[39] The maximum penalty for violating firearms prohibition orders is 10 years’ imprisonment.[40] Trafficking in hard drugs carries a maximum penalty of life imprisonment.[41]
+[55] It has long been recognized that incidents of gun crime in Halifax and elsewhere in the Province have been increasing and put lives at risk.[42] Gun crime and drug trafficking are prevalent fellow travellers in this community. Their mutual presence elevates the threat to the public and is a “potent recipe for loss of life”.[43] In the case of a racialized offender like Mr. White, members of the African Nova Scotian community are frequently at risk. As Chief Judge Perry Borden put it:
+[49] It is not lost upon me that far too often members of our African Nova Scotian communities are affected by these offenses. Too often some of our young men are arming themselves with prohibited and restricted weapons. Too often, African Nova Scotian men are the targets of gun violence and frequently they are shot in our city streets. This has often resulted in their families burying these otherwise healthy young men who were in the early stages of their lives.[44]
+[Emphasis added]
+[56] Both Crowns expressed concern about any suggestion that the seriousness of the offences could be mitigated by the circumstances of the offender. They discern a difference of approach between this Court in Anderson[45] and the Ontario Court of Appeal in Morris.[46] Both Anderson and Morris were sentence appeals involving racialized offenders. The Crown refers us to Anderson, where this Court commented:
+[121] As the ANSDPAD Coalition asked this Court to recognize, the social context information supplied by an IRCA can assist in:
+• Contextualizing the gravity of the offence and the degree of responsibility of the offender.
+[…]
+[142] A conditional sentence must adhere to the fundamental principle of proportionality stated in s. 718.1 of the Criminal Code. Both the gravity of the offence and the degree of the offender’s responsibility for it must be addressed contextually.
+[57] The Crown asserts there is an apparent contrast in the Ontario Court of Appeal’s decision in Morris where it noted:
+The gravity or seriousness of an offence is determined by its normative wrongfulness and the harm posed or caused by that conduct in the circumstances in which the conduct occurred. Accordingly, unlike when assessing the offender’s degree of personal responsibility, an offender’s experience with anti-Black racism does not impact on the seriousness or gravity of the offence;[47]
+[58] The Crown relies on comments by the Supreme Court of Canada in Sharma,[48] that the circumstances of the offender do not have any impact on the seriousness of the offence:[49]
+[108] Finally, to the extent the Court of Appeal pointed to Ms. Sharma’s circumstances as demonstrative of Parliament’s overreach, it collapsed the concept of seriousness of the offence into the concepts of circumstances of the offender and particulars of the crime. On this point, we endorse the sentencing judge’s comments: “[Ms. Sharma] committed a serious offence in importing cocaine ⸺ a reality undisturbed by her personal culpability or mitigating factors” (para. 141 (emphasis added)). The Court of Appeal for Saskatchewan made a similar point in R. v. Neary, 2017 SKCA 29, [2017] 7 W.W.R. 730: “The gravity and seriousness of the offences are not attenuated by the personal circumstances of the accused” (para. 39). We accept entirely that the circumstances which led Ms. Sharma to import drugs are tragic and that her moral culpability was thereby attenuated (which was reflected in a sentence of 18 months rather than the six years initially proposed by the Crown). But those facts do not make importation of a Sch. I substance, particularly in the quantity she carried, any less serious.
+[Emphasis added]
+[59] To similar effect, the Federal Crown refers to Justice Kasirer’s comments in S.B.[50] that moral responsibility should be distinguished from the objective gravity or seriousness of the offence, citing the Ontario Court of Appeal in Morris:
+[64] S.B. argues that the Court of Appeal erred in its assessment of the EPSR because the report demonstrated that his moral culpability was diminished (A.F., at paras. 111-13). In an adult sentence application under the second prong of s. 72(1), social context evidence may indeed inform a youth court’s determination of the moral responsibility of the young person for the offence to assist in its analysis of what length of sentence will hold them accountable (I.M., at para. 179; see also R. v. Hills, 2023 SCC 2, at para. 58). This should be distinguished from the objective gravity or seriousness of the offence in a general sense, which is determined by its “normative wrongfulness” and the consequences of the conduct on the victims and society in the circumstances of a given case (Morris, at para. 13; see also Hills, at para. 58).
+[Emphasis added]
+[60] Contextually, the circumstances of the offence and socially contextualizing the circumstances of the offender may well be different things. The former describing, for example, that gun possession is unconnected to any other criminal activity;[51] the latter describing personal circumstances that may attenuate moral culpability.[52]
+[61] In any event, this appeal does not turn on resolution of this debate, and we should decline to do so.
+Mr. White’s circumstances – Moral blameworthiness
+[62] At the time of his arrest, Mr. White was 24 and had sixteen prior convictions as an adult. Nine of these were for violating court orders:
+(a) five for breaching release orders;
+(b) two for violating probation orders; and
+(c) two for driving while disqualified.
+[63] Included in these breached court orders was a recent conviction for possessing a weapon (a knife) for a purpose dangerous to the public.
+[64] Four months after his arrest on the charges related to the issues before us, Mr. White violated the conditions of a Probation Order and his Release Order. A month later, he was convicted of operating a vehicle while prohibited and was sentenced to 57 days imprisonment.
+[65] Possession of a loaded firearm is serious because it is inherently dangerous. Mr. White’s possession of a loaded handgun could have no other purpose than to intimidate, wound or kill and is significantly aggravating. Parliament recognized that as an aggravating factor in the context of the drug trade by requiring that it be considered in the sentencing context.[53] The seriousness of hard drug and gun crimes is why courts have emphasized protection of the public, denunciation and deterrence as paramount sentencing objective in such cases.[54]
+[66] The judge’s imposition of a conditional sentence is incongruent with other cases such as Anderson and Wournell that have imposed such sentences for simple possession of an illegal firearm. It raises the issue of parity.
+[67] In Lacasse[55] the Court described the parity principle:
+[2] For this purpose, the courts have developed tools over the years to ensure that similar sentences are imposed on similar offenders for similar offences committed in similar circumstances — the principle of parity of sentences — and that sentences are proportionate by guiding the exercise of that discretion, and to prevent any substantial and marked disparities in the sentences imposed on offenders for similar crimes committed in similar circumstances. For example, in Quebec and other provinces, the courts have adopted a system of sentencing ranges and categories designed to achieve these objectives.
+[Emphasis added]
+[68] In Friesen[56] the Supreme Court elaborated on the relationship between proportionality and parity:
+[32] Parity and proportionality do not exist in tension; rather, parity is an expression of proportionality. A consistent application of proportionality will lead to parity. Conversely, an approach that assigns the same sentence to unlike cases can achieve neither parity nor proportionality (R. v. L.M., 2008 SCC 31, [2008] 2 S.C.R. 163, at paras. 36-37; R. v. Ipeelee, 2012 SCC 13, [2012] 1 S.C.R. 433, at paras. 78-79).
+[33] In practice, parity gives meaning to proportionality. A proportionate sentence for a given offender and offence cannot be deduced from first principles; instead, judges calibrate the demands of proportionality by reference to the sentences imposed in other cases. Sentencing precedents reflect the range of factual situations in the world and the plurality of judicial perspectives. Precedents embody the collective experience and wisdom of the judiciary. They are the practical expression of both parity and proportionality.
+[Emphasis added]
+[69] In this case, the Federal Crown endorsed the judge’s initial identification of a fit sentence for trafficking:
+1. In sentencing the Respondent for his drug trafficking offences, the Trial Judge properly categorized him has a street-level trafficker or petty retailer and was correct in stating that the established sentencing range for similar street-level cocaine trafficking offences was from 18 to 30 months imprisonment. The Trial Judge was also correct to find that Mr. White’s conviction for trafficking cannabis and cannabis resin in addition to cocaine aggravated the gravity of his trafficking offences and that a fit sentence for Mr. White’s drug trafficking offences alone “would closely approach, and reasonably could exceed, two years incarceration …”.
+[Emphasis added]
+[70] Similarly, both Crowns agreed with the judge’s discussion of the ranges for firearms offences. The judge identified a first-time offender using a firearm as a tool of the trade as having a range of 3 to 5 years.[57]
+[71] The judge initially concluded that the range of sentencing for hard drug trafficking crimes committed with the assistance of a prohibited firearm attracted sentencing in the range of 3.5 to 5 years, reduced for the principle of totality to 3 to 4 years. Both Crowns also agreed with this assessment.
+[72] Importantly, when arriving at the 3.5 to 5 year range, the judge gave careful consideration to the two IRCAs before him. He fully appreciated the systemic and background factors that contributed to Mr. White coming into conflict with the law. He correctly concluded that Mr. White’s moral culpability and the gravity and seriousness of the offences required a sentence significantly greater than 2 years’ imprisonment.
+[73] The judge then took the “Bratzer turn” making the errors already described.
+[74] The judge thought it mitigating that Mr. White had remained crime-free since December 2020 (passing over his post-arrest offences) and had maintained some level of employment “for a significant period of time since the offences”.[58]
+[75] After his arrest in 2020, Mr. White did find periodic employment to support his partner and child, but this is of diminished import in sentencing for serious crimes. As Justice Saunders said in R. v. Chase:[59]
+[37] In its submissions the Crown says Mr. Chase’s personal circumstances are insufficient to qualify for leniency and attract a soft sentence. I agree that finding a job and providing some financial support for a pregnant girlfriend are, in and of themselves, hardly enough to entitle a convicted cocaine trafficker to a “break” on sentence. Such efforts, while laudable, should be expected.
+[76] Generally speaking, bail compliance, remaining crime-free while awaiting trial and sentence is not mitigating but rather is simply an absence of an aggravating factor. Compliance with the law and bail conditions is expected.[60] Courts have attached mitigative value when an offender complies with strict bail conditions which had a significant impact on the offender’s liberty interests and normal social interaction, employment and the like. Adverse impact upon the accused should be demonstrated in any case in which the accused seeks to count strict conditions as mitigative.[61]
+[77] In this case, Mr. White never endured restrictive or stringent release conditions. His initial release order in August 2020 only obliged him to: attend court when directed, not possess firearms nor possess or consume illegal drugs. That order was varied in January 2021 to allow him to live in New Brunswick. After his acquittal following his first trial in February of 2021, Mr. White had no release conditions from then until his sentencing following his second trial. In effect, Mr. White was never subject to meaningful inconvenience pending trial or appeal.
+[78] It was wrong of the judge to assign bail compliance as mitigating in the circumstances of this case. Indeed, Mr. White was not entirely bail compliant or crime-free following his arrest.[62]
+Denunciation / deterrence / Mr. White’s personal circumstances
+[79] The foregoing discloses that the judge’s imposition of a conditional sentence was inappropriate. It fails to implement the principles of denunciation and deterrence that must be given primacy in very serious offences like these. Moreover, the judge misapprehended Mr. White’s personal circumstances and diminished his moral culpability for reasons unsupported by the record and inconsistent with the cases he cited to support the errors he made.[63]
+[80] Mr. White’s offending mandated a penitentiary sentence greater than 2 years, thus making a conditional sentence unavailable.
+The sentence was unfit
+[81] As earlier noted, a sentence that ignores proportionality is an unfit sentence.[64]
+[82] The Federal Crown reviewed sentencing decisions across Atlantic Canada involving a combination of gun possession and drug trafficking offences (for Schedule I[65] substances). These cases reflected a broad spectrum, including African Canadian, Indigenous offenders, first-time offenders and seasoned criminals. Some involved joint recommendations and contested hearings. They pre-date and post-date the decision in Nur. The range of global sentences emerging from this review was between 3.5 and 11 years in a federal penitentiary with the majority falling in the 5 to 6 year range.
+[83] For its part, the Provincial Crown identified six relatively recent Canadian cases involving possession of a gun and trafficking. Sentences ranged from 4.2 to 7 years.[66]
+[84] Cases in a lower range of 2 to 3 years, involved simple possession of a gun only[67] or trafficking only, but not both.[68]
+[85] Mr. White refers to R. v. Mero, [69] an admitted outlier that he says supports a conditional sentence order in his case. Mr. Mero was an Indigenous offender convicted of firearms and trafficking offences.
+[86] But Mero is not this case. There was no finding that Mr. Mero’s gun was a tool of the trade. He had been compliant with severe bail restrictions for five years. He suffered from a serious medical condition. He had lost the majority of his lung function for which he was on various medications.
+[87] Mr. Mero became addicted to heroin following discontinuation of the opioid prescribed for his lung condition. Since then he had sought out treatment, was on Methadone and had been free of drugs and alcohol for 2 years by the time his Gladue Report was prepared.
+[88] Mr. Mero’s condition made him highly susceptible to Covid 19. Had he contracted it, his condition would have deteriorated rapidly and there was a much higher risk of death. The widespread presence of Covid in the penitentiary system was a factor militating against his incarceration. Mr. Mero’s circumstances were unique and bear no relation to those of Mr. White.
+[89] The judge’s initial assessment was that a 3.5 to 5 year range of sentence was appropriate. He reduced that to 3 to 4 years for “totality”, including consideration of Mr. White’s personal circumstances as described in his IRCA reports, keeping in mind:
+•
+the seriousness of both gun possession as a tool of the trade and conducting a hard drug trafficking enterprise;
+•
+Mr. White’s history of offending, both pre- and post-arrest;
+•
+the relative absence of mitigating circumstances;
+•
+Mr. White’s culpability viewed through the lens of his personal circumstances.
+[90] Both the seriousness of the offence and Mr. White’s moral culpability call for a carceral sentence of 4 years.
+Should Charter breaches reduce Mr. White’s sentence?
+[91] Mr. White argued that any new sentence should take into account Charter breaches when Mr. White was originally arrested in August of 2020.
+[92] There is no requirement that the court reduce a sentence in the face of state misconduct.[70] To entertain any proposed reduction, there must be a connection between the police or state misconduct and the circumstances of the offence.[71]
+[93] Mr. White did not make this argument before Justice Rosinski when he was sentenced. However, on appeal to this Court following Mr. White’s first trial, the Crown conceded that the officer who arrested Mr. White in August of 2020 did not have reasonable grounds for a warrantless arrest.[72] The original trial judge did not find any wilful, flagrant or reckless disregard of Mr. White’s rights.[73] She recognized that officers’ safety and public safety became a live issue while investigating the vehicle accident that brought the police to the parking lot where they first encountered Mr. White. The trial judge found that the police behaviour did not rise to the level “which requires the Court to disassociate itself from such conduct.”[74]
+[94] On appeal, this Court concluded that the impact on Mr. White’s Charter-protected interests was modest.[75] Nevertheless, there is a causal connection between finding the guns and drugs and the breach of Mr. White’s Charter rights.
+[95] In the end, the most important consideration is proportionality. Courts are required to craft just and fit sentences for all offenders.[76] Charter breaches or state misconduct do not require reduction of a sentence.[77]
+[96] Keeping in mind the need for a proportional sentence that takes into account the seriousness of the offence and the culpability of the offender, together with the impact on Mr. White of breach of his Charter rights, no adjustment should be made in Mr. White’s sentence in this case.
+Should Mr. White now be incarcerated?
+[97] Mr. White has not been incarcerated. But a conditional sentence order is considered a sentence of imprisonment.[78]
+[98] Mr. White submits that even if his sentence is increased, he should not be incarcerated now. He asks that any new sentence be stayed. He has remained crime-free since December of 2020. He now has two children with his partner. He is employed.
+[99] Whether to reincarcerate after imposing a fit sentence on appeal is a question of whether it is in the interests of justice do so.[79]
+[100] It is Mr. White’s burden to show why a fit sentence should not be enforced.[80] In Kleykens,[81] this Court listed non-exhaustive criteria that should inform the court’s deliberations on reincarceration:
+•
+the passage of time since the arrest,
+•
+whether the offender has served the original sentence, either entirely or in part,
+•
+the extent to which incarceration will adversely affect the stability of the offender’s current circumstances and ultimate rehabilitation,
+•
+whether the offender has been compliant with the conditions of their release;
+•
+the extent to which the offender has lived a law-abiding lifestyle since their conviction, and
+•
+whether the principles of denunciation and deterrence can be adequately served without re-incarcerating the offender.
+[101] Substantial time has passed since Mr. White’s first arrest. But he has suffered very little limitation on his liberty interests, even after having been convicted following his second trial in May of 2024.
+[102] Mr. White has served approximately 14 months of his conditional sentence.
+[103] Incarceration will adversely affect the stability of Mr. White’s circumstances. It does that for virtually every incarcerated offender. There is no clear indication of what impact incarceration may have on his rehabilitation. We have very little information about rehabilitation.
+[104] Mr. White has not been entirely compliant with his conditional sentence order. He breached that order by being intoxicated. We do not know how this came to the attention of the authorities.
+[105] Save for the foregoing instance of intoxication, there is no evidence that Mr. White has not been law-abiding since imposition of the conditional sentence order.
+[106] The most significant factors that militate against a stay are denunciation and deterrence. Particularly important in this case are general deterrence and denunciation. Mr. White committed very serious crimes, whose interruption was fortuitous. The judge was satisfied he would otherwise have carried on with his illegal activities. He was not crime-free post-arrest. He has a lengthy criminal record with numerous breaches of court orders. Mr. White’s behaviour warrants further resort to Chief Judge Borden’s lament:[82]
+[51] Furthermore, conditional sentence orders, while potentially addressing some aspects of the over-incarceration crisis of African Nova Scotian offenders, also provide cold comfort to the Court with respect to efforts to change the mindset of some offenders with respect to deterrence. There is a misinformed ideology among some young African Nova Scotia offenders that gun offence convictions equate to a slap on the wrist.
+[52] That ideology is entirely inaccurate. Conditional sentence orders may be a viable option for some offenders in appropriate cases. However, Anderson does not stand for the proposition that a conditional sentence order is guaranteed - or automatic - for all African Nova Scotian offenders convicted of s. 95(1) offences.[83]
+[Emphasis added]
+[107] The Supreme Court of Canada recently ordered re-incarceration in a case involving serious historical sexual assaults on children.[84] The Court emphasized that the gravity of the offences gave prominence to denunciation and deterrence. The Court noted the legislative direction regarding the primacy of denunciation and deterrence in these cases.[85]
+[108] Despite relatively positive parole reports, and his release on parole, the Supreme Court re-incarcerated Mr. Sheppard. A “clean record” since the historical offences in Sheppard was of no avail in resisting reincarceration. Mr. Sheppard’s criminal behaviour was not isolated. Likewise here, Mr. White’s arrest interrupted an ongoing enterprise.[86]
+[109] Ordering a stay now – effectively endorsing the unfit sentence granted by the judge – would send the wrong message to potential offenders, their victims, to Mr. White’s particular community, and the public at large. It would undermine public confidence in the judicial system’s treatment of the combination of very serious offences committed here and the offenders who commit them. It would not be in the interests of justice to grant a stay.
+Intervenor’s Concerns
+[110] The intervenor raises three fundamental concerns about the judge’s obiter comments, suggesting he:
+1. Created a “Marginalized African Nova Scotia” test;
+2. Narrowed the scope and availability of IRCAs;
+3. Misapplied Anderson.
+Marginalized African Nova Scotia test
+[111] The intervenor notes the judge opined that not all African Nova Scotians were “marginalized” such that Anderson may not apply in those cases.[87]
+[112] Sentencing is a highly individualized process that requires full contextual knowledge of the offender’s background and circumstances. IRCAs assist in that analysis for some racialized accused. The nature and extent of marginalization would be informed by this analysis and there is no need to invent a “marginalization test” before Anderson would apply. To the extent that the judge may have done so, it is not supported by Anderson and other authorities from this Court.
+Narrowing the scope of IRCAs
+[113] The intervenor refers us to the judge’s obiter comments that IRCAs may be confined to adult offenders in serious cases.[88]
+[114] This narrowing of the use of IRCAs is not endorsed by Anderson or other jurisprudence from this Court and is not the law.
+Misapplication of Anderson
+[115] The intervenor raises three sub-issues. Only the third sub-issue will be addressed. The intervenor complains that the judge interprets Anderson as giving the appearance of a “race-based discount”[89] in sentencing ranges for African Nova Scotians. Anderson does not so direct. Nor did the Supreme Court in Ipeelee.[90]
+[116] There is no need to establish a causal connection between “background factors and the commission of the current offence”.[91]
+[117] Nevertheless, there should be some connection between the circumstances of the offender and culpability:[92]
+[…] Furthermore, the operation of s. 718.2(e) does not logically require such a connection. Systemic and background factors do not operate as an excuse or justification for the criminal conduct. Rather, they provide the necessary context to enable a judge to determine an appropriate sentence. This is not to say that those factors need not be tied in some way to the particular offender and offence. Unless the unique circumstances of the particular offender bear on his or her culpability for the offence or indicate which sentencing objectives can and should be actualized, they will not influence the ultimate sentence.
+[Emphasis added]
+[118] An appropriate sentence is an individualized process. IRCAs assist by retailing the circumstances of a particular offender. To the extent that IRCAs may have an impact on individual sentences, they may ultimately affect the range of sentences over time. This would be a natural evolution of sentencing individual offenders in individual cases. Anderson does not suggest there should be a generic “discount” in sentencing ranges for racialized offenders.
+Conclusion
+[119] The conditional sentence order should be set aside. A sentence of 4 years should be substituted. Mr. White shall surrender himself to the authorities within 48 hours of 4:00 p.m., May 5, 2026 to serve the remainder of his sentence. Mr. White should receive 1:1 credit for time served on his conditional sentence.[93] The ancillary orders originally sought by the Crown and ordered by the judge shall remain in effect.[94]
+Bryson, J.A.
+Concurred in:
+Beaton, J.A.
+Gogan, J.A.
+[1] 2024 NSSC 136.
+[2] 2022 NSCA 61.
+[3] “IRCA”.
+[4] The totality principle ensures that consecutive sentences should not ae unduly harsh by exceeding the overall culpability of the offender. Criminal Code, s. 718.2(c); R. v. M. (C.A.), [1996] 1 S.C.R. 500.
+[5] R. v. Bratzer, 2001 NSCA 165 [Bratzer].
+[6] Generally, conditional sentence orders allow a sentence to be served in the community under conditions if any potential incarceration would be less than 2 years and neither prison nor probation are necessary.
+[7] 2025 NSSC 54 [Sentencing Decision].
+[8] Short for obiter dictum – literally meaning “a remark by the way”. Legally it means a comment not essential to the reasoning of a decision.
+[9] R. v. Suter, 2018 SCC 34 at para. 115; see also R. v. Lacasse, 2015 SCC 64 at para. 11 [Lacasse].
+[10] R. v. Friesen, 2020 SCC 9 at para. 26 [Friesen].
+[11] Criminal Code, s. 718.1, R. v. Wournell, 2023 NSCA 53 at para. 52 [Wournell].
+[12] Lacasse at paras. 52 and 53.
+[13] Broadly stated, this means the sentence is less than 2 years and could be served in the community.
+[14] R. v. Anderson, 2021 NSCA 62 [Anderson].
+[15] 2024 NSSC 136 at para. 39.
+[16] Ibid.
+[17] Sentencing Decision at para. 29.
+[18] R. v. Proulx, [2000] 1 S.C.R. 61 [Proulx].
+[19] Mr. White’s second IRCA report refers to the need for counselling and his openness to “mental health support”.
+[20] Appeal Book, p. 397.
+[21] Lacasse at para. 43; Friesen at para. 27.
+[22] Friesen at para. 28.
+[23] Lacasse at para. 16 above.
+[24] Lacasse at para. 53.
+[25] R. v. Hills, 2023 SCC 2 at para. 56 citing R. v. Ipeelee, 2012 SCC 13 at para. 36, citing R. v. Wilmot (1996), 58 D.L.R. (2d) 33 (Ont. C.A.) [Ipeelee]; R. v. Solowan, 2008 SCC 62 at para. 12; R. v. Nasogaluak, 2010 SCC 6 at paras. 40-42 [Nasogaluak]; R. v. M (C.A.), [1996] 1 S.C.R. 500 at paras. 40-42.
+[26] Hills at para. 57 (citations omitted).
+[27] Hills at para. 58.
+[28] Hills at para. 58.
+[29] Hills at para. 58.
+[30] R. v. Ipeele, 2012 SCC 13 at para. 37.
+[31] Sentencing Decision at paras. 101, 152-157.
+[32] Sentencing Decision at para. 98.
+[33] R. v. Butt, 2010 NSCA 56 at para. 13.; R. v. Scott, 2013 NSCA 28 at para. 94.; R. v. Robbins, 1993 NSCA 108 at p. 2; R. v. Stokes, 1993 NSCA 195.
+[34] R. v. Parranto, 2021 SCC 46 at para. 87 [Parranto].
+[35] Parranto at paras. 88-92.
+[36] Dissenting Decision of Moldaver, J. in R. v. Nur, 2015 SCC 15 at para. 131 [Nur].
+[37] Mr. Nur was a first-time offender who pleaded guilty. He was Somalian. Substantial social context evidence was tendered at his sentencing hearing. The Court upheld a sentence of 40 months.
+[38] R. v. Sharma, 2022 SCC 39 at para. 106 [Sharma].
+[39] Parranto at para. 60.
+[40] Section 117.01(3)(a)
+[41] Controlled Drugs and Substances Act, S.C. 1996, c. 19, s. 5(3)(a).
+[42] R. v. Phinn, 2015 NSCA 27 at paras. 64-68; R. v. MacDonald, 2014 NSCA 102 at paras. 15-16.
+[43] R. v. Stephens, 2024 ONCA 793 at para. 19.
+[44] R. v. C.B., 2023 NSPC 68.
+[45] Anderson at paras. 121-122, 142.
+[46] R. v. Morris, 2021 ONCA 680 [Morris].
+[47] Morris at para. 13.
+[48] Sharma, 2022 SCC 39 at para. 108.
+[49] Sharma at para 108.
+[50] R. v. S.B., 2025 SCC 24 at para. 64.
+[51] Anderson at para. 58.
+[52] Anderson at para. 146.
+[53] S. 10(2)(a)(i) of the Controlled Drugs and Substances Act.
+[54] R. v. Kleyens, 2020 NSCA 49 at para. 66; Nur at para. 82.
+[55] 2015 SSC 64 at para. 2
+[56] Also see R. v. White, 2020 NSC 33 at paras. 49-58 and 69-70.
+[57] Sentencing Decision at para. 166.
+[58] Sentencing Decision at para. 163.
+[59] R. v. Chase, 2019 NSCA 36 at para. 37 [Chase].
+[60] R. v. Al Aazawi, 2022 ABCA 361 at para. 70; R. v. Sarrasin, 2021 ABCA 253 at para. 30; R. v. Gandour, 2018 ABCA 238 at para. 43; R. v. L.I., 2017 BCCA 444 at para. 12; R. v. R.M.D., 2014 BCCA 56 at para. 7.
+[61] R. v. Irvine, 2008 MBCA 34 at para. 30; R. v. Knockwood, 2009 NSCA 98 at para. 34.
+[62] See para. 65 above.
+[63] See Bratzer at para. 513; para. 19 above.
+[64] Paras. 43 and 46 above.
+[65] Such as cocaine.
+[66] R. v. Elvira, 2018 ONSC 7008; R. v. Morris, 2023 ONCA 816; R. v. Smith, 2023 ONCA 620; R. v. Lee, 2018 BCCA 428; R. v. Mann, 2018 BCCA 265.
+[67] R. v. Anderson, 2021 NSCA 62; R. v. Wournell, 2023 NSCA 53.
+[68] R. v. Scott, 2013 NSCA 28; R. v. Steeves, 2007 NSCA 130; R. v. Desmond-Robinson, 2022 ONCA 369.
+[69] 2021 BCCA 399.
+[70] R. v. Beaver, 2021 ABCA 227 at para. 22.
+[71] Nasogaluak at para. 50.
+[72] 2024 NSCA 61 at para. 5.
+[73] Ibid at para. 60.
+[74] Ibid at para. 56.
+[75] 2022 NSCA 61.
+[76] Nasogaluak at paras. 41-43.
+[77] Nasogaluak at paras. 39-43.
+[78] Proulx at para. 29.
+[79] R. v. Kleykens, 2020 NSCA 49 at para. 87.
+[80] R. v. M.W., 2026 NSCA 9 at para. 26.
+[81] 2020 NSCA 49 at para. 87.
+[82] Sentencing judges may bring their knowledge of their community into the sentencing process: Chase at para. 56; R. v. M. (C.A.), [1996] 1 S.C.R. 500 at paras. 91-92.
+[83] R. v. C.B., 2023 NSPC 68.
+[84] R. v. Sheppard, 2025 SCC 29 [Sheppard]. Also see R. v. M.W., 2026 NSCA 9.
+[85] Criminal Code, s. 718.01.
+[86] Sheppard at para. 95.
+[87] Sentencing Decision at paras. 56 and 57.
+[88] Sentencing Decision at para. 14.
+[89] Factum, para. 54.
+[90] Ipeelee at paras. 70 and 71.
+[91] Ipeelee at para. 8.
+[92] Ipeelee at para. 83.
+[93] R. v. Dawson; R. v. Ross, 2021 NSCA 29 at para. 111.
+[94] Sentencing Decision at para. 199.

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–72—JAN. 20, 2026?>
+<?I51 PUBLIC LAW 119–72—JAN. 20, 2026?>
+<?I52 PUBLIC LAW 119–72—JAN. 20, 2026?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–72: To amend title 38, United States Code, to modify the conditions under which the Secretary of Veterans Affairs is required to redevelop the individualized vocational rehabilitation plan for a veteran, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>72</docNumber>
+<citableAs>Public Law 119–72</citableAs><citableAs>139 Stat. 2001</citableAs>
+<approvedDate>2026-01-20</approvedDate>
+<dc:date>2026-01-20</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-01-23</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–72—JAN. 20, 2026</centerRunningHead>
+<page identifier="/us/stat/139/2001">139 STAT. 2001</page>
+<dc:type>Public Law</dc:type><docNumber>119–72</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend title 38, United States Code, to modify the conditions under which the Secretary of Veterans Affairs is required to redevelop the individualized vocational rehabilitation plan for a veteran, and for other purposes.<sidenote><p class="centered fontsize8" id="x67cb537f-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658076"><approvedDate date="2026-01-20">Jan. 20, 2026</approvedDate></p><p class="centered fontsize8" id="x67cb5380-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/4446">H.R. 4446</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x67cba1a1-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658180">Focused Assistance and Skills Training for Veterans’ Employment and Transition Success Act.</p></sidenote>
+<section id="d131e88" identifier="/us/pl/119/72/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x67cc8c02-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s101">38 USC 101 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Focused Assistance and Skills Training for Veterans’ Employment and Transition Success Act</shortTitle>” or the “<shortTitle role="act">FAST VETS Act</shortTitle>”.</content></section>
+<section id="d131e106" identifier="/us/pl/119/72/s2" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>CONDITIONS UNDER WHICH SECRETARY OF VETERANS AFFAIRS SHALL REDEVELOP INDIVIDUALIZED VOCATIONAL REHABILITATION PLAN.</heading><chapeau class="indentUp0 firstIndent0 fontsize10" id="x67ceaee3-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658120">  <ref href="/us/usc/t38/s3107">Section 3107 of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction> in subsection (b)—</chapeau><paragraph class="fontsize10" id="y67ceaee4-f891-11f0-b40e-895b28613a7e" identifier="/us/pl/119/72/s2/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>by <amendingAction type="delete">striking</amendingAction> “<quotedText>The Secretary shall review</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>(1) The Secretary shall review</quotedText>”;</content></paragraph>
+<paragraph class="fontsize10" id="y67ced5f5-f891-11f0-b40e-895b28613a7e" identifier="/us/pl/119/72/s2/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>by <amendingAction type="delete">striking</amendingAction> the second sentence; and</content></paragraph>
+<paragraph class="fontsize10" id="y67ced5f6-f891-11f0-b40e-895b28613a7e" identifier="/us/pl/119/72/s2/3" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">(3) </num><content>by <amendingAction type="add">adding</amendingAction> at the end the following new paragraph:<quotedContent><paragraph class="indentDown1 firstIndent0 fontsize10" id="y67cf4b27-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x67cf4b28-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658180">Determinations.</p></sidenote><chapeau>On the basis of such review, the Secretary shall—</chapeau><subparagraph class="fontsize10" id="y67cf4b29-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">“(A) </num><chapeau>redevelop such plan with such veteran if the Secretary determines the achievement of the long-range rehabilitation goals for such veteran is—</chapeau><clause class="fontsize10" id="y67cf4b2a-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="i">“(i) </num><content>no longer feasible due to changes in the employment handicap of the veteran; and</content></clause>
+<clause class="fontsize10" id="y67cf4b2b-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="ii">“(ii) </num><content>likelier under a different plan formulated under subsection (a); or<page identifier="/us/stat/139/2002">139 STAT. 2002</page></content></clause>
+</subparagraph>
+<subparagraph class="fontsize10" id="y67cf4b2c-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">“(B) </num><content>disapprove redevelopment of such plan if the Secretary determines such redevelopment is not appropriate.”</content></subparagraph>
+</paragraph>
+</quotedContent>.</content></paragraph>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2026-01-20">January 20, 2026</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/4446">H.R. 4446</ref>:</heading>
+<note>
+<headingText style="-uslm-lc:I658032">HOUSE REPORTS:</headingText> ┐No. <ref href="/us/hrpt/119/266">119–266</ref> (<committee>Comm. on Veterans’ Affairs</committee>).
+</note>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x67cf994d-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658035">Sept. 15, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x67cf994e-f891-11f0-b40e-895b28613a7e" style="-uslm-lc:I658035">Dec. 18, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

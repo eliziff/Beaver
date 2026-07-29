@@ -1,0 +1,341 @@
+{
+ "artifact_id": "ab-rsa-2000-c-l12-limitations",
+ "doc_type": "statute",
+ "jurisdiction": "CA-AB",
+ "dataset": "LEGISLATION-AB",
+ "citation": "RSA 2000, c L-12",
+ "citation_secondary": null,
+ "name": "Limitations Act",
+ "document_date": "2022-12-15",
+ "language": "en",
+ "source_url": "https://kings-printer.alberta.ca/1266.cfm?page=L12.cfm&leg_type=Acts&isbncln=9780779839018&display=html",
+ "scraped_timestamp": "2026-07-25 14:45:20.714000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-laws",
+  "revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "file": "LEGISLATION-AB/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "unofficial_sections_en",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "See upstream license: https://perma.cc/7GUJ-2NNL © Alberta King's Printer. Reproduced from the Alberta King's Printer Laws Online catalogue (https://kings-printer.alberta.ca), which permits reproduction of Alberta's statutes and regulations without permission provided due diligence is exercised to ensure the accuracy of the materials, the Crown is identified as the source, and the reproduction is not represented as an official version. See the Alberta King's Printer copyright terms: https://kings-printer.alberta.ca/copyright.cfm. NOTE: This is an unofficial reproduction of Alberta legislation, made without endorsement or affiliation by the Government of Alberta. The official Statutes and Regulations should be consulted for all purposes of interpreting and applying the law.",
+  "upstream_license_id": "AlbertaKingsPrinter-Reproduction"
+ },
+ "raw_text_file": "ab-rsa-2000-c-l12-limitations.txt",
+ "raw_text_chars": 25796,
+ "raw_text_sha256": "0c1d69b012eced18e093105b55e6ed4dd5df1c69a83186aa40beff4f78aefd2a",
+ "structure_provenance": "provider-native",
+ "structure_derivation": {
+  "labels_and_bodies": "verbatim from unofficial_sections_en (provider-native, zero annotation)",
+  "raw_span": "derived: each label located in the raw text by a line-anchored heading match, disambiguated by verifying the native body follows; span ends at the next located heading",
+  "warning": "the provider's section-map key order is NOT document order for decimal labels (e.g. 83.01, 83.1, 83.02, 83.2 ...); use doc_order, not map_order"
+ },
+ "structure": {
+  "kind": "section_map",
+  "native_field": "unofficial_sections_en",
+  "label_count": 17,
+  "anchored_count": 17,
+  "anchor_kinds": {
+   "unique": 17
+  },
+  "body_classes": {
+   "substantive": 17
+  },
+  "map_order_equals_doc_order": true,
+  "labels_map_order": [
+   "1",
+   "2",
+   "3",
+   "3.1",
+   "3.2",
+   "4",
+   "5",
+   "5.1",
+   "5.2",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13"
+  ],
+  "labels_doc_order": [
+   "1",
+   "2",
+   "3",
+   "3.1",
+   "3.2",
+   "4",
+   "5",
+   "5.1",
+   "5.2",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13"
+  ],
+  "sections": [
+   {
+    "label": "1",
+    "map_order": 0,
+    "doc_order": 0,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 162,
+     "end": 1907
+    },
+    "body_chars": 1724,
+    "body_sha256": "2c90e03f12086be15a8785f190e352f8a94534c7a81fe12a3ca23b685c22e09f",
+    "body": "In this Act,\n(a) “claim” means a matter giving rise to a civil proceeding in which a claimant seeks a remedial order;\n(b) “claimant” means the person who seeks a remedial order;\n(c) “defendant” means a person against whom a remedial order is sought;\n(d) “duty” means any duty under the law;\n(e) “injury” means\n(i) personal injury,\n(ii) property damage,\n(iii) economic loss,\n(iv) non-performance of an obligation, or\n(v) in the absence of any of the above, the breach of a duty;\n(f) “law” means the law in force in the Province, and includes\n(i) statutes,\n(ii) judicial precedents, and\n(iii) regulations;\n(g) “limitation provision” includes a limitation period or notice provision that has the effect of a limitation period;\n(h) “person under disability” means\n(i) a represented adult as defined in the Adult Guardianship and Trusteeship Act or a person in respect of whom a certificate of incapacity is in effect under the Public Trustee Act , or\n(ii) an adult who is unable to make reasonable judgments in respect of matters relating to a claim;\n(i) “remedial order” means a judgment or an order made by a court in a civil proceeding requiring a defendant to comply with a duty or to pay damages for the violation of a right, but excludes\n(i) a declaration of rights and duties, legal relations or personal status,\n(ii) the enforcement of a remedial order,\n(iii) judicial review of the decision, act or omission of a person, board, commission, tribunal or other body in the exercise of a power conferred by statute or regulation, or\n(iv) a writ of habeas corpus;\n(j) “right” means any right under the law;\n(k) “security interest” means an interest in property that secures the payment or other performance of an obligation."
+   },
+   {
+    "label": "2",
+    "map_order": 1,
+    "doc_order": 1,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 1907,
+     "end": 3322
+    },
+    "body_chars": 1387,
+    "body_sha256": "41c5c4ac3efaad7fe0efdb58039f8e4a6a47ed5867dc6fd73f4b13b08d42bae7",
+    "body": "(1) This Act applies where a claimant seeks a remedial order in a proceeding commenced on or after March 1, 1999, whether the claim arises before, on or after March 1, 1999.\n(2) Subject to sections 11 and 13, if, before March 1, 1999, the claimant knew, or in the circumstances ought to have known, of a claim and the claimant has not sought a remedial order before the earlier of\n(a) the time provided by the Limitation of Actions Act , RSA 1980 cL-15, that would have been applicable but for this Act, or\n(b) two years after the Limitations Act , SA 1996 cL-15.1, came into force,\nthe defendant, on pleading this Act as a defence, is entitled to immunity from liability in respect of the claim.\n(2.1) Repealed 2022 c23 s3.\n(3) Except as provided in subsection (4), this Act is applicable to any claim, including a claim to which this Act can apply arising under any law that is subject to the legislative jurisdiction of the Parliament of Canada, if\n(a) the remedial order is sought in a proceeding before a court created by the Province, or\n(b) the claim arose within the Province and the remedial order is sought in a proceeding before a court created by the Parliament of Canada.\n(4) This Act does not apply where a claimant seeks a remedial order the granting of which is subject to a limitation provision in any other enactment of the Province.\n(5) The Crown is bound by this Act."
+   },
+   {
+    "label": "3",
+    "map_order": 2,
+    "doc_order": 2,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 3322,
+     "end": 8307
+    },
+    "body_chars": 4955,
+    "body_sha256": "4230b2e3369e3d8c5075858559bcb717641ba2045f4d0cf5371a5f0a060d0e7f",
+    "body": "(1) Subject to subsections (1.1) and (1.2) and sections 3.1, 3.2 and 11, if a claimant does not seek a remedial order within\n(a) 2 years after the date on which the claimant first knew, or in the circumstances ought to have known,\n(i) that the injury for which the claimant seeks a remedial order had occurred,\n(ii) that the injury was attributable to conduct of the defendant, and\n(iii) that the injury, assuming liability on the part of the defendant, warrants bringing a proceeding,\nor\n(b) 10 years after the claim arose,\nwhichever period expires first, the defendant, on pleading this Act as a defence, is entitled to immunity from liability in respect of the claim.\n(1.1) If a claimant who is liable as a tort-feasor in respect of injury does not seek a remedial order to recover contribution under section 3(1)(c) of the Tort-feasors Act against a defendant, whether as a joint tort-feasor or otherwise, within\n(a) 2 years after\n(i) the later of\n(A) the date on which the claimant was served with a pleading by which a claim for the injury is brought against the claimant, and\n(B) the date on which the claimant first knew, or in the circumstances ought to have known, that the defendant was liable in respect of the injury or would have been liable in respect of the injury if the defendant had been sued within the limitation period provided by subsection (1) by the person who suffered the injury,\nif the claimant has been served with a pleading described in paragraph (A), or\n(ii) the date on which the claimant first had or in the circumstances ought to have had the knowledge described in subclause (i)(B), if the claimant has not been served with a pleading described in subclause (i)(A),\nor\n(b) 10 years after the claim for contribution arose,\nwhichever period expires first, the defendant, on pleading this Act as a defence, is entitled to immunity from liability in respect of the claim for contribution.\n(1.2) For greater certainty, no claim for contribution against a defendant in respect of damage referred to in section 3(1)(c) of the Tort-feasors Act is barred by the expiry of a limitation period within which the person who suffered that damage could seek a remedial order.\n(2) The limitation period provided by subsection (1)(a) or (1.1)(a) begins\n(a) against a successor owner of a claim when either a predecessor owner or the successor owner of the claim first acquired or ought to have acquired the knowledge prescribed in subsection (1)(a) or (1.1)(a),\n(b) against a principal when either\n(i) the principal first acquired or ought to have acquired the knowledge prescribed in subsection (1)(a) or (1.1)(a), or\n(ii) an agent with a duty to communicate the knowledge prescribed in subsection (1)(a) or (1.1)(a) to the principal, first actually acquired that knowledge,\nand\n(c) against a personal representative of a deceased person as a successor owner of a claim, at the earliest of the following times:\n(i) when the deceased owner first acquired or ought to have acquired the knowledge prescribed in subsection (1)(a) or (1.1)(a), if the deceased owner acquired the knowledge more than 2 years before the deceased owner’s death;\n(ii) when the representative was appointed, if the representative had the knowledge prescribed in subsection (1)(a) or (1.1)(a) at that time;\n(iii) when the representative first acquired or ought to have acquired the knowledge prescribed in subsection (1)(a) or (1.1)(a), if the representative acquired the knowledge after being appointed.\n(3) For the purposes of subsections (1)(b) and (1.1)(b),\n(a) a claim or any number of claims based on any number of breaches of duty, resulting from a continuing course of conduct or a series of related acts or omissions, arises when the conduct terminates or the last act or omission occurs;\n(b) a claim based on a breach of a duty arises when the conduct, act or omission occurs;\n(c) a claim based on a demand obligation arises when a default in performance occurs after a demand for performance is made;\n(d) a claim in respect of a proceeding under the Fatal Accidents Act arises when the conduct that causes the death, on which the claim is based, occurs;\n(e) a claim for contribution arises when the claimant for contribution is made a defendant in respect of, or incurs a liability through the settlement of, a claim seeking to impose a liability on which the claim for contribution can be based, whichever first occurs;\n(f) a claim for a remedial order for the recovery of possession of real property arises when the claimant is dispossessed of the real property.\n(4) Repealed 2022 c23 s3.\n(5) Under this section,\n(a) the claimant has the burden of proving that a remedial order was sought within the limitation period provided by subsection (1)(a) or (1.1)(a), and\n(b) the defendant has the burden of proving that a remedial order was not sought within the limitation period provided by subsection (1)(b) or (1.1)(b).\n(6) to (8) Repealed 2022 c23 s3."
+   },
+   {
+    "label": "3.1",
+    "map_order": 3,
+    "doc_order": 3,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 8307,
+     "end": 9746
+    },
+    "body_chars": 1380,
+    "body_sha256": "71b2242537be525a9e9dc54bc43d309f24abe51e4ce8a6554c76303ee3db673e",
+    "body": "(1) There is no limitation period in respect of\n(a) a claim that relates to a sexual assault or battery,\n(b) a claim that relates to any misconduct of a sexual nature, other than a sexual assault or battery, if, at the time of the misconduct,\n(i) the person with the claim was a minor,\n(ii) the person with the claim was in an intimate relationship with the person who committed the misconduct,\n(iii) the person with the claim was dependent, whether financially, emotionally, physically or otherwise, on the person who committed the misconduct, or\n(iv) the person with the claim was a person under disability,\nor\n(c) a claim that relates to an assault or battery, other than a sexual assault or battery, if, at the time of the assault or battery,\n(i) the person with the claim was a minor,\n(ii) the person with the claim was in an intimate relationship with the person who committed the assault or battery,\n(iii) the person with the claim was dependent, whether financially, emotionally, physically or otherwise, on the person who committed the assault or battery, or\n(iv) the person with the claim was a person under disability.\n(2) Subsection (1) applies to a claim in respect of an act that occurred before or after the coming into force of this section, regardless of the expiry of any previously applicable limitation period set out in section 3 or a predecessor of this Act."
+   },
+   {
+    "label": "3.2",
+    "map_order": 4,
+    "doc_order": 4,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 9746,
+     "end": 10357
+    },
+    "body_chars": 588,
+    "body_sha256": "336f11a3107703dfd78be9c15866fe4db7d33b186adfeb35c82883c6960b491b",
+    "body": "(1) Notwithstanding any provision of this Act,\n(a) there is no limitation period in respect of a claim for recovery of possession of real property, including for an order under section 69 of the Law of Property Act , and\n(b) a defendant does not have a defence based on adverse possession.\n(2) Any action commenced and not concluded before the Property Rights Statutes Amendment Act, 2022 comes into force continues under this Act as it read immediately before the coming into force of this section, including the 10-year limitation period for the recovery of possession of real property."
+   },
+   {
+    "label": "4",
+    "map_order": 5,
+    "doc_order": 5,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 10357,
+     "end": 10791
+    },
+    "body_chars": 400,
+    "body_sha256": "1f37108bcfb31fa05f99447126db848db2c67bfc4699fb568df128f78b9b31da",
+    "body": "(1) The operation of the limitation period provided by section 3(1)(b) or (1.1)(b) is suspended during any period of time that the defendant fraudulently conceals the fact that the injury for which a remedial order is sought has occurred.\n(2) Under this section, the claimant has the burden of proving that the operation of the limitation period provided by section 3(1)(b) or (1.1)(b) was suspended."
+   },
+   {
+    "label": "5",
+    "map_order": 6,
+    "doc_order": 6,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 10791,
+     "end": 11101
+    },
+    "body_chars": 294,
+    "body_sha256": "147ede4c8e116b20df0266662ce33918814419a201caedf95a5dbe67242b8d85",
+    "body": "(1) The operation of the limitation periods provided by this Act is suspended during any period of time that the claimant is a person under disability.\n(2) The claimant has the burden of proving that the operation of the limitation periods provided by this Act was suspended under this section."
+   },
+   {
+    "label": "5.1",
+    "map_order": 7,
+    "doc_order": 7,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 11101,
+     "end": 18077
+    },
+    "body_chars": 6955,
+    "body_sha256": "af09645ca7d991f2bc2aeac311c1a3df11247557b435a75b34429c2e2b827ae5",
+    "body": "(1) In this section,\n(a) “guardian” means a parent or guardian having actual custody of a minor;\n(b) “potential defendant” means a person against whom a minor may have a claim.\n(2) Except as otherwise provided in this section, the operation of limitation periods provided by this Act is suspended during the period of time that the claimant is a minor.\n(3) A potential defendant may cause the limitation periods provided by this Act to run against a minor by\n(a) delivering a notice to proceed in the prescribed form to\n(i) a guardian of the minor, if the minor has a guardian, and\n(ii) the Public Trustee,\nand\n(b) paying the Public Trustee’s prescribed fee.\n(4) Where a potential defendant has complied with subsection (3), the notice to proceed takes effect and the limitation periods provided by this Act begin to run\n(a) on the date the notice to proceed is received by the Public Trustee, which must be shown in the notice delivered by the Public Trustee under subsection (6)(a) or (b), or\n(b) on the date determined by an order of a judge under subsection (7) or (8).\n(5) Where a potential defendant delivers a notice to proceed to the Public Trustee under subsection (3) and pays the Public Trustee’s prescribed fee, the Public Trustee must\n(a) if the claimant has a guardian, make such inquiries as the Public Trustee considers necessary and practicable regarding the ability and intention of the claimant’s guardian to act in the best interest of the minor regarding the claim, or\n(b) if the claimant does not have a guardian, apply to a judge of the Court of King’s Bench, on notice to such persons as may be directed or approved by the judge, for directions.\n(6) After making the inquiries referred to in subsection (5)(a), the Public Trustee must do one of the following:\n(a) if satisfied as to the guardian’s ability and intention to act in the best interest of the minor regarding the claim, deliver to the potential defendant and the guardian a notice in the prescribed form of the Public Trustee’s decision not to intervene in the matter;\n(b) with the consent of the claimant’s guardian, deliver to the potential defendant a notice in the prescribed form stating that the Public Trustee intends to act as litigation representative of the minor in relation to the claim;\n(c) if for any reason the Public Trustee thinks it necessary or appropriate to do so, apply to a judge of the Court of King’s Bench, on notice to such persons as may be directed or approved by the judge, for directions.\n(7) On an application under subsection (5)(b), a judge may make an order\n(a) directing the Public Trustee to take no further steps in the matter and stipulating that the limitation periods provided by this Act continue to be suspended with respect to the minor despite subsection (3), or\n(b) doing all of the following:\n(i) stipulating that the limitation periods provided by this Act begin to run against the minor on a date specified in the order;\n(ii) authorizing and directing the Public Trustee to act as litigation representative of the minor;\n(iii) giving such authority and directions to the Public Trustee and any other person as may be necessary to ensure that the Public Trustee may effectively prosecute the claim on behalf of the minor.\n(8) On an application under subsection (6)(c), a judge may make an order\n(a) directing the Public Trustee to take no further steps in the matter and stipulating that the limitation periods provided by this Act\n(i) begin to run against the minor on a date specified in the order, or\n(ii) continue to be suspended with respect to the minor despite subsection (3),\nor\n(b) doing all of the following:\n(i) stipulating that the limitation periods provided by this Act begin to run against the minor on a date specified in the order;\n(ii) authorizing and directing the Public Trustee to act as litigation representative of the minor;\n(iii) giving such authority and directions to the Public Trustee, guardian, if any, and any other person as may be necessary to ensure that the Public Trustee may effectively prosecute the claim on behalf of the minor.\n(9) On an application by the Public Trustee under subsection (5)(b) or (6)(c), a judge may consider\n(a) the apparent seriousness of the minor’s injury;\n(b) the apparent legal merits of the claim;\n(c) the views of the Public Trustee and the guardian, if any, as to whether the minor’s best interest will be better served by pursuing or by not pursuing the claim;\n(d) the view of the minor regarding the claim, where the judge considers that the minor is able to appreciate the nature of the issue;\n(e) where the guardian or the minor is opposed to pursuing the claim, the apparent likelihood that the Public Trustee would be able to prosecute the claim effectively as litigation representative;\n(f) whether directing the Public Trustee to take no further steps and stipulating that the limitation periods provided by this Act continue to be suspended with respect to the minor is likely to cause serious prejudice to either the minor or the potential defendant, having regard to any matters that the judge considers relevant, including\n(i) the minor’s age,\n(ii) whether the minor will be, or is likely to be, a person under disability on becoming an adult,\n(iii) whether it would be practicable to preserve relevant evidence during the period the limitation periods would be suspended, and\n(iv) any harm that may be suffered by the minor as a result of any delay in recovering compensation to which the minor may be entitled;\n(g) any other matters the judge considers relevant.\n(10) Where the Public Trustee makes an application to the Court of King’s Bench under this section, no costs may be awarded against any party to the application.\n(11) Subsection (4) operates only in favour of a potential defendant on whose behalf the notice to proceed is delivered and only with respect to a claim arising out of the circumstances specified in the notice.\n(12) A notice to proceed delivered under this section is not an acknowledgment for the purposes of this Act and is not an admission for any purpose.\n(13) Subsections (3) to (12) do not apply where the potential defendant is a guardian of the minor.\n(14) Under this section, the claimant has the burden of proving that at any relevant point in time the claimant was a minor.\n(15) The Minister may make regulations prescribing\n(a) the form, contents and mode of a delivery of a notice to proceed or any other notice referred to in this section;\n(b) the fee to be paid by a potential defendant under subsection (3)(b).\n(16) This section applies where a claimant seeks a remedial order in a proceeding commenced after this section comes into force, regardless of when the claim arises, except that a defendant who would have had immunity from liability for a claim if the proceeding had been commenced immediately before this section came into force continues to have immunity from liability for that claim."
+   },
+   {
+    "label": "5.2",
+    "map_order": 8,
+    "doc_order": 8,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 18077,
+     "end": 19357
+    },
+    "body_chars": 1240,
+    "body_sha256": "33d47d143f13024ee143a98e7a459a0c80d1cb7e99f18ae5958790235752ecf8",
+    "body": "(1) In this section,\n(a) “convicted” has the same meaning as in section 12(5) of the Occupiers’ Liability Act ;\n(b) “criminal trespasser” has the same meaning as in section 12(4) of the Occupiers’ Liability Act ;\n(c) “occupier” means an occupier as defined in the Occupiers’ Liability Act ;\n(d) “premises” means premises as defined in the Occupiers’ Liability Act .\n(2) In respect of a claim by a criminal trespasser against an occupier for damages for death of or injury to the criminal trespasser on the occupier’s premises, the operation of the limitation periods provided by this Act is suspended during the period of time commencing when the conduct giving rise to the claim occurred and concluding when the occupier is convicted of an offence in relation to the conduct under the Criminal Code (Canada) that is prosecuted by indictment.\n(3) The claimant has the burden of proving that the operation of the limitation periods provided by this Act was suspended under this section.\n(4) This section applies to a proceeding in which a claimant seeks a remedial order in relation to a claim that arises on or after January 1, 2018, irrespective of whether the proceeding is commenced before or after the coming into force of this section."
+   },
+   {
+    "label": "6",
+    "map_order": 9,
+    "doc_order": 9,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 19357,
+     "end": 21739
+    },
+    "body_chars": 2363,
+    "body_sha256": "7583c60061e5dc8f70b12c514272e99a0b83608ed553dd2a6dadd660f1636650",
+    "body": "(1) Notwithstanding the expiration of the relevant limitation period, when a claim is added to a proceeding previously commenced, either through a new pleading or an amendment to pleadings, the defendant is not entitled to immunity from liability in respect of the added claim if the requirements of subsection (2), (3) or (4) are satisfied.\n(2) When the added claim\n(a) is made by a defendant in the proceeding against a claimant in the proceeding, or\n(b) does not add or substitute a claimant or a defendant, or change the capacity in which a claimant sues or a defendant is sued,\nthe added claim must be related to the conduct, transaction or events described in the original pleading in the proceeding.\n(3) When the added claim adds or substitutes a claimant, or changes the capacity in which a claimant sues,\n(a) the added claim must be related to the conduct, transaction or events described in the original pleading in the proceeding,\n(b) the defendant must have received, within the limitation period applicable to the added claim plus the time provided by law for the service of process, sufficient knowledge of the added claim that the defendant will not be prejudiced in maintaining a defence to it on the merits, and\n(c) the court must be satisfied that the added claim is necessary or desirable to ensure the effective enforcement of the claims originally asserted or intended to be asserted in the proceeding.\n(4) When the added claim adds or substitutes a defendant, or changes the capacity in which a defendant is sued,\n(a) the added claim must be related to the conduct, transaction or events described in the original pleading in the proceeding, and\n(b) the defendant must have received, within the limitation period applicable to the added claim plus the time provided by law for the service of process, sufficient knowledge of the added claim that the defendant will not be prejudiced in maintaining a defence to it on the merits.\n(5) Under this section,\n(a) the claimant has the burden of proving\n(i) that the added claim is related to the conduct, transaction or events described in the original pleading in the proceeding, and\n(ii) that the requirement of subsection (3)(c), if in issue, has been satisfied,\nand\n(b) the defendant has the burden of proving that the requirement of subsection (3)(b) or (4)(b), if in issue, was not satisfied."
+   },
+   {
+    "label": "7",
+    "map_order": 10,
+    "doc_order": 10,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 21739,
+     "end": 22088
+    },
+    "body_chars": 308,
+    "body_sha256": "f57e91c468fd19c6bfb186612e9966d4dc4ce094dd34aed28606459802b8efaf",
+    "body": "(1) Subject to section 9, if an agreement expressly provides for the extension of a limitation period provided by this Act, the limitation period is altered in accordance with the agreement.\n(2) An agreement that purports to provide for the reduction of a limitation period provided by this Act is not valid."
+   },
+   {
+    "label": "8",
+    "map_order": 11,
+    "doc_order": 11,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 22088,
+     "end": 23342
+    },
+    "body_chars": 1167,
+    "body_sha256": "06ba49182a0b9d07bc1816e62cf3a301a59cb54c85303f57d8b3b771f5279f64",
+    "body": "(1) In this section, “claim” means a claim for the recovery, through the realization of a security interest or otherwise, of an accrued liquidated pecuniary sum, including, but not limited to a principal debt, rents, income and a share of estate property, and interest on any of them.\n(2) Subject to subsections (3) and (4) and section 9, if a person liable in respect of a claim acknowledges the claim, or makes a part payment in respect of the claim, before the expiration of the limitation period applicable to the claim, the operation of the limitation period begins again at the time of the acknowledgment or part payment.\n(3) A claim may be acknowledged only by an admission of the person liable in respect of it that the sum claimed is due and unpaid, but an acknowledgment is effective\n(a) whether or not a promise to pay can be implied from it, and\n(b) whether or not it is accompanied with a refusal to pay.\n(4) When a claim is for the recovery of both a primary sum and interest on it, an acknowledgment of either obligation, or a part payment in respect of either obligation, is an acknowledgment of, or a part payment in respect of, the other obligation."
+   },
+   {
+    "label": "9",
+    "map_order": 12,
+    "doc_order": 12,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 23342,
+     "end": 24340
+    },
+    "body_chars": 966,
+    "body_sha256": "998e8b0a9023082fa31023112f152788e37dd49ee29a04c0ec28d5406eba5c11",
+    "body": "(1) An agreement and an acknowledgment must be in writing and signed by the person adversely affected.\n(2) An agreement made by or with an agent has the same effect as if made by or with the principal.\n(3) An acknowledgment or a part payment made by or to an agent has the same effect as if it were made by or to the principal.\n(4) A person has the benefit of an agreement, an acknowledgment or a part payment only if it is made\n(a) with or to the person,\n(b) with or to a person through whom the person derives a claim, or\n(c) in the course of proceedings or a transaction purporting to be pursuant to the Bankruptcy and Insolvency Act (Canada).\n(5) A person is bound by an agreement, an acknowledgment or a part payment only if\n(a) the person is a maker of it, or\n(b) the person is liable in respect of a claim\n(i) as a successor of a maker, or\n(ii) through the acquisition of an interest in property from or through a maker\nwho was liable in respect of the claim."
+   },
+   {
+    "label": "10",
+    "map_order": 13,
+    "doc_order": 13,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 24340,
+     "end": 24615
+    },
+    "body_chars": 235,
+    "body_sha256": "5dba7b8cd7de0ffe95b669e07a8542c546a239200a6519148425a0952f9903f4",
+    "body": "Nothing in this Act precludes a court from granting a defendant immunity from liability under the equitable doctrines of acquiescence or laches, notwithstanding that the defendant would not be entitled to immunity pursuant to this Act."
+   },
+   {
+    "label": "11",
+    "map_order": 14,
+    "doc_order": 14,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 24615,
+     "end": 24917
+    },
+    "body_chars": 275,
+    "body_sha256": "4c5c31f59991ad22971dac1295b227084f92371cd6a71f472fb327a21d53d6df",
+    "body": "If, within 10 years after the claim arose, a claimant does not seek a remedial order in respect of a claim based on a judgment or order for the payment of money, the defendant, on pleading this Act as a defence, is entitled to immunity from liability in respect of the claim."
+   },
+   {
+    "label": "12",
+    "map_order": 15,
+    "doc_order": 15,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 24917,
+     "end": 25466
+    },
+    "body_chars": 510,
+    "body_sha256": "1737317f76319cd7339df94740f877cba009c047da8e0fc5e61c510b8dc6adf2",
+    "body": "(1) The limitations law of Alberta applies to any proceeding commenced or sought to be commenced in Alberta in which a claimant seeks a remedial order.\n(2) Notwithstanding subsection (1), where a proceeding referred to in subsection (1) would be determined in accordance with the law of another jurisdiction if it were to proceed, and the limitations law of that jurisdiction provides a shorter limitation period than the limitation period provided by the law of Alberta, the shorter limitation period applies."
+   },
+   {
+    "label": "13",
+    "map_order": 16,
+    "doc_order": 16,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 25466,
+     "end": 25796
+    },
+    "body_chars": 327,
+    "body_sha256": "9a9190d51bdbd04210a14f33791a90bdd4ba14d2f1f12075839053ffececadfa",
+    "body": "An action brought on or after March 1, 1999 by an aboriginal people against the Crown based on a breach of a fiduciary duty alleged to be owed by the Crown to those people is governed by the law on limitation of actions as if the Limitation of Actions Act , RSA 1980 cL-15, had not been repealed and this Act were not in force."
+   }
+  ]
+ }
+}

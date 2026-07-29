@@ -1,0 +1,868 @@
+{
+ "artifact_id": "on-so-2002-c-24-schedb-limitations",
+ "doc_type": "statute",
+ "jurisdiction": "CA-ON",
+ "dataset": "LEGISLATION-ON",
+ "citation": "SO 2002, c 24, Sched B",
+ "citation_secondary": null,
+ "name": "Limitations Act, 2002",
+ "document_date": "2024-12-04",
+ "language": "en",
+ "source_url": "https://www.ontario.ca/laws/api/v2/legislation/en/doc-search/statute/02l24",
+ "scraped_timestamp": "2026-07-25 13:56:03.417000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-laws",
+  "revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "file": "LEGISLATION-ON/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "unofficial_sections_en",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "See upstream license: https://perma.cc/5PT4-EXXN © King's Printer for Ontario. NOTE: This is an unofficial reproduction of Ontario legislation, made without endorsement or affiliation by the Government of Ontario.",
+  "upstream_license_id": "KingsPrinterOntario-LegalMaterials"
+ },
+ "raw_text_file": "on-so-2002-c-24-schedb-limitations.txt",
+ "raw_text_chars": 29530,
+ "raw_text_sha256": "669e88095abe97e8b07419c52fed49065d231460055f6da1e81a57afad1b82ba",
+ "structure_provenance": "provider-native",
+ "structure_derivation": {
+  "labels_and_bodies": "verbatim from unofficial_sections_en (provider-native, zero annotation)",
+  "raw_span": "derived: each label located in the raw text by a line-anchored heading match, disambiguated by verifying the native body follows; span ends at the next located heading",
+  "warning": "the provider's section-map key order is NOT document order for decimal labels (e.g. 83.01, 83.1, 83.02, 83.2 ...); use doc_order, not map_order"
+ },
+ "structure": {
+  "kind": "section_map",
+  "native_field": "unofficial_sections_en",
+  "label_count": 54,
+  "anchored_count": 28,
+  "anchor_kinds": {
+   "unique": 28
+  },
+  "body_classes": {
+   "substantive": 28,
+   "blank": 25,
+   "omitted": 1
+  },
+  "map_order_equals_doc_order": true,
+  "labels_map_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "25-49",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "Schedule"
+  ],
+  "labels_doc_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25-49",
+   "50",
+   "51",
+   "52"
+  ],
+  "sections": [
+   {
+    "label": "1",
+    "map_order": 0,
+    "doc_order": 0,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 103,
+     "end": 975
+    },
+    "body_chars": 851,
+    "body_sha256": "27aa089137ab1684ccc6ecb2f6ffe5613e143b4a736acfb021dd309b807e8e82",
+    "body": "In this Act,\n“adverse effect” has the same meaning as in the Environmental Protection Act; (“conséquence préjudiciable”)\n“assault” includes a battery; (“voies de fait”)\n“claim” means a claim to remedy an injury, loss or damage that occurred as a result of an act or omission; (“réclamation”)\n“contaminant” has the same meaning as in the Environmental Protection Act; (“contaminant”)\n“discharge” has the same meaning as in the Environmental Protection Act; (“rejet”, “rejeter”)\n“environmental claim” means a claim based on an act or omission that caused, contributed to, or permitted the discharge of a contaminant into the natural environment that has caused or is likely to cause an adverse effect; (“réclamation relative à l’environnement”)\n“natural environment” has the same meaning as in the Environmental Protection Act. (“environnement naturel”)"
+   },
+   {
+    "label": "2",
+    "map_order": 1,
+    "doc_order": 1,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 975,
+     "end": 2000
+    },
+    "body_chars": 975,
+    "body_sha256": "c0ea8c9327e91d2426d929f960da7ce410e2620380cd162aa9cffb7cfa490bfd",
+    "body": "(1) This Act applies to claims pursued in court proceedings other than,\n(a) proceedings to which the Real Property Limitations Act applies;\n(b) proceedings in the nature of an appeal, if the time for commencing them is governed by an Act or rule of court;\n(c) proceedings under the Judicial Review Procedure Act;\n(d) proceedings to which the Provincial Offences Act applies;\n(e) proceedings based on the existing aboriginal and treaty rights of the aboriginal peoples of Canada which are recognized and affirmed in section 35 of the Constitution Act, 1982;\n(f) proceedings based on equitable claims by aboriginal peoples against the Crown; and\n(g) proceedings to which the Limitation Convention or the Amended Limitation Convention, as defined in the International Sales Conventions Act, applies.\n(2) Proceedings referred to in clause (1) (e) and (f) are governed by the law that would have been in force with respect to limitation of actions if this Act had not been passed."
+   },
+   {
+    "label": "3",
+    "map_order": 2,
+    "doc_order": 2,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2000,
+     "end": 2087
+    },
+    "body_chars": 25,
+    "body_sha256": "01b1edf5c694144b3dedbe4a9efeadf93b5ade57b14c4a9512f65e2a0b17104a",
+    "body": "This Act binds the Crown."
+   },
+   {
+    "label": "4",
+    "map_order": 3,
+    "doc_order": 3,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2087,
+     "end": 2274
+    },
+    "body_chars": 168,
+    "body_sha256": "cdd5efc86556a1f8fe0b6426cc4410969db4e6de0749c7991393282e8f791c2b",
+    "body": "Unless this Act provides otherwise, a proceeding shall not be commenced in respect of a claim after the second anniversary of the day on which the claim was discovered."
+   },
+   {
+    "label": "5",
+    "map_order": 4,
+    "doc_order": 4,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2274,
+     "end": 3551
+    },
+    "body_chars": 1207,
+    "body_sha256": "59f1a0d3f442831752048580972ce826c77ab969526aee147ad03ec67470e97c",
+    "body": "(1) A claim is discovered on the earlier of,\n(a) the day on which the person with the claim first knew,\n(i) that the injury, loss or damage had occurred,\n(ii) that the injury, loss or damage was caused by or contributed to by an act or omission,\n(iii) that the act or omission was that of the person against whom the claim is made, and\n(iv) that, having regard to the nature of the injury, loss or damage, a proceeding would be an appropriate means to seek to remedy it; and\n(b) the day on which a reasonable person with the abilities and in the circumstances of the person with the claim first ought to have known of the matters referred to in clause (a).\n(2) A person with a claim shall be presumed to have known of the matters referred to in clause (1) (a) on the day the act or omission on which the claim is based took place, unless the contrary is proved.\n(3) For the purposes of subclause (1) (a) (i), the day on which injury, loss or damage occurs in relation to a demand obligation is the first day on which there is a failure to perform the obligation, once a demand for the performance is made.\n(4) Subsection (3) applies in respect of every demand obligation created on or after January 1, 2004."
+   },
+   {
+    "label": "6",
+    "map_order": 5,
+    "doc_order": 5,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 3551,
+     "end": 3783
+    },
+    "body_chars": 205,
+    "body_sha256": "896858aebc6020e8c3b275191cdd64f48fa3209d76321fd95fc9e9f9b15d679e",
+    "body": "The limitation period established by section 4 does not run during any time in which the person with the claim,\n(a) is a minor; and\n(b) is not represented by a litigation guardian in relation to the claim."
+   },
+   {
+    "label": "7",
+    "map_order": 6,
+    "doc_order": 6,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 3783,
+     "end": 4659
+    },
+    "body_chars": 812,
+    "body_sha256": "1952dfa02a1303f11917956a39d9c3177446e379320424e1d6d662da246baaf7",
+    "body": "(1) The limitation period established by section 4 does not run during any time in which the person with the claim,\n(a) is incapable of commencing a proceeding in respect of the claim because of his or her physical, mental or psychological condition; and\n(b) is not represented by a litigation guardian in relation to the claim.\n(2) A person shall be presumed to have been capable of commencing a proceeding in respect of a claim at all times unless the contrary is proved.\n(3) If the running of a limitation period is postponed or suspended under this section and the period has less than six months to run when the postponement or suspension ends, the period is extended to include the day that is six months after the day on which the postponement or suspension ends.\n(4) Repealed: 2016, c. 2, Sched. 2, s. 1."
+   },
+   {
+    "label": "8",
+    "map_order": 7,
+    "doc_order": 7,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 4659,
+     "end": 4925
+    },
+    "body_chars": 157,
+    "body_sha256": "341a9374944b3b40b0c61b9d36938878c864d9aa09f876dc5f4d8d091e8c13d2",
+    "body": "If a person is represented by a litigation guardian in relation to the claim, section 5 applies as if the litigation guardian were the person with the claim."
+   },
+   {
+    "label": "9",
+    "map_order": 8,
+    "doc_order": 8,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 4925,
+     "end": 7363
+    },
+    "body_chars": 2288,
+    "body_sha256": "6a8d6679616ab8e90c66ee9932b12960a762f252bfbe1fc9067a1d3aa1ed19bb",
+    "body": "(1) In this section,\n“potential defendant” means a person against whom another person may have a claim but against whom the other person has not commenced a proceeding in respect of the claim; (“défendeur éventuel”)\n“potential plaintiff” means a person who may have a claim against another person but has not commenced a proceeding against that person in respect of the claim. (“demandeur éventuel”)\n(2) If the running of a limitation period in relation to a claim is postponed or suspended under section 6 or 7, a potential defendant may make an application or a motion to have a litigation guardian appointed for a potential plaintiff.\n(3) Subject to subsection (4), the appointment of a litigation guardian ends the postponement or suspension of the running of the limitation period if the following conditions are met:\n1. The appointment is made by a judge on the application or motion of a potential defendant.\n2. The judge is satisfied that the litigation guardian,\ni. has been served with the motion,\nii. has consented to the appointment in writing, or in person before the judge,\niii. in connection with the claim, knows of the matters referred to in clause 5 (1) (a),\niv. does not have an interest adverse to that of the potential plaintiff, and\nv. agrees to attend to the potential plaintiff’s interests diligently and to take all necessary steps for their protection, including the commencement of a claim if appropriate.\n(4) The limitation period shall be deemed not to expire against the potential plaintiff until the later of,\n(a) the date that is six months after the potential defendant files, with proof of service on the litigation guardian,\n(i) a notice that complies with subsection (5), and\n(ii) a declaration that, on the filing date, the potential defendant is not aware of any proceeding by the litigation guardian against the potential defendant in respect of the claim; and\n(b) the date on which the limitation period would otherwise expire after it resumes running under subsection (3).\n(5) The notice,\n(a) shall not be served before the first anniversary of the appointment;\n(b) shall identify the potential plaintiff, the potential defendant and the claim; and\n(c) shall indicate that the claim could be extinguished if a proceeding is not promptly commenced."
+   },
+   {
+    "label": "10",
+    "map_order": 9,
+    "doc_order": 9,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 7363,
+     "end": 7431
+    },
+    "body_chars": 37,
+    "body_sha256": "a307ffb85fc80b2536abca790aa61974dc96fd43e40292e5c8e95ae3cbd7bfdb",
+    "body": "Repealed: 2016, c. 2, Sched. 2, s. 2."
+   },
+   {
+    "label": "11",
+    "map_order": 10,
+    "doc_order": 10,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 7431,
+     "end": 8104
+    },
+    "body_chars": 641,
+    "body_sha256": "aae62176184ffe25f2d117e124ee326763c01367439a839aaf4da086934f3dd3",
+    "body": "(1) If a person with a claim and a person against whom the claim is made have agreed to have an independent third party resolve the claim or assist them in resolving it, the limitation periods established by sections 4 and 15 do not run from the date the agreement is made until,\n(a) the date the claim is resolved;\n(b) the date the attempted resolution process is terminated; or\n(c) the date a party terminates or withdraws from the agreement.\n(2) For greater certainty, a person or entity that provides resolution of claims or assistance in resolving claims, on an impartial basis, is an independent third party no matter how it is funded."
+   },
+   {
+    "label": "12",
+    "map_order": 11,
+    "doc_order": 11,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 8104,
+     "end": 9346
+    },
+    "body_chars": 1177,
+    "body_sha256": "00658cf3e954cd9880468a10f3ef69e3cb5968acd3b78ee696d77a6498589bb8",
+    "body": "(1) For the purpose of clause 5 (1) (a), in the case of a proceeding commenced by a person claiming through a predecessor in right, title or interest, the person shall be deemed to have knowledge of the matters referred to in that clause on the earlier of the following:\n1. The day the predecessor first knew or ought to have known of those matters.\n2. The day the person claiming first knew or ought to have known of them.\n(2) For the purpose of clause 5 (1) (a), in the case of a proceeding commenced by a principal, if the agent had a duty to communicate knowledge of the matters referred to in that clause to the principal, the principal shall be deemed to have knowledge of the matters referred to in that clause on the earlier of the following:\n1. The day the agent first knew or ought to have known of those matters.\n2. The day the principal first knew or ought to have known of them.\n(3) The day on which a predecessor or agent first ought to have known of the matters referred to in clause 5 (1) (a) is the day on which a reasonable person in the predecessor’s or agent’s circumstances and with the predecessor’s or agent’s abilities first ought to have known of them."
+   },
+   {
+    "label": "13",
+    "map_order": 12,
+    "doc_order": 12,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 9346,
+     "end": 12186
+    },
+    "body_chars": 2627,
+    "body_sha256": "8709a0c9d67afc99d611ab5d11f3cfa08eae2821cc68cb192a916d1e534c63c3",
+    "body": "(1) If a person acknowledges liability in respect of a claim for payment of a liquidated sum, the recovery of personal property, the enforcement of a charge on personal property or relief from enforcement of a charge on personal property, the act or omission on which the claim is based shall be deemed to have taken place on the day on which the acknowledgment was made.\n(2) An acknowledgment of liability in respect of a claim for interest is an acknowledgment of liability in respect of a claim for the principal and for interest falling due after the acknowledgment is made.\n(3) An acknowledgment of liability in respect of a claim to realize on or redeem collateral under a security agreement or to recover money in respect of the collateral is an acknowledgment by any other person who later comes into possession of it.\n(4) A debtor’s performance of an obligation under or in respect of a security agreement is an acknowledgment by the debtor of liability in respect of a claim by the creditor for realization on the collateral under the agreement.\n(5) A creditor’s acceptance of a debtor’s payment or performance of an obligation under or in respect of a security agreement is an acknowledgment by the creditor of liability in respect of a claim by the debtor for redemption of the collateral under the agreement.\n(6) An acknowledgment by a trustee is an acknowledgment by any other person who is or who later becomes a trustee of the same trust.\n(7) An acknowledgment of liability in respect of a claim to recover or enforce an equitable interest in personal property by a person in possession of it is an acknowledgment by any other person who later comes into possession of it.\n(8) Subject to subsections (9) and (10), this section applies to an acknowledgment of liability in respect of a claim for payment of a liquidated sum even though the person making the acknowledgment refuses or does not promise to pay the sum or the balance of the sum still owing.\n(9) This section does not apply unless the acknowledgment is made to the person with the claim, the person’s agent or an official receiver or trustee acting under the Bankruptcy and Insolvency Act (Canada) before the expiry of the limitation period applicable to the claim.\n(10) Subsections (1), (2), (3), (6) and (7) do not apply unless the acknowledgment is in writing and signed by the person making it or the person’s agent.\n(11) In the case of a claim for payment of a liquidated sum, part payment of the sum by the person against whom the claim is made or by the person’s agent has the same effect as the acknowledgment referred to in subsection (10)."
+   },
+   {
+    "label": "14",
+    "map_order": 13,
+    "doc_order": 13,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 12186,
+     "end": 13711
+    },
+    "body_chars": 1373,
+    "body_sha256": "fe75b4d3f08663dfe86464241b6cb7bb9d607d6f8dc14e4f50842e3904ff8a47",
+    "body": "(1) A person against whom another person may have a claim may serve a notice of possible claim on the other person.\n(2) A notice of possible claim shall be in writing and signed by the person issuing it or that person’s lawyer, and shall,\n(a) describe the injury, loss or damage that the issuing person suspects may have occurred;\n(b) identify the act or omission giving rise to the injury, loss or damage;\n(c) indicate the extent to which the issuing person suspects that the injury, loss or damage may have been caused by the issuing person;\n(d) state that any claim that the other person has could be extinguished because of the expiry of a limitation period; and\n(e) state the issuing person’s name and address for service.\n(3) The fact that a notice of possible claim has been served on a person may be considered by a court in determining when the limitation period in respect of the person’s claim began to run.\n(4) Subsection (3) does not apply to a person who is not represented by a litigation guardian in relation to the claim and who, when served with the notice,\n(a) is a minor; or\n(b) is incapable of commencing a proceeding because of his or her physical, mental or psychological condition.\n(5) A notice of possible claim is not an acknowledgment for the purpose of section 13.\n(6) A notice of possible claim is not an admission of the validity of the claim."
+   },
+   {
+    "label": "15",
+    "map_order": 14,
+    "doc_order": 14,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 13711,
+     "end": 16204
+    },
+    "body_chars": 2285,
+    "body_sha256": "6c11f5c47568ec5f6163cb339c3e43b3412ec93251c8b89b0577ede81975188d",
+    "body": "(1) Even if the limitation period established by any other section of this Act in respect of a claim has not expired, no proceeding shall be commenced in respect of the claim after the expiry of a limitation period established by this section.\n(2) No proceeding shall be commenced in respect of any claim after the 15th anniversary of the day on which the act or omission on which the claim is based took place.\n(3) Despite subsection (2), no proceeding against a purchaser of personal property for value acting in good faith shall be commenced in respect of conversion of the property after the second anniversary of the day on which the property was converted.\n(4) The limitation period established by subsection (2) does not run during any time in which,\n(a) the person with the claim,\n(i) is incapable of commencing a proceeding in respect of the claim because of his or her physical, mental or psychological condition, and\n(ii) is not represented by a litigation guardian in relation to the claim;\n(b) the person with the claim is a minor and is not represented by a litigation guardian in relation to the claim; or\n(c) the person against whom the claim is made,\n(i) wilfully conceals from the person with the claim the fact that injury, loss or damage has occurred, that it was caused by or contributed to by an act or omission or that the act or omission was that of the person against whom the claim is made, or\n(ii) wilfully misleads the person with the claim as to the appropriateness of a proceeding as a means of remedying the injury, loss or damage.\n(5) The burden of proving that subsection (4) applies is on the person with the claim.\n(6) For the purposes of this section, the day an act or omission on which a claim is based takes place is,\n(a) in the case of a continuous act or omission, the day on which the act or omission ceases;\n(b) in the case of a series of acts or omissions in respect of the same obligation, the day on which the last act or omission in the series occurs;\n(c) in the case of an act or omission in respect of a demand obligation, the first day on which there is a failure to perform the obligation, once a demand for the performance is made.\n(7) Clause (6) (c) applies in respect of every demand obligation created on or after January 1, 2004."
+   },
+   {
+    "label": "16",
+    "map_order": 15,
+    "doc_order": 15,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 16204,
+     "end": 20277
+    },
+    "body_chars": 3948,
+    "body_sha256": "952d517fa53059a843f1c94beebbab433ec07d5ba5b44d3adac16651f527ecbd",
+    "body": "(1) There is no limitation period in respect of,\n(a) a proceeding for a declaration if no consequential relief is sought;\n(b) a proceeding to enforce an order of a court, or any other order that may be enforced in the same way as an order of a court;\n(c) a proceeding to obtain support under the Family Law Act or to enforce a provision for support or maintenance contained in a contract or agreement that could be filed under section 35 of that Act;\n(d) Revoked: 2017, c. 2, Sched. 5, s. 14 (1);\n(e) a proceeding under section 8 or 11.2 of the Civil Remedies Act, 2001;\n(f) a proceeding by a debtor in possession of collateral to redeem it;\n(g) a proceeding by a creditor in possession of collateral to realize on it;\n(h) a proceeding based on a sexual assault;\n(h.1) a proceeding based on any other misconduct of a sexual nature if, at the time of the misconduct, the person with the claim was a minor or any of the following applied with respect to the relationship between the person with the claim and the person who committed the misconduct:\n(i) the other person had charge of the person with the claim,\n(ii) the other person was in a position of trust or authority in relation to the person with the claim,\n(iii) the person with the claim was financially, emotionally, physically or otherwise dependent on the other person;\n(h.2) a proceeding based on an assault if, at the time of the assault, the person with the claim was a minor or any of the following applied with respect to the relationship between the person with the claim and the person who committed the assault:\n(i) they had an intimate relationship,\n(ii) the person with the claim was financially, emotionally, physically or otherwise dependent on the other person;\n(i) a proceeding to recover money owing to the Crown in respect of,\n(i) fines, taxes and penalties, or\n(ii) interest that may be added to a tax or penalty under an Act;\n(j) a proceeding described in subsection (2) that is brought by,\n(i) the Crown, or\n(ii) a delivery agent under the Ontario Disability Support Program Act, 1997 or the Ontario Works Act, 1997;\n(k) a proceeding to recover money owing in respect of student loans, medical resident loans, awards or grants made under the Ministry of Training, Colleges and Universities Act, the Canada Student Financial Assistance Act or the Canada Student Loans Act; or\n(l) a proceeding under subsection 4 (1) of the Justice for Victims of Terrorism Act (Canada).\n(1.1) Clauses (1) (h), (h.1), (h.2) and (l) apply to a proceeding whenever the act on which the claim is based occurred or the proceeding was commenced, and regardless of the expiry of any previously applicable limitation period.\n(1.2) Subsection (1.1) does not apply in the case of a proceeding that,\n(a) has been dismissed by a court and no further appeal is available; or\n(b) has been settled by the parties and the settlement is legally binding.\n(1.3) For greater certainty, clauses (1) (h), (h.1) and (h.2) are not limited in any way with respect to the claims that may be made in the proceeding in relation to the applicable act, which may include claims for negligence, for breach of fiduciary or any other duty or for vicarious liability.\n(2) Clause (1) (j) applies to proceedings in respect of claims relating to,\n(a) the administration of social, health or economic programs; or\n(b) the provision of direct or indirect support to members of the public in connection with social, health or economic policy.\n(3) Without limiting the generality of subsection (2), clause (1) (j) applies to proceedings in respect of claims for,\n(a) the recovery of social assistance payments, student loans, awards, grants, contributions and economic development loans; and\n(b) the reimbursement of money paid in connection with social, health or economic programs or policies as a result of fraud, misrepresentation, error or inadvertence.\n(4) This section and section 17 prevail over anything in section 15."
+   },
+   {
+    "label": "17",
+    "map_order": 16,
+    "doc_order": 16,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 20277,
+     "end": 20429
+    },
+    "body_chars": 96,
+    "body_sha256": "2bd5d5a6ba99a2f5a16cb3131ce15564ec9c1bd819867519d13860576fc30a3f",
+    "body": "There is no limitation period in respect of an environmental claim that has not been discovered."
+   },
+   {
+    "label": "18",
+    "map_order": 17,
+    "doc_order": 17,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 20429,
+     "end": 20982
+    },
+    "body_chars": 508,
+    "body_sha256": "b30f76d91236fca789c226723951e0d72be39ee6ea2d253c6ef71485808a31b4",
+    "body": "(1) For the purposes of subsection 5 (2) and section 15, in the case of a claim by one alleged wrongdoer against another for contribution and indemnity, the day on which the first alleged wrongdoer was served with the claim in respect of which contribution and indemnity is sought shall be deemed to be the day the act or omission on which that alleged wrongdoer’s claim is based took place.\n(2) Subsection (1) applies whether the right to contribution and indemnity arises in respect of a tort or otherwise."
+   },
+   {
+    "label": "19",
+    "map_order": 18,
+    "doc_order": 18,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 20982,
+     "end": 22124
+    },
+    "body_chars": 1022,
+    "body_sha256": "4e76204d1e5bb0393fd83c3a309b34f86a72a187f7b983daa9250892f425a288",
+    "body": "(1) A limitation period set out in or under another Act that applies to a claim to which this Act applies is of no effect unless,\n(a) the provision establishing it is listed in the Schedule to this Act; or\n(b) the provision establishing it,\n(i) is in existence on January 1, 2004, and\n(ii) incorporates by reference a provision listed in the Schedule to this Act.\n(2) Subsection (1) applies despite any other Act.\n(3) The fact that a provision is listed in the Schedule shall not be construed as a statement that the limitation period established by the provision would otherwise apply to a claim as defined in this Act.\n(4) If there is a conflict between a limitation period established by a provision referred to in subsection (1) and one established by any other provision of this Act, the limitation period established by the provision referred to in subsection (1) prevails.\n(5) Sections 6, 7 and 11 apply, with necessary modifications, to a limitation period established by a provision referred to in subsection (1)."
+   },
+   {
+    "label": "20",
+    "map_order": 19,
+    "doc_order": 19,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 22124,
+     "end": 22284
+    },
+    "body_chars": 137,
+    "body_sha256": "83b9163d0c241240755a209a6484114606328471a9364074c69f743f093c09ff",
+    "body": "This Act does not affect the extension, suspension or other variation of a limitation period or other time limit by or under another Act."
+   },
+   {
+    "label": "21",
+    "map_order": 20,
+    "doc_order": 20,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 22284,
+     "end": 22624
+    },
+    "body_chars": 265,
+    "body_sha256": "4abbd6d608b8af8b6337b21b3d981206e0bb6be507cca0e6732e6a0d17a409ee",
+    "body": "(1) If a limitation period in respect of a claim against a person has expired, the claim shall not be pursued by adding the person as a party to any existing proceeding.\n(2) Subsection (1) does not prevent the correction of a misnaming or misdescription of a party."
+   },
+   {
+    "label": "22",
+    "map_order": 21,
+    "doc_order": 21,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 22624,
+     "end": 23985
+    },
+    "body_chars": 1267,
+    "body_sha256": "cd6d7d9035b6717e7680f06da7585f75b9366886a35ec844dc1b5880bb9069c8",
+    "body": "(1) A limitation period under this Act applies despite any agreement to vary or exclude it, subject only to the exceptions in subsections (2) to (6).\n(2) A limitation period under this Act may be varied or excluded by an agreement made before January 1, 2004.\n(3) A limitation period under this Act, other than one established by section 15, may be suspended or extended by an agreement made on or after October 19, 2006.\n(4) A limitation period established by section 15 may be suspended or extended by an agreement made on or after October 19, 2006, but only if the relevant claim has been discovered.\n(5) The following exceptions apply only in respect of business agreements:\n1. A limitation period under this Act, other than one established by section 15, may be varied or excluded by an agreement made on or after October 19, 2006.\n2. A limitation period established by section 15 may be varied by an agreement made on or after October 19, 2006, except that it may be suspended or extended only in accordance with subsection (4).\n(6) In this section,\n“business agreement” means an agreement made by parties none of whom is a consumer as defined in the Consumer Protection Act, 2002; (“accord commercial”)\n“vary” includes extend, shorten and suspend. (“modifier”)"
+   },
+   {
+    "label": "23",
+    "map_order": 22,
+    "doc_order": 22,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 23985,
+     "end": 24164
+    },
+    "body_chars": 142,
+    "body_sha256": "12cd16a7d2e4eb81a20d9b0e2b415ede5eadd4e40b5f2e90135058adabae7d14",
+    "body": "For the purpose of applying the rules regarding conflict of laws, the limitations law of Ontario or any other jurisdiction is substantive law."
+   },
+   {
+    "label": "24",
+    "map_order": 23,
+    "doc_order": 23,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 24164,
+     "end": 26571
+    },
+    "body_chars": 2176,
+    "body_sha256": "4cdc0400344f0ab86e889118bcefaa96a06abc372c5ca50cd9eda46ca1d938e4",
+    "body": "(1) In this section,\n“former limitation period” means the limitation period that applied in respect of the claim before January 1, 2004.\n(2) Subject to subsection (2.1), this section applies to claims based on acts or omissions that took place before January 1, 2004 and in respect of which no proceeding has been commenced before that date.\n(2.1) This section does not apply to a claim in respect of which clause 16 (1) (h), (h.1) or (h.2) applies.\n(3) If the former limitation period expired before January 1, 2004, no proceeding shall be commenced in respect of the claim.\n(4) If the former limitation period did not expire before January 1, 2004 and if no limitation period under this Act would apply were the claim based on an act or omission that took place on or after that date, there is no limitation period.\n(5) If the former limitation period did not expire before January 1, 2004 and if a limitation period under this Act would apply were the claim based on an act or omission that took place on or after that date, the following rules apply:\n1. If the claim was not discovered before January 1, 2004, this Act applies as if the act or omission had taken place on that date.\n2. If the claim was discovered before January 1, 2004, the former limitation period applies.\n(6) If there was no former limitation period and if a limitation period under this Act would apply were the claim based on an act or omission that took place on or after January 1, 2004, the following rules apply:\n1. If the claim was not discovered before January 1, 2004, this Act applies as if the act or omission had taken place on that date.\n2. If the claim was discovered before January 1, 2004, there is no limitation period.\n(7) Repealed: 2016, c. 2, Sched. 2, s. 5 (3).\n(7.1) For the purposes of this section, clause 45 (1) (g) of the Limitations Act, as it read immediately before its repeal, applies to a claim respecting amounts paid to the Crown or to another public authority for which it is alleged that no valid legal authority existed at the time of payment.\n(8) This section is subject to any agreement to vary or exclude a limitation period that was made before January 1, 2004."
+   },
+   {
+    "label": "25",
+    "map_order": 24,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "25-49",
+    "map_order": 25,
+    "doc_order": 24,
+    "body_class": "omitted",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 26571,
+     "end": 26617
+    },
+    "body_chars": 39,
+    "body_sha256": "af465c0804005fd001045d774df1b840bccaa241352d17aeed24b37d92a2cde4",
+    "body": "Omitted (amends or repeals other Acts)."
+   },
+   {
+    "label": "26",
+    "map_order": 26,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "27",
+    "map_order": 27,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "28",
+    "map_order": 28,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "29",
+    "map_order": 29,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "30",
+    "map_order": 30,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "31",
+    "map_order": 31,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "32",
+    "map_order": 32,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "33",
+    "map_order": 33,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "34",
+    "map_order": 34,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "35",
+    "map_order": 35,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "36",
+    "map_order": 36,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "37",
+    "map_order": 37,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "38",
+    "map_order": 38,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "39",
+    "map_order": 39,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "40",
+    "map_order": 40,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "41",
+    "map_order": 41,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "42",
+    "map_order": 42,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "43",
+    "map_order": 43,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "44",
+    "map_order": 44,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "45",
+    "map_order": 45,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "46",
+    "map_order": 46,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "47",
+    "map_order": 47,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "48",
+    "map_order": 48,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "49",
+    "map_order": 49,
+    "doc_order": null,
+    "body_class": "blank",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 7,
+    "body_sha256": "20bad7dc510de3ce22c1bd0c4e88851fb5bd0d912b577fd55c601e281c2431ec",
+    "body": "[blank]"
+   },
+   {
+    "label": "50",
+    "map_order": 50,
+    "doc_order": 25,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 26617,
+     "end": 26663
+    },
+    "body_chars": 42,
+    "body_sha256": "fefd5e481c69ee12075a32264bb42c571055f4860d79b4925b2f665930225541",
+    "body": "Omitted (amends the schedule to this Act)."
+   },
+   {
+    "label": "51",
+    "map_order": 51,
+    "doc_order": 26,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 26663,
+     "end": 26734
+    },
+    "body_chars": 67,
+    "body_sha256": "707de3ba95673776e23f62098eaf7872cdb4824cf501f1c88d5a18ff74135a92",
+    "body": "Omitted (provides for coming into force of provisions of this Act)."
+   },
+   {
+    "label": "52",
+    "map_order": 52,
+    "doc_order": 27,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 26734,
+     "end": 29530
+    },
+    "body_chars": 41,
+    "body_sha256": "0643e2577adf1dadc91c4059589cbd123cad9b01a5cdd2b8fe848cf3d8970810",
+    "body": "Omitted (enacts short title of this Act)."
+   },
+   {
+    "label": "Schedule",
+    "map_order": 53,
+    "doc_order": null,
+    "body_class": "substantive",
+    "anchored": false,
+    "anchor_kind": null,
+    "raw_span": null,
+    "body_chars": 2737,
+    "body_sha256": "8e26ad8aedbddac440a4c80929cd730266d93a3d5bcf2c32b02e1f16262d5e1a",
+    "body": "(Section 19)\n| Act | Provision |\n| --- | --- |\n| Arbitration Act, 1991 | subsection 52 (3) |\n| Assignments and Preferences Act | subsections 26 (2) and 27 (2) |\n| Business Corporations Act | subsections 157 (2), 185 (18) and (19), 188 (9), (13) and (14), and 189 (5) |\n| City of Toronto Act, 2006 | subsections 214 (4), 250 (2), 270 (4) and 351 (5) |\n| Civil Remedies Act, 2001 | subsections 3 (5) and 13 (7) |\n| Commodity Futures Act | section 60.4 |\n| Construction Act | subsections 13.18 (2) and 13.20 (2) and sections 31 and 36 |\n| Corporations Act | subsection 37 (2) |\n| Creditors’ Relief Act, 2010 | subsection 12 (1) |\n| Drainage Act | section 111 |\n| Education Act | subsection 218 (2) and subsection 11 (3) of Schedule 1 |\n| Election Act | subsection 99 (4) |\n| Electricity Act, 1998 | section 36.1.1 |\n| Environmental Bill of Rights, 1993 | section 102 |\n| Estates Act | subsections 44 (2) and 45 (2) and section 47 |\n| Estates Administration Act | subsection 17 (5) |\n| Expropriations Act | section 43 |\n| Family Law Act | subsection 7 (3) |\n| Fines and Forfeitures Act | subsection 6 (2) |\n| Forestry Workers Lien for Wages Act | subsections 8 (1) and 26 (1) |\n| Fuel Tax Act | subsection 8 (13) |\n| Gasoline Tax Act | subsection 5 (13) |\n| Income Tax Act | section 38 |\n| Insurance Act | section 148, statutory condition 14 and section 259.1 |\n| International Commercial Arbitration Act, 2017 | section 10 |\n| Libel and Slander Act | section 6 |\n| Liquor Licence and Control Act, 2019 | subsection 59 (4) |\n| Mortgages Act | subsections 21 (2) and 54 (2) |\n| Municipal Act, 2001 | subsections 273 (5), 380 (5) and 415 (2) |\n| Municipal Conflict of Interest Act | subsections 8 (2) and (6) |\n| Municipal Elections Act, 1996 | subsections 58 (2), 63 (1) and 83 (2) |\n| Not-for-Profit Corporations Act, 2010 | subsections 98 (3) and 187 (14) and (15) |\n| Ontario Home Ownership Savings Plan Act | section 18 |\n| Opioid Damages and Health Care Costs Recovery Act, 2019 | subsections 6 (1) and (1.1) |\n| Personal Property Security Act | subsections 44 (13) and (14) |\n| Prohibiting Profiting from Recounting Crimes Act, 2002 | subsections 4 (5) and 6 (6) |\n| Public Lands Act | subsection 34 (3) |\n| Reciprocal Enforcement of Judgments Act | subsection 2 (1) |\n| Reciprocal Enforcement of Judgments (U.K.) Act | paragraph 1 of article iii of the Schedule |\n| Securities Act | section 129.1, subsection 136 (6) and sections 138 and 138.14 |\n| Succession Law Reform Act | section 61 |\n| Taxation Act, 2007 | section 139 |\n| Tile Drainage Act | subsection 2 (3) |\n| Tobacco Damages and Health Care Costs Recovery Act, 2009 | subsection 6 (1) |\n| Tobacco Tax Act | subsections 6 (10) and 24 (5) |\n| Trustee Act | subsection 38 (3) |"
+   }
+  ]
+ }
+}

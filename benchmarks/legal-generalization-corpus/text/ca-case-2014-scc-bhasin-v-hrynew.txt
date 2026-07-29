@@ -1,0 +1,1483 @@
+SUPREME COURT OF CANADA
+
+CITATION: Bhasin v. Hrynew, 2014 SCC 71, [2014] 3 S.C.R. 49 4 DATE: 20141113
+DOCKE T: 35380
+
+BE TWE E N:
+Harish Bhasin, carrying on business as Bhasin & Associates
+Appellant
+and
+Larry Hrynew and Heritage Education Funds Inc. (formerly known as Allianz
+Education Funds Inc., formerly known as Canadian American Financial Corp.
+(Canada) Limited)
+Respondents
+
+CORAM: McLachlin C.J. and LeBel, Abella, Rothstein, Cromwell, Karakatsanis and
+Wagner JJ.
+
+RE ASONS FOR JUDGME NT:
+(paras. 1 to 112)
+
+Cromwell J. (McLachlin C.J. and LeBel, Abella, Rothstein,
+Karakatsanis and Wagner JJ. concurring)
+
+BHASIN v. HRYNEW, 2014 SCC 71, [2014] 3 S.C.R. 494
+Harish Bhasin, carrying on business as Bhasin & Associates Appellant
+v.
+Larry Hrynew and
+Heritage Education Funds Inc.
+
+(formerly known as Allianz Education Funds Inc.,
+formerly known as Canadian American Financial Corp.
+(Canada) Limited) Respondents
+Indexed as: Bhasin v. Hrynew
+2014 SCC 71
+File No.: 35380.
+2014: February 12; 2014: November 13.
+Present: McLachlin C.J. and LeBel, Abella, Rothstein, Cromwell, Karakatsanis and
+Wagner JJ.
+ON APPEAL FROM THE COURT OF APPEAL FOR ALBERTA
+Contracts -- Breach -- Performance -- Non-renewal provision -- Duty
+of good faith -- Duty of honest performance -- Agreement governing relationship
+between company and retail dealer providing for automatic contract renewal at end
+of three-year term unless parties giving six months' written notice to contrary --
+Company deciding not to renew dealership agreement -- Retail dealer lost value of
+business and majority of sales agents solicited by competitor agency -- Retail dealer
+suing company and competitor agency -- Whether common law requiring new
+general duty of honesty in contractual performance -- Whether company breaching
+that duty.
+
+Damages -- Quantum -- Contracts -- Breach -- Performance -- Non-
+renewal provision -- Duty of good faith -- Duty of honest performance -- Agreement
+governing relationship between company and retail dealer providing for automatic
+contract renewal at end of three-year term unless parties giving six months' written
+notice to contrary -- Company deciding not to renew dealership agreement -- Retail
+dealer lost value of business and majority of sales agents solicited by competitor
+agency -- Retail dealer suing company and competitor agency -- What is
+appropriate measure of damages.
+C markets education savings plans to investors through retail dealers,
+known as enrollment directors, such as B. An enrollment director's agreement that
+took effect in 1998 governed the relationship between C and B. The term of the
+contract was three years. The applicable provision provided that the contract would
+automatically renew at the end of the three-year term unless one of the parties gave
+six months' written notice to the contrary.
+H was another enrollment director and was a competitor of B. H wanted
+to capture B's lucrative niche market and previously approached B to propose a
+merger of their agencies on numerous occasions. He also actively encouraged C to
+force the merger. B had refused to participate in such a merger. C appointed H as the
+provincial trading officer ("PTO") to review its enrollment directors for compliance
+with securities laws after the Alberta Securities Commission raised concerns about
+compliance issues among C's enrollment directors. The role required H to conduct
+
+audits of C's enrollment directors. B objected to having H, a competitor, review his
+confidential business records.
+During C's discussions with the Commission about compliance, it was
+clear that C was considering a restructuring of its agencies in Alberta that involved B.
+In June 2000, C outlined its plans to the Commission and they included B working for
+H's agency. None of this was known by B. C repeatedly misled B by telling him that
+H, as PTO, was under an obligation to treat the information confidentially. It also
+responded equivocally when B asked in August 2000 whether the merger was a "done
+deal". When B continued to refuse to allow H to audit his records, C threatened to
+terminate the 1998 Agreement and in May 2001 gave notice of non-renewal under the
+Agreement. At the expiry of the contract term, B lost the value in his business in his
+assembled workforce. The majority of his sales agents were successfully solicited by
+H's agency.
+B sued C and H. The trial judge found C was in breach of the implied
+term of good faith, H had intentionally induced breach of contract, and both C and H
+were liable for civil conspiracy. The Court of Appeal allowed the appeal and
+dismissed B's lawsuit.
+Held: The appeal with respect to C should be allowed and the appeal
+with respect to H dismissed. The trial judge's assessment of damages should be
+varied to $87,000 plus interest.
+
+Canadian common law in relation to good faith performance of contracts
+is piecemeal, unsettled and unclear. Two incremental steps are in order to make the
+common law more coherent and more just. The first step is to acknowledge that good
+faith contractual performance is a general organizing principle of the common law of
+contract which underpins and informs the various rules in which the common law, in
+various situations and types of relationships, recognizes obligations of good faith
+contractual performance. The second step is to recognize, as a further manifestation
+of this organizing principle of good faith, that there is a common law duty which
+applies to all contracts to act honestly in the performance of contractual obligations.
+Taking these two steps will put in place a duty that is just, that accords with the
+reasonable expectations of commercial parties and that is sufficiently precise that it
+will enhance rather than detract from commercial certainty.
+There is an organizing principle of good faith that parties generally must
+perform their contractual duties honestly and reasonably and not capriciously or
+arbitrarily. An organizing principle states in general terms a requirement of justice
+from which more specific legal doctrines may be derived. An organizing principle
+therefore is not a free-standing rule, but rather a standard that underpins and is
+manifested in more specific legal doctrines and may be given different weight in
+different situations. It is a standard that helps to understand and develop the law in a
+coherent and principled way.
+
+The organizing principle of good faith exemplifies the notion that, in
+carrying out his or her own performance of the contract, a contracting party should
+have appropriate regard to the legitimate contractual interests of the contracting
+partner. While "appropriate regard" for the other party's interests will vary
+depending on the context of the contractual relationship, it does not require acting to
+serve those interests in all cases. It merely requires that a party not seek to undermine
+those interests in bad faith. This general principle has strong conceptual differences
+from the much higher obligations of a fiduciary. Unlike fiduciary duties, good faith
+performance does not engage duties of loyalty to the other contracting party or a duty
+to put the interests of the other contracting party first.
+This organizing principle of good faith manifests itself through the
+existing doctrines about the types of situations and relationships in which the law
+requires, in certain respects, honest, candid, forthright or reasonable contractual
+performance. Generally, claims of good faith will not succeed if they do not fall
+within these existing doctrines. However, this list is not closed. The application of
+the organizing principle of good faith to particular situations should be developed
+where the existing law is found to be wanting and where the development may occur
+incrementally in a way that is consistent with the structure of the common law of
+contract and gives due weight to the importance of private ordering and certainty in
+commercial affairs.
+
+The approach of recognizing an overarching organizing principle but
+accepting the existing law as the primary guide to future development is appropriate
+in the development of the doctrine of good faith. Good faith may be invoked in
+widely varying contexts and this calls for a highly context-specific understanding of
+what honesty and reasonableness in performance require so as to give appropriate
+consideration to the legitimate interests of both contracting parties.
+The principle of good faith must be applied in a manner that is consistent
+with the fundamental commitments of the common law of contract which generally
+places great weight on the freedom of contracting parties to pursue their individual
+self-interest. In commerce, a party may sometimes cause loss to another -- even
+intentionally -- in the legitimate pursuit of economic self-interest. Doing so is not
+necessarily contrary to good faith and in some cases has actually been encouraged by
+the courts on the basis of economic efficiency. The development of the principle of
+good faith must be clear not to veer into a form of ad hoc judicial moralism or "palm
+tree" justice. In particular, the organizing principle of good faith should not be used
+as a pretext for scrutinizing the motives of contracting parties.
+The objection to C's conduct in this case does not fit within any of the
+existing situations or relationships in which duties of good faith have been found to
+exist. It is appropriate to recognize a new common law duty that applies to all
+contracts as a manifestation of the general organizing principle of good faith: a duty
+
+of honest performance, which requires the parties to be honest with each other in
+relation to the performance of their contractual obligations.
+Under this new general duty of honesty in contractual performance,
+parties must not lie or otherwise knowingly mislead each other about matters directly
+linked to the performance of the contract. This does not impose a duty of loyalty or
+of disclosure or require a party to forego advantages flowing from the contract; it is a
+simple requirement not to lie or mislead the other party about one's contractual
+performance. Recognizing a duty of honest performance flowing directly from the
+common law organizing principle of good faith is a modest, incremental step.
+This new duty of honest performance is a general doctrine of contract law
+that imposes as a contractual duty a minimum standard of honesty in contractual
+performance. It operates irrespective of the intentions of the parties, and is to this
+extent analogous to equitable doctrines which impose limits on the freedom of
+contract, such as the doctrine of unconscionability. However, the precise content of
+honest performance will vary with context and the parties should be free in some
+contexts to relax the requirements of the doctrine so long as they respect its minimum
+core requirements.
+The duty of honest performance should not be confused with a duty of
+disclosure or of fiduciary loyalty. A party to a contract has no general duty to
+subordinate his or her interest to that of the other party. However, contracting parties
+must be able to rely on a minimum standard of honesty from their contracting partner
+
+in relation to performing the contract as a reassurance that if the contract does not
+work out, they will have a fair opportunity to protect their interests.
+In this case, the trial judge did not make a reversible error by adjudicating
+the issue of good faith. C breached the 1998 Agreement when it failed to act honestly
+with B in exercising the non-renewal clause. The trial judge concluded that C acted
+dishonestly with B throughout the period leading up to its exercise of the non-renewal
+clause, both with respect to its own intentions and with respect to H's role as PTO.
+The trial judge's detailed findings amply support this overall conclusion.
+C is liable for damages calculated on the basis of what B's economic
+position would have been had C fulfilled its duty. While the trial judge did not assess
+damages on that basis given the different findings in relation to liability, the trial
+judge made findings that permit this Court to do so. These findings permit damages
+to be assessed on the basis that if C had performed the contract honestly, B would
+have been able to retain the value of his business rather than see it, in effect,
+expropriated and turned over to H. It is clear from the findings of the trial judge and
+from the record that the value of the business around the time of non-renewal was
+$87,000. B is entitled to damages in the amount of $87,000. The Court of Appeal
+was correct in finding that there could be no liability for inducing breach of contract
+or unlawful means conspiracy. As such, it follows that the claims against H were
+rightly dismissed.
+Cases Cited
+
+Referred to: Aleyn v. Belchier (1758), 1 Eden 132, 28 E.R. 634; Mills v.
+Mills (1938), 60 C.L.R. 150; Mellish v. Motteux (1792), Peake 156, 170 E.R. 113;
+Carter v. Boehm (1766), 3 Burr. 1905, 97 E.R. 1162; Herbert v. Mercantile Fire Ins.
+Co. (1878), 43 U.C.Q.B. 384; Gateway Realty Ltd. v. Arton Holdings Ltd. (1991), 106
+N.S.R. (2d) 180, aff'd (1992), 112 N.S.R. (2d) 180; McDonald's Restaurant of
+Canada Ltd. v. British Columbia (1997), 29 B.C.L.R. (3d) 303; Crawford v.
+Agricultural Development Board (N.B.) (1997), 192 N.B.R. (2d) 68; Transamerica
+Life Canada Inc. v. ING Canada Inc. (2003), 68 O.R. (3d) 457; Mesa Operating
+Limited Partnership v. Amoco Canada Resources Ltd. (1994), 149 A.R. 187;
+Barclays Bank PLC v. Metcalfe & Mansfield Alternative Investments VII Corp., 2013
+ONCA 494, 365 D.L.R. (4th) 15; R. v. Salituro, [1991] 3 S.C.R. 654; Bow Valley
+Husky (Bermuda) Ltd. v. Saint John Shipbuilding Ltd., [1997] 3 S.C.R. 1210; Watkins
+v. Olafson, [1989] 2 S.C.R. 750; Hill v. Church of Scientology of Toronto, [1995] 2
+S.C.R. 1130; R.W.D.S.U., Local 558 v. Pepsi-Cola Canada Beverages (West) Ltd.,
+2002 SCC 8, [2002] 1 S.C.R. 156; British Columbia v. Imperial Tobacco Canada
+Ltd., 2005 SCC 49, [2005] 2 S.C.R. 473; Grant v. Torstar Corp., 2009 SCC 61,
+[2009] 3 S.C.R. 640; Interfoto Picture Library Ltd. v. Stiletto Visual Programmes
+Ltd., [1989] 1 Q.B. 433; London Drugs Ltd. v. Kuehne & Nagel International Ltd.,
+[1992] 3 S.C.R. 299; Machtinger v. HOJ Industries Ltd., [1992] 1 S.C.R. 986;
+Schuler A.G. v. Wickman Machine Tool Sales Ltd., [1974] A.C. 235; CivicLife.com
+Inc. v. Canada (Attorney General) (2006), 215 O.A.C. 43; Dynamic Transport Ltd. v.
+O.K. Detailing Ltd., [1978] 2 S.C.R. 1072; Mitsui & Co. (Canada) Ltd. v. Royal Bank
+of Canada, [1995] 2 S.C.R. 187; Mason v. Freedman, [1958] S.C.R. 483; Honda
+
+Canada Inc. v. Keays, 2008 SCC 39, [2008] 2 S.C.R. 362; Wallace v. United Grain
+Growers Ltd., [1997] 3 S.C.R. 701; Fidler v. Sun Life Assurance Co. of Canada, 2006
+SCC 30, [2006] 2 S.C.R. 3; 702535 Ontario Inc. v. Lloyd's London, Non-Marine
+Underwriters (2000), 184 D.L.R. (4th) 687; Whiten v. Pilot Insurance Co., 2002 SCC
+18, [2002] 1 S.C.R. 595; Andrusiw v. Aetna Life Insurance Co. of Canada (2001),
+289 A.R. 1; Martel Building Ltd. v. Canada, 2000 SCC 60, [2000] 2 S.C.R. 860;
+M.J.B. Enterprises Ltd. v. Defence Construction (1951) Ltd., [1999] 1 S.C.R. 619;
+Tercon Contractors Ltd. v. British Columbia (Transportation and Highways), 2010
+SCC 4, [2010] 1 S.C.R. 69; Yam Seng Pte Ltd. v. International Trade Corporation
+Ltd., [2013] EWHC 111, [2013] 1 All E.R. (Comm.) 1321; Mid Essex Hospital
+Services NHS Trust v. Compass Group UK and Ireland Ltd., [2013] EWCA Civ 200
+(BAILII); Renard Constructions (ME) Pty Ltd. v. Minister for Public Works (1992),
+26 N.S.W.L.R. 234; Burger King Corporation v. Hungry Jack's Pty Ltd., [2001]
+NSWCA 187, 69 N.S.W.L.R. 558 ; R. v. Jones, [1994] 2 S.C.R. 229; R. v. Hart, 2014
+SCC 52, [2014] 2 S.C.R. 544; Peel (Regional Municipality) v. Canada, [1992] 3
+S.C.R. 762; A.I. Enterprises Ltd. v. Bram Enterprises Ltd., 2014 SCC 12, [2014] 1
+S.C.R. 177; Bank of America Canada v. Mutual Trust Co., 2002 SCC 43, [2002] 2
+S.C.R. 601; Greenberg v. Meffert (1985), 50 O.R. (2d) 755; Shelanu Inc. v. Print
+Three Franchising Corp. (2003), 64 O.R. (3d) 533; GEC Marconi Systems Pty Ltd. v.
+BHP Information Technology Pty Ltd., [2003] FCA 50 (AustLII); Bank of Montreal
+v. Kuet Leong Ng, [1989] 2 S.C.R. 429; Kirke La Shelle Co. v. Armstrong Co., 263
+N.Y. 79 (1933); National Bank of Canada v. Soucisse, [1981] 2 S.C.R. 339; Houle v.
+Canadian National Bank, [1990] 3 S.C.R. 122; Bank of Montreal v. Bail Ltée, [1992]
+
+2 S.C.R. 554; United Roasters, Inc. v. Colgate-Palmolive Co., 649 F.2d 985 (1981);
+Ryan v. Moore, 2005 SCC 38, [2005] 2 S.C.R. 53; Maracle v. Travellers Indemnity
+Co. of Canada, [1991] 2 S.C.R. 50; Parna v. G. & S. Properties Ltd., [1971] S.C.R.
+306; Bruno Appliance and Furniture, Inc. v. Hryniak, 2014 SCC 8, [2014] 1 S.C.R.
+126; LeMesurier v. Andrus (1986), 54 O.R. (2d) 1; Shell Oil Co. v. Marinello, 294
+A.2d 253 (1972), aff'd 307 A.2d 598 (1973); Atlantic Richfield Co. v. Razumic, 390
+A.2d 736 (1978); J.H. Westerbeke Corp. v. Onan Corp., 580 F.Supp. 1173 (1984);
+Pitney-Bowes, Inc. v. Mestre, 517 F.Supp. 52 (1981), cert. denied, 464 U.S. 893
+(1983); Agribrands Purina Canada Inc. v. Kasamekas, 2011 ONCA 460, 106 O.R.
+(3d) 427.
+Statutes and Regulations Cited
+Civil Code of Lower Canada.
+Civil Code of Québec, arts. 6, 7, 1375.
+Franchises Act, R.S.A. 2000, c. F-23, s. 7.
+Restatement (Second) of Contracts, § 205 (1981).
+Uniform Commercial Code, §§ 1-201(b)(20) "good faith", 1-302, 1-304 (2012).
+Authors Cited
+Baudouin, Jean-Louis, et Pierre-Gabriel Jobin. Les obligations, 7e éd. par Pierre-
+Gabriel Jobin et Nathalie Vézina. Cowansville, Qué.: Yvon Blais, 2013.
+Beale, Hugh, and Tony Dugdale. "Contracts Between Businessmen: Planning and
+the Use of Contractual Remedies" (1975), 2 Brit. J. Law & Soc. 45.
+
+Belobaba, Edward P. "Good Faith in Canadian Contract Law", in Special Lectures of
+the Law Society of Upper Canada 1985 -- Commercial Law: Recent
+Developments and Emerging Trends. Don Mills, Ont.: De Boo, 1985, 73.
+Bridge, Michael G. "Does Anglo-Canadian Contract Law Need a Doctrine of Good
+Faith?" (1984), 9 Can. Bus. L.J. 385.
+Burton, Steven J. "Breach of Contract and the Common Law Duty to Perform in
+Good Faith" (1981), 94 Harv. L. Rev. 369.
+Campbell, David. "Good Faith and the Ubiquity of the 'Relational' Contract" (2014),
+77 Mod. L. Rev. 475.
+Cheshire and Fifoot's Law of Contract, 9th Australian ed., by N. C. Seddon and M. P.
+Ellinghaus. Chatswood, N.S.W.: LexisNexis Butterworths, 2008.
+Chitty on Contracts, 31st ed., vol. I, General Principles, by H. G. Beale et al., eds.
+London: Sweet & Maxwell, 2012.
+Clark, Don. "Some Recent Developments in the Canadian Law of Contracts" (1993),
+14 Advocates' Q. 435.
+Dixon, Bill. "Common law obligations of good faith in Australian commercial
+contracts -- a relational recipe" (2005), 33 A.B.L.R. 87.
+Dworkin, R. M. "Is Law a System of Rules?", in R. M. Dworkin, ed., The
+Philosophy of Law. Oxford: Oxford University Press, 1977, 38.
+Farnsworth, E. Allan. "Good Faith Performance and Commercial Reasonableness
+Under the Uniform Commercial Code" (1963), 30 U. Chicago L. Rev. 666.
+Fridman, G. H. L. The Law of Contract in Canada, 6th ed. Toronto: Carswell, 2011.
+Goldwasser, Vivien, and Tony Ciro. "Standards of Behaviour in Commercial
+Contracting" (2002), 30 A.B.L.R. 369.
+Grover, Warren. "A Solicitor Looks at Good Faith in Commercial Transactions", in
+Special Lectures of the Law Society of Upper Canada 1985 -- Commercial
+Law: Recent Developments and Emerging Trends. Don Mills, Ont.: De Boo,
+1985, 93.
+Hall, Geoff R. Canadian Contractual Interpretation Law, 2nd ed. Markham, Ont.:
+LexisNexis, 2012.
+Macaulay, Stewart. "An Empirical View of Contract", [1985] Wis. L. Rev. 465.
+Macaulay, Stewart. "Non-contractual Relations in Business: A Preliminary Study"
+(1963), 28 Am. Soc. Rev. 55.
+
+MacDougall, Bruce. Estoppel. Markham, Ont.: LexisNexis, 2012.
+Mason, Anthony. "Contract, Good Faith and Equitable Standards in Fair Dealing"
+(2000), 116 Law Q. Rev. 66.
+McCamus, John D. The Law of Contracts, 2nd ed. Toronto: Irwin Law, 2012.
+McKendrick, Ewan. Contract Law, 9th ed. Basingstoke, England: Palgrave
+Macmillan, 2011.
+McNeely, Anne C. Canadian Law of Competitive Bidding and Procurement.
+Aurora, Ont.: Canada Law Book, 2010.
+Miller, Alan D., and Ronen Perry. "Good Faith Performance" (2013), 98 Iowa L.
+Rev. 689.
+O'Byrne, Shannon Kathleen. "Good Faith in Contractual Performance: Recent
+Developments" (1995), 74 Can. Bar Rev. 70.
+O'Byrne, Shannon Kathleen. "The Implied Term of Good Faith and Fair Dealing:
+Recent Developments" (2007), 86 Can. Bar Rev. 193.
+O'Connor, J. F. Good Faith in English Law. Aldershot, England: Dartmouth, 1990.
+Ontario. Law Reform Commission. Report on Amendment of the Law of Contract.
+Toronto: Ministry of the Attorney General, 1987.
+Peden, Elisabeth. "Good faith in the performance of contract law" (2004), 42 L.S.J.
+64.
+Peden, Elisabeth. "When Common Law Trumps Equity: the Rise of Good Faith and
+Reasonableness and the Demise of Unconscionability" (2005), 21 J.C.L. 226.
+Pineau, Jean. "La discrétion judiciaire a-t-elle fait des ravages en matière
+contractuelle?", dans Service de la formation permanente du Barreau du
+Québec, vol. 113, La réforme du Code civil, cinq ans plus tard. Cowansville,
+Qué.: Yvon Blais, 1998, 141.
+Powell, Raphael. "Good Faith in Contracts" (1956), 9 Curr. Legal Probs. 16.
+Reiter, B. J. "Good Faith in Contracts" (1983), 17 Val. U.L. Rev. 705.
+Steyn, Johan. "Contract Law: Fulfilling the Reasonable Expectations of Honest
+Men" (1997), 113 Law Q. Rev. 433.
+Summers, Robert S. "'Good Faith' in General Contract Law and the Sales Provisions
+of the Uniform Commercial Code" (1968), 54 Va. L. Rev. 195.
+
+Swan, Angela, and Jakub Adamski. Canadian Contract Law, 3rd ed. Markham,
+Ont.: LexisNexis, 2012.
+Swan, John. "Whither Contracts: A Retrospective and Prospective Overview", in
+Special Lectures of the Law Society of Upper Canada 1984 -- Law in
+Transition: Contracts. Don Mills, Ont.: De Boo, 1984, 125.
+Waddams, S. M. "Good Faith, Unconscionability and Reasonable Expectations"
+(1995), 9 J.C.L. 55.
+Waddams, S. M. The Law of Contracts, 6th ed. Aurora, Ont.: Canada Law Book,
+2010.
+Yee, Woo Pei. "Protecting Parties' Reasonable Expectations: A General Principle of
+Good Faith" (2001), 1 O.U.C.L.J. 195.
+APPEAL from a judgment of the Alberta Court of Appeal (Côté and
+Paperny JJ.A. and Belzil J. (ad hoc)), 2013 ABCA 98, 84 Alta. L.R. (5th) 68, 544
+A.R. 28, 567 W.A.C. 28, 362 D.L.R. (4th) 18, 12 B.L.R. (5th) 175, [2013] 11
+W.W.R. 459, [2013] A.J. No. 395 (QL), 2013 CarswellAlta 822, setting aside a
+decision of Moen J., 2011 ABQB 637, 526 A.R. 1, 96 B.L.R. (4th) 73, [2012] 9
+W.W.R. 728, [2011] A.J. No. 1223 (QL), 2011 CarswellAlta 1905. Appeal allowed
+in part.
+Neil Finkelstein, Brandon Kain, John McCamus and Stephen Moreau, for
+the appellant.
+Eli S. Lederman, Jon Laxer and Constanza Pauchulo, for the
+respondents.
+The judgment of the Court was delivered by
+
+CROMWELL J. --
+I. Introduction
+[1] The key issues on this appeal come down to two straightforward
+questions: Does Canadian common law impose a duty on parties to perform their
+contractual obligations honestly? A nd, if so, did either of the respondents breach that
+duty? I would answer both questions in the affirmative. Finding that there is a duty to
+perform contracts honestly will make the law more certain, more just and more in
+tune with reasonable commercial expectations. It will also bring a measure of justice
+to the appellant, Mr. Bhasin, who was misled and lost the value of his business as a
+result.
+II. Facts and Judicial History
+Overview and Issues
+[2] The appellant, Mr. Bhasin, through his business Bhasin & Associates,
+was an enrollment director for Canadian American Financial Corp. ("Can-Am")
+beginning in 1989. The relationship between Mr. Bhasin and Can-Am soured in 1999
+and ultimately Can-Am decided not to renew the dealership agreement with him. The
+litigation leading to this appeal ensued.
+
+[3] Can-Am markets education savings plans ("ESPs") to investors through
+retail dealers, known as enrollment directors, such as Mr. Bhasin. It pays the
+enrollment directors compensation and bonuses for selling ESPs. The enrollment
+directors are in effect small business owners and the success of their businesses
+depends on them building a sales force. It took Mr. Bhasin approximately 10 years to
+build his sales force, but his business thrived and Can-Am gave him numerous awards
+and prizes recognizing him as one of their top enrollment directors in Canada: 2011
+ABQB 637, 526 A.R. 1, at paras. 51, 238 and 474.
+[4] An enrollment director's agreement that took effect in 1998 governed the
+relationship between Can-Am and Mr. Bhasin. (That Agreement replaced a previous
+agreement of an indefinite term that had governed their relationship since the outset
+in 1989.) The Agreement was a commercial dealership agreement, not a franchise
+agreement. There was no franchise fee and it was not covered by the statutory duty of
+fair dealing such as that provided for in s. 7 of the Franchises Act, R.S.A. 2000, c. F-
+23.
+[5] That said, there were some features of the 1998 Agreement that are
+similar to provisions typically found in franchise agreements. Mr. Bhasin was obliged
+to sell Can-Am investment products exclusively and owed it a fiduciary duty. Can-
+Am owned the client lists, was responsible for branding and implemented central
+policies that applied to all enrollment directors: see cls. 4.1, 5.2, 5.3 and 4.7. Mr.
+
+Bhasin could not sell, transfer, or merge his operation without Can-Am's consent,
+which was not to be withheld unreasonably: see cls. 4.5 and 11.4.
+[6] The term of the contract was three years. Clauses 8.3 and 8.4 allowed
+termination on short notice for misconduct or other cause. Clause 3.3 -- the provision
+at the centre of this case ― provided that the contract would automatically renew at
+the end of the three-year term unless one of the parties gave six months' written
+notice to the contrary.
+[7] Mr. Hrynew, one of the respondents and another enrollment director, was
+a competitor of Mr. Bhasin and there was considerable animosity between them: trial
+reasons, at para. 461. The trial judge found, in effect, that Mr. Hrynew pressured Can-
+Am not to renew its Agreement with Mr. Bhasin and that Can-Am dealt dishonestly
+with Mr. Bhasin and ultimately gave in to that pressure.
+[8] When Mr. Hrynew moved his agency to Can-Am from one of its
+competitors many years before the events in question, Can-Am promised him that he
+would be given consideration for mergers that would take place and he in fact merged
+with other agencies in Calgary after joining Can-Am: trial reasons, at para. 238. He
+was in a strong position with Can-Am because he had the largest agency in Alberta
+and a good working relationship with the Alberta Securities Commission, which
+regulated Can-Am's business: para. 284.
+
+[9] Mr. Hrynew wanted to capture Mr. Bhasin's lucrative niche market
+around which he had built his business: trial reasons, at para. 303. Mr. Hrynew
+personally approached Mr. Bhasin to propose a merger of their agencies on numerous
+occasions: para. 238. He also actively encouraged Can-Am to force the merger and
+made "veiled threats" that he would leave if no merger took place: para. 282; see also
+paras. 251 and 287. The trial judge found that the proposed "merger" was in effect a
+hostile takeover of Mr. Bhasin's agency by Mr. Hrynew: para. 240. Mr. Bhasin
+steadfastly refused to participate in such a merger: para. 247.
+[10] The Alberta Securities Commission raised concerns about compliance
+issues among Can-Am's enrollment directors. In late 1999, the Commission required
+Can-Am to appoint a single provincial trading officer ("PTO") to review its
+enrollment directors for compliance with securities laws: trial reasons, at paras. 149,
+152 and 160. Can-Am appointed Mr. Hrynew to that position in September of that
+year. The role required him to conduct audits of Can-Am's enrollment directors. Mr.
+Bhasin and Mr. Hon, another enrollment director, objected to having Mr. Hrynew, a
+competitor, review their confidential business records: paras. 189-96.
+[11] Can-Am became worried that the Commission might revoke its licence
+and, in 1999 and 2000, it had many discussions with the Commission about
+compliance. During those discussions, it was clear that Can-Am was considering a
+restructuring of its agencies in Alberta that involved Mr. Bhasin. In June 2000, Can-
+Am outlined its plans to the Commission and they included Mr. Bhasin working for
+
+Mr. Hrynew's agency. T he trial judge found that this plan had been formulated
+before June 2000: para. 256. None of this was known by Mr. Bhasin: paras. 243-46.
+[12] In fact, Can-Am repeatedly misled Mr. Bhasin by telling him that Mr.
+Hrynew, as PTO, was under an obligation to treat the information confidentially and
+that the Commission had rejected a proposal to have an outside PTO, neither of which
+was true: trial reasons, at para. 195. It also responded equivocally when Mr. Bhasin
+asked in August 2000 whether the merger was a "done deal": para. 247. When Mr.
+Bhasin continued to refuse to allow Mr. Hrynew to audit his records, Can-Am
+threatened to terminate the 1998 Agreement and in May 2001 gave notice of non-
+renewal under the Agreement: paras. 207-11.
+[13] At the expiry of the contract term, Mr. Bhasin lost the value in his
+business in his assembled workforce. The majority of his sales agents were
+successfully solicited by Mr. Hrynew's agency. Mr. Bhasin was obliged to take less
+remunerative work with one of Can-Am's competitors.
+[14] Mr. Bhasin sued Can-Am and Mr. Hrynew. Moen J. in the Alberta Court
+of Queen's Bench found that it was an implied term of the contract that decisions
+about whether to renew the contract would be made in good faith. The court held that
+the corporate respondent was in breach of the implied term of good faith, that Mr.
+Hrynew had intentionally induced breach of contract, and that the respondents were
+liable for civil conspiracy.
+
+[15] The trial judge found that Can-Am acted dishonestly with Mr. Bhasin
+throughout the events leading up to the non-renewal: it misled him about its
+intentions with respect to the merger and about the fact that it had already proposed
+the new structure to the Commission; it did not communicate to him that the decision
+was already made and final, even though he asked; and it did not communicate with
+him that it was working closely with Mr. Hrynew to bring about a new corporate
+structure with Hrynew's being the main agency in Alberta. The trial judge also found
+that, had Can-Am acted honestly, Mr. Bhasin could have "governed himself
+accordingly so as to retain the value in his agency": para. 258.
+[16] The Alberta Court of Appeal allowed the respondents' appeal and
+dismissed Mr. Bhasin's lawsuit. The court found his pleadings to be insufficient and
+held that the lower court erred by implying a term of good faith in the context of an
+unambiguous contract containing an entire agreement clause: 2013 ABCA 98, 84
+Alta. L.R. (5th) 68.
+[17] The appeal raises four issues:
+(a) Did Mr. Bhasin properly plead breach of the duty of good faith?
+(b) Did Can-Am owe Mr. Bhasin a duty of good faith? If so, did it breach that
+duty?
+
+(c) Are the respondents liable for the torts of inducing breach of contract or
+civil conspiracy?
+(d) If there was a breach, what is the appropriate measure of damages?
+III. Analysis
+A. Did Mr. Bhasin Properly Plead Breach of the Duty of Good Faith?
+[18] The Court of Appeal held that Mr. Bhasin had not properly pleaded the
+good faith issue and that the trial judge had therefore erred in considering it. Mr.
+Bhasin contests this conclusion, while the respondents support it. I agree with Mr.
+Bhasin.
+[19] The allegations in the statement of claim clearly put the questions of
+improper purpose and dishonesty in issue. These facts are sufficient to put Can-Am's
+good faith in issue. The question of whether this conduct amounted to a breach of the
+duty of good faith is a legal conclusion that did not need to be pleaded separately. The
+defendants did not move to strike the pleadings or seek particulars of the allegation of
+wrongful termination in the statement of claim. Good faith was a live issue that was
+fully canvassed in a lengthy trial: A.F., at paras. 92-94. Written submissions by both
+parties at trial referred to the good faith issue and, even in his opening at trial, Mr.
+Bhasin's counsel raised the issue of good faith.
+
+[20] The trial judge held that any deficiency in the pleadings did not cause
+prejudice to the respondents: paras. 23 and 48. This is an assessment she was
+uniquely positioned to make and her conclusion ought to be treated with deference on
+appeal. The good faith issue was fully argued in and addressed by the Court of
+Appeal and has been fully argued on the merits in this Court.
+[21] In my view, the trial judge did not make a reversible error by adjudicating
+the issue of good faith and we should address the merits of that issue.
+B. Did Can-Am Owe Mr. Bhasin a Duty of Good Faith?
+(1) Decisions and Positions of the Parties
+(a) Decisions
+[22] The trial judge accepted Mr. Bhasin's position that there was a duty of
+good faith in this case and that it had been breached. In brief, her reasoning was as
+follows.
+[23] First, the trial judge decided that the 1998 Agreement was a type of
+agreement which as a matter of law requires good faith performance. She recognized
+that the 1998 Agreement did not fall within any of the existing categories of contract,
+such as employment, insurance and franchise agreements, which have been held to
+require good faith performance. She concluded, however, that the Agreement was
+
+analogous to a franchise or employment contract, and so by analogy to these cases,
+she implied a term of good faith performance as a matter of law. The contract was not
+balanced from its inception and the relationship placed the enrollment director in a
+position of inherent and predictable vulnerability: paras. 67-86.
+[24] Second, and in the alternative, the trial judge held that a term of good
+faith performance should be implied based on the intentions of the parties in order to
+give business efficacy to the agreement. She concluded that "[w]hen one considers
+the whole of the relationship . . . it is clear that the parties had to operate in good faith
+and there was a requirement of fairness between them. In other words, good faith was
+necessary to give business efficacy to the whole 1998 Agreement": para. 101.
+[25] The 1998 Agreement contained an "entire agreement clause" stating that
+there were no "agreements, express, implied or statutory, other than expressly set out"
+in it: cl. 11.2. The trial judge held, however, that this clause did not preclude the
+implication of a duty of good faith. The parties, she reasoned, cannot rely on
+exclusion clauses to avoid contractual obligations where there is an imbalance of
+power, and courts refuse to let parties shelter under entire agreement clauses where it
+would be unjust or inequitable to do so: paras. 116-18.
+[26] Turning to the issue of breach, the trial judge found that Can-Am had
+breached the agreement, first by requiring Mr. Bhasin to submit to an audit by Mr.
+Hrynew and to provide the latter with access to his business records, and second by
+exercising the non-renewal clause in a dishonest and misleading manner and for an
+
+improper purpose. The non-renewal clause was not intended to permit Can-Am to
+force a merger of the Bhasin and Hrynew agencies, but that was the purpose for
+which Can-Am exercised this power: para. 261. The trial judge also found both
+respondents liable for unlawful means conspiracy and found Mr. Hrynew liable for
+inducing Can-Am's breach of its contract with Mr. Bhasin.
+[27] The Court of Appeal reversed and held that there had been no breach of
+contract. The duty of good faith in employment contracts could not be extended by
+analogy to other types of contract. In any event, the duty of good faith in the
+employment context is limited to the manner of termination and does not include
+reasons for non-renewal: C.A. reasons, at paras. 27 and 31. Nor was this a
+circumstance in which a term could be implied because it was so obvious it was not
+thought necessary to mention or was necessary to make the contract work: para. 32.
+Even if there were an implied duty of good faith in this case, the impugned conduct
+concerned the non-renewal of a contract, which occurs on expiry, unlike a termination
+clause: para. 31.
+[28] Moreover, the Court of Appeal held that a term cannot be implied where
+it goes against an express term of the contract. Here, the parties did not intend a
+perpetual contract, since they included a term allowing either party to unilaterally
+trigger its expiration prior to the end of each three-year term. The trial judge's
+approach was inconsistent with the non-renewal provision of the contract. The
+motive for triggering expiration was not restricted under the Agreement. The
+
+implication of a term of good faith also violated the entire agreement clause. The
+court held that the evidence of assurances given by Can-Am as to how the non-
+renewal power would be exercised fell afoul of the parol evidence rule and should not
+have been considered. Since the Court of Appeal held there was no breach of
+contract, the basis for the claims in unlawful means conspiracy and inducing breach
+of contract also disappeared.
+(b) Positions of the Parties
+[29] Mr. Bhasin advances two related positions on appeal. His broad
+submission is that the Court should recognize a general duty of good faith in contract.
+The duty arises where the agreement gives the defendant the power to unilaterally
+defeat a legitimate contractual objective of the plaintiff and it does not clearly allow
+the defendant to exercise its power without regard for that objective: A.F., at para. 51.
+This duty of good faith prevents conduct which, while consonant with the letter of a
+contract, exhibits dishonesty, ill will, improper motive or similar departures from
+reasonable business expectations. Mr. Bhasin contends that common law in Canada is
+increasingly isolated as other jurisdictions embrace a greater role for good faith in
+contract law: A.F., at paras. 27-32. The recognition of a general duty of good faith
+would constitute an incremental advance in the law, given the numerous specific
+situations that already give rise to a duty of good faith. Mr. Bhasin relies on the
+findings of the trial judge that the respondents improperly and dishonestly used their
+non-renewal right to compel Mr. Bhasin to merge with his competitor. Mr. Bhasin
+
+contends that the respondents had no legitimate business reason for not renewing the
+contract. He also says that the entire agreement clause should be construed narrowly,
+and that express language is needed for such a clause to derogate from a duty of good
+faith: A.F., at para. 83.
+[30] Mr. Bhasin's second position, emphasized in oral argument, is that the
+Court should at least recognize a duty of honest performance of contractual
+obligations: transcript, at pp. 8, 10 and 24. Mr. Bhasin relies on the trial judge's
+findings that Can-Am acted dishonestly towards Mr. Bhasin throughout the period
+leading up to the non-renewal. It repeatedly lied to him about the nature of the
+organizational changes required by the Alberta Securities Commission, the nature of
+the audits that were to be carried out by Mr. Hrynew, and was dishonest about its
+intention to force him out: trial reasons, at paras. 195, 221, 246-47 and 267.
+[31] Unsurprisingly, the respondents see things very differently. While they
+accept that good faith plays a role in Canadian contract law, they submit that this role
+is much more modest than Mr. Bhasin suggests. They say that such a duty arises only
+in certain classes of contract, such as employment contracts, and in contracts
+involving discretionary powers: R.F., at para. 52. In the employment context, the duty
+applies only to the manner in which a contract is terminated. The contract in this case
+was negotiated between commercial parties to whom the policy considerations
+underlying employment law doctrine do not apply. Mr. Bhasin is alleging a right to a
+perpetual, or at least indefinite, contract with the respondents. The contract in this
+
+case could not be said to be discretionary, because it provided simply that on six
+months' notice, either party could terminate the Agreement. The respondents submit
+that there is no ambiguity in the wording of the non-renewal clause of the contract
+and so there is no basis for implying other terms or for relying on extrinsic evidence
+of the parties' intentions. The entire agreement clause specifically precluded the
+implication of any terms other than the express terms of the contract.
+(2) Analysis
+(a) Overview
+[32] The notion of good faith has deep roots in contract law and permeates
+many of its rules. Nonetheless, Anglo-Canadian common law has resisted
+acknowledging any generalized and independent doctrine of good faith performance
+of contracts. The result is an "unsettled and incoherent body of law" that has
+developed "piecemeal" and which is "difficult to analyze": Ontario Law Reform
+Commission ("OLRCˮ), Report on Amendment of the Law of Contract (1987), at p.
+169. This approach is out of step with the civil law of Quebec and most jurisdictions
+in the United States and produces results that are not consistent with the reasonable
+expectations of commercial parties.
+[33] In my view, it is time to take two incremental steps in order to make the
+common law less unsettled and piecemeal, more coherent and more just. The first
+step is to acknowledge that good faith contractual performance is a general organizing
+
+principle of the common law of contract which underpins and informs the various
+rules in which the common law, in various situations and types of relationships,
+recognizes obligations of good faith contractual performance. The second is to
+recognize, as a further manifestation of this organizing principle of good faith, that
+there is a common law duty which applies to all contracts to act honestly in the
+performance of contractual obligations.
+[34] In my view, taking these two steps is perfectly consistent with the Court's
+responsibility to make incremental changes in the common law when appropriate.
+Doing so will put in place a duty that is just, that accords with the reasonable
+expectations of commercial parties and that is sufficiently precise that it will enhance
+rather than detract from commercial certainty.
+(b) Good Faith as a General Organizing Principle
+(i) Background
+[35] The doctrine of good faith traces its history to Roman law and found
+acceptance in early English contract law. For example, Lord Northington wrote in
+Aleyn v. Belchier (1758), 1 Eden 132, 28 E.R. 634, at p. 637, cited in Mills v. Mills
+(1938), 60 C.L.R. 150 (H.C.A.), at p. 185, that "[n]o point is better established than
+that, a person having a power, must execute it bona fide for the end designed,
+otherwise it is corrupt and void." Similarly, Lord Kenyon wrote in Mellish v. Motteux
+(1792), Peake 156, 170 E.R. 113, "in contracts of all kinds, it is of the highest
+
+importance that courts of law should compel the observance of honesty and good
+faith": p. 113-14. In Carter v. Boehm (1766), 3 Burr. 1905, 97 E.R. 1162, at p. 1910,
+Lord Mansfield stated that good faith is a principle applicable to all contracts; see also
+Herbert v. Mercantile Fire Ins. Co. (1878), 43 U.C.Q.B. 384; R. Powell, "Good Faith
+in Contracts" (1956), 9 Curr. Legal Probs. 16.
+[36] However, these broad pronouncements have been, for the most part,
+restricted by subsequent jurisprudence to specific types of contracts and relationships,
+such as insurance contracts, leaving unclear the role of the broader principle of good
+faith in the modern Anglo-Canadian law of contracts: Chitty on Contracts (31st ed.
+2012), vol. I, General Principles , at para. 1-039; W. P. Yee, "Protecting Parties'
+Reasonable Expectations: A General Principle of Good Faith" (2001), 1 O.U.C.L.J.
+195, at p. 195; E. P. Belobaba, "Good Faith in Canadian Contract Law", in Special
+Lectures of the Law Society of Upper Canada 1985 -- Commercial Law: Recent
+Developments and Emerging Trends (1985), 73, at p. 75. One leading Canadian
+contracts scholar went so far as to say that the common law has taken a "kind of
+perverted pride" in the absence of any general notion of good faith, as if accepting
+that notion "would be admitting to the presence of some kind of embarrassing social
+disease": J. Swan, "Whither Contracts: A Retrospective and Prospective Overview",
+in Special Lectures of the Law Society of Upper Canada 1984 -- Law in Transition:
+Contracts (1984), 125, at p. 148.
+
+[37] This Court has not examined whether there is a general duty of good faith
+contractual performance. However, there has been an active debate in other courts
+and among scholars for decades over whether there is, or should be, a general or
+"stand-alone" duty of good faith in the performance of contracts. Canadian courts
+have reached different conclusions on this point.
+[38] Some suggest that there is a general duty of good faith: Gateway Realty
+Ltd. v. Arton Holdings Ltd. (1991), 106 N.S.R. (2d) 180 (S.C. (T.D.)), aff'd on
+narrower grounds (1992), 112 N.S.R. (2d) 180 (S.C. (App. Div.)); McDonald's
+Restaurant of Canada Ltd. v. British Columbia (1997), 29 B.C.L.R. (3d) 303 (C.A.),
+at para. 99; Crawford v. Agricultural Development Board (N.B.) (1997), 192 N.B.R.
+(2d) 68 (C.A.), at paras. 7-8. They see a broad role for good faith as an implied term
+in all contracts that establishes minimum standards of acceptable commercial
+behaviour. As Kelly J. put it in Gateway Realty, at para. 38:
+The law requires that parties to a contract exercise their rights under
+that agreement honestly, fairly and in good faith. This standard is
+breached when a party acts in a bad faith manner in the performance of
+its rights and obligations under the contract. "Good faithˮ conduct is the
+guide to the manner in which the parties should pursue their mutual
+contractual objectives. Such conduct is breached when a party acts in
+"bad faithˮ -- a conduct that is contrary to community standards of
+honesty, reasonableness or fairness.
+[39] Other courts are of the view that there exists no such general duty of good
+faith in all contracts: Transamerica Life Canada Inc. v. ING Canada Inc. (2003), 68
+O.R. (3d) 457 (C.A.), at paras. 53-54; Mesa Operating Limited Partnership v. Amoco
+
+Canada Resources Ltd. (1994), 149 A.R. 187 (C.A.), at paras. 15-19, per Kerans J.A.,
+dubitante; Barclays Bank PLC v. Metcalfe & Mansfield Alternative Investments VII
+Corp., 2013 ONCA 494, 365 D.L.R. (4th) 15, at para. 131; see G. R. Hall, Canadian
+Contractual Interpretation Law (2nd ed. 2012), at pp. 338-46. The detractors of such
+a general duty of good faith have accepted a limited role for good faith in certain
+contexts but have held that it would create commercial uncertainty and undermine
+freedom of contract to recognize a general duty of good faith that would permit courts
+to interfere with the express terms of a contract.
+[40] This Court ought to develop the common law to keep in step with the
+"dynamic and evolving fabric of our society" where it can do so in an incremental
+fashion and where the ramifications of the development are "not incapable of
+assessment": R. v. Salituro, [1991] 3 S.C.R. 654, at p. 670; Bow Valley Husky
+(Bermuda) Ltd. v. Saint John Shipbuilding Ltd., [1997] 3 S.C.R. 1210, at para. 93; see
+also Watkins v. Olafson, [1989] 2 S.C.R. 750, at pp. 760-64; Hill v. Church of
+Scientology of Toronto, [1995] 2 S.C.R. 1130, at para. 85; R.W.D.S.U., Local 558 v.
+Pepsi-Cola Canada Beverages (West) Ltd., 2002 SCC 8, [2002] 1 S.C.R. 156; British
+Columbia v. Imperial Tobacco Canada Ltd., 2005 SCC 49, [2005] 2 S.C.R. 473;
+Grant v. Torstar Corp., 2009 SCC 61, [2009] 3 S.C.R. 640, at para. 46. This is even
+more appropriate where, as here, what is contemplated is not the reversal of some
+settled rule, but a development directed to bringing greater certainty and coherence to
+a complex and troublesome area of the common law.
+
+[41] As I see it, the developments that I propose are desirable as a result of
+several considerations. First, the current Canadian common law is uncertain. Second,
+the current approach to good faith performance lacks coherence. Third, the current
+law is out of step with the reasonable expectations of commercial parties, particularly
+those of at least two major trading partners of common law Canada -- Quebec and
+the United States: see, e.g., Hall, at p. 347. While the developments which I propose
+will not completely address these problems, they will bring a measure of coherence
+and predictability to the law and will bring the law closer to what reasonable
+commercial parties would expect it to be.
+(ii) Survey of the Current State of the Common Law
+[42] Anglo-Canadian common law has developed a number of rules and
+doctrines that call upon the notion of good faith in contractual dealings; it is a concept
+that underlies many elements of modern contract law: S. M. Waddams, The Law of
+Contracts (6th ed. 2010), at para. 550; J. D. McCamus The Law of Contracts (2nd ed.
+2012), at pp. 835-38; OLRC, at p. 165; Belobaba, at pp. 75-76; J. F. O'Connor,
+Good Faith in English Law (1990), at pp. 17-49; J. Steyn, "Contract Law: Fulfilling
+the Reasonable Expectations of Honest Men" (1997), 113 Law Q. Rev. 433. The
+approach, not unfairly, has been characterized as developing "piecemeal solutions in
+response to demonstrated problems": Interfoto Picture Library Ltd. v. Stiletto Visual
+Programmes Ltd., [1989] 1 Q.B. 433 (C.A.), at p. 439, per Bingham L.J. (as he then
+was). Thus we see, for example, that good faith notions have been applied to
+
+particular types of contracts, particular types of contractual provisions and particular
+contractual relationships. It also underlies doctrines that explicitly deal with fairness
+in contracts, such as unconscionability, and plays a role in interpreting and implying
+contractual terms. The difficulty with this "piecemeal" approach, however, is that it
+often fails to take a consistent or principled approach to similar problems. A brief
+review of the current landscape of good faith will show the extent to which this is the
+case.
+[43] Considerations of good faith are apparent in doctrines that expressly
+consider the fairness of contractual bargains, such as unconscionability. This doctrine
+is based on considerations of fairness and preventing one contracting party from
+taking undue advantage of the other: G. H. L. Fridman, The Law of Contract in
+Canada (6th ed. 2011), at pp. 329-30; E. Peden, "When Common Law Trumps
+Equity: the Rise of Good Faith and Reasonableness and the Demise of
+Unconscionability" (2005), 21 J.C.L. 226; Belobaba, at p. 86; S. M. Waddams,
+"Good Faith, Unconscionability and Reasonable Expectations" (1995), 9 J.C.L. 55.
+[44] Good faith also plays a role in the law of implied terms, particularly with
+respect to terms implied by law. Terms implied by law redress power imbalances in
+certain classes of contracts such as employment, landlord-lessee, and insurance
+contracts: London Drugs Ltd. v. Kuehne & Nagel International Ltd., [1992] 3 S.C.R.
+299, at p. 457, per McLachlin J. (as she then was) ; see also Machtinger v. HOJ
+Industries Ltd., [1992] 1 S.C.R. 986, per McLachlin J., concurring. The implication
+
+of terms plays a functionally similar role in common law contract law to the doctrine
+of good faith in civil law jurisdictions by filling in gaps in the written agreement of
+the parties: Chitty on Contracts, at para. 1-051. In Mesa Operating, the Alberta Court
+of Appeal implied a term that a power of pooling properties for the purpose of
+determining royalty payments be exercised reasonably. The court implied this term in
+order to give effect to the intentions of the parties rather than as a requirement of
+good faith, but Kerans J.A. stated that "[t]he rule that governs here can, therefore, be
+expressed much more narrowly than to speak of good faith, although I suspect it is in
+reality the sort of thing some judges have in mind when they speak of good faith":
+para. 22. Many other examples may be found in Waddams, The Law of Contracts, at
+paras. 499-506.
+[45] Considerations of good faith are also apparent in contract interpretation:
+Chitty on Contracts, at para. 1-050; Hall, at p. 347. The primary object of contractual
+interpretation is of course to give effect to the intentions of the parties at the time of
+contract formation. However, considerations of good faith inform this process. Parties
+may generally be assumed to intend certain minimum standards of conduct. Further,
+as Lord Reid observed in Schuler A.G. v. Wickman Machine Tool Sales Ltd., [1974]
+A.C. 235 (H.L.), at p. 251, "[t]he more unreasonable the result the more unlikely it is
+that the parties can have intended it". As A. Swan and J. Adamski put it, the duty of
+good faith "is not an externally imposed requirement but inheres in the parties'
+relation": Canadian Contract Law (3rd ed. 2012), at §§ 8.134-8.146.
+
+[46] Good faith also appears in numerous contexts in a more explicit form.
+The concept of "good faith" is used in hundreds of statutes across Canada, including
+statutory duties of good faith and fair dealing in franchise legislation and good faith
+bargaining in labour law: S. K. O'Byrne, "Good Faith in Contractual Performance:
+Recent Developments" (1995), 74 Can. Bar Rev. 70, at p. 71.
+[47] There have been many attempts to bring a measure of coherence to this
+piecemeal accretion of appeals to good faith: see, among many others, McCamus, at
+pp. 835-68; S. K. O'Byrne, "The Implied Term of Good Faith and Fair Dealing:
+Recent Developments" (2007), 86 Can. Bar Rev. 193, at pp. 196-204; Waddams, The
+Law of Contracts, at paras. 494-508; R. S. Summers, "‛Good Faith' in General
+Contract Law and the Sales Provisions of the Uniform Commercial Codeˮ (1968), 54
+Va. L. Rev. 195; S. J. Burton, "Breach of Contract and the Common Law Duty to
+Perform in Good Faithˮ (1981), 94 Harv. L. Rev. 369. By way of example, Professor
+McCamus has identified three broad types of situations in which a duty of good faith
+performance of some kind has been found to exist: (1) where the parties must
+cooperate in order to achieve the objects of the contract; (2) where one party exercises
+a discretionary power under the contract; and (3) where one party seeks to evade
+contractual duties (pp. 840-56; CivicLife.com Inc. v. Canada (Attorney General)
+(2006), 215 O.A.C. 43, at paras. 49-50).
+[48] While these types of cases overlap to some extent, they provide a useful
+analytical tool to appreciate the current state of the law on the duty of good faith.
+
+They also reveal some of the lack of coherence in the current approach. It is often
+unclear whether a good faith obligation is being imposed as a matter of law, as a
+matter of implication or as a matter of interpretation. Professor McCamus notes:
+Although the line between the two types of implication is difficult to
+draw, it may be realistic to assume that implied duties of good faith are
+likely, on occasion at least, to slide into the category of legal incidents
+rather than mere presumed intentions. Certainly, it would be difficult to
+defend the implication of terms on each of the cases considered here on
+the basis of the traditional business efficiency or officious bystander test.
+In the control of contractual discretion cases, for example, it may be more
+realistic to suggest that the implied limitation on the exercise of the
+discretion is intended to give effect to the "reasonable expectations of the
+parties.ˮ [pp. 865-66]
+[49] The first type of situation (contracts requiring the cooperation of the
+parties to achieve the objects of the contract) is reflected in the jurisprudence of this
+Court. In Dynamic Transport Ltd. v. O.K. Detailing Ltd., [1978] 2 S.C.R. 1072, the
+parties to a real estate transaction failed to specify in the purchase-sale agreement
+which party was to be responsible for obtaining planning permission for a subdivision
+of the property. By law, the vendor was the only party capable of obtaining such
+permission. The Court held that the vendor was under an obligation to use reasonable
+efforts to secure the permission, or as Dickson J. (as he then was) put it, "[t]he vendor
+is under a duty to act in good faith and to take all reasonable steps to complete the
+sale": p. 1084. It is not completely clear whether this duty was imposed as a matter of
+law or was implied based on the parties' intentions: see p. 1083; see also Gateway
+Realty and CivicLife.com.
+
+[50] Mitsui & Co. (Canada) Ltd. v. Royal Bank of Canada, [1995] 2 S.C.R.
+187, is an example of the second type of situation (exercise of contractual discretion).
+The lease of a helicopter included an option to buy at the "reasonable fair market
+value of the helicopter as established by Lessor": para. 2. This Court held, at para.
+34, that, "[c]learly, the lessor is not in a position, by virtue of clause 32, to make any
+offer that it may feel is appropriate. It is contractually bound to act in good faith to
+determine the reasonable fair market value of the helicopters, which is the price that
+the parties had initially agreed would be the exercise price of the option." The Court
+did not discuss the basis for implying the term, but suggested that in the absence of a
+reasonableness requirement, the option would be a mere agreement to agree and thus
+would be unenforceable, which means that the implication of the term was necessary
+to give business efficacy to the agreement.
+[51] This Court's decision in Mason v. Freedman, [1958] S.C.R. 483, falls in
+the third type of situation in which a duty of good faith arises (where a contractual
+power is used to evade a contractual duty). In that case, the vendor in a real estate
+transaction regretted the bargain he had made. He then sought to repudiate the
+contract by failing to convey title in fee simple because he claimed his wife would not
+provide a bar of dower. The issue was whether he could take advantage of a clause
+permitting him to repudiate the transaction in the event that he was "unable or
+unwilling" to remove this defect in title even though he had made no efforts to do so
+by trying to obtain the bar of dower. Judson J. held that the clause did not "enable a
+person to repudiate a contract for a cause which he himself has brought about" or
+
+permit "a capricious or arbitrary repudiation": p. 486. On the contrary, "[a] vendor
+who seeks to take advantage of the clause must exercise his right reasonably and in
+good faith and not in a capricious or arbitrary manner": p. 487.
+[52] The jurisprudence is not always very clear about the source of the good
+faith obligations found in these cases. The categories of terms implied as a matter of
+law, terms implied as a matter of intention and terms arising as a matter of
+interpretation sometimes are blurred or even ignored, resulting in uncertainty and a
+lack of coherence at the level of principle.
+[53] Apart from these types of situations in which a duty of good faith arises,
+common law Canadian courts have also recognized that there are classes of
+relationships that call for a duty of good faith to be implied by law.
+[54] For example, this Court confirmed that there is a duty of good faith in the
+employment context in Honda Canada Inc. v. Keays, 2008 SCC 39, [2008] 2 S.C.R.
+362. Mr. Keays was diagnosed with chronic fatigue syndrome and was frequently
+absent from work. Honda grew concerned with the frequency of the absences. It
+ordered Mr. Keays to undergo an examination by a doctor chosen by the employer,
+required him to provide a doctor's note for any absences, and discouraged him from
+retaining outside counsel. The majority held that in all employment contracts there
+was an implied term of good faith governing the manner of termination. In particular,
+the employer should not engage in conduct that is "unfair or is in bad faith by being,
+for example, untruthful, misleading or unduly insensitive" when dismissing an
+
+employee: para. 57, citing Wallace v. United Grain Growers Ltd., [1997] 3 S.C.R.
+701, at para. 98. Good faith in this context did not extend to the employer's reasons
+for terminating the contract of employment because this would undermine the right of
+an employer to determine the composition of its workforce: Wallace, at para. 76.
+[55] This Court has also affirmed the duty of good faith which requires an
+insurer to deal with its insured's claim fairly, both with respect to the manner in
+which it investigates and assesses the claim and to the decision whether or not to pay
+it: Fidler v. Sun Life Assurance Co. of Canada, 2006 SCC 30, [2006] 2 S.C.R. 3, at
+para. 63, citing 702535 Ontario Inc. v. Lloyd's London, Non-Marine Underwriters
+(2000), 184 D.L.R. (4th) 687 (Ont. C.A.), at para. 29. The breach of this duty may
+support an award of punitive damages: Whiten v. Pilot Insurance Co., 2002 SCC 18,
+[2002] 1 S.C.R. 595. This duty of good faith is also reciprocal: the insurer must not
+act in bad faith when dealing with a claim, which is typically made by someone in a
+vulnerable situation, and the insured must act in good faith by disclosing facts
+material to the insurance policy (para. 83, citing Andrusiw v. Aetna Life Insurance
+Co. of Canada (2001), 289 A.R. 1 (Q.B.), at paras. 84-85, per Murray J.).
+[56] This Court has also recognized that a duty of good faith, in the sense of
+fair dealing, will generally be implied in fact in the tendering context. When a
+company tenders a contract, it comes under a duty of fairness in considering the bids
+submitted under the tendering process, as a result of the expense incurred by parties
+submitting these bids: Martel Building Ltd. v. Canada, 2000 SCC 60, [2000] 2 S.C.R.
+
+860, at para. 88; see also M.J.B. Enterprises Ltd. v. Defence Construction (1951) Ltd.,
+[1999] 1 S.C.R. 619; Tercon Contractors Ltd. v. British Columbia (Transportation
+and Highways), 2010 SCC 4, [2010] 1 S.C.R. 69, at paras. 58-59; A. C. McNeely,
+Canadian Law of Competitive Bidding and Procurement (2010), at pp. 245-54.
+[57] Developments in the United Kingdom and Australia point to enhanced
+attention to the notion of good faith, mitigated by reluctance to embrace it as a stand-
+alone doctrine. Good faith in contract performance has received increasing
+prominence in English law, despite its "traditional . . . hostility" to the concept: Yam
+Seng Pte Ltd. v. International Trade Corporation Ltd., [2013] EWHC 111, [2013] 1
+AII E.R. (Comm.) 1321 (Q.B.), at para. 123, citing E. McKendrick, Contract Law
+(9th ed. 2011), at pp. 221-22; see also Chitty on Contracts, at para. 1-039. In Yam
+Seng, Leggatt J. held that a number of specific duties embodying good faith can be
+implied based on the presumed intentions of the parties according to the traditional
+approach for implying terms: para. 131. Leggatt J. identified a number of these
+implied duties, including honesty, fidelity to the parties' bargain, cooperation, and
+fair dealing: paras. 135-50. Leggatt J. stated that "[a] paradigm example of a general
+norm which underlies almost all contractual relationships is an expectation of
+honesty. That expectation is essential to commerce, which depends critically on
+trust": para. 135; see D. Campbell, "Good Faith and the Ubiquity of the 'Relational'
+Contract" (2014), 77 Mod. L. Rev. 475. The Court of Appeal considered the Yam
+Seng decision in Mid Essex Hospital Services NHS Trust v. Compass Group UK and
+Ireland Ltd., [2013] EWCA Civ 200 (BAILII), where it confirmed that good faith was
+
+not a general principle of English law, but that it could be an implied term in certain
+categories of cases: paras. 105 and 150.
+[58] Australian courts have also moved towards a greater role for good faith in
+contract performance: Cheshire and Fifoot's Law of Contract (9th Australian ed.
+2008), at paras. 10.43-10.47. The duty of good faith in its modern form was
+recognized by Priestley J.A. in Renard Constructions (ME) Pty Ltd. v. Minister for
+Public Works (1992), 26 N.S.W.L.R. 234 (C.A.). There is no generally applicable
+duty of good faith, but one will be implied into contracts in certain circumstances.
+The duty of good faith can be implied as a matter of law or as a matter of fact,
+although the cases are not always clear on the basis on which the term is being
+implied. Australian courts have taken a broad view of what constitutes good faith:
+see, e.g., Burger King Corporation v. Hungry Jack's Pty Ltd., [2001] NSWCA 187,
+69 N.S.W.L.R. 558. The law of good faith performance in Australia is still
+developing and remains unsettled: E. Peden, "Good faith in the performance of
+contract law" (2004), 42 L.S.J. 64, at p. 64. However, it is clear that the duty of good
+faith requires adherence to standards of honest conduct: A. Mason, "Contract, Good
+Faith and Equitable Standards in Fair Dealing" (2000), 116 Law Q. Rev. 66, at p. 76;
+Burger King, at paras. 171 and 189.
+(iii) The Way Forward
+[59] This selective survey supports the view that Canadian common law in
+relation to good faith performance of contracts is piecemeal, unsettled and unclear:
+
+Belobaba; O'Byrne, "Good Faith in Contractual Performance: Recent
+Developments", at p. 95; B. J. Reiter, "Good Faith in Contractsˮ (1983), 17 Val. U.L.
+Rev. 705, at pp. 711-12. It also shows that in Canada, as well as in the United
+Kingdom and Australia, there is increasing attention to the notion of good faith,
+particularly in the area of contractual performance. Opponents of any general
+obligation of good faith prefer the traditional, organic development of solutions to
+address particular problems as they arise: see, e.g., M. G. Bridge, "Does Anglo-
+Canadian Contract Law Need a Doctrine of Good Faith?" (1984), 9 Can. Bus. L.J.
+385; D. Clark, "Some Recent Developments in the Canadian Law of Contracts"
+(1993), 14 Advocates' Q. 435, at pp. 436 and 440. However, foreclosing some
+incremental development of the law at the level of principle would go beyond what
+prudent caution requires and evidence an almost "perverted pride" -- to use Swan's
+term, at p. 148 -- in the law's failings.
+[60] Commercial parties reasonably expect a basic level of honesty and good
+faith in contractual dealings. While they remain at arm's length and are not subject to
+the duties of a fiduciary, a basic level of honest conduct is necessary to the proper
+functioning of commerce. The growth of longer term, relational contracts that depend
+on an element of trust and cooperation clearly call for a basic element of honesty in
+performance, but, even in transactional exchanges, misleading or deceitful conduct
+will fly in the face of the expectations of the parties: see Swan and Adamski, at §1.24.
+
+[61] The fact that commercial parties expect honesty on the part of their
+contracting partners can also be seen from the fact that it was the American Bar
+Association's Section of Corporation, Banking and Business Law that urged the
+adoption of "honesty in fact" in the original drafting of the Uniform Commercial
+Code ("U.C.C.ˮ): E. A. Farnsworth, "Good Faith Performance and Commercial
+Reasonableness Under the Uniform Commercial Codeˮ (1963), 30 U. Chicago L.
+Rev. 666, at p. 673. Moreover, empirical research suggests that commercial parties
+do in fact expect that their contracting parties will conduct themselves in good faith:
+see, e.g., S. Macaulay, "Non-contractual Relations in Business: A Preliminary Study"
+(1963), 28 Am. Soc. Rev. 55, at p. 58; H. Beale and T. Dugdale, "Contracts Between
+Businessmen: Planning and the Use of Contractual Remedies" (1975), 2 Brit. J. Law
+& Soc. 45, at pp. 47-48; S. Macaulay, "An Empirical View of Contract", [1985] Wis.
+L. Rev. 465; V. Goldwasser and T. Ciro, "Standards of Behaviour in Commercial
+Contracting" (2002), 30 A.B.L.R. 369, at pp. 372-77. It is, to say the least,
+counterintuitive to think that reasonable commercial parties would accept a contract
+which contained a provision to the effect that they were not obliged to act honestly in
+performing their contractual obligations.
+[62] I conclude from this review that enunciating a general organizing
+principle of good faith and recognizing a duty to perform contracts honestly will help
+bring certainty and coherence to this area of the law in a way that is consistent with
+reasonable commercial expectations.
+
+(iv) Towards an Organizing Principle of Good Faith
+[63] The first step is to recognize that there is an organizing principle of good
+faith that underlies and manifests itself in various more specific doctrines governing
+contractual performance. That organizing principle is simply that parties generally
+must perform their contractual duties honestly and reasonably and not capriciously or
+arbitrarily.
+[64] As the Court has recognized, an organizing principle states in general
+terms a requirement of justice from which more specific legal doctrines may be
+derived. An organizing principle therefore is not a free-standing rule, but rather a
+standard that underpins and is manifested in more specific legal doctrines and may be
+given different weight in different situations: see, e.g., R. v. Jones, [1994] 2 S.C.R.
+229, at p. 249; R. v. Hart, 2014 SCC 52, [2014] 2 S.C .R. 544, at para. 124; R. M.
+Dworkin, "Is Law a System of Rules?", in R. M. Dworkin, ed., The Philosophy of
+Law (1977), 38, at p. 47. It is a standard that helps to understand and develop the law
+in a coherent and principled way.
+[65] The organizing principle of good faith exemplifies the notion that, in
+carrying out his or her own performance of the contract, a contracting party should
+have appropriate regard to the legitimate contractual interests of the contracting
+partner. While "appropriate regard" for the other party's interests will vary depending
+on the context of the contractual relationship, it does not require acting to serve those
+interests in all cases. It merely requires that a party not seek to undermine those
+
+interests in bad faith. This general principle has strong conceptual differences from
+the much higher obligations of a fiduciary. Unlike fiduciary duties, good faith
+performance does not engage duties of loyalty to the other contracting party or a duty
+to put the interests of the other contracting party first.
+[66] This organizing principle of good faith manifests itself through the
+existing doctrines about the types of situations and relationships in which the law
+requires, in certain respects, honest, candid, forthright or reasonable contractual
+performance. Generally, claims of good faith will not succeed if they do not fall
+within these existing doctrines. But we should also recognize that this list is not
+closed. The application of the organizing principle of good faith to particular
+situations should be developed where the existing law is found to be wanting and
+where the development may occur incrementally in a way that is consistent with the
+structure of the common law of contract and gives due weight to the importance of
+private ordering and certainty in commercial affairs.
+[67] This approach is consistent with that taken in the case of unjust
+enrichment. McLachlin J. outlined the approach in Peel (Regional Municipality) v.
+Canada, [1992] 3 S.C.R. 762, at pp. 786 and 788:
+This case presents the Court with the difficult task of mediating
+between, if not resolving, the conflicting views of the proper scope of the
+doctrine of unjust enrichment. It is my conclusion that we must choose a
+middle path; one which acknowledges the importance of proceeding on
+general principles but seeks to reconcile the principles with the
+established categories of recovery . . . .
+
+. . .
+
+The tri-partite principle of general application which this Court has
+recognized as the basis of the cause of action for unjust enrichment is
+thus seen to have grown out of the traditional categories of recovery. It is
+informed by them. It is capable, however, of going beyond them,
+allowing the law to develop in a flexible way as required to meet
+changing perceptions of justice.
+[68] The flexible approach that was taken in Peel recognizes that "[a]t the
+heart of the doctrine of unjust enrichment, whether expressed in terms of the
+traditional categories of recovery or general principle, lies the notion of restoration of
+a benefit which justice does not permit one to retain": p. 788. In that case, this Court
+further developed the law through application of an organizing principle without
+displacing the existing specific doctrines. This is what I propose to do with regards to
+the organizing principle of good faith.
+[69] The approach of recognizing an overarching organizing principle but
+accepting the existing law as the primary guide to future development is appropriate
+in the development of the doctrine of good faith. Good faith may be invoked in
+widely varying contexts and this calls for a highly context-specific understanding of
+what honesty and reasonableness in performance require so as to give appropriate
+consideration to the legitimate interests of both contracting parties. For example, the
+general organizing principle of good faith would likely have different implications in
+the context of a long-term contract of mutual cooperation than it would in a more
+transactional exchange: Swan and Adamski, at § 1.24; B. Dixon, "Common law
+
+obligations of good faith in Australian commercial contracts -- a relational recipe"
+(2005), 33 A.B.L.R. 87.
+[70] The principle of good faith must be applied in a manner that is consistent
+with the fundamental commitments of the common law of contract which generally
+places great weight on the freedom of contracting parties to pursue their individual
+self-interest. In commerce, a party may sometimes cause loss to another -- even
+intentionally -- in the legitimate pursuit of economic self-interest: A.I. Enterprises
+Ltd. v. Bram Enterprises Ltd., 2014 SCC 12, [2014] 1 S.C.R. 177, at para. 31. Doing
+so is not necessarily contrary to good faith and in some cases has actually been
+encouraged by the courts on the basis of economic efficiency: Bank of America
+Canada v. Mutual Trust Co., 2002 SCC 43, [2002] 2 S.C.R. 601, at para. 31. The
+development of the principle of good faith must be clear not to veer into a form of ad
+hoc judicial moralism or "palm treeˮ justice. In particular, the organizing principle of
+good faith should not be used as a pretext for scrutinizing the motives of contracting
+parties.
+[71] Tying the organizing principle to the existing law mitigates the concern
+that any general notion of good faith in contract law will undermine certainty in
+commercial contracts. In my view, this approach strikes the correct balance between
+predictability and flexibility.
+(v) Should There Be a New Duty?
+
+[72] In my view, the objection to Can-Am's conduct in this case does not fit
+within any of the existing situations or relationships in which duties of good faith
+have been found to exist. The relationship between Can-Am and Mr. Bhasin was not
+an employment or franchise relationship. Classifying the decision not to renew the
+contract as a contractual discretion would constitute a significant expansion of the
+decided cases under that type of situation. After all, a party almost always has some
+amount of discretion in how to perform a contract. It would also be difficult to say
+that a duty of good faith should be implied in this case on the basis of the intentions
+of the parties given the clear terms of an entire agreement clause in the Agreement.
+The key question before the Court, therefore, is whether we ought to create a new
+common law duty under the broad umbrella of the organizing principle of good faith
+performance of contracts.
+[73] In my view, we should. I would hold that there is a general duty of
+honesty in contractual performance. This means simply that parties must not lie or
+otherwise knowingly mislead each other about matters directly linked to the
+performance of the contract. This does not impose a duty of loyalty or of disclosure or
+require a party to forego advantages flowing from the contract; it is a simple
+requirement not to lie or mislead the other party about one's contractual performance.
+Recognizing a duty of honest performance flowing directly from the common law
+organizing principle of good faith is a modest, incremental step. The requirement to
+act honestly is one of the most widely recognized aspects of the organizing principle
+of good faith: see Swan and Adamski, at § 8.135; O'Byrne, "Good Faith in
+
+Contractual Performance: Recent Developments", at p. 78; Belobaba; Greenberg v.
+Meffert (1985), 50 O.R. (2d) 755 (C.A.), at p. 764; Gateway Realty, at para. 38, per
+Kelly J.; Shelanu Inc. v. Print Three Franchising Corp. (2003), 64 O.R. (3d) 533
+(C.A.), at para. 69. For example, the duty of honesty was a key component of the
+good faith requirements which have been recognized in relation to termination of
+employment contracts: Wallace, at para. 98; Honda Canada, at para. 58.
+[74] There is a longstanding debate about whether the duty of good faith arises
+as a term implied as a matter of fact or a term implied by law: see Mesa Operating, at
+paras. 15-19. I do not have to resolve this debate fully, which, as I reviewed earlier,
+casts a shadow of uncertainty over a good deal of the jurisprudence. I am at this point
+concerned only with a new duty of honest performance and, as I see it, this should not
+be thought of as an implied term, but a general doctrine of contract law that imposes
+as a contractual duty a minimum standard of honest contractual performance. It
+operates irrespective of the intentions of the parties, and is to this extent analogous to
+equitable doctrines which impose limits on the freedom of contract, such as the
+doctrine of unconscionability.
+[75] Viewed in this way, the entire agreement clause in cl. 11.2 of the
+Agreement is not an impediment to the duty arising in this case. Because the duty of
+honesty in contractual performance is a general doctrine of contract law that applies
+to all contracts, like unconscionability, the parties are not free to exclude it: see
+CivicLife.com, at para. 52.
+
+[76] It is true that the Anglo-Canadian common law of contract has been
+reluctant to impose mandatory rules not based on the agreement of the parties,
+because they are thought to interfere with freedom of contract: see Gateway Realty,
+per Kelly J.; O'Byrne, "Good Faith in Contractual Performance: Recent
+Developments", at p. 95; Farnsworth, at pp. 677-78. As discussed above, however,
+the duty of honest performance interferes very little with freedom of contract, since
+parties will rarely expect that their contracts permit dishonest performance of their
+obligations.
+[77] That said, I would not rule out any role for the agreement of the parties in
+influencing the scope of honest performance in a particular context. The precise
+content of honest performance will vary with context and the parties should be free in
+some contexts to relax the requirements of the doctrine so long as they respect its
+minimum core requirements. The approach I outline here is similar in principle to that
+in § 1-302(b) of the U.C.C. (2012):
+The obligations of good faith, diligence, reasonableness, and care . . .
+may not be disclaimed by agreement. The parties, by agreement, may
+determine the standards by which the performance of those obligations is
+to be measured if those standards are not manifestly unreasonable.
+[78] Certainly, any modification of the duty of honest performance would
+need to be in express terms. A generically worded entire agreement clause such as cl.
+11.2 of the Agreement does not indicate any intention of the parties to depart from the
+basic tenets of honest performance: see GEC Marconi Systems Pty Ltd. v. BHP
+
+Information Technology Pty Ltd., [2003] FCA 50 (AustLII), at para. 922, per Finn J.;
+see also O'Byrne, "Good Faith in Contractual Performance: Recent Developments",
+at p. 96.
+[79] Two arguments are typically raised against an increased role for a duty of
+good faith in the law of contract: see Bridge; Clark; and Peden, "When Common Law
+Trumps Equity: the Rise of Good Faith and Reasonableness and the Demise of
+Unconscionability". The first is that "good faith" is an inherently unclear concept that
+will permit ad hoc judicial moralism to undermine the certainty of commercial
+transactions. The second is that imposing a duty of good faith is inconsistent with the
+basic principle of freedom of contract. I do not have to decide here whether or not
+these points are valid in relation to a broad, generalized duty of good faith. However,
+they carry no weight in relation to adopting a rule of honest performance.
+[80] Recognizing a duty of honesty in contract performance poses no risk to
+commercial certainty in the law of contract. A reasonable commercial person would
+expect, at least, that the other party to a contract would not be dishonest about his or
+her performance. The duty is also clear and easy to apply. Moreover, one
+commentator points out that given the uncertainty that has prevailed in this area,
+cautious solicitors have long advised clients to take account of the requirements of
+good faith: W. Grover, "A Solicitor Looks at Good Faith in Commercial
+Transactions", in Special Lectures of the Law Society of Upper Canada 1985 --
+Commercial Law: Recent Developments and Emerging Trends (1985), 93, at pp. 106-
+
+7. A rule of honest performance in my view will promote, not detract from, certainty
+in commercial dealings.
+[81] Any interference by the duty of honest performance with freedom of
+contract is more theoretical than real. It will surely be rare that parties would wish to
+agree that they may be dishonest with each other in performing their contractual
+obligations.
+[82] Those who fear that this modest step would create uncertainty or impede
+freedom of contract may take comfort from experience of the civil law of Quebec and
+the common and statute law of many jurisdictions in the United States.
+[83] The Civil Code of Québec recognizes a broad duty of good faith which
+extends to the formation, performance and termination of a contract and includes the
+notion of the abuse of contractual rights: see arts. 6, 7 and 1375. While this is not the
+place to expound in detail on good faith in the Quebec civil law, it is worth noting
+that good faith is seen as having two main aspects. The first is the subjective aspect,
+which is concerned with the state of mind of the actor, and addresses conduct that is,
+for example, malicious or intentional. The second is the objective aspect which is
+concerned with whether conduct is unacceptable according to the standards of
+reasonable people. As J.-L. Baudouin and P.-G. Jobin explain, [TRANSLATION] " a
+person can be in good faith (in the subjective sense), that is, act without malicious
+intent or without knowledge of certain facts, yet his or her conduct may nevertheless
+be contrary to the requirements of good faith in that it violates objective standards of
+
+conduct that are generally accepted in society": Les obligations (7th ed. 2013), by P.-
+G. Jobin and N. Vézina, at para. 132. The notion of good faith includes (but is not
+limited to) the requirement of honesty in performing the contract: ibid., at para. 161;
+Bank of Montreal v. Kuet Leong Ng, [1989] 2 S.C.R. 429, at p. 436.
+[84] In the United States, § 1-304 of the U.C.C. provides that "[e]very contract
+or duty within the Uniform Commercial Code imposes an obligation of good faith in
+its performance and enforcement." The U.C.C. has been enacted by legislation in all
+50 states. While the provisions of the U.C.C. apply only to commercial contracts, §
+205 of the Restatement (Second) of Contracts (1981) provides for a general duty of
+good faith in all contracts. This provision of the Restatement has been followed by
+courts in the vast majority of states. The notion of "good faith" in the Restatement
+substantially followed the definition proposed by Robert Summers in an influential
+article, where he proposed that "good faith" is best understood as an "excluder" of
+various categories of bad faith conduct: p. 206; see § 205, comment a . The general
+definition of "good faith" in the U.C.C. is also quite broad, encompassing honesty
+and adherence to "reasonable commercial standards": § 1-201(b)(20). This definition
+was originally limited to "honesty in fact", that is, a duty of honesty in performance,
+and was only later expanded: A. D. Miller and R. Perry, "Good Faith Performance"
+(2013), 98 Iowa L. Rev. 689, at pp. 719-20. Honesty in performance is also a key
+component of "good faithˮ under the Restatement: § 205, comments a and d.
+
+[85] Experience in Quebec and the United States shows that even very broad
+conceptions of the duty of good faith have not impeded contractual activity or
+contractual stability: see, e.g., J. Pineau, "La discrétion judiciaire a-t-elle fait des
+ravages en matière contractuelle?", in La réforme du Code civil, cinq ans plus tard
+(1998), 141. It is also worth noting that in both the United States and Quebec, judicial
+developments preceded legislative action in codifying good faith. In the United
+States, courts had recognized the existence of a general duty of good faith before the
+promulgation of the U.C.C.: see, e.g., Kirke La Shelle Co. v. Armstrong Co., 263 N.Y.
+79 (1933). Similarly, though there was no express provision of "good faith" in the
+Civil Code of Lower Canada, the Court implied such a general duty from more
+specific provisions of the Code: see National Bank of Canada v. Soucisse, [1981] 2
+S.C.R. 339; Houle v. Canadian National Bank, [1990] 3 S.C.R. 122; Bank of
+Montreal v. Bail Ltée, [1992] 2 S.C.R. 554. The duty of good faith was subsequently
+included in the revisions leading to the enactment of the Civil Code of Québec.
+[86] The duty of honest performance that I propose should not be confused
+with a duty of disclosure or of fiduciary loyalty. A party to a contract has no general
+duty to subordinate his or her interest to that of the other party. However, contracting
+parties must be able to rely on a minimum standard of honesty from their contracting
+partner in relation to performing the contract as a reassurance that if the contract does
+not work out, they will have a fair opportunity to protect their interests. That said, a
+dealership agreement is not a contract of utmost good faith (uberrimae fidei) such as
+an insurance contract, which among other things obliges the parties to disclose
+
+material facts: Whiten. But a clear distinction can be drawn between a failure to
+disclose a material fact, even a firm intention to end the contractual arrangement, and
+active dishonesty.
+[87] This distinction explains the result reached by the court in United
+Roasters, Inc. v. Colgate-Palmolive Co., 649 F.2d 985 (4th Cir. 1981). The
+terminating party had decided in advance of the required notice period that it was
+going to terminate the contract. The court held that no disclosure of this intention was
+required other than what was stipulated in the notice requirement. The court stated:
+. . . there is very little to be said in favor of a rule of law that good faith
+requires one possessing a right of termination to inform the other party
+promptly of any decision to exercise the right. A tenant under a month-to-
+month lease may decide in January to vacate the premises at the end of
+September. It is hardly to be suggested that good faith requires the tenant
+to inform the landlord of his decision soon after January. Though the
+landlord may have found earlier notice convenient, formal exercise of the
+right of termination in August will do. [pp. 989-90]
+United Roasters makes it clear that there is no unilateral duty to disclose information
+relevant to termination. But the situation is quite different, as I see it, when it comes
+to actively misleading or deceiving the other contracting party in relation to
+performance of the contract.
+[88] The duty of honest performance has similarities with the existing law in
+relation to civil fraud and estoppel, but it is not subsumed by them. Unlike promissory
+estoppel and estoppel by representation, the contractual duty of honest performance
+
+does not require that the defendant intend that his or her representation be relied on
+and it is not subject to the uncertainty around whether estoppel can be used to found
+an independent cause of action: Ryan v. Moore, 2005 SCC 38, [2005] 2 S.C.R. 53, at
+para. 5; Maracle v. Travellers Indemnity Co. of Canada, [1991] 2 S.C.R. 50;
+Waddams, The Law of Contracts, at paras. 195-203; B. MacDougall, Estoppel (2012),
+at pp. 142-44. As for the tort of civil fraud, breach of the duty of honest contractual
+performance does not require the defendant to intend that the false statement be relied
+on, and breach of it supports a claim for damages according to the contractual rather
+than the tortious measure: see, e.g., Parna v. G. & S. Properties Ltd., [1971] S.C.R.
+306, cited with approval in Bruno Appliance and Furniture, Inc. v. Hryniak, 2014
+SCC 8, [2014] 1 S.C.R. 126, at para. 19.
+[89] Mr. Bhasin, supported by many judicial and academic authorities, has
+argued for wholesale adoption of a more expansive duty of good faith in contrast to
+the modest, incremental change that I propose: A.F., at para. 51; Summers, at p. 206;
+Belobaba; Gateway Realty. In many of its manifestations, good faith requires more
+than honesty on the part of a contracting party. For example, in Dynamic Transport,
+this Court held that good faith in the context of that contract required a party to take
+reasonable steps to obtain the planning permission that was a condition precedent to a
+sale of property. In other cases, the courts have required that discretionary powers not
+be exercised in a manner that is "capricious" or "arbitrary": Mason, at p. 487 ;
+LeMesurier v. Andrus (1986), 54 O.R. (2d) 1 (C.A.), at p. 7. In other contexts, this
+
+Court has been reluctant to extend the requirements of good faith beyond honesty for
+fear of causing undue judicial interference in contracts: Wallace, at para. 76.
+[90] It is not necessary in this case to define in general terms the limits of the
+implications of the organizing principle of good faith. This is because it is unclear to
+me how any broader duty would assist Mr. Bhasin here. After all, the contract was
+subject to non-renewal. It is a considerable stretch, as I see it, to turn even a broadly
+conceived duty of good faith exercise of the non-renewal provision into what is, in
+effect, a contract of indefinite duration. This in my view is the principal difficulty in
+the trial judge's reasoning because, in the result, her decision turned a three year
+contract that was subject to an express provision relating to non-renewal into a
+contract of roughly nine years' duration. As the Court of Appeal pointed out, in my
+view correctly, "[t]he parties did not intend or presume a perpetual contract, as they
+contracted that either party could unilaterally cause it to expire on any third
+anniversary": para. 32. Even if there were a breach of a broader duty of good faith by
+forcing the merger, Can-Am's contractual liability would still have to be measured by
+reference to the least onerous means of performance, which in this case would have
+meant simply not renewing the contract. Since no damages flow from this breach, it is
+unnecessary to decide whether reliance on a discretionary power to achieve a purpose
+extraneous to the contract and which undermined one of its key objectives might call
+for further development under the organizing principle of good faith contractual
+performance.
+
+[91] I note as well that, even in jurisdictions that embrace a broader role for
+the duty of good faith, plaintiffs have met with only mixed success in alleging bad
+faith failure to renew a contract. Some cases have treated non-renewal as equivalent
+to termination and thus subject to a duty of good faith: Shell Oil Co. v. Marinello, 294
+A.2d 253 (N.J. Super. Ct. 1972), aff'd 307 A.2d 598 (N.J. 1973); Atlantic Richfield
+Co. v. Razumic, 390 A.2d 736 (Pa. 1978), at pp. 741-42. Other courts have seen non-
+renewal as fundamentally different, especially where the express terms of the contract
+contemplate the expiry of contractual obligations and leave no room for any sort of
+duty to renew: J.H. Westerbeke Corp. v. Onan Corp., 580 F.Supp. 1173 (D. Mass.
+1984), at p. 1184; Pitney-Bowes, Inc. v. Mestre, 517 F.Supp. 52 (S.D. Fla. 1981), cert.
+denied, 464 U.S. 893 (1983).
+[92] I conclude that at this point in the development of Canadian common law,
+adding a general duty of honest contractual performance is an appropriate incremental
+step, recognizing that the implications of the broader, organizing principle of good
+faith must be allowed to evolve according to the same incremental judicial approach.
+[93] A summary of the principles is in order:
+(1) There is a general organizing principle of good faith that underlies many facets
+of contract law.
+
+(2) In general, the particular implications of the broad principle for particular cases
+are determined by resorting to the body of doctrine that has developed which gives
+effect to aspects of that principle in particular types of situations and relationships.
+
+(3) It is appropriate to recognize a new common law duty that applies to all
+contracts as a manifestation of the general organizing principle of good faith: a duty
+of honest performance, which requires the parties to be honest with each other in
+relation to the performance of their contractual obligations.
+
+(3) Application
+[94] The trial judge made a clear finding of fact that Can-Am "acted
+dishonestly toward Bhasin in exercising the non-renewal clause": para. 261; see also
+para. 271. There is no basis to interfere with that finding on appeal. It follows that
+Can-Am breached its duty to perform the Agreement honestly.
+[95] The immediate dispute in this case centred on the non-renewal clause
+contained in cl. 3.3 of the 1998 Agreement which Mr. Bhasin entered into in
+November 1998. It provided that the Agreement was for a three-year term and would
+be automatically renewed unless one of the parties gave notice to the contrary at least
+six months before the end of the initial or any renewed term:
+
+3.3 The term of this Agreement shall be for a period of three years
+from the date hereof (the "Initial Term") and thereafter shall be
+automatically renewed for successive three year periods (a "Renewal
+Term"), subject to earlier termination as provided for in section 8 hereof,
+unless either [Can-Am] or the Enrollment Director notifies the other in
+writing at least six months prior to expiry of the Initial Term or any
+Renewal Term that the notifying party desires expiry of the Agreement,
+in which event the Agreement shall expire at the end of such Initial Term
+or Renewal Term, as applicable.
+[96] The factual matrix in which the judge made her finding of dishonest
+performance is complicated and I will only outline it in very broad terms in order to
+put that finding in context. There were two main interrelated story lines.
+[97] The first concerns Mr. Hrynew's persistent attempts to take over Mr.
+Bhasin's market through a merger -- in effect a takeover by him of Mr. Bhasin's
+agency. The second concerns the difficulties, beginning in early April 1999, that Can-
+Am was having with the Alberta Securities Commission, which regulated its business
+and its enrollment directors in Alberta. The Commission insisted that Can-Am
+appoint a full-time employee to be a PTO responsible for compliance with Alberta
+securities law. Can-Am ultimately appointed Mr. Hrynew, with the result that he
+would audit his competitor agencies, including Mr. Bhasin's, and therefore have
+access to their confidential business information. Mr. Bhasin's refusal to allow Mr.
+Hrynew access to this information led to the final confrontation with Can-Am and its
+giving notice of non-renewal in May 2001. Can-Am, for its part, wanted to force a
+merger of the Bhasin agency under the Hrynew agency, effectively giving Mr.
+
+Bhasin's business to Mr. Hrynew. It was in the context of this situation that the trial
+judge made her findings of dishonesty on the part of Can-Am.
+[98] The trial judge concluded that Can-Am acted dishonestly with Mr. Bhasin
+throughout the period leading up to its exercise of the non-renewal clause, both with
+respect to its own intentions and with respect to Mr. Hrynew's role as PTO. Her
+detailed findings amply support this overall conclusion.
+[99] By early 2000, Can-Am was considering a significant reorganization of
+its activities in Alberta; by June of that year, it sent an organizational chart to the
+Commission showing that Mr. Bhasin's agency was to be merged under Mr.
+Hrynew's. But it had said nothing of this to Mr. Bhasin: trial reasons, at paras. 167-
+68. The trial judge found that these representations made by Can-Am to the
+Commission were clearly false if, as she concluded, they intended to refer to Mr.
+Bhasin: para. 246. She also found that Can-Am, by June 2000, was fearful that the
+Commission was going to pull its licence in Alberta and that it was prepared to do
+whatever it could to forestall that possibility. "However, it was not dealing honestly
+with [Mr.] Bhasin about the realities of the situation as [it] saw them": para. 246.
+[100] In August 2000, Mr. Bhasin first heard of Can-Am's merger plans for
+him during a meeting with Can-Am's regional vice-president. But when questioned
+about Can-Am's intentions with respect to the merger, the official "equivocated" and
+did not tell him the truth that from Can-Am's perspective this was a "done deal". The
+
+trial judge concluded that the official was "not honest with [Mr.] Bhasin" at that
+meeting: para. 247.
+[101] When Mr. Bhasin complained about Mr. Hrynew's conflict of interest in
+being both auditor and competitor, Can-Am in effect blamed the Commission,
+claiming that the Commission had rejected its proposal to appoint a third party PTO.
+This was not truthful. Can-Am failed to mention that it had proposed to appoint a
+non-resident of Alberta who was clearly not qualified according to the Commission's
+criteria or that it had decided to appoint Mr. Hrynew even though he did not meet the
+Commission's criteria either: trial reasons, at paras. 195 and 221. It also
+misrepresented -- repeatedly -- to Mr. Bhasin that Mr. Hrynew was bound by duties
+of confidentiality and segregation of activities in the course of an audit, when in fact
+there was no such requirement. Can-Am did not even finalize its PTO contract with
+Mr. Hrynew until March 2001 and, notwithstanding its assurances to Mr. Bhasin, it
+failed to include such a provision in the contract: paras. 190-221. As the trial judge
+found, Can-Am "could not possibly have missed this honestly in the PTO agreement,
+given that [Mr. Bhasin's] very protests about [Mr.] Hrynew's appointment as PTO
+were about confidentiality and segregation of activities": para. 221. The judge also
+found that Can-Am repeated these "lies" about Mr. Hrynew's supposed obligations of
+confidentiality even after the PTO agreement, without these protections, had been
+signed: para. 204.
+
+[102] Can-Am pushed on with the requirement that Mr. Hrynew audit Mr.
+Bhasin's agency as if it were required to do so by the Commission even though it had
+arranged to have one of its employees conduct the audit of Mr. Hrynew's agency:
+trial reasons, at para. 198.
+[103] As the trial judge found, this dishonesty on the part of Can-Am was
+directly and intimately connected to Can-Am's performance of the Agreement with
+Mr. Bhasin and its exercise of the non-renewal provision. I conclude that Can-Am
+breached the 1998 Agreement when it failed to act honestly with Mr. Bhasin in
+exercising the non-renewal clause.
+C. Liability for Civil Conspiracy and Inducing Breach of Contract
+[104] In light of this conclusion, I agree with the Court of Appeal's rejection of
+Mr. Bhasin's claims based on the torts of inducing breach of contract and unlawful
+means conspiracy.
+[105] The trial judge specifically found that Mr. Hrynew did not encourage
+Can-Am to act dishonestly in its dealings with Mr. Bhasin and that Can-Am's
+dishonest conduct was not fairly attributable to Mr. Hrynew: paras. 271 and 287. It
+follows that Mr. Hrynew did not induce Can-Am's breach of its contractual duty of
+honest performance.
+
+[106] The trial judge dismissed the claim for conspiracy to injure and there is
+no basis to interfere with that finding. However, the trial judge held the respondents
+liable for unlawful means conspiracy, with the unlawful means being the breach of
+contract and inducing breach of contract: para. 326. Because, in light of my
+conclusions, the only relevant breach of contract in this case is the breach of the duty
+of honest performance and there was no inducement of breach of contract, the only
+relevant unlawful means pertained to Can-Am alone and not Mr. Hrynew.
+Accordingly, there can be no liability for civil conspiracy: see Agribrands Purina
+Canada Inc. v. Kasamekas, 2011 ONCA 460, 106 O.R. (3d) 427, at para. 43.
+[107] I therefore agree with the result reached by the Court of Appeal that there
+could be no liability for inducing breach of contract or unlawful means conspiracy:
+para. 36. It follows that the claims against Mr. Hrynew were rightly dismissed.
+D. What Is the Appropriate Measure of Damages?
+[108] I have concluded that Can-Am's breach of contract consisted of its failure
+to be honest with Mr. Bhasin about its contractual performance and, in particular,
+with respect to its settled intentions with respect to renewal. It is therefore liable for
+damages calculated on the basis of what Mr. Bhasin's economic position would have
+been had Can-Am fulfilled that duty. While the trial judge did not assess damages on
+that basis given her different findings in relation to liability, she made findings that
+permit this Court to do so.
+
+[109] The trial judge specifically held that but for Can-Am's dishonesty, Mr.
+Bhasin could have acted so as to "retain the value in his agency": paras. 258-59. In
+reaching this conclusion, the trial judge was well aware of the difficulties that Mr.
+Bhasin would have in selling his business given the "almost absolute controls" that
+Can-Am had on enrollment directors and that it owned the "book of business": para.
+402. She also heard evidence and made findings about what the value of the business
+was, taking these limitations into account. These findings, in my view, permit us to
+assess damages on the basis that if Can-Am had performed the contract honestly, Mr.
+Bhasin would have been able to retain the value of his business rather than see it, in
+effect, expropriated and turned over to Mr. Hrynew.
+[110] It is clear from the findings of the trial judge and from the record that the
+value of the business around the time of non-renewal was $87,000. The defendants'
+expert at trial valued Mr. Bhasin's business as of 2001 (the time of non-renewal) as
+approximately $87,000. While there is some confusion in the record about the date of
+evaluation and the relevance of discount rates, I am persuaded that the trial judge
+found that the business was worth $87,000 at the time that the Agreement expired and
+that she made this finding fully alive to the difficulties standing in the way of a sale of
+the business given the contractual arrangements between Can-Am and its enrollment
+directors: see, e.g., para. 451. In addition, we have had no suggestion in argument
+that this figure should be reassessed. In fact, the defendants, as appellants before the
+Court of Appeal, submitted to that court that if damages were payable, they should be
+assessed at the value of the business at the time of the expiry of the Agreement and
+
+noted that the trial judge had accepted the evidence of their expert witness, Mr.
+Bailey, that the value was $87,000.
+[111] I conclude therefore that Mr. Bhasin is entitled to damages in the amount
+of $87,000.
+IV. Disposition
+[112] I would allow the appeal with respect to Can-Am and dismiss the appeal
+with respect to Mr. Hrynew. I would vary the trial judge's assessment of damages to
+$87,000 plus interest. Mr. Bhasin should have his costs throughout as against Can-
+Am. There should be no costs at any level in favour of or against Mr. Hrynew.
+Appeal allowed in part.
+Solicitors for the appellant: McCarthy Tétrault, Toronto.
+Solicitors for the respondents: Lenczner Slaght Royce Smith Griffin,
+Toronto.

@@ -1,0 +1,1349 @@
+Exhibit 3.42
+
+SECOND AMENDED AND RESTATED
+
+LIMITED
+LIABILITY COMPANY AGREEMENT
+
+OF
+
+QUALITY TECHNOLOGY SERVICES RICHMOND
+II, LLC
+
+THIS SECOND
+AMENDED AND RESTATED LIMITED LIABILITY COMPANY AGREEMENT (together with the schedules attached hereto, this "Agreement")
+of Quality Technology Services Richmond II, LLC (the "Company"), is entered into as of the 17th day of
+December, 2014, by Quality Technology Services Holding, LLC, a Delaware limited liability company, as the sole equity member (the
+"Member"), and Chad L. Williams ("Springing Member 1") and Norma J. Williams ("Springing Member 2"),
+as the Springing Members (as defined on Schedule A hereto). Capitalized terms used and not otherwise defined herein have
+the meanings set forth on Schedule A hereto.
+
+WHEREAS,
+the Certificate of Formation of the Company was filed with the Secretary of State of the State of Delaware on July 14, 2010 (as
+amended and restated from time to time, the "Certificate of Formation"), pursuant to and in accordance with
+the provisions of the Delaware Limited Liability Company Act (6 Del. C. § 18-101, et seq.), as amended from time to time
+(the "Act");
+
+WHEREAS, Springing
+Member 1 and Springing Member 2 are executing this Agreement in order to comply with Section 5(c) of this Agreement;
+
+WHEREAS, the Company
+is governed by that certain First Amended and Restated Limited Liability Company Agreement, dated as of December 21, 2012, (the
+"Existing Agreement"); and
+
+WHEREAS, the Member
+wishes to make certain amendments to and to restate the Existing Agreement.
+
+NOW THEREFORE, by executing
+this Agreement, the Member hereby adopts this Agreement to set forth the terms governing the affairs of the Company, the conduct
+of its business and certain rights and obligations of the Member and the Springing Members with respect to the Company, and the
+Member, Springing Member 1 and Springing Member 2 hereby agree as follows:
+
+Section 1. Name.
+
+The name of
+the limited liability company continued hereby is Quality Technology Services Richmond II, LLC.
+
+Section 2. Principal Business Office.
+
+The principal business
+office of the Company shall be located at 12851 Foster Street, Suite 205, Overland Park, Kansas 66213, or such other location as
+may hereafter be determined by the Member.
+
+Section 3. Registered Office.
+
+The address of the
+registered office of the Company in the State of Delaware is c/o Corporation Service Company, 2711 Centerville Road, Suite 400,
+Wilmington, New Castle County, Delaware 19808.
+
+Section 4. Registered Agent.
+
+The name and address
+of the registered agent of the Company for service of process on the Company in the State of Delaware is Corporation Service Company,
+2711 Centerville Road, Suite 400, Wilmington, New Castle County, Delaware 19808.
+
+Section 5. Members.
+
+(a) The name and
+mailing address of the Member are set forth on Schedule B attached hereto. The Member shall continue as a member of the
+Company upon its execution of a counterpart signature page to this Agreement.
+
+(b) Subject to Section
+9(j), the Member may act by written consent.
+
+(c) Upon
+the occurrence of any event that causes the Member to cease to be a member of the Company (other than (i) upon an assignment by
+the Member of all of its limited liability company interest in the Company and the admission of the transferee pursuant to Sections
+21 and 23, or (ii) the resignation of the Member and the admission of an additional member of the Company pursuant to Sections
+22 and 23) (a "Member Cessation Event"), Springing Member 1 shall, without any action of any Person and
+simultaneously with the Member Cessation Event, automatically be admitted to the Company as a Special Member and shall continue
+the Company without dissolution. If, however, at the time of a Member Cessation Event, Springing Member 1 has died or is otherwise
+no longer able to step into the role of Special Member, then in such event, Springing Member 2 shall, without any action of any
+Person and simultaneously with the Member Cessation Event, automatically be admitted to the Company as Special Member and shall
+continue the Company without dissolution. It is the intent of these provisions that the Company never have more than one Special
+Member at any particular point in time. No Special Member may resign from the Company or transfer its rights as Special Member
+unless a successor Special Member has been admitted to the Company as Special Member by executing a counterpart to this Agreement.
+The Special Member shall automatically cease to be a member of the Company upon the admission to the Company of a substitute Member.
+The Special Member shall be a member of the Company that has no interest in the profits, losses and capital of the Company and
+has no right to receive any distributions of Company assets. Pursuant to Section 18-301 of the Act, a Special Member shall not
+be required to make any capital contributions to the Company and shall not receive a limited liability company interest in the
+Company. A Special Member, in its capacity as Special Member, may not bind the Company. Except as required by any mandatory provision
+of the Act, a Special Member, in its capacity as Special Member, shall have no right to vote on, approve or otherwise consent
+to any action by, or matter relating to, the Company, including, without limitation, the merger, consolidation or conversion of
+the Company. In order to implement the admission to the Company of the Special Member, each of Springing Member 1 and Springing
+Member 2 shall execute a counterpart to this Agreement. Prior to its admission to the Company as Special Member, each person acting
+as Springing Member 1 or Springing Member 2 shall not be a member of the Company.
+
+(d) The Company
+shall at all times have a Springing Member 1 and a Springing Member 2. No resignation or removal of a Springing Member, and no
+appointment of a successor Springing Member, shall be effective unless and until such successor shall have executed a counterpart
+to this Agreement. In the event of a vacancy in the position of Springing Member 1 or Springing Member 2, the Member shall, as
+soon as practicable, appoint a successor Springing Member to fill such vacancy. By signing this Agreement, a Springing Member agrees
+that, should such Springing Member become a Special Member, such Springing Member will be subject to and bound by the provisions
+of this Agreement applicable to a Special Member.
+
+- 2 -
+
+Section 6. Certificates.
+
+Shirley E.
+Goza was designated as an "authorized person" of the Company within the meaning of the Act, and has executed, delivered
+and filed the Certificate of Formation with the Secretary of State of the State of Delaware. Upon the Member's execution
+of a counterpart signature page to the original version of this Agreement on November , 2010, Shirley
+E. Goza's powers as an "authorized person" of the Company ceased, and the Member thereupon became the designated
+"authorized person" of the Company within the meaning of the Act. The Member or an Officer shall execute, deliver and
+file any other certificates (and any amendments and/or restatements thereof) necessary for the Company to qualify to do business
+in the State of Virginia and in any other jurisdiction in which the Company may wish to conduct business.
+
+The existence of the
+Company as a separate legal entity shall continue until cancellation of the Certificate of Formation as provided in the Act.
+
+Section 7. Purposes.
+
+(a) Notwithstanding
+anything to the contrary in this Agreement or in any other document governing the formation, management or operation of the Company
+(but subject to Section 9(j)), the sole purpose to be conducted or promoted by the Company is to engage in the following
+activities:
+
+(i) to acquire, own, hold, lease, sublease, operate, manage, maintain, develop
+and improve the real property described in the Loan Documents (the "Property"), and to provide services to tenants,
+licensees and other users of the Property related to the operation of the Property as a data center facility;
+
+(ii) to acquire, own, lease, sublease, hold, operate and maintain its equipment
+and other personal property (the "Personal Property");
+
+(iii) to enter into and perform its obligations under the Loan Documents;
+
+(iv) to sell, transfer, service, convey, dispose of, pledge, assign, borrow money
+against, finance, refinance or otherwise deal with the Property to the extent permitted under the Loan Documents; and
+
+(v) to engage in any lawful act or activity and to exercise any powers permitted to limited liability
+companies organized under the laws of the State of Delaware that are related or incidental to and necessary, convenient or advisable
+for the accomplishment of the above-mentioned purposes.
+
+(b) The
+Company, and the Member or any Director or Officer on behalf of the Company, may enter into and perform the Company's obligations
+under the Basic Documents and all documents, agreements, certificates, or financing statements contemplated thereby or related
+thereto, including, without limitation, any interest rate swaps or other form of hedging arrangement associated with the Loan,
+all without any further act, vote or approval of any Member, Director, Officer or other Person notwithstanding any other provision
+of this Agreement (but subject to Section 9(j)), the Act or applicable law, rule or regulation. The foregoing authorization
+shall not be deemed a restriction on the powers of the Member or any Director or Officer to enter into other agreements on behalf
+of the Company.
+
+Section 8. Powers.
+
+Subject to Sections
+9(b) and 9(j), the Company, and the Board of Directors and the Officers of the Company on behalf of the Company, (i) shall
+have and exercise all powers necessary, convenient or incidental to accomplish its purposes as set forth in Section 7 and
+(ii) shall have and exercise all of the powers and rights conferred upon limited liability companies formed pursuant to the Act.
+
+- 3 -
+
+Section 9. Management.
+
+(a) Board
+of Directors. Subject to Sections 9(b) and 9(j), the business and affairs of the Company shall be managed by or under
+the direction of a Board of one or more Directors designated by the Member. Subject to Section 10, the Member may determine
+at any time in its sole and absolute discretion the number of Directors to constitute the Board. The authorized number of Directors
+may be increased or decreased by the Member at any time in its sole and absolute discretion, upon notice to all Directors, and
+subject in all cases to Section 10. The initial number of Directors shall be three, of which two shall be Independent Directors
+pursuant to Section 10. Each Director elected, designated or appointed by the Member shall hold office until a successor
+is elected and qualified or until such Director's earlier death, resignation, expulsion or removal. Each Director shall execute
+and deliver the Management Agreement. Directors need not be a Member. The initial Directors designated by the Member are listed
+on Schedule D hereto.
+
+(b) Powers.
+Subject to Section 9(j), the Board of Directors shall have the power
+to do any and all acts necessary, convenient or incidental to or for the furtherance of the purposes described herein, including
+all powers, statutory or otherwise; provided, however, all right, power and authority of the Independent Directors
+shall be limited to those matters for which the consent of the Independent Directors is required under Section 9(j)(iii).
+Subject to Section 7, the Board of Directors has the authority to bind the Company.
+
+(c) Meeting of
+the Board of Directors. The Board of Directors of the Company may hold meetings, both regular and special, within or outside
+the State of Delaware. Regular meetings of the Board may be held without notice at such time and at such place as shall from time
+to time be determined by the Board. Special meetings of the Board may be called by the Chief Executive Officer on not less than
+one day's notice to each Director entitled to vote on the subject matter of the meeting by telephone, facsimile, mail, telegram
+or any other means of communication, and special meetings shall be called by the Chief Executive Officer or Secretary in like manner
+and with like notice upon the written request of any one or more of the Directors entitled to vote on the subject matter of the
+meeting.
+
+(d) Quorum;
+Acts of the Board. At all meetings of the Board, a majority of the Directors entitled to vote on the subject matter of
+the meeting shall constitute a quorum for the transaction of business and, except as otherwise provided in any other
+provision of this Agreement, the act of a majority of the Directors entitled to vote on the subject matter of the meeting
+present at any meeting at which there is a quorum shall be the act of the Board. If a quorum shall not be present at any
+meeting of the Board, the Directors present at such meeting may adjourn the meeting from time to time, without notice other
+than announcement at the meeting, until a quorum shall be present. Any action required or permitted to be taken at any
+meeting of the Board or of any committee thereof may be taken without a meeting if all members of the Board or committee, as
+the case may be, entitled to vote on the subject matter of the action considered consent thereto in writing, and the writing
+or writings are filed with the minutes of proceedings of the Board or committee, as the case may be. Subject to Section
+9(j)(iii), in event of any deadlock with regard to a decision of the Board, the final vote of Chad L. Williams shall control.
+
+(e) Electronic
+Communications. Members of the Board, or any committee designated by the Board, may participate in meetings of the Board, or
+any committee, by means of telephone conference or similar communications equipment that allows all Persons participating in the
+meeting to hear each other, and such participation in a meeting shall constitute presence in Person at the meeting. If all the
+participants are participating by telephone conference or similar communications equipment, the meeting shall be deemed to be held
+at the principal place of business of the Company.
+
+- 4 -
+
+(f) Committees of Directors.
+
+(i) The Board may, by resolution passed
+by a majority of the whole Board (other than the Independent Directors, subject to Section
+9(j)(iii)), designate one or more committees, each committee to consist of one or
+more of the Directors of the Company. The Board may designate one or more Directors as
+alternate members of any committee, who may replace any absent or disqualified member
+at any meeting of the committee.
+
+(ii) In the absence or disqualification of a member of a committee,
+the member or members thereof present at any meeting and not disqualified from voting, whether or not such members constitute
+a quorum, may unanimously appoint another member of the Board to act at the meeting in the place of any such absent or disqualified
+member.
+
+(iii) Any such committee, to the extent
+provided in the resolution of the Board, and subject to, in all cases, Sections 9(j)
+and 10, shall have and may exercise all the powers and authority of the Board in
+the management of the business and affairs of the Company. Such committee or committees
+shall have such name or names as may be determined from time to time by resolution adopted
+by the Board. Each committee shall keep regular minutes of its meetings and report the
+same to the Board when required.
+
+(g) Compensation
+of Directors; Expenses. The Board shall have the authority to fix the compensation of Directors. The Directors may be paid
+their expenses, if any, of attendance at meetings of the Board, which may be a fixed sum for attendance at each meeting of the
+Board or a stated salary as Director. No such payment shall preclude any Director from serving the Company in any other capacity
+and receiving compensation therefor, Members of special or standing committees may be allowed like compensation for attending committee
+meetings.
+
+(h) Removal of
+Directors. Unless otherwise restricted by law, any Director or the entire Board of Directors may be removed or expelled, with
+or without cause, at any time by the Member, and, subject to Section 10, any vacancy caused by any such removal or expulsion
+may be filled by action of the Member.
+
+(i) Directors
+as Agents. To the extent of their powers set forth in this Agreement and subject to Section 9(j), the Directors are
+agents of the Company for the purpose of the Company's business, and the actions of the Directors taken in accordance with such
+powers set forth in this Agreement shall bind the Company. Notwithstanding the last sentence of Section 18-402 of the Act, except
+as provided in this Agreement or in a resolution of the Directors, a Director may not bind the Company.
+
+(j) Limitations
+on the Company's Activities.
+
+(i) This Section 9(j) is being adopted to comply with certain provisions necessary to qualify
+the Company as a "special purpose" entity.
+
+- 5 -
+
+(ii)
+Notwithstanding anything
+to the contrary in this Agreement or in any other document governing the formation, management or operation of the Company,
+for so long as any Obligation is outstanding, neither the Member nor the Company shall amend, alter, change any of Sections
+1, 5(b), 5(c), 5(d), 6, 7, 8, 9, 10, 14, 16, 20(b),
+20(f), 21, 22, 23, 24, 25, 26, 27, 29, 30, 31,
+32, 35, Exhibit A or Schedule A of this Agreement (to the extent that the terms defined in Schedule
+A are used in any of the foregoing sections) (the "Special Purpose Provisions"), or any other provision
+of this or any other document governing the formation, management or operation of the Company in a manner that is inconsistent
+with any of the Special Purpose Provisions, unless the Lender Agent consents in writing, Subject to this Section 9(j),
+the Member reserves the right to amend, alter, change or repeal any provisions contained in this Agreement in accordance with
+Section 32. In the event of any conflict between any of the Special Purpose Provisions and any other provision of this
+or any other document governing the formation, management or operation of the Company, the Special Purpose Provisions shall
+control.
+
+(iii) Notwithstanding any other provision of this Agreement or any other document governing the formation,
+management or operation of the Company, and notwithstanding any provision of law that otherwise so empowers the Company, the Member,
+the Board, any Officer or any other Person, in addition to any other limitations set forth in this Agreement, neither the Member
+nor the Board nor any Officer nor any other Person shall be authorized or empowered, nor shall they permit the Company to, and
+the Company shall not, without the prior unanimous written consent of the Member and the Board (including all Independent Directors),
+take any Material Action, provided, however, that the Board may not vote on, or authorize the taking of, any Material
+Action, unless there are at least two Independent Directors then serving in such capacity.
+
+(iv) The Board and the Member shall cause the Company to do or cause to be done all things necessary
+to preserve and keep in full force and effect its existence, rights (charter and statutory) and franchises. Notwithstanding anything
+to the contrary in this Agreement or in any other document governing the formation, management or operation of the Company, the
+Board also shall cause the Company to and the Company shall:
+
+(A) maintain its books, records and bank accounts separate from those of any other Person other than
+QTLP;
+
+(B) at all times hold itself out to the public and all other Persons as a legal entity separate from
+the Member and from any other Person;
+
+(C) have its own Board of Directors;
+
+(D) file its own tax returns separate from those of any other Person, except to the extent that the
+Company is treated as a "disregarded entity" for tax purposes and is not required to file tax returns under applicable
+law, and pay any taxes required to be paid under applicable law;
+
+- 6 -
+
+(E) not commingle its assets with assets of any other Person other than a Borrower or QTLP and only
+to the extent required under the Loan Documents;
+
+(F) conduct its business only in its own name and comply with all organizational formalities necessary
+to maintain its separate existence, except as otherwise expressly required under the Loan Documents or consented to in writing
+by the Lender Agent;
+
+(G) maintain separate financial statements,
+showing its assets and liabilities separate and apart from those of any other Person
+and not have its assets listed on any financial statement of any other Person; provided, however,
+that the Company's assets may be included in a consolidated financial statement of its
+Affiliate provided that such assets shall also be listed on the Company's own separate
+balance sheet;
+
+(H) pay its own liabilities and expenses only out of its own funds or the funds of QTLP;
+
+(I) except for capital contributions or capital distributions permitted under the terms and conditions
+of this Agreement and properly reflected on the books and records of the Company, not enter into any transaction with an Affiliate
+of the Company except on commercially reasonable terms similar to those available to unaffiliated parties in an arm's-length transaction,
+except (i) as expressly permitted under the Loan Documents and not otherwise prohibited by the Loan Documents, or (ii) as consented
+to by the Lender Agent;
+
+(J) maintain a sufficient number of employees in light of its contemplated business purpose and pay
+the salaries of its own employees, if any, only from its own funds;
+
+(K) except as permitted by the Loan Documents, not hold out its credit or assets as being available
+to satisfy the obligations of any other Person;
+
+(L) allocate fairly and reasonably any overhead expenses that are shared with an affiliate, including
+for shared office space and for services performed by an employee of an affiliate;
+
+(M) use separate stationery, invoices and checks bearing its own name or the name of QTLP;
+
+(N) not pledge its assets to secure the obligations of any other Person except with respect to the
+Obligations under the Loan Documents and the Hedge Obligations;
+
+(O) correct any known misunderstanding regarding its separate identity and not identify itself as a
+department or division of any other Person;
+
+(P) maintain adequate capital in light
+of its contemplated business purpose, transactions and liabilities; provided, however,
+that the foregoing shall not require the Member to make additional capital contributions
+to the Company;
+
+- 7 -
+
+(Q) cause its Board of Directors to meet at least annually or act pursuant to written consent and keep
+minutes of such meetings and actions and observe all other Delaware limited liability company formalities;
+
+(R) not acquire any obligation or securities of the Member or of any Affiliate of the Company, except
+(i) as expressly permitted under the Loan Documents and not otherwise prohibited by the Loan Documents, or (ii) as consented to
+by the Lender Agent;
+
+(S) cause the Directors, Officers, agents and other representatives of the Company to act at all times
+with respect to the Company consistently and in furtherance of the foregoing and in the best interests of the Company; and
+
+(T) compensate each of its consultants
+and agents from its funds for services provided to it and pay from its own assets all
+obligations of any kind incurred; provided, however, that this provision
+shall not require the Member to make any additional capital contributions to the Company.
+
+Failure of the Company,
+or the Member or Board on behalf of the Company, to comply with any of the foregoing covenants or any other covenants contained
+in this Agreement shall not affect the status of the Company as a separate legal entity or the limited liability of the Member
+or the Directors.
+
+(v) Notwithstanding anything to the contrary in this Agreement or in any other document governing the
+formation, management or operation of the Company, the Board shall not cause or permit the Company to and the Company shall not:
+
+(A) guarantee any obligation of any Person, including any Affiliate or become obligated for the debts
+of any other Person or hold out its credit as being available to pay the obligations of any other Person, except (i) pursuant to
+the Loan Documents and the Hedge Obligations and (ii) as otherwise permitted by the Loan Documents;
+
+(B) engage, directly or indirectly,
+in any business other than as required or permitted to be performed under Section
+7, the Basic Documents or this Section 9(j);
+
+(C) incur, create or assume any indebtedness or liabilities other than (i) indebtedness and liabilities incurred
+in the ordinary course of its business that are related to the operation of the Property and the provision of services to tenants,
+licensees and other users of the Property in connection with the operation of the Property as a data center facility or associated
+with the ownership or lease of the Personal Property and are expressly permitted under the Loan Documents and (ii) as otherwise
+permitted by the Loan Documents;
+
+- 8 -
+
+(D) make or permit to remain outstanding any loan or advance to, or own or acquire any stock or securities
+of, any Person, except that the Company may invest in those investments permitted under the Loan Documents and may make any advance
+required or expressly permitted to be made pursuant to any provisions of the Loan Documents and permit the same to remain outstanding
+in accordance with such provisions;
+
+(E) to the fullest extent permitted by law, engage in any dissolution, liquidation, consolidation,
+merger, sale or transfer of substantially all of its assets other than such activities as are expressly permitted pursuant to the
+Loan Documents;
+
+(F) buy or hold evidence of indebtedness issued by any other Person (other than cash or investment-grade
+securities);
+
+(G) form, acquire or hold any subsidiary (whether corporate, partnership, limited liability company
+or other) or own any equity interest in any other entity;
+
+(H) own any asset or property other than its interest in the Property, incidental personal property necessary
+for the operation of the Property, and the Personal Property; or
+
+(I) permit any Affiliate or constituent party independent access to the Company's bank accounts, except
+(i) as expressly permitted under the Loan Documents and not otherwise prohibited by the Loan Documents, or (ii) as consented to
+by the Lender Agent.
+
+Section 10. Independent Director.
+
+As long as any Obligation
+is outstanding, the Member shall cause the Company at all times to have at least two Independent Directors who will be appointed
+by the Member. Notwithstanding anything to the contrary in this Agreement, the Independent Directors shall not have any right,
+power or authority with respect to the management or operations of the Company except as expressly provided in Section 9(j)(iii).
+To the fullest extent permitted by law, including Section 18-1101(c) of the Act, the Independent Directors shall consider only
+the interests of the Company and its creditors in acting or otherwise voting on the matters referred to in Section 9(j)(iii),
+No resignation or removal of an Independent Director, and no appointment of a successor Independent Director, shall be effective
+until such successor shall have accepted his or her appointment as an Independent Director by a written instrument, which may
+be a counterpart signature page to the Management Agreement. In the event of a vacancy in the position of Independent Director,
+the Member shall, as soon as practicable, appoint a successor Independent Director. All right, power and authority of the Independent
+Directors shall be limited to the extent necessary to exercise those rights and perform those duties specifically set forth in
+this Agreement. Except as provided in the third sentence of this Section 10, in exercising its rights and performing its
+duties under this Agreement, any Independent Director shall have a fiduciary duty of loyalty and care similar to that of a director
+of a business corporation organized under the General Corporation Law of the State of Delaware. No Independent Director shall
+at any time serve as trustee in bankruptcy for any Affiliate of the Company.
+
+- 9 -
+
+Section 11. Officers.
+
+(a) Officers.
+The initial Officers of the Company shall be designated by the Member. The additional or successor Officers of the Company shall
+be chosen by the Board and shall consist of at least a Chief Executive Officer, a Secretary and a Treasurer. The Board of Directors
+may also choose one or more Vice Presidents, Assistant Secretaries and Assistant Treasurers. Any number of offices may be held
+by the same person. The Board may appoint such other Officers and agents as it shall deem necessary or advisable who shall hold
+their offices for such terms and shall exercise such powers and perform such duties as shall be determined from time to time by
+the Board. The salaries of all Officers and agents of the Company shall be fixed by or in the manner prescribed by the Board. The
+Officers of the Company shall hold office until their successors are chosen and qualified. Any Officer may be removed at any time,
+with or without cause, by the affirmative vote of a majority of the Board. Any vacancy occurring in any office of the Company shall
+be filled by the Board. The initial Officers of the Company designated by the Member are listed on Schedule E hereto.
+
+(b) Chief
+Executive Officer. The Chief Executive Officer shall be the chief executive officer of the Company, shall preside at all meetings
+of the Board, shall be responsible for the general and active management of the business of the Company and shall see that all
+orders and resolutions of the Board are carried into effect. The Chief Executive Officer or any other Officer authorized by the
+Chief Executive Officer or the Board shall execute all bonds, mortgages and other contracts, except: (i) where required or permitted
+by law or this Agreement to be otherwise signed and executed, including Section 7(b); (ii) where signing and execution
+thereof shall be expressly delegated by the Board to some other Officer or agent of the Company; and (iii) as otherwise permitted
+in Section 11(c).
+
+(c) Vice President.
+In the absence of the Chief Executive Officer or in the event of the Chief Executive Officer's inability to act, the Vice President,
+if any (or in the event there be more than one Vice President, the Vice Presidents in the order designated by the Directors, or
+in the absence of any designation, then in the order of their election), shall perform the duties of the Chief Executive Officer,
+and when so acting, shall have all the powers of and be subject to all the restrictions upon the Chief Executive Officer. The Vice
+Presidents, if any, shall perform such other duties and have such other powers as the Board may from time to time prescribe.
+
+(d) Secretary
+and Assistant Secretary. The Secretary shall be responsible for filing legal documents and maintaining records for the Company,
+The Secretary shall attend all meetings of the Board and record all the proceedings of the meetings of the Company and of the Board
+in a book to be kept for that purpose and shall perform like duties for the standing committees when required. The Secretary shall
+give, or shall cause to be given, notice of all meetings of the Member, if any, and special meetings of the Board, and shall perform
+such other duties as may be prescribed by the Board or the Chief Executive Officer, under whose supervision the Secretary shall
+serve. The Assistant Secretary, or if there be more than one, the Assistant Secretaries in the order determined by the Board (or
+if there be no such determination, then in order of their election), shall, in the absence of the Secretary or in the event of
+the Secretary's inability to act, perform the duties and exercise the powers of the Secretary and shall perform such other duties
+and have such other powers as the Board may from time to time prescribe.
+
+(e) Treasurer
+and Assistant Treasurer. The Treasurer shall have the custody of the Company funds and securities and shall keep full and accurate
+accounts of receipts and disbursements in books belonging to the Company and shall deposit all moneys and other valuable effects
+in the name and to the credit of the Company in such depositories as may be designated by the Board. The Treasurer shall disburse
+the funds of the Company as may be ordered by the Board, taking proper vouchers for such disbursements, and shall render to the
+Chief Executive Officer and to the Board, at its regular meetings or when the Board so requires, an account of all of the Treasurer's
+transactions and of the financial condition of the Company. The Assistant Treasurer, or if there shall be more than one, the Assistant
+Treasurers in the order determined by the Board (or if there be no such determination, then in the order of their election), shall,
+in the absence of the Treasurer or in the event of the Treasurer's inability to act, perform the duties and exercise the powers
+of the Treasurer and shall perform such other duties and have such other powers as the Board may from time to time prescribe.
+
+- 10 -
+
+(f) Officers
+as Agents. The Officers, to the extent of their powers set forth in this Agreement or otherwise vested in them by action of
+the Board not inconsistent with this Agreement, are agents of the Company for the purpose of the Company's business and, subject
+to Section 9(j), the actions of the Officers taken in accordance with such powers shall bind the Company.
+
+(g) Duties of
+Board and Officers. Except to the extent otherwise provided herein, each Director and Officer shall have a fiduciary duty
+of loyalty and care similar to that of directors and officers of business corporations organized under the General Corporation
+Law of the State of Delaware.
+
+Section 12. Limited Liability.
+
+Except as otherwise
+expressly provided by the Act, the debts, obligations and liabilities of the Company, whether arising in contract, tort or otherwise,
+shall be the debts, obligations and liabilities solely of the Company, and none of the Member, the Special Member or any Director
+shall be obligated personally for any such debt, obligation or liability of the Company solely by reason of being a Member, Special
+Member or Director of the Company.
+
+Section 13. Capital Contributions.
+
+The Member has contributed
+or is deemed to have contributed to the Company the amount set forth on Schedule B attached hereto. In accordance with
+Section 5(c), the Special Member shall not be required to make any capital contributions to the Company.
+
+Section 14. Additional Contributions,
+
+The Member is not required
+to make any additional capital contribution to the Company. However, the Member may make additional capital contributions to the
+Company at any time upon the written consent of such Member. To the extent that the Member makes an additional capital contribution
+to the Company, the Member shall revise Schedule B of this Agreement. The Member and the Special Member shall not have any
+duty or obligation to any creditor of the Company to make any contribution to the Company or to issue any call for capital pursuant
+to this Agreement.
+
+Section 15. Allocation of Profits and Losses.
+
+The Company's profits
+and losses shall be allocated to the Member.
+
+Section 16. Distributions.
+
+(a) Distributions
+of capital shall be made to the Member at the times and in the aggregate amounts determined by the Board. Notwithstanding any provision
+to the contrary contained in this Agreement, the Company shall not make a distribution of capital to the Member on account of its
+interest in the Company if such distribution would violate Section 18-607 of the Act or any other applicable law or any Basic Document
+or would constitute a default under the Loan Documents.
+
+(b) Any payments
+made pursuant to the Loan Documents to or for the benefit of the Member shall constitute distributions to or at the direction of
+the Member.
+
+- 11 -
+
+Section 17. Books and Records.
+
+The Board shall keep
+or cause to be kept complete and accurate books of account and records with respect to the Company's business. The books of the
+Company shall at all times be maintained by the Board. The Member and its duly authorized representatives shall have the right
+to examine the Company books, records and documents during normal business hours. The Company, and the Board on behalf of the Company,
+shall not have the right to keep confidential from the Member any information that the Board would otherwise be permitted to keep
+confidential from the Member pursuant to Section 18-305(c) of the Act. The Company's books of account shall be kept using the method
+of accounting determined by the Member. The Company's independent auditor, if any, shall be an independent public accounting firm
+selected by the Member,
+
+Section 18. Reports.
+
+(a) Within 60 days
+after the end of each fiscal quarter, the Board shall cause to be prepared an unaudited report setting forth as of the end of such
+fiscal quarter:
+
+(i) unless such quarter is the last fiscal quarter, a balance sheet of the Company; and
+
+(ii) unless such quarter is the last fiscal quarter, an income statement of the Company for such fiscal quarter.
+
+(b) The Board shall
+use diligent efforts to cause to be prepared and mailed to the Member, within 90 days after the end of each fiscal year, an audited
+or unaudited report setting forth as of the end of such fiscal year:
+
+(i) a balance sheet of the Company;
+
+(ii) an income statement of the Company for such fiscal year; and
+
+(iii) a statement of the Member's capital account.
+
+(c) The Board shall,
+after the end of each fiscal year, use reasonable efforts to cause the Company's independent accountants, if any, to prepare and
+transmit to the Member as promptly as possible any such tax information as may be reasonably necessary to enable the Member to
+prepare its federal, state and local income tax returns relating to such fiscal year.
+
+Section 19. Other Business.
+
+The Member, the Special
+Member and any Affiliate of the Member or the Special Member may engage in or possess an interest in other business ventures (unconnected
+with the Company) of every kind and description, independently or with others notwithstanding any provision to the contrary at
+law or at equity. The Company shall not have any rights in or to such independent ventures or the income or profits therefrom by
+virtue of this Agreement.
+
+Section 20. Exculpation and Indemnification.
+
+(a) None of the
+Member, the Special Member, any Officer, Director, employee or agent of the Company, or any employee, representative, agent or
+Affiliate of the Member or the Special Member (collectively, the "Covered Persons") shall, to the fullest extent
+permitted by law, be liable to the Company or any other Person that is a party to or is otherwise bound by this Agreement, for
+any loss, damage or claim incurred by reason of any act or omission performed or omitted by such Covered Person in good faith on
+behalf of the Company and in a manner reasonably believed to be within the scope of the authority conferred on such Covered Person
+by this Agreement, except that a Covered Person shall be liable for any such loss, damage or claim incurred by reason of such Covered
+Person's gross negligence or willful misconduct.
+
+- 12 -
+
+(b) To the fullest
+extent permitted by applicable law, a Covered Person shall be entitled to indemnification from the Company for any loss, damage
+or claim incurred by such Covered Person by reason of any act or omission performed or omitted by such Covered Person in good faith
+on behalf of the Company and in a manner reasonably believed to be within the scope of the authority conferred on such Covered
+Person by this Agreement, except that no Covered Person shall be entitled to be indemnified in respect of any loss, damage or claim
+incurred by such Covered Person by reason of such Covered Person's gross negligence or willful misconduct with respect to such
+acts or omissions; provided, however, that any indemnity under this Section 20 by the Company shall be provided
+out of and to the extent of Company assets only, and the Member and the Special Member shall not have personal liability on account
+thereof; and provided further, that so long as any Obligation is outstanding, no indemnity payment from funds of the Company
+(as distinct from funds from other sources, such as insurance) of any indemnity under this Section 20 shall be payable from
+amounts allocable to any other Person pursuant to the Basic Documents.
+
+(c) To the fullest
+extent permitted by applicable law, expenses (including legal fees) incurred by a Covered Person defending any claim, demand, action,
+suit or proceeding shall, from time to time, be advanced by the Company prior to the final disposition of such claim, demand, action,
+suit or proceeding upon receipt by the Company of an undertaking by or on behalf of the Covered Person to repay such amount if
+it shall be determined that the Covered Person is not entitled to be indemnified as authorized in this Section 20.
+
+(d) A Covered Person
+shall be fully protected in relying in good faith upon the records of the Company and upon such information, opinions, reports
+or statements presented to the Company by any Person as to matters the Covered Person reasonably believes are within such other
+Person's professional or expert competence and who has been selected with reasonable care by or on behalf of the Company, including
+information, opinions, reports or statements as to the value and amount of the assets, liabilities, or any other facts pertinent
+to the existence and amount of assets from which distributions to the Member might properly be paid.
+
+(e) To the extent
+that, at law or in equity, a Covered Person has duties (including fiduciary duties) and liabilities relating thereto to the Company
+or to any other Covered Person, a Covered Person acting under this Agreement shall not be liable to the Company or to any other
+Covered Person for its good faith reliance on the provisions of this Agreement or any approval or authorization granted by the
+Company or any other Covered Person. The provisions of this Agreement, to the extent that they restrict the duties and liabilities
+of a Covered Person otherwise existing at law or in equity, are agreed by the Member, the Directors, the Springing Members and
+the Special Member to replace such other duties and liabilities of such Covered Person.
+
+(f) Notwithstanding
+the foregoing provisions, any indemnification set forth herein shall be fully subordinate to the Loan and, to the fullest extent
+permitted by law, shall not constitute a claim against the Company in the event that the Company's cash flow is insufficient to
+pay all its obligations to creditors.
+
+(g) The foregoing
+provisions of this Section 20 shall survive any termination of this Agreement.
+
+- 13 -
+
+Section 21. Assignments.
+
+(a) Subject
+to Section 23 and any transfer restrictions contained in the Loan Documents, the Member may assign its limited liability
+company interest in the Company. No Member may transfer all or any portion of its interest in the Company if such transfer may
+cause the assets of the Company to become "plan assets" for purposes of Title I of ERISA or Section 4975 of the U.S.
+Department of Labor Regulation 29 C.F.R. Section 2510.3101. Subject to Section 23, if the Member transfers all of its limited
+liability company interest in the Company pursuant to this Section 21, the transferee shall be admitted to the Company
+as a member of the Company upon its execution of an instrument signifying its agreement to be bound by the terms and conditions
+of this Agreement, which instrument may be a counterpart signature page to this Agreement. Such admission shall be deemed effective
+immediately prior to the transfer and, immediately following such admission, the transferor Member shall cease to be a member
+of the Company. Any successor to a Member by merger or consolidation in compliance with the Basic Documents shall, without further
+act, be the Member hereunder, and such merger or consolidation shall not constitute an assignment for purposes of this Agreement
+and the Company shall continue without dissolution.
+
+(b) Notwithstanding
+anything to the contrary contained in this Agreement for so long as any Obligation remains outstanding, the Company shall always
+have one and only one member.
+
+Section 22. Resignation.
+
+So long as any Obligation
+is outstanding, the Member may not resign, except as permitted under the Basic Documents and if the Lender Agent consents in writing
+and if an additional member is admitted to the Company pursuant to Section 23. If the Member is permitted to resign pursuant
+to this Section 22, an additional member of the Company shall be admitted to the Company, subject to Section 23,
+upon its execution of an instrument signifying its agreement to be bound by the terms and conditions of this Agreement, which
+instrument may be a counterpart signature page to this Agreement, Such admission shall be deemed effective immediately prior to
+the resignation and, immediately following such admission, the resigning Member shall cease to be a member of the Company,
+
+Section 23. Admission of Additional Members and Transfers of Indirect
+Interests.
+
+One or
+more additional members of the Company may be admitted to the Company with the written consent of the Member; provided, however,
+that, notwithstanding the foregoing, no additional Member may be admitted to the Company other than pursuant to Section
+24(a) or Section 5(c), and no transfer of any direct or indirect interest in the Company may be made that
+results in a Change in Control of the Company, except as may be expressly provided otherwise in the Loan Documents, unless
+(1), an acceptable nonconsolidation opinion is delivered to the Lender Agent concerning, as applicable, the Company, the
+new transferee and/or their respective owners, and (2) the Lender Agent consents in writing.
+
+- 14 -
+
+Section 24. Dissolution.
+
+(a) The
+Company shall be dissolved, and its affairs shall be wound up upon the first to occur of the following: (i) the termination of
+the legal existence of the last remaining member of the Company or the occurrence of any other event which terminates the continued
+membership of the last remaining member of the Company in the Company unless the Company is continued without dissolution in a
+manner required under Section 5(c) or this Section 24(a) or permitted by this Agreement or the Act
+or (ii) the entry of a decree of judicial dissolution under Section 18-802 of the Act. Upon the occurrence of any event that causes
+the last remaining member of the Company to cease to be a member of the Company or that causes the Member to cease to be a member
+of the Company (other than (i) upon an assignment by the Member of all of its limited liability company interest in the Company
+and the admission of the transferee pursuant to Sections 21 and 23, or (ii) the resignation of the Member and the admission
+of an additional member of the Company pursuant to Sections 22 and 23), to the fullest extent permitted by law, the personal
+representative of such member is hereby authorized to, and shall, within 90 days after the occurrence of the event that terminated
+the continued membership of such member in the Company, agree in writing (i) to continue the Company and (ii) to the admission
+of the personal representative or its nominee or designee, as the case may be, as a substitute member of the Company, effective
+as of the occurrence of the event that terminated the continued membership of such member in the Company.
+
+(b) Notwithstanding
+any other provision of this Agreement, the Bankruptcy of the Member or a Special Member or any additional member shall not cause
+the Member or Special Member or additional member, respectively, to cease to be a member of the Company and upon the occurrence
+of such an event, the Company shall continue without dissolution.
+
+(c) Notwithstanding
+any other provision of this Agreement, each of the Member, the Special Member and any additional member waives any right it might
+have to agree in writing to dissolve the Company upon the Bankruptcy of the Member, Special Member or additional member, or the
+occurrence of an event that causes the Member, Special Member or additional member to cease to be a member of the Company.
+
+(d) In the event
+of dissolution, the Company shall conduct only such activities as are necessary to wind up its affairs (including the sale of the
+assets of the Company in an orderly manner), and the assets of the Company shall be applied in the manner, and in the order of
+priority, set forth in Section 18-804 of the Act.
+
+(e) The Company
+shall terminate when (i) all of the assets of the Company, after payment of or due provision for all debts, liabilities and obligations
+of the Company, shall have been distributed to the Member in the manner provided for in this Agreement and (ii) the Certificate
+of Formation shall have been canceled in the manner required by the Act.
+
+Section 25. Waiver of Partition; Nature of Interest.
+
+To the fullest extent
+permitted by law, each of the Member, the Special Member, the Springing Members, and any additional member admitted to the Company
+hereby irrevocably waives any right or power that such Person might have to cause the Company or any of its assets to be partitioned,
+to cause the appointment of a receiver for all or any portion of the assets of the Company, to compel any sale of all or any portion
+of the assets of the Company pursuant to any applicable law or to file a complaint or to institute any proceeding at law or in
+equity to cause the dissolution, liquidation, winding up or termination of the Company. The Member shall not have any interest
+in any specific assets of the Company, and the Member shall not have the status of a creditor with respect to any distribution
+pursuant to Section 16 hereof. The interest of the Member in the Company is personal property.
+
+Section 26. Tax Status.
+
+It is intended that
+the Company shall be a disregarded entity for federal, state, and local income tax purposes.
+
+- 15 -
+
+Section 27. Benefits of Agreement; No Third-Party Rights.
+
+Except for the Lender Agent, its successors
+or assigns as holders of the Loan with respect to the Special Purpose Provisions, (1) none of the provisions of this Agreement
+shall be for the benefit of or enforceable by any creditor of the Company or by any creditor of the Member or a Special Member,
+and (2) nothing in this Agreement shall be deemed to create any right in any Person (other than Covered Persons) not a party hereto,
+and this Agreement shall not be construed in any respect to be a contract in whole or in part for the benefit of any third Person,
+except as provided in Section 30. The Lender Agent, its successors or assigns are intended third-party beneficiaries of
+this Agreement and may enforce the Special Purpose Provisions.
+
+Section 28. Severability of Provisions.
+
+Each provision of this
+Agreement shall be considered severable and if for any reason any provision or provisions herein are determined to be invalid,
+unenforceable or illegal under any existing or future law, such invalidity, unenforceability or illegality shall not impair the
+operation of or affect those portions of this Agreement which are valid, enforceable and legal.
+
+Section 29. Entire Agreement.
+
+This Agreement constitutes
+the entire agreement of the parties with respect to the subject matter hereof.
+
+Section 30. Binding Agreement.
+
+The Member agrees that
+this Agreement, including, without limitation, the Special Purpose Provisions, constitutes a legal, valid and binding agreement
+of the Member, and is enforceable against the Member by the Independent Directors, in accordance with its terms. In addition, the
+Independent Directors shall be intended beneficiaries of this Agreement.
+
+Section 31. Governing Law.
+
+This Agreement shall
+be governed by and construed under the laws of the State of Delaware (without regard to conflict of laws principles), all rights
+and remedies being governed by said laws.
+
+Section 32. Amendments.
+
+Subject to Section
+9(j)(ii), this Agreement may be modified, altered, supplemented or amended pursuant to a written agreement executed and delivered
+by the Member. Notwithstanding anything to the contrary in this Agreement, so long as any Obligation is outstanding, Sections
+1, 5(b), 5(c), 5(d), 6, 7, 8, 9, 10, 14, 16, 20(b),
+20(f), 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32,
+35, Exhibit A and Schedule A to this Agreement may not be modified, altered, supplemented or amended unless
+the Lender Agent consents in writing except: (i) to cure any ambiguity, or (ii) to convert or supplement any provision in a manner
+consistent with the intent of this Agreement and the other Basic Documents.
+
+Section 33. Counterparts.
+
+This Agreement may
+be executed in any number of counterparts, each of which shall be deemed an original of this Agreement and all of which together
+shall constitute one and the same instrument.
+
+- 16 -
+
+Section 34. Notices.
+
+Any notices required
+to be delivered hereunder shall be in writing and personally delivered, mailed or sent by telecopy, electronic mail or other similar
+form of rapid transmission, and shall be deemed to have been duly given upon receipt (a) in the case of the Company, to the Company
+at its address in Section 2, (b) in the case of the Member, to the Member at its address as listed on Schedule B
+attached hereto and (c) in the case of either of the foregoing, at such other address as may be designated by written notice to
+the other party.
+
+Section 35. Limited
+Liability Company Interests and Certificates.
+
+(a) Interests.
+
+Each limited liability
+company interest in the Company shall constitute and shall remain a "security" within the meaning of, and shall be
+governed by, (i) Article 8 of the Uniform Commercial Code (including Section 8-102(a)(15) thereof) as in effect from time to time
+in the States of Delaware and New York and (ii) the Uniform Commercial Code of any other applicable jurisdiction that now or hereafter
+substantially includes the 1994 revisions to Article 8 thereof as adopted by the American Law Institute and the National Conference
+of Commissioners on Uniform State Laws and approved by the American Bar Association on February 14, 1995. Notwithstanding any
+provision of this Agreement to the contrary, to the extent that any provision of this Agreement is inconsistent with any non-waivable
+provision of Article 8 of the Uniform Commercial Code as in effect in the State of Delaware (6 Del. C. § 8-101, et
+seq.) (the "UCC"), such provision of Article 8 of the UCC shall be controlling.
+
+(b) Certificates.
+
+(i) Upon the issuance of limited liability
+company interests in the Company to any Person in accordance with the provisions of this
+Agreement, and upon the execution of this Agreement with respect to the Member's
+limited liability company interests in the Company owned by it on the date hereof, without
+any further act, vote or approval of any Member, Director, Officer or any Person, the
+Company shall issue one or more non-negotiable certificates in the name of such Person
+substantially in the form of Exhibit A hereto (a "Certificate"),
+which evidences the ownership of the limited liability company interests in the Company
+of such Person. Each such Certificate shall be denominated in terms of the percentage
+of the limited liability company interests in the Company evidenced by such Certificate
+and shall be signed by an Officer on behalf of the Company.
+
+(ii) Without any further act, vote or approval of any Member, Director, Officer or any Person, the Company
+shall issue a new Certificate in place of any Certificate previously issued if the holder of the limited liability company interests
+in the Company represented by such Certificate, as reflected on the books and records of the Company:
+
+(A) makes proof by affidavit, in form and substance satisfactory to the Company, that such previously
+issued Certificate has been lost, stolen or destroyed;
+
+- 17 -
+
+(B) requests the issuance of a new Certificate before the Company has notice that such previously issued
+Certificate has been acquired by a purchaser for value in good faith and without notice of an adverse claim;
+
+(C) if requested by the Company, delivers to the Company a bond, in form and substance satisfactory
+to the Company, with such surety or sureties as the Company may direct, to indemnify the Company against any claim that may be
+made on account of the alleged loss, destruction or theft of the previously issued Certificate; and
+
+(D) satisfies any other reasonable requirements imposed by the Company.
+
+(iii) Upon a Member's transfer in accordance with the provisions of this Agreement of any or all limited
+liability company interests in the Company represented by a Certificate, the transferee of such limited liability company interests
+in the Company shall deliver such Certificate to the Company for cancellation (executed by such transferee on the reverse side
+thereof), and the Company shall thereupon issue a new Certificate to such transferee for the percentage of limited liability company
+interests in the Company being transferred and, if applicable, cause to be issued to such Member a new Certificate for that percentage
+of limited liability company interests in the Company that were represented by the canceled Certificate and that are not being
+transferred.
+
+(c) Registration
+of Limited Liability Company Interests. The Company shall maintain books for the purpose of registering the transfer of limited
+liability company interests in the Company. Notwithstanding any provision of this Agreement to the contrary, a transfer of limited
+liability company interests in the Company requires delivery of an endorsed Certificate and shall be effective upon registration
+of such transfer in the books of the Company.
+
+[SIGNATURE PAGE FOLLOWS]
+
+- 18 -
+
+IN WITNESS WHEREOF,
+the undersigned, intending to be legally bound hereby, have duly executed this Agreement as of the date first set forth above.
+
+MEMBER:
+
+QUALITY TECHNOLOGY SERVICES
+
+HOLDING, LLC
+
+By:
+/s/ Chad L. Williams
+
+Name:
+Chad L. Williams
+
+Title:
+Chief Executive Officer
+
+SPRINGING MEMBERS
+
+/s/ Chad L.
+Williams
+
+Name: Chad L. Williams
+
+Springing Member 1
+
+/s/ Norma J. Williams
+
+Name: Norma J. Williams
+
+Springing Member 2
+
+SCHEDULE A
+
+Definitions
+
+A, Definitions
+
+When used in this Agreement,
+the following terms not otherwise defined herein have the following meanings:
+
+"Act"
+has the meaning set forth in the recitals to this Agreement.
+
+"Affiliate"
+means, with respect to any Person, any other Person directly or indirectly Controlling or Controlled by or under direct or indirect
+common Control with such Person or any Person who has a direct familial relationship, by blood, marriage or otherwise with the
+Company or any Affiliate of the Company.
+
+"Agent"
+shall have the meaning set forth in the Loan Agreement.
+
+"Agreement"
+means this Second Amended and Restated Limited Liability Company Agreement of the Company, together with the schedules attached
+hereto, as amended, restated or supplemented or otherwise modified from time to time.
+
+"Bankruptcy"
+means, with respect to any Person, (A) if such Person (i) makes an assignment for the benefit of creditors, (ii) files a voluntary
+petition in bankruptcy, (iii) is adjudged a bankrupt or insolvent, or has entered against it an order for relief, in any bankruptcy
+or insolvency proceedings, (iv) files a petition or answer seeking for itself any reorganization, arrangement, composition, readjustment,
+liquidation or similar relief under any statute, law or regulation, (v) files an answer or other pleading admitting or failing
+to contest the material allegations of a petition filed against it in any proceeding of this nature, or (vi) seeks, consents to
+or acquiesces in the appointment of a trustee, receiver or liquidator of the Person or of all or any substantial part of its properties,
+or (B) if 120 days after the commencement of any proceeding against the Person seeking reorganization, arrangement, composition,
+readjustment, liquidation or similar relief under any statute, law or regulation, if the proceeding has not been dismissed, or
+if within 90 days after the appointment without such Person's consent or acquiescence of a trustee, receiver or liquidator of such
+Person or of all or any substantial part of its properties, the appointment is not vacated or stayed, or within 90 days after the
+expiration of any such stay, the appointment is not vacated. The foregoing definition of "Bankruptcy" is intended to
+replace and shall supersede and replace the definition of "Bankruptcy" set forth in Sections 18-101(1) and 18-304 of
+the Act.
+
+"Basic Documents"
+means this Agreement, the Management Agreement, the Special Services Assistance Agreement, the Special Services and Collection
+Agreement, the Loan Documents, and all documents and certificates contemplated thereby or delivered in connection therewith.
+
+"Board"
+or "Board of Directors" means the Board of Directors of the Company.
+
+"Borrowers"
+shall have the meaning set forth in the Loan Agreement.
+
+"Certificate
+of Formation" has the meaning set forth in the recitals to this Agreement.
+
+"Change in
+Control of the Company" means (a) a transfer resulting in a Person that owned less than 49% of the direct or indirect
+equity interests in the Company upon the closing of the Loan owning 49% or more of such equity interests after the transfer, (b)
+a transfer or transfers after the closing of the Loan that aggregate 49% or more of the direct or indirect equity interests in
+the Company or (c) a change in the equity owners that Control the Company.
+
+"Company" means Quality Technology Services Richmond II, LLC, a Delaware limited liability
+company.
+
+"Control"
+means the possession, directly or indirectly, of the power to direct or cause the direction of the management or policies of a
+Person, whether through the ownership of voting securities or general partnership or managing member interests, by contract or
+otherwise. "Controlling" and "Controlled" shall have correlative meanings. Without limiting the generality
+of the foregoing, a Person shall be deemed to Control any other Person in which it owns, directly or indirectly, 49% or more of
+the ownership interests.
+
+"Covered Persons"
+has the meaning set forth in Section 20(a).
+
+"Directors"
+means the Persons elected to the Board of Directors from time to time by the Member, including the Independent Directors, in their
+capacity as managers of the Company. A Director is hereby designated as a "manager" of the Company within the meaning
+of Section 18-101(10) of the Act.
+
+"ERISA"
+means the Federal Employee Retirement Income Security Act of 1974, as amended and in effect from time to time.
+
+"Hedge Obligations"
+shall have the meaning set forth in the Loan Agreement.
+
+"Independent
+Director" means a natural person who is not at the time of initial appointment as a director or at any time while serving
+as a director or manager of the Company and has not been at any time during the five (5) years preceding such initial appointment:
+
+(a) a stockholder, director (with the exception of serving as an Independent Director of the Company),
+officer, trustee, employee, partner, member, attorney or counsel of Company, the Member (with the exception of serving as a Special
+Member), or any Affiliate of either of them;
+
+(b) a creditor, customer, supplier, or other person who derives any of its purchases or revenues from
+its activities with the Member, the Company or any Affiliate of either of them;
+
+(c) a Person Controlling or under common Control with any Person excluded from serving as Independent
+Director under (a) or (b); or
+
+(d) a member of the immediate family by blood or marriage of any Person excluded from serving as Independent
+Director under (a) or (b).
+
+A natural person who satisfies the foregoing definition other than subparagraph (b) shall not be disqualified
+from serving as an Independent Director of the Company if such individual is an Independent Director provided by a nationally-recognized
+company that provides professional independent directors (a "Professional Independent Director") and other corporate
+services in the ordinary course of its business. A natural person who otherwise satisfies the foregoing definition other than subparagraph
+(a) by reason of being the independent director of a "special purpose entity" affiliated with the Company shall not
+be disqualified from serving as an Independent Director of the Company if either (i) such individual is a Professional Independent
+Director or (ii) the fees that such individual earns from serving as independent director of affiliates of the Company in any given
+year constitute in the aggregate less than five percent (5%) of such individual's annual income for that year. Notwithstanding
+the immediately preceding sentence, an Independent Director may not simultaneously serve as Independent Director of the Company
+and independent director of a special purpose entity that owns a direct or indirect equity interest in the Company.
+
+A-2
+
+For purposes of this paragraph, a "special
+purpose entity" is an entity, whose organizational documents contain restrictions on its activities and impose requirements
+intended to preserve such entity's separateness that are substantially similar to the Special Purpose Provisions of this Agreement.
+
+"Lender Agent"
+means Regions Bank, in its capacity as administrative agent under the Loan Agreement, together with its successors and assigns,
+
+"Loan"
+means those certain revolving loans to be made to the Borrowers in accordance with the terms, conditions and provisions of the
+Loan Documents.
+
+"Loan Agreement"
+means that certain Credit Agreement dated as of December 21, 2012, by and among Borrowers, Lender Agent and the other parties
+thereto, as the same may be amended, restated, modified or supplemented from time to time.
+
+"Loan Documents"
+has the meaning set forth in the Loan Agreement.
+
+"Management
+Agreement" means the agreement of the Directors in the form attached hereto as Schedule C, The Management Agreement
+shall be deemed incorporated into, and a part of, this Agreement.
+
+"Material Action"
+means to file any insolvency, or reorganization case or proceeding, to institute proceedings to have the Company be adjudicated
+bankrupt or insolvent, to institute proceedings under any applicable insolvency law, to seek any relief under any law relating
+to relief from debts or the protection of debtors, to consent to the filing or institution of bankruptcy or insolvency proceedings
+against the Company, to file a petition seeking, or consent to, reorganization or relief with respect to the Company under any
+applicable federal or state law relating to bankruptcy or insolvency, to seek or consent to the appointment of a receiver, liquidator,
+assignee, trustee, sequestrator, custodian, or any similar official of or for the Company or a substantial part of its property,
+to make any assignment for the benefit of creditors of the Company, to admit in writing the Company's inability to pay its debts
+generally as they become due, or to take action in furtherance of any of the foregoing.
+
+"Member" means Quality Technology Services Holding, LLC, as the member of the Company,
+and includes any Person admitted as an additional member of the Company or a substitute member of the Company pursuant to the provisions
+of this Agreement, each in its capacity as a member of the Company; provided, however, the term "Member" shall not
+include the Special Member or the Springing Members.
+
+"Obligations"
+shall mean the indebtedness, liabilities and obligations of the Company under or in connection with the Loan Documents.
+
+"Officer"
+means an officer of the Company described in Section 11.
+
+"Person" means any individual, corporation,
+partnership, joint venture, limited liability company, limited liability partnership, association, joint stock company, trust,
+unincorporated organization, or other organization, whether or not a legal entity, and any governmental authority.
+
+A-3
+
+"Personal
+Property" shall have the meaning given thereto in Section 7(a) of this Agreement.
+
+"Property"
+shall have the meaning given thereto in Section 7(a) of this Agreement.
+
+"QTLP"
+means QualityTech, LP, a Delaware limited partnership.
+
+"Special
+Member" means, upon such person's admission to the Company as a member of the Company pursuant to Section
+5(c), a person acting as either Springing Member 1 or Springing Member 2, in such person's capacity as a member of
+the Company. A Special Member shall only have the rights and duties expressly set forth in this Agreement.
+
+"Special
+Purpose Entity" means an entity, whose organizational documents contain restrictions on its purpose and activities and
+impose requirements intended to preserve its separateness that are substantially similar to the Special Purpose Provisions of this
+Agreement.
+
+"Special
+Services Assistance Agreement" means that certain Special Services Assistance Agreement, dated as of November 1, 2010,
+by and between Quality Technology Services Holding, LLC and Quality Technology Services Richmond, II, LLC.
+
+"Special
+Services and Collection Agreement" means that certain Special Services and Collection Agreement, dated as of November
+1, 2010; by and between Quality Technology Services Richmond II, LLC and Quality Investment Properties Richmond, LLC
+
+"Springing
+Member" means a Person who is not a member of the Company but who has signed this Agreement in order that, upon the
+conditions described in Section 5(c), such Person can become the Special Member without any delay in order that at all
+time the Company shall have at least one member.
+
+B. Rules of Construction
+
+Definitions in this
+Agreement apply equally to both the singular and plural forms of the defined terms. The words "include" and "including"
+shall be deemed to be followed by the phrase "without limitation." The terms "herein," "hereof" and "hereunder"
+and other words of similar import refer to this Agreement as a whole and not to any particular Section, paragraph or subdivision.
+The Section titles appear as a matter of convenience only and shall not affect the interpretation of this Agreement. All Section,
+paragraph, clause, Exhibit or Schedule references not attributed to a particular document shall be references to such parts of
+this Agreement.
+
+A-4
+
+SCHEDULE B
+
+Member
+
+Name
+
+Mailing
+Address
+
+Capital
+
+Contribution
+
+Limited
+Liability
+
+Company Interest
+
+Quality Technology Services Holding, LLC
+
+12851 Foster Street Suite
+205
+
+Overland Park, KS 66213
+
+$
+
+1,000
+
+100
+%
+
+SCHEDULE C
+
+Management Agreement
+
+[---INSERT DATE---]
+
+Quality Technology Services Richmond II, LLC
+
+12851 Foster Street, Suite 205
+
+Overland Park, Kansas 66213
+
+Re: Management Agreement -
+Quality Technology Services Richmond II, LLC
+
+Ladies and Gentlemen:
+
+For good and valuable
+consideration, each of the undersigned Persons, who have been designated as directors of Quality Technology Services Richmond
+II, LLC, a Delaware limited liability company (the "Company"), in accordance with the Second Amended
+and Restated Limited Liability Company Agreement of the Company, dated as of December __, 2014, as it may be amended or restated
+from time to time (the "LLC Agreement"), hereby agree as follows:
+
+1. Each
+of the undersigned accepts such Person's rights and authority as a Director under the LLC Agreement and agrees to perform
+and discharge such Person's duties and obligations as a Director under the LLC Agreement, and further agrees that such rights,
+authorities, duties and obligations under the LLC Agreement shall continue until such Person's successor as a Director is
+designated or until such Person's resignation or removal as a Director in accordance with the LLC Agreement. Each of the
+undersigned agrees and acknowledges that it has been designated as a "manager" of the Company within the meaning of
+the Delaware Limited Liability Company Act.
+
+2. So long as any
+Obligation is outstanding, each of the undersigned agrees, solely in its capacity as a creditor of the Company on account of any
+indemnification or other payment owing to the undersigned by the Company, not to acquiesce, petition or otherwise invoke or cause
+the Company to invoke the process of any court or governmental authority for the purpose of commencing or sustaining a case against
+the Company under any federal or state bankruptcy, insolvency or similar law or appointing a receiver, liquidator, assignee, trustee,
+custodian, sequestrator or other similar official of the Company or any substantial part of the property of the Company, or ordering
+the winding up or liquidation of the affairs of the Company.
+
+3. THIS MANAGEMENT
+AGREEMENT SHALL BE GOVERNED BY AND CONSTRUED IN ACCORDANCE WITH THE LAWS OF THE STATE OF DELAWARE, AND ALL RIGHTS AND REMEDIES
+SHALL BE GOVERNED BY SUCH LAWS WITHOUT REGARD TO PRINCIPLES OF CONFLICTS OF LAWS.
+
+Initially capitalized
+terms used and not otherwise defined herein have the meanings set forth in the LLC Agreement.
+
+This Management Agreement
+may be executed in any number of counterparts, each of which shall be deemed an original of this Management Agreement and all of
+which together shall constitute one and the same instrument.
+
+IN WITNESS WHEREOF, the undersigned have
+executed this Management Agreement as of the day and year first above written.
+
+Name: Chad L. Williams
+
+Name: Richard F. Klumpp
+
+Name: Thomas M. Strauss
+
+SCHEDULE D
+
+DIRECTORS
+
+1.
+Chad L. Williams (Chairman)
+
+2.
+Richard F. Klumpp (Independent Director)
+
+3.
+Thomas M. Strauss (Independent Director)
+
+SCHEDULE E
+
+OFFICERS
+
+TITLE
+
+Chad L. Williams
+
+Chief Executive Officer
+
+William H. Schaefer
+
+Chief Financial Officer
+
+Shirley E. Goza
+
+Vice President, General Counsel and Secretary
+
+Jay F, Ketterling
+
+Vice President and Treasurer
+
+Exhibit A
+
+CERTIFICATE FOR LIMITED LIABILITY COMPANY
+INTERESTS IN QUALITY
+
+TECHNOLOGY SERVICES RICHMOND II, LLC
+
+THIS CERTIFICATE HAS NOT BEEN AND
+WILL NOT BE REGISTERED UNDER THE SECURITIES ACT OF 1933 OR UNDER THE SECURITIES OR BLUE SKY LAWS OF ANY STATE. THE HOLDER OF THIS
+CERTIFICATE, BY ITS ACCEPTANCE HEREOF, REPRESENTS THAT IT IS ACQUIRING THIS SECURITY FOR INVESTMENT AND NOT WITH A VIEW TO ANY
+SALE OR DISTRIBUTION HEREOF. ANY TRANSFER OF THIS CERTIFICATE OR ANY LIMITED LIABILITY COMPANY INTEREST REPRESENTED HEREBY IS SUBJECT
+TO THE TERMS AND CONDITIONS OF THE LIMITED LIABILITY COMPANY AGREEMENT (AS DEFINED BELOW).
+
+Certificate Number 001
+100% Percentage Interest
+
+Quality Technology Services Richmond
+II, LLC, a Delaware limited liability company (the "Company"), hereby certifies that Quality Technology Services Holding,
+LLC (together with any assignee of this Certificate, the "Holder") is the registered owner of 100 percent of the limited
+liability company interests in the Company, The rights, powers, preferences, restrictions and limitations of the limited liability
+company interests in the Company are set forth in, and this Certificate and the limited liability company interests in the Company
+represented hereby are issued and shall in all respects be subject to the terms and provisions of, the Second Amended and Restated
+Limited Liability Company Agreement of the Company, dated as December , 2014, as the same may be amended
+or restated from time to time (the "Limited Liability Company Agreement"). By acceptance of this Certificate, and as
+a condition to being entitled to any rights and/or benefits with respect to the limited liability company interests evidenced hereby,
+the Holder is deemed to have agreed to comply with and be bound by all the terms and conditions of the Limited Liability Company
+Agreement. The Company will furnish a copy of the Limited Liability Company Agreement to the Holder without charge upon written
+request to the Company at its principal place of business. Transfer of any or all of the limited liability company interests in
+the Company evidenced by this Certificate is subject to certain restrictions in the Limited Liability Company Agreement and can
+be effected only after compliance with all of those restrictions and the presentation to the Company of the Certificate, accompanied
+by an assignment in the form appearing on the reverse side of this Certificate, duly completed and executed by and on behalf of
+the transferor in such Transfer, and an application for transfer in the form appearing on the reverse side of this Certificate,
+duly completed and executed by and on behalf of the transferee in such Transfer.
+
+Each limited liability company interest in the Company shall constitute and shall remain a "security"
+within the meaning of, and shall be governed by, (i) Article 8 of the Uniform Commercial Code (including Section 8-102(a)(15) thereof)
+as in effect from time to time in the States of Delaware and New York and (ii) the Uniform Commercial Code of any other applicable
+jurisdiction that now or hereafter substantially includes the 1994 revisions to Article 8 thereof as adopted by the American Law
+Institute and the National Conference of Commissioners on Uniform State Laws and approved by the American Bar Association on February
+14, 1995 (and each limited liability company interest in the Company shall be treated as such a "security" for all
+purposes, including, without limitation perfection of the security interest therein under Article 8 of each applicable Uniform
+Commercial Code).
+
+This Certificate and the limited liability
+company interests evidenced hereby shall be governed by and construed in accordance with the laws of the State of Delaware without
+regard to principles of conflicts of laws.
+
+IN WITNESS WHEREOF, the Company has caused
+this Certificate to be executed as of the date set forth below.
+
+QUALITY TECHNOLOGY SERVICES RICHMOND
+
+II, LLC
+
+Dated:
+
+By:
+
+Name: Chad L. Williams
+
+Title: Chief Executive Officer
+
+(REVERSE SIDE OF CERTIFICATE)
+
+ASSIGNMENT OF INTEREST
+
+FOR VALUE RECEIVED, the undersigned hereby
+sells, assigns and transfers unto
+(print or typewrite name of transferee),
+(insert Social Security or other taxpayer identification number of transferee), the following specified percentage of limited liability
+company interests in the Company:
+(identify the percentage interest being transferred) effective as of the date specified in the Application for Transfer of Interests
+below, and irrevocably constitutes and appoints
+and its authorized officers, as attorney-in-fact, to transfer the same on the books and records of the Company, with full power
+of substitution in the premises.
+
+Dated:
+
+Signature:
+
+(Transferor)
+
+Address:
+
+APPLICATION FOR TRANSFER OF INTERESTS
+
+The undersigned applicant (the "Applicant")
+hereby (a) applies for a transfer of the percentage of limited liability company interests in the Company described above (the
+"Transfer") and applies to be admitted to the Company as a substitute member of the Company, (b) agrees to comply with
+and be bound by all of the terms and provisions of the Limited Liability Company Agreement, (c) represents that the Transfer complies
+with the terms and conditions of the Limited Liability Company Agreement, (d) represents that the Transfer does not violate any
+applicable laws and regulations, and (e) agrees to execute and acknowledge such instruments (including, without limitation, a counterpart
+of the Limited Liability Company Agreement), in form and substance satisfactory to the Company, as the Company reasonably deems
+necessary or desirable to effect the Applicant's admission to the Company as a substitute member of the Company and to confirm
+the agreement of the Applicant to be bound by all the terms and provisions of the Limited Liability Company Agreement with respect
+to the limited liability company interests in the Company described above. Initially capitalized terms used herein and not otherwise
+defined herein are used as defined in the Limited Liability Company Agreement.
+
+The Applicant directs that the foregoing
+Transfer and the Applicant's admission to the Company as a Substitute Member shall be effective as of .
+
+Name of Transferee (Print)
+
+Dated:
+
+Signature:
+
+Address:
+
+The Company has determined (a) that the Transfer described
+above is permitted by the Limited Liability Company Agreement, (b) hereby agrees to effect such Transfer and the admission of
+the Applicant as a substitute member of the Company effective as of the date and time directed above, and (c) agrees to record,
+as promptly as possible, in the books and records of the Company the admission of the Applicant as a substitute member.
+
+4
+
+QUALITY TECHNOLOGY SERVICES RICHMOND
+
+II, LLC
+
+By:
+
+Name: Chad L. Williams
+
+Title: Chief Executive Officer
+
+5
