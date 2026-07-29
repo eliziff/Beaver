@@ -14,6 +14,9 @@ const SOURCE = [
   "(b) Minimum Liquidity of $5,000,000 must be maintained, tested as of March 15, 2025 under Section 6.02.",
 ].join("\n");
 
+/** Mirrors MAX_FINDING_ROWS_PER_CLASS in slaWorkflow. */
+const MAX_ROWS = 12;
+
 const ledger: SlaLedger = {
   documents: [{ name: "credit-agreement.docx", text: SOURCE }],
   promptSection: "",
@@ -35,6 +38,25 @@ describe("auditSlaDraft", () => {
     expect(audit.receipt.matched_total).toBeGreaterThan(0);
     // Chat-text deliverable: repair asks for the full revised text.
     expect(audit.repairPrompt).toContain("COMPLETE revised deliverable");
+  });
+
+  it("names the anchors in the receipt so totals can be checked", () => {
+    const draft =
+      "The covenant requires Minimum Liquidity of $5,000,000 under Section 6.02, tested against a threshold of $7,250,000.";
+    const audit = auditSlaDraft(ledger, draft);
+    expect(audit.receipt.classes.money.draft_only_rows).toContain("$7,250,000");
+    expect(audit.receipt.classes.date.source_only_rows).toContain(
+      "December 31, 2024",
+    );
+    // Every counted anchor is accounted for by a named row (up to the cap).
+    for (const coverage of Object.values(audit.receipt.classes)) {
+      expect(coverage.source_only_rows.length).toBe(
+        Math.min(coverage.source_only, MAX_ROWS),
+      );
+      expect(coverage.draft_only_rows.length).toBe(
+        Math.min(coverage.draft_only, MAX_ROWS),
+      );
+    }
   });
 
   it("returns no repair prompt when the draft covers the anchors", () => {

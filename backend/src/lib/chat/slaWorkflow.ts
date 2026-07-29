@@ -148,7 +148,14 @@ export interface SlaAudit {
     matched_total: number;
     classes: Record<
       string,
-      { matched: number; source_only: number; draft_only: number }
+      {
+        matched: number;
+        source_only: number;
+        draft_only: number;
+        /** The anchors themselves, so a receipt can be checked, not trusted. */
+        source_only_rows: string[];
+        draft_only_rows: string[];
+      }
     >;
   };
   report: AnchorCoverageReport;
@@ -187,6 +194,12 @@ export function auditSlaDraft(
       matched: coverage.matched,
       source_only: coverage.source_only.length,
       draft_only: coverage.draft_only.length,
+      source_only_rows: coverage.source_only
+        .slice(0, MAX_FINDING_ROWS_PER_CLASS)
+        .map((row) => row.display),
+      draft_only_rows: coverage.draft_only
+        .slice(0, MAX_FINDING_ROWS_PER_CLASS)
+        .map((row) => row.display),
     };
     sourceOnly += coverage.source_only.length;
     draftOnly += coverage.draft_only.length;
