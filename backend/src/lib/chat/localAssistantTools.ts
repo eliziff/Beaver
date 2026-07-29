@@ -26,7 +26,7 @@ import {
   deleteLocalDocument,
   getLocalVersionFile,
   listLocalLibrary,
-  updateLocalDocumentMetadata,
+  updateLocalDocument,
   type LocalTrackedEdit,
 } from "../localDocumentStore";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
@@ -182,7 +182,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           minimum: 200,
           maximum: 300000,
           description:
-            "Window size for text mode without a section. Defaults to 24000 characters from `offset`, not the whole document, and the reply says so via `truncated` — for a long document, get the section map from library_outline and read a named section, or pass a library_find hit's `at` as `offset`. Raise this only when you genuinely need a larger contiguous span.",
+            "How many characters to read, starting at `offset`. Defaults to 24000 — that is a portion of the document, not all of it, and the reply sets `truncated` to true when there is more. For a long document, prefer calling library_outline to see its sections and then reading one section, or searching with library_find and reading around a match. Raise this only when you really need one long continuous stretch of text.",
         },
       },
       required: ["document_id"],
@@ -730,7 +730,9 @@ async function extractLocalDraftingDocument(
  * else. Trimming takes the head AND the tail, because a clause's proviso lives
  * at its end.
  */
-const MAX_TOOL_RESULT_CHARS = 64_000;
+const MAX_TOOL_RESULT_CHARS = Number(
+  process.env.MIKE_TOOL_RESULT_CAP || 64_000,
+);
 
 /**
  * A cap the model cannot act on is just a hole in the answer, so say what was
@@ -742,11 +744,13 @@ function continuationHint(call: NormalizedToolCall, omitted: number): string {
     typeof call.input?.document_id === "string" ? call.input.document_id : "";
   const target = documentId ? `document_id="${documentId}"` : "this document";
   return (
-    `\n\n[${omitted.toLocaleString("en-CA")} characters were omitted from the middle of this result. ` +
-    `Nothing is missing from the document itself — read a bounded span instead of the whole file: ` +
-    `library_outline(${target}) for the section map, then library_read(${target}, section="<handle>"); ` +
-    `or library_find(${target}, query="…"), whose hits carry an "at" offset you can pass to ` +
-    `library_read(${target}, offset=<at>, max_chars=<n>).]`
+    `\n\n[This result was shortened. ${omitted.toLocaleString("en-CA")} characters from the middle are not shown here. ` +
+    `The document itself is complete and nothing has been lost — you are seeing part of it. ` +
+    `To see more, read one piece at a time instead of the whole document: ` +
+    `call library_outline with ${target} to list the document's sections, then call library_read with ${target} ` +
+    `and the section you want. To find specific wording, call library_find with ${target} and your search text; ` +
+    `each match includes a character position called "at", which you can pass to library_read as "offset" ` +
+    `to read the text around it.]`
   );
 }
 
@@ -1599,7 +1603,7 @@ export async function runLocalAssistantTools(
         const documentId = trimmed(args.document_id);
         const kind = args.kind === "template" ? "template" : "file";
         if (!documentId) return fail(call, "document_id is required");
-        const updated = await updateLocalDocumentMetadata({
+        const updated = await updateLocalDocument({
           userId,
           kind,
           documentId,
@@ -1676,7 +1680,12 @@ export async function runLocalAssistantTools(
           // the ceiling stays 300k for a caller that deliberately asks, but
           // the default no longer spends a document's worth of transcript on
           // a question a section read would answer.
-          const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
+          const maxChars = clampInt(
+            args.max_chars,
+            200,
+            300_000,
+            Number(process.env.MIKE_READ_DEFAULT_CHARS || 24_000),
+          );
           const window = document.text.slice(offset, offset + maxChars);
           return result(call, {
             ok: true,
