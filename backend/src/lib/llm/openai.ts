@@ -451,6 +451,15 @@ export async function streamResponsesApi(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      // The round budget is enforced silently by this loop; at halfway the
+      // model gets told, so the remaining rounds are planned, not spent.
+      if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
+        const last = results[results.length - 1];
+        results[results.length - 1] = {
+          ...last,
+          content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
+        };
+      }
       const resultItems: ResponseInputItem[] = results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
