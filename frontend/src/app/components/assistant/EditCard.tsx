@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { apiFetch } from "@/app/lib/beaverApi";import { PillButton } from "@/app/components/ui/pill-button";
-import type { EditAnnotation } from "../shared/types";
+import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
 function normalizeText(s: string) {
     return s.replace(/\s+/g, " ").trim();
 }
@@ -106,30 +106,12 @@ export function applyOptimisticResolution(
     });
     return () => reverts.forEach((fn) => fn());
 }
-interface Props {
+interface Props extends EditResolveHandlers {
     annotation: EditAnnotation;
     changeNumber?: number;
     resolvedStatus?: "accepted" | "rejected";
     isReloading?: boolean;
     onViewClick?: (ann: EditAnnotation) => void;
-    onResolveStart?: (args: {
-        editId: string;
-        documentId: string;
-        verb: "accept" | "reject";
-    }) => void;
-    onResolved?: (args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => void;
-    onError?: (args: {
-        editId: string;
-        documentId: string;
-        versionId: string | null;
-        message: string;
-    }) => void;
 }
 export function EditCard({
     annotation,

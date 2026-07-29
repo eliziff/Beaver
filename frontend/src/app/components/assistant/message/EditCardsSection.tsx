@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { apiFetch } from "@/app/lib/beaverApi";import type { EditAnnotation } from "../../shared/types";
+import { apiFetch } from "@/app/lib/beaverApi";import type { EditAnnotation, EditResolveHandlers } from "../../shared/types";
 import { applyOptimisticResolution } from "../EditCard";
 function BulkEditActions({
     pending,
@@ -15,25 +15,7 @@ function BulkEditActions({
         filename: string;
     }[];
     onViewClick?: (ann: EditAnnotation, filename: string) => void;
-    onResolveStart?: (args: {
-        editId: string;
-        documentId: string;
-        verb: "accept" | "reject";
-    }) => void;
-    onResolved?: (args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => void;
-    onError?: (args: {
-        editId: string;
-        documentId: string;
-        versionId: string | null;
-        message: string;
-    }) => void;
-}) {
+} & EditResolveHandlers) {
     const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
     const [progress, setProgress] = useState<{
         done: number;
@@ -170,25 +152,7 @@ export function EditCardsSection({
     cards: ReactNode[];
     resolvedCount: number;
     onViewClick?: (ann: EditAnnotation, filename: string) => void;
-    onResolveStart?: (args: {
-        editId: string;
-        documentId: string;
-        verb: "accept" | "reject";
-    }) => void;
-    onResolved?: (args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => void;
-    onError?: (args: {
-        editId: string;
-        documentId: string;
-        versionId: string | null;
-        message: string;
-    }) => void;
-}) {
+} & EditResolveHandlers) {
     const [isOpen, setIsOpen] = useState(true);
     if (cards.length === 0) return null;
     const docCount = filenameByDocId.size;
