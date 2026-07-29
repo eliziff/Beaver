@@ -93,6 +93,47 @@ describe("conflictScan", () => {
     expect(report.findings[0].parts_sum).toBe(750_000);
   });
 
+  it("abstains when an unaccounted figure sits between the parts and the total", () => {
+    const report = conflictScan([
+      {
+        name: "bid.txt",
+        text:
+          "Phase One Subtotal: $120,000. Phase Two Subtotal: $80,000. " +
+          "Mobilization allowance $45,000. Contract Total: $190,000.",
+      },
+    ]);
+    expect(report.findings).toHaveLength(0);
+    expect(report.checks.sum_of_parts).toBe(0);
+    expect(
+      report.abstentions.find((a) => a.reason === "incomplete_parts_column"),
+    ).toBeTruthy();
+  });
+
+  it("does not pair figures across a labeled field boundary", () => {
+    const report = conflictScan([
+      {
+        name: "sheet.txt",
+        text: "Initial advance: $2,000 Facility of record: $9,000 Stated rate: 5%",
+      },
+    ]);
+    expect(report.findings).toHaveLength(0);
+    expect(report.checks.percent_of_whole).toBe(0);
+  });
+
+  it("ignores a percent stated too far from the pair it would restate", () => {
+    const report = conflictScan([
+      {
+        name: "note.txt",
+        text:
+          "The note bears interest at 7% per annum. After a long recital of " +
+          "the parties' prior dealings, the borrower repaid $4,000 of the " +
+          "$10,000 principal.",
+      },
+    ]);
+    expect(report.findings).toHaveLength(0);
+    expect(report.checks.percent_of_whole).toBe(0);
+  });
+
   it("abstains rather than guesses when a claim has nothing to pair with", () => {
     const report = conflictScan([
       { name: "memo.txt", text: "The property is approximately 90% leased." },

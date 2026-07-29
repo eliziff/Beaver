@@ -49,7 +49,7 @@ export interface ConflictFinding {
 }
 
 export interface ConflictAbstention {
-  reason: "unjoined_percent_claim" | "scan_capped";
+  reason: "unjoined_percent_claim" | "scan_capped" | "incomplete_parts_column";
   detail: string;
   count: number;
 }
@@ -74,17 +74,20 @@ const GAP_WORD_RE = /[\p{L}\p{N}']+/gu;
 /**
  * True part-of-whole idiom puts the linker right after the part ("leased
  * of", "of the approximately"); a linker buried behind a phrase ("Pending
- * TI allowance of $485,000") belongs to that phrase, not to the pair.
+ * TI allowance of $485,000") belongs to that phrase, not to the pair. A
+ * colon in the gap opens a new labeled field ("Initial draw: $1,000 Line
+ * of credit: $4,000"), so the "of" belongs to that label, not to a pair.
  */
 function ofLinked(gap: string): boolean {
   if (gap.length > MAX_OF_GAP) return false;
+  if (gap.includes(":")) return false;
   const linker = OF_GAP_RE.exec(gap);
   if (!linker) return false;
   const wordsBefore = gap.slice(0, linker.index).match(GAP_WORD_RE) ?? [];
   return wordsBefore.length <= 1;
 }
-/** How far a percent may sit from the pair or figure it restates. */
-const PERCENT_REACH = 120;
+/** A percent restating a pair sits in its span or just outside either end. */
+const PERCENT_REACH = 40;
 const CLAIM_REACH = 200;
 const LABEL_REACH = 60;
 const COMPANION_REACH = 300;
@@ -93,6 +96,8 @@ const OCCUPANCY_RE = /occupi|occupanc|leased|vacan|lou[ée]/iu;
 const PART_LABEL_RE = /\bleased\b|\blou[ée]e?s?\b/iu;
 const SUBTOTAL_LABEL_RE = /sub-?total|sous-total/iu;
 const TOTAL_LABEL_RE = /\btotal\b|\btotaux\b/iu;
+/** How far past its last part a stated total may sit and still be its total. */
+const TOTAL_LOCALITY = 240;
 const MAX_FINDINGS = 40;
 const EXCERPT_CHARS = 160;
 
@@ -166,6 +171,7 @@ export function conflictScan(
   let consistent = 0;
   let anchorsExamined = 0;
   let unjoinedClaims = 0;
+  let incompleteColumns = 0;
   const checks = { percent_of_whole: 0, sum_of_parts: 0 };
 
   const emit = (finding: ConflictFinding, key: string) => {
@@ -343,6 +349,7 @@ export function conflictScan(
       const label = labelBefore(document.text, fig, allAnchors);
       return TOTAL_LABEL_RE.test(label) && !SUBTOTAL_LABEL_RE.test(label);
     });
+    const totalSet = new Set(totalFigs);
     const units = new Set(subtotalFigs.map((fig) => fig.unit));
     for (const unit of units) {
       const leads = subtotalFigs.filter((fig) => fig.unit === unit);
@@ -360,19 +367,42 @@ export function conflictScan(
       });
       const columns: Fig[][] = [leads];
       if (partners.every(Boolean)) columns.push(partners as Fig[]);
+      const columnFigs = new Set(columns.flat());
       for (const column of columns) {
         const sum = column.reduce((total, fig) => total + fig.value, 0);
+        const runEnd = Math.max(...column.map((fig) => fig.end));
         const comparable = totalFigs.filter(
           (fig) => fig.unit === unit && sum / fig.value > 0.9 && sum / fig.value < 1.1,
         );
         if (!comparable.length) continue;
+        // A stated total owns this run only if it follows the last part
+        // within a table's reach and no same-unit figure the column did
+        // not account for sits between: an intervening figure is evidence
+        // the parts list is incomplete, so the sum proves nothing.
+        const local = comparable.filter(
+          (fig) =>
+            fig.index >= runEnd &&
+            fig.index - runEnd <= TOTAL_LOCALITY &&
+            !figs.some(
+              (other) =>
+                other.unit === unit &&
+                other.index >= runEnd &&
+                other.index < fig.index &&
+                !columnFigs.has(other) &&
+                !totalSet.has(other),
+            ),
+        );
+        if (!local.length) {
+          incompleteColumns += 1;
+          continue;
+        }
         checks.sum_of_parts += 1;
-        const exact = comparable.find((fig) => fig.value === sum);
+        const exact = local.find((fig) => fig.value === sum);
         if (exact) {
           consistent += 1;
           continue;
         }
-        const total = comparable[0];
+        const total = local[0];
         emit(
           {
             kind: "sum_of_parts",
@@ -455,6 +485,14 @@ export function conflictScan(
       detail:
         "percentage claims whose part or whole is stated nowhere the scan can pair; not checked",
       count: unjoinedClaims,
+    });
+  }
+  if (incompleteColumns) {
+    abstentions.push({
+      reason: "incomplete_parts_column",
+      detail:
+        "parts columns with an unaccounted same-unit figure before the stated total, or no total local to the run; not checked",
+      count: incompleteColumns,
     });
   }
   if (findings.length > MAX_FINDINGS) {
