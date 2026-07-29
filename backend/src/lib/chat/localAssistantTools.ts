@@ -26,6 +26,7 @@ import {
   deleteLocalDocument,
   getLocalVersionFile,
   listLocalLibrary,
+  updateLocalDocumentMetadata,
   type LocalTrackedEdit,
 } from "../localDocumentStore";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
@@ -131,6 +132,28 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     },
   ),
   tool(
+    "library_update_metadata",
+    "Save lightweight jurisdiction, practice-area, document-type, description, and note metadata for a local Library item. Use only when the user asks to classify or annotate a document; do not invent facts.",
+    {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        kind: { type: "string", enum: ["file", "template"] },
+        metadata: {
+          type: "object",
+          properties: {
+            jurisdiction: { type: "string" },
+            areas_of_law: { type: "array", items: { type: "string" } },
+            document_types: { type: "array", items: { type: "string" } },
+            description: { type: "string" },
+          },
+        },
+        notes: { type: "string" },
+      },
+      required: ["document_id", "kind"],
+    },
+  ),
+  tool(
     "library_read",
     "Read the active version of a document from the local Beaver Library. Use mode=drafting once when adapting a DOCX precedent; it preserves headings, lists, tables, emphasis, and note pairing for translation into semantic Markdown.",
     {
@@ -159,7 +182,7 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
           minimum: 200,
           maximum: 300000,
           description:
-            "Window size for text mode without a section. Prefer a bounded window over the untargeted default (300000).",
+            "Window size for text mode without a section. Defaults to 24000 characters from `offset`, not the whole document, and the reply says so via `truncated` — for a long document, get the section map from library_outline and read a named section, or pass a library_find hit's `at` as `offset`. Raise this only when you genuinely need a larger contiguous span.",
         },
       },
       required: ["document_id"],
@@ -696,13 +719,78 @@ async function extractLocalDraftingDocument(
   };
 }
 
+/**
+ * Transport ceiling for a single tool result. Every organ here has its own
+ * cap, but nothing enforced a floor under all of them, and an oversized result
+ * is not paid once — the adapters re-send the whole transcript each round, so
+ * one unbounded read is re-billed for the rest of the turn.
+ *
+ * 64,000 sits above every deliberate read (section reads cap at 60,000, as
+ * does PDF lookup), so it bites untargeted whole-document reads and nothing
+ * else. Trimming takes the head AND the tail, because a clause's proviso lives
+ * at its end.
+ */
+const MAX_TOOL_RESULT_CHARS = 64_000;
+
+/**
+ * A cap the model cannot act on is just a hole in the answer, so say what was
+ * dropped and name the calls that fetch it back. Beaver can be more specific
+ * than a byte offset: it has addressable section handles.
+ */
+function continuationHint(call: NormalizedToolCall, omitted: number): string {
+  const documentId =
+    typeof call.input?.document_id === "string" ? call.input.document_id : "";
+  const target = documentId ? `document_id="${documentId}"` : "this document";
+  return (
+    `\n\n[${omitted.toLocaleString("en-CA")} characters were omitted from the middle of this result. ` +
+    `Nothing is missing from the document itself — read a bounded span instead of the whole file: ` +
+    `library_outline(${target}) for the section map, then library_read(${target}, section="<handle>"); ` +
+    `or library_find(${target}, query="…"), whose hits carry an "at" offset you can pass to ` +
+    `library_read(${target}, offset=<at>, max_chars=<n>).]`
+  );
+}
+
 function result(
   call: NormalizedToolCall,
   content: unknown,
 ): NormalizedToolResult {
+  const serialized =
+    typeof content === "string" ? content : JSON.stringify(content);
+  if (serialized.length <= MAX_TOOL_RESULT_CHARS) {
+    return { tool_use_id: call.id, content: serialized };
+  }
+  // Trim the one oversized string field rather than the envelope, so the
+  // result the model parses stays well-formed JSON.
+  if (content && typeof content === "object" && !Array.isArray(content)) {
+    const record = { ...(content as Record<string, unknown>) };
+    let widest: string | null = null;
+    for (const [key, value] of Object.entries(record)) {
+      if (
+        typeof value === "string" &&
+        (widest === null || value.length > (record[widest] as string).length)
+      ) {
+        widest = key;
+      }
+    }
+    const text = widest === null ? null : (record[widest] as string);
+    if (widest !== null && text !== null) {
+      const envelope = serialized.length - text.length;
+      const keep = MAX_TOOL_RESULT_CHARS - envelope - 900;
+      if (keep > 2_000) {
+        const head = Math.floor(keep * 0.7);
+        record[widest] =
+          text.slice(0, head) + "\n…\n" + text.slice(text.length - (keep - head));
+        record.truncated = true;
+        record.continuation = continuationHint(call, text.length - keep);
+        return { tool_use_id: call.id, content: JSON.stringify(record) };
+      }
+    }
+  }
   return {
     tool_use_id: call.id,
-    content: typeof content === "string" ? content : JSON.stringify(content),
+    content:
+      serialized.slice(0, MAX_TOOL_RESULT_CHARS) +
+      continuationHint(call, serialized.length - MAX_TOOL_RESULT_CHARS),
   };
 }
 
@@ -1473,7 +1561,19 @@ export async function runLocalAssistantTools(
           )
           .filter(
             (document) =>
-              !query || document.filename.toLowerCase().includes(query),
+              !query ||
+              [
+                document.filename,
+                document.metadata?.jurisdiction,
+                ...(document.metadata?.areas_of_law ?? []),
+                ...(document.metadata?.document_types ?? []),
+                document.metadata?.description,
+                document.notes,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(query),
           )
           .map((document) => ({
             document_id: document.id,
@@ -1484,6 +1584,8 @@ export async function runLocalAssistantTools(
             version_number: document.active_version_number,
             version_provenance: document.version_provenance,
             updated_at: document.updated_at,
+            metadata: document.metadata,
+            notes: document.notes,
             app_url: appUrl({
               kind: "library-document",
               libraryKind: document.library_kind,
@@ -1491,6 +1593,33 @@ export async function runLocalAssistantTools(
             }),
           }));
         return result(call, { ok: true, documents });
+      }
+
+      if (call.name === "library_update_metadata") {
+        const documentId = trimmed(args.document_id);
+        const kind = args.kind === "template" ? "template" : "file";
+        if (!documentId) return fail(call, "document_id is required");
+        const updated = await updateLocalDocumentMetadata({
+          userId,
+          kind,
+          documentId,
+          metadata: args.metadata,
+          notes: args.notes,
+        });
+        return updated
+          ? result(call, {
+              ok: true,
+              document_id: updated.id,
+              filename: updated.filename,
+              metadata: updated.metadata,
+              notes: updated.notes,
+              app_url: appUrl({
+                kind: "library-document",
+                libraryKind: kind,
+                projectId: matterId,
+              }),
+            })
+          : fail(call, "Document not found");
       }
 
       if (call.name === "library_read" || call.name === "library_find") {
@@ -1543,7 +1672,11 @@ export async function runLocalAssistantTools(
           // documents without numbered structure. Untargeted reads keep the
           // historical 300k head.
           const offset = clampInt(args.offset, 0, 100_000_000, 0);
-          const maxChars = clampInt(args.max_chars, 200, 300_000, 300_000);
+          // An untargeted read defaults to a window, not the whole document:
+          // the ceiling stays 300k for a caller that deliberately asks, but
+          // the default no longer spends a document's worth of transcript on
+          // a question a section read would answer.
+          const maxChars = clampInt(args.max_chars, 200, 300_000, 24_000);
           const window = document.text.slice(offset, offset + maxChars);
           return result(call, {
             ok: true,
