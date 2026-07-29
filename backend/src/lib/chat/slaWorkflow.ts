@@ -27,6 +27,7 @@ import {
   type AnchorRow,
 } from "../legalTextAnchors";
 import { compileAgreementSkeleton } from "../legalTextSkeleton";
+import { temporalScan, type TemporalFinding } from "../legalTemporalScan";
 import { termDriftReport } from "../legalTermDrift";
 import { listLocalLibrary } from "../localDocumentStore";
 import { extractLocalDocument } from "./localAssistantTools";
@@ -175,6 +176,12 @@ export interface SlaAudit {
       /** Each detail prefixed by origin (draft | sources), capped. */
       finding_details: string[];
     };
+    /** Date-plus-duration identities that do not close, over sources + draft. */
+    temporal: {
+      findings: number;
+      consistent: number;
+      finding_details: string[];
+    };
     /** Defined terms whose bodies differ across sources + draft. */
     term_drift: { divergent: number; terms: string[] };
     /** Drafting lint over the draft alone, by severity. */
@@ -269,6 +276,22 @@ export function auditSlaDraft(
     .slice(0, MAX_CONFLICT_FINDINGS - draftConflictLines.length)
     .map((finding) => `- ${finding.detail}`);
 
+  const temporal = temporalScan(stack);
+  const touchesDraftTemporal = (finding: TemporalFinding) =>
+    [finding.base, finding.duration, finding.stated].some(
+      (ref) => ref.document === "draft",
+    );
+  const draftTemporal = temporal.findings.filter(touchesDraftTemporal);
+  const sourceTemporal = temporal.findings.filter(
+    (finding) => !touchesDraftTemporal(finding),
+  );
+  const draftTemporalLines = draftTemporal
+    .slice(0, MAX_CONFLICT_FINDINGS)
+    .map((finding) => `- ${finding.detail}`);
+  const sourceTemporalLines = sourceTemporal
+    .slice(0, MAX_CONFLICT_FINDINGS - draftTemporalLines.length)
+    .map((finding) => `- ${finding.detail}`);
+
   const drift = termDriftReport(stack);
   const divergent = drift.shared.filter((row) => row.status === "divergent");
   const driftLines = divergent
@@ -299,6 +322,7 @@ export function auditSlaDraft(
     missingLines.length > 0 ||
     unsourcedLines.length > 0 ||
     conflict.findings.length > 0 ||
+    temporal.findings.length > 0 ||
     divergent.length > 0 ||
     lintErrors.length > 0;
   const repairPrompt = worthARevision
@@ -314,6 +338,12 @@ export function auditSlaDraft(
         : "") +
       (sourceConflictLines.length
         ? `\nArithmetic the source documents disagree on — not yours to invent a number for; state the discrepancy where it bears on the deliverable:\n${sourceConflictLines.join("\n")}\n`
+        : "") +
+      (draftTemporalLines.length
+        ? `\nDeadline arithmetic in your deliverable that does not close — a period and its resolved date disagree:\n${draftTemporalLines.join("\n")}\n`
+        : "") +
+      (sourceTemporalLines.length
+        ? `\nDeadline arithmetic the source documents state inconsistently — flag it where it bears on the deliverable:\n${sourceTemporalLines.join("\n")}\n`
         : "") +
       (driftLines.length
         ? `\nDefined terms whose definitions differ across the stack — check which one your deliverable relies on:\n${driftLines.join("\n")}\n`
@@ -339,6 +369,14 @@ export function auditSlaDraft(
         finding_details: [
           ...draftConflicts.map((finding) => `draft: ${finding.detail}`),
           ...sourceConflicts.map((finding) => `sources: ${finding.detail}`),
+        ].slice(0, MAX_CONFLICT_FINDINGS),
+      },
+      temporal: {
+        findings: temporal.findings.length,
+        consistent: temporal.consistent,
+        finding_details: [
+          ...draftTemporal.map((finding) => `draft: ${finding.detail}`),
+          ...sourceTemporal.map((finding) => `sources: ${finding.detail}`),
         ].slice(0, MAX_CONFLICT_FINDINGS),
       },
       term_drift: {
