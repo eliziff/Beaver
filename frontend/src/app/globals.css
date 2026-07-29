@@ -51,7 +51,6 @@
 }
 @layer base {    html {
         font-size: 17px;
-    }
         @apply border-border outline-ring/50;
     }
     body {
@@ -222,7 +221,10 @@
     background-color: transparent !important;
     text-decoration: none !important;
 }
-@keyframes docxEditFlash {    0%, 20% {        background-color: rgba(213, 43, 30, 0.22);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0.3);    }    100% {        background-color: rgba(213, 43, 30, 0);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0);    }}@media (prefers-reduced-motion: reduce) {        scroll-behavior: auto !important;
+@keyframes docxEditFlash {    0%, 20% {        background-color: rgba(213, 43, 30, 0.22);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0.3);    }    100% {        background-color: rgba(213, 43, 30, 0);        box-shadow: 0 0 0 2px rgba(213, 43, 30, 0);    }}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
