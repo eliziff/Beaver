@@ -6,7 +6,6 @@ import {
     type SetStateAction,
     useCallback,
     useEffect,
-    useEffectEvent,
     useMemo,
     useRef,
     useState,
@@ -36,7 +35,6 @@ import type {
 } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
-import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import {
     filenameExtensionChangeWarning,
@@ -466,9 +464,6 @@ export function DocTable({
         null,
     );
     const [dragOverRoot, setDragOverRoot] = useState(false);
-    const [isDraggingCollectionFiles, setIsDraggingCollectionFiles] =
-        useState(false);
-    const collectionDragDepthRef = useRef(0);
     const [dragOverVersionDocId, setDragOverVersionDocId] = useState<
         string | null
     >(null);
@@ -528,8 +523,6 @@ export function DocTable({
         function handleDragEnd() {
             setDragOverFolderId(null);
             setDragOverRoot(false);
-            collectionDragDepthRef.current = 0;
-            setIsDraggingCollectionFiles(false);
         }
         document.addEventListener("dragend", handleDragEnd);
         return () => document.removeEventListener("dragend", handleDragEnd);
@@ -863,54 +856,6 @@ export function DocTable({
             setUploadingDroppedFilenames([]);
         }
     }
-    const dropCollectionFilesFromWindow = useEffectEvent(
-        handleDropCollectionFiles,
-    );
-    useEffect(() => {
-        const hasFiles = (dataTransfer: DataTransfer | null) =>
-            !!dataTransfer && Array.from(dataTransfer.types).includes("Files");
-        function handleDragEnter(event: globalThis.DragEvent) {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            collectionDragDepthRef.current += 1;
-            setIsDraggingCollectionFiles(true);
-        }
-        function handleDragOver(event: globalThis.DragEvent) {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-        }
-        function handleDragLeave(event: globalThis.DragEvent) {
-            if (!hasFiles(event.dataTransfer)) return;
-            collectionDragDepthRef.current = Math.max(
-                0,
-                collectionDragDepthRef.current - 1,
-            );
-            if (collectionDragDepthRef.current === 0) {
-                setIsDraggingCollectionFiles(false);
-            }
-        }
-        function handleDrop(event: globalThis.DragEvent) {
-            if (!hasFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            collectionDragDepthRef.current = 0;
-            setIsDraggingCollectionFiles(false);
-            void dropCollectionFilesFromWindow(
-                Array.from(event.dataTransfer?.files ?? []),
-            );
-        }
-        window.addEventListener("dragenter", handleDragEnter);
-        window.addEventListener("dragover", handleDragOver);
-        window.addEventListener("dragleave", handleDragLeave);
-        window.addEventListener("drop", handleDrop);
-        return () => {
-            window.removeEventListener("dragenter", handleDragEnter);
-            window.removeEventListener("dragover", handleDragOver);
-            window.removeEventListener("dragleave", handleDragLeave);
-            window.removeEventListener("drop", handleDrop);
-        };
-    }, []);
     async function handleDropDocumentVersions(doc: Document, files: File[]) {
         if (files.length === 0) return;
         const { supported, unsupported } =
@@ -961,8 +906,6 @@ export function DocTable({
         e.preventDefault();
         e.stopPropagation();
         setDragOverVersionDocId(null);
-        collectionDragDepthRef.current = 0;
-        setIsDraggingCollectionFiles(false);
         setDragOverRoot(false);
         setDragOverFolderId(null);
         void handleDropDocumentVersions(doc, Array.from(e.dataTransfer.files));
@@ -1861,12 +1804,6 @@ export function DocTable({
                     void handleDropCollectionFiles(files);
                 }}
             />
-            <UploadOverlay
-                open={isDraggingCollectionFiles}
-                label="Drop files here to upload"
-                warning={documentUploadWarning}
-                onWarningClose={() => setDocumentUploadWarning(null)}
-            />
             <WarningPopup
                 open={!!documentRenameWarning}
                 onClose={() => setDocumentRenameWarning(null)}
@@ -1996,6 +1933,16 @@ export function DocTable({
                                 uploadingDroppedFilenames.length === 0 ? (
                                     <div
                                         onClick={openAddDocuments}
+                                        onDragOver={(e) => {
+                                            if (!hasFilePayload(e.dataTransfer)) return;
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = "copy";
+                                        }}
+                                        onDrop={(e) => {
+                                            if (!hasFilePayload(e.dataTransfer)) return;
+                                            e.preventDefault();
+                                            void handleDropCollectionFiles(Array.from(e.dataTransfer.files));
+                                        }}
                                         className="flex-1 flex cursor-pointer flex-col items-center justify-center py-24 text-center"
                                     >
                                         <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
@@ -2007,6 +1954,11 @@ export function DocTable({
                                     <div
                                         className="flex-1 flex flex-col"
                                         onDragOver={(e) => {
+                                            if (hasFilePayload(e.dataTransfer)) {
+                                                e.preventDefault();
+                                                e.dataTransfer.dropEffect = "copy";
+                                                return;
+                                            }
                                             if (!hasMovePayload(e.dataTransfer))
                                                 return;
                                             e.preventDefault();
@@ -2023,6 +1975,11 @@ export function DocTable({
                                             }
                                         }}
                                         onDrop={async (e) => {
+                                            if (hasFilePayload(e.dataTransfer)) {
+                                                e.preventDefault();
+                                                void handleDropCollectionFiles(Array.from(e.dataTransfer.files));
+                                                return;
+                                            }
                                             if (!hasMovePayload(e.dataTransfer))
                                                 return;
                                             e.preventDefault();
