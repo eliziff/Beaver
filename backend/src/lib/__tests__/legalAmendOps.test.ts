@@ -364,8 +364,10 @@ describe("consolidateAmendment", () => {
 // add-provision family; this clause was its dominant refusal). Gold: the
 // pre-amendment list reconstructed from today's CLC s. 164(1) consolidation.
 describe("bare-token list re-punctuation (SC 2021, c. 24, s. 1(1))", () => {
+  // Dotless head, exactly as the A2AJ consolidation prints it (the dotted
+  // "164. (1)" variant is covered by the statute-style skeleton tests).
   const CHAPEAU =
-    "164. (1) A judge may issue a warrant authorizing seizure of copies of a recording, a publication, a representation or any written material, if the judge is satisfied by information on oath that there are reasonable grounds to believe that";
+    "164 (1) A judge may issue a warrant authorizing seizure of copies of a recording, a publication, a representation or any written material, if the judge is satisfied by information on oath that there are reasonable grounds to believe that";
   const PARA = (label: string, tail: string) =>
     `(${label}) the representation, written material or recording, copies of which are kept in premises within the jurisdiction of the court, ${tail}`;
   const PRE = [

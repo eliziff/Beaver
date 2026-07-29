@@ -222,3 +222,77 @@ describe("compileAgreementSkeleton: statute style", () => {
     expect(subsection.block?.text).toContain("takes effect immediately");
   });
 });
+
+// Corpus statute families (measured by scripts/skeleton-oracle-probe.py +
+// skeleton-oracle-diff.ts against the a2aj_structure reference grammar:
+// 296/296 structured sample texts exact, 100% label recall).
+describe("compileAgreementSkeleton: corpus statute styles", () => {
+  it("indexes dotless federal heads through the spine", () => {
+    const text = [
+      "1 This Act may be cited as the Example Act.",
+      "2 The following definitions apply in this Act.",
+      "5 The purpose of this Act is to benefit all persons.",
+      "5.1 (1) The area of communication is provided for.",
+      "7 (1) This Act applies to the following entities:",
+      "(a) a department named in Schedule I;",
+      "(b) a Crown corporation;",
+      "8 Nothing in this Act applies to the Yukon Government.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text);
+    const labels = skeleton.nodes.map((node) => node.label);
+    expect(labels).toContain("sec1");
+    expect(labels).toContain("sec5.1");
+    expect(labels).toContain("sec5.1(1)");
+    expect(labels).toContain("sec7");
+    expect(labels).toContain("sec7(1)");
+    expect(labels).toContain("sec7(1)(a)");
+    expect(labels).toContain("sec7(1)(b)");
+    expect(labels).toContain("sec8");
+    const served = readSection(skeleton, "s. 7(1)(a)");
+    expect(served.status).toBe("found");
+    expect(served.block?.text).toContain("Schedule I");
+  });
+
+  it("indexes dot-terminated NT/PE heads where no bare marks exist", () => {
+    const text = [
+      "1. In this Act, “Registrar General” means the registrar.",
+      "2. (1) A person who has adopted a child may apply.",
+      "(2) The application shall be filed with the court.",
+      "3. A certificate filed in the Supreme Court is proof.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text);
+    const labels = skeleton.nodes.map((node) => node.label);
+    expect(labels).toContain("sec1");
+    expect(labels).toContain("sec2");
+    expect(labels).toContain("sec2(1)");
+    expect(labels).toContain("sec2(2)");
+    expect(labels).toContain("sec3");
+  });
+
+  it("ignores Section-N print running heads when a spine exists", () => {
+    const text = [
+      "1 In this Act, “plan” means the pension plan.",
+      "Section 1",
+      "2 The plan continues under this Act.",
+      "Section 2",
+      "3 The board administers the plan.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text);
+    const sections = skeleton.nodes.filter((node) => node.kind === "section");
+    expect(sections.map((node) => node.label)).toEqual(["sec1", "sec2", "sec3"]);
+  });
+
+  it("indexes a lone dotless provision excerpt via the subsection guard", () => {
+    const text = [
+      "164 (1) A judge may issue a warrant if satisfied that",
+      "(a) the recording is obscene; or",
+      "(b) the recording is an advertisement.",
+    ].join("\n");
+    const skeleton = compileAgreementSkeleton(text);
+    const labels = skeleton.nodes.map((node) => node.label);
+    expect(labels).toContain("sec164");
+    expect(labels).toContain("sec164(1)");
+    expect(labels).toContain("sec164(1)(a)");
+    expect(labels).toContain("sec164(1)(b)");
+  });
+});
