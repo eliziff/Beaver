@@ -863,11 +863,13 @@ export async function runEditDocument(params: {
   } = await applyTrackedEdits(current.bytes, edits, { author: "Beaver" });
 
   if (changes.length === 0) {
+    // Every diagnosis, not just the first: the matcher explains each miss in
+    // the document's own words, so one round trip can fix the whole call.
     return {
       ok: false,
-      error:
-        errors[0]?.reason ??
-        "No edits could be applied. Refine context_before/context_after and retry.",
+      error: errors.length
+        ? errors.map((e) => `edit ${e.index + 1}: ${e.reason}`).join("\n\n")
+        : "No edits could be applied. Refine context_before/context_after and retry.",
     };
   }
 
