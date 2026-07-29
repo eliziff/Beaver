@@ -687,20 +687,13 @@ function textField(value: Record<string, unknown>, key: string) {
   return typeof field === "string" && field.trim() ? field : null;
 }
 
-function opinionText(value: Record<string, unknown>) {
-  // Opinions arrive here already compacted (compactOpinion sets `text` from
-  // plain_text ?? stripped html), so the raw html/plain_text branches that
-  // used to live here were unreachable.
-  return textField(value, "text") ?? "";
-}
-
 function courtlistenerOpinions(
   caseRecord: CourtlistenerCaseEvidence,
 ): CourtlistenerOpinionEvidence[] {
   return (caseRecord.opinions ?? []).flatMap((raw) => {
     const value = record(raw);
     if (!value) return [];
-    const compactText = opinionText(value);
+    const compactText = textField(value, "text") ?? "";
     if (!compactText) return [];
     const rawId = value.opinionId ?? value.opinion_id ?? value.id;
     const opinionId =
