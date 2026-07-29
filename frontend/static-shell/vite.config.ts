@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   root: resolve(__dirname),
   base: "/static-shell/",
-  server: { proxy: { "/chat": "http://127.0.0.1:3001", "/library": "http://127.0.0.1:3001" } },
-  preview: { proxy: { "/chat": "http://127.0.0.1:3001", "/library": "http://127.0.0.1:3001" } },
+  server: { proxy: { "/chat": "http://127.0.0.1:3001", "/library": "http://127.0.0.1:3001", "/projects": "http://127.0.0.1:3001", "/table-of-authorities": "http://127.0.0.1:3001" } },
+  preview: { proxy: { "/chat": "http://127.0.0.1:3001", "/library": "http://127.0.0.1:3001", "/projects": "http://127.0.0.1:3001", "/table-of-authorities": "http://127.0.0.1:3001" } },
   build: { outDir: resolve(__dirname, "../dist-static-shell"), emptyOutDir: true, sourcemap: false },
 });
