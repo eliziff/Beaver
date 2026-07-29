@@ -21,6 +21,9 @@ const normalize = (text: string) =>
   text
     .replace(/[’‘]/gu, "'")
     .replace(/[“”]/gu, '"')
+    // Corpus renderings flatten French superscript ordinals ("1^er
+    // janvier"); the statute text writes "1er". Same glyph class.
+    .replace(/\^/gu, "")
     .replace(/\s+/gu, " ")
     .trim();
 

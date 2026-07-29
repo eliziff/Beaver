@@ -78,6 +78,20 @@ function compactLabel(raw: string): string {
   return raw.replace(/\s+/gu, "");
 }
 
+/* French federal drafting ("est remplacé par ce qui suit :") — the same
+ * op algebra; both language versions are equally authoritative. */
+const FR_PROVISION_WORD =
+  "(?:sous-alinéas?|alinéas?|paragraphes?|articles?|sous-divisions?|divisions?|parties?|annexes?)";
+
+// French writes paragraph letters without the opening paren — "42a)(i)",
+// "alinéa b)" — while subclauses keep both parens.
+const FR_PROVISION_REF = String.raw`${FR_PROVISION_WORD}\s+((?:\d+(?:\.\d+)*[A-Za-z]?)?(?:\s?(?:\([^\s()]{1,12}\)|[a-zà-ÿ]{1,4}\)))*)`;
+
+/** "42a)(i)" → "42(a)(i)": restore the shared locator dialect. */
+function compactLabelFr(raw: string): string {
+  return compactLabel(raw).replace(/(?<!\()([a-zà-ÿ]{1,4})\)/gu, "($1)");
+}
+
 /** Join a head label with a nested sub-label: "3" + "(u)" → "sec3(u)". */
 export function joinLocator(head: string, sub?: string): string {
   const headCompact = compactLabel(head);
@@ -99,6 +113,7 @@ interface Head {
   label: string;
   verbTail: string;
   raw: string;
+  lang?: "fr";
 }
 
 const HEAD_RE = new RegExp(
@@ -107,6 +122,22 @@ const HEAD_RE = new RegExp(
     String.raw`|(?:The\s+)?${PROVISION_REF}\s+is\s+(amended|repealed|replaced|redesignated|renumbered)`,
   "giu",
 );
+
+// "Le paragraphe 193(2) de la même loi est remplacé par ce qui suit :" /
+// "L'article 5 est abrogé." Leading articles include au/aux/du so scoped
+// heads ("…, au paragraphe 35(1)…") still MATCH and can then be refused.
+const FR_HEAD_RE = new RegExp(
+  String.raw`(?:les?\s+|la\s+|l['’]\s?|aux?\s+|du\s+|de\s+la\s+|de\s+l['’]\s?)${FR_PROVISION_REF}` +
+    String.raw`(?:\s+(?:de|du|des|de\s+la|de\s+l['’])\s?.{0,200}?)?,?\s+(?:est|sont)\s+` +
+    String.raw`(remplacée?s?|abrogée?s?|modifiée?s?)`,
+  "giu",
+);
+
+const FR_VERB_TAIL: Array<[RegExp, string]> = [
+  [/^remplac/iu, "replaced"],
+  [/^abrog/iu, "repealed"],
+  [/^modifi/iu, "amended"],
+];
 
 /**
  * Scoped amendments the applier cannot honour yet ("The portion of
@@ -118,6 +149,16 @@ const HEAD_RE = new RegExp(
  */
 const SCOPED_HEAD_RE =
   /\b(?:portion|heading|marginal\s+note|description|title)\s+of\s*$|\bdefinitions?\s+[\w'’\s-]{0,60}in\s*$/iu;
+
+/**
+ * French scoped heads: "Le passage de … précédant l'alinéa a), au
+ * paragraphe 35(1) …" and "La définition de X, à l'article 166 …" both
+ * parse as if they addressed the whole provision, so — exactly like the
+ * English SCOPED_HEAD_RE — they are refused from the prefix, never
+ * guessed at. Verified against L.C. 2021, ch. 11, art. 3-4 (fr).
+ */
+const FR_SCOPED_PREFIX_RE =
+  /(?:\bpassage\s+d[eu]\b|\bdéfinitions?\s+d(?:e|u|es)\b)[\s\S]{0,80}$/iu;
 
 /** "in subsection (b)(1)" / "in section 4(a)" clause context. */
 const IN_CONTEXT_RE = new RegExp(String.raw`\bin\s+${PROVISION_REF}\s*[,:]?`, "giu");
@@ -385,13 +426,29 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
       end: (match.index ?? 0) + match[0].length,
     });
   }
+  for (const match of text.matchAll(FR_HEAD_RE)) {
+    const label = match[1];
+    if (!label?.trim()) continue;
+    const verbTail =
+      FR_VERB_TAIL.find(([re]) => re.test(match[2] ?? ""))?.[1] ?? "amended";
+    heads.push({
+      head: { label: compactLabelFr(label), verbTail, raw: match[0], lang: "fr" },
+      start: match.index ?? 0,
+      end: (match.index ?? 0) + match[0].length,
+    });
+  }
+  heads.sort((a, b) => a.start - b.start);
   for (let i = 0; i < heads.length; i += 1) {
     const { head, start, end } = heads[i];
     const bodyEnd = i + 1 < heads.length ? heads[i + 1].start : text.length;
     // Body runs to the next instruction head; quoted blocks may span lines.
     const body = text.slice(end, bodyEnd);
     const raw = text.slice(start, Math.min(bodyEnd, end + 240)).trim();
-    if (SCOPED_HEAD_RE.test(text.slice(Math.max(0, start - 30), start))) {
+    const scopedPrefix =
+      head.lang === "fr"
+        ? FR_SCOPED_PREFIX_RE.test(text.slice(Math.max(0, start - 90), start))
+        : SCOPED_HEAD_RE.test(text.slice(Math.max(0, start - 30), start));
+    if (scopedPrefix) {
       unparsed.push({
         excerpt: raw,
         reason: "scoped amendment (portion/heading) — not applied",
@@ -537,16 +594,18 @@ function unquotedBlock(body: string): string | undefined {
       kept.push("");
       continue;
     }
-    if (/^Marginal note:/iu.test(t)) continue;
-    // Next instruction ("3 The portion of…") or chapter note ("R.S., c. I-21").
+    if (/^(?:Marginal note:|Note marginale\s*:)/iu.test(t)) continue;
+    // Next instruction ("3 The portion of…") or chapter note ("R.S., c. I-21"
+    // / "L.R., ch. B-4"). L.R.C. must stay ahead of the bare L.R. alternative.
     if (sawText && /^\d{1,4}\s+\S/u.test(t)) break;
-    if (/^(?:R\.S\.|S\.C\.|L\.R\.C\.|L\.C\.)[,.\s]/u.test(t)) break;
-    // Part/heading furniture ("Coming into Force"): a short unpunctuated
-    // Title-Case line. Statute block lines end in punctuation or start
-    // with an enum token, so this cannot eat real provision text.
+    if (/^(?:R\.S\.|S\.C\.|L\.R\.C\.|L\.C\.|L\.R\.)[,.\s]/u.test(t)) break;
+    // Part/heading furniture ("Coming into Force", "Entrée en vigueur"): a
+    // short unpunctuated Title-Case line. Statute block lines end in
+    // punctuation or start with an enum token, so this cannot eat real
+    // provision text.
     if (
       sawText &&
-      /^(?:[A-Z][\w’'-]*)(?:\s+(?:[a-z]{2,4}|[A-Z][\w’'-]*)){1,5}$/u.test(t) &&
+      /^(?:[A-ZÀ-Þ][\wà-ÿ’'-]*)(?:\s+(?:[a-zà-ÿ]{2,12}|[A-ZÀ-Þ][\wà-ÿ’'-]*)){1,5}$/u.test(t) &&
       !/[.;:,)]$/u.test(t)
     ) {
       break;
