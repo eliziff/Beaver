@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Trash2 } from "lucide-react";
@@ -19,7 +18,6 @@ import {
     accountGlassInputClassName,
 } from "./accountStyles";
 import { AccountSection } from "./AccountSection";
-
 export default function AccountPage() {
     const router = useRouter();
     const { user, signOut, updateEmail } = useAuth();
@@ -39,7 +37,6 @@ export default function AccountPage() {
     const [deleteConfirm, setDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [accountDeleteMfaOpen, setAccountDeleteMfaOpen] = useState(false);
-
     useEffect(() => {
         if (profile?.displayName) {
             setDisplayName(profile.displayName);
@@ -48,18 +45,15 @@ export default function AccountPage() {
             setOrganisation(profile.organisation);
         }
     }, [profile]);
-
     useEffect(() => {
         if (user?.email) {
             setEmail(user.pendingEmail || user.email);
         }
     }, [user?.email, user?.pendingEmail]);
-
     const handleLogout = async () => {
         await signOut();
         router.push("/");
     };
-
     const handleDeleteAccount = async () => {
         setIsDeleting(true);
         try {
@@ -83,11 +77,9 @@ export default function AccountPage() {
             alert("Failed to delete account. Please try again.");
         }
     };
-
     const handleSaveEmail = async () => {
         const nextEmail = email.trim();
         if (!nextEmail || nextEmail === user?.email) return;
-
         setIsSavingEmail(true);
         setEmailStatus(null);
         setEmailWarning(null);
@@ -96,7 +88,6 @@ export default function AccountPage() {
                 setEmailMfaOpen(true);
                 return;
             }
-
             const updatedUser = await updateEmail(nextEmail);
             const pendingEmail = updatedUser.pendingEmail;
             setEmail(pendingEmail || updatedUser.email);
@@ -112,24 +103,20 @@ export default function AccountPage() {
                 error instanceof Error
                     ? error.message
                     : "Failed to update email. Please try again.";
-
             if (isAlreadyRegisteredEmailError(message)) {
                 setEmail(user?.pendingEmail || user?.email || "");
                 setEmailWarning(message);
                 return;
             }
-
             setEmailStatus(message);
         } finally {
             setIsSavingEmail(false);
         }
     };
-
     const handleSaveDisplayName = async () => {
         setIsSavingName(true);
         const success = await updateDisplayName(displayName.trim());
         setIsSavingName(false);
-
         if (success) {
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
@@ -137,12 +124,10 @@ export default function AccountPage() {
             alert("Failed to update display name. Please try again.");
         }
     };
-
     const handleSaveOrganisation = async () => {
         setIsSavingOrg(true);
         const success = await updateOrganisation(organisation.trim());
         setIsSavingOrg(false);
-
         if (success) {
             setOrgSaved(true);
             setTimeout(() => setOrgSaved(false), 2000);
@@ -150,9 +135,7 @@ export default function AccountPage() {
             alert("Failed to update organisation. Please try again.");
         }
     };
-
     if (!user) return null;
-
     return (
         <div className="space-y-8">
             {/* Profile Settings */}
@@ -238,7 +221,6 @@ export default function AccountPage() {
                     </div>
                 </AccountSection>
             </section>
-
             {/* Email */}
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-gray-900">
@@ -297,7 +279,6 @@ export default function AccountPage() {
                     </div>
                 </AccountSection>
             </section>
-
             {/* Plan */}
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-gray-900">
@@ -311,7 +292,6 @@ export default function AccountPage() {
                     </div>
                 </AccountSection>
             </section>
-
             {/* Actions */}
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-gray-900">
@@ -326,7 +306,6 @@ export default function AccountPage() {
                     Sign Out
                 </Button>
             </section>
-
             {/* Danger Zone */}
             <section className="space-y-3">
                 <h2 className="text-2xl font-medium font-serif text-red-600">
@@ -395,7 +374,6 @@ export default function AccountPage() {
         </div>
     );
 }
-
 function isAlreadyRegisteredEmailError(message: string) {
     return message
         .toLowerCase()

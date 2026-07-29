@@ -1,7 +1,5 @@
 "use client";
-
 import { useCallback, useSyncExternalStore } from "react";
-
 export type QuickActionId =
     | "projectChat"
     | "proofread"
@@ -10,7 +8,6 @@ export type QuickActionId =
     | "draftFromTemplate"
     | "newProject"
     | "newTabularReview";
-
 export const QUICK_ACTIONS: { id: QuickActionId; label: string }[] = [
     { id: "proofread", label: "Proofread" },
     { id: "compareDocuments", label: "Compare documents" },
@@ -20,7 +17,6 @@ export const QUICK_ACTIONS: { id: QuickActionId; label: string }[] = [
     { id: "newTabularReview", label: "New tabular review" },
     { id: "projectChat", label: "Start chat in project" },
 ];
-
 export const DEFAULT_QUICK_ACTIONS: Record<QuickActionId, boolean> = {
     projectChat: true,
     proofread: true,
@@ -30,16 +26,13 @@ export const DEFAULT_QUICK_ACTIONS: Record<QuickActionId, boolean> = {
     newProject: false,
     newTabularReview: false,
 };
-
 const QUICK_ACTIONS_STORAGE_KEY = "mike.quickActions.visible";
 const QUICK_ACTIONS_UPDATED_EVENT = "mike:quick-actions-updated";
 let cachedRawPreference: string | null | undefined;
 let cachedPreference: Record<QuickActionId, boolean> = DEFAULT_QUICK_ACTIONS;
-
 function normalizeQuickActions(value: unknown): Record<QuickActionId, boolean> {
     if (!value || typeof value !== "object") return DEFAULT_QUICK_ACTIONS;
     const record = value as Partial<Record<QuickActionId, unknown>>;
-
     return QUICK_ACTIONS.reduce<Record<QuickActionId, boolean>>(
         (next, action) => {
             const storedValue = record[action.id];
@@ -52,14 +45,11 @@ function normalizeQuickActions(value: unknown): Record<QuickActionId, boolean> {
         { ...DEFAULT_QUICK_ACTIONS },
     );
 }
-
 function readQuickActionsPreference(): Record<QuickActionId, boolean> {
     if (typeof window === "undefined") return DEFAULT_QUICK_ACTIONS;
-
     try {
         const stored = window.localStorage.getItem(QUICK_ACTIONS_STORAGE_KEY);
         if (stored === cachedRawPreference) return cachedPreference;
-
         cachedRawPreference = stored;
         cachedPreference = stored
             ? normalizeQuickActions(JSON.parse(stored))
@@ -69,20 +59,16 @@ function readQuickActionsPreference(): Record<QuickActionId, boolean> {
         return DEFAULT_QUICK_ACTIONS;
     }
 }
-
 function persistQuickActionsPreference(
     value: Record<QuickActionId, boolean>,
 ) {
     if (typeof window === "undefined") return;
     const serialized = JSON.stringify(value);
-
     cachedRawPreference = serialized;
     cachedPreference = value;
-
     window.localStorage.setItem(QUICK_ACTIONS_STORAGE_KEY, serialized);
     window.dispatchEvent(new Event(QUICK_ACTIONS_UPDATED_EVENT));
 }
-
 export function useQuickActionsPreference() {
     const visibleActions = useSyncExternalStore(
         (handleQuickActionsUpdated) => {
@@ -92,7 +78,6 @@ export function useQuickActionsPreference() {
                 QUICK_ACTIONS_UPDATED_EVENT,
                 handleQuickActionsUpdated,
             );
-
             return () => {
                 window.removeEventListener(
                     "storage",
@@ -107,7 +92,6 @@ export function useQuickActionsPreference() {
         readQuickActionsPreference,
         () => DEFAULT_QUICK_ACTIONS,
     );
-
     const setVisibleActions = useCallback(
         (
             next:
@@ -122,11 +106,9 @@ export function useQuickActionsPreference() {
         },
         [],
     );
-
     const showAllQuickActions = useCallback(() => {
         setVisibleActions(DEFAULT_QUICK_ACTIONS);
     }, [setVisibleActions]);
-
     const hideAllQuickActions = useCallback(() => {
         setVisibleActions(
             QUICK_ACTIONS.reduce<Record<QuickActionId, boolean>>(
@@ -138,7 +120,6 @@ export function useQuickActionsPreference() {
             ),
         );
     }, [setVisibleActions]);
-
     return {
         visibleActions,
         setVisibleActions,

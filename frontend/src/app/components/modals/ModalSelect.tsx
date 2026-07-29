@@ -1,17 +1,14 @@
 "use client";
-
 import { useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Modal } from "./Modal";
-
 export type ModalSelectOption =
     | string
     | {
           value: string;
           label: string;
       };
-
 interface ModalSelectProps {
     id: string;
     value: string;
@@ -23,13 +20,11 @@ interface ModalSelectProps {
     searchable?: boolean;
     ariaLabel?: string;
 }
-
 function normalizeOption(option: ModalSelectOption) {
     return typeof option === "string"
         ? { value: option, label: option }
         : option;
 }
-
 export function ModalSelect({
     id,
     value,
@@ -43,7 +38,6 @@ export function ModalSelect({
 }: ModalSelectProps) {
     const normalizedOptions = options.map(normalizeOption);
     const selected = normalizedOptions.find((option) => option.value === value);
-
     if (searchable || normalizedOptions.length > 8) {
         return (
             <SearchableModalSelect
@@ -58,7 +52,6 @@ export function ModalSelect({
             />
         );
     }
-
     return (
         <select
             id={id}
@@ -85,7 +78,6 @@ export function ModalSelect({
         </select>
     );
 }
-
 function SearchableModalSelect({
     id,
     value,
@@ -107,7 +99,6 @@ function SearchableModalSelect({
 }) {
     const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
-
     return (
         <>
             <button
@@ -140,12 +131,10 @@ function SearchableModalSelect({
         </>
     );
 }
-
 export type SearchableChoice = {
     value: string | null;
     label: string;
 };
-
 export function SearchableChoiceModal({
     open,
     onClose,
@@ -176,7 +165,6 @@ export function SearchableChoiceModal({
         onChange(next);
         close();
     };
-
     return (
         <Modal
             open={open}

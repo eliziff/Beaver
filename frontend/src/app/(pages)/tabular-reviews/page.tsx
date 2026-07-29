@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -22,15 +21,12 @@ import { NewTRModal } from "@/app/components/tabular/NewTRModal";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-
 type ReviewScope = "all" | "in-project" | "standalone";
-
 const REVIEW_SCOPES: { id: ReviewScope; label: string }[] = [
     { id: "all", label: "All" },
     { id: "in-project", label: "In Project" },
     { id: "standalone", label: "Standalone" },
 ];
-
 export default function TabularReviewsPage() {
     const router = useRouter();
     const { user } = useAuth();
@@ -47,7 +43,6 @@ export default function TabularReviewsPage() {
     const [search, setSearch] = useState("");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-
     useEffect(() => {
         Promise.all([
             listTabularReviews().catch(() => []),
@@ -59,7 +54,6 @@ export default function TabularReviewsPage() {
             })
             .finally(() => setLoading(false));
     }, []);
-
     const query = search.toLowerCase();
     const filteredReviews = useMemo(
         () =>
@@ -83,7 +77,6 @@ export default function TabularReviewsPage() {
                 ),
         [activeScope, projectFilter, query, reviews],
     );
-
     async function handleNewReview(
         title: string,
         projectId?: string,
@@ -107,7 +100,6 @@ export default function TabularReviewsPage() {
             setCreating(false);
         }
     }
-
     function requestReviewDetails(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
             setOwnerOnlyAction("edit tabular review details");
@@ -115,7 +107,6 @@ export default function TabularReviewsPage() {
         }
         setDetailsReview(review);
     }
-
     async function handleDetailsSave(values: {
         title: string;
         projectId?: string | null;
@@ -138,7 +129,6 @@ export default function TabularReviewsPage() {
             current?.id === updated.id ? { ...current, ...updated } : current,
         );
     }
-
     async function handleDeleteSelected() {
         const selected = new Set(selectedIds);
         const owned = reviews
@@ -148,7 +138,6 @@ export default function TabularReviewsPage() {
             )
             .map((review) => review.id);
         const blocked = selected.size - owned.length;
-
         setSelectedIds([]);
         await Promise.all(
             owned.map((id) => deleteTabularReview(id).catch(() => {})),
@@ -162,7 +151,6 @@ export default function TabularReviewsPage() {
             );
         }
     }
-
     async function handleDeleteReview(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
             setOwnerOnlyAction("delete this tabular review");
@@ -173,12 +161,10 @@ export default function TabularReviewsPage() {
             current.filter((candidate) => candidate.id !== review.id),
         );
     }
-
     function handleProjectFilterChange(value: string | null) {
         setProjectFilter(value);
         setSelectedIds([]);
     }
-
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
             {selectedIds.length > 0 && (
@@ -199,7 +185,6 @@ export default function TabularReviewsPage() {
             )}
         </span>
     );
-
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             <PageHeader
@@ -223,7 +208,6 @@ export default function TabularReviewsPage() {
                     Tabular Reviews
                 </h1>
             </PageHeader>
-
             <TableToolbar
                 items={REVIEW_SCOPES}
                 active={activeScope}
@@ -233,7 +217,6 @@ export default function TabularReviewsPage() {
                 }}
                 actions={toolbarActions}
             />
-
             <TabularReviewsTable
                 reviews={reviews}
                 filteredReviews={filteredReviews}
@@ -253,7 +236,6 @@ export default function TabularReviewsPage() {
                 onDeleteReview={handleDeleteReview}
                 loading={loading}
             />
-
             <NewTRModal
                 open={newTROpen}
                 onClose={() => setNewTROpen(false)}

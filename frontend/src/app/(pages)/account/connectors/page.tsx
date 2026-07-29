@@ -1,8 +1,6 @@
 "use client";
-
 import { useCallback, useEffect, useState } from "react";
-import {
-    ChevronDown,
+import {    ChevronDown,
     Loader2,
     Plus,
     RefreshCw,
@@ -17,10 +15,7 @@ import {
     MfaVerificationPopup,
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
-import {
-    API_BASE,
-    type McpConnectorSummary,
-    BeaverApiError,
+import {    API_BASE,    type McpConnectorSummary,    BeaverApiError,
     createMcpConnector,
     deleteMcpConnector,
     getMcpConnector,
@@ -30,13 +25,11 @@ import {
     setMcpToolEnabled,
     startMcpConnectorOAuth,
     updateMcpConnector,
-} from "@/app/lib/beaverApi";
-import {
+} from "@/app/lib/beaverApi";import {
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
-
 type PendingMfaAction =
     | { type: "create" }
     | { type: "save"; connectorId: string }
@@ -50,32 +43,23 @@ type PendingMfaAction =
           toolId: string;
           enabled: boolean;
       };
-
 type DetailDraft = McpConnectorDraft & {
     clearBearerToken: boolean;
 };
-
 type AddStep = "form" | "working" | "auth" | "success";
-
 const emptyAddDraft: McpConnectorDraft = {
     name: "",
     serverUrl: "",
     bearerToken: "",
     customHeaders: "",
 };
-
 type McpOAuthPopupMessage = {
     type?: string;
     success?: boolean;
     connectorId?: string;
     detail?: string;
 };
-
-const mcpOAuthMessageOrigin = new URL(
-    API_BASE,
-).origin;
-
-function parseCustomHeaders(raw: string): Record<string, string> | undefined {
+const mcpOAuthMessageOrigin = new URL(    API_BASE,).origin;function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
     if (!text) return undefined;
     const parsed = JSON.parse(text) as unknown;
@@ -91,7 +75,6 @@ function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     }
     return headers;
 }
-
 function isGoogleMcpConnector(connector: McpConnectorSummary) {
     try {
         return new URL(connector.serverUrl).hostname
@@ -101,7 +84,6 @@ function isGoogleMcpConnector(connector: McpConnectorSummary) {
         return false;
     }
 }
-
 export default function ConnectorsPage() {
     const [connectors, setConnectors] = useState<McpConnectorSummary[]>([]);
     const [loading, setLoading] = useState(true);
@@ -137,9 +119,7 @@ export default function ConnectorsPage() {
         useState<string | null>(null);
     const [showDetailToken, setShowDetailToken] = useState(false);
     const [showDetailAdvanced, setShowDetailAdvanced] = useState(false);
-
     const selectedConnector = selectedConnectorDetails;
-
     const loadConnectors = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -153,11 +133,9 @@ export default function ConnectorsPage() {
             setLoading(false);
         }
     }, []);
-
     useEffect(() => {
         void loadConnectors();
     }, [loadConnectors]);
-
     useEffect(() => {
         if (!selectedConnector) return;
         setDetailDraft({
@@ -176,7 +154,6 @@ export default function ConnectorsPage() {
         selectedConnector?.name,
         selectedConnector?.serverUrl,
     ]);
-
     const replaceConnector = (
         connector: McpConnectorSummary,
         options: { preserveToolsOnEmpty?: boolean } = {},
@@ -202,7 +179,6 @@ export default function ConnectorsPage() {
             current?.id === connector.id ? mergeConnector(current) : current,
         );
     };
-
     const openConnectorDetails = async (connectorId: string) => {
         setSelectedConnectorId(connectorId);
         setSelectedConnectorDetails((current) =>
@@ -227,7 +203,6 @@ export default function ConnectorsPage() {
             );
         }
     };
-
     const runSensitiveAction = async (
         action: PendingMfaAction,
         fn: () => Promise<void>,
@@ -252,7 +227,6 @@ export default function ConnectorsPage() {
             else setError(message);
         }
     };
-
     const closeAddModal = () => {
         if (addStep === "working" || addStep === "auth") return;
         setAddOpen(false);
@@ -264,7 +238,6 @@ export default function ConnectorsPage() {
         setShowAddToken(false);
         setShowAddAdvanced(false);
     };
-
     const connectConnectorOAuth = async (
         connectorId: string,
     ): Promise<McpConnectorSummary | null> => {
@@ -290,7 +263,6 @@ export default function ConnectorsPage() {
             return null;
         }
         popup.location.href = authorizationUrl;
-
         await new Promise<void>((resolve, reject) => {
             const timeout = window.setTimeout(() => {
                 cleanup();
@@ -334,12 +306,10 @@ export default function ConnectorsPage() {
             };
             window.addEventListener("message", onMessage);
         });
-
         const refreshed = await refreshMcpConnectorTools(connectorId);
         replaceConnector(refreshed);
         return refreshed;
     };
-
     const handleCreate = async () => {
         await runSensitiveAction({ type: "create" }, async () => {
             setBusyKey("create");
@@ -408,7 +378,6 @@ export default function ConnectorsPage() {
             }
         });
     };
-
     const handleSaveSelectedConnector = async () => {
         if (!selectedConnector) return;
         await runSensitiveAction(
@@ -451,7 +420,6 @@ export default function ConnectorsPage() {
             },
         );
     };
-
     const handleClearBearerToken = async (connectorId: string) => {
         await runSensitiveAction(
             { type: "clear-token", connectorId },
@@ -476,7 +444,6 @@ export default function ConnectorsPage() {
             },
         );
     };
-
     const handleRefresh = async (connectorId: string) => {
         await runSensitiveAction({ type: "refresh", connectorId }, async () => {
             setBusyKey(`refresh:${connectorId}`);
@@ -498,7 +465,6 @@ export default function ConnectorsPage() {
             }
         });
     };
-
     const handleConnectorEnabled = async (
         connectorId: string,
         enabled: boolean,
@@ -518,7 +484,6 @@ export default function ConnectorsPage() {
             },
         );
     };
-
     const handleToolEnabled = async (
         connectorId: string,
         toolId: string,
@@ -538,7 +503,6 @@ export default function ConnectorsPage() {
             },
         );
     };
-
     const handleDelete = async (connectorId: string) => {
         await runSensitiveAction({ type: "delete", connectorId }, async () => {
             setBusyKey(`delete:${connectorId}`);
@@ -556,7 +520,6 @@ export default function ConnectorsPage() {
             }
         });
     };
-
     const handleMfaVerified = async () => {
         const action = pendingMfaAction;
         setPendingMfaAction(null);
@@ -579,7 +542,6 @@ export default function ConnectorsPage() {
             );
         }
     };
-
     return (
         <div>
             <div className="mb-4">
@@ -597,13 +559,11 @@ export default function ConnectorsPage() {
                     </button>
                 </div>
             </div>
-
             {error && (
                 <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
                 </div>
             )}
-
             <div className="space-y-3">
                 {loading ? (
                     <ConnectorsSkeleton />
@@ -625,7 +585,6 @@ export default function ConnectorsPage() {
                     ))
                 )}
             </div>
-
             <NewMcpModal
                 open={addOpen}
                 draft={addDraft}
@@ -645,7 +604,6 @@ export default function ConnectorsPage() {
                     closeAddModal();
                 }}
             />
-
             <McpConnectorDetailsModal
                 connector={selectedConnector}
                 draft={detailDraft}
@@ -676,7 +634,6 @@ export default function ConnectorsPage() {
                 onConnectorEnabled={handleConnectorEnabled}
                 onToolEnabled={handleToolEnabled}
             />
-
             <MfaVerificationPopup
                 open={!!pendingMfaAction}
                 onCancel={() => setPendingMfaAction(null)}
@@ -685,7 +642,6 @@ export default function ConnectorsPage() {
         </div>
     );
 }
-
 function ConnectorsSkeleton() {
     return (
         <>
@@ -713,7 +669,6 @@ function ConnectorsSkeleton() {
         </>
     );
 }
-
 function ConnectorRow({
     connector,
     busyKey,
@@ -729,7 +684,6 @@ function ConnectorRow({
     ) => Promise<void>;
 }) {
     const toolCount = connector.toolCount ?? connector.tools.length;
-
     return (
         <AccountSection
             className="cursor-pointer px-4 py-3 hover:bg-white/70"
@@ -784,7 +738,6 @@ function ConnectorRow({
         </AccountSection>
     );
 }
-
 function McpConnectorDetailsModal({
     connector,
     draft,
@@ -838,7 +791,6 @@ function McpConnectorDetailsModal({
             draft.bearerToken.trim().length > 0 ||
             draft.customHeaders.trim().length > 0);
     const isSaving = !!connector && busyKey === `save:${connector.id}`;
-
     return (
         <Modal
             open={!!connector}
@@ -974,7 +926,6 @@ function McpConnectorDetailsModal({
         </Modal>
     );
 }
-
 function ToolListSkeleton({
     count,
     fill = false,
@@ -1003,7 +954,6 @@ function ToolListSkeleton({
         </div>
     );
 }
-
 function ScrollableToolList({
     connector,
     busyKey,
@@ -1020,7 +970,6 @@ function ScrollableToolList({
     fill?: boolean;
 }) {
     const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
-
     if (connector.tools.length === 0) {
         return (
             <div
@@ -1032,7 +981,6 @@ function ScrollableToolList({
             </div>
         );
     }
-
     return (
         <div
             className={`overflow-y-auto rounded-lg border border-gray-100 bg-white/60 ${

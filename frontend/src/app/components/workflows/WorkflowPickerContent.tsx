@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, MessageSquare, Table2, X } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
@@ -16,10 +15,8 @@ import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-
 type WorkflowPreviewMode = "auto" | "prompt" | "columns";
 type MobilePickerPane = "list" | "details";
-
 interface WorkflowPickerContentProps {
     workflows: Workflow[];
     selected: Workflow | null;
@@ -34,7 +31,6 @@ interface WorkflowPickerContentProps {
     showTypeIcon?: boolean;
     allowClearPreview?: boolean;
 }
-
 export function WorkflowPickerContent({
     workflows,
     selected,
@@ -67,13 +63,11 @@ export function WorkflowPickerContent({
     const setMobilePane = (pane: MobilePickerPane) => {
         setMobilePaneState({ selectedId, pane });
     };
-
     useEffect(() => {
         if (selectedRowRef.current) {
             selectedRowRef.current.scrollIntoView({ block: "nearest" });
         }
     }, [selected?.id]);
-
     const normalizedSearch = search.trim().toLowerCase();
     const filteredWorkflows = normalizedSearch
         ? workflows.filter((workflow) =>
@@ -102,7 +96,6 @@ export function WorkflowPickerContent({
         onSelect(null);
         setMobilePane("list");
     };
-
     return (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-visible md:flex-row">
             <div
@@ -115,7 +108,6 @@ export function WorkflowPickerContent({
                     onValueChange={onSearchChange}
                     placeholder="Search workflows..."
                 />
-
                 <div className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-sm pt-2">
                     {loading ? (
                         <div className="space-y-px">
@@ -190,7 +182,6 @@ export function WorkflowPickerContent({
                     )}
                 </div>
             </div>
-
             {selected && (
                 <WorkflowPreview
                     workflow={selected}
@@ -205,7 +196,6 @@ export function WorkflowPickerContent({
         </div>
     );
 }
-
 function WorkflowPreview({
     workflow,
     mode,
@@ -261,22 +251,18 @@ function WorkflowPreview({
         </div>
     );
 }
-
 function WorkflowPromptPreview({ content }: { content: string }) {
     const previewContent = stripLeadingMarkdownHeading(content);
-
     return (
         <div className="min-w-0 flex-1 overflow-x-auto break-normal rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
             <WorkflowPromptMarkdown content={previewContent} />
         </div>
     );
 }
-
 function stripLeadingMarkdownHeading(content: string) {
     const stripped = content.replace(/^\s{0,3}#{1,6}\s+[^\n]+(?:\n+|$)/, "");
     return stripped.trimStart() || content;
 }
-
 function WorkflowPromptMarkdown({ content }: { content: string }) {
     return (
         <ReactMarkdown
@@ -351,7 +337,6 @@ function WorkflowPromptMarkdown({ content }: { content: string }) {
         </ReactMarkdown>
     );
 }
-
 function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
     const sortedColumns = [...columns].sort((a, b) => a.index - b.index);

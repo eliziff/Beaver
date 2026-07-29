@@ -1,16 +1,13 @@
 "use client";
-
 import { createPortal } from "react-dom";
 import { useEffect, useRef, type ReactNode } from "react";
 import { AlertCircle, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-
 interface WarningPopupAction {
     label: ReactNode;
     onClick: () => void;
     disabled?: boolean;
 }
-
 interface WarningPopupProps {
     open: boolean;
     onClose: () => void;
@@ -22,7 +19,6 @@ interface WarningPopupProps {
     secondaryAction?: WarningPopupAction;
     className?: string;
 }
-
 export function WarningPopup({
     open,
     onClose,
@@ -35,7 +31,6 @@ export function WarningPopup({
     className,
 }: WarningPopupProps) {
     const popupRef = useRef<HTMLDivElement>(null);
-
     useEffect(() => {
         if (!open) return;
         const restoreFocus =
@@ -49,13 +44,10 @@ export function WarningPopup({
             if (restoreFocus?.isConnected) restoreFocus.focus();
         };
     }, [open]);
-
     if (!open) return null;
-
     const warningIcon = icon ?? (
         <AlertCircle className="h-3 w-3 shrink-0 text-red-600" />
     );
-
     return createPortal(
         <div className="pointer-events-none fixed left-1/2 top-5 z-[220] w-[min(92vw,520px)] -translate-x-1/2 px-4">
             <div
@@ -117,7 +109,6 @@ export function WarningPopup({
         document.body,
     );
 }
-
 function WarningPopupButton({
     action,
     primary = false,

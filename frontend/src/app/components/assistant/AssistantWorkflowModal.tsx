@@ -1,8 +1,6 @@
 "use client";
-
 import type { Workflow } from "../shared/types";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -11,7 +9,6 @@ interface Props {
     projectCmNumber?: string | null;
     initialWorkflowId?: string;
 }
-
 export function AssistantWorkflowModal({
     open,
     onClose,
@@ -28,7 +25,6 @@ export function AssistantWorkflowModal({
               "Add workflow",
           ]
         : ["Assistant", "Add workflow"];
-
     return (
         <WorkflowPickerModal
             open={open}

@@ -1,5 +1,4 @@
 "use client";
-
 import {
     useState,
     useCallback,
@@ -48,7 +47,6 @@ import {
     formatUnsupportedDocumentWarning,
     partitionSupportedDocumentFiles,
 } from "@/app/lib/documentUploadValidation";
-
 export interface ChatInputHandle {
     addDoc: (doc: Document) => void;
     clearDraft: () => void;
@@ -58,7 +56,6 @@ export interface ChatInputHandle {
         options?: { initialDocumentTab?: DirectoryTab },
     ) => void;
 }
-
 interface Props {
     onSubmit: (message: Message) => void;
     onCancel: () => void;
@@ -71,7 +68,6 @@ interface Props {
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
 }
-
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     {
         onSubmit,
@@ -111,7 +107,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
     const dragDepthRef = useRef(0);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
-
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => {
             setAttachedDocs((prev) => {
@@ -141,7 +136,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             if (attachedDocs.length === 0) setDocSelectorOpen(true);
         },
     }));
-
     useEffect(() => {
         if (!restoreDraft) return;
         const frame = requestAnimationFrame(() => {
@@ -182,7 +176,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         });
         return () => cancelAnimationFrame(frame);
     }, [onDraftRestored, restoreDraft]);
-
     const handleAddDocsFromSelector = useCallback(
         (selectedDocs: Document[]) => {
             setAttachedDocs((prev) => {
@@ -195,7 +188,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         },
         [],
     );
-
     const addAttachedDocuments = useCallback((documents: Document[]) => {
         setAttachedDocs((prev) => {
             const existing = new Set(prev.map((document) => document.id));
@@ -205,14 +197,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             ];
         });
     }, []);
-
     const handleDroppedFiles = useCallback(
         async (files: File[]) => {
             const { supported, unsupported } =
                 partitionSupportedDocumentFiles(files);
             setUploadWarning(formatUnsupportedDocumentWarning(unsupported));
             if (supported.length === 0) return;
-
             setUploadingFilenames(supported.map((file) => file.name));
             const results = await Promise.allSettled(
                 supported.map((file) =>
@@ -250,11 +240,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         },
         [addAttachedDocuments, onDocumentsUploaded, projectId],
     );
-
     useEffect(() => {
         const hasFiles = (dataTransfer: DataTransfer | null) =>
             !!dataTransfer && Array.from(dataTransfer.types).includes("Files");
-
         const handleDragEnter = (event: DragEvent) => {
             if (!hasFiles(event.dataTransfer)) return;
             event.preventDefault();
@@ -279,7 +267,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             setIsDraggingFiles(false);
             void handleDroppedFiles(Array.from(event.dataTransfer?.files ?? []));
         };
-
         window.addEventListener("dragenter", handleDragEnter);
         window.addEventListener("dragover", handleDragOver);
         window.addEventListener("dragleave", handleDragLeave);
@@ -291,14 +278,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             window.removeEventListener("drop", handleDrop);
         };
     }, [handleDroppedFiles]);
-
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setValue(e.target.value);
         const el = e.target;
         el.style.height = "auto";
         el.style.height = `${el.scrollHeight}px`;
     };
-
     const handleSubmit = () => {
         const query = value.trim();
         if (!query || isLoading) return;
@@ -310,7 +295,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         if (textareaRef.current) {
             textareaRef.current.style.height = "auto";
         }
-
         const files = attachedDocs.map((d) => ({
             filename: d.filename,
             document_id: d.id,
@@ -319,7 +303,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         setAttachedDocs([]);
         const wf = selectedWorkflow;
         setSelectedWorkflow(null);
-
         onSubmit?.({
             role: "user",
             content: query,
@@ -329,7 +312,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             reasoningEffort,
         });
     };
-
     const handleActionClick = () => {
         if (isLoading) {
             onCancel();
@@ -337,14 +319,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             handleSubmit();
         }
     };
-
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSubmit();
         }
     };
-
     return (
         <>
             <div className="chat-input-container w-full">
@@ -353,8 +333,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     {(selectedWorkflow || attachedDocs.length > 0) && (
                         <div className="flex flex-wrap gap-1.5 px-2 pt-2">
                             {selectedWorkflow && (
-                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-gray-950 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">
-                                    <Library className="h-2.5 w-2.5 shrink-0" />
+                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-gray-950 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">                                    <Library className="h-2.5 w-2.5 shrink-0" />
                                     <span className="max-w-[140px] truncate">
                                         {selectedWorkflow.title}
                                     </span>
@@ -400,7 +379,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             })}
                         </div>
                     )}
-
                     {uploadingFilenames.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5 px-2 pt-2">
                             {uploadingFilenames.map((filename, index) => (
@@ -416,7 +394,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             ))}
                         </div>
                     )}
-
                     {/* Input */}
                     <div className="px-4 pt-4">
                         <textarea
@@ -429,7 +406,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             className="w-full resize-none text-sm overflow-hidden border-0 text-base p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
                         />
                     </div>
-
                     {/* Controls */}
                     <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
                         <div className="flex items-center gap-1">
@@ -451,8 +427,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 className={cn(
                                     "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm",
                                     selectedWorkflow
-                                        ? "text-red-700 hover:text-red-800"
-                                        : "text-gray-400 hover:text-gray-700",
+                                        ? "text-red-700 hover:text-red-800"                                        : "text-gray-400 hover:text-gray-700",
                                 )}
                             >
                                 {selectedWorkflow ? (
@@ -465,7 +440,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 </span>
                             </button>
                         </div>
-
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
                             <div className="order-2 sm:order-1">
                                 <ReasoningEffortToggle
@@ -503,7 +477,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     </div>
                 </div>
             </div>
-
             <AddDocumentsModal
                 open={docSelectorOpen}
                 keepMounted

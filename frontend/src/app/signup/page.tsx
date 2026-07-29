@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
@@ -10,7 +9,6 @@ import { SiteLogo } from "@/app/components/site-logo";
 import { CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { updateUserProfile } from "@/app/lib/beaverApi";
-
 const authGlassCardClassName =
     "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm";
 const authInputClassName =
@@ -21,7 +19,6 @@ const authToggleActiveClassName =
     "inline-flex h-6 items-center rounded-full border border-gray-200 bg-white px-3 text-gray-900";
 const authToggleInactiveClassName =
     "inline-flex h-6 items-center rounded-full border border-transparent px-3 text-gray-500 hover:bg-white/38 hover:text-gray-900";
-
 export default function SignupPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
@@ -33,38 +30,31 @@ export default function SignupPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-
     useEffect(() => {
         if (!authLoading && isAuthenticated && !success) {
             router.replace("/assistant");
         }
     }, [authLoading, isAuthenticated, router, success]);
-
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
-
         if (password !== confirmPassword) {
             setError("Passwords do not match");
             setLoading(false);
             return;
         }
-
         if (password.length < 6) {
             setError("Password must be at least 6 characters");
             setLoading(false);
             return;
         }
-
         try {
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
             });
-
             if (error) throw error;
-
             if (data.session) {
                 const trimmedName = name.trim();
                 const trimmedOrg = organisation.trim();
@@ -96,7 +86,6 @@ export default function SignupPage() {
             setLoading(false);
         }
     };
-
     if (success) {
         return (
             <div className="min-h-dvh bg-gray-50/80 flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
@@ -121,7 +110,6 @@ export default function SignupPage() {
             </div>
         );
     }
-
     return (
         <div className="min-h-dvh bg-gray-50/80 flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
@@ -145,7 +133,6 @@ export default function SignupPage() {
                             </span>
                         </div>
                     </div>
-
                     <form onSubmit={handleSignup} className="space-y-4">
                         <div>
                             <label
@@ -166,7 +153,6 @@ export default function SignupPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         <div>
                             <label
                                 htmlFor="organisation"
@@ -188,7 +174,6 @@ export default function SignupPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         <div>
                             <label
                                 htmlFor="email"
@@ -206,7 +191,6 @@ export default function SignupPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         <div>
                             <label
                                 htmlFor="password"
@@ -224,7 +208,6 @@ export default function SignupPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         <div>
                             <label
                                 htmlFor="confirmPassword"
@@ -244,13 +227,11 @@ export default function SignupPage() {
                                 className={`w-full ${authInputClassName}`}
                             />
                         </div>
-
                         {error && (
                             <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
                                 {error}
                             </div>
                         )}
-
                         <Button
                             type="submit"
                             disabled={loading}
@@ -259,7 +240,6 @@ export default function SignupPage() {
                             {loading ? "Creating account..." : "Sign up"}
                         </Button>
                     </form>
-
                     <div className="mt-4 text-center text-xs text-gray-500">
                         By signing up, you agree to our{" "}
                         <Link

@@ -1,5 +1,4 @@
 import type { AssistantEvent } from "../../shared/types";
-
 export function toolCallLabel(name: string): string {
     if (name === "ask_inputs") return "Asking for input...";
     if (name === "generate_docx" || name === "library_create_docx")
@@ -43,7 +42,6 @@ export function toolCallLabel(name: string): string {
         .toLowerCase();
     return readable ? `Using ${readable}...` : "Using tool...";
 }
-
 function plainActivityText(text: string) {
     return text
         .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
@@ -52,7 +50,6 @@ function plainActivityText(text: string) {
         .replace(/\s+/gu, " ")
         .trim();
 }
-
 export function activityLabel(event: AssistantEvent): string | null {
     if (event.type === "reasoning")
         return plainActivityText(event.text).slice(0, 120) || null;
@@ -88,7 +85,6 @@ export function activityLabel(event: AssistantEvent): string | null {
         return event.error ? "Automation failed" : event.stage;
     return null;
 }
-
 function activityFamily(event: AssistantEvent): string {
     if (event.type === "automation_run") return "automation_run";
     if (event.type !== "tool_call_start") return event.type;
@@ -117,7 +113,6 @@ function activityFamily(event: AssistantEvent): string {
         return "automation_run";
     return event.name;
 }
-
 function activityKey(event: AssistantEvent): string {
     if (event.type === "reasoning")
         return `reasoning:${plainActivityText(event.text)}`;
@@ -141,7 +136,6 @@ function activityKey(event: AssistantEvent): string {
         return `automation:${event.job_id ?? event.id}`;
     return JSON.stringify(event);
 }
-
 export function dedupeActivityEntries<
     T extends { event: AssistantEvent; index: number },
 >(entries: T[]): T[] {

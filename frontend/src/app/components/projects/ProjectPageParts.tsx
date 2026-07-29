@@ -1,5 +1,4 @@
 "use client";
-
 import { type CSSProperties } from "react";
 import {
     Loader2,
@@ -11,27 +10,19 @@ import {
     PageHeader,
     type PageHeaderAction,
 } from "@/app/components/shared/PageHeader";
-import type { Project } from "@/app/components/shared/types";
-import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
-import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";
-
-export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
-
+import type { Project } from "@/app/components/shared/types";import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
+import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
 export const NAME_COL_W = TABLE_PRIMARY_CELL_WIDTH_CLASS;
 export const DOC_NAME_COL_W = "min-w-0 flex-1";
-
 const TREE_CONTROL_WIDTH_PX = 29;
 const TREE_NAME_PADDING_PX = 16;
-
 export function treeNameCellStyle(depth: number): CSSProperties | undefined {
     if (depth <= 0) return undefined;
     return {
         paddingLeft: TREE_NAME_PADDING_PX + depth * TREE_CONTROL_WIDTH_PX,
     };
 }
-
-export function ProjectPageHeader({
-    project,
+export function ProjectPageHeader({    project,
     search,
     activeSection,
     creatingChat,
@@ -95,7 +86,6 @@ export function ProjectPageHeader({
                     label: <span className="hidden sm:inline">Review</span>,
                     title: "Create review",
                 };
-
     return (
         <PageHeader
             breadcrumbs={[

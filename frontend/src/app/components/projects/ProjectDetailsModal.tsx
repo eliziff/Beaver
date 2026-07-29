@@ -1,13 +1,10 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Users } from "lucide-react";
+import { useEffect, useState } from "react";import { Users } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalFieldLabel } from "@/app/components/modals/ModalFieldLabel";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
 import type { Project } from "@/app/components/shared/types";
 import { ProjectPracticeField } from "./ProjectPracticeField";
-
 interface ProjectDetailsModalProps {
     open: boolean;
     project: Project | null;
@@ -16,7 +13,6 @@ interface ProjectDetailsModalProps {
     onSave: (values: { name: string; cmNumber: string; practice: string }) => Promise<void>;
     onShareProject?: () => void;
 }
-
 export function ProjectDetailsModal({
     open,
     project,
@@ -31,7 +27,6 @@ export function ProjectDetailsModal({
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
         if (!open || !project) return;
         setNameDraft(project.name);
@@ -40,18 +35,10 @@ export function ProjectDetailsModal({
         setSaved(false);
         setError(null);
     }, [open, project]);
-
     const trimmedName = nameDraft.trim();
     const trimmedCm = cmDraft.trim();
     const trimmedPractice = practiceDraft.trim();
-    const hasChanges =
-        !!project &&
-        (trimmedName !== project.name ||
-            trimmedCm !== (project.cm_number ?? "") ||
-            trimmedPractice !== (project.practice ?? ""));
-
-    if (!project) return null;
-
+    const hasChanges =        !!project &&        (trimmedName !== project.name ||            trimmedCm !== (project.cm_number ?? "") ||            trimmedPractice !== (project.practice ?? ""));    if (!project) return null;
     async function handleSave() {
         if (!canEdit || saving || !hasChanges || !trimmedName) return;
         setSaving(true);
@@ -73,7 +60,6 @@ export function ProjectDetailsModal({
             setSaving(false);
         }
     }
-
     return (
         <Modal
             open={open}
@@ -124,7 +110,6 @@ export function ProjectDetailsModal({
                         variant="minimal"
                     />
                 </div>
-
                 <div>
                     <ModalFieldLabel htmlFor="project-details-cm">
                         CM number
@@ -143,7 +128,6 @@ export function ProjectDetailsModal({
                         className="text-xl text-gray-600"
                     />
                 </div>
-
                 <div>
                     <ModalFieldLabel htmlFor="project-details-practice">
                         Practice
@@ -159,7 +143,6 @@ export function ProjectDetailsModal({
                         disabled={!canEdit || saving}
                     />
                 </div>
-
             </div>
         </Modal>
     );

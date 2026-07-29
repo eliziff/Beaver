@@ -1,9 +1,7 @@
 "use client";
-
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
-
 export function PreResponseWrapper({
     children,
     isStreaming,
@@ -18,7 +16,6 @@ export function PreResponseWrapper({
     const [isOpen, setIsOpen] = useState(false);
     const canExpand = children !== undefined;
     const summary = `Activity — ${label}`;
-
     const buttonTextClass = compact ? "text-xs" : "text-sm";
     const childrenGapClass = compact ? "gap-2.5" : "gap-4";
     const rowClass = `flex h-9 max-w-full items-center gap-2 rounded-md px-1 font-serif text-gray-600 ${buttonTextClass}`;
@@ -36,7 +33,6 @@ export function PreResponseWrapper({
             </span>
         </>
     );
-
     return (
         <div className="min-w-0">
             {canExpand ? (

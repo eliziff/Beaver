@@ -1,89 +1,35 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";import { Loader2 } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { apiFetch } from "@/app/lib/beaverApi";
-import {
+import { apiFetch } from "@/app/lib/beaverApi";import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
 } from "./highlightDocxQuote";
 import { linkDocxNotes, tagDocxNotes, type DocxNoteModel } from "./docxNotes";
 import type { CitationQuote } from "../types";
 import { PdfView } from "./PdfView";
-
 interface Props {
     documentId: string;
     versionId?: string | null;
     preferPdfRendition?: boolean;
-    /**
-     * Called once the document has been rendered to the DOM. Handy for
-     * scrolling to a particular tracked change after a re-render.
-     */
     onReady?: () => void;
-    /**
-     * Tracked-change to scroll to + briefly flash after each render. The
-     * `key` is used to re-trigger scrolling when the same edit is clicked
-     * twice in a row.
-     */
     highlightEdit?: {
         key: string;
         inserted_text?: string;
         deleted_text?: string;
-        /**
-         * Numeric w:id values of the <w:ins>/<w:del> wrappers in
-         * document.xml. Preferred over text matching — uniquely identifies
-         * the right DOM element even when multiple edits share identical
-         * inserted/deleted text. `docx-preview` drops these during parsing,
-         * so we re-tag each rendered <ins>/<del> with data-w-id after load.
-         */
         ins_w_id?: string | null;
         del_w_id?: string | null;
     } | null;
-    /**
-     * Forces a byte re-fetch when it changes, even if documentId/versionId
-     * are stable. Used after accept/reject: the backend overwrites bytes at
-     * the same storage path (no new version row), so the hook has no other
-     * signal that the file changed.
-     */
     refetchKey?: string | number;
-    /**
-     * Citation quotes to highlight in the rendered output. The first match
-     * is scrolled into view. Matching remains text-based; stored Word page
-     * breaks are used for display but are not stable quote identifiers.
-     */
     quotes?: CitationQuote[];
-    /** Changes when the parent wants the current quote re-focused. */
     quoteFocusKey?: string | number;
-    /**
-     * Warning banner copy rendered in the top-left of the viewer. Used
-     * for non-blocking errors (e.g. "Accept failed — reverted").
-     */
     warning?: string | null;
-    /**
-     * Called when the user dismisses the warning banner.
-     */
     onWarningDismiss?: () => void;
-    /**
-     * Scroll position to restore after the first render — used by parents
-     * that track per-tab scroll and want to re-enter at the same spot.
-     * Null/undefined means "no override" (preserve the pre-render scroll).
-     */
     initialScrollTop?: number | null;
-    /**
-     * Fires on scroll (throttled by rAF) so the parent can persist the
-     * current scrollTop against its tab state.
-     */
     onScrollChange?: (scrollTop: number) => void;
     rounded?: boolean;
 }
-
-/**
- * Only the options that differ from `docx-preview`'s defaults.
- * `ignoreLastRenderedPageBreak: false` makes the renderer honour the page
- * boundaries Word actually recorded; the rest are already on by default.
- */
 export const DOCX_RENDER_OPTIONS = {
     breakPages: true,
     ignoreLastRenderedPageBreak: false,
@@ -94,7 +40,6 @@ export const DOCX_RENDER_OPTIONS = {
     renderChanges: true,
     experimental: false,
 } satisfies Partial<DocxPreviewOptions>;
-
 export function fitDocxPages(
     container: HTMLElement,
     viewport: HTMLElement,
@@ -105,14 +50,12 @@ export function fitDocxPages(
         ),
     );
     if (pages.length === 0) return;
-
     const styles = window.getComputedStyle(viewport);
     const available =
         viewport.clientWidth -
         (parseFloat(styles.paddingLeft) || 0) -
         (parseFloat(styles.paddingRight) || 0);
     if (available <= 0) return;
-
     for (const page of pages) {
         let width = Number(page.dataset.docxNaturalWidth);
         if (!Number.isFinite(width) || width <= 0) {
@@ -123,7 +66,6 @@ export function fitDocxPages(
         if (width > 0) page.style.zoom = String(Math.min(1, available / width));
     }
 }
-
 export function quietBrokenDocxImages(
     container: HTMLElement,
     onUnsupported?: () => void,
@@ -141,15 +83,7 @@ export function quietBrokenDocxImages(
         else image.addEventListener("error", quiet, { once: true });
     }
 }
-
-/**
- * Parse once per distinct byte buffer. `useFetchDocxBytes` hands back the
- * same ArrayBuffer across mounts, so remounting a side panel re-renders
- * from the cached model instead of inflating and re-parsing the zip.
- * Weakly keyed, so the model dies with the bytes.
- */
 const parsedDocxCache = new WeakMap<ArrayBuffer, Promise<DocxNoteModel>>();
-
 function parseDocx(
     bytes: ArrayBuffer,
     parseAsync: (data: ArrayBuffer, options: Partial<DocxPreviewOptions>) => Promise<unknown>,
@@ -169,13 +103,11 @@ function parseDocx(
     }
     return pending;
 }
-
 type TrackedChangeId = { kind: "ins" | "del"; w_id: string };
 const trackedChangeIdsCache = new Map<
     string,
     Promise<TrackedChangeId[]>
 >();
-
 async function loadTrackedChangeIds(
     documentId: string,
     versionId: string | null | undefined,
@@ -184,15 +116,8 @@ async function loadTrackedChangeIds(
     const key = `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
     const cached = trackedChangeIdsCache.get(key);
     if (cached) return cached;
-
     const pending = (async () => {
-        const qs = versionId
-            ? `?version_id=${encodeURIComponent(versionId)}`
-            : "";
-        const response = await apiFetch(
-            `/single-documents/${documentId}/tracked-change-ids${qs}`,
-        );
-        if (!response.ok) {
+        const qs = versionId            ? `?version_id=${encodeURIComponent(versionId)}`            : "";        const response = await apiFetch(            `/single-documents/${documentId}/tracked-change-ids${qs}`,        );        if (!response.ok) {
             throw new Error(`tracked-change-ids HTTP ${response.status}`);
         }
         const data = (await response.json()) as { ids?: TrackedChangeId[] };
@@ -206,7 +131,6 @@ async function loadTrackedChangeIds(
         throw error;
     }
 }
-
 function findEditElement(
     root: HTMLElement,
     tag: "ins" | "del",
@@ -231,7 +155,6 @@ function findEditElement(
         null
     );
 }
-
 function scrollToHighlight(
     container: HTMLElement,
     scrollEl: HTMLElement,
@@ -252,25 +175,16 @@ function scrollToHighlight(
     });
     const anchor = insEl ?? delEl;
     if (!anchor) return;
-
     const scrollRect = scrollEl.getBoundingClientRect();
     const targetRect = anchor.getBoundingClientRect();
     const offset = targetRect.top - scrollRect.top + scrollEl.scrollTop - 80;
     scrollEl.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
-
     const flashed = [insEl, delEl].filter((el): el is HTMLElement => !!el);
     flashed.forEach((el) => el.classList.add("docx-edit-flash"));
     window.setTimeout(() => {
         flashed.forEach((el) => el.classList.remove("docx-edit-flash"));
     }, 2000);
 }
-
-/**
- * Fetch the ordered list of w:ids for every w:ins/w:del in the current
- * version and tag each rendered <ins>/<del> with data-w-id. The backend
- * returns ids in document order, and docx-preview emits <ins>/<del>
- * in the same order, so we can align by index.
- */
 async function tagWIdsOnRenderedDom(
     container: HTMLElement,
     documentId: string,
@@ -282,7 +196,6 @@ async function tagWIdsOnRenderedDom(
             container.querySelectorAll("ins, del"),
         ) as HTMLElement[];
         if (domEls.length === 0) return;
-
         const ids = await loadTrackedChangeIds(
             documentId,
             versionId,
@@ -298,13 +211,6 @@ async function tagWIdsOnRenderedDom(
         console.warn("[DocxView] tagWIdsOnRenderedDom failed", e);
     }
 }
-
-/**
- * Renders a .docx in the browser using `docx-preview`. Tracked changes
- * (`w:ins` / `w:del`) show up automatically with coloured strike/underline
- * styling. Scroll position is preserved across re-renders so Accept/Reject
- * doesn't jump the user back to the top.
- */
 export function DocxView({
     documentId,
     versionId,
@@ -324,10 +230,6 @@ export function DocxView({
     const containerRef = useRef<HTMLDivElement>(null);
     const lastScrollTopRef = useRef(0);
     const renderKeyRef = useRef(0);
-    // Ref-stabilize onReady and highlightEdit so the render effect only
-    // re-fires when `bytes` actually change. Without this, any parent
-    // re-render (e.g. clicking a new highlight) creates a new onReady
-    // identity, triggers a full re-render, and snaps scroll back to top.
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
     const highlightEditRef = useRef(highlightEdit);
@@ -348,21 +250,11 @@ export function DocxView({
         !highlightEdit &&
         (preferPdfRendition || pdfRenditionKey === renditionKey) &&
         !unavailableRenditionsRef.current.has(renditionKey);
-
-    // Stable key for the quote list so the re-highlight effect re-fires
-    // only when the actual text/order of quotes changes.
-    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
-
-    const { bytes, loading, error } = useFetchDocxBytes(
+    const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");    const { bytes, loading, error } = useFetchDocxBytes(
         showPdfRendition ? null : documentId,
         versionId,
         refetchKey,
     );
-
-    /**
-     * Highlight every quote in `list` inside the rendered DOM and scroll
-     * the first match into view. Returns true if any match was found.
-     */
     const applyQuoteHighlights = (
         containerEl: HTMLElement,
         scrollEl: HTMLElement,
@@ -370,14 +262,12 @@ export function DocxView({
     ): boolean => {
         clearDocxQuoteHighlights(containerEl);
         if (!list || list.length === 0) return false;
-
         let firstMatch: HTMLElement | null = null;
         for (const q of list) {
             const match = highlightDocxQuote(containerEl, q.quote);
             if (match && !firstMatch) firstMatch = match;
         }
         if (!firstMatch) return false;
-
         const scrollRect = scrollEl.getBoundingClientRect();
         const targetRect = firstMatch.getBoundingClientRect();
         const offset =
@@ -392,28 +282,12 @@ export function DocxView({
         });
         return true;
     };
-
-    /**
-     * docx-preview renders pages at their natural Word page width (e.g.
-     * ~816px for US Letter). When the side-panel is narrower than that,
-     * the page overflows horizontally. Apply CSS `zoom` on each
-     * section.docx so the document shrinks to fit — `zoom` (unlike
-     * `transform: scale`) also shrinks the layout box, so the scroll
-     * container's scrollHeight adapts. We zoom each page rather than the
-     * wrapper because docx-preview injects flex styles on `.docx-wrapper`
-     * that can interfere with wrapper-level zoom.
-     */
     const applyDocxScale = () => {
         const containerEl = containerRef.current;
         const scrollEl = scrollRef.current;
         if (!containerEl || !scrollEl) return;
         fitDocxPages(containerEl, scrollEl);
     };
-
-    // Observe the scroll container (which tracks the side panel's width)
-    // and re-scale whenever its viewport changes. Rendering itself calls
-    // applyDocxScale directly; observing document height would create
-    // redundant work as pages and images settle.
     useEffect(() => {
         const scrollEl = scrollRef.current;
         if (!scrollEl) return;
@@ -429,18 +303,13 @@ export function DocxView({
             ro.disconnect();
         };
     }, [showPdfRendition]);
-
     useEffect(() => {
         let cancelled = false;
         if (!bytes || !containerRef.current || !scrollRef.current) return;
-
         const scrollEl = scrollRef.current;
         const containerEl = containerRef.current;
-
-        // Remember scroll position across re-renders so Accept/Reject stays put.
         lastScrollTopRef.current = scrollEl.scrollTop;
         const thisRender = ++renderKeyRef.current;
-
         (async () => {
             try {
                 const { parseAsync, renderDocument } =
@@ -464,9 +333,6 @@ export function DocxView({
                         return;
                     setPdfRenditionKey(renditionKey);
                 });
-                // Make the first painted frame correctly sized. Documents
-                // without tracked changes now avoid the metadata request
-                // below entirely.
                 applyDocxScale();
                 await tagWIdsOnRenderedDom(
                     containerEl,
@@ -490,7 +356,6 @@ export function DocxView({
                             scrollRef.current,
                             pendingHighlight,
                         );
-                        // Highlight quotes too, but don't override the edit scroll
                         if (pendingQuotes?.length) {
                             for (const q of pendingQuotes)
                                 highlightDocxQuote(containerEl, q.quote);
@@ -503,7 +368,6 @@ export function DocxView({
                             pendingQuotes,
                         )
                     ) {
-                        // scrolled inside applyQuoteHighlights
                     } else if (typeof pendingInitialScroll === "number") {
                         scrollRef.current.scrollTop = pendingInitialScroll;
                     } else {
@@ -515,17 +379,10 @@ export function DocxView({
                 console.error("docx-preview render failed", e);
             }
         })();
-
         return () => {
             cancelled = true;
         };
-        // documentId/versionId intentionally follow `bytes`: adding them
-        // would briefly render the previous document under a new identity
-        // while the replacement bytes are loading.
     }, [bytes, showPdfRendition]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Re-scroll/highlight if the target edit changes without a re-render
-    // (e.g. same doc, different edit clicked).
     useEffect(() => {
         if (!highlightEdit || !containerRef.current || !scrollRef.current)
             return;
@@ -535,9 +392,6 @@ export function DocxView({
             highlightEdit,
         );
     }, [highlightEdit?.key]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Re-apply quote highlights when the quote list changes without a full
-    // re-render (e.g. clicking a different citation on the same doc).
     useEffect(() => {
         if (!containerRef.current || !scrollRef.current) return;
         applyQuoteHighlights(
@@ -546,10 +400,6 @@ export function DocxView({
             quotesRef.current,
         );
     }, [quoteKey, quoteFocusKey]);
-
-    // Fire onScrollChange (rAF-throttled) so parents can persist scroll
-    // per-tab. We still maintain lastScrollTopRef locally for same-mount
-    // re-renders (Accept/Reject preserving scroll within one view).
     useEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
@@ -566,7 +416,6 @@ export function DocxView({
         el.addEventListener("scroll", onScroll, { passive: true });
         return () => el.removeEventListener("scroll", onScroll);
     }, [showPdfRendition]);
-
     if (showPdfRendition) {
         return (
             <PdfView
@@ -583,13 +432,11 @@ export function DocxView({
             />
         );
     }
-
     const displayedWarning =
         warning ??
         (unsupportedMediaKey === renditionKey
             ? "An embedded vector image is unavailable in this browser preview."
             : null);
-
     return (
         <div
             className={`relative flex flex-col flex-1 overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}

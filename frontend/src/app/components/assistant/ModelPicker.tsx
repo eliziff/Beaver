@@ -1,18 +1,14 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";import { AlertCircle, Check, ChevronDown, Search } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
 import type { ApiKeyState } from "@/app/lib/beaverApi";
 import { cn } from "@/app/lib/utils";
-
 export interface ModelOption {
     id: string;
     label: string;
     group: "Anthropic" | "Google" | "OpenAI" | "DeepSeek" | "Meta" | "Codex";
 }
-
 export function ModelPicker({
     value,
     models,
@@ -33,30 +29,15 @@ export function ModelPicker({
     const searchRef = useRef<HTMLInputElement>(null);
     const selected = models.find((model) => model.id === value);
     const label = selected?.label ?? value;
-    const availableModels = models.filter((model) =>
-        apiKeys
-            ? isModelAvailable(model.id, apiKeys)
-            : model.group === "Codex",
-    );
-    const groups = [...new Set(availableModels.map((model) => model.group))];
-    const needle = query.trim().toLowerCase();
-    const filtered = needle
-        ? availableModels.filter((model) =>
-              `${model.group} ${model.label} ${model.id}`
-                  .toLowerCase()
-                  .includes(needle),
-          )
-        : availableModels;
-    const selectedAvailable = apiKeys
+    const availableModels = models.filter((model) =>        apiKeys            ? isModelAvailable(model.id, apiKeys)            : model.group === "Codex",    );    const groups = [...new Set(availableModels.map((model) => model.group))];
+    const needle = query.trim().toLowerCase();    const filtered = needle        ? availableModels.filter((model) =>              `${model.group} ${model.label} ${model.id}`                  .toLowerCase()                  .includes(needle),          )        : availableModels;    const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : selected?.group === "Codex";
-
     useEffect(() => {
         if (!open) return;
         const frame = requestAnimationFrame(() => searchRef.current?.focus());
         return () => cancelAnimationFrame(frame);
     }, [open]);
-
     const close = () => {
         setOpen(false);
         setQuery("");
@@ -65,7 +46,6 @@ export function ModelPicker({
         onChange(id);
         close();
     };
-
     return (
         <span
             className={cn(

@@ -1,9 +1,7 @@
 "use client";
-
 import { Modal } from "../modals/Modal";
 import { CheckboxInput } from "../ui/checkbox";
 import { QUICK_ACTIONS, type QuickActionId } from "./quickActionsPreferences";
-
 interface QuickActionsModalProps {
     open: boolean;
     visibleActions: Record<QuickActionId, boolean>;
@@ -16,7 +14,6 @@ interface QuickActionsModalProps {
     ) => void;
     onClose: () => void;
 }
-
 export function QuickActionsModal({
     open,
     visibleActions,

@@ -1,14 +1,11 @@
 "use client";
-
 import { MoreHorizontal } from "lucide-react";
 import {
     NativeActionSelect,
     type NativeAction,
 } from "@/app/components/ui/native-action-select";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
-
 export type HeaderActionsMenuItem = NativeAction;
-
 export function HeaderActionsMenu({
     items,
     title = "Actions",

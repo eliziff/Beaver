@@ -1,22 +1,11 @@
 "use client";
-
-import { lazy, Suspense, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { lazy, Suspense, useEffect, useState } from "react";import { usePathname, useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode, requiresAccount } from "@/app/lib/authMode";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { AppSidebar } from "@/app/components/shared/AppSidebar";
-import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
-import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
-const TableOfAuthoritiesHost = lazy(() =>
-    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({
-        default: module.TableOfAuthoritiesHost,
-    })),
-);
-
-export default function BeaverLayout({
+import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -29,16 +18,13 @@ export default function BeaverLayout({
         null,
     );
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-
     const handleSidebarToggle = () => setMobileSidebarOpen((open) => !open);
     const handleAuthoritiesNavigate = () => {
         if (pathname === "/table-of-authorities") return;
         setAuthoritiesOrigin(pathname);
     };
-
     const authoritiesIntent = authoritiesOrigin === pathname;
     const authoritiesVisible = authoritiesActive || authoritiesIntent;
-
     useEffect(() => {
         if (authoritiesOrigin === null) return;
         const rollback = window.setTimeout(
@@ -47,13 +33,11 @@ export default function BeaverLayout({
         );
         return () => window.clearTimeout(rollback);
     }, [authoritiesOrigin, pathname]);
-
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push("/login");
         }
     }, [authLoading, isAuthenticated, router]);
-
     useEffect(() => {
         const modelRoute =
             pathname.includes("/assistant") ||
@@ -66,9 +50,7 @@ export default function BeaverLayout({
             )
             .catch(() => {});
     }, [authLoading, isAuthenticated, pathname]);
-
     if (!authLoading && !isAuthenticated) return null;
-
     return (
         <ChatHistoryProvider>
             <KeyboardShortcuts />
@@ -123,38 +105,7 @@ export default function BeaverLayout({
                                         children
                                     )}
                                 </main>
-                                {authoritiesVisible && (
-                                    <Suspense
-                                        fallback={
-                                            <div
-                                                aria-hidden="true"
-                                                className="absolute inset-0 bg-[#f3f4f6]"
-                                            />
-                                        }
-                                    >
-                                        <TableOfAuthoritiesHost
-                                            active={
-                                                authoritiesActive &&
-                                                !authLoading &&
-                                                isAuthenticated
-                                            }
-                                            pending={authoritiesIntent}
-                                            enabled={
-                                                !authLoading &&
-                                                isAuthenticated &&
-                                                (isAnonymousMode ||
-                                                    authoritiesActive ||
-                                                    authoritiesIntent)
-                                            }
-                                        />
-                                    </Suspense>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <AssistantAutomationActivity />
-            </SidebarContext.Provider>
-        </ChatHistoryProvider>
+                                {authoritiesVisible && (                                    <Suspense                                        fallback={                                            <div                                                aria-hidden="true"                                                className="absolute inset-0 bg-[#f3f4f6]"                                            />                                        }                                    >                                        <TableOfAuthoritiesHost                                            active={                                                authoritiesActive &&                                                !authLoading &&                                                isAuthenticated                                            }                                            pending={authoritiesIntent}                                            enabled={                                                !authLoading &&                                                isAuthenticated &&                                                (isAnonymousMode ||                                                    authoritiesActive ||                                                    authoritiesIntent)                                            }                                        />                                    </Suspense>                                )}                            </div>                        </div>                    </div>
+                </div>                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
     );
 }

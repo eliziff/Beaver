@@ -1,5 +1,4 @@
 "use client";
-
 import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import type { AssistantEvent, Citation, EditAnnotation } from "../shared/types";
@@ -31,7 +30,6 @@ import {
     WorkflowAppliedBlock,
     type CourtListenerBlockItem,
 } from "./message/EventBlocks";
-
 interface Props {
     events?: AssistantEvent[];
     isStreaming?: boolean;
@@ -54,23 +52,12 @@ interface Props {
         filename: string,
         changeNumber?: number,
     ) => void;
-    /**
-     * Opens the editor panel for a document without auto-highlighting any
-     * specific edit. Used by the download card click — opening a doc to
-     * read/download shouldn't jump the viewer to the first edit.
-     */
     onOpenDocument?: (args: {
         documentId: string;
         filename: string;
         versionId: string | null;
         versionNumber: number | null;
     }) => void;
-    /**
-     * Fires immediately when the user clicks Accept / Reject (single card
-     * or the bulk "Accept all" / "Reject all"), before the backend call.
-     * Parents use this to flip download cards / editor viewers into a
-     * "saving" state for the duration of the round-trip.
-     */
     onEditResolveStart?: (args: {
         editId: string;
         documentId: string;
@@ -90,21 +77,9 @@ interface Props {
         message: string;
     }) => void;
     isDocReloading?: (documentId: string) => boolean;
-    /**
-     * True while an accept/reject request for this specific edit is in
-     * flight. Used to disable just that edit's Accept/Reject controls
-     * (sibling edits on the same doc stay clickable).
-     */
     isEditReloading?: (editId: string) => boolean;
-    /**
-     * External override for individual edit statuses. When present, an
-     * EditCard looks up its edit_id here and treats the mapped value
-     * ("accepted" / "rejected") as authoritative — used so bulk-resolved
-     * edits flip their per-card UI without per-card clicks.
-     */
     resolvedEditStatuses?: Record<string, "accepted" | "rejected">;
 }
-
 export function AssistantMessage({
     events,
     isStreaming = false,
@@ -129,12 +104,9 @@ export function AssistantMessage({
 }: Props) {
     const contentDivRef = useRef<HTMLDivElement | null>(null);
     const [isCopied, setIsCopied] = useState(false);
-    // Per-document override of the download URL, set as Accept/Reject resolves
-    // each tracked change and produces a new version.
     const [resolvedOverrides, setResolvedOverrides] = useState<
         Record<string, string>
     >({});
-
     const handleEditResolved = (args: {
         editId: string;
         documentId: string;
@@ -150,7 +122,6 @@ export function AssistantMessage({
         }
         onEditResolved?.(args);
     };
-
     const topLevelErrorMessage =
         errorMessage ??
         (
@@ -166,16 +137,12 @@ export function AssistantMessage({
         event.type !== "case_citation" &&
         event.type !== "case_opinions" &&
         event.type !== "doc_download";
-
     const lastContentIdx = events
         ? events.reduce(
               (last, e, idx) => (e.type === "content" ? idx : last),
               -1,
           )
         : -1;
-    // Pre-process citations for all content events. Each [N] marker resolves
-    // to exactly one citation (models are instructed to use shared refs
-    // only for cross-page continuations via the [[PAGE_BREAK]] sentinel).
     const inlineCitationTargets: Citation[] = [];
     const caseCitations = new Map<
         string,
@@ -262,13 +229,8 @@ export function AssistantMessage({
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000);
         } catch {
-            // ignore
         }
     };
-
-    // Keep one stable Activity disclosure for the whole turn. Content can be
-    // interleaved in the event stream, but splitting around it created a new
-    // one-step accordion every time the model resumed work.
     const rawActivityEntries: { event: AssistantEvent; index: number }[] = [];
     const automationByRun = new Map<
         string,
@@ -317,7 +279,6 @@ export function AssistantMessage({
         }
         return undefined;
     };
-
     const hasPendingAskInput = activityEntries.some(
         ({ event, index }) =>
             event.type === "ask_inputs" && !askInputsResponseFor(index),
@@ -328,7 +289,6 @@ export function AssistantMessage({
         activityEvents.some(
             (event) => "isStreaming" in event && !!event.isStreaming,
         );
-
     const renderEvent = (
         event: AssistantEvent,
         i: number,
@@ -338,7 +298,6 @@ export function AssistantMessage({
         const nextEvent = allEvents[i + 1];
         const showConnector =
             nextEvent !== undefined && nextEvent.type !== "content";
-
         if (event.type === "reasoning") {
             return (
                 <ReasoningBlock
@@ -663,9 +622,6 @@ export function AssistantMessage({
                 : event.error
                   ? event.error
                   : `(${matches} ${matches === 1 ? "match" : "matches"})`;
-            // Adjacent `case_citation` events are emitted between the start
-            // and final verify_citations events (one per matched citation) —
-            // collect them so the user can expand to see resolved cases.
             const items: CourtListenerBlockItem[] = [];
             if (events) {
                 for (let j = globalIdx + 1; j < events.length; j++) {
@@ -698,7 +654,6 @@ export function AssistantMessage({
         }
         return null;
     };
-
     return (
         <div style={{ minHeight }}>
             <div className="relative mt-2 w-full font-inter">
@@ -846,13 +801,11 @@ export function AssistantMessage({
                     automationEntries.length === 0 && (
                     <PreResponseWrapper isStreaming label="Thinking" />
                 )}
-
                 {topLevelErrorMessage && (
                     <p className="mt-2 text-base font-serif leading-7 text-red-700">
                         {topLevelErrorMessage}
                     </p>
                 )}
-
                 {events &&
                     !isStreaming &&
                     (() => {
@@ -913,7 +866,6 @@ export function AssistantMessage({
                             </div>
                         ));
                     })()}
-
                 {events &&
                     !isStreaming &&
                     events.some(
@@ -958,7 +910,6 @@ export function AssistantMessage({
                             })}
                         </div>
                     )}
-
                 {showCitationBlock && (
                     <CitationsBlock
                         citations={citations}
@@ -972,7 +923,6 @@ export function AssistantMessage({
                         }
                     />
                 )}
-
                 <div className="flex items-center gap-2 py-2 font-sans justify-start">
                     {!isStreaming && (
                         <button

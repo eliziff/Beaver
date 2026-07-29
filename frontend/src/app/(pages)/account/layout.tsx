@@ -1,17 +1,14 @@
 "use client";
-
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
-
 interface TabDef {
     id: string;
     label: string;
     href: string;
 }
-
 const TABS: TabDef[] = [
     { id: "general", label: "General", href: "/account" },
     { id: "features", label: "Features", href: "/account/features" },
@@ -25,7 +22,6 @@ const TABS: TabDef[] = [
     { id: "api-keys", label: "API keys", href: "/account/api-keys" },
     { id: "connectors", label: "Connectors", href: "/account/connectors" },
 ];
-
 export default function AccountLayout({
     children,
 }: {
@@ -34,17 +30,14 @@ export default function AccountLayout({
     const router = useRouter();
     const pathname = usePathname();
     const { isAuthenticated, authLoading } = useAuth();
-
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push("/");
         }
     }, [isAuthenticated, authLoading, router]);
-
     if (!authLoading && !isAuthenticated) {
         return null;
     }
-
     const tabs = isAnonymousMode
         ? TABS.filter((tab) => tab.id === "api-keys")
         : TABS;
@@ -54,7 +47,6 @@ export default function AccountLayout({
                 pathname === tab.href ||
                 (tab.href !== "/account" && pathname.startsWith(tab.href)),
         ) ?? tabs[0];
-
     return (
         <div className="flex h-full flex-col overflow-y-auto">
             <header className="mx-auto flex h-16 w-full max-w-5xl shrink-0 items-end px-6 pb-2 md:h-24 md:pb-4">
@@ -62,7 +54,6 @@ export default function AccountLayout({
                     Settings
                 </h1>
             </header>
-
             <main className="mx-auto w-full max-w-5xl flex-1 px-6 pb-10 pt-4 md:pt-6">
                 <div className="grid grid-cols-1 gap-y-6 md:grid-cols-[224px_minmax(0,1fr)] md:gap-x-10">
                     <nav
@@ -107,7 +98,6 @@ export default function AccountLayout({
                             })}
                         </ul>
                     </nav>
-
                     <div
                         className="min-w-0 outline-none"
                         aria-busy={authLoading || undefined}

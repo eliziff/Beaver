@@ -1,5 +1,4 @@
 "use client";
-
 import {
   Suspense,
   useCallback,
@@ -13,7 +12,6 @@ import { useSearchParams } from "next/navigation";
 import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-
 const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
@@ -23,18 +21,15 @@ const warmedService =
     ? launchTableOfAuthorities()
     : null;
 void warmedService?.catch(() => {});
-
 interface TableOfAuthoritiesHostProps {
   active: boolean;
   pending?: boolean;
   enabled: boolean;
 }
-
 type AuthoritiesScope = {
   job: string;
   project: string;
 };
-
 function ScopeReader({
   active,
   onChange,
@@ -49,14 +44,11 @@ function ScopeReader({
   const project = PROJECT_ID.test(searchParams.get("project") || "")
     ? searchParams.get("project")!
     : "";
-
   useLayoutEffect(() => {
     if (active) onChange({ job, project });
   }, [active, job, onChange, project]);
-
   return null;
 }
-
 function AuthoritiesShell({
   active,
   busy,
@@ -89,7 +81,6 @@ function AuthoritiesShell({
     </div>
   );
 }
-
 function AuthoritiesFirstFrame() {
   return (
     <div
@@ -124,7 +115,6 @@ function AuthoritiesFirstFrame() {
     </div>
   );
 }
-
 export function TableOfAuthoritiesHost({
   active,
   pending = false,
@@ -148,7 +138,6 @@ export function TableOfAuthoritiesHost({
   const targetJob = pending ? "" : scope.job;
   const targetProject = pending ? "" : scope.project;
   const scopeSignature = `${targetJob}:${targetProject}`;
-
   const onScopeChange = useCallback((next: AuthoritiesScope) => {
     setScope((current) =>
       current.job === next.job && current.project === next.project
@@ -156,14 +145,12 @@ export function TableOfAuthoritiesHost({
         : next,
     );
   }, []);
-
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current !== null) {
       window.clearTimeout(watchdogRef.current);
       watchdogRef.current = null;
     }
   }, []);
-
   const startWatchdog = useCallback(
     (attempt: string) => {
       clearWatchdog();
@@ -176,7 +163,6 @@ export function TableOfAuthoritiesHost({
     },
     [clearWatchdog],
   );
-
   const pingFrame = useCallback(() => {
     const target = frameRef.current?.contentWindow;
     const expectedOrigin = expectedOriginRef.current;
@@ -189,7 +175,6 @@ export function TableOfAuthoritiesHost({
       expectedOrigin,
     );
   }, []);
-
   useEffect(() => {
     const onReady = (event: MessageEvent) => {
       if (
@@ -227,14 +212,12 @@ export function TableOfAuthoritiesHost({
     }
     return () => window.removeEventListener("message", onReady);
   }, [clearWatchdog, pingFrame, startWatchdog]);
-
   useEffect(
     () => () => {
       clearWatchdog();
     },
     [clearWatchdog],
   );
-
   useEffect(() => {
     if (!enabled) return;
     let live = true;
@@ -306,12 +289,10 @@ export function TableOfAuthoritiesHost({
     targetJob,
     targetProject,
   ]);
-
   const frameCurrent =
     frameReady && frameScope === scopeSignature;
   const visibleError =
     frameScope === scopeSignature ? error : null;
-
   return (
     <>
       <Suspense fallback={null}>

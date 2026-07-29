@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Upload, Loader2, X } from "lucide-react";
 import {
@@ -16,7 +15,6 @@ import {
     formatUnsupportedDocumentWarning,
     partitionSupportedDocumentFiles,
 } from "@/app/lib/documentUploadValidation";
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -28,14 +26,10 @@ interface Props {
     showTabs?: boolean;
     accept?: string;
     initialSelectedDocuments?: Document[];
-    /** Documents uploaded outside the modal while it is mounted. */
     externalUploadedDocuments?: Document[];
     primaryLabel?: string;
-    /** Keep the modal mounted (hidden) while closed so the loaded
-     * directory listing survives close/reopen cycles. */
     keepMounted?: boolean;
 }
-
 export function AddDocumentsModal({
     open,
     onClose,
@@ -56,18 +50,12 @@ export function AddDocumentsModal({
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
     const [extraUploadedDocs, setExtraUploadedDocs] = useState<Document[]>([]);
-    // Tracks whether the modal has ever been opened, so keepMounted only
-    // keeps it (and its directory fetch) alive after first use rather than
-    // eagerly loading on page mount.
     const [hasOpened, setHasOpened] = useState(open);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const wasOpenRef = useRef(false);
     useEffect(() => {
         if (open) setHasOpened(true);
     }, [open]);
-
-    // Key the sync on the id list itself so a reopen targeting different
-    // documents (or ids arriving late) always re-seeds the selection.
     const initialSelectionKey = (initialSelectedDocuments ?? [])
         .map((document) => document.id)
         .join("|");
@@ -87,14 +75,11 @@ export function AddDocumentsModal({
         setUploadingFilenames([]);
         setUploadWarning(null);
         if (!keepMounted) {
-            // When kept mounted there is no refetch on reopen, so the
-            // listing (including this session's uploads) must survive.
             setExtraUploadedDocs([]);
         }
         wasOpenRef.current = true;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, initialSelectionKey]);
-
     const externalUploadKey = (externalUploadedDocuments ?? [])
         .map((document) => document.id)
         .join("|");
@@ -120,9 +105,7 @@ export function AddDocumentsModal({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [externalUploadKey]);
-
     if (!open && (!keepMounted || !hasOpened)) return null;
-
     async function handleConfirm() {
         if (projectId) {
             const toAssign = selectedDocuments.filter(
@@ -151,7 +134,6 @@ export function AddDocumentsModal({
             onClose();
             return;
         }
-
         const projectIds = new Set(
             selectedDocuments.map((d) => d.project_id).filter(Boolean),
         );
@@ -160,7 +142,6 @@ export function AddDocumentsModal({
         onSelect(selectedDocuments, singleProjectId);
         onClose();
     }
-
     async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const files = Array.from(e.target.files || []);
         if (!files.length) return;
@@ -197,7 +178,6 @@ export function AddDocumentsModal({
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
-
     return (
         <Modal
             open={open}
@@ -228,7 +208,6 @@ export function AddDocumentsModal({
                 className="hidden"
                 onChange={handleUpload}
             />
-
             {uploadWarning && (
                 <div className="mb-2 flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-gray-900">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
@@ -243,7 +222,6 @@ export function AddDocumentsModal({
                     </button>
                 </div>
             )}
-
             <div className="flex min-h-0 flex-1 flex-col">
                 <FileDirectory
                     documents={

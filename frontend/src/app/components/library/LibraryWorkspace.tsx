@@ -1,5 +1,4 @@
 "use client";
-
 import {
     createContext,
     type Dispatch,
@@ -35,12 +34,10 @@ import {
     type LibraryKind,
 } from "@/app/lib/beaverApi";
 import type { Document } from "@/app/components/shared/types";
-
 type LibraryViewCollection = {
     documents: Document[];
     folders: DocTableFolder[];
 };
-
 type LibraryWorkspaceContextValue = {
     collections: Record<LibraryKind, LibraryViewCollection | null>;
     searchByKind: Record<LibraryKind, string>;
@@ -55,25 +52,20 @@ type LibraryWorkspaceContextValue = {
         update: SetStateAction<DocTableFolder[]>,
     ) => void;
 };
-
 export const LIBRARY_TABS = [
     { id: "files", label: "Files" },
     { id: "templates", label: "Templates" },
     { id: "legal", label: "Cases & Legislation" },
 ] as const;
-
 export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
     return tab === "files" ? "/library" : `/library/${tab}`;
 }
-
 const EMPTY_COLLECTION: LibraryViewCollection = {
     documents: [],
     folders: [],
 };
-
 const LibraryWorkspaceContext =
     createContext<LibraryWorkspaceContextValue | null>(null);
-
 function useLibraryWorkspace() {
     const context = useContext(LibraryWorkspaceContext);
     if (!context) {
@@ -83,7 +75,6 @@ function useLibraryWorkspace() {
     }
     return context;
 }
-
 export function LibraryWorkspaceProvider({
     children,
 }: {
@@ -101,7 +92,6 @@ export function LibraryWorkspaceProvider({
         files: "",
         templates: "",
     });
-
     const loadLibrary = useCallback(async (kind: LibraryKind) => {
         try {
             const loaded = await getLibrary(kind);
@@ -120,11 +110,9 @@ export function LibraryWorkspaceProvider({
             }));
         }
     }, []);
-
     const setSearchForKind = useCallback((kind: LibraryKind, value: string) => {
         setSearchByKind((prev) => ({ ...prev, [kind]: value }));
     }, []);
-
     const setDocumentsForKind = useCallback(
         (kind: LibraryKind, update: SetStateAction<Document[]>) => {
             setCollections((prev) => {
@@ -144,7 +132,6 @@ export function LibraryWorkspaceProvider({
         },
         [],
     );
-
     const setFoldersForKind = useCallback(
         (kind: LibraryKind, update: SetStateAction<DocTableFolder[]>) => {
             setCollections((prev) => {
@@ -164,7 +151,6 @@ export function LibraryWorkspaceProvider({
         },
         [],
     );
-
     const value = useMemo(
         () => ({
             collections,
@@ -183,26 +169,21 @@ export function LibraryWorkspaceProvider({
             setSearchForKind,
         ],
     );
-
     return (
         <LibraryWorkspaceContext.Provider value={value}>
             {children}
         </LibraryWorkspaceContext.Provider>
     );
 }
-
 export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
-
     useEffect(() => {
         for (const tab of LIBRARY_TABS) {
             router.prefetch(libraryRoute(tab.id));
         }
     }, [router]);
-
     return <LibraryWorkspaceProvider>{children}</LibraryWorkspaceProvider>;
 }
-
 export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     const router = useRouter();
     const {
@@ -216,12 +197,10 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
     const collection = collections[kind];
     const search = searchByKind[kind];
     const title = kind === "files" ? "Files" : "Templates";
-
     useEffect(() => {
         if (collection) return;
         void loadLibrary(kind);
     }, [collection, kind, loadLibrary]);
-
     const setDocuments: Dispatch<SetStateAction<Document[]>> = useCallback(
         (update) => setDocumentsForKind(kind, update),
         [kind, setDocumentsForKind],
@@ -240,21 +219,18 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
         useState<DocTableSelectionActions | null>(null);
     const loading = !collection;
     const addCollectionLabel = kind === "templates" ? "Templates" : "Files";
-
     const handleAddDocumentsActionChange = useCallback(
         (action: (() => void) | null) => {
             setAddDocumentsAction(() => action);
         },
         [],
     );
-
     const handleCreateFolderActionChange = useCallback(
         (action: (() => void) | null) => {
             setCreateFolderAction(() => action);
         },
         [],
     );
-
     const operations = useMemo(
         () => ({
             uploadDocument: (file: File) => uploadLibraryDocument(kind, file),
@@ -274,7 +250,6 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
         }),
         [kind, loadLibrary],
     );
-
     return (
         <>
         <div className="flex h-full min-h-0 flex-col">
@@ -300,7 +275,6 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                     },
                 ]}
             />
-
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <TableToolbar
                     items={LIBRARY_TABS}

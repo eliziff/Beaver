@@ -1,8 +1,6 @@
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-
 type AccountToggleSize = "sm" | "md";
-
 const sizeClasses: Record<
     AccountToggleSize,
     {
@@ -22,7 +20,6 @@ const sizeClasses: Record<
         translate: "translate-x-4",
     },
 };
-
 export function AccountToggle({
     checked,
     disabled,
@@ -68,9 +65,7 @@ export function AccountToggle({
             </span>
         </button>
     );
-
     if (!label) return button;
-
     return (
         <label
             className={cn(

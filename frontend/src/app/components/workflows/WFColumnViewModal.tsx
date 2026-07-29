@@ -1,5 +1,4 @@
 "use client";
-
 import { createElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -11,12 +10,10 @@ import {
 } from "../tabular/columnFormat";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
-
 interface Props {
     col: ColumnConfig;
     onClose: () => void;
 }
-
 export function WFColumnViewModal({ col, onClose }: Props) {
     const formatIconElement = createElement(formatIcon(col.format ?? "text"), {
         className: `h-3.5 w-3.5 ${formatIconClassName(col.format ?? "text")}`,

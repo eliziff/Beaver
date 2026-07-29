@@ -1,12 +1,9 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Modal } from "../modals/Modal";
+import { useEffect, useState } from "react";import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import type { Project, TabularReview } from "../shared/types";
-
 interface TabularReviewDetailsModalProps {
     open: boolean;
     review: TabularReview | null;
@@ -19,7 +16,6 @@ interface TabularReviewDetailsModalProps {
         projectId?: string | null;
     }) => Promise<void>;
 }
-
 export function TabularReviewDetailsModal({
     open,
     review,
@@ -35,7 +31,6 @@ export function TabularReviewDetailsModal({
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
         if (!open || !review) return;
         setTitleDraft(review.title ?? "");
@@ -45,16 +40,9 @@ export function TabularReviewDetailsModal({
         setSaved(false);
         setError(null);
     }, [open, review]);
-
     const trimmedTitle = titleDraft.trim();
     const nextProjectId = underProject ? selectedProjectId : null;
-    const hasChanges =
-        !!review &&
-        (trimmedTitle !== (review.title ?? "") ||
-            nextProjectId !== (review.project_id ?? null));
-
-    if (!review) return null;
-
+    const hasChanges =        !!review &&        (trimmedTitle !== (review.title ?? "") ||            nextProjectId !== (review.project_id ?? null));    if (!review) return null;
     async function handleSave() {
         if (
             !canEdit ||
@@ -80,7 +68,6 @@ export function TabularReviewDetailsModal({
             setSaving(false);
         }
     }
-
     return (
         <Modal
             open={open}
@@ -133,7 +120,6 @@ export function TabularReviewDetailsModal({
                         autoFocus
                     />
                 </div>
-
                 {!lockProject && (
                     <div className="space-y-3">
                         <ModalFieldLabel as="p">Project</ModalFieldLabel>
@@ -166,7 +152,6 @@ export function TabularReviewDetailsModal({
                                 Move under a project
                             </span>
                         </button>
-
                         {underProject && (
                             <ProjectChoiceList
                                 projects={projects}

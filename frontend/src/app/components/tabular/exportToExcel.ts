@@ -1,5 +1,4 @@
 "use client";
-
 import ExcelJS from "exceljs";
 import type {
     ColumnConfig,
@@ -8,7 +7,6 @@ import type {
 } from "../shared/types";
 import { preprocessCitations } from "./citation-utils";
 import { downloadBlob } from "@/app/lib/download";
-
 function formatCellForExport(cell: TabularCell | undefined): string {
     if (!cell) return "";
     if (cell.status === "pending" || cell.status === "generating") return "";
@@ -22,7 +20,6 @@ function formatCellForExport(cell: TabularCell | undefined): string {
         .replace(/[ \t]+/g, " ")
         .trim();
 }
-
 function sanitizeFilename(name: string): string {
     return (
         name
@@ -32,7 +29,6 @@ function sanitizeFilename(name: string): string {
             .slice(0, 80) || "Tabular Review"
     );
 }
-
 export async function exportTabularReviewToExcel(params: {
     reviewTitle: string;
     columns: ColumnConfig[];
@@ -40,19 +36,15 @@ export async function exportTabularReviewToExcel(params: {
     cells: TabularCell[];
 }) {
     const { reviewTitle, columns, documents, cells } = params;
-
     const sortedCols = [...columns].sort((a, b) => a.index - b.index);
     const cellMap = new Map<string, TabularCell>();
     for (const c of cells) cellMap.set(`${c.document_id}:${c.column_index}`, c);
-
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Review");
-
     ws.columns = [
         { header: "Document", width: 40 },
         ...sortedCols.map((c) => ({ header: c.name, width: 40 })),
     ];
-
     const headerRow = ws.getRow(1);
     headerRow.font = { bold: true };
     headerRow.alignment = { vertical: "middle" };
@@ -61,7 +53,6 @@ export async function exportTabularReviewToExcel(params: {
         pattern: "solid",
         fgColor: { argb: "FFF3F4F6" },
     };
-
     for (const doc of documents) {
         const row: string[] = [doc.filename];
         for (const col of sortedCols) {
@@ -70,7 +61,6 @@ export async function exportTabularReviewToExcel(params: {
         const excelRow = ws.addRow(row);
         excelRow.alignment = { vertical: "top", wrapText: true };
     }
-
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

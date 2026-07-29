@@ -1,7 +1,5 @@
 "use client";
-
-import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { use, useEffect, useState } from "react";import { useRouter } from "next/navigation";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
@@ -12,11 +10,9 @@ import type { Chat } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
-
 interface Props {
     params: Promise<{ id: string }>;
 }
-
 export default function ProjectAssistantPage({ params }: Props) {
     use(params);
     const workspace = useProjectWorkspace();
@@ -35,13 +31,10 @@ export default function ProjectAssistantPage({ params }: Props) {
     const [renameChatValue, setRenameChatValue] = useState("");
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
     const [deleteBusy, setDeleteBusy] = useState(false);
-    const chats = projectChats ?? [];
-    const loading = projectChats === null;
-
+    const chats = projectChats ?? [];    const loading = projectChats === null;
     useEffect(() => {
         void ensureProjectChats();
     }, [ensureProjectChats]);
-
     const q = search.toLowerCase();
     const filteredChats = q
         ? chats.filter((c) => (c.title ?? "").toLowerCase().includes(q))
@@ -57,7 +50,6 @@ export default function ProjectAssistantPage({ params }: Props) {
             ),
         );
     }
-
     function handleDeleteChatRow(chat: Chat) {
         if (user?.id && chat.user_id !== user.id) {
             setOwnerOnlyAction("delete this chat");
@@ -65,7 +57,6 @@ export default function ProjectAssistantPage({ params }: Props) {
         }
         setPendingDeleteIds([chat.id]);
     }
-
     function handleDeleteSelectedChats() {
         const ids = [...selectedChatIds];
         const owned = ids.filter((id) => {
@@ -80,7 +71,6 @@ export default function ProjectAssistantPage({ params }: Props) {
         }
         if (owned.length > 0) setPendingDeleteIds(owned);
     }
-
     async function confirmDeleteChats() {
         const ids = [...pendingDeleteIds];
         setDeleteBusy(true);
@@ -97,7 +87,6 @@ export default function ProjectAssistantPage({ params }: Props) {
             setDeleteBusy(false);
         }
     }
-
     return (
         <>
             <ProjectSectionToolbar

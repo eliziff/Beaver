@@ -1,5 +1,4 @@
 "use client";
-
 import {
     createContext,
     type ReactNode,
@@ -42,7 +41,6 @@ import {
     ProjectPageHeader,
     type ProjectWorkspaceSection,
 } from "./ProjectPageParts";
-
 type ProjectWorkspaceValue = {
     projectId: string;
     project: Project | null;
@@ -69,10 +67,8 @@ type ProjectWorkspaceValue = {
     setAddDocumentsHeaderAction: (action: (() => void) | null) => void;
     setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
-
 const ProjectWorkspaceContext =
     createContext<ProjectWorkspaceValue | null>(null);
-
 export function useProjectWorkspace() {
     const value = useContext(ProjectWorkspaceContext);
     if (!value) {
@@ -82,7 +78,6 @@ export function useProjectWorkspace() {
     }
     return value;
 }
-
 function activeSectionFromSegments(
     segments: string[],
 ): ProjectWorkspaceSection {
@@ -90,13 +85,11 @@ function activeSectionFromSegments(
     if (segments[0] === "tabular-reviews") return "reviews";
     return "documents";
 }
-
 function shouldShowWorkspaceShell(segments: string[]) {
     if (segments.length === 0) return true;
     if (segments.length !== 1) return false;
     return segments[0] === "assistant" || segments[0] === "tabular-reviews";
 }
-
 export function ProjectWorkspaceProvider({
     projectId,
     children,
@@ -127,7 +120,6 @@ export function ProjectWorkspaceProvider({
     const [creatingReview, setCreatingReview] = useState(false);
     const [addDocumentsHeaderAction, setAddDocumentsHeaderActionState] =
         useState<{ action: (() => void) | null }>({ action: null });
-
     const segments = useSelectedLayoutSegments();
     const activeSection = activeSectionFromSegments(segments);
     const showShell = shouldShowWorkspaceShell(segments);
@@ -139,21 +131,18 @@ export function ProjectWorkspaceProvider({
     const projectReviewsPromiseRef = useRef<Promise<TabularReview[]> | null>(
         null,
     );
-
     useEffect(() => {
         setProjectChats(null);
         setProjectReviews(null);
         projectChatsPromiseRef.current = null;
         projectReviewsPromiseRef.current = null;
     }, [projectId]);
-
     const setAddDocumentsHeaderAction = useCallback(
         (action: (() => void) | null) => {
             setAddDocumentsHeaderActionState({ action });
         },
         [],
     );
-
     useEffect(() => {
         if (!showShell) {
             setProjectLoading(false);
@@ -181,7 +170,6 @@ export function ProjectWorkspaceProvider({
             cancelled = true;
         };
     }, [projectId, showShell]);
-
     const search = searchBySection[activeSection];
     const setSearch = useCallback(
         (value: string) =>
@@ -191,11 +179,9 @@ export function ProjectWorkspaceProvider({
             })),
         [activeSection],
     );
-
     const ensureProjectChats = useCallback(() => {
         if (projectChats) return Promise.resolve(projectChats);
         if (projectChatsPromiseRef.current) return projectChatsPromiseRef.current;
-
         const promise = listProjectChats(projectId)
             .then((loaded) => {
                 setProjectChats(loaded);
@@ -212,12 +198,10 @@ export function ProjectWorkspaceProvider({
         projectChatsPromiseRef.current = promise;
         return promise;
     }, [projectChats, projectId]);
-
     const ensureProjectReviews = useCallback(() => {
         if (projectReviews) return Promise.resolve(projectReviews);
         if (projectReviewsPromiseRef.current)
             return projectReviewsPromiseRef.current;
-
         const promise = listTabularReviews(projectId)
             .then((loaded) => {
                 setProjectReviews(loaded);
@@ -234,12 +218,10 @@ export function ProjectWorkspaceProvider({
         projectReviewsPromiseRef.current = promise;
         return promise;
     }, [projectId, projectReviews]);
-
     const prefetchProjectSections = useCallback(() => {
         void ensureProjectChats();
         void ensureProjectReviews();
     }, [ensureProjectChats, ensureProjectReviews]);
-
     const createChat = useCallback(async () => {
         setCreatingChat(true);
         try {
@@ -268,14 +250,12 @@ export function ProjectWorkspaceProvider({
             setCreatingChat(false);
         }
     }, [profile?.displayName, projectId, router, saveChat, user?.id]);
-
     const openNewReview = useCallback(() => {
         const readyDocs =
             project?.documents?.filter((d) => d.status === "ready") ?? [];
         if (readyDocs.length === 0) return;
         setNewTRModalOpen(true);
     }, [project?.documents]);
-
     async function handleCreateReview(
         title: string,
         _projectId?: string,
@@ -298,7 +278,6 @@ export function ProjectWorkspaceProvider({
             setCreatingReview(false);
         }
     }
-
     async function handleProjectDetailsSave(values: {
         name: string;
         cmNumber: string;
@@ -328,7 +307,6 @@ export function ProjectWorkspaceProvider({
                 : updated,
         );
     }
-
     function requestProjectDelete() {
         if (project && project.is_owner === false) {
             setOwnerOnlyAction("delete this project");
@@ -337,7 +315,6 @@ export function ProjectWorkspaceProvider({
         setDeleteProjectStatus("idle");
         setDeleteProjectConfirmOpen(true);
     }
-
     async function confirmProjectDelete() {
         if (deleteProjectStatus === "deleting") return;
         setDeleteProjectStatus("deleting");
@@ -350,7 +327,6 @@ export function ProjectWorkspaceProvider({
             setDeleteProjectStatus("idle");
         }
     }
-
     const value = useMemo<ProjectWorkspaceValue>(
         () => ({
             projectId,
@@ -396,7 +372,6 @@ export function ProjectWorkspaceProvider({
             setAddDocumentsHeaderAction,
         ],
     );
-
     if (!showShell) {
         return (
             <ProjectWorkspaceContext.Provider value={value}>
@@ -404,7 +379,6 @@ export function ProjectWorkspaceProvider({
             </ProjectWorkspaceContext.Provider>
         );
     }
-
     return (
         <ProjectWorkspaceContext.Provider value={value}>
             <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -425,9 +399,7 @@ export function ProjectWorkspaceProvider({
                     onNewReview={openNewReview}
                     onAddDocuments={addDocumentsHeaderAction.action}
                 />
-
                 {children}
-
                 <NewTRModal
                     open={newTRModalOpen}
                     onClose={() => setNewTRModalOpen(false)}
@@ -438,13 +410,11 @@ export function ProjectWorkspaceProvider({
                     projectName={project?.name}
                     projectCmNumber={project?.cm_number}
                 />
-
                 <OwnerOnlyPopup
                     open={!!ownerOnlyAction}
                     action={ownerOnlyAction ?? undefined}
                     onClose={() => setOwnerOnlyAction(null)}
                 />
-
                 <ProjectDetailsModal
                     open={projectDetailsOpen}
                     project={project}
@@ -456,7 +426,6 @@ export function ProjectWorkspaceProvider({
                         setPeopleModalOpen(true);
                     }}
                 />
-
                 <ConfirmPopup
                     open={deleteProjectConfirmOpen}
                     title="Delete project?"
@@ -481,7 +450,6 @@ export function ProjectWorkspaceProvider({
                     }}
                     onConfirm={() => void confirmProjectDelete()}
                 />
-
                 {project && (
                     <PeopleModal
                         open={peopleModalOpen}
@@ -522,7 +490,6 @@ export function ProjectWorkspaceProvider({
         </ProjectWorkspaceContext.Provider>
     );
 }
-
 export function ProjectSectionToolbar({
     actions,
 }: {
@@ -530,7 +497,6 @@ export function ProjectSectionToolbar({
 }) {
     const { activeSection, projectId } = useProjectWorkspace();
     const router = useRouter();
-
     return (
         <TableToolbar
             items={[
@@ -552,7 +518,6 @@ export function ProjectSectionToolbar({
         />
     );
 }
-
 export function ProjectWorkspaceLayout({
     params,
     children,

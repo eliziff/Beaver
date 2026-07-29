@@ -1,5 +1,4 @@
 "use client";
-
 import {
     forwardRef,
     useCallback,
@@ -28,20 +27,16 @@ import {
     APP_SURFACE_GROUP_HOVER_CLASS,
     APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-
 const SKELETON_COLS = 4;
 const SKELETON_ROWS = 5;
-
 const COL_W = "w-[142px] sm:w-[220px] lg:w-[240px] shrink-0";
 const DOC_COL_W =
     "w-[112px] sm:w-[220px] md:w-[280px] xl:w-[332px] shrink-0";
 const TR_STICKY_CELL_BG = "bg-app-surface";
 const TR_HEADER_BG = "bg-app-surface";
-
 export interface TRTableHandle {
     scrollToCell: (colIdx: number, rowIdx: number) => void;
 }
-
 interface Props {
     loading: boolean;
     columns: ColumnConfig[];
@@ -67,7 +62,6 @@ interface Props {
     onAddColumn: () => void;
     onAddDocuments: () => void;
 }
-
 export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     {
         loading,
@@ -90,7 +84,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     ref,
 ) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-
     const sortedColumns = useMemo(
         () => [...columns].sort((a, b) => a.index - b.index),
         [columns],
@@ -110,7 +103,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         () => new Map(sortedColumns.map((column, index) => [column.index, index])),
         [sortedColumns],
     );
-
     const onExpandRef = useRef(onExpand);
     const onCitationClickRef = useRef(onCitationClick);
     useEffect(() => {
@@ -140,12 +132,10 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         },
         [],
     );
-
     useImperativeHandle(ref, () => ({
         scrollToCell(colIdx: number, rowIdx: number) {
             const container = scrollContainerRef.current;
             if (!container) return;
-
             const allRows =
                 container.querySelectorAll<HTMLElement>("[data-tr-row]");
             const targetRow = allRows[rowIdx];
@@ -155,7 +145,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                     behavior: "smooth",
                 });
             }
-
             const surface = container.parentElement;
             const targetColumn = surface?.querySelectorAll<HTMLElement>(
                 "[data-tr-col-header]",
@@ -173,17 +162,14 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             }
         },
     }));
-
     function getCell(docId: string, colIdx: number) {
         return cellsByKey.get(`${docId}:${colIdx}`);
     }
-
     const allSelected =
         documents.length > 0 &&
         documents.every((d) => selectedDocIdSet.has(d.id));
     const someSelected =
         !allSelected && documents.some((d) => selectedDocIdSet.has(d.id));
-
     function toggleAll() {
         if (allSelected) {
             onSelectionChange([]);
@@ -191,7 +177,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             onSelectionChange(documents.map((d) => d.id));
         }
     }
-
     function toggleDoc(id: string) {
         if (selectedDocIdSet.has(id)) {
             onSelectionChange(selectedDocIds.filter((x) => x !== id));
@@ -199,7 +184,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             onSelectionChange([...selectedDocIds, id]);
         }
     }
-
     if (loading) {
         return (
             <TableScrollArea
@@ -248,7 +232,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             </TableScrollArea>
         );
     }
-
     if (
         columns.length === 0 &&
         documents.length === 0 &&
@@ -270,8 +253,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             >
                 <div className="relative flex min-h-0 flex-1">
                     {dragOverFiles && (
-                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />
-                    )}
+                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />                    )}
                     <div className="flex flex-1 flex-col items-start justify-center w-full max-w-xs mx-auto">
                         <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />
                         <p className="text-2xl font-medium font-serif text-gray-900">
@@ -305,7 +287,6 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
             </TableScrollArea>
         );
     }
-
     return (
         <TableScrollArea
             scrollRef={scrollContainerRef}
@@ -362,8 +343,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         >
                 <div className="relative min-h-0 flex-1">
                     {dragOverFiles && (
-                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />
-                    )}
+                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />                    )}
                     {uploadingFilenames.map((filename) => (
                     <div
                         key={`uploading-${filename}`}
@@ -431,8 +411,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                 return (
                                     <div
                                         key={col.index}
-                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-red-100" : ""}`}
-                                    >
+                                        className={`${COL_W} border-b border-r border-gray-200 ${isHighlighted ? "bg-red-100" : ""}`}                                    >
                                         {cell && (
                                             <TabularCellComponent
                                                 cell={cell}

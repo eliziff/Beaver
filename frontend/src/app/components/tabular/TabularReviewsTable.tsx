@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -30,11 +29,7 @@ import {
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-import { PillButton } from "@/app/components/ui/pill-button";
-import { formatDate, sortRows } from "@/app/lib/utils";
-
-type ReviewSortKey = "name" | "columns" | "documents" | "created";
-
+import { PillButton } from "@/app/components/ui/pill-button";import { formatDate, sortRows } from "@/app/lib/utils";type ReviewSortKey = "name" | "columns" | "documents" | "created";
 const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
@@ -46,7 +41,6 @@ const REVIEW_COLUMN = {
     created: "hidden w-32 xl:flex",
     actions: "w-7 sm:w-8",
 } as const;
-
 export function TabularReviewsTable({
     reviews,
     filteredReviews,
@@ -82,35 +76,9 @@ export function TabularReviewsTable({
     const [sort, setSort] = useState<{
         key: ReviewSortKey;
         direction: TableSortDirection;
-    } | null>(null);
-    const showProject = projects !== undefined;
-    const projectNameById = projects
-        ? new Map(projects.map((project) => [project.id, project.name]))
-        : null;
-    const visibleReviews = useMemo(() => {
+    } | null>(null);    const showProject = projects !== undefined;    const projectNameById = projects        ? new Map(projects.map((project) => [project.id, project.name]))        : null;    const visibleReviews = useMemo(() => {
         if (!sort) return filteredReviews;
-
-        return sortRows(filteredReviews, (a, b) => {
-            if (sort.key === "columns") {
-                return (
-                    ((a.columns_config?.length ?? 0) -
-                        (b.columns_config?.length ?? 0))
-                );
-            }
-            if (sort.key === "documents") {
-                return (a.document_count ?? 0) - (b.document_count ?? 0);
-            }
-            if (sort.key === "created") {
-                return (
-                    (new Date(a.created_at).getTime() -
-                        new Date(b.created_at).getTime())
-                );
-            }
-            return (a.title ?? "Untitled Review").localeCompare(
-                b.title ?? "Untitled Review",
-            );
-        }, sort.direction);
-    }, [filteredReviews, sort]);
+        return sortRows(filteredReviews, (a, b) => {            if (sort.key === "columns") {                return (                    ((a.columns_config?.length ?? 0) -                        (b.columns_config?.length ?? 0))                );            }            if (sort.key === "documents") {                return (a.document_count ?? 0) - (b.document_count ?? 0);            }            if (sort.key === "created") {                return (                    (new Date(a.created_at).getTime() -                        new Date(b.created_at).getTime())                );            }            return (a.title ?? "Untitled Review").localeCompare(                b.title ?? "Untitled Review",            );        }, sort.direction);    }, [filteredReviews, sort]);
     const allSelected =
         visibleReviews.length > 0 &&
         visibleReviews.every((review) =>
@@ -121,7 +89,6 @@ export function TabularReviewsTable({
         visibleReviews.some((review) =>
             selectedReviewIds.includes(review.id),
         );
-
     function handleSortChange(
         key: ReviewSortKey,
         direction: TableSortDirection | null,
@@ -129,7 +96,6 @@ export function TabularReviewsTable({
         setSort(direction ? { key, direction } : null);
         setSelectedReviewIds([]);
     }
-
     const sortFilter = (key: ReviewSortKey, label: string) => (
         <TableFilters
             label={label}
@@ -140,7 +106,6 @@ export function TabularReviewsTable({
         />
     );
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
-
     return (
         <TableScrollArea
             header={
@@ -250,7 +215,6 @@ export function TabularReviewsTable({
                         const projectName = review.project_id
                             ? projectNameById?.get(review.project_id)
                             : null;
-
                         return (
                             <TableRow
                                 key={review.id}
@@ -331,13 +295,11 @@ export function TabularReviewsTable({
         </TableScrollArea>
     );
 }
-
 function LoadingRows({ showProject }: { showProject: boolean }) {
     const titleWidths = showProject
         ? ["w-48", "w-48", "w-48"]
         : ["w-36", "w-40", "w-44", "w-48", "w-52"];
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
-
     return (
         <TableBody>
             {titleWidths.map((titleWidth, index) => (

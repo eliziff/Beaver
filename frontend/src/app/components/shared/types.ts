@@ -1,5 +1,3 @@
-// Shared TypeScript types for Beaver AI legal assistant
-
 export interface Folder {
   id: string;
   project_id: string;
@@ -9,7 +7,6 @@ export interface Folder {
   created_at: string;
   updated_at: string;
 }
-
 export interface LibraryFolder {
   id: string;
   user_id: string;
@@ -19,7 +16,6 @@ export interface LibraryFolder {
   created_at: string;
   updated_at: string;
 }
-
 export interface Project {
   id: string;
   user_id: string;
@@ -38,14 +34,12 @@ export interface Project {
   chat_count?: number;
   review_count?: number;
 }
-
 export type PdfParseStatus =
   | "queued"
   | "parsing"
   | "ready"
   | "degraded"
   | "failed";
-
 export interface PdfParseState {
   schema_version: "mike.pdf_parse.v1";
   job_id: string;
@@ -108,7 +102,6 @@ export interface PdfParseState {
   error?: string;
   flat_text_fallback_available: true;
 }
-
 export interface Document {
   id: string;
   user_id?: string;
@@ -129,12 +122,9 @@ export interface Document {
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
-  /** Version number of the document row pointed to by current_version_id. */
   active_version_number?: number | null;
-  /** Returned immediately by local PDF uploads; later state is read on demand. */
   pdf_parse?: PdfParseState | null;
 }
-
 export interface StructureNode {
   id: string;
   title: string;
@@ -142,7 +132,6 @@ export interface StructureNode {
   page_number: number | null;
   children: StructureNode[];
 }
-
 export interface Chat {
   id: string;
   project_id: string | null;
@@ -153,14 +142,12 @@ export interface Chat {
   created_at: string;
   deleted_at?: string | null;
 }
-
 export interface EditAnnotation {
   type?: "edit_data";
   kind?: "edit";
   edit_id: string;
   document_id: string;
   version_id: string;
-  /** Per-document monotonic Vn for the edit's target version. */
   version_number?: number | null;
   change_id: string;
   del_w_id?: string;
@@ -172,13 +159,11 @@ export interface EditAnnotation {
   reason?: string;
   status: "pending" | "accepted" | "rejected";
 }
-
 export type AutomationToolName =
   | "toa_submit_library_document"
   | "toa_job_status"
   | "library_fix_docx_supras"
   | "library_link_docx_citations";
-
 export type AutomationRunEvent = {
   type: "automation_run";
   id: string;
@@ -196,7 +181,6 @@ export type AutomationRunEvent = {
   version_id?: string;
   version_number?: number | null;
 };
-
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
   | { type: "error"; message: string }
@@ -274,7 +258,6 @@ export type AssistantEvent =
       type: "doc_created";
       filename: string;
       download_url: string;
-      /** Set when the generated doc is persisted as a first-class document. */
       document_id?: string;
       version_id?: string;
       version_number?: number | null;
@@ -287,7 +270,6 @@ export type AssistantEvent =
       filename: string;
       document_id: string;
       version_id: string;
-      /** Per-document monotonic Vn written at emit time. */
       version_number?: number | null;
       download_url: string;
       annotations: EditAnnotation[];
@@ -383,14 +365,12 @@ export type AssistantEvent =
     }
   | AutomationRunEvent
   | { type: "content"; text: string; isStreaming?: boolean };
-
 export type CaseCitationQuote = {
   opinionId: number | null;
   type: string | null;
   author: string | null;
   quote: string;
 };
-
 export interface Message {
   id?: string;
   role: "user" | "assistant";
@@ -402,26 +382,16 @@ export interface Message {
   citations?: Citation[];
   citationStatus?: "started" | "partial" | "final";
   events?: AssistantEvent[];
-  /** Set when streaming failed; rendered as a red error block. */
   error?: string;
 }
-
 export interface CitationQuote {
   page?: number;
   quote: string;
 }
-
-export type DocumentCitationQuote = {
-  page?: number | string;
-  quote: string;
-  /**
-   * Spreadsheet citations are located by cell, not page: `sheet` is the
-   * worksheet name and `cell` is an A1 address or range (e.g. "B7", "B7:C9").
-   */
+export type DocumentCitationQuote = {  page?: number | string;  quote: string;
   sheet?: string;
   cell?: string;
 };
-
 export type DocumentCitation = {
   type: "citation_data";
   kind?: "document";
@@ -429,11 +399,7 @@ export type DocumentCitation = {
   doc_id: string;
   document_id: string;
   version_id?: string | null;
-  version_number?: number | null;
-  filename: string;
-  quotes: DocumentCitationQuote[];
-};
-
+  version_number?: number | null;  filename: string;  quotes: DocumentCitationQuote[];};
 export type CaseCitation = {
   type: "citation_data";
   kind: "case";
@@ -446,7 +412,6 @@ export type CaseCitation = {
   dateFiled?: string | null;
   quotes: CaseCitationQuote[];
 };
-
 export type A2AJCitation = {
   type: "citation_data";
   kind: "a2aj";
@@ -457,7 +422,6 @@ export type A2AJCitation = {
   url?: string | null;
   quotes: { quote: string }[];
 };
-
 export type PublicLegalCitation = {
   type: "citation_data";
   kind: "public_legal";
@@ -468,52 +432,30 @@ export type PublicLegalCitation = {
   url?: string | null;
   quotes: { quote: string }[];
 };
-
-/**
- * A citation emitted by the assistant. Document citations have doc/page
- * anchors. Case citations anchor to a CourtListener cluster and include a
- * quoted opinion passage.
- */
 export type Citation =
   | DocumentCitation
   | CaseCitation
   | A2AJCitation
   | PublicLegalCitation;
-
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
-
 export function isSpreadsheetFilename(filename: string): boolean {
   const ext = filename.split(".").pop()?.toLowerCase();
   return ext === "xlsx" || ext === "xlsm" || ext === "xls";
 }
-
 export function isDocxFilename(filename: string): boolean {
   const ext = filename.split(".").pop()?.toLowerCase();
   return ext === "docx" || ext === "doc";
 }
-
-/**
- * Human-readable cell locator for a spreadsheet citation, e.g. "Sheet1!B7".
- * Falls back to whichever of `sheet`/`cell` is present.
- */
 function formatCellLocator(sheet?: string, cell?: string): string {
   if (sheet && cell) return `${sheet}!${cell}`;
   return cell ?? sheet ?? "";
 }
-
-/**
- * Reader-friendly cell locator, e.g. "Sheet1, cell B7" (or "cells B7:C9" for a
- * range). Unlike `formatCellLocator`, this avoids the Excel `!` notation, which
- * reads poorly in prose. Used for the single-quote detail shown to the reader;
- * the machine-style `Sheet1!B7` form is kept where locators are joined together.
- */
 function formatCellLocatorReadable(sheet?: string, cell?: string): string {
   if (!cell) return sheet ?? "";
   const cellWord = cell.includes(":") ? "cells" : "cell";
   const cellPart = `${cellWord} ${cell}`;
   return sheet ? `${sheet}, ${cellPart}` : cellPart;
 }
-
 function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[] {
   const rangeMatch =
     typeof entry.page === "string"
@@ -535,24 +477,13 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
   if (!Number.isFinite(pageNum)) return [];
   return [{ page: pageNum, quote: entry.quote }];
 }
-
-export function getDocumentCitationQuotes(
-  a: Citation,
-): DocumentCitationQuote[] {
-  if (
+export function getDocumentCitationQuotes(  a: Citation,): DocumentCitationQuote[] {  if (
     a.kind === "case" ||
     a.kind === "a2aj" ||
     a.kind === "public_legal"
   )
     return [];
-  return a.quotes.filter((entry) => entry.quote.trim().length > 0);
-}
-
-/**
- * Expand a citation into one or more (page, quote) entries suitable for
- * highlighting in the PDF viewer. A single-page citation yields one entry; a
- * cross-page citation with page "N-M" and a `[[PAGE_BREAK]]` split yields two.
- */
+  return a.quotes.filter((entry) => entry.quote.trim().length > 0);}
 export function expandCitationToEntries(
   a: Citation,
 ): CitationQuote[] {
@@ -564,12 +495,6 @@ export function expandCitationToEntries(
     return [];
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
-
-/**
- * Format the page(s) of a citation for display, e.g. "Page 3" or "Page 41-42".
- * Spreadsheets have no meaningful page locator, so this returns "" for them —
- * callers join with `.filter(Boolean)` so the locator is simply omitted.
- */
 export function formatCitationPage(a: Citation): string {
   if (a.kind === "case") {
     return a.citation || a.case_name || `Case ${a.cluster_id}`;
@@ -579,7 +504,6 @@ export function formatCitationPage(a: Citation): string {
     return a.title || a.identifier || "Public legal source";
   }
   const quotes = getDocumentCitationQuotes(a);
-  // Spreadsheets are located by cell, e.g. "Sheet1!B7" (or several).
   if (isSpreadsheetFilename(a.filename)) {
     const cells = Array.from(
       new Set(
@@ -593,14 +517,10 @@ export function formatCitationPage(a: Citation): string {
   );
   if (pages.length > 1) return `Pages ${pages.join(", ")}`;
   if (pages.length === 1) return `Page ${pages[0]}`;
-  return "";
-}
-
-/** Locator label for a single quote — "Page 3" for docs, "Sheet1, cell B7" for cells. */
+  return "";}
 export function formatCitationQuotePage(
   a: Citation,
-  page: number | string | undefined,
-  quote?: DocumentCitationQuote,
+  page: number | string | undefined,  quote?: DocumentCitationQuote,
 ): string {
   if (a.kind === "public_legal") return "Source";
   if (
@@ -610,32 +530,13 @@ export function formatCitationQuotePage(
   ) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
-  return page == null ? "" : `Page ${page}`;
+  return page == null ? "" : `Page ${page}`;}
+export function cleanCitationQuoteText(rawQuote: string): string {  return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
 }
-
-/**
- * Reader-friendly version of a single raw quote: replaces [[PAGE_BREAK]] with
- * "...". Spreadsheet quotes now carry plain cell values, so no stripping.
- */
-export function cleanCitationQuoteText(rawQuote: string): string {
-  return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
-}
-
-/** Produce a reader-friendly version of the quote (replaces [[PAGE_BREAK]] with "..."). */
-export function displayCitationQuote(a: Citation): string {
-  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
-    return a.quotes
-      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))
-      .join(" / ");
-  }
-  return getDocumentCitationQuotes(a)
-    .map((q) => cleanCitationQuoteText(q.quote))
-    .filter(Boolean)
+export function displayCitationQuote(a: Citation): string {  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {    return a.quotes      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))      .join(" / ");  }
+  return getDocumentCitationQuotes(a)    .map((q) => cleanCitationQuoteText(q.quote))    .filter(Boolean)
     .join(" / ");
 }
-
-// Tabular Review
-
 export type ColumnFormat =
   | "text"
   | "bulleted_list"
@@ -646,7 +547,6 @@ export type ColumnFormat =
   | "tag"
   | "percentage"
   | "monetary_amount";
-
 export interface ColumnConfig {
   index: number;
   name: string;
@@ -654,7 +554,6 @@ export interface ColumnConfig {
   format?: ColumnFormat;
   tags?: string[];
 }
-
 export interface TabularReview {
   id: string;
   project_id: string | null;
@@ -664,15 +563,12 @@ export interface TabularReview {
   document_ids?: string[] | null;
   workflow_id: string | null;
   practice?: string | null;
-  /** Per-review email list. Used so standalone (project_id null) reviews can be shared directly. */
   shared_with?: string[];
-  /** Server-set: true when the requesting user is the review's creator. */
   is_owner?: boolean;
   created_at: string;
   updated_at: string;
   document_count?: number;
 }
-
 export interface TabularCell {
   id: string;
   review_id: string;
@@ -686,9 +582,6 @@ export interface TabularCell {
   status: "pending" | "generating" | "done" | "error";
   created_at: string;
 }
-
-// Workflows
-
 export interface WorkflowOpenSourceSubmission {
   id: string;
   status: "pending" | "approved" | "rejected";
@@ -696,21 +589,17 @@ export interface WorkflowOpenSourceSubmission {
   updated_at: string;
   reviewed_at?: string | null;
 }
-
 export interface OpenSourceWorkflowResponse
   extends WorkflowOpenSourceSubmission {
   mode: "created" | "updated";
 }
-
 export type OpenSourceWorkflowContributorMode = "named" | "anonymous";
-
 export interface WorkflowContributor {
   name: string;
   organisation: string | null;
   role: string | null;
   linkedin: string | null;
 }
-
 export interface Workflow {
   id: string;
   user_id: string | null;
@@ -733,14 +622,10 @@ export interface Workflow {
   is_owner?: boolean;
   open_source_submission?: WorkflowOpenSourceSubmission | null;
 }
-
-// API helpers
-
 export interface ChatDetailOut {
   chat: Chat;
   messages: Message[];
 }
-
 export interface TabularReviewDetailOut {
   review: TabularReview;
   cells: TabularCell[];

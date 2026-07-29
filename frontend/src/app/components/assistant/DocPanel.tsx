@@ -1,12 +1,9 @@
 "use client";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { apiFetch } from "@/app/lib/beaverApi";
-import { downloadBlob } from "@/app/lib/download";
+import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
 import { PillButton } from "@/app/components/ui/pill-button";
-import { DocumentViewer } from "../shared/views/DocumentViewer";
-import {
+import { DocumentViewer } from "../shared/views/DocumentViewer";import {
     CitationQuotesHeader,
     type CitationQuoteHeaderItem,
 } from "./CitationQuotesHeader";
@@ -27,24 +24,12 @@ import type {
     DocumentCitation,
     EditAnnotation,
 } from "../shared/types";
-
-/**
- * Discriminated-union describing what the panel is showing above the viewer.
- *   - "document":  title row + viewer.
- *   - "citation":  title row + relevant quote + viewer.
- *   - "edit":      title row + tracked change + viewer.
- */
 export type DocPanelMode =
     | { kind: "document" }
     | { kind: "citation"; citation: Citation }
     | {
           kind: "edit";
           edit: EditAnnotation;
-          /**
-           * True while an accept/reject request for this exact edit is in
-           * flight. Scoped per-edit (not per-document) so sibling edits on
-           * the same doc stay clickable.
-           */
           isEditReloading?: boolean;
           onResolveStart?: (args: {
               editId: string;
@@ -65,7 +50,6 @@ export type DocPanelMode =
               message: string;
           }) => void;
       };
-
 interface Props {
     documentId: string;
     filename: string;
@@ -73,20 +57,12 @@ interface Props {
     versionId: string | null;
     versionNumber: number | null;
     mode: DocPanelMode;
-    /** Spinner on the Download button while an accept/reject is in flight. */
     isReloading?: boolean;
     warning?: string | null;
     onWarningDismiss?: () => void;
     initialScrollTop?: number | null;
     onScrollChange?: (scrollTop: number) => void;
 }
-
-/**
- * Unified side-panel body for the assistant. Renders a single document
- * with optionally a citation quote OR a tracked change highlighted above
- * the viewer. No selector UI — caller picks the one thing to show; if the
- * user wants a different citation/edit, the panel gets a new tab.
- */
 export function DocPanel({
     documentId,
     filename,
@@ -100,11 +76,6 @@ export function DocPanel({
     initialScrollTop,
     onScrollChange,
 }: Props) {
-    // Pick the viewer from the filename only, not from mode. Switching
-    // headers (citation ↔ edit ↔ document) for the same document must
-    // not unmount and remount the body — otherwise the user sees a full
-    // re-fetch every time they toggle. Tracked-change rendering still
-    // only lives in DocxView, which is fine because edits are DOCX-only.
     const useDocxView = isDocxFilename(filename);
     const useSheetView = isSpreadsheetFilename(filename);
     const [actionVersionId, setActionVersionId] = useState(versionId);
@@ -114,7 +85,6 @@ export function DocPanel({
         string | null
     >(citationQuoteId);
     const [quoteFocusKey, setQuoteFocusKey] = useState(0);
-
     const quotes: CitationQuote[] | undefined = useMemo(() => {
         if (mode.kind !== "citation") return undefined;
         if (!activeCitationQuoteId) return [];
@@ -123,15 +93,7 @@ export function DocPanel({
         const selectedQuote =
             getDocumentCitationQuotes(mode.citation)[selectedIndex];
         if (!selectedQuote) return [];
-        const documentCitation = mode.citation as DocumentCitation;
-        return expandCitationToEntries({
-            ...documentCitation,
-            quotes: [selectedQuote],
-        });
-    }, [activeCitationQuoteId, mode]);
-
-    // Cell locator(s) for the selected quote, used to highlight the cited cell
-    // when the document is a spreadsheet.
+        const documentCitation = mode.citation as DocumentCitation;        return expandCitationToEntries({            ...documentCitation,            quotes: [selectedQuote],        });    }, [activeCitationQuoteId, mode]);
     const highlightCells = useMemo(() => {
         if (mode.kind !== "citation") return undefined;
         if (!activeCitationQuoteId) return [];
@@ -143,15 +105,12 @@ export function DocPanel({
             return [];
         return [{ sheet: selectedQuote.sheet, cell: selectedQuote.cell }];
     }, [activeCitationQuoteId, mode]);
-
     useEffect(() => {
         setActiveCitationQuoteId(citationQuoteId);
     }, [citationQuoteId]);
-
     useEffect(() => {
         setActionVersionId(versionId);
     }, [versionId]);
-
     const handleCitationQuoteSelect = useCallback(
         (quoteId: string) => {
             const shouldSelect = activeCitationQuoteId !== quoteId;
@@ -160,7 +119,6 @@ export function DocPanel({
         },
         [activeCitationQuoteId],
     );
-
     const highlightEdit = useMemo(() => {
         if (mode.kind !== "edit") return null;
         return {
@@ -171,7 +129,6 @@ export function DocPanel({
             del_w_id: mode.edit.del_w_id ?? null,
         };
     }, [mode]);
-
     return (
         <div className="flex h-full flex-col">
             {mode.kind !== "edit" && (
@@ -185,7 +142,6 @@ export function DocPanel({
                     onDocumentChanged={setActionVersionId}
                 />
             )}
-
             {mode.kind === "citation" && (
                 <RelevantQuoteSection
                     citation={mode.citation}
@@ -194,7 +150,6 @@ export function DocPanel({
                     onQuoteSelect={handleCitationQuoteSelect}
                 />
             )}
-
             {mode.kind === "edit" && (
                 <TrackedChangeHeader
                     edit={mode.edit}
@@ -204,30 +159,11 @@ export function DocPanel({
                     onError={mode.onError}
                 />
             )}
-
             <div className="flex flex-1 min-h-0 flex-col px-3 py-3">
-                <DocumentViewer
-                    documentId={documentId}
-                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}
-                    versionId={actionVersionId}
-                    quotes={quotes}
-                    quoteFocusKey={quoteFocusKey}
-                    highlightEdit={highlightEdit}
-                    highlightCells={highlightCells}
-                    warning={warning ?? null}
-                    onWarningDismiss={onWarningDismiss}
-                    initialScrollTop={initialScrollTop ?? null}
-                    onScrollChange={onScrollChange}
-                />
-            </div>
+                <DocumentViewer                    documentId={documentId}                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}                    versionId={actionVersionId}                    quotes={quotes}                    quoteFocusKey={quoteFocusKey}                    highlightEdit={highlightEdit}                    highlightCells={highlightCells}                    warning={warning ?? null}                    onWarningDismiss={onWarningDismiss}                    initialScrollTop={initialScrollTop ?? null}                    onScrollChange={onScrollChange}                />            </div>
         </div>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Header variants
-// ---------------------------------------------------------------------------
-
 function DocumentTitleRow({
     documentId,
     filename,
@@ -281,7 +217,6 @@ function DocumentTitleRow({
         </div>
     );
 }
-
 function RelevantQuoteSection({
     citation,
     filename,
@@ -305,8 +240,7 @@ function RelevantQuoteSection({
             );
             return {
                 id: `document:${citation.ref}:${index}`,
-                quote: cleanCitationQuoteText(quote.quote),
-                inlineDetail: pageLabel || null,
+                quote: cleanCitationQuoteText(quote.quote),                inlineDetail: pageLabel || null,
                 citationText: [filename, pageLabel].filter(Boolean).join(", "),
             };
         },
@@ -315,7 +249,6 @@ function RelevantQuoteSection({
         0,
         relevantQuotes.findIndex((quote) => quote.id === activeQuoteId),
     );
-
     return (
         <CitationQuotesHeader
             quotes={relevantQuotes}
@@ -331,11 +264,6 @@ function RelevantQuoteSection({
         />
     );
 }
-
-// ---------------------------------------------------------------------------
-// Download button
-// ---------------------------------------------------------------------------
-
 function DownloadButton({
     documentId,
     versionId,
@@ -348,25 +276,16 @@ function DownloadButton({
     isReloading?: boolean;
 }) {
     const [busy, setBusy] = useState(false);
-
     const handleClick = async () => {
         if (busy || isReloading) return;
         setBusy(true);
         try {
-            const qs = versionId
-                ? `?version_id=${encodeURIComponent(versionId)}`
-                : "";
-            const resp = await apiFetch(
-                `/single-documents/${documentId}/docx${qs}`,
-                { headers: { Accept: "*/*" } },
-            );
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const qs = versionId                ? `?version_id=${encodeURIComponent(versionId)}`                : "";            const resp = await apiFetch(                `/single-documents/${documentId}/docx${qs}`,                { headers: { Accept: "*/*" } },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             downloadBlob(await resp.blob(), filename);
         } finally {
             setBusy(false);
         }
     };
-
     const spinning = busy || isReloading;
     return (
         <PillButton tone="white" onClick={handleClick} disabled={spinning}>

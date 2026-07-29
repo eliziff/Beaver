@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-
 export function BeaverIcon({
     size = 24,
     style,

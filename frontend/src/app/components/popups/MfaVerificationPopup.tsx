@@ -1,5 +1,4 @@
 "use client";
-
 import {
     useEffect,
     useRef,
@@ -10,13 +9,11 @@ import {
 import { Loader2 } from "lucide-react";
 import { Modal } from "../modals/Modal";
 import { ModalSelect } from "../modals/ModalSelect";
-
 type MfaFactor = {
     id: string;
     friendly_name?: string | null;
     factor_type: string;
 };
-
 export async function needsMfaVerification() {
     const { supabase } = await import("@/app/lib/supabase");
     const { data, error } =
@@ -24,7 +21,6 @@ export async function needsMfaVerification() {
     if (error) throw error;
     return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
-
 interface MfaVerificationPopupProps {
     open: boolean;
     onCancel: () => void;
@@ -32,7 +28,6 @@ interface MfaVerificationPopupProps {
     title?: string;
     message?: string;
 }
-
 export function MfaVerificationPopup({
     open,
     onCancel,
@@ -51,11 +46,9 @@ export function MfaVerificationPopup({
         !loading &&
         !!selectedFactorId &&
         code.trim().length === 6;
-
     useEffect(() => {
         if (!open) return;
         let cancelled = false;
-
         async function loadFactors() {
             setLoading(true);
             setError(null);
@@ -75,16 +68,13 @@ export function MfaVerificationPopup({
             }
             setLoading(false);
         }
-
         void loadFactors();
         return () => {
             cancelled = true;
         };
     }, [open]);
-
     async function verify() {
         if (!canVerify) return;
-
         setVerifying(true);
         setError(null);
         const { supabase } = await import("@/app/lib/supabase");
@@ -94,18 +84,14 @@ export function MfaVerificationPopup({
                 code: code.trim(),
             });
         setVerifying(false);
-
         if (verifyError) {
             setError(verifyError.message);
             return;
         }
-
         setCode("");
         onVerified();
     }
-
     if (!open) return null;
-
     return (
         <Modal
             open={open}
@@ -176,7 +162,6 @@ export function MfaVerificationPopup({
         </Modal>
     );
 }
-
 export function VerificationCodeInput({
     value,
     onChange,
@@ -194,7 +179,6 @@ export function VerificationCodeInput({
 }) {
     const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
     const digits = Array.from({ length: 6 }, (_, index) => value[index] ?? "");
-
     useEffect(() => {
         if (!autoFocus || disabled) return;
         const focusTimer = window.setTimeout(() => {
@@ -205,7 +189,6 @@ export function VerificationCodeInput({
         }, 0);
         return () => window.clearTimeout(focusTimer);
     }, [autoFocus, disabled]);
-
     function updateDigit(index: number, nextValue: string) {
         const digit = nextValue.replace(/\D/g, "").slice(-1);
         const nextDigits = [...digits];
@@ -215,7 +198,6 @@ export function VerificationCodeInput({
             inputsRef.current[index + 1]?.focus();
         }
     }
-
     function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
         event.preventDefault();
         const pasted = event.clipboardData
@@ -226,7 +208,6 @@ export function VerificationCodeInput({
         onChange(pasted);
         inputsRef.current[Math.min(pasted.length, 6) - 1]?.focus();
     }
-
     function handleKeyDown(
         event: KeyboardEvent<HTMLInputElement>,
         index: number,
@@ -248,7 +229,6 @@ export function VerificationCodeInput({
             inputsRef.current[index + 1]?.focus();
         }
     }
-
     return (
         <div
             className="flex justify-center gap-2"

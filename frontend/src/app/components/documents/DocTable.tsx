@@ -1,5 +1,4 @@
 "use client";
-
 import {
     type Dispatch,
     type DragEvent,
@@ -36,10 +35,7 @@ import type {
     Folder as ProjectFolder,
     LibraryFolder,
 } from "@/app/components/shared/types";
-import { RowActions } from "@/app/components/shared/RowActions";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
-import { useAuth } from "@/app/contexts/AuthContext";
+import { RowActions } from "@/app/components/shared/RowActions";import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { UploadOverlay } from "@/app/components/assistant/UploadOverlay";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
@@ -53,11 +49,7 @@ import {
     SUPPORTED_DOCUMENT_ACCEPT,
 } from "@/app/lib/documentUploadValidation";
 import {
-    DOC_NAME_COL_W,
-    treeNameCellStyle,
-} from "@/app/components/projects/ProjectPageParts";
-import { formatBytes, formatDate, sortRows } from "@/app/lib/utils";
-import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
+    DOC_NAME_COL_W,    treeNameCellStyle,} from "@/app/components/projects/ProjectPageParts";import { formatBytes, formatDate, sortRows } from "@/app/lib/utils";import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_HOVER_CLASS,
@@ -76,7 +68,6 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
 import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
-
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 export interface DocTableSelectionActions {
     selectedCount: number;
@@ -88,9 +79,7 @@ export interface DocTableSelectionActions {
     onRemoveFromFolder: () => Promise<void>;
     onDelete: () => Promise<void>;
 }
-
 type DocumentSortKey = "name" | "size" | "version" | "created" | "updated";
-
 const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
@@ -102,7 +91,6 @@ const DOCUMENT_SIZE_COLUMN = "hidden w-24 shrink-0 md:block";
 const DOCUMENT_VERSION_COLUMN = "w-20 shrink-0";
 const DOCUMENT_CREATED_COLUMN = "hidden w-32 shrink-0 lg:block";
 const DOCUMENT_UPDATED_COLUMN = "hidden w-32 shrink-0 xl:block";
-
 function prewarmDocumentView(doc: Document) {
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
         .toLowerCase()
@@ -118,7 +106,6 @@ function prewarmDocumentView(doc: Document) {
         void import("docx-preview");
     }
 }
-
 interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>;
     uploadDocument: (file: File) => Promise<Document>;
@@ -142,7 +129,6 @@ interface DocTableOperations {
     ) => Promise<Document>;
     renameDocument: (documentId: string, filename: string) => Promise<Document>;
 }
-
 interface DocTableProps {
     scopeKey: string;
     documents: Document[];
@@ -166,7 +152,6 @@ interface DocTableProps {
     documentRemovalMode?: "delete" | "detach";
     selectionFirst?: boolean;
 }
-
 function apiErrorDetail(error: unknown): string | null {
     if (!(error instanceof Error)) return null;
     try {
@@ -180,31 +165,25 @@ function apiErrorDetail(error: unknown): string | null {
             return parsed.detail;
         }
     } catch {
-        // Non-JSON errors can fall through to the plain message below.
     }
     return error.message || null;
 }
-
 function documentTypeValue(doc: Document): string {
     const explicit = doc.file_type?.trim();
     if (explicit) return explicit.toLowerCase();
-
     const extension = doc.filename.includes(".")
         ? doc.filename.split(".").pop()?.trim()
         : null;
     return (extension || "file").toLowerCase();
 }
-
 function dateTimeValue(value: string | null | undefined): number {
     if (!value) return 0;
     const time = new Date(value).getTime();
     return Number.isFinite(time) ? time : 0;
 }
-
 function documentVersionNumber(doc: Document): number | null {
     return doc.active_version_number ?? null;
 }
-
 function ProjectTableLoadingHeader({
     stickyCellBg,
 }: {
@@ -243,7 +222,6 @@ function ProjectTableLoadingHeader({
         </TableHeaderRow>
     );
 }
-
 function ProjectTableLoading({ stickyCellBg }: { stickyCellBg: string }) {
     return (
         <div className="flex-1 flex flex-col min-h-0">
@@ -285,7 +263,6 @@ function ProjectTableLoading({ stickyCellBg }: { stickyCellBg: string }) {
         </div>
     );
 }
-
 export function DocTable({
     scopeKey,
     documents,
@@ -329,12 +306,10 @@ export function DocTable({
     const detachesDocument = documentRemovalMode === "detach";
     const removeDocument = operations.removeDocument ?? deleteDocument;
     const refreshCollection = operations.refreshCollection;
-
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
     }, [loading, renderAddDocumentsModal]);
-
     const openAddDocuments = useCallback(() => {
         if (loadingRef.current) return;
         if (renderAddDocumentsModalRef.current) {
@@ -343,12 +318,10 @@ export function DocTable({
         }
         documentUploadInputRef.current?.click();
     }, []);
-
     useEffect(() => {
         onAddDocumentsActionChange?.(openAddDocuments);
         return () => onAddDocumentsActionChange?.(null);
     }, [onAddDocumentsActionChange, openAddDocuments]);
-
     const [versionsByDocId, setVersionsByDocId] = useState<
         Map<
             string,
@@ -358,7 +331,6 @@ export function DocTable({
     const [loadingVersionDocIds, setLoadingVersionDocIds] = useState<
         Set<string>
     >(() => new Set());
-
     const loadDocumentVersions = async (docId: string) => {
         if (versionsByDocId.has(docId)) return;
         setLoadingVersionDocIds((prev) => new Set([...prev, docId]));
@@ -382,7 +354,6 @@ export function DocTable({
             });
         }
     };
-
     async function downloadDocVersion(
         docId: string,
         versionId: string,
@@ -395,12 +366,10 @@ export function DocTable({
             console.error("downloadDocVersion failed", e);
         }
     }
-
     function handleUploadNewVersion(doc: Document) {
         setVersionUploadTargetDoc(doc);
         window.setTimeout(() => versionUploadInputRef.current?.click(), 0);
     }
-
     async function handleVersionUploadInputChange(
         e: React.ChangeEvent<HTMLInputElement>,
     ) {
@@ -411,7 +380,6 @@ export function DocTable({
         if (!file || !doc) return;
         await handleDropDocumentVersions(doc, [file]);
     }
-
     async function submitNewVersion(
         doc: Document,
         file: File,
@@ -424,7 +392,6 @@ export function DocTable({
             console.error("uploadDocumentVersion failed", e);
         }
     }
-
     async function replaceVersionFile(
         docId: string,
         versionId: string,
@@ -443,12 +410,8 @@ export function DocTable({
             });
         }
     }
-
     const refreshDocumentVersionState = useCallback(async (docId: string) => {
-        // Refresh the collection so doc.active_version_number and filename advance.
         await refreshCollection();
-        // Re-fetch versions while keeping the previous rows visible until the
-        // updated list arrives.
         const res = await listDocumentVersions(docId);
         setVersionsByDocId((prev) => {
             const next = new Map(prev);
@@ -460,10 +423,6 @@ export function DocTable({
         });
         return res;
     }, [refreshCollection]);
-
-    /**
-     * Patch a version filename and update the local cache in place.
-     */
     async function handleRenameVersion(
         docId: string,
         versionId: string,
@@ -483,7 +442,6 @@ export function DocTable({
             );
             return;
         }
-
         try {
             const updated = await renameDocumentVersion(
                 docId,
@@ -506,7 +464,6 @@ export function DocTable({
             console.error("renameDocumentVersion failed", e);
         }
     }
-
     async function handleDeleteVersion(docId: string, versionId: string) {
         try {
             await deleteDocumentVersion(docId, versionId);
@@ -533,17 +490,13 @@ export function DocTable({
             setDocumentRenameWarning("Could not delete this version.");
         }
     }
-
     const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(
         null,
     );
     const [renameDocumentValue, setRenameDocumentValue] = useState("");
-
-    // Folder state
     const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
         new Set(),
     );
-    // undefined = not creating; null = creating at root; string = creating inside that folder id
     const [creatingFolderIn, setCreatingFolderIn] = useState<
         string | null | undefined
     >(undefined);
@@ -604,30 +557,24 @@ export function DocTable({
     const [pendingDeleteFolderStatus, setPendingDeleteFolderStatus] = useState<
         "idle" | "deleting" | "deleted"
     >("idle");
-
     const openCreateFolder = useCallback(() => {
         if (loadingRef.current) return;
         setCreatingFolderIn(null);
         setNewFolderName("");
     }, []);
-
     useEffect(() => {
         onCreateFolderActionChange?.(openCreateFolder);
         return () => onCreateFolderActionChange?.(null);
     }, [onCreateFolderActionChange, openCreateFolder]);
-
     useEffect(() => {
         if (loading) return;
         setExpandedFolderIds(new Set(folders.map((f) => f.id)));
     }, [loading, folders]);
-
     useEffect(() => {
         setSelectedDocIds([]);
         setTypeFilter(null);
         setSort(null);
     }, [scopeKey]);
-
-    // Clear all drag state when any drag operation ends
     useEffect(() => {
         function handleDragEnd() {
             setDragOverFolderId(null);
@@ -638,8 +585,6 @@ export function DocTable({
         document.addEventListener("dragend", handleDragEnd);
         return () => document.removeEventListener("dragend", handleDragEnd);
     }, []);
-
-    // Scroll new-folder input into view whenever it appears
     useEffect(() => {
         if (creatingFolderIn !== undefined) {
             newFolderInputRef.current?.scrollIntoView({
@@ -648,9 +593,6 @@ export function DocTable({
             });
         }
     }, [creatingFolderIn]);
-
-    // ── Folder handlers ───────────────────────────────────────────────────────
-
     function toggleFolder(id: string) {
         setExpandedFolderIds((prev) => {
             const next = new Set(prev);
@@ -659,7 +601,6 @@ export function DocTable({
             return next;
         });
     }
-
     async function handleCreateFolder(parentId: string | null) {
         const name = newFolderName.trim();
         setNewFolderName("");
@@ -667,8 +608,6 @@ export function DocTable({
             setCreatingFolderIn(undefined);
             return;
         }
-
-        // Immediately hide the input and show an optimistic folder row
         setCreatingFolderIn(undefined);
         const tempId = `temp-${Date.now()}`;
         const optimistic = {
@@ -683,8 +622,6 @@ export function DocTable({
         setExpandedFolderIds((prev) => new Set([...prev, tempId]));
         if (parentId)
             setExpandedFolderIds((prev) => new Set([...prev, parentId]));
-
-        // Replace with real folder from API
         const folder = await operations.createFolder(name, parentId ?? null);
         setFolders((prev) => prev.map((f) => (f.id === tempId ? folder : f)));
         setExpandedFolderIds((prev) => {
@@ -694,7 +631,6 @@ export function DocTable({
             return next;
         });
     }
-
     async function handleRenameFolder(folderId: string) {
         const name = renameFolderValue.trim();
         setRenamingFolderId(null);
@@ -704,7 +640,6 @@ export function DocTable({
         );
         await operations.renameFolder(folderId, name);
     }
-
     function folderDeleteImpact(folderId: string) {
         const childrenByParent = new Map<string, string[]>();
         for (const folder of folders) {
@@ -714,7 +649,6 @@ export function DocTable({
             children.push(folder.id);
             childrenByParent.set(folder.parent_folder_id, children);
         }
-
         const toDelete = new Set<string>();
         const stack = [folderId];
         while (stack.length > 0) {
@@ -723,14 +657,12 @@ export function DocTable({
             toDelete.add(id);
             stack.push(...(childrenByParent.get(id) ?? []));
         }
-
         const folderIds = [...toDelete];
         const documentIds = documents
             .filter((d) => d.folder_id && toDelete.has(d.folder_id))
             .map((d) => d.id);
         return { folderIds, documentIds, documentCount: documentIds.length };
     }
-
     function requestDeleteFolder(folderId: string) {
         const folder = folders.find((f) => f.id === folderId);
         if (!folder) return;
@@ -743,16 +675,13 @@ export function DocTable({
             documentCount: impact.documentCount,
         });
     }
-
     async function confirmDeletePendingFolder() {
         const pending = pendingDeleteFolder;
         if (!pending || pendingDeleteFolderStatus === "deleting") return;
         setPendingDeleteFolderStatus("deleting");
-
         try {
             await operations.deleteFolder(pending.folder.id);
             const toDelete = new Set(pending.folderIds);
-
             setFolders((prev) => prev.filter((f) => !toDelete.has(f.id)));
             setDocuments((prev) =>
                 prev.filter((d) => !d.folder_id || !toDelete.has(d.folder_id)),
@@ -787,9 +716,6 @@ export function DocTable({
             );
         }
     }
-
-    // ── Doc/chat/review handlers ──────────────────────────────────────────────
-
     function handleDocsSelected(newDocs: Document[]) {
         setDocuments((prev) =>
             [
@@ -798,7 +724,6 @@ export function DocTable({
             ],
         );
     }
-
     function removeDocumentFromLocalState(docId: string) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
         setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
@@ -820,7 +745,6 @@ export function DocTable({
         setViewingDoc((prev) => (prev?.id === docId ? null : prev));
         if (renamingDocumentId === docId) setRenamingDocumentId(null);
     }
-
     function restoreDocumentToLocalState(
         doc: Document,
         snapshot: {
@@ -871,7 +795,6 @@ export function DocTable({
             setViewingDocVersion(snapshot.viewingVersion);
         }
     }
-
     async function handleRemoveDocFromFolder(docId: string) {
         setDocuments((prev) =>
             prev.map((d) =>
@@ -880,7 +803,6 @@ export function DocTable({
         );
         await operations.moveDocument(docId, null);
     }
-
     async function submitDocumentRename(docId: string) {
         const trimmed = renameDocumentValue.trim();
         if (!trimmed) {
@@ -898,9 +820,7 @@ export function DocTable({
             );
             return;
         }
-
         setRenamingDocumentId(null);
-
         setDocuments((prev) =>
             prev.map((d) =>
                 d.id === docId
@@ -926,7 +846,6 @@ export function DocTable({
             );
         }
     }
-
     async function handleRemoveDocuments(
         documentIds: string[],
         fromSelection: boolean,
@@ -1003,7 +922,6 @@ export function DocTable({
             }
         }
     }
-
     function requestRemoveDoc(doc: Document) {
         if (doc && user?.id && doc.user_id && doc.user_id !== user.id) {
             setOwnerOnlyAction(
@@ -1019,11 +937,7 @@ export function DocTable({
             fromSelection: false,
         });
     }
-
-    // ── Drag & drop ───────────────────────────────────────────────────────────
-
     function wouldCreateCycle(movingId: string, targetId: string): boolean {
-        // Returns true if targetId is movingId or a descendant of it
         let cur: DocTableFolder | undefined = folders.find(
             (f) => f.id === targetId,
         );
@@ -1034,7 +948,6 @@ export function DocTable({
         }
         return false;
     }
-
     function hasMovePayload(dt: DataTransfer): boolean {
         return Array.from(dt.types).some(
             (type) =>
@@ -1042,23 +955,18 @@ export function DocTable({
                 type === "application/mike-folder",
         );
     }
-
     function hasFilePayload(dt: DataTransfer): boolean {
         return Array.from(dt.types).includes("Files");
     }
-
     function hasDocumentPayload(dt: DataTransfer): boolean {
         return Array.from(dt.types).includes("application/mike-doc");
     }
-
     function currentVersionNumber(doc: Document): number | null {
         return documentVersionNumber(doc);
     }
-
     function isSharedDocument(doc: Document | null | undefined): boolean {
         return !!(doc?.user_id && user?.id && doc.user_id !== user.id);
     }
-
     async function handleDropCollectionFiles(files: File[]) {
         if (files.length === 0) return;
         const { supported, unsupported } =
@@ -1077,28 +985,23 @@ export function DocTable({
             setUploadingDroppedFilenames([]);
         }
     }
-
     const dropCollectionFilesFromWindow = useEffectEvent(
         handleDropCollectionFiles,
     );
-
     useEffect(() => {
         const hasFiles = (dataTransfer: DataTransfer | null) =>
             !!dataTransfer && Array.from(dataTransfer.types).includes("Files");
-
         function handleDragEnter(event: globalThis.DragEvent) {
             if (!hasFiles(event.dataTransfer)) return;
             event.preventDefault();
             collectionDragDepthRef.current += 1;
             setIsDraggingCollectionFiles(true);
         }
-
         function handleDragOver(event: globalThis.DragEvent) {
             if (!hasFiles(event.dataTransfer)) return;
             event.preventDefault();
             if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
         }
-
         function handleDragLeave(event: globalThis.DragEvent) {
             if (!hasFiles(event.dataTransfer)) return;
             collectionDragDepthRef.current = Math.max(
@@ -1109,7 +1012,6 @@ export function DocTable({
                 setIsDraggingCollectionFiles(false);
             }
         }
-
         function handleDrop(event: globalThis.DragEvent) {
             if (!hasFiles(event.dataTransfer)) return;
             event.preventDefault();
@@ -1120,7 +1022,6 @@ export function DocTable({
                 Array.from(event.dataTransfer?.files ?? []),
             );
         }
-
         window.addEventListener("dragenter", handleDragEnter);
         window.addEventListener("dragover", handleDragOver);
         window.addEventListener("dragleave", handleDragLeave);
@@ -1132,14 +1033,12 @@ export function DocTable({
             window.removeEventListener("drop", handleDrop);
         };
     }, []);
-
     async function handleDropDocumentVersions(doc: Document, files: File[]) {
         if (files.length === 0) return;
         const { supported, unsupported } =
             partitionSupportedDocumentFiles(files);
         setDocumentUploadWarning(formatUnsupportedDocumentWarning(unsupported));
         if (supported.length === 0) return;
-
         setUploadingVersionDocIds((prev) => new Set([...prev, doc.id]));
         try {
             for (const file of supported) {
@@ -1156,7 +1055,6 @@ export function DocTable({
             });
         }
     }
-
     async function saveExistingDocumentAsNewVersion(
         targetDoc: Document,
         sourceDoc: Document,
@@ -1175,7 +1073,6 @@ export function DocTable({
             viewingVersion:
                 viewingDoc?.id === sourceDoc.id ? viewingDocVersion : null,
         };
-
         setUploadingVersionDocIds((prev) => new Set([...prev, targetDoc.id]));
         removeDocumentFromLocalState(sourceDoc.id);
         try {
@@ -1200,7 +1097,6 @@ export function DocTable({
             });
         }
     }
-
     function handleDropExistingDocumentVersion(
         targetDoc: Document,
         sourceDocId: string,
@@ -1210,7 +1106,6 @@ export function DocTable({
         if (!sourceDoc) return;
         setPendingVersionDrop({ targetDoc, sourceDoc });
     }
-
     function handleDocumentVersionDragOver(
         e: DragEvent<HTMLDivElement>,
         docId: string,
@@ -1227,13 +1122,11 @@ export function DocTable({
         setDragOverVersionDocId(docId);
         setDragOverRoot(false);
     }
-
     function handleDocumentVersionDragLeave(e: DragEvent<HTMLDivElement>) {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
             setDragOverVersionDocId(null);
         }
     }
-
     function handleDocumentVersionDrop(
         e: DragEvent<HTMLDivElement>,
         doc: Document,
@@ -1263,7 +1156,6 @@ export function DocTable({
             e.dataTransfer.getData("application/mike-doc"),
         );
     }
-
     async function handleDropOnFolder(
         targetFolderId: string | null,
         dt: DataTransfer,
@@ -1299,9 +1191,6 @@ export function DocTable({
             await operations.moveFolder(subFolderId, targetFolderId);
         }
     }
-
-    // ── Tree rendering ────────────────────────────────────────────────────────
-
     function renderFolderInput(parentId: string | null, depth: number) {
         if (creatingFolderIn !== parentId) return null;
         return (
@@ -1346,7 +1235,6 @@ export function DocTable({
             </div>
         );
     }
-
     function renderDocumentActivityRow({
         key,
         filename,
@@ -1372,12 +1260,7 @@ export function DocTable({
                     <div className="flex items-center">
                         <Loader2 className="mr-4 h-2.5 w-2.5 animate-spin text-gray-400 shrink-0" />
                         <span className="mr-2 shrink-0">
-                            <FileTypeIcon
-                                fileType={fileType ?? filename}
-                                className="h-4 w-4"
-                                muted
-                            />
-                        </span>
+                            <FileTypeIcon                                fileType={fileType ?? filename}                                className="h-4 w-4"                                muted                            />                        </span>
                         <span className="text-sm text-gray-400 truncate">
                             {filename}
                         </span>
@@ -1399,7 +1282,6 @@ export function DocTable({
             </div>
         );
     }
-
     function renderUploadingDocumentRows(depth: number) {
         return uploadingDroppedFilenames.map((filename) =>
             renderDocumentActivityRow({
@@ -1411,13 +1293,11 @@ export function DocTable({
             }),
         );
     }
-
     function openDocument(doc: Document) {
         prewarmDocumentView(doc);
         setViewingDocVersion(null);
         setViewingDoc(doc);
     }
-
     function toggleDocumentSelection(docId: string) {
         setSelectedDocIds((prev) =>
             prev.includes(docId)
@@ -1425,7 +1305,6 @@ export function DocTable({
                 : [...prev, docId],
         );
     }
-
     function renderLevel(
         parentId: string | null,
         depth: number,
@@ -1450,7 +1329,6 @@ export function DocTable({
             : filteredDocs.filter(
                   (d) => (d.folder_id ?? null) === parentId,
               );
-
         return (
             <>
                 {parentId === null && renderUploadingDocumentRows(depth)}
@@ -1586,13 +1464,7 @@ export function DocTable({
                                                         {isError ? (
                                                             <AlertCircle className="h-4 w-4 text-red-500" />
                                                         ) : (
-                                                            <FileTypeIcon
-                                                                fileType={
-                                                                    doc.file_type
-                                                                }
-                                                                className="h-4 w-4"
-                                                            />
-                                                        )}
+                                                            <FileTypeIcon                                                                fileType={                                                                    doc.file_type                                                                }                                                                className="h-4 w-4"                                                            />                                                        )}
                                                     </span>
                                                     {renamingDocumentId ===
                                                     doc.id ? (
@@ -1803,7 +1675,6 @@ export function DocTable({
                         </div>
                     );
                 })}
-
                 {/* Subfolders after files, sorted alphabetically */}
                 {childFolders.map((folder) => {
                     const isExpanded = expandedFolderIds.has(folder.id);
@@ -1952,21 +1823,16 @@ export function DocTable({
                         </div>
                     );
                 })}
-
                 {/* New-folder input row at the bottom of this level */}
                 {!flat && renderFolderInput(parentId, depth)}
             </>
         );
     }
-
-    // ── Loading skeleton ──────────────────────────────────────────────────────
-
     const docs = documents;
     const downloadDoc = useCallback(async (docId: string) => {
         const { url, filename } = await getDocumentUrl(docId);
         downloadUrl(url, filename);
     }, []);
-
     const handleDownloadSelectedDocs = useCallback(async () => {
         const ids = [...selectedDocIds];
         if (ids.length === 1) {
@@ -1975,7 +1841,6 @@ export function DocTable({
         }
         downloadBlob(await downloadDocumentsZip(ids), "documents.zip");
     }, [downloadDoc, selectedDocIds]);
-
     const handleRemoveSelectedFromFolder = useCallback(async () => {
         const ids = selectedDocIds.filter(
             (id) => docs.find((d) => d.id === id)?.folder_id != null,
@@ -1990,7 +1855,6 @@ export function DocTable({
             ids.map((id) => operations.moveDocument(id, null).catch(() => {})),
         );
     }, [docs, operations, selectedDocIds, setDocuments]);
-
     const requestDeleteSelectedDocs = useCallback(async () => {
         const documentsToRemove = selectedDocIds
             .map((id) => documents.find((document) => document.id === id))
@@ -2002,7 +1866,6 @@ export function DocTable({
         });
         setDocumentRemovalStatus("idle");
     }, [documents, selectedDocIds]);
-
     async function confirmPendingDocumentRemoval() {
         const pending = pendingDocumentRemoval;
         if (!pending || documentRemovalStatus === "deleting") return;
@@ -2028,7 +1891,6 @@ export function DocTable({
             );
         }
     }
-
     const sidePanelDoc = viewingDoc
         ? (docs.find((doc) => doc.id === viewingDoc.id) ?? viewingDoc)
         : null;
@@ -2044,16 +1906,13 @@ export function DocTable({
                 })),
         [docs],
     );
-
     function clearDocumentSelection() {
         setSelectedDocIds([]);
     }
-
     function handleTypeFilterChange(value: string | null) {
         setTypeFilter(value);
         clearDocumentSelection();
     }
-
     function handleSortChange(
         key: DocumentSortKey,
         direction: TableSortDirection | null,
@@ -2061,7 +1920,6 @@ export function DocTable({
         setSort(direction ? { key, direction } : null);
         clearDocumentSelection();
     }
-
     const filteredDocs = useMemo(() => {
         const rows = docs
             .filter(
@@ -2075,39 +1933,8 @@ export function DocTable({
                     !typeFilter ||
                     documentTypeValue(doc) === typeFilter,
             );
-
         if (!enableHeaderFilters || !sort) return rows;
-
-        return sortRows(rows, (a, b) => {
-            if (sort.key === "size") {
-                return (a.size_bytes ?? 0) - (b.size_bytes ?? 0);
-            }
-
-            if (sort.key === "version") {
-                return (
-                    ((documentVersionNumber(a) ?? 0) -
-                        (documentVersionNumber(b) ?? 0))
-                );
-            }
-
-            if (sort.key === "created") {
-                return (
-                    (dateTimeValue(a.created_at) -
-                        dateTimeValue(b.created_at))
-                );
-            }
-
-            if (sort.key === "updated") {
-                return (
-                    (dateTimeValue(a.updated_at) -
-                        dateTimeValue(b.updated_at))
-                );
-            }
-
-            return a.filename.localeCompare(b.filename);
-        }, sort.direction);
-    }, [docs, enableHeaderFilters, q, sort, typeFilter]);
-
+        return sortRows(rows, (a, b) => {            if (sort.key === "size") {                return (a.size_bytes ?? 0) - (b.size_bytes ?? 0);            }            if (sort.key === "version") {                return (                    ((documentVersionNumber(a) ?? 0) -                        (documentVersionNumber(b) ?? 0))                );            }            if (sort.key === "created") {                return (                    (dateTimeValue(a.created_at) -                        dateTimeValue(b.created_at))                );            }            if (sort.key === "updated") {                return (                    (dateTimeValue(a.updated_at) -                        dateTimeValue(b.updated_at))                );            }            return a.filename.localeCompare(b.filename);        }, sort.direction);    }, [docs, enableHeaderFilters, q, sort, typeFilter]);
     const nameSortDirection = sort?.key === "name" ? sort.direction : null;
     const sizeSortDirection = sort?.key === "size" ? sort.direction : null;
     const versionSortDirection =
@@ -2170,7 +1997,6 @@ export function DocTable({
             onChange={(direction) => handleSortChange("updated", direction)}
         />
     ) : null;
-
     const allDocsSelected =
         filteredDocs.length > 0 &&
         filteredDocs.every((d) => selectedDocIds.includes(d.id));
@@ -2182,7 +2008,6 @@ export function DocTable({
             ? (docs.find((document) => document.id === selectedDocIds[0]) ??
               null)
             : null;
-
     const selectionActions = useMemo<DocTableSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
         return {
@@ -2213,15 +2038,12 @@ export function DocTable({
         selectedAutomationDocument,
         selectedDocIds,
     ]);
-
     useEffect(() => {
         onSelectionActionsChange?.(selectionActions);
     }, [onSelectionActionsChange, selectionActions]);
-
     useEffect(() => {
         return () => onSelectionActionsChange?.(null);
     }, [onSelectionActionsChange]);
-
     const pendingVersionDropMessage = pendingVersionDrop ? (
         <div className="space-y-2">
             <p>
@@ -2338,7 +2160,6 @@ export function DocTable({
             )}
         </div>
     ) : undefined;
-
     return (
         <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             <input
@@ -2511,9 +2332,7 @@ export function DocTable({
                         <div className="flex-1 flex flex-col min-h-0">
                             <div className="flex-1 flex flex-col min-h-0 relative">
                                 {dragOverRoot && dragOverFolderId === null && (
-                                    <div className="absolute inset-0 border-2 border-red-400 pointer-events-none z-[80]" />
-                                )}
-
+                                    <div className="absolute inset-0 border-2 border-red-400 pointer-events-none z-[80]" />                                )}
                                 {/* Empty state */}
                                 {docs.length === 0 &&
                                 folders.length === 0 &&
@@ -2564,18 +2383,15 @@ export function DocTable({
                                         <div className="flex-1 min-h-16" />
                                     </div>
                                 )}
-
                             </div>
                         </div>
                     )}
             </TableScrollArea>
-
             {renderAddDocumentsModal?.(
                 addDocsOpen,
                 () => setAddDocsOpen(false),
                 handleDocsSelected,
             )}
-
             <DocumentSidePanel
                 doc={sidePanelDoc}
                 versionId={viewingDocVersion?.id ?? null}
@@ -2616,7 +2432,6 @@ export function DocTable({
                 }}
                 documentRemovalMode={documentRemovalMode}
             />
-
         </div>
     );
 }

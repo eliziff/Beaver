@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -36,10 +35,7 @@ import {
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-import { formatDate, sortRows } from "@/app/lib/utils";
-
-function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";import { formatDate, sortRows } from "@/app/lib/utils";function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
     if (project.is_owner ?? project.user_id === currentUserId) return "Me";
     return (
         project.owner_display_name?.trim() ||
@@ -47,7 +43,6 @@ function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
         "Shared"
     );
 }
-
 type ProjectFilter = "all" | "mine" | "shared-with-me";
 type ProjectSortKey =
     | "name"
@@ -56,12 +51,10 @@ type ProjectSortKey =
     | "chats"
     | "reviews"
     | "created";
-
 const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
     { value: "asc", label: "Ascending" },
     { value: "desc", label: "Descending" },
 ];
-
 const PROJECT_COLUMN = {
     cm: "hidden w-24 sm:flex",
     practice: "hidden w-32 xl:flex",
@@ -72,7 +65,6 @@ const PROJECT_COLUMN = {
     created: "hidden w-28 2xl:flex",
     actions: "w-8",
 } as const;
-
 export function ProjectsOverview() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
@@ -91,10 +83,8 @@ export function ProjectsOverview() {
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const router = useRouter();
     const { user, isAuthenticated, authLoading } = useAuth();
-
     useEffect(() => {
         let cancelled = false;
-
         async function loadProjects() {
             await Promise.resolve();
             if (cancelled) return;
@@ -108,7 +98,6 @@ export function ProjectsOverview() {
                 setLoading(false);
                 return;
             }
-
             setLoading(true);
             setLoadError(null);
             try {
@@ -124,28 +113,13 @@ export function ProjectsOverview() {
                 if (!cancelled) setLoading(false);
             }
         }
-
         void loadProjects();
-
         return () => {
             cancelled = true;
         };
     }, [authLoading, isAuthenticated, user?.id]);
-
     const q = search.toLowerCase();
-    const practices = Array.from(
-        new Set(
-            projects
-                .map((project) => project.practice?.trim())
-                .filter((practice): practice is string => !!practice),
-        ),
-    ).sort((a, b) => a.localeCompare(b));
-    const ownerOptions = Array.from(
-        new Set(projects.map((project) => getProjectOwnerLabel(project, user?.id))),
-    )
-        .sort((a, b) => a.localeCompare(b))
-        .map((owner) => ({ value: owner, label: owner }));
-    const filtered = useMemo(() => {
+    const practices = Array.from(        new Set(            projects                .map((project) => project.practice?.trim())                .filter((practice): practice is string => !!practice),        ),    ).sort((a, b) => a.localeCompare(b));    const ownerOptions = Array.from(        new Set(projects.map((project) => getProjectOwnerLabel(project, user?.id))),    )        .sort((a, b) => a.localeCompare(b))        .map((owner) => ({ value: owner, label: owner }));    const filtered = useMemo(() => {
         const rows = (
             activeFilter === "all"
                 ? projects
@@ -174,36 +148,8 @@ export function ProjectsOverview() {
                     !ownerFilter ||
                     getProjectOwnerLabel(p, user?.id) === ownerFilter,
             );
-
         if (!sort) return rows;
-
-        return sortRows(rows, (a, b) => {
-            if (sort.key === "cm") {
-                return (a.cm_number ?? "").localeCompare(b.cm_number ?? "");
-            }
-
-            if (sort.key === "files") {
-                return (a.document_count ?? 0) - (b.document_count ?? 0);
-            }
-
-            if (sort.key === "chats") {
-                return (a.chat_count ?? 0) - (b.chat_count ?? 0);
-            }
-
-            if (sort.key === "reviews") {
-                return (a.review_count ?? 0) - (b.review_count ?? 0);
-            }
-
-            if (sort.key === "created") {
-                return (
-                    new Date(a.created_at).getTime() -
-                    new Date(b.created_at).getTime()
-                );
-            }
-
-            return a.name.localeCompare(b.name);
-        }, sort.direction);
-    }, [
+        return sortRows(rows, (a, b) => {            if (sort.key === "cm") {                return (a.cm_number ?? "").localeCompare(b.cm_number ?? "");            }            if (sort.key === "files") {                return (a.document_count ?? 0) - (b.document_count ?? 0);            }            if (sort.key === "chats") {                return (a.chat_count ?? 0) - (b.chat_count ?? 0);            }            if (sort.key === "reviews") {                return (a.review_count ?? 0) - (b.review_count ?? 0);            }            if (sort.key === "created") {                return (                    new Date(a.created_at).getTime() -                    new Date(b.created_at).getTime()                );            }            return a.name.localeCompare(b.name);        }, sort.direction);    }, [
         activeFilter,
         ownerFilter,
         practiceFilter,
@@ -212,13 +158,11 @@ export function ProjectsOverview() {
         user?.id,
         projects,
     ]);
-
     const allSelected =
         filtered.length > 0 &&
         filtered.every((p) => selectedIds.includes(p.id));
     const someSelected =
         !allSelected && filtered.some((p) => selectedIds.includes(p.id));
-
     function toggleAll() {
         if (allSelected) {
             setSelectedIds([]);
@@ -226,27 +170,22 @@ export function ProjectsOverview() {
             setSelectedIds(filtered.map((p) => p.id));
         }
     }
-
     function toggleOne(id: string) {
         setSelectedIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
         );
     }
-
     function clearSelection() {
         setSelectedIds([]);
     }
-
     function handlePracticeFilterChange(value: string | null) {
         setPracticeFilter(value);
         clearSelection();
     }
-
     function handleOwnerFilterChange(value: string | null) {
         setOwnerFilter(value);
         clearSelection();
     }
-
     function handleSortChange(
         key: ProjectSortKey,
         direction: TableSortDirection | null,
@@ -254,7 +193,6 @@ export function ProjectsOverview() {
         setSort(direction ? { key, direction } : null);
         clearSelection();
     }
-
     const filters: { id: ProjectFilter; label: string }[] = [
         { id: "all", label: "All" },
         { id: "mine", label: "Mine" },
@@ -345,7 +283,6 @@ export function ProjectsOverview() {
             onChange={(direction) => handleSortChange("created", direction)}
         />
     );
-
     async function handleProjectDetailsSave(values: {
         name: string;
         cmNumber: string;
@@ -377,7 +314,6 @@ export function ProjectsOverview() {
             current?.id === updated.id ? { ...current, ...updated } : current,
         );
     }
-
     async function handleDeleteSelected() {
         const ids = [...selectedIds];
         const owned = ids.filter((id) => {
@@ -394,7 +330,6 @@ export function ProjectsOverview() {
             );
         }
     }
-
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
             {selectedIds.length > 0 && (
@@ -415,7 +350,6 @@ export function ProjectsOverview() {
             )}
         </span>
     );
-
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             <PageHeader loading={loading}>
@@ -449,7 +383,6 @@ export function ProjectsOverview() {
                     </div>
                 </div>
             </PageHeader>
-
             <TableToolbar
                 items={filters}
                 active={activeFilter}
@@ -459,7 +392,6 @@ export function ProjectsOverview() {
                 }}
                 actions={toolbarActions}
             />
-
             <TableScrollArea
                 className="[&>div]:bg-white"
                 header={
@@ -625,7 +557,6 @@ export function ProjectsOverview() {
                                         {project.name}
                                     </span>
                                 </TablePrimaryCell>
-
                                 <TableCell className={`ml-auto text-gray-700 ${PROJECT_COLUMN.cm}`}>
                                     {project.cm_number ?? (
                                         <span className="text-gray-500">
@@ -655,7 +586,6 @@ export function ProjectsOverview() {
                                 <TableCell className={`text-gray-700 ${PROJECT_COLUMN.created}`}>
                                     {formatDate(project.created_at)}
                                 </TableCell>
-
                                 <div
                                     className={`${PROJECT_COLUMN.actions} shrink-0 justify-end`}
                                     onClick={(e) => e.stopPropagation()}
@@ -684,7 +614,6 @@ export function ProjectsOverview() {
                     </TableBody>
                 )}
             </TableScrollArea>
-
             <NewProjectModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
@@ -693,7 +622,6 @@ export function ProjectsOverview() {
                     router.push(`/projects/${p.id}`);
                 }}
             />
-
             <ProjectDetailsModal
                 open={!!detailsProject}
                 project={detailsProject}
@@ -705,7 +633,6 @@ export function ProjectsOverview() {
                 onClose={() => setDetailsProject(null)}
                 onSave={handleProjectDetailsSave}
             />
-
             <OwnerOnlyPopup
                 open={!!ownerOnlyAction}
                 action={ownerOnlyAction ?? undefined}

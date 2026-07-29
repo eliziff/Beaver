@@ -1,5 +1,4 @@
 "use client";
-
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
@@ -20,11 +19,9 @@ import {
     useQuickActionsPreference,
 } from "./quickActionsPreferences";
 import type { Message, Workflow } from "../shared/types";
-
 interface InitialViewProps {
     onSubmit: (message: Message) => void;
 }
-
 const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     Record<
         QuickActionId,
@@ -58,7 +55,6 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
         initialDocumentTab: "templates",
     },
 };
-
 export function InitialView({ onSubmit }: InitialViewProps) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
@@ -70,17 +66,14 @@ export function InitialView({ onSubmit }: InitialViewProps) {
     const { visibleActions, setVisibleActions } = useQuickActionsPreference();
     const chatInputRef = useRef<ChatInputHandle>(null);
     const { projects } = useDirectoryData(newTROpen, "projects");
-
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
     const visibleQuickActions = QUICK_ACTIONS.filter(
         (action) => visibleActions[action.id],
     );
-
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
         if (!config) return;
-
         chatInputRef.current?.startWorkflowDocumentSelection(
             {
                 id: config.workflowId,
@@ -90,7 +83,6 @@ export function InitialView({ onSubmit }: InitialViewProps) {
             { initialDocumentTab: config.initialDocumentTab },
         );
     }
-
     async function handleNewReview(
         title: string,
         projectId?: string,
@@ -110,7 +102,6 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                 : `/tabular-reviews/${review.id}`,
         );
     }
-
     function handleQuickAction(id: QuickActionId) {
         if (id === "projectChat") {
             setProjectModalOpen(true);
@@ -122,7 +113,6 @@ export function InitialView({ onSubmit }: InitialViewProps) {
             setNewTROpen(true);
         }
     }
-
     return (
         <div className="grid h-full w-full grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] px-6">
             <div className="flex min-h-0 items-end justify-center pb-6">
@@ -133,7 +123,6 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                     </h1>
                 </div>
             </div>
-
             <div className="w-full max-w-4xl justify-self-center px-0 xl:px-8">
                 <ChatInput
                     ref={chatInputRef}
@@ -142,14 +131,12 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                     isLoading={false}
                 />
             </div>
-
             <div className="min-h-0 w-full max-w-4xl justify-self-center px-0 pt-1 xl:px-8">
                 <div className="text-center">
                     <p className="text-xs py-2 mb-12 text-gray-500">
                         AI can make mistakes. Answers are not legal advice.
                     </p>
                 </div>
-
                 {visibleQuickActions.length > 0 && (
                     <div className="flex flex-col items-center">
                         <div className="group relative flex h-5 items-center justify-center">
@@ -181,14 +168,12 @@ export function InitialView({ onSubmit }: InitialViewProps) {
                     </div>
                 )}
             </div>
-
             <QuickActionsModal
                 open={quickActionsModalOpen}
                 onClose={() => setQuickActionsModalOpen(false)}
                 visibleActions={visibleActions}
                 onVisibleActionsChange={setVisibleActions}
             />
-
             <SelectAssistantProjectModal
                 open={projectModalOpen}
                 onClose={() => setProjectModalOpen(false)}

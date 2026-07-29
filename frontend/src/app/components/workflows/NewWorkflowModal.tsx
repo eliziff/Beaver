@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Table2, Upload } from "lucide-react";
 import { createWorkflow, updateWorkflow } from "@/app/lib/beaverApi";
@@ -10,7 +9,6 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
-
 const DEFAULT_LANGUAGE = "English";
 const DEFAULT_PRACTICE = "General Transactions";
 const DEFAULT_JURISDICTION = "General";
@@ -158,7 +156,6 @@ const CANADA_PROVINCE_OPTIONS = [
     "Saskatchewan",
     "Yukon",
 ] as const;
-
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -167,7 +164,6 @@ interface Props {
     readOnly?: boolean;
     onUpdated?: (workflow: Workflow) => void;
 }
-
 function getWorkflowSourceLabel(workflow: Workflow) {
     if (workflow.is_system) return "System";
     if (workflow.is_owner === false) {
@@ -175,7 +171,6 @@ function getWorkflowSourceLabel(workflow: Workflow) {
     }
     return "User";
 }
-
 const OPEN_SOURCE_STATUS_LABELS: Record<
     NonNullable<Workflow["open_source_submission"]>["status"],
     string
@@ -184,7 +179,6 @@ const OPEN_SOURCE_STATUS_LABELS: Record<
     approved: "Approved",
     rejected: "Rejected",
 };
-
 export function NewWorkflowModal({
     open,
     onClose,
@@ -213,7 +207,6 @@ export function NewWorkflowModal({
     const customInputRef = useRef<HTMLInputElement>(null);
     const customJurisdictionInputRef = useRef<HTMLInputElement>(null);
     const markdownInputRef = useRef<HTMLInputElement>(null);
-
     const isEditing = !!editWorkflow;
     const viewOnly = isEditing && readOnly;
     const workflowDetails = editWorkflow
@@ -281,7 +274,6 @@ export function NewWorkflowModal({
         .map((item) => item.trim())
         .filter(Boolean);
     const formId = "workflow-modal-form";
-
     const resetForm = useCallback(() => {
         setTitle("");
         setType("assistant");
@@ -300,7 +292,6 @@ export function NewWorkflowModal({
             markdownInputRef.current.value = "";
         }
     }, []);
-
     useEffect(() => {
         if (open && editWorkflow) {
             setTitle(editWorkflow.metadata.title);
@@ -359,27 +350,22 @@ export function NewWorkflowModal({
             resetForm();
         }
     }, [open, editWorkflow, resetForm]);
-
     useEffect(() => {
         if (isOtherLanguage) {
             customLanguageInputRef.current?.focus();
         }
     }, [isOtherLanguage]);
-
     useEffect(() => {
         if (isOtherPractice) {
             customInputRef.current?.focus();
         }
     }, [isOtherPractice]);
-
     useEffect(() => {
         if (isOtherJurisdiction) {
             customJurisdictionInputRef.current?.focus();
         }
     }, [isOtherJurisdiction]);
-
     if (!open) return null;
-
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (viewOnly) return;
@@ -425,19 +411,16 @@ export function NewWorkflowModal({
             setLoading(false);
         }
     }
-
     function handleClose() {
         resetForm();
         onClose();
     }
-
     async function handleMarkdownImport(
         e: React.ChangeEvent<HTMLInputElement>,
     ) {
         const file = e.target.files?.[0];
         setMarkdownImportError("");
         if (!file) return;
-
         const normalizedName = file.name.toLowerCase();
         if (
             !normalizedName.endsWith(".md") &&
@@ -449,7 +432,6 @@ export function NewWorkflowModal({
             e.target.value = "";
             return;
         }
-
         try {
             const text = await file.text();
             setImportedSkillMd(text);
@@ -461,7 +443,6 @@ export function NewWorkflowModal({
             e.target.value = "";
         }
     }
-
     return (
         <Modal
             open={open}
@@ -541,7 +522,6 @@ export function NewWorkflowModal({
                             autoFocus={!viewOnly}
                         />
                     </div>
-
                     {!isEditing && (
                         <div>
                             <ModalFieldLabel as="p">Type</ModalFieldLabel>
@@ -563,7 +543,6 @@ export function NewWorkflowModal({
                             />
                         </div>
                     )}
-
                     <div className="grid gap-5 md:grid-cols-2">
                         <div>
                             <ModalFieldLabel htmlFor="workflow-language">
@@ -595,7 +574,6 @@ export function NewWorkflowModal({
                                 />
                             )}
                         </div>
-
                         <div>
                             <ModalFieldLabel htmlFor="workflow-practice">
                                 Practice area
@@ -627,7 +605,6 @@ export function NewWorkflowModal({
                             )}
                         </div>
                     </div>
-
                     <div>
                         <ModalFieldLabel htmlFor="workflow-jurisdiction">
                             Jurisdiction
@@ -674,7 +651,6 @@ export function NewWorkflowModal({
                             />
                         )}
                     </div>
-
                     {(error || markdownImportError) && (
                         <p className="text-sm text-red-500">
                             {error || markdownImportError}

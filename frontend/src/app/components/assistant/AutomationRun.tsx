@@ -1,35 +1,28 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import type {
     AutomationRunEvent,
     AutomationToolName,
 } from "@/app/components/shared/types";
-
 const LABELS: Record<AutomationToolName, string> = {
     toa_submit_library_document: "Create book/table of authorities",
     toa_job_status: "Create book/table of authorities",
     library_link_docx_citations: "Auto-add hyperlinks to citations",
     library_fix_docx_supras: "Fix supra references",
 };
-
 const LOCAL_AUTOMATION_EVENT = "beaver:assistant-automation";
-
 export function automationLabel(tool: AutomationToolName) {
     return LABELS[tool];
 }
-
 export function automationRunKey(run: AutomationRunEvent) {
     return run.job_id ? `toa:${run.job_id}` : run.id;
 }
-
 export function publishAutomationRun(run: AutomationRunEvent) {
     window.dispatchEvent(
         new CustomEvent(LOCAL_AUTOMATION_EVENT, { detail: run }),
     );
 }
-
 export function AutomationRunButton({
     run,
     onOpen,
@@ -56,7 +49,6 @@ export function AutomationRunButton({
         </button>
     );
 }
-
 export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
     const rows = [
         ["Stage", run.stage],
@@ -71,7 +63,6 @@ export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
               : []),
         ...(run.counts ?? []).map(({ label, value }) => [label, String(value)]),
     ];
-
     return (
         <div className="min-w-0 space-y-4 p-4">
             <h2 className="text-base font-semibold text-gray-950">
@@ -135,11 +126,9 @@ export function AutomationRunPanel({ run }: { run: AutomationRunEvent }) {
         </div>
     );
 }
-
 export function AssistantAutomationActivity() {
     const [run, setRun] = useState<AutomationRunEvent | null>(null);
     const [expanded, setExpanded] = useState(false);
-
     useEffect(() => {
         const onRun = (event: Event) => {
             const next = (event as CustomEvent<AutomationRunEvent>).detail;
@@ -154,9 +143,7 @@ export function AssistantAutomationActivity() {
         window.addEventListener(LOCAL_AUTOMATION_EVENT, onRun);
         return () => window.removeEventListener(LOCAL_AUTOMATION_EVENT, onRun);
     }, []);
-
     if (!run) return null;
-
     return (
         <aside
             aria-label="Assistant activity"

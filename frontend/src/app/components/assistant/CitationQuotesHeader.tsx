@@ -1,8 +1,6 @@
 "use client";
-
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, Minus, Quote, RectangleHorizontal, Rows3 } from "lucide-react";
-
 export type CitationQuoteHeaderItem = {
     id: string;
     quote: string;
@@ -11,11 +9,9 @@ export type CitationQuoteHeaderItem = {
     detail?: string | null;
     citationText?: string | null;
 };
-
 const QUOTE_GLASS_SURFACE =
     "rounded-2xl border border-gray-200 bg-white shadow-sm";
 const QUOTE_CARD_SURFACE = "rounded-2xl bg-gray-100";
-
 interface Props {
     quotes: CitationQuoteHeaderItem[];
     error?: string | null;
@@ -27,7 +23,6 @@ interface Props {
     onSelect?: (quote: CitationQuoteHeaderItem, index: number) => void;
     onIndexChange?: (index: number) => void;
 }
-
 export function CitationQuotesHeader({
     quotes,
     error = null,
@@ -44,14 +39,12 @@ export function CitationQuotesHeader({
     const [isCopied, setIsCopied] = useState(false);
     const hasMultipleQuotes = quotes.length > 1;
     const currentQuote = quotes[currentIndex];
-
     useEffect(() => {
         if (!hasMultipleQuotes && viewMode === "list") {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- collapse list view when quotes drop to a single item
             setViewMode("single");
         }
     }, [hasMultipleQuotes, viewMode]);
-
     async function copyCitation() {
         if (!currentQuote) return;
         try {
@@ -64,7 +57,6 @@ export function CitationQuotesHeader({
             console.error("Failed to copy citation:", error);
         }
     }
-
     return (
         <div className="px-3">
             <div className={QUOTE_GLASS_SURFACE}>
@@ -237,7 +229,6 @@ export function CitationQuotesHeader({
         </div>
     );
 }
-
 function RelevantQuoteSkeleton() {
     return (
         <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
@@ -248,7 +239,6 @@ function RelevantQuoteSkeleton() {
         </div>
     );
 }
-
 function RelevantQuoteMessage({
     children,
     tone = "neutral",
@@ -268,7 +258,6 @@ function RelevantQuoteMessage({
         </div>
     );
 }
-
 function QuoteItem({
     quote,
     isActive,
@@ -283,30 +272,26 @@ function QuoteItem({
             type="button"
             onClick={onClick}
             className={`w-full rounded-xl px-3 py-2.5 text-left ${
-                isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"
-            }`}
+                isActive ? "bg-red-50" : "bg-gray-100 hover:bg-gray-200/70"            }`}
         >
             <div className="flex flex-col gap-1.5">
                 {quote.eyebrow && (
                     <p
                         className={`font-serif text-xs ${
-                            isActive ? "text-red-900" : "text-gray-500"
-                        }`}
+                            isActive ? "text-red-900" : "text-gray-500"                        }`}
                     >
                         {quote.eyebrow}
                     </p>
                 )}
                 <p
                     className={`font-serif text-sm leading-6 ${
-                        isActive ? "text-red-950" : "text-gray-700"
-                    }`}
+                        isActive ? "text-red-950" : "text-gray-700"                    }`}
                 >
                     &ldquo;{quote.quote.replace(/"/g, "'")}&rdquo;
                     {quote.inlineDetail && (
                         <span
                             className={`text-sm ${
-                                isActive ? "text-red-900" : "text-gray-500"
-                            }`}
+                                isActive ? "text-red-900" : "text-gray-500"                            }`}
                         >
                             {" "}
                             ({quote.inlineDetail})
@@ -316,8 +301,7 @@ function QuoteItem({
                 {quote.detail && (
                     <p
                         className={`font-serif text-xs ${
-                            isActive ? "text-red-900" : "text-gray-500"
-                        }`}
+                            isActive ? "text-red-900" : "text-gray-500"                        }`}
                     >
                         {quote.detail}
                     </p>

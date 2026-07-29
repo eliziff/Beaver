@@ -23,7 +23,6 @@ export function parseCourtlistenerEventCases(value: unknown) {
                 !!item && item.cluster_id > 0,
         );
 }
-
 export function parseCourtlistenerCaseSearches(value: unknown) {
     if (!Array.isArray(value)) return undefined;
     return value

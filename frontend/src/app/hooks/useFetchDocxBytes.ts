@@ -1,24 +1,13 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { API_BASE, apiFetch } from "@/app/lib/beaverApi";
-
-export interface FetchDocxResult {
+import { API_BASE, apiFetch } from "@/app/lib/beaverApi";export interface FetchDocxResult {
     bytes: ArrayBuffer | null;
     downloadUrl: string | null;
     loading: boolean;
     error: string | null;
 }
-
-// Module-level cache keyed by `${documentId}:${versionId}:${refetchKey}`.
-// The same cache is shared across every hook instance so tab switches
-// (which remount new DocxView subtrees or re-run the effect because of an
-// unstable prop upstream) don't cause a refetch as long as the tuple is
-// unchanged. Promises are cached too, so concurrent mounts for the same
-// key share a single in-flight request.
 const bytesCache = new Map<string, ArrayBuffer>();
 const inFlight = new Map<string, Promise<ArrayBuffer>>();
-
 function cacheKey(
     documentId: string,
     versionId?: string | null,
@@ -26,12 +15,6 @@ function cacheKey(
 ): string {
     return `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
 }
-
-/**
- * Fetch the raw .docx bytes for a document, optionally targeting a specific
- * tracked-changes version. Results are cached so the DocxView can re-render
- * cheaply when switching between versions, and tab switches don't refetch.
- */
 export function useFetchDocxBytes(
     documentId: string | null | undefined,
     versionId?: string | null,
@@ -46,7 +29,6 @@ export function useFetchDocxBytes(
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
     useEffect(() => {
         if (!documentId) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale bytes when documentId is removed, within the fetch effect
@@ -54,16 +36,8 @@ export function useFetchDocxBytes(
             setDownloadUrl(null);
             return;
         }
-
         const key = cacheKey(documentId, versionId, refetchKey);
-        const qs = versionId
-            ? `?version_id=${encodeURIComponent(versionId)}`
-            : "";
-        const path = `/single-documents/${documentId}/docx${qs}`;
-        const url = `${API_BASE}${path}`;
-
-        // Cache hit: reuse bytes synchronously, no network, no spinner.
-        const cached = bytesCache.get(key);
+        const qs = versionId            ? `?version_id=${encodeURIComponent(versionId)}`            : "";        const path = `/single-documents/${documentId}/docx${qs}`;        const url = `${API_BASE}${path}`;        const cached = bytesCache.get(key);
         if (cached) {
             setBytes(cached);
             setDownloadUrl(url);
@@ -71,26 +45,18 @@ export function useFetchDocxBytes(
             setError(null);
             return;
         }
-
         let cancelled = false;
         setLoading(true);
         setError(null);
-
         const pending =
             inFlight.get(key) ??
             (async () => {
-                // Stream bytes through the backend (avoids CORS on R2
-                // signed URLs).
-                const bin = await apiFetch(path, {
-                    headers: { Accept: "*/*" },
-                });
-                if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
+                const bin = await apiFetch(path, {                    headers: { Accept: "*/*" },                });                if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
                 const buf = await bin.arrayBuffer();
                 bytesCache.set(key, buf);
                 return buf;
             })();
         if (!inFlight.has(key)) inFlight.set(key, pending);
-
         pending
             .then((buf) => {
                 if (cancelled) return;
@@ -105,21 +71,12 @@ export function useFetchDocxBytes(
                 inFlight.delete(key);
                 if (!cancelled) setLoading(false);
             });
-
         return () => {
             cancelled = true;
         };
     }, [documentId, versionId, refetchKey]);
-
     return { bytes, downloadUrl, loading, error };
 }
-
-/**
- * Evict cache entries for a given document (e.g. after accept/reject
- * writes new bytes at the same storage path, or the user uploads a new
- * version). Pass a versionId to scope eviction; omit to clear every
- * cached version for that document.
- */
 export function invalidateDocxBytes(
     documentId: string,
     versionId?: string | null,

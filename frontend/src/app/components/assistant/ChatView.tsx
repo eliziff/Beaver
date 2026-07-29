@@ -1,5 +1,4 @@
 "use client";
-
 import {
     forwardRef,
     useCallback,
@@ -36,7 +35,6 @@ import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-
 interface Props {
     chatId?: string | null;
     messages: Message[];
@@ -64,25 +62,21 @@ interface Props {
     onDocumentsUploaded?: (documents: Document[]) => void;
     onActiveDocumentChange?: (documentId: string | null) => void;
 }
-
 export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
     closeDocument: (documentId: string) => void;
     openDocument: (document: Document) => void;
 }
-
 const MOBILE_BREAKPOINT_PX = 768;
 const DEFAULT_ASSISTANT_BOTTOM_PADDING = 116;
 const SCROLL_BUTTON_INPUT_GAP = 16;
 const CHAT_INPUT_BOTTOM_OFFSET = 12;
-
 function isSmallScreen() {
     return (
         typeof window !== "undefined" &&
         window.innerWidth < MOBILE_BREAKPOINT_PX
     );
 }
-
 export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     {
         chatId,
@@ -116,29 +110,22 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [reloadingDocIds, setReloadingDocIds] = useState<Set<string>>(
         () => new Set(),
     );
-    // Per-edit in-flight set — disables Accept/Reject on only the one
-    // edit currently being resolved, so sibling edits in the same message
-    // (and their twins in DocPanel) stay clickable.
     const [reloadingEditIds, setReloadingEditIds] = useState<Set<string>>(
         () => new Set(),
     );
     const { setSidebarOpen } = useSidebar();
-
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-chat UI state when switching chats
         setHiddenAskInputKeys(new Set());
     }, [chatId]);
-
     const restoreSidebarAfterPanelClose = useCallback(() => {
         if (!isSmallScreen()) setSidebarOpen(true);
     }, [setSidebarOpen]);
-
     const closeAllTabs = useCallback(() => {
         setTabs([]);
         setActiveTabId(null);
         restoreSidebarAfterPanelClose();
     }, [restoreSidebarAfterPanelClose]);
-
     const closeTab = useCallback(
         (id: string) => {
             const next = tabs.filter((tab) => tab.id !== id);
@@ -154,15 +141,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [activeTabId, closeAllTabs, tabs],
     );
-
-    /**
-     * One tab per document. If a tab for `tab.documentId` already exists,
-     * the panel stays mounted and only the header-relevant fields swap
-     * (kind, citation/edit, version, filename). Per-tab UI state — the
-     * dismissable warning and the saved scroll position — is preserved
-     * so switching headers doesn't blow away viewer state. If no tab
-     * exists for the document, a new one is appended.
-     */
     const upsertTab = useCallback(
         (tab: AssistantSidePanelTab) => {
             setTabs((prev) => {
@@ -207,11 +185,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [setSidebarOpen],
     );
-
-    /**
-     * Open a tab showing a single citation quote. Called from
-     * AssistantMessage when the user clicks a numbered citation pill.
-     */
     const openCitation = useCallback(
         (citation: Citation, options?: { showQuotes?: boolean }) => {
             const showQuotes = options?.showQuotes ?? true;
@@ -294,7 +267,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [chatId, upsertTab],
     );
-
     const openCase = useCallback(
         (citation: Extract<AssistantEvent, { type: "case_citation" }>) => {
             if (!citation.cluster_id) return;
@@ -316,11 +288,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [chatId, upsertTab],
     );
-
-    /**
-     * Open a tab showing a single tracked change. Called from
-     * AssistantMessage when the user clicks an EditCard's View button.
-     */
     const openEditor = useCallback(
         (ann: EditAnnotation, filename: string, changeNumber?: number) => {
             upsertTab({
@@ -336,11 +303,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [upsertTab],
     );
-
-    /**
-     * Open a tab showing a document without targeting a specific
-     * citation/edit — used by the download-card click.
-     */
     const openDocument = useCallback(
         (args: {
             documentId: string;
@@ -359,7 +321,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [upsertTab],
     );
-
     const mergedAutomationRun = useCallback(
         (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
             const key = automationRunKey(run);
@@ -378,7 +339,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [messages],
     );
-
     const openAutomation = useCallback(
         (run: Extract<AssistantEvent, { type: "automation_run" }>) => {
             const merged = mergedAutomationRun(run);
@@ -390,7 +350,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [mergedAutomationRun, upsertTab],
     );
-
     useEffect(() => {
         const latest = new Map<
             string,
@@ -427,11 +386,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             cancelled = true;
         };
     }, [messages]);
-
     const [resolvedEditStatuses, setResolvedEditStatuses] = useState<
         Record<string, "accepted" | "rejected">
     >({});
-
     const handleEditResolveStart = useCallback(
         (args: {
             editId: string;
@@ -453,7 +410,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [],
     );
-
     const handleEditResolved = useCallback(
         (args: {
             editId: string;
@@ -478,11 +434,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 next.delete(args.editId);
                 return next;
             });
-            // Propagate the new status onto any open edit-tab for this
-            // edit so DocPanel's Accept/Reject buttons flip and disable
-            // (their sync effect keys off edit.status). Without this, a
-            // resolve triggered from the inline EditCard or BulkEditActions
-            // leaves the panel buttons looking live.
             setTabs((prev) =>
                 prev.map((t) =>
                     t.kind === "edit" && t.edit.edit_id === args.editId
@@ -493,14 +444,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         : t,
                 ),
             );
-            // Accept/reject mutates bytes for this document's current
-            // version; drop the cache so the next DocxView render (or an
-            // explicit re-open) fetches the fresh file.
             invalidateDocxBytes(args.documentId);
         },
         [],
     );
-
     const patchTab = useCallback(
         (
             tabId: string,
@@ -526,7 +473,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [],
     );
-
     const handleEditError = useCallback(
         (args: {
             editId?: string;
@@ -534,7 +480,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             versionId?: string | null;
             message: string;
         }) => {
-            // Surface the warning on every tab tied to this document.
             setTabs((prev) =>
                 prev.map((t) =>
                     t.kind !== "automation" &&
@@ -562,21 +507,18 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [],
     );
-
     const handleWarningDismiss = useCallback(
         (tabId: string) => {
             patchTab(tabId, { warning: null });
         },
         [patchTab],
     );
-
     const handleScrollChange = useCallback(
         (tabId: string, scrollTop: number) => {
             patchTab(tabId, { initialScrollTop: scrollTop });
         },
         [patchTab],
     );
-
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
@@ -585,7 +527,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
     const [minHeight, setMinHeight] = useState("0px");
-
     useEffect(() => {
         const el = measuredInputRef.current;
         if (!el) return;
@@ -595,7 +536,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         update();
         return () => observer.disconnect();
     }, []);
-
     useEffect(() => {
         if (latestUserMessageRef.current) {
             const headerHeight = window.innerWidth < 768 ? 56 : 0;
@@ -607,14 +547,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             );
         }
     }, [messages.length]);
-
     const updateScrollButton = useCallback(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
         const isScrolledUp = c.scrollHeight - c.scrollTop - c.clientHeight > 10;
         setShowScrollButton(isScrolledUp && c.scrollHeight > c.clientHeight);
     }, []);
-
     useEffect(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
@@ -623,11 +561,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         updateScrollButton();
         return () => c.removeEventListener("scroll", updateScrollButton);
     }, [messages, updateScrollButton]);
-
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
-
     const scrollLatestUserToTop = useCallback(() => {
         const container = messagesContainerRef.current;
         const element = latestUserMessageRef.current;
@@ -637,11 +573,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             behavior: "auto",
         });
     }, []);
-
     useLayoutEffect(() => {
         if (messages.length > 0) scrollLatestUserToTop();
     }, [chatId, isResponseLoading, messages.length, scrollLatestUserToTop]);
-
     useEffect(() => {
         if (tabs.length > 0 && window.innerWidth < 768) {
             document.body.style.overflow = "hidden";
@@ -652,7 +586,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             document.body.style.overflow = "unset";
         };
     }, [tabs.length]);
-
     const rawActiveInput = (() => {
         for (
             let messageIndex = messages.length - 1;
@@ -740,7 +673,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             ],
         });
     };
-
     const messagesBottomPadding = DEFAULT_ASSISTANT_BOTTOM_PADDING;
     const lastUserIndex = messages.findLastIndex(
         (message) => message.role === "user",
@@ -748,7 +680,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const lastAssistantIndex = messages.findLastIndex(
         (message) => message.role === "assistant",
     );
-
     return (
         <div className="h-full w-full flex relative">
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
@@ -852,7 +783,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         </div>
                     </div>
                 </div>
-
                 {showScrollButton && (
                     <div
                         className="absolute left-1/2 -translate-x-1/2 z-19"
@@ -871,7 +801,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         </button>
                     </div>
                 )}
-
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
                     <div
                         ref={measuredInputRef}
@@ -935,14 +864,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     </div>
                 </div>
             </div>
-
             <AssistantWorkflowModal
                 open={workflowModalOpen}
                 onClose={() => setWorkflowModalOpen(false)}
                 onSelect={() => setWorkflowModalOpen(false)}
                 initialWorkflowId={workflowModalInitialId}
             />
-
             {tabs.length > 0 && (
                 <div className="fixed inset-0 z-40 flex justify-center p-3 md:relative md:inset-auto md:z-auto md:block md:h-full md:min-w-0 md:flex-shrink-0 md:p-0">
                     <AssistantSidePanel

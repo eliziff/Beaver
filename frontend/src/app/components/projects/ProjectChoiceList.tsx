@@ -1,11 +1,9 @@
 "use client";
-
 import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import type { Project } from "../shared/types";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { SearchBar } from "../ui/search-bar";
-
 interface Props {
     projects: Project[];
     value: string | null;
@@ -13,7 +11,6 @@ interface Props {
     disabled?: boolean;
     loading?: boolean;
 }
-
 export function ProjectChoiceList({
     projects,
     value,
@@ -31,7 +28,6 @@ export function ProjectChoiceList({
                 .includes(query),
         );
     }, [projects, search]);
-
     return (
         <div className="overflow-hidden rounded-md border border-gray-300 bg-white">
             <SearchBar

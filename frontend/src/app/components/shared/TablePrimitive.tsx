@@ -1,5 +1,4 @@
 "use client";
-
 import {
     useRef,
     useState,
@@ -17,21 +16,17 @@ import {
 } from "@/app/components/ui/liquid-surface";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-
 export const TABLE_STICKY_CELL_BG = "bg-app-surface";
 export const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
     "w-[190px] sm:w-[260px] md:w-[300px] xl:w-[320px] 2xl:w-[332px] shrink-0";
 type DivProps = HTMLAttributes<HTMLDivElement>;
-
 export type TableFilterOption<T extends string> = {
     value: T;
     label: string;
 };
-
 export type TableSortDirection = "asc" | "desc";
-
 export function TableFilters<T extends string>({
     label,
     value,
@@ -58,9 +53,7 @@ export function TableFilters<T extends string>({
             />
         );
     }
-
     const selected = options.find((option) => option.value === value);
-
     return (
         <label
             title={selected?.label ?? label}
@@ -96,7 +89,6 @@ export function TableFilters<T extends string>({
         </label>
     );
 }
-
 function SearchableTableFilter<T extends string>({
     label,
     value,
@@ -112,7 +104,6 @@ function SearchableTableFilter<T extends string>({
 }) {
     const [open, setOpen] = useState(false);
     const items = [{ value: null, label: allLabel }, ...options];
-
     return (
         <>
             <button
@@ -143,7 +134,6 @@ function SearchableTableFilter<T extends string>({
         </>
     );
 }
-
 export function SkeletonLine({ className }: { className?: string }) {
     return (
         <div
@@ -151,7 +141,6 @@ export function SkeletonLine({ className }: { className?: string }) {
         />
     );
 }
-
 export function SkeletonDot({ className }: { className?: string }) {
     return (
         <div
@@ -162,7 +151,6 @@ export function SkeletonDot({ className }: { className?: string }) {
         />
     );
 }
-
 export function TableSelectionPlaceholder() {
     return (
         <span
@@ -171,7 +159,6 @@ export function TableSelectionPlaceholder() {
         />
     );
 }
-
 export function TableScrollArea({
     children,
     className,
@@ -182,7 +169,6 @@ export function TableScrollArea({
     scrollRef?: RefObject<HTMLDivElement | null>;
 }) {
     const headerViewportRef = useRef<HTMLDivElement>(null);
-
     return (
         <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 md:mx-6 md:mb-3", className)}>
             <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
@@ -210,7 +196,6 @@ export function TableScrollArea({
         </div>
     );
 }
-
 export function TableHeaderRow({ children, className, ...props }: DivProps) {
     return (
         <div
@@ -224,7 +209,6 @@ export function TableHeaderRow({ children, className, ...props }: DivProps) {
         </div>
     );
 }
-
 export function TableRow({
     children,
     className,
@@ -250,7 +234,6 @@ export function TableRow({
         </div>
     );
 }
-
 export function TableStickyCell({
     children,
     className,
@@ -281,7 +264,6 @@ export function TableStickyCell({
         </div>
     );
 }
-
 export function TablePrimaryCell({
     children,
     className,
@@ -332,7 +314,6 @@ export function TablePrimaryCell({
         ) : (
             children
         );
-
     return (
         <TableStickyCell
             widthClassName={widthClassName}
@@ -355,7 +336,6 @@ export function TablePrimaryCell({
         </TableStickyCell>
     );
 }
-
 export function TableHeaderCell({ children, className, ...props }: DivProps) {
     return (
         <div
@@ -369,7 +349,6 @@ export function TableHeaderCell({ children, className, ...props }: DivProps) {
         </div>
     );
 }
-
 export function TableCell({ children, className, ...props }: DivProps) {
     return (
         <div
@@ -383,7 +362,6 @@ export function TableCell({ children, className, ...props }: DivProps) {
         </div>
     );
 }
-
 export function TableBody({ children, className, ...props }: DivProps) {
     return (
         <div className={cn("flex-1", className)} {...props}>
@@ -391,7 +369,6 @@ export function TableBody({ children, className, ...props }: DivProps) {
         </div>
     );
 }
-
 export function TableEmptyState({
     children,
     className,

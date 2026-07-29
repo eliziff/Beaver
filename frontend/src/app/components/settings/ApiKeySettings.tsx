@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
@@ -15,7 +14,6 @@ import {
     accountGlassInputClassName,
 } from "@/app/(pages)/account/accountStyles";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
-
 const MODEL_API_KEY_FIELDS = [
     {
         provider: "claude",
@@ -43,7 +41,6 @@ const MODEL_API_KEY_FIELDS = [
         placeholder: "sk-or-...",
     },
 ] as const;
-
 const OTHER_API_KEY_FIELDS = [
     {
         provider: "courtlistener",
@@ -53,10 +50,8 @@ const OTHER_API_KEY_FIELDS = [
             "Add a CourtListener API key if you want the latest CourtListener data. Otherwise, Beaver will use the bulk data hosted by us.",
     },
 ] as const;
-
 export function ApiKeySettings() {
     const { profile, updateApiKey } = useUserProfile();
-
     if (isAnonymousMode) {
         return (
             <div>
@@ -104,7 +99,6 @@ export function ApiKeySettings() {
             </div>
         );
     }
-
     return (
         <div>
             <h2 className="mb-3 text-2xl font-medium font-serif text-gray-900">
@@ -142,7 +136,6 @@ export function ApiKeySettings() {
                     </div>
                 ))}
             </AccountSection>
-
             <AccountSection className="mt-8">
                 {OTHER_API_KEY_FIELDS.map((field) => (
                     <ApiKeyField
@@ -166,7 +159,6 @@ export function ApiKeySettings() {
         </div>
     );
 }
-
 function ApiKeyField({
     label,
     description,
@@ -191,13 +183,10 @@ function ApiKeyField({
     const [pendingMfaAction, setPendingMfaAction] = useState<
         "save" | "remove" | null
     >(null);
-
     useEffect(() => {
         setValue("");
     }, [hasSavedKey]);
-
     const dirty = value.trim().length > 0;
-
     const handleSave = async () => {
         setIsSaving(true);
         try {
@@ -223,7 +212,6 @@ function ApiKeyField({
             setIsSaving(false);
         }
     };
-
     const handleRemove = async () => {
         setIsSaving(true);
         try {
@@ -243,7 +231,6 @@ function ApiKeyField({
             setIsSaving(false);
         }
     };
-
     const handleMfaVerified = async () => {
         const action = pendingMfaAction;
         setPendingMfaAction(null);
@@ -253,7 +240,6 @@ function ApiKeyField({
             await handleRemove();
         }
     };
-
     return (
         <>
             <div className="px-4 py-5">

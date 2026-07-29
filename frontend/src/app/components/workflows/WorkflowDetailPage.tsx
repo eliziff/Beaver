@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -62,20 +61,16 @@ import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { downloadWorkflowZip } from "./workflowZipExport";
-
 interface Props {
     id: string;
     workflowType: Workflow["metadata"]["type"];
 }
-
 type SaveStatus = "idle" | "saving" | "saved";
 type DeleteStatus = "idle" | "loading" | "complete";
 type WorkflowShare = Awaited<ReturnType<typeof listWorkflowShares>>[number];
-
 const NAME_COL_W = "w-[332px] shrink-0";
 const WORKFLOW_CONTRIBUTIONS_ENABLED =
     process.env.NEXT_PUBLIC_WORKFLOW_CONTRIBUTIONS_ENABLED === "true";
-
 export function WorkflowDetailPage({ id, workflowType }: Props) {
     const router = useRouter();
     const { user } = useAuth();
@@ -83,7 +78,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     const [workflow, setWorkflow] = useState<Workflow | null>(null);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
-
     const readOnly =
         (workflow?.is_system ?? false) ||
         workflow?.allow_edit === false;
@@ -92,24 +86,14 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         WORKFLOW_CONTRIBUTIONS_ENABLED &&
         canShare &&
         workflow?.is_system !== true;
-
-    // Editor state
     const [promptMd, setPromptMd] = useState("");
     const [columns, setColumns] = useState<ColumnConfig[]>([]);
-
-    // Save status
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Column selection
     const [selectedColIndices, setSelectedColIndices] = useState<number[]>([]);
-
-    // Column modal
     const [addColumnOpen, setAddColumnOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnConfig | null>(null);
     const [viewingColumn, setViewingColumn] = useState<ColumnConfig | null>(null);
-
-    // Share / use / details popovers
     const [shareOpen, setShareOpen] = useState(false);
     const [workflowSharedWith, setWorkflowSharedWith] = useState<string[]>([]);
     const [detailsOpen, setDetailsOpen] = useState(false);
@@ -117,8 +101,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
     const [openSourceOpen, setOpenSourceOpen] = useState(false);
-
-    // Load workflow
     useEffect(() => {
         getWorkflow(id)
             .then((wf) => {
@@ -137,7 +119,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             .catch(() => setNotFound(true))
             .finally(() => setLoading(false));
     }, [id, workflowType]);
-
     const fetchWorkflowShares = useCallback(async () => {
         const shares = await listWorkflowShares(id);
         setWorkflowSharedWith(
@@ -145,7 +126,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         );
         return shares;
     }, [id]);
-
     const fetchWorkflowPeople = useCallback(async (): Promise<ProjectPeople> => {
         const shares = await fetchWorkflowShares();
         const members = await Promise.all(
@@ -178,7 +158,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         user?.id,
         workflow?.user_id,
     ]);
-
     async function handleWorkflowSharedWithChange(nextSharedWith: string[]) {
         const nextEmails = [
             ...new Set(
@@ -195,7 +174,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 share,
             );
         }
-
         const added = nextEmails.filter((email) => !currentByEmail.has(email));
         const removed = currentShares.filter(
             (share) =>
@@ -203,18 +181,14 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                     share.shared_with_email.trim().toLowerCase(),
                 ),
         );
-
         await Promise.all([
             ...removed.map((share) => deleteWorkflowShare(id, share.id)),
             ...(added.length > 0
                 ? [shareWorkflow(id, { emails: added, allow_edit: false })]
                 : []),
         ]);
-
         await fetchWorkflowShares();
     }
-
-    // Debounced auto-save for prompt
     const save = useCallback(
         (newPromptMd: string) => {
             if (readOnly) return;
@@ -232,7 +206,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         },
         [id, readOnly],
     );
-
     async function handleDeleteWorkflow() {
         if (!workflow || readOnly || workflow.is_owner === false) return;
         setDeleteStatus("loading");
@@ -244,14 +217,11 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             setDeleteStatus("idle");
         }
     }
-
     function handlePromptChange(val: string | undefined) {
         const next = val ?? "";
         setPromptMd(next);
         save(next);
     }
-
-    // Column save
     async function saveColumns(next: ColumnConfig[]) {
         if (readOnly) return;
         setSaveStatus("saving");
@@ -270,7 +240,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             setSaveStatus("idle");
         }
     }
-
     function handleColumnsAdded(added: ColumnConfig[]) {
         const next = [
             ...columns,
@@ -280,7 +249,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         saveColumns(next);
         setAddColumnOpen(false);
     }
-
     function handleDeleteSelectedColumns() {
         const next = columns
             .filter((column) => !selectedColIndices.includes(column.index))
@@ -289,7 +257,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         saveColumns(next);
         setSelectedColIndices([]);
     }
-
     function handleColumnSaved(updated: ColumnConfig) {
         const next = columns.map((c) =>
             c.index === updated.index ? updated : c,
@@ -298,7 +265,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         saveColumns(next);
         setEditingColumn(null);
     }
-
     if (loading) {
         return (
             <div className="flex h-full flex-col">
@@ -323,7 +289,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             </div>
         );
     }
-
     if (notFound || !workflow) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -331,7 +296,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             </div>
         );
     }
-
     const defaultContributorName =
         profile?.displayName?.trim() || user?.email || "your account name";
     const openSourcePending =
@@ -346,7 +310,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             onSelect: () => setDetailsOpen(true),
         },
     ];
-
     if (!readOnly) {
         if (canOpenSource) {
             workflowActionItems.push({
@@ -354,7 +317,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 onSelect: () => setOpenSourceOpen(true),
             });
         }
-
         workflowActionItems.push({
             label: "Delete",
             disabled: workflow.is_owner === false,
@@ -364,7 +326,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
             },
         });
     }
-
     return (
         <div className="flex flex-col h-full">
             {/* Page header */}
@@ -499,26 +460,12 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                     )
                 }
             />
-
             {/* Body */}
             <div className="flex-1 min-h-0 flex flex-col">
                 {workflow.metadata.type === "assistant" ? (
-                    /* ── Assistant: WYSIWYG editor ── */
                     <div className="flex-1 min-h-0 px-4 pb-2 pt-4 md:px-6 md:pb-3">
-                        <textarea
-                            aria-label="Workflow prompt"
-                            value={promptMd}
-                            readOnly={readOnly}
-                            onChange={(event) =>
-                                handlePromptChange(event.target.value)
-                            }
-                            placeholder="Write the workflow prompt in Markdown."
-                            spellCheck
-                            className="min-h-80 w-full resize-y rounded-md border border-gray-300 bg-white p-4 font-mono text-sm leading-6 text-gray-900 outline-none focus:border-gray-600 read-only:resize-none read-only:bg-gray-50"
-                        />
-                    </div>
+                        <textarea                            aria-label="Workflow prompt"                            value={promptMd}                            readOnly={readOnly}                            onChange={(event) =>                                handlePromptChange(event.target.value)                            }                            placeholder="Write the workflow prompt in Markdown."                            spellCheck                            className="min-h-80 w-full resize-y rounded-md border border-gray-300 bg-white p-4 font-mono text-sm leading-6 text-gray-900 outline-none focus:border-gray-600 read-only:resize-none read-only:bg-gray-50"                        />                    </div>
                 ) : (
-                    /* ── Tabular: Column table ── */
                     <div className="flex flex-col flex-1 min-h-0 pt-2">
                         {!readOnly && (
                             <TableToolbar
@@ -556,7 +503,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                                 </span>
                             </div>
                         )}
-
                         <TableScrollArea
                             header={
                                 <TableHeaderRow className="md:pr-10">
@@ -728,18 +674,15 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                     </div>
                 )}
             </div>
-
             {viewingColumn && (
                 <WFColumnViewModal col={viewingColumn} onClose={() => setViewingColumn(null)} />
             )}
-
             <AddColumnModal
                 open={addColumnOpen}
                 existingCount={columns.length}
                 onClose={() => setAddColumnOpen(false)}
                 onAdd={handleColumnsAdded}
             />
-
             {editingColumn && (
                 <AddColumnModal
                     open
@@ -761,7 +704,6 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         </div>
     );
 }
-
 function AssistantWorkflowEditorSkeleton() {
     return (
         <div className="min-h-0 flex-1 px-4 pb-2 pt-4 md:px-6 md:pb-3">
@@ -789,11 +731,9 @@ function AssistantWorkflowEditorSkeleton() {
         </div>
     );
 }
-
 function TabularWorkflowEditorSkeleton() {
     const titleWidths = ["w-36", "w-44", "w-40", "w-52", "w-48"];
     const promptWidths = ["w-64", "w-80", "w-72", "w-96", "w-60"];
-
     return (
         <div className="flex min-h-0 flex-1 flex-col pt-2">
             <TableToolbar

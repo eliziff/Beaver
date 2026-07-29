@@ -1,5 +1,4 @@
 "use client";
-
 import {
     useEffect,
     useId,
@@ -72,11 +71,6 @@ import {
     isStreamingPlaceholder,
     reduceAssistantStreamEvent,
 } from "@/app/lib/assistantStreamEvents";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 interface TRMessage {
     role: "user" | "assistant";
     content: string;
@@ -84,7 +78,6 @@ interface TRMessage {
     annotations?: TRCitationAnnotation[];
     isStreaming?: boolean;
 }
-
 interface Props {
     reviewId: string;
     reviewTitle?: string | null;
@@ -94,11 +87,6 @@ interface Props {
     initialChatId?: string | null;
     onChatIdChange?: (chatId: string | null) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Citation preprocessing (matches AssistantMessage.tsx pattern)
-// ---------------------------------------------------------------------------
-
 function preprocessTRCitations(
     text: string,
     annotations: TRCitationAnnotation[],
@@ -118,11 +106,6 @@ function preprocessTRCitations(
         return tokens.length > 0 ? tokens.join("") : full;
     });
 }
-
-// ---------------------------------------------------------------------------
-// TRAssistantMessage
-// ---------------------------------------------------------------------------
-
 function TRAssistantMessage({
     msg,
     onCitationClick,
@@ -132,16 +115,12 @@ function TRAssistantMessage({
 }) {
     const annotations = msg.annotations ?? [];
     const citationsList: TRCitationAnnotation[] = [];
-
-    // Pre-process all content events
     const processedTexts: string[] = (msg.events ?? []).map((e) =>
         e.type === "content"
             ? preprocessTRCitations(e.text, annotations, citationsList)
             : "",
     );
-
     const events = msg.events ?? [];
-
     const rawActivityEntries = events.flatMap((event, index) =>
         event.type === "reasoning" ||
         event.type === "doc_read" ||
@@ -158,7 +137,6 @@ function TRAssistantMessage({
         .reverse()
         .map(activityLabel)
         .find((label): label is string => !!label);
-
     const renderPreEvent = (
         event: AssistantEvent,
         index: number,
@@ -168,7 +146,6 @@ function TRAssistantMessage({
         const nextEvent = allEvents[index + 1];
         const showConnector =
             nextEvent !== undefined && nextEvent.type !== "content";
-
         if (event.type === "reasoning") {
             return (
                 <ReasoningBlock
@@ -203,7 +180,6 @@ function TRAssistantMessage({
         }
         return null;
     };
-
     const renderContent = (text: string, key: number) => (
         <div
             key={key}
@@ -268,7 +244,6 @@ function TRAssistantMessage({
             </ReactMarkdown>
         </div>
     );
-
     return (
         <div className="text-gray-900 font-serif">
             {(activityEntries.length > 0 ||
@@ -312,11 +287,6 @@ function TRAssistantMessage({
         </div>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Input
-// ---------------------------------------------------------------------------
-
 function TRChatInput({
     isLoading,
     onSubmit,
@@ -335,35 +305,29 @@ function TRChatInput({
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const rootRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-
     useEffect(() => {
         const root = rootRef.current;
         if (!root) return;
-
         const notify = () => {
             onHeightChange(root.getBoundingClientRect().height);
         };
         notify();
-
         const observer = new ResizeObserver(notify);
         observer.observe(root);
         return () => {
             observer.disconnect();
         };
     }, [onHeightChange]);
-
     function resizeTextarea(el: HTMLTextAreaElement) {
         el.style.height = "auto";
         el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
         el.style.overflowY = el.scrollHeight > 192 ? "auto" : "hidden";
     }
-
     function resetTextarea() {
         if (!textareaRef.current) return;
         textareaRef.current.style.height = "auto";
         textareaRef.current.style.overflowY = "hidden";
     }
-
     function handleAction() {
         if (isLoading) {
             onCancel();
@@ -375,7 +339,6 @@ function TRChatInput({
         resetTextarea();
         onSubmit(trimmed, model, reasoningEffort);
     }
-
     return (
         <div
             ref={rootRef}
@@ -431,11 +394,6 @@ function TRChatInput({
         </div>
     );
 }
-
-// ---------------------------------------------------------------------------
-// History dropdown
-// ---------------------------------------------------------------------------
-
 function HistoryDropdown({
     chats,
     currentChatId,
@@ -460,13 +418,11 @@ function HistoryDropdown({
             const label = c.title ?? "";
             return label.toLowerCase().includes(query.toLowerCase());
         });
-
     function commitRename(chatId: string) {
         const trimmed = renameValue.trim();
         setRenamingChatId(null);
         if (trimmed) onRename(chatId, trimmed);
     }
-
     return (
         <>
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/40">
@@ -554,19 +510,9 @@ function HistoryDropdown({
         </>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Header pills (matches PageHeader action group styling)
-// ---------------------------------------------------------------------------
-
 const HEADER_PILL_CLASS =
     "flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-app-surface px-1 py-0.5 shadow-sm";
 const HEADER_PILL_BUTTON_CLASS = `flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function TRChatPanel({
     reviewId,
     reviewTitle,
@@ -598,28 +544,21 @@ export function TRChatPanel({
             Math.min(800, Math.max(280, width - deltaX)),
         ),
     );
-
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
     const eventsRef = useRef<AssistantEvent[]>([]);
-
-    // Load existing chats from DB on mount
     useEffect(() => {
         getTabularChats(reviewId)
             .then(setChats)
             .catch(() => {});
     }, [reviewId]);
-
-    // Load messages for an initial chat id (e.g. from URL)
     useEffect(() => {
         if (!initialChatId) return;
         getTabularChatMessages(reviewId, initialChatId)
             .then((raw) => setMessages(mapTRMessages(raw) as TRMessage[]))
             .catch(() => {});
     }, [reviewId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Emit currentChatId changes to parent
     const onChatIdChangeRef = useRef(onChatIdChange);
     useEffect(() => {
         onChatIdChangeRef.current = onChatIdChange;
@@ -627,7 +566,6 @@ export function TRChatPanel({
     useEffect(() => {
         onChatIdChangeRef.current?.(currentChatId);
     }, [currentChatId]);
-
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
         const element = latestUserMessageRef.current;
@@ -635,7 +573,6 @@ export function TRChatPanel({
             container.scrollTop = Math.max(0, element.offsetTop - 44);
         }
     }, [messages.length]);
-
     useEffect(() => {
         const userEl = latestUserMessageRef.current;
         const containerEl = messagesContainerRef.current;
@@ -648,9 +585,6 @@ export function TRChatPanel({
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages.length, latestUserMessageRef.current]);
-
-    // ---- event helpers ----
-
     function updateLatestAssistantMessage(
         updater: (message: TRMessage) => TRMessage,
     ) {
@@ -663,7 +597,6 @@ export function TRChatPanel({
             return updated;
         });
     }
-
     function finishStreamingEvents() {
         const before = eventsRef.current;
         let changed = false;
@@ -686,14 +619,10 @@ export function TRChatPanel({
             events: snapshot,
         }));
     }
-
-    // ---- chat actions ----
-
     function handleNewChat() {
         setCurrentChatId(null);
         setMessages([]);
     }
-
     async function handleDeleteChat(chatId: string) {
         setChats((prev) => prev.filter((c) => c.id !== chatId));
         if (chatId === currentChatId) {
@@ -703,10 +632,8 @@ export function TRChatPanel({
         try {
             await deleteTabularChat(reviewId, chatId);
         } catch {
-            /* ignore */
         }
     }
-
     async function handleRenameChat(chatId: string, title: string) {
         setChats((prev) =>
             prev.map((c) => (c.id === chatId ? { ...c, title } : c)),
@@ -714,10 +641,8 @@ export function TRChatPanel({
         try {
             await renameTabularChat(reviewId, chatId, title);
         } catch {
-            /* ignore */
         }
     }
-
     async function handleLoadChat(chatId: string) {
         setCurrentChatId(chatId);
         setMessages([]);
@@ -725,22 +650,17 @@ export function TRChatPanel({
             const raw = await getTabularChatMessages(reviewId, chatId);
             setMessages(mapTRMessages(raw) as TRMessage[]);
         } catch {
-            /* ignore */
         }
     }
-
     function handleCancel() {
         abortRef.current?.abort();
     }
-
     async function handleSubmit(trimmed: string, model: string, effort?: string) {
         if (!trimmed || isLoading) return;
         if (apiKeys && !isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
         }
-
-        // Build messages array for backend (plain text history)
         const history: { role: string; content: string }[] = messages.map(
             (m) => ({
                 role: m.role,
@@ -748,7 +668,6 @@ export function TRChatPanel({
             }),
         );
         const allMessages = [...history, { role: "user", content: trimmed }];
-
         const userMsg: TRMessage = { role: "user", content: trimmed };
         const assistantMsg: TRMessage = {
             role: "assistant",
@@ -756,15 +675,11 @@ export function TRChatPanel({
             events: [],
             isStreaming: true,
         };
-
         setMessages((prev) => [...prev, userMsg, assistantMsg]);
         setIsLoading(true);
-
         eventsRef.current = [];
-
         const controller = new AbortController();
         abortRef.current = controller;
-
         try {
             const response = await streamTabularChat(
                 reviewId,
@@ -779,13 +694,10 @@ export function TRChatPanel({
                 },
             );
             if (!response.body) throw new Error("No response body");
-
             for await (const dataStr of readSseData(response.body)) {
                 if (dataStr === "[DONE]") continue;
-
                 try {
                     const data = JSON.parse(dataStr);
-
                         if (data.type === "chat_id") {
                             const newId = data.chatId as string;
                             setCurrentChatId(newId);
@@ -806,7 +718,6 @@ export function TRChatPanel({
                             );
                             continue;
                         }
-
                         if (data.type === "chat_title") {
                             const { chatId, title } = data as {
                                 chatId: string;
@@ -819,7 +730,6 @@ export function TRChatPanel({
                             );
                             continue;
                         }
-
                         const reduction = reduceAssistantStreamEvent(
                             eventsRef.current,
                             data,
@@ -833,11 +743,7 @@ export function TRChatPanel({
                             }));
                             continue;
                         }
-
                         if (data.type === "citations") {
-                            // End-of-stream signal — scrub any lingering
-                            // placeholders so they don't persist into the
-                            // finalised message.
                             finishStreamingEvents();
                             const incoming = (data.citations ??
                                 []) as TRCitationAnnotation[];
@@ -848,10 +754,8 @@ export function TRChatPanel({
                             continue;
                         }
                 } catch {
-                    /* skip malformed */
                 }
             }
-
             finishStreamingEvents();
             updateLatestAssistantMessage((message) => ({
                 ...message,
@@ -886,14 +790,10 @@ export function TRChatPanel({
             abortRef.current = null;
         }
     }
-
-    // ---- render ----
-
     const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
     const lastAssistantIdx = messages.findLastIndex(
         (m) => m.role === "assistant",
     );
-
     return (
         <div
             style={
@@ -903,9 +803,6 @@ export function TRChatPanel({
             }
             className={cn(
                 "flex flex-col relative",
-                // Mobile: replaces the table, filling the row minus margins.
-                // md+: fixed width beside the table, top-aligned with it
-                // (below the toolbar).
                 "flex-1 min-w-0 mx-3 mb-3 md:flex-none md:w-[var(--tr-chat-panel-width)] md:mt-12 md:-ml-4 md:mr-6",
                 LIQUID_PANEL_SURFACE_CLASS,
                 "overflow-hidden",
@@ -974,7 +871,6 @@ export function TRChatPanel({
                     </div>
                 </div>
             </div>
-
             {/* Messages */}
             <div
                 ref={messagesContainerRef}
@@ -1014,7 +910,6 @@ export function TRChatPanel({
                     </div>
                 )}
             </div>
-
             {/* Input */}
             <TRChatInput
                 isLoading={isLoading}
@@ -1023,7 +918,6 @@ export function TRChatPanel({
                 apiKeys={apiKeys}
                 onHeightChange={setInputHeight}
             />
-
             <ApiKeyMissingPopup
                 open={apiKeyModalProvider !== null}
                 provider={apiKeyModalProvider}

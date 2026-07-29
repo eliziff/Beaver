@@ -1,10 +1,7 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { Modal } from "@/app/components/modals/Modal";
-
 const OPEN_LAYER = '[data-shortcut-layer][data-shortcut-open="true"]';
-
 function isEditable(target: EventTarget | null) {
     return (
         target instanceof HTMLElement &&
@@ -15,20 +12,16 @@ function isEditable(target: EventTarget | null) {
         )
     );
 }
-
 function firstVisible<T extends HTMLElement>(selector: string) {
     return [...document.querySelectorAll<T>(selector)].find(
         (element) => element.getClientRects().length > 0 && !element.hidden,
     );
 }
-
 export function KeyboardShortcuts() {
     const [helpOpen, setHelpOpen] = useState(false);
-
     useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
             if (event.defaultPrevented) return;
-
             if (
                 event.key === "Escape" &&
                 !event.altKey &&
@@ -60,10 +53,8 @@ export function KeyboardShortcuts() {
                 if (close !== layer && close.isConnected) close.focus();
                 return;
             }
-
             if (isEditable(event.target)) return;
             if (event.ctrlKey || event.metaKey) return;
-
             if (event.key === "/" && !event.altKey) {
                 const search =
                     firstVisible<HTMLInputElement>("[data-page-search]");
@@ -72,7 +63,6 @@ export function KeyboardShortcuts() {
                 search.focus();
                 return;
             }
-
             if (
                 event.key.toLowerCase() === "n" &&
                 event.altKey &&
@@ -87,17 +77,14 @@ export function KeyboardShortcuts() {
                 action.click();
                 return;
             }
-
             if (event.key === "?" && !event.altKey) {
                 event.preventDefault();
                 setHelpOpen(true);
             }
         }
-
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, []);
-
     return (
         <Modal
             open={helpOpen}

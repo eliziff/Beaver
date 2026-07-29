@@ -1,12 +1,10 @@
 "use client";
-
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { cn } from "@/app/lib/utils";
-
 type ModalSize = "sm" | "md" | "lg" | "xl";
 type ModalAction = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
@@ -16,7 +14,6 @@ type ModalAction = Omit<
     icon?: ReactNode;
     variant?: "primary" | "secondary" | "danger";
 };
-
 interface ModalProps {
     open: boolean;
     onClose: () => void;
@@ -30,24 +27,16 @@ interface ModalProps {
     primaryAction?: ModalAction;
     secondaryAction?: ModalAction;
     cancelAction?: ModalAction | false;
-    /**
-     * Keep the modal (and its children's state) mounted while closed,
-     * rendering it hidden instead of unmounting. Lets content like loaded
-     * directory listings survive close/reopen cycles.
-     */
     keepMounted?: boolean;
 }
-
 const sizeClassName: Record<ModalSize, string> = {
     sm: "max-w-md",
     md: "max-w-lg",
     lg: "max-w-xl",
     xl: "max-w-2xl",
 };
-
 const FOCUSABLE =
     'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])';
-
 export function Modal({
     open,
     onClose,
@@ -63,8 +52,6 @@ export function Modal({
     cancelAction,
     keepMounted = false,
 }: ModalProps) {
-    // Portals can't render during SSR, so a keep-mounted modal only renders
-    // (hidden) after the first client mount.
     const [hasMounted, setHasMounted] = useState(false);
     const layerRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
@@ -77,7 +64,6 @@ export function Modal({
         secondaryAction ||
         cancelAction;
     const resolvedCancelAction = cancelAction;
-
     useEffect(() => {
         if (!open) return;
         const restoreFocus =
@@ -91,9 +77,7 @@ export function Modal({
             if (restoreFocus?.isConnected) restoreFocus.focus();
         };
     }, [open]);
-
     if (!open && (!keepMounted || !hasMounted)) return null;
-
     return createPortal(
         <div
             ref={layerRef}
@@ -243,7 +227,6 @@ export function Modal({
         document.body,
     );
 }
-
 function ModalActionButton({
     action,
     fallbackVariant,
@@ -257,7 +240,6 @@ function ModalActionButton({
         variant = fallbackVariant === "cancel" ? "secondary" : fallbackVariant,
         ...props
     } = action;
-
     if (fallbackVariant === "cancel") {
         return (
             <button
@@ -269,16 +251,13 @@ function ModalActionButton({
             </button>
         );
     }
-
     const tone =
         variant === "danger"
             ? "danger"
             : fallbackVariant === "secondary" && variant === "secondary"
-              ? "white"
-              : variant === "primary"
+              ? "white"              : variant === "primary"
                 ? "black"
                 : "white";
-
     return (
         <PillButton tone={tone} size="normal" {...props}>
             {icon}

@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -44,11 +43,9 @@ import {
     TableStickyCell,
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-
 type WorkflowSourceFilter = "system" | "user" | "shared";
 type WorkflowListTab = "all" | "assistant" | "tabular" | "system";
 type WorkflowSortKey = "name" | "type";
-
 const WORKFLOW_TABS: { id: WorkflowListTab; label: string }[] = [
     { id: "all", label: "All" },
     { id: "assistant", label: "Assistant" },
@@ -67,7 +64,6 @@ const WORKFLOW_COLUMN = {
     source: "hidden w-28 lg:flex",
     actions: "w-8",
 } as const;
-
 export function WorkflowList() {
     const router = useRouter();
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -92,7 +88,6 @@ export function WorkflowList() {
         direction: TableSortDirection;
     } | null>(null);
     const [search, setSearch] = useState("");
-
     useEffect(() => {
         Promise.all([
             listWorkflows("assistant"),
@@ -108,7 +103,6 @@ export function WorkflowList() {
             })
             .finally(() => setLoading(false));
     }, []);
-
     const systemWorkflows = workflows.filter((wf) => wf.is_system);
     const userWorkflows = workflows.filter(
         (wf) => !wf.is_system && wf.is_owner !== false,
@@ -167,53 +161,43 @@ export function WorkflowList() {
         .filter((wf) => !languageFilter || wf.metadata.language === languageFilter)
         .filter((wf) => !q || wf.metadata.title.toLowerCase().includes(q))
         .sort((a, b) => compareWorkflows(a, b, sort));
-
     const allSelected =
         filtered.length > 0 &&
         filtered.every((wf) => selectedIds.includes(wf.id));
     const someSelected =
         !allSelected && filtered.some((wf) => selectedIds.includes(wf.id));
-
     function toggleAll() {
         if (allSelected) setSelectedIds([]);
         else setSelectedIds(filtered.map((wf) => wf.id));
     }
-
     function toggleOne(id: string) {
         setSelectedIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
         );
     }
-
     function clearSelection() {
         setSelectedIds([]);
     }
-
     function handleTabChange(tab: WorkflowListTab) {
         setActiveTab(tab);
         clearSelection();
     }
-
     function handlePracticeFilterChange(value: string | null) {
         setPracticeFilter(value);
         clearSelection();
     }
-
     function handleJurisdictionFilterChange(value: string | null) {
         setJurisdictionFilter(value);
         clearSelection();
     }
-
     function handleLanguageFilterChange(value: string | null) {
         setLanguageFilter(value);
         clearSelection();
     }
-
     function handleSourceFilterChange(value: WorkflowSourceFilter | null) {
         setSourceFilter(value);
         clearSelection();
     }
-
     function handleSortChange(
         key: WorkflowSortKey,
         direction: TableSortDirection | null,
@@ -221,21 +205,18 @@ export function WorkflowList() {
         setSort(direction ? { key, direction } : null);
         clearSelection();
     }
-
     async function handleHideWorkflow(id: string) {
         setHiddenSystemIds((prev) => [...prev, id]);
         await hideWorkflow(id).catch(() => {
             setHiddenSystemIds((prev) => prev.filter((x) => x !== id));
         });
     }
-
     async function handleUnhideWorkflow(id: string) {
         setHiddenSystemIds((prev) => prev.filter((x) => x !== id));
         await unhideWorkflow(id).catch(() => {
             setHiddenSystemIds((prev) => [...prev, id]);
         });
     }
-
     async function handleBulkRemove() {
         const ids = [...selectedIds];
         setSelectedIds([]);
@@ -261,14 +242,12 @@ export function WorkflowList() {
             );
         }
     }
-
     async function handleBulkUnhide() {
         const ids = [...selectedIds];
         setSelectedIds([]);
         setHiddenSystemIds((prev) => prev.filter((id) => !ids.includes(id)));
         await Promise.all(ids.map((id) => unhideWorkflow(id).catch(() => {})));
     }
-
     const nameSortDirection =
         sort?.key === "name" ? sort.direction : null;
     const typeSortDirection =
@@ -291,7 +270,6 @@ export function WorkflowList() {
             onChange={(direction) => handleSortChange("type", direction)}
         />
     );
-
     const practiceFilterButton = (
         <TableFilters
             label="Filter by practice"
@@ -305,7 +283,6 @@ export function WorkflowList() {
             onChange={handlePracticeFilterChange}
         />
     );
-
     const jurisdictionFilterButton = (
         <TableFilters
             label="Filter by jurisdiction"
@@ -319,7 +296,6 @@ export function WorkflowList() {
             onChange={handleJurisdictionFilterChange}
         />
     );
-
     const languageFilterButton = (
         <TableFilters
             label="Filter by language"
@@ -333,7 +309,6 @@ export function WorkflowList() {
             onChange={handleLanguageFilterChange}
         />
     );
-
     const sourceOptions: TableFilterOption<WorkflowSourceFilter>[] =
         isAnonymousMode
             ? [{ value: "system", label: "System" }]
@@ -351,7 +326,6 @@ export function WorkflowList() {
             onChange={handleSourceFilterChange}
         />
     );
-
     const selectedHiddenSystemIds = selectedIds.filter((id) =>
         hiddenSystemIds.includes(id),
     );
@@ -363,7 +337,6 @@ export function WorkflowList() {
     const selectedOnlyHiddenSystem =
         selectedIds.length > 0 &&
         selectedIds.length === selectedHiddenSystemIds.length;
-
     const toolbarActions = !isAnonymousMode ? (
         <span className="inline-flex h-8 w-28">
             {selectedIds.length > 0 && (
@@ -391,7 +364,6 @@ export function WorkflowList() {
             )}
         </span>
     ) : undefined;
-
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             {/* Page header */}
@@ -418,14 +390,12 @@ export function WorkflowList() {
                     Workflows
                 </h1>
             </PageHeader>
-
             <TableToolbar
                 items={WORKFLOW_TABS}
                 active={activeTab}
                 onChange={handleTabChange}
                 actions={toolbarActions}
             />
-
             {/* Table */}
             <TableScrollArea
                 header={
@@ -493,7 +463,6 @@ export function WorkflowList() {
                     </TableHeaderRow>
                 }
             >
-
                     {loading ? (
                         <TableBody>
                             {[1, 2, 3].map((i) => (
@@ -723,13 +692,11 @@ export function WorkflowList() {
                         </TableBody>
                     )}
             </TableScrollArea>
-
             <UseWorkflowModal
                 workflows={allRows}
                 workflow={selected}
                 onClose={() => setSelected(null)}
             />
-
             <NewWorkflowModal
                 open={newModalOpen}
                 onClose={() => setNewModalOpen(false)}
@@ -739,7 +706,6 @@ export function WorkflowList() {
                     router.push(workflowDetailPath(wf));
                 }}
             />
-
             <NewWorkflowModal
                 open={!!editingWorkflow}
                 onClose={() => setEditingWorkflow(null)}
@@ -759,23 +725,19 @@ export function WorkflowList() {
         </div>
     );
 }
-
 function getSharedByLabel(workflow: Workflow) {
     return workflow.shared_by_name?.trim() || "Shared";
 }
-
 function getWorkflowSource(workflow: Workflow): WorkflowSourceFilter {
     if (workflow.is_system) return "system";
     return workflow.is_owner === false ? "shared" : "user";
 }
-
 function compareWorkflows(
     a: Workflow,
     b: Workflow,
     sort: { key: WorkflowSortKey; direction: TableSortDirection } | null,
 ) {
     if (!sort) return 0;
-
     const direction = sort.direction === "asc" ? 1 : -1;
     const aValue =
         sort.key === "name"
@@ -789,7 +751,5 @@ function compareWorkflows(
             : b.metadata.type === "tabular"
               ? "Tabular"
               : "Assistant";
-
     return aValue.localeCompare(bValue) * direction;
 }
-
