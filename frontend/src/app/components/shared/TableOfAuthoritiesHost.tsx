@@ -63,7 +63,7 @@ function AuthoritiesShell({
       data-testid="authorities-host"
       aria-hidden={!active}
       inert={!active}
-      className={`absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f3f4f6] ${
+      className={`absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#f3f4f6] ${
         active ? "" : "pointer-events-none opacity-0"
       }`}
     >
