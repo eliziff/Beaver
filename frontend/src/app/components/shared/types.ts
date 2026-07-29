@@ -159,6 +159,29 @@ export interface EditAnnotation {
   reason?: string;
   status: "pending" | "accepted" | "rejected";
 }
+export type EditResolveStart = {
+  editId: string;
+  documentId: string;
+  verb: "accept" | "reject";
+};
+export type EditResolved = {
+  editId: string;
+  documentId: string;
+  status: "accepted" | "rejected";
+  versionId: string | null;
+  downloadUrl: string | null;
+};
+export type EditResolveError = {
+  editId: string;
+  documentId: string;
+  versionId: string | null;
+  message: string;
+};
+export interface EditResolveHandlers {
+  onResolveStart?: (args: EditResolveStart) => void;
+  onResolved?: (args: EditResolved) => void;
+  onError?: (args: EditResolveError) => void;
+}
 export type AutomationToolName =
   | "toa_submit_library_document"
   | "toa_job_status"
