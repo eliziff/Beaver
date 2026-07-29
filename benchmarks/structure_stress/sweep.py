@@ -132,10 +132,19 @@ def _ladder_stats(labels: list[int]) -> dict:
     }
 
 
+MAX_DOC_CHARS = 8_000_000
+
+
 def scan_doc(job: tuple[str, str, str, dict]) -> dict:
     """(doc_id, kind, text, oracle) -> per-doc record."""
     doc_id, kind, text, oracle = job
     t0 = time.perf_counter()
+    if len(text) > MAX_DOC_CHARS:
+        # One giant document must never take a worker down; record and
+        # scan the head only.
+        oracle = dict(oracle)
+        oracle["truncated_from"] = len(text)
+        text = text[:MAX_DOC_CHARS]
     lower = text.lower()
     matches: dict[str, int] = {}
     for eid, rx, gates in _ENTRIES:
@@ -207,6 +216,9 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
     record["wall"] = round(wall, 4)
     if wall > SLOW_DOC_SECONDS:
         record["fail"].append("slow_doc")
+    if oracle.get("truncated_from"):
+        record["truncated_from"] = oracle["truncated_from"]
+        record["fail"].append("oversize_doc")
     return record
 
 
@@ -223,13 +235,19 @@ def _cases_jobs(con, tier: str, langs: list[str]):
         pq = (A2AJ / "cases" / court / "train.parquet").as_posix()
         for lang in langs:
             cap = per_court if lang == "en" else fr_cap
+            # Full tier takes everything: ordering would force duckdb to
+            # sort whole parquets (BCSC is 916 MB) — that is what killed
+            # the first full run. Sampled tiers keep the deterministic
+            # order.
+            order = "" if tier == "full" else f"order by citation_{lang}"
+            print(f"[cases] {court}:{lang} start", flush=True)
             rows = con.execute(
                 f"""
                 select citation_{lang}, unofficial_text_{lang},
                        len(cases_cited_{lang}) as cited
                 from read_parquet('{pq}')
                 where unofficial_text_{lang} is not null
-                order by citation_{lang}
+                {order}
                 limit {cap}
                 """
             )
@@ -252,13 +270,15 @@ def _laws_jobs(con, tier: str, langs: list[str]):
     for name in sets:
         pq = (A2AJ / "laws" / name / "train.parquet").as_posix()
         for lang in langs:
+            order = "" if tier == "full" else f"order by citation_{lang}"
+            print(f"[laws] {name}:{lang} start", flush=True)
             rows = con.execute(
                 f"""
                 select citation_{lang}, unofficial_text_{lang},
                        unofficial_sections_{lang}, num_sections_{lang}
                 from read_parquet('{pq}')
                 where unofficial_text_{lang} is not null
-                order by citation_{lang}
+                {order}
                 limit {per_set}
                 """
             )
@@ -321,7 +341,9 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
     recovery_by_set: dict[str, list[float]] = {}
     failures_path = out_dir / f"{name}.failures.jsonl"
     failures_written = 0
-    with mp.Pool(workers, initializer=_init_worker) as pool, open(
+    with mp.Pool(
+        workers, initializer=_init_worker, maxtasksperchild=200
+    ) as pool, open(
         failures_path, "w", encoding="utf-8"
     ) as fail_out:
         for rec in pool.imap_unordered(scan_doc, jobs, chunksize=16):
