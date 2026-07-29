@@ -1272,6 +1272,9 @@ export type TextMatch = {
   index: number;
   excerpt: string;
   context: string;
+  /** Original-text character offset of the match start (composable with
+   *  windowed reads and structural lookup, like grep's file:line). */
+  at: number;
 };
 
 export function findTextMatches(params: {
@@ -1308,6 +1311,7 @@ export function findTextMatches(params: {
           (ctxStart > 0 ? "…" : "") +
           text.slice(ctxStart, ctxEnd).replace(/\s+/g, " ").trim() +
           (ctxEnd < text.length ? "…" : ""),
+        at: origStart,
       });
     }
     totalMatches++;

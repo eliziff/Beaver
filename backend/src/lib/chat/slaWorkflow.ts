@@ -1,8 +1,12 @@
 // SLA drafting workflow — Spec→Ledger→Draft→Audit→Grounding — wired over
 // the deterministic organs that already exist (skeleton outlines, anchor
 // coverage). The LLM keeps judgment; it loses bookkeeping:
-//   Spec     the drafting contract rides in the system prompt
-//   Ledger   per-document skeleton outlines + the source anchor inventory
+//   Spec     the drafting contract rides in the system prompt (always-on
+//            rules + a document inventory; outlines stay on-demand behind
+//            library_outline so per-document state never becomes standing
+//            prompt weight)
+//   Ledger   the source documents' texts + the library snapshot, carried
+//            for the deterministic audit only — never into model context
 //   Draft    the normal provider tool loop, steered to section-scoped reads
 //   Audit    deterministic anchor coverage of the draft vs the sources,
 //            typed findings returned for exactly one revision pass
@@ -18,15 +22,11 @@ import {
   type AnchorDocument,
   type AnchorRow,
 } from "../legalTextAnchors";
-import {
-  compileAgreementSkeleton,
-  renderAgreementOutline,
-} from "../legalTextSkeleton";
+import { compileAgreementSkeleton } from "../legalTextSkeleton";
 import { listLocalLibrary } from "../localDocumentStore";
 import { extractLocalDocument } from "./localAssistantTools";
 
 const MAX_LEDGER_DOCUMENTS = 8;
-const MAX_OUTLINE_CHARS = 4_000;
 const MAX_FINDING_ROWS_PER_CLASS = 12;
 
 export function slaWorkflowEnabled(): boolean {
@@ -64,28 +64,31 @@ export async function buildSlaLedger(
     (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
   );
   const documents: AnchorDocument[] = [];
-  const outlines: string[] = [];
+  const inventory: string[] = [];
   for (const meta of inScope.slice(0, MAX_LEDGER_DOCUMENTS)) {
     const document = await extractLocalDocument(userId, meta.id);
     if (!document?.text?.trim()) continue;
     documents.push({ name: document.filename, text: document.text });
     const skeleton = compileAgreementSkeleton(document.text);
-    outlines.push(
+    const tokens = Math.round(document.text.length / 4);
+    inventory.push(
       skeleton.nodes.length
-        ? `## ${document.filename}\n${renderAgreementOutline(skeleton, { maxChars: MAX_OUTLINE_CHARS })}`
-        : `## ${document.filename}\n(no structural handles compiled — read this one in full)`,
+        ? `- ${document.filename} (~${tokens} tokens, ${skeleton.nodes.length} structural handles)`
+        : `- ${document.filename} (~${tokens} tokens, no numbered structure — use library_find or a bounded library_read)`,
     );
   }
   if (!documents.length) return null;
   const dropped = inScope.length - documents.length;
+  // The system prompt carries only the always-on contract and a document
+  // inventory; outlines are per-document state the model fetches when it
+  // reaches for a document (library_outline), not standing prompt weight.
   const promptSection =
     `\n\nSLA DRAFTING WORKFLOW is active (Spec→Ledger→Draft→Audit→Grounding).\n` +
-    `Structural outlines of the matter documents follow — they are the map, not the content:\n` +
-    `- Pull only the spans you need with library_read section="<handle>" using handles from these outlines; avoid whole-document reads when a handle covers the need.\n` +
+    `- Before reading any document, call library_outline on it; then pull only the spans you need with library_read section="<handle>". Avoid whole-document reads when a handle covers the need.\n` +
     `- Work deliverable-first: enumerate the deliverable's required topics from the instructions, then read precisely against them.\n` +
     `- After you produce the deliverable, a deterministic audit compares it to the source documents' anchors (amounts, dates, section references, citations) and you will get exactly one revision pass with typed findings. Expect it; keep judgment for it.\n` +
     (dropped > 0 ? `- (${dropped} additional document(s) exceeded the ledger cap; list and read them yourself.)\n` : "") +
-    `\n${outlines.join("\n\n")}`;
+    `\nMatter documents:\n${inventory.join("\n")}`;
   return { documents, promptSection, baseline };
 }
 
