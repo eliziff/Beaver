@@ -75,6 +75,7 @@ function formatPromptSuffix(format?: string, tags?: string[]): string {
 }
 
 export const tabularRouter = Router();
+tabularRouter.use(requireAuth);
 
 function providerLabel(provider: Provider): string {
     if (provider === "claude") return "Anthropic";
@@ -145,7 +146,7 @@ async function localDocumentMarkdown(userId: string, documentId: string) {
     return { filename: file.filename, markdown };
 }
 
-tabularRouter.get("/", requireAuth, async (req, res) => {
+tabularRouter.get("/", async (req, res) => {
     const userId = res.locals.userId as string;
     if (isAnonymousLocalMode()) {
         const projectId =
@@ -173,7 +174,7 @@ tabularRouter.get("/", requireAuth, async (req, res) => {
     res.json(data ?? []);
 });
 
-tabularRouter.post("/", requireAuth, async (req, res) => {
+tabularRouter.post("/", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { title, document_ids, columns_config, workflow_id, project_id } =
@@ -266,7 +267,7 @@ tabularRouter.post("/", requireAuth, async (req, res) => {
 });
 
 // Register before /:reviewId routes.
-tabularRouter.post("/prompt", requireAuth, async (req, res) => {
+tabularRouter.post("/prompt", async (req, res) => {
     const userId = res.locals.userId as string;
     const title =
         typeof req.body.title === "string" ? req.body.title.trim() : "";
@@ -336,7 +337,7 @@ tabularRouter.post("/prompt", requireAuth, async (req, res) => {
     }
 });
 
-tabularRouter.get("/:reviewId", requireAuth, async (req, res) => {
+tabularRouter.get("/:reviewId", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -407,7 +408,7 @@ tabularRouter.get("/:reviewId", requireAuth, async (req, res) => {
     });
 });
 
-tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
+tabularRouter.get("/:reviewId/people", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -465,7 +466,7 @@ tabularRouter.get("/:reviewId/people", requireAuth, async (req, res) => {
     });
 });
 
-tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
+tabularRouter.patch("/:reviewId", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -748,7 +749,7 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
     });
 });
 
-tabularRouter.delete("/:reviewId", requireAuth, async (req, res) => {
+tabularRouter.delete("/:reviewId", async (req, res) => {
     const userId = res.locals.userId as string;
     const { reviewId } = req.params;
     if (isAnonymousLocalMode()) {
@@ -771,7 +772,7 @@ tabularRouter.delete("/:reviewId", requireAuth, async (req, res) => {
 });
 
 // Reset rows in place so their identity and relationships survive.
-tabularRouter.post("/:reviewId/clear-cells", requireAuth, async (req, res) => {
+tabularRouter.post("/:reviewId/clear-cells", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -821,7 +822,6 @@ tabularRouter.post("/:reviewId/clear-cells", requireAuth, async (req, res) => {
 
 tabularRouter.post(
     "/:reviewId/regenerate-cell",
-    requireAuth,
     async (req, res) => {
         const userId = res.locals.userId as string;
         const userEmail = res.locals.userEmail as string | undefined;
@@ -1027,7 +1027,7 @@ tabularRouter.post(
     },
 );
 
-tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
+tabularRouter.post("/:reviewId/generate", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -1320,7 +1320,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     }
 });
 
-tabularRouter.get("/:reviewId/chats", requireAuth, async (req, res) => {
+tabularRouter.get("/:reviewId/chats", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
@@ -1356,7 +1356,6 @@ tabularRouter.get("/:reviewId/chats", requireAuth, async (req, res) => {
 
 tabularRouter.delete(
     "/:reviewId/chats/:chatId",
-    requireAuth,
     async (req, res) => {
         const userId = res.locals.userId as string;
         const { reviewId, chatId } = req.params;
@@ -1383,7 +1382,6 @@ tabularRouter.delete(
 
 tabularRouter.patch(
     "/:reviewId/chats/:chatId",
-    requireAuth,
     async (req, res) => {
         const userId = res.locals.userId as string;
         const { chatId } = req.params;
@@ -1413,7 +1411,6 @@ tabularRouter.patch(
 
 tabularRouter.get(
     "/:reviewId/chats/:chatId/messages",
-    requireAuth,
     async (req, res) => {
         const userId = res.locals.userId as string;
         const userEmail = res.locals.userEmail as string | undefined;
@@ -1654,7 +1651,7 @@ async function streamLocalTabularChat(params: {
 }
 
 
-tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
+tabularRouter.post("/:reviewId/chat", async (req, res) => {
     const userId = res.locals.userId as string;
     const userEmail = res.locals.userEmail as string | undefined;
     const { reviewId } = req.params;
