@@ -34,6 +34,7 @@ import {
   type SourceDocBlock,
   type SourceDocLookup,
 } from "./sourceDoc";
+import { computeStatuteSpine } from "./statuteSpine";
 
 export type SkeletonNodeKind =
   | "article"
@@ -104,6 +105,13 @@ const SECTION_WORD_RE =
   /^(?:Section|SECTION)\s+(\d{1,3}(?:\.\d{1,3})*[A-Za-z]?)[.)]?\s*[—–\-:]?\s*(.*)$/u;
 const SECTION_DECIMAL_RE = /^(\d{1,3}\.\d{1,3}(?:\.\d{1,3})*)\s+(\S.*)$/u;
 const SECTION_INTEGER_RE = /^(\d{1,3})[.)]\s+(.*)$/u;
+/**
+ * Corpus-style dotless head for spine-less texts: a single provision
+ * excerpt ("164 (1) A judge may...") has too few marks to form a spine,
+ * but a bare number followed by a parenthesized digit is a subsection
+ * marker no year, price, or page number produces.
+ */
+const SECTION_BARE_SUBSECTION_RE = /^(\d{1,3}(?:\.\d{1,3}){0,3})[ \t]+(?=\(\d)/u;
 const SCHEDULE_RE =
   /^(SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)\s+([A-Z0-9][\w.\-]*)\s*[—–\-.:]?\s*(.*)$/u;
 const ENUM_RE =
@@ -208,6 +216,12 @@ export function compileAgreementSkeleton(
   const lines = splitLines(text);
   const nodes: SkeletonNode[] = [];
   const schedules: string[] = [];
+  // Statute-style bare-number heads ("164 (1) Every one...") are decided by
+  // a document-level scope competition, not per-line guards; when a spine
+  // wins, it owns bare-number section detection and the per-line regexes
+  // below only handle the styles it cannot claim (word/container/schedule).
+  const spine = computeStatuteSpine(text);
+  const spineByStart = new Map(spine.map((mark) => [mark.start, mark]));
 
   let container: SkeletonNode | null = null;
   let section: SkeletonNode | null = null;
@@ -414,14 +428,43 @@ export function compileAgreementSkeleton(
       }
     }
 
-    const sectionWordMatch = trimmedLine.match(SECTION_WORD_RE);
-    const sectionDecimalMatch = sectionWordMatch
+    const spineMark = spineByStart.get(lineStart);
+    if (spineMark) {
+      const content = line.text.slice(spineMark.contentStart - line.start);
+      section = push({
+        kind: "section",
+        label: `sec${spineMark.label}`,
+        display: `Section ${spineMark.label}`,
+        heading: content.trim().slice(0, 120),
+        depth: container ? 1 : 0,
+        start: lineStart,
+        end: text.length,
+        parentLabel: container?.label,
+      });
+      enumStack = [];
+      const inline = content.match(ENUM_RE);
+      if (inline) openEnum(inline[1], spineMark.contentStart, inline[2]);
+      continue;
+    }
+
+    // A winning spine owns section detection outright: per-line acceptance
+    // would readmit exactly what the competition rejected — years, page
+    // numbers, cross-reference lists, and "Section N" print running heads.
+    const sectionWordMatch = spine.length
       ? null
-      : trimmedLine.match(SECTION_DECIMAL_RE);
+      : trimmedLine.match(SECTION_WORD_RE);
+    const sectionDecimalMatch =
+      sectionWordMatch || spine.length
+        ? null
+        : trimmedLine.match(SECTION_DECIMAL_RE);
     const sectionIntegerMatch =
-      sectionWordMatch || sectionDecimalMatch
+      sectionWordMatch || sectionDecimalMatch || spine.length
         ? null
         : trimmedLine.match(SECTION_INTEGER_RE);
+    const sectionBareMatch =
+      sectionWordMatch || sectionDecimalMatch || sectionIntegerMatch || spine.length
+        ? null
+        : trimmedLine.match(SECTION_BARE_SUBSECTION_RE);
     let sectionNumber: string | null = null;
     let sectionHeading = "";
     if (sectionWordMatch && headingLike(sectionWordMatch[2])) {
@@ -443,6 +486,9 @@ export function compileAgreementSkeleton(
       // is a page number, not a section.
       sectionNumber = sectionIntegerMatch[1];
       sectionHeading = sectionIntegerMatch[2];
+    } else if (sectionBareMatch) {
+      sectionNumber = sectionBareMatch[1];
+      sectionHeading = trimmedLine.slice(sectionBareMatch[0].length);
     }
     if (sectionNumber) {
       section = push({
