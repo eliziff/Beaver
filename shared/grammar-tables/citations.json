@@ -1,0 +1,43 @@
+{
+  "format": "beaver-grammar-table:v1",
+  "description": "Cross-runtime citation and pinpoint grammars. Authored in the restricted dialect grammarTables.ts validates: JS-syntax named groups, no lookbehind, no \\p classes, no inline flags. Python compiles with re.ASCII and JS without the u flag, so \\d/\\w/\\b are ASCII in both.",
+  "entries": [
+    {
+      "id": "cite.neutral.ca",
+      "pattern": "\\b(?<year>(?:19|20)\\d{2})\\s+(?<court>CSC|CAF|CFPI|CF|SCC|FCA|FC|TCC|CCI|ONCA|ONSC|BCCA|BCSC|ABCA|ABKB|QCCA|QCCS)\\s+(?<num>\\d{1,5})\\b",
+      "flags": "",
+      "canonical": {
+        "lowercase": ["court"],
+        "map": {
+          "court": { "csc": "scc", "caf": "fca", "cf": "fc", "cfpi": "fc", "cci": "tcc" }
+        }
+      },
+      "vectors": [
+        {
+          "input": "As held in 2019 SCC 65, the standard is reasonableness.",
+          "groups": { "year": "2019", "court": "SCC", "num": "65" },
+          "canonical": { "court": "scc" }
+        },
+        {
+          "input": "Voir 2019 CSC 65 au para 23.",
+          "groups": { "year": "2019", "court": "CSC", "num": "65" },
+          "canonical": { "court": "scc" }
+        },
+        { "input": "2019SCC65 run together", "groups": null },
+        { "input": "in 1875 SCC 4 (too early)", "groups": null }
+      ]
+    },
+    {
+      "id": "pinpoint.para",
+      "pattern": "(?:\\bat\\s+)?(?:\\bparas?\\.?\\s+|¶\\s?)(?<para>\\d{1,4})\\b",
+      "flags": "i",
+      "canonical": {},
+      "vectors": [
+        { "input": "Vavilov at para 23", "groups": { "para": "23" } },
+        { "input": "see ¶ 12 above", "groups": { "para": "12" } },
+        { "input": "at Paras. 105", "groups": { "para": "105" } },
+        { "input": "comparable paradigms", "groups": null }
+      ]
+    }
+  ]
+}
