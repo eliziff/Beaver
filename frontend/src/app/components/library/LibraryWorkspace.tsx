@@ -320,7 +320,6 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
                         handleCreateFolderActionChange
                     }
                     onSelectionActionsChange={setSelectionActions}
-                    enableHeaderFilters
                     selectionFirst
                     emptyDropLabel={
                         kind === "templates"
