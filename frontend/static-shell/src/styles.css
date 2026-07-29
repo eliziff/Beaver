@@ -30,6 +30,8 @@ textarea:focus { outline: 3px solid #f4bbb5; border-color: #a72219; }
 li { min-height: 48px; padding: 10px 16px; }
 li + li { border-top: 1px solid #e4e4df; }
 li span { margin-left: auto; }
+.chat-link { width: 100%; border: 0; background: none; padding: 0; text-align: left; color: inherit; }
+.chat-link:hover { color: #a72219; }
 .messages { min-height: 220px; max-height: 48vh; overflow-y: auto; display: grid; align-content: end; gap: 12px; padding: 4px 0; }
 .message { max-width: 80%; margin: 0; padding: 10px 13px; white-space: pre-wrap; }
 .message.user { justify-self: end; color: #fff; background: #171717; border-radius: 14px; }
