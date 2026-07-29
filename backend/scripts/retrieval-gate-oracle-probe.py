@@ -22,16 +22,16 @@ Usage:
       [--out src/lib/__tests__/fixtures/retrieval_gate/citation-key-oracle.json]
 """
 from __future__ import annotations
+import os
 
 import argparse
 import json
 import sys
 from datetime import date
 from pathlib import Path
-import os
 
 VERIFIER_ROOT = Path(
-    os.environ.get('VERIFIER_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'verifier_root'))
+    os.environ.get("ALR_QUOTE_VERIFIER_ROOT", "")
 )
 sys.path.insert(0, str(VERIFIER_ROOT))
 

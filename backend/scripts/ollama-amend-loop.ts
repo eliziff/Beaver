@@ -20,7 +20,7 @@
  *  3. Synthetic definition swap on the unit-test STATUTE fixture.
  *
  * Usage:
- *   npx tsx scripts/ollama-amend-loop.ts [--url http://192.168.1.64:11434]
+ *   npx tsx scripts/ollama-amend-loop.ts [--url http://127.0.0.1:11434]
  *     [--models qwen3:32b,qwen3:8b] [--samples 3] [--out attempts.jsonl]
  */
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -32,7 +32,7 @@ function argument(name: string, fallback: string): string {
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 }
 
-const URL_BASE = argument("url", "http://192.168.1.64:11434").replace(/\/$/u, "");
+const URL_BASE = argument("url", "http://127.0.0.1:11434").replace(/\/$/u, "");
 const SAMPLES = Number(argument("samples", "3"));
 const OUT = argument("out", "");
 const CALL_TIMEOUT_MS = 420_000; // cold model loads on the desktop GPU are slow

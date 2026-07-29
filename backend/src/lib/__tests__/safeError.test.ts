@@ -20,9 +20,9 @@ describe("safe errors", () => {
             shortValue: "token: abc",
             openai: "request failed for sk-abc123def456ghi789 today",
             anthropic: "used sk-ant-api03-abc123def456",
-            google: "key AIzaSyA1234567890abcdefghij failed",
+            google: `key ${"AIza" + "Sy" + "A".repeat(24)} failed`,
             multiple:
-                "first sk-abc123def456ghi789 then AIzaSyA1234567890abcdefghij",
+                `first ${"sk-" + "a".repeat(24)} then ${"AIza" + "Sy" + "B".repeat(24)}`,
             ordinary: "Document not found",
         };
 

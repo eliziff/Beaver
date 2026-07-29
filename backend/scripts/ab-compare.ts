@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const LAB_ROOT = (process.env.BENCHMARK_INPUT ?? ".tmp/inputs/lab_root");
+const LAB_ROOT = process.env.LAB_ROOT || "";
 
 type Metrics = {
   input_tokens?: number;
