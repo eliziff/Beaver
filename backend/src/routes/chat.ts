@@ -32,6 +32,13 @@ import {
 } from "../lib/chat/localAssistantTools";
 import { localAutomationEvent } from "../lib/chat/localAutomationEvent";
 import {
+  appendSlaReceipt,
+  auditSlaDraft,
+  buildSlaLedger,
+  slaWorkflowEnabled,
+  type SlaLedger,
+} from "../lib/chat/slaWorkflow";
+import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
 } from "../lib/chat/localPdfEvidenceState";
@@ -907,7 +914,7 @@ export async function streamAnonymousChat(params: {
   const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
     priorEvidenceRegistry,
   );
-  const systemPrompt =
+  let systemPrompt =
     `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${
       projectId
         ? "The current Beaver matter is connected through its attached Library documents"
@@ -924,6 +931,17 @@ export async function streamAnonymousChat(params: {
     (RESEARCH_TOOLS_DISABLED
       ? ""
       : COURTLISTENER_SYSTEM_PROMPT + "\n\n" + PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
+  // SLA workflow (Spec→Ledger): outline the in-scope documents into the
+  // prompt and keep their texts for the deterministic post-draft audit.
+  let slaLedger: SlaLedger | null = null;
+  if (slaWorkflowEnabled()) {
+    try {
+      slaLedger = await buildSlaLedger(userId, allowedDocumentIds ?? null);
+    } catch {
+      slaLedger = null;
+    }
+    if (slaLedger) systemPrompt += slaLedger.promptSection;
+  }
   const isCodex = providerForModel(selectedModel) === "codex";
   const codexCompatibilityKey = isCodex
     ? providerSessionCompatibilityKey({
@@ -1308,16 +1326,30 @@ export async function streamAnonymousChat(params: {
       chatId: chat.id,
       transcriptVersion: chat.transcript_version,
     });
-    const runProvider = (continuationId?: string) => streamChatWithTools({
+    const runProvider = (
+      continuationId?: string,
+      slaRepair?: { draft: string; findings: string },
+    ) => streamChatWithTools({
       model: selectedModel,
       systemPrompt: continuationId ? "" : systemPrompt,
-      messages: (continuationId ? messages.slice(-1) : messages).map(
-        (message) => ({
-          role: message.role === "assistant" ? "assistant" : "user",
-          content: formatChatMessageContent(message),
-          images: imagesForMessage(message, imagesByDocumentId),
-        }),
-      ),
+      messages: [
+        ...(continuationId ? messages.slice(-1) : messages).map(
+          (message) => ({
+            role:
+              message.role === "assistant"
+                ? ("assistant" as const)
+                : ("user" as const),
+            content: formatChatMessageContent(message),
+            images: imagesForMessage(message, imagesByDocumentId),
+          }),
+        ),
+        ...(slaRepair
+          ? [
+              { role: "assistant" as const, content: slaRepair.draft },
+              { role: "user" as const, content: slaRepair.findings },
+            ]
+          : []),
+      ],
       enableThinking: true,
       reasoningEffort: params.reasoningEffort,
       abortSignal: streamAbort.signal,
@@ -1443,6 +1475,32 @@ export async function streamAnonymousChat(params: {
 
     flushTail();
     if (await finalizePendingAskInputs()) return;
+    // SLA Audit→Grounding: deterministic anchor coverage of the draft, one
+    // typed-findings revision pass, and machine receipts for both stages.
+    if (slaLedger && visibleText.trim()) {
+      const draftAudit = auditSlaDraft(slaLedger, visibleText);
+      appendSlaReceipt({ phase: "draft_audit", ...draftAudit.receipt });
+      if (draftAudit.repairPrompt) {
+        const draft = visibleText;
+        rawText = "";
+        visibleText = "";
+        await runProvider(undefined, {
+          draft,
+          findings: draftAudit.repairPrompt,
+        });
+        flushTail();
+        if (await finalizePendingAskInputs()) return;
+        if (!visibleText.trim()) {
+          // The revision pass produced nothing usable — keep the draft.
+          rawText = draft;
+          visibleText = draft;
+        }
+        appendSlaReceipt({
+          phase: "final_grounding",
+          ...auditSlaDraft(slaLedger, visibleText).receipt,
+        });
+      }
+    }
     const citations = parseCitations(rawText).map((citation) =>
       createCitation(
         citation,
