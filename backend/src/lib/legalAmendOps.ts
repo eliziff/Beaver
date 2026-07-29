@@ -21,6 +21,7 @@ export type AmendOpKind =
   | "strike_text"
   | "insert_text"
   | "substitute_text"
+  | "append_text"
   | "strike_provision"
   | "replace_provision"
   | "add_provision"
@@ -44,6 +45,8 @@ export interface AmendOp {
   everyOccurrence?: boolean;
   /** "the period at the end" — match the LAST occurrence, no ambiguity. */
   anchorLast?: boolean;
+  /** Bare-token ops ("or", "and") match whole words only. */
+  wholeWord?: boolean;
   /** Sentence excerpt the op was compiled from. */
   raw: string;
 }
@@ -263,20 +266,44 @@ function opFromClause(
     const struckQuote = q(0, afterStrike);
     const insertVerb = /\b(?:and\s+)?(?:insert(?:ing)?|substitut(?:ing|e))\b/iu.exec(afterStrike);
     if (struckQuote !== undefined) {
+      // striking out “or” at the end of paragraph (d) — bare-token list
+      // re-punctuation: scope to the named child, match whole words only,
+      // and anchor to the last occurrence ("at the end").
+      const quoteHit = [...afterStrike.matchAll(new RegExp(QUOTED, "gu"))][0];
+      const afterQuote = quoteHit
+        ? afterStrike.slice((quoteHit.index ?? 0) + quoteHit[0].length)
+        : "";
+      const endOf = new RegExp(
+        String.raw`^\s*at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
+        "iu",
+      ).exec(afterQuote);
+      const scopedTarget = endOf?.[1]
+        ? joinLocator(head.label, compactLabel(endOf[1]))
+        : target;
       if (insertVerb) {
         const inserted = q(0, afterStrike.slice(insertVerb.index + insertVerb[0].length));
         if (inserted !== undefined) {
           return {
             kind: "substitute_text",
-            target,
+            target: scopedTarget,
             oldText: struckQuote,
             newText: inserted,
             everyOccurrence: every,
+            anchorLast: endOf ? true : undefined,
+            wholeWord: endOf ? true : undefined,
             raw,
           };
         }
       }
-      return { kind: "strike_text", target, oldText: struckQuote, everyOccurrence: every, raw };
+      return {
+        kind: "strike_text",
+        target: scopedTarget,
+        oldText: struckQuote,
+        everyOccurrence: every,
+        anchorLast: endOf ? true : undefined,
+        wholeWord: endOf ? true : undefined,
+        raw,
+      };
     }
     // striking the period at the end [and inserting “; and”]
     if (/^the\s+(?:period|comma|semicolon)\b/iu.test(afterStrike)) {
@@ -362,6 +389,24 @@ function opFromClause(
       return { reason: "insert clause without placement anchor" };
     }
     return { reason: "insert clause without quoted text" };
+  }
+
+  // adding “or” at the end of paragraph (e) — bare-token append; the
+  // applier owns the list re-punctuation (a terminal "." becomes ";").
+  m = new RegExp(
+    String.raw`adding\s+${QUOTED}\s+at\s+the\s+end\s+of\s+(?:the\s+)?${PROVISION_REF}`,
+    "iu",
+  ).exec(text);
+  if (m) {
+    const token = quotedValue(m[1], m[2], m[3], m[4]);
+    if (token !== undefined && m[5]) {
+      return {
+        kind: "append_text",
+        target: joinLocator(head.label, compactLabel(m[5])),
+        newText: token,
+        raw,
+      };
+    }
   }
 
   // adding the following after subsection (4): (Canadian)
@@ -750,7 +795,15 @@ export function applyAmendOps(
           failures.push({ op, code: "old_text_not_found", detail: "empty quoted text" });
           break;
         }
-        const hits = findInSpan(sourceText, span, op.oldText);
+        let hits = findInSpan(sourceText, span, op.oldText);
+        if (op.wholeWord) {
+          const wordChar = /[\p{L}\p{N}]/u;
+          hits = hits.filter(
+            ([start, end]) =>
+              (start === 0 || !wordChar.test(sourceText[start - 1])) &&
+              (end >= sourceText.length || !wordChar.test(sourceText[end])),
+          );
+        }
         if (!hits.length) {
           failures.push({ op, code: "old_text_not_found", detail: op.oldText.slice(0, 80) });
           break;
@@ -837,6 +890,31 @@ export function applyAmendOps(
           break;
         }
         pushSplice(op, span[1], span[1], `\n${ensureBlock(op.newText)}`);
+        break;
+      }
+      case "append_text": {
+        if (!op.newText?.trim()) {
+          failures.push({ op, code: "missing_new_text", detail: op.target });
+          break;
+        }
+        // Bare-token append: the provision stops being list-final, so a
+        // terminal "." becomes ";" before the token (gold: SC 2021 c. 24
+        // s. 1(1) vs today's CLC s. 164(1)(e)); a terminal ";" just gains
+        // the token. Any other terminal is a typed refusal, not a guess.
+        let last = span[1] - 1;
+        while (last >= span[0] && /\s/u.test(sourceText[last])) last -= 1;
+        const terminal = last >= span[0] ? sourceText[last] : "";
+        if (terminal === ".") {
+          pushSplice(op, last, last + 1, `; ${op.newText}`);
+        } else if (terminal === ";") {
+          pushSplice(op, last + 1, last + 1, ` ${op.newText}`);
+        } else {
+          failures.push({
+            op,
+            code: "unsupported_apply",
+            detail: `append_text needs a "." or ";" terminal, saw ${JSON.stringify(terminal)}`,
+          });
+        }
         break;
       }
       case "add_provision": {

@@ -358,3 +358,77 @@ describe("consolidateAmendment", () => {
     expect(result.verification.newTextMissing).toBe(0);
   });
 });
+
+// SC 2021, c. 24, s. 1(1) — the bare-conjunction-token shape that rides in
+// most list-extending amendments (audit: 23.3% of instructions are
+// add-provision family; this clause was its dominant refusal). Gold: the
+// pre-amendment list reconstructed from today's CLC s. 164(1) consolidation.
+describe("bare-token list re-punctuation (SC 2021, c. 24, s. 1(1))", () => {
+  const CHAPEAU =
+    "164. (1) A judge may issue a warrant authorizing seizure of copies of a recording, a publication, a representation or any written material, if the judge is satisfied by information on oath that there are reasonable grounds to believe that";
+  const PARA = (label: string, tail: string) =>
+    `(${label}) the representation, written material or recording, copies of which are kept in premises within the jurisdiction of the court, ${tail}`;
+  const PRE = [
+    CHAPEAU,
+    "",
+    "(c) the publication, copies of which are kept for sale or distribution in premises within the jurisdiction of the court, is obscene, within the meaning of subsection 163(8);",
+    "",
+    PARA("d", "is child sexual abuse and exploitation material as defined in section 163.1; or"),
+    "",
+    PARA("e", "is an advertisement of sexual services."),
+  ].join("\n");
+  const GOLD = [
+    CHAPEAU,
+    "",
+    "(c) the publication, copies of which are kept for sale or distribution in premises within the jurisdiction of the court, is obscene, within the meaning of subsection 163(8);",
+    "",
+    PARA("d", "is child sexual abuse and exploitation material as defined in section 163.1;"),
+    "",
+    PARA("e", "is an advertisement of sexual services; or"),
+    "",
+    PARA("f", "is an advertisement for conversion therapy."),
+  ].join("\n");
+  const INSTRUCTION = [
+    "Subsection 164(1) of the Criminal Code is amended by striking out “or” at the end of paragraph (d), by adding “or” at the end of paragraph (e) and by adding the following after paragraph (e):",
+    "",
+    PARA("f", "is an advertisement for conversion therapy."),
+  ].join("\n");
+
+  it("compiles all three clauses without refusals", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(INSTRUCTION);
+    expect(unparsed).toHaveLength(0);
+    expect(ops.map((op) => op.kind)).toEqual([
+      "strike_text",
+      "append_text",
+      "add_provision",
+    ]);
+    expect(ops[0]).toMatchObject({
+      target: "sec164(1)(d)",
+      oldText: "or",
+      anchorLast: true,
+      wholeWord: true,
+    });
+    expect(ops[1]).toMatchObject({ target: "sec164(1)(e)", newText: "or" });
+    expect(ops[2]).toMatchObject({
+      target: "sec164(1)",
+      afterChild: "sec164(1)(e)",
+    });
+  });
+
+  it("reproduces today's consolidation from the pre-amendment text", () => {
+    const { ops } = parseAmendmentInstructions(INSTRUCTION);
+    const result = applyAmendOps(PRE, ops);
+    expect(result.failures).toEqual([]);
+    const normalize = (t: string) => t.replace(/\s+/gu, " ").trim();
+    expect(normalize(result.text)).toBe(normalize(GOLD));
+  });
+
+  it("refuses append_text on a terminal it has no rule for", () => {
+    const { ops } = parseAmendmentInstructions(
+      "Subsection 164(1) of the Criminal Code is amended by adding “or” at the end of paragraph (c)",
+    );
+    const source = [CHAPEAU, "", "(c) an unpunctuated line"].join("\n");
+    const result = applyAmendOps(source, ops);
+    expect(result.failures.map((f) => f.code)).toEqual(["unsupported_apply"]);
+  });
+});
