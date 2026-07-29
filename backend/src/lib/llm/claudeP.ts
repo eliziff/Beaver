@@ -294,6 +294,14 @@ export async function streamClaudeP(
     if (!toolCalls.length || !runTools) break;
     const results = await runTools(toolCalls);
     throwIfAborted(params.abortSignal);
+    // Halfway budget meter — same contract as the Responses adapter.
+    if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
+      const last = results[results.length - 1];
+      results[results.length - 1] = {
+        ...last,
+        content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
+      };
+    }
     messages.push({ role: "assistant", content: blocks });
     messages.push({
       role: "user",
