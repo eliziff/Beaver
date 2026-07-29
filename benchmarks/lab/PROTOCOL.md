@@ -30,9 +30,22 @@ the model constant?
   Export shim: Beaver's answer content is converted to the required deliverable
   format (e.g. pandoc markdown→docx); the judge reads deliverables as
   pandoc-extracted text, so formatting fidelity beyond text content is not
-  scored for memo-type deliverables. Runner: `backend/scripts/lab-run.ts`
+  scored for memo-type deliverables. Runner: `backend/scripts/lab-beaver-arm.ts`
   (Beaver repo), writing LAB-layout results so LAB's evaluator judges both
   arms identically.
+- **C — Claude Code harness** (added 2026-07-28): headless Claude Code
+  (`claude -p`, Claude subscription flat rate — the same sanctioned surface
+  as the judge) as the agent harness, model `claude-sonnet-4-6`. Tool
+  inventory pinned to Arm A's six workspace tools (+TodoWrite, planning
+  only); WebFetch/WebSearch disallowed. Runner:
+  `backend/scripts/lab-claude-arm.ts`, writing LAB-layout results judged
+  identically. Deviations vs Arm A: host execution, not a sealed container
+  (richer toolchain; host network reachable by Bash in principle), and
+  ANTHROPIC_API_KEY stripped in favor of subscription auth. Runs:
+  `sonnet46-b-01`, `sonnet46-b-03` (B tasks only — A tasks not repeated).
+  Caveat: this arm changes BOTH model and harness relative to A/B, so it
+  reads as "what a strong integrated agent product does on these tasks",
+  not a single-variable comparison.
 
 ## Grading
 
