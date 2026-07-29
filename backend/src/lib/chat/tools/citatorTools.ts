@@ -27,7 +27,8 @@ export const CITATOR_TOOLS: OpenAIToolSchema[] = [
         },
         size: {
           type: "number",
-          description: "Maximum citing cases, 1-50 (default 10).",
+          description:
+            "Citing cases to return, 1-50 (default 10). This pages the list only: citing_cases_total always reports every citing case in the graph, so never treat the returned count as the number of times a case has been cited.",
         },
       },
       required: ["citation"],
@@ -44,11 +45,11 @@ export function executeCitatorTool(
   const citation = typeof args.citation === "string" ? args.citation.trim() : "";
   if (!citation) return { ok: false, error: "citation is required" };
   try {
-    const entries = noteUpCitations({
+    const result = noteUpCitations({
       citation,
       size: typeof args.size === "number" ? args.size : undefined,
     });
-    if (entries === null) {
+    if (result === null) {
       return {
         ok: false,
         error: "citator_not_installed",
@@ -59,9 +60,11 @@ export function executeCitatorTool(
     return {
       ok: true,
       citation,
-      citing_cases: entries.length,
+      citing_cases_total: result.total,
+      returned: result.entries.length,
+      truncated: result.total > result.entries.length,
       graph: graphStats(),
-      entries,
+      entries: result.entries,
     };
   } catch (error) {
     return { ok: false, error: (error as Error).message };
