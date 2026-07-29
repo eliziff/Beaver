@@ -26,6 +26,11 @@ export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
 const CODEX_MODEL_PREFIX = "codex:";
+// Experiment transports (benchmarks/lab/PROTOCOL.md): claude-p:<model> =
+// Anthropic models over headless Claude Code; ollama:<model> = local
+// models on the desktop PC. Not exposed in UI catalogs.
+const CLAUDE_P_MODEL_PREFIX = "claude-p:";
+const OLLAMA_MODEL_PREFIX = "ollama:";
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -48,6 +53,8 @@ const ALL_MODELS = new Set<string>([
 
 export function providerForModel(model: string): Provider {
     if (model.startsWith(CODEX_MODEL_PREFIX)) return "codex";
+    if (model.startsWith(CLAUDE_P_MODEL_PREFIX)) return "claude-p";
+    if (model.startsWith(OLLAMA_MODEL_PREFIX)) return "ollama";
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
@@ -58,6 +65,8 @@ export function providerForModel(model: string): Provider {
 
 export function resolveModel(id: string | null | undefined, fallback: string): string {
     if (id?.startsWith(CODEX_MODEL_PREFIX)) return id;
+    if (id?.startsWith(CLAUDE_P_MODEL_PREFIX)) return id;
+    if (id?.startsWith(OLLAMA_MODEL_PREFIX)) return id;
     if (id && ALL_MODELS.has(id)) return id;
     return fallback;
 }
@@ -71,5 +80,8 @@ export function codexModelSlug(model: string): string | null {
 /** All currently exposed Beaver models accept images; unknown future models fail closed. */
 export function modelSupportsImageInput(model: string): boolean {
     if (model.startsWith("deepseek-")) return false;
+    // Experiment transports carry text only.
+    if (model.startsWith(CLAUDE_P_MODEL_PREFIX)) return false;
+    if (model.startsWith(OLLAMA_MODEL_PREFIX)) return false;
     return model.startsWith(CODEX_MODEL_PREFIX) || ALL_MODELS.has(model);
 }

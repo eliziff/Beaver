@@ -87,7 +87,10 @@ function providerLabel(provider: Provider): string {
 
 function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
     const provider = providerForModel(model);
-    if (provider === "codex") return null;
+    // Keyless transports: codex (CLI auth), claude-p (subscription CLI),
+    // ollama (local server).
+    if (provider === "codex" || provider === "claude-p" || provider === "ollama")
+        return null;
     if (apiKeys[provider]?.trim()) return null;
     return {
         provider,
