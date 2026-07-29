@@ -289,112 +289,152 @@ export async function streamResponsesApi(
   try {
     for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
-      const response = await createResponse({
-        endpoint: config.endpoint,
-        provider: config.provider,
-        model,
-        instructions: responseInstructions(
-          systemPrompt,
-          needsCourtlistenerCitationReminder,
-        ),
-        input,
-        tools: responseTools,
-        stream: true,
-        previousResponseId: config.persistent ? previousResponseId : undefined,
-        reasoning:
-          enableThinking || params.reasoningEffort
-            ? {
-                summary:
-                  enableThinking && config.reasoningSummary
-                    ? "auto"
-                    : undefined,
-                effort:
-                  params.reasoningEffort ?? config.defaultReasoningEffort,
-              }
-            : undefined,
-        apiKey: config.apiKey,
-        headers: config.headers,
-        codexBackend: config.codexBackend,
-        signal: params.abortSignal,
-      });
-      if (!response.body) throw new Error("OpenAI response had no body");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      const toolCalls: NormalizedToolCall[] = [];
-      const outputItems: ResponseInputItem[] = [];
-      const startedToolCallIds = new Set<string>();
-      let buffer = "";
+      let toolCalls: NormalizedToolCall[] = [];
+      let outputItems: ResponseInputItem[] = [];
       let sawReasoning = false;
+      let emitted = false;
+      const runAttempt = async () => {
+        toolCalls = [];
+        outputItems = [];
+        sawReasoning = false;
+        emitted = false;
+        const response = await createResponse({
+          endpoint: config.endpoint,
+          provider: config.provider,
+          model,
+          instructions: responseInstructions(
+            systemPrompt,
+            needsCourtlistenerCitationReminder,
+          ),
+          input,
+          tools: responseTools,
+          stream: true,
+          previousResponseId: config.persistent ? previousResponseId : undefined,
+          reasoning:
+            enableThinking || params.reasoningEffort
+              ? {
+                  summary:
+                    enableThinking && config.reasoningSummary
+                      ? "auto"
+                      : undefined,
+                  effort:
+                    params.reasoningEffort ?? config.defaultReasoningEffort,
+                }
+              : undefined,
+          apiKey: config.apiKey,
+          headers: config.headers,
+          codexBackend: config.codexBackend,
+          signal: params.abortSignal,
+        });
+        if (!response.body) throw new Error("OpenAI response had no body");
 
-      while (true) {
-        throwIfAborted(params.abortSignal);
-        const { done, value } = await reader.read();
-        if (done) break;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const startedToolCallIds = new Set<string>();
+        let buffer = "";
 
-        buffer += decoder.decode(value, { stream: true });
-        const extracted = extractSseJson(buffer);
-        buffer = extracted.rest;
+        while (true) {
+          throwIfAborted(params.abortSignal);
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const event of extracted.events as ResponseStreamEvent[]) {
-          trace.record({ iteration: iter, label: "sse_event", payload: event });
+          buffer += decoder.decode(value, { stream: true });
+          const extracted = extractSseJson(buffer);
+          buffer = extracted.rest;
 
-          const failureMessage = openAIStreamFailureMessage(event);
-          if (failureMessage) {
-            throw new Error(failureMessage);
-          }
+          for (const event of extracted.events as ResponseStreamEvent[]) {
+            trace.record({ iteration: iter, label: "sse_event", payload: event });
 
-          if (config.persistent && event.response?.id) {
-            previousResponseId = event.response.id;
-          }
+            const failureMessage = openAIStreamFailureMessage(event);
+            if (failureMessage) {
+              throw new Error(failureMessage);
+            }
 
-          if (
-            (event.type === "response.completed" ||
-              event.type === "response.incomplete") &&
-            event.response?.usage
-          ) {
-            addUsage(event.response.usage);
-          }
+            if (config.persistent && event.response?.id) {
+              previousResponseId = event.response.id;
+            }
 
-          if (
-            (event.type === "response.reasoning_summary_text.delta" ||
-              event.type === "response.reasoning_text.delta") &&
-            typeof event.delta === "string"
-          ) {
-            sawReasoning = true;
-            callbacks.onReasoningDelta?.(event.delta);
-          }
+            if (
+              (event.type === "response.completed" ||
+                event.type === "response.incomplete") &&
+              event.response?.usage
+            ) {
+              addUsage(event.response.usage);
+            }
 
-          if (
-            event.type === "response.output_text.delta" &&
-            typeof event.delta === "string"
-          ) {
-            fullText += event.delta;
-            callbacks.onContentDelta?.(event.delta);
-          }
+            if (
+              (event.type === "response.reasoning_summary_text.delta" ||
+                event.type === "response.reasoning_text.delta") &&
+              typeof event.delta === "string"
+            ) {
+              sawReasoning = true;
+              emitted = true;
+              callbacks.onReasoningDelta?.(event.delta);
+            }
 
-          if (
-            event.type === "response.output_item.added" &&
-            event.item?.type === "function_call"
-          ) {
-            const call = parseFunctionCall(event.item);
-            startedToolCallIds.add(call.id);
-            callbacks.onToolCallStart?.(call);
-          }
+            if (
+              event.type === "response.output_text.delta" &&
+              typeof event.delta === "string"
+            ) {
+              fullText += event.delta;
+              emitted = true;
+              callbacks.onContentDelta?.(event.delta);
+            }
 
-          if (
-            event.type === "response.output_item.done" &&
-            event.item
-          ) {
-            outputItems.push(event.item);
-            if (event.item.type === "function_call") {
+            if (
+              event.type === "response.output_item.added" &&
+              event.item?.type === "function_call"
+            ) {
               const call = parseFunctionCall(event.item);
-              if (!startedToolCallIds.has(call.id)) {
-                callbacks.onToolCallStart?.(call);
+              startedToolCallIds.add(call.id);
+              emitted = true;
+              callbacks.onToolCallStart?.(call);
+            }
+
+            if (
+              event.type === "response.output_item.done" &&
+              event.item
+            ) {
+              outputItems.push(event.item);
+              if (event.item.type === "function_call") {
+                const call = parseFunctionCall(event.item);
+                if (!startedToolCallIds.has(call.id)) {
+                  emitted = true;
+                  callbacks.onToolCallStart?.(call);
+                }
+                toolCalls.push(call);
               }
-              toolCalls.push(call);
             }
           }
+        }
+      };
+
+      // server_is_overloaded is upstream capacity, not a request defect —
+      // it killed five benchmark turns in one day. Retry the attempt only
+      // while nothing from it reached the caller; a replay after emitted
+      // deltas would duplicate output.
+      for (let attempt = 0; ; attempt++) {
+        const checkpointResponseId = previousResponseId;
+        try {
+          await runAttempt();
+          break;
+        } catch (error) {
+          const retryable =
+            attempt < 2 &&
+            !emitted &&
+            error instanceof Error &&
+            error.message.includes("server_is_overloaded");
+          if (!retryable) throw error;
+          previousResponseId = checkpointResponseId;
+          trace.record({
+            iteration: iter,
+            label: "overload_retry",
+            payload: { attempt: attempt + 1 },
+          });
+          await new Promise((resolve) =>
+            setTimeout(resolve, 20_000 * (attempt + 1)),
+          );
+          throwIfAborted(params.abortSignal);
         }
       }
 
