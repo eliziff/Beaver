@@ -4,6 +4,35 @@ import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "./tools/publicLegalSourceTool
 export const CLIENT_WORK_PRODUCT_PRESUMPTION =
   "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.";
 
+/**
+ * MIKE_PROMPT_VARIANT=lean serves this condensed library block instead of
+ * the full one in routes/chat.ts (prompt-hygiene A/B). Rule of inclusion:
+ * behavioral rules the tool schemas cannot express stay; anything a schema
+ * or tool description already teaches goes. Same shape conditionals as the
+ * full block.
+ */
+export function buildLeanLibraryBlock(options: {
+  connectedIntro: string;
+  codingShape: boolean;
+  readToolName: string;
+  editToolName: string;
+  researchDisabled: boolean;
+}): string {
+  const { connectedIntro, codingShape, readToolName, editToolName } = options;
+  return (
+    `${connectedIntro} through the library tools. Use ${codingShape ? "Glob" : "library_list"} before claiming a document is unavailable. ` +
+    `An edit, revision, redline, or corrected-DOCX request is an action request: read the document with ${readToolName}, apply the change with ${editToolName}${codingShape ? "" : " (mechanical find/replace, case, spacing, and normalization transforms go through library_apply_text_ops instead — the server executes those deterministically)"}, and never substitute a prose list of proposed changes. ` +
+    `Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically; confirm completion briefly without pasting the draft. ` +
+    `For an exact PDF page, paragraph, footnote, section, or bounded range, use library_lookup and rely on its evidence; never invent locators or URLs. Preserve returned mike-evidence handles for material needed after compaction and rehydrate through the evidence tools. ` +
+    `${codingShape ? "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with the enclosing [section handle], which Read and Edit accept as section=." : "For long or structured documents, call library_outline first and read only the needed span with library_read section=."} ` +
+    `Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing. ` +
+    `When a tool returns app_url, link that exact value.` +
+    (options.researchDisabled
+      ? ""
+      : " Use A2AJ tools for Canadian case law and legislation; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup.")
+  );
+}
+
 const SYSTEM_PROMPT_BEFORE_RESEARCH = `You are Beaver, an AI legal assistant for lawyers and legal professionals. Help analyze documents, answer legal questions, and draft legal documents.
 
 CORE RULES:

@@ -88,6 +88,8 @@ async function main() {
   // --shape coding serves the Glob/Grep/Read alias surface instead of the
   // library_* navigation tools (native-tool-shape A/B).
   const shape = argument("shape", "library");
+  // --prompt lean serves the condensed library block (prompt-hygiene A/B).
+  const promptVariant = argument("prompt", "full");
 
   if (!process.env.LEAN_SMOKE_CHILD) {
     const dataHome = mkdtempSync(path.join(os.tmpdir(), "beaver-lean-smoke-"));
@@ -109,6 +111,7 @@ async function main() {
           MIKE_DISABLE_RESEARCH_TOOLS: "1",
           MIKE_DISABLE_ASK_INPUTS: "1",
           MIKE_TOOL_SHAPE: shape === "coding" ? "coding" : "",
+          MIKE_PROMPT_VARIANT: promptVariant === "lean" ? "lean" : "",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
         },
         stdio: "inherit",
@@ -146,7 +149,9 @@ async function main() {
       throw new Error(`upload ${name}: ${upload.status} ${upload.text}`);
   }
 
-  console.log(`asking ${model} (effort ${effort}, shape ${shape}) …\n`);
+  console.log(
+    `asking ${model} (effort ${effort}, shape ${shape}, prompt ${promptVariant}) …\n`,
+  );
   const started = Date.now();
   const streamed = await request(app).post("/chat").send({
     model,
