@@ -1,342 +1,80 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import {
-    MfaVerificationPopup,
-    needsMfaVerification,
-} from "@/app/components/popups/MfaVerificationPopup";
-import {
-    deleteAllChats,
-    deleteAllProjects,
-    deleteAllTabularReviews,
-    exportAccountData,
-    exportChatData,
-    exportTabularReviewsData,
-    isMfaRequiredError,
-} from "@/app/lib/beaverApi";
-import {
-    accountGlassDangerOutlineButtonClassName,
-    accountGlassPrimaryButtonClassName,
-} from "../accountStyles";
+import { MfaVerificationPopup, needsMfaVerification } from "@/app/components/popups/MfaVerificationPopup";
+import { deleteAllChats, deleteAllProjects, deleteAllTabularReviews, exportAccountData, exportChatData, exportTabularReviewsData, isMfaRequiredError } from "@/app/lib/beaverApi";
+import { accountGlassDangerOutlineButtonClassName, accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { downloadBlob } from "@/app/lib/download";
-type DeleteDataAction = "chats" | "tabular-reviews" | "projects";
-type ExportDataAction = "export-chats" | "export-tabular-reviews" | "export-account";
-type MfaRetryAction = DeleteDataAction | ExportDataAction;
-const DELETE_DATA_COPY: Record<
-    DeleteDataAction,
-    {
-        title: string;
-        message: string;
-    }
-> = {
-    chats: {
-        title: "Delete all chats?",
-        message:
-            "This will permanently delete your assistant and tabular review chat history. This action cannot be undone.",
-    },
-    "tabular-reviews": {
-        title: "Delete all tabular reviews?",
-        message:
-            "This will permanently delete all tabular reviews you own, including their cells and review chats. This action cannot be undone.",
-    },
-    projects: {
-        title: "Delete all projects?",
-        message:
-            "This will permanently delete all projects you own, including their documents, chats, and tabular reviews. This action cannot be undone.",
-    },
-};
+
+type DeleteAction = "chats" | "tabular-reviews" | "projects";
+type ExportAction = "export-account" | "export-chats" | "export-tabular-reviews";
+type PendingAction = DeleteAction | ExportAction;
+const exports: { action: ExportAction; title: string; description: string; file: string; run: () => Promise<{ blob: Blob; filename: string | null }> }[] = [
+    { action: "export-chats", title: "Export chats", description: "Assistant and review chat history as JSON.", file: "beaver-chat-export.json", run: exportChatData },
+    { action: "export-tabular-reviews", title: "Export tabular reviews", description: "Owned reviews, cells, and review chats as JSON.", file: "beaver-tabular-reviews-export.json", run: exportTabularReviewsData },
+    { action: "export-account", title: "Export account", description: "Account, project, document, workflow, and review data as JSON.", file: "beaver-account-export.json", run: exportAccountData },
+];
+const deletes: { action: DeleteAction; title: string; message: string }[] = [
+    { action: "chats", title: "Delete all chats", message: "This permanently deletes assistant and review chat history." },
+    { action: "tabular-reviews", title: "Delete all tabular reviews", message: "This permanently deletes reviews you own, including cells and review chats." },
+    { action: "projects", title: "Delete all projects", message: "This permanently deletes projects you own, including documents, chats, and reviews." },
+];
+
 export default function PrivacyDataPage() {
     const { loadChats } = useChatHistoryContext();
-    const [pendingDeleteAction, setPendingDeleteAction] =
-        useState<DeleteDataAction | null>(null);
-    const [deletingAction, setDeletingAction] =
-        useState<DeleteDataAction | null>(null);
-    const [pendingMfaAction, setPendingMfaAction] =
-        useState<MfaRetryAction | null>(null);
-    const [isExportingAccount, setIsExportingAccount] = useState(false);
-    const [isExportingChats, setIsExportingChats] = useState(false);
-    const [isExportingTabularReviews, setIsExportingTabularReviews] =
-        useState(false);
-    const handleExportAccountData = async () => {
-        setIsExportingAccount(true);
+    const [busy, setBusy] = useState<PendingAction | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<DeleteAction | null>(null);
+    const [pendingMfa, setPendingMfa] = useState<PendingAction | null>(null);
+
+    async function runExport(item: (typeof exports)[number]) {
+        setBusy(item.action);
         try {
-            if (await needsMfaVerification()) {
-                setPendingMfaAction("export-account");
-                return;
-            }
-            const { blob, filename } = await exportAccountData();
-            downloadBlob(blob, filename ?? "beaver-account-export.json");
+            if (await needsMfaVerification()) return setPendingMfa(item.action);
+            const result = await item.run();
+            downloadBlob(result.blob, result.filename ?? item.file);
         } catch (error) {
-            if (isMfaRequiredError(error)) {
-                setPendingMfaAction("export-account");
-                return;
-            }
-            alert("Failed to export account data. Please try again.");
-        } finally {
-            setIsExportingAccount(false);
-        }
-    };
-    const handleExportChatData = async () => {
-        setIsExportingChats(true);
+            if (isMfaRequiredError(error)) setPendingMfa(item.action);
+            else alert("The export failed. Please try again.");
+        } finally { setBusy(null); }
+    }
+
+    async function runDelete(action: DeleteAction) {
+        setBusy(action);
         try {
-            if (await needsMfaVerification()) {
-                setPendingMfaAction("export-chats");
-                return;
-            }
-            const { blob, filename } = await exportChatData();
-            downloadBlob(blob, filename ?? "beaver-chat-export.json");
+            if (await needsMfaVerification()) return setPendingMfa(action);
+            if (action === "chats") await deleteAllChats();
+            else if (action === "tabular-reviews") await deleteAllTabularReviews();
+            else await deleteAllProjects();
+            if (action !== "tabular-reviews") await loadChats();
+            setPendingDelete(null);
         } catch (error) {
-            if (isMfaRequiredError(error)) {
-                setPendingMfaAction("export-chats");
-                return;
-            }
-            alert("Failed to export chats. Please try again.");
-        } finally {
-            setIsExportingChats(false);
-        }
-    };
-    const handleExportTabularReviewsData = async () => {
-        setIsExportingTabularReviews(true);
-        try {
-            if (await needsMfaVerification()) {
-                setPendingMfaAction("export-tabular-reviews");
-                return;
-            }
-            const { blob, filename } = await exportTabularReviewsData();
-            downloadBlob(blob, filename ?? "beaver-tabular-reviews-export.json");
-        } catch (error) {
-            if (isMfaRequiredError(error)) {
-                setPendingMfaAction("export-tabular-reviews");
-                return;
-            }
-            alert("Failed to export tabular reviews. Please try again.");
-        } finally {
-            setIsExportingTabularReviews(false);
-        }
-    };
-    const handleDeleteData = async (action: DeleteDataAction) => {
-        setDeletingAction(action);
-        try {
-            if (await needsMfaVerification()) {
-                setPendingDeleteAction(null);
-                setPendingMfaAction(action);
-                return;
-            }
-            if (action === "chats") {
-                await deleteAllChats();
-                await loadChats();
-            } else if (action === "tabular-reviews") {
-                await deleteAllTabularReviews();
-            } else {
-                await deleteAllProjects();
-                await loadChats();
-            }
-            setPendingDeleteAction(null);
-        } catch (error) {
-            if (isMfaRequiredError(error)) {
-                setPendingDeleteAction(null);
-                setPendingMfaAction(action);
-                return;
-            }
-            alert("Failed to delete data. Please try again.");
-        } finally {
-            setDeletingAction(null);
-        }
-    };
-    const handleMfaVerified = async () => {
-        const action = pendingMfaAction;
-        setPendingMfaAction(null);
+            if (isMfaRequiredError(error)) setPendingMfa(action);
+            else alert("The deletion failed. Please try again.");
+        } finally { setBusy(null); }
+    }
+
+    async function retryMfa() {
+        const action = pendingMfa;
+        setPendingMfa(null);
         if (!action) return;
-        if (action === "export-account") {
-            await handleExportAccountData();
-        } else if (action === "export-chats") {
-            await handleExportChatData();
-        } else if (action === "export-tabular-reviews") {
-            await handleExportTabularReviewsData();
-        } else {
-            await handleDeleteData(action);
-        }
-    };
-    const pendingDeleteCopy = pendingDeleteAction
-        ? DELETE_DATA_COPY[pendingDeleteAction]
-        : null;
-    return (
-        <div className="space-y-8">
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Export data
-                </h2>
-                <AccountSection>
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Export chats
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Download assistant and tabular review chat
-                                history as JSON.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={handleExportChatData}
-                            disabled={isExportingChats}
-                            className={`h-9 gap-1.5 text-sm ${accountGlassPrimaryButtonClassName}`}
-                        >
-                            {!isExportingChats && (
-                                <Download className="h-4 w-4 shrink-0" />
-                            )}
-                            {isExportingChats ? "Exporting..." : "Export"}
-                        </Button>
-                    </div>
-                    <div className="mx-4 h-px bg-gray-200" />
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Export tabular reviews
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Download all owned tabular reviews, cells, and
-                                review chat records as JSON.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={handleExportTabularReviewsData}
-                            disabled={isExportingTabularReviews}
-                            className={`h-9 gap-1.5 text-sm ${accountGlassPrimaryButtonClassName}`}
-                        >
-                            {!isExportingTabularReviews && (
-                                <Download className="h-4 w-4 shrink-0" />
-                            )}
-                            {isExportingTabularReviews
-                                ? "Exporting..."
-                                : "Export"}
-                        </Button>
-                    </div>
-                    <div className="mx-4 h-px bg-gray-200" />
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Export account JSON
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Download account metadata, projects, document
-                                metadata, workflows, and review data as JSON.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={handleExportAccountData}
-                            disabled={isExportingAccount}
-                            className={`h-9 gap-1.5 text-sm ${accountGlassPrimaryButtonClassName}`}
-                        >
-                            {!isExportingAccount && (
-                                <Download className="h-4 w-4 shrink-0" />
-                            )}
-                            {isExportingAccount ? "Exporting..." : "Export"}
-                        </Button>
-                    </div>
-                </AccountSection>
-            </section>
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Delete data
-                </h2>
-                <AccountSection>
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Delete all chats
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Permanently delete your assistant and tabular
-                                review chat history.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => setPendingDeleteAction("chats")}
-                            disabled={!!deletingAction}
-                            className={`h-9 w-full shrink-0 gap-1.5 sm:w-auto ${accountGlassDangerOutlineButtonClassName}`}
-                        >
-                            <Trash2 className="h-4 w-4 shrink-0" />
-                            Delete
-                        </Button>
-                    </div>
-                    <div className="mx-4 h-px bg-gray-200" />
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Delete all tabular reviews
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Permanently delete all tabular reviews you own,
-                                including cells and review chats.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={() =>
-                                setPendingDeleteAction("tabular-reviews")
-                            }
-                            disabled={!!deletingAction}
-                            className={`h-9 w-full shrink-0 gap-1.5 sm:w-auto ${accountGlassDangerOutlineButtonClassName}`}
-                        >
-                            <Trash2 className="h-4 w-4 shrink-0" />
-                            Delete
-                        </Button>
-                    </div>
-                    <div className="mx-4 h-px bg-gray-200" />
-                    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium text-gray-900">
-                                Delete all projects
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Permanently delete all projects you own,
-                                including documents, chats, and tabular reviews.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => setPendingDeleteAction("projects")}
-                            disabled={!!deletingAction}
-                            className={`h-9 w-full shrink-0 gap-1.5 sm:w-auto ${accountGlassDangerOutlineButtonClassName}`}
-                        >
-                            <Trash2 className="h-4 w-4 shrink-0" />
-                            Delete
-                        </Button>
-                    </div>
-                </AccountSection>
-            </section>
-            <ConfirmPopup
-                open={!!pendingDeleteAction}
-                title={pendingDeleteCopy?.title}
-                message={pendingDeleteCopy?.message}
-                confirmLabel="Delete"
-                confirmStatus={deletingAction ? "loading" : "idle"}
-                cancelLabel="Cancel"
-                onCancel={() => {
-                    if (deletingAction) return;
-                    setPendingDeleteAction(null);
-                }}
-                onConfirm={() => {
-                    if (!pendingDeleteAction) return;
-                    void handleDeleteData(pendingDeleteAction);
-                }}
-            />
-            <MfaVerificationPopup
-                open={!!pendingMfaAction}
-                onCancel={() => setPendingMfaAction(null)}
-                onVerified={() => void handleMfaVerified()}
-                title="Two-factor verification required"
-                message="This action is sensitive. Enter a code from your authenticator app to continue."
-            />
-        </div>
-    );
+        const item = exports.find((entry) => entry.action === action);
+        if (item) return runExport(item);
+        await runDelete(action as DeleteAction);
+    }
+
+    const deleteCopy = deletes.find((item) => item.action === pendingDelete);
+    return <div className="space-y-6">
+        <section className="space-y-3"><h2 className="text-xl font-medium font-serif text-gray-900">Export data</h2><AccountSection>{exports.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.description} icon={<Download className="h-4 w-4" />} label={busy === item.action ? "Exporting…" : "Export"} disabled={busy != null} className={accountGlassPrimaryButtonClassName} onClick={() => void runExport(item)} divider={index < exports.length - 1} />)}</AccountSection></section>
+        <section className="space-y-3"><h2 className="text-xl font-medium font-serif text-gray-900">Delete data</h2><AccountSection>{deletes.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.message} icon={<Trash2 className="h-4 w-4" />} label="Delete" disabled={busy != null} className={accountGlassDangerOutlineButtonClassName} onClick={() => setPendingDelete(item.action)} divider={index < deletes.length - 1} />)}</AccountSection></section>
+        <ConfirmPopup open={!!pendingDelete} title={`${deleteCopy?.title ?? "Delete data"}?`} message={deleteCopy?.message} confirmLabel="Delete" confirmStatus={busy ? "loading" : "idle"} cancelLabel="Cancel" onCancel={() => { if (!busy) setPendingDelete(null); }} onConfirm={() => { if (pendingDelete) void runDelete(pendingDelete); }} />
+        <MfaVerificationPopup open={!!pendingMfa} onCancel={() => setPendingMfa(null)} onVerified={() => void retryMfa()} title="Two-factor verification required" message="Enter a code from your authenticator app to continue." />
+    </div>;
+}
+
+function ActionRow({ title, description, icon, label, disabled, className, onClick, divider }: { title: string; description: string; icon: ReactNode; label: string; disabled: boolean; className: string; onClick: () => void; divider: boolean }) {
+    return <><div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-medium text-gray-900">{title}</p><p className="text-sm text-gray-500">{description}</p></div><Button variant="outline" onClick={onClick} disabled={disabled} className={`h-9 shrink-0 gap-1.5 text-sm ${className}`}>{!disabled && icon}{label}</Button></div>{divider && <div className="mx-4 h-px bg-gray-200" />}</>;
 }
