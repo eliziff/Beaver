@@ -26,16 +26,6 @@ export function SkeletonLine({ className }: { className?: string }) {
         />
     );
 }
-export function SkeletonDot({ className }: { className?: string }) {
-    return (
-        <div
-            className={cn(
-                "h-3 w-3 shrink-0 rounded bg-gray-200",
-                className,
-            )}
-        />
-    );
-}
 export function TableSelectionPlaceholder() {
     return (
         <span
