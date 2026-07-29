@@ -41,10 +41,10 @@ localLibraryRouter.use((_req, _res, next) => {
   if (!isAnonymousLocalMode()) return next("router");
   next();
 });
+localLibraryRouter.use(requireAuth);
 
 localLibraryRouter.get(
   "/:kind",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -55,7 +55,6 @@ localLibraryRouter.get(
 
 localLibraryRouter.post(
   "/:kind/documents",
-  requireAuth,
   singleFileUpload("file"),
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
@@ -87,7 +86,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.get(
   "/:kind/documents/:documentId/automation",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (kind !== "file") {
@@ -112,7 +110,6 @@ localLibraryRouter.get(
 
 localLibraryRouter.post(
   "/:kind/folders",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -137,7 +134,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.post(
   "/:kind/documents/:documentId/actions/fix-supras",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (kind !== "file") {
@@ -162,7 +158,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.post(
   "/:kind/documents/:documentId/actions/link-citations",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (kind !== "file") {
@@ -187,7 +182,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.get(
   "/:kind/documents/:documentId/pdf-parse",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -225,7 +219,6 @@ localLibraryRouter.get(
 
 localLibraryRouter.post(
   "/:kind/documents/:documentId/lookup",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -272,7 +265,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.post(
   "/:kind/evidence/rehydrate",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -320,7 +312,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.post(
   "/:kind/documents/:documentId/actions/retry-pdf-parse",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -460,7 +451,6 @@ localLibraryRouter.post(
 
 localLibraryRouter.patch(
   "/:kind/folders/:folderId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -493,7 +483,6 @@ localLibraryRouter.patch(
 
 localLibraryRouter.delete(
   "/:kind/folders/:folderId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -511,7 +500,6 @@ localLibraryRouter.delete(
 
 localLibraryRouter.patch(
   "/:kind/documents/:documentId/folder",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
@@ -532,7 +520,6 @@ localLibraryRouter.patch(
 
 localLibraryRouter.patch(
   "/:kind/documents/:documentId",
-  requireAuth,
   asyncRoute(async (req, res) => {
     const kind = libraryKind(req.params.kind);
     if (!kind)
