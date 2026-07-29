@@ -1,7 +1,6 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { legalProviderDatabase } from "./legalDataPath";
+import { legalProviderDatabase, withReadonlySqlite } from "./legalDataPath";
 
 /**
  * Local A2AJ Hansard store (huggingface.co/datasets/a2aj/hansard, imported by
@@ -40,16 +39,7 @@ function hansardDatabasePath() {
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  const databasePath = hansardDatabasePath();
-  if (!existsSync(databasePath)) return null;
-  const { DatabaseSync } =
-    require("node:sqlite") as typeof import("node:sqlite");
-  const database = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    return operation(database);
-  } finally {
-    database.close();
-  }
+  return withReadonlySqlite(hansardDatabasePath(), operation);
 }
 
 function string(row: Row, field: string) {
