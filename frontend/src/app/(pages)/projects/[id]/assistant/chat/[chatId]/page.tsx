@@ -8,12 +8,7 @@ import {
     useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-    ChevronLeft,
-    ChevronRight,
-    Loader2,
-    Upload,
-} from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import {
     createProjectFolder,
     deleteChat,
@@ -41,14 +36,9 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
-import {
-    HORIZONTAL_RESIZE_HANDLE_CLASS,
-    horizontalDrag,
-} from "@/app/components/ui/horizontal-drag";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
-import { cn } from "@/app/lib/utils";
 import type {
     Document,
     Project,
@@ -56,8 +46,6 @@ import type {
 interface Props {
     params: Promise<{ id: string; chatId: string }>;
 }
-const EXPLORER_MIN = 160;
-const EXPLORER_DEFAULT = 280;
 function AssistantGreeting({ username }: { username: string }) {
     return (
         <div className="flex items-center justify-center gap-3">
@@ -65,20 +53,6 @@ function AssistantGreeting({ username }: { username: string }) {
             <h1 className="text-center font-serif text-3xl font-light text-gray-900">
                 Hi, {username}
             </h1>
-        </div>
-    );
-}
-function Divider({ onDrag }: { onDrag: (dx: number) => void }) {
-    const drag = horizontalDrag(onDrag);
-    return (
-        <div className="relative z-10 hidden w-0 shrink-0 md:block">
-            <div
-                onPointerDown={drag}
-                className={cn(
-                    "absolute inset-y-0 -left-2 -right-2",
-                    HORIZONTAL_RESIZE_HANDLE_CLASS,
-                )}
-            />
         </div>
     );
 }
@@ -99,16 +73,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
-    const [explorerWidth, setExplorerWidth] = useState(EXPLORER_DEFAULT);
-    const [explorerCollapsed, setExplorerCollapsed] = useState(false);
     const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false);
     const [explorerDragOver, setExplorerDragOver] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const chatViewRef = useRef<ChatViewHandle>(null);
-    const mobileExplorerRef = useRef<HTMLDivElement>(null);
-    const mobileExplorerButtonRef = useRef<HTMLButtonElement>(null);
     const {
         peekPendingChatMessage,
         claimPendingChatMessage,
@@ -426,16 +396,11 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         if (document) chatViewRef.current?.attachDocument(document);
     }
-    const resizeExplorer = useCallback((dx: number) => {
-        setExplorerWidth((width) => Math.max(EXPLORER_MIN, width + dx));
-    }, []);
     const closeMobileExplorer = useCallback(() => {
         setMobileExplorerOpen(false);
-        requestAnimationFrame(() => mobileExplorerButtonRef.current?.focus());
     }, []);
     const openMobileExplorer = useCallback(() => {
         setMobileExplorerOpen(true);
-        requestAnimationFrame(() => mobileExplorerRef.current?.focus());
     }, []);
     async function changeProject(nextProjectId: string | null) {
         const updated = await updateChatProject(chatId, nextProjectId);
@@ -544,22 +509,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             />
             <div className="relative flex min-h-0 flex-1 overflow-hidden border-t border-gray-200">
                 <div
-                    ref={mobileExplorerRef}
                     id="project-chat-explorer"
-                    tabIndex={-1}
-                    style={{ width: explorerWidth }}
-                    className={`shrink-0 flex-col border-r border-gray-200 bg-white ${
-                        mobileExplorerOpen
-                            ? "absolute inset-y-0 left-0 z-40 flex shadow-lg"
-                            : "hidden"
-                    } ${
-                        explorerCollapsed
-                            ? "md:hidden"
-                            : "md:relative md:inset-auto md:z-auto md:flex md:shadow-none"
-                    }`}
-                    onKeyDown={(event) => {
-                        if (event.key === "Escape") closeMobileExplorer();
-                    }}
+                    className={`absolute inset-y-0 left-0 z-40 w-64 flex-col border-r border-gray-200 bg-white shadow-lg ${mobileExplorerOpen ? "flex" : "hidden"} md:relative md:z-auto md:flex md:shadow-none`}
                     onDragOver={(event) => {
                         event.preventDefault();
                         const types = Array.from(event.dataTransfer.types);
@@ -613,20 +564,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     <Upload className="h-3.5 w-3.5" />
                                 )}
                             </button>
-                            <button
-                                type="button"
-                                onClick={closeMobileExplorer}
-                                title="Close explorer"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden"                            >
-                                <ChevronLeft className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setExplorerCollapsed(true)}
-                                title="Collapse explorer"
-                                className="hidden rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:block"                            >
-                                <ChevronLeft className="h-3.5 w-3.5" />
-                            </button>
+                            <button type="button" onClick={closeMobileExplorer} title="Close explorer" className="rounded px-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden">×</button>
                         </div>
                     </div>
                     <div
@@ -659,27 +597,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         />
                     </div>
                 </div>
-                {!explorerCollapsed && <Divider onDrag={resizeExplorer} />}
-                {explorerCollapsed && (
-                    <div className="hidden shrink-0 flex-col border-r border-gray-200 md:flex">
-                        <div className="flex h-10 shrink-0 items-center justify-center border-b border-gray-200 px-1">
-                            <button
-                                type="button"
-                                onClick={() => setExplorerCollapsed(false)}
-                                title="Expand explorer"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"                            >
-                                <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    </div>
-                )}
                 <div
                     className="relative min-w-0 flex-1"
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={handleChatDrop}
                 >
                     <button
-                        ref={mobileExplorerButtonRef}
                         type="button"
                         aria-controls="project-chat-explorer"
                         aria-expanded={mobileExplorerOpen}
