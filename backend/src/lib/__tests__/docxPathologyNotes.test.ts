@@ -1,5 +1,7 @@
-// Phase 3 integration (3i-1): the pathology sniffer's notes_of_caution ride
-// along on document reads as additive metadata. The extracted text stays
+// Phase 3 integration (3i-1/3i-2): the pathology sniffer's notes_of_caution
+// ride along on document reads as additive metadata, documents whose edits
+// plain text cannot show point at the opt-in redline view, and mode="redline"
+// projects those edits as markers. The default extracted text stays
 // byte-identical — these tests hold both halves of that contract on the
 // local (library_*) and Supabase (read_document) paths.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -13,6 +15,10 @@ const userId = "00000000-0000-0000-0000-000000000001";
 
 const MANUAL_REDLINE_NOTE =
   "2 runs are struck and 2 runs carry a red colour without tracked-change markup; the edit intent is formatting only.";
+
+// Asserted as a literal on purpose: the advisory's wording is the contract.
+const REDLINE_ADVISORY =
+  "Struck or inserted text is invisible in this plain-text view; request the redline view to see it.";
 
 let temporaryDirectory: string | null = null;
 
@@ -144,6 +150,135 @@ describe("pathology notes on local library reads", () => {
   });
 });
 
+describe("redline view and advisory on local library reads", () => {
+  it("projects markers under mode=redline and advises on the default read", async () => {
+    await isolatedHome();
+    const bytes = await pathologyFixtureBuilders["manual-red-strike-redline"]();
+    const store = await import("../localDocumentStore");
+    const { runLocalAssistantTools } = await import(
+      "../chat/localAssistantTools"
+    );
+    const document = await store.createLocalDocument({
+      userId,
+      kind: "file",
+      filename: "notice-redline.docx",
+      bytes,
+    });
+
+    const [redlineRead, defaultRead] = await runLocalAssistantTools(userId, [
+      {
+        id: "r1",
+        name: "library_read",
+        input: { document_id: document.id, mode: "redline" },
+      },
+      { id: "r2", name: "library_read", input: { document_id: document.id } },
+    ]);
+
+    const redline = JSON.parse(redlineRead.content);
+    expect(redline).toMatchObject({
+      ok: true,
+      view: "redline",
+      filename: "notice-redline.docx",
+    });
+    expect(redline.marker_legend).toContain("{--deleted--}");
+    expect(redline.text).toContain("{--sixty (60) days--}[ink]");
+    expect(redline.text).toContain("{++thirty (30) days++}[ink]");
+    expect(redline.counts).toMatchObject({
+      ink_insertions: 1,
+      ink_deletions: 2,
+    });
+
+    const plain = JSON.parse(defaultRead.content);
+    expect(plain.notes_of_caution).toContain(REDLINE_ADVISORY);
+    expect(plain.text).not.toContain("{--");
+  });
+
+  it("advises on tracked changes too, whose deletions plain text drops", async () => {
+    await isolatedHome();
+    const bytes = await pathologyFixtureBuilders["tracked-changes"]();
+    const store = await import("../localDocumentStore");
+    const { runLocalAssistantTools } = await import(
+      "../chat/localAssistantTools"
+    );
+    const document = await store.createLocalDocument({
+      userId,
+      kind: "file",
+      filename: "arbitration-tracked.docx",
+      bytes,
+    });
+
+    const [defaultRead, redlineRead] = await runLocalAssistantTools(userId, [
+      { id: "r1", name: "library_read", input: { document_id: document.id } },
+      {
+        id: "r2",
+        name: "library_read",
+        input: { document_id: document.id, mode: "redline" },
+      },
+    ]);
+    const plain = JSON.parse(defaultRead.content);
+    expect(plain.notes_of_caution).toContain(REDLINE_ADVISORY);
+    // The dropped deletion is exactly what the redline view restores.
+    expect(plain.text).not.toContain("Zurich");
+    expect(JSON.parse(redlineRead.content).text).toContain("{--Zurich--}");
+  });
+
+  it("shows neither markers nor the advisory for a clean document", async () => {
+    await isolatedHome();
+    const bytes = await pathologyFixtureBuilders.clean();
+    const store = await import("../localDocumentStore");
+    const { runLocalAssistantTools } = await import(
+      "../chat/localAssistantTools"
+    );
+    const document = await store.createLocalDocument({
+      userId,
+      kind: "file",
+      filename: "costs-clean.docx",
+      bytes,
+    });
+
+    const [defaultRead, redlineRead] = await runLocalAssistantTools(userId, [
+      { id: "r1", name: "library_read", input: { document_id: document.id } },
+      {
+        id: "r2",
+        name: "library_read",
+        input: { document_id: document.id, mode: "redline" },
+      },
+    ]);
+    const plain = JSON.parse(defaultRead.content);
+    expect(plain).not.toHaveProperty("notes_of_caution");
+    const redline = JSON.parse(redlineRead.content);
+    expect(redline.ok).toBe(true);
+    expect(redline.text).toBe(plain.text);
+    expect(redline.text).not.toContain("{--");
+    expect(redline.text).not.toContain("{++");
+  });
+
+  it("refuses the redline view for a non-DOCX document", async () => {
+    await isolatedHome();
+    const store = await import("../localDocumentStore");
+    const { runLocalAssistantTools } = await import(
+      "../chat/localAssistantTools"
+    );
+    const document = await store.createLocalDocument({
+      userId,
+      kind: "file",
+      filename: "note.eml",
+      bytes: Buffer.from("From: a@example.com\r\n\r\nBody.", "utf8"),
+    });
+    const [read] = await runLocalAssistantTools(userId, [
+      {
+        id: "r1",
+        name: "library_read",
+        input: { document_id: document.id, mode: "redline" },
+      },
+    ]);
+    expect(JSON.parse(read.content)).toEqual({
+      ok: false,
+      error: "Redline view requires a DOCX document",
+    });
+  });
+});
+
 describe("pathology notes on Supabase document reads", () => {
   const docStore = new Map([
     [
@@ -204,6 +339,68 @@ describe("pathology notes on Supabase document reads", () => {
     expect(await readDocumentContent("doc-1", docStore, emit)).toBe(
       await extractDocxBodyText(cleanBytes),
     );
+  });
+
+  it("serves the redline view under mode=redline and advises on the default read", async () => {
+    await isolatedHome();
+    const redlineBytes =
+      await pathologyFixtureBuilders["manual-red-strike-redline"]();
+    const cleanBytes = await pathologyFixtureBuilders.clean();
+    await mockStorage({
+      "docs/notice-redline.docx": redlineBytes,
+      "docs/costs-clean.docx": cleanBytes,
+    });
+    const { readDocumentContent } = await import("../chat/tools/documentOps");
+
+    const redline = JSON.parse(
+      await readDocumentContent("doc-0", docStore, emit, undefined, undefined, {
+        mode: "redline",
+      }),
+    );
+    expect(redline).toMatchObject({ ok: true, view: "redline" });
+    expect(redline.text).toContain("{--sixty (60) days--}[ink]");
+    expect(redline.text).toContain("{++thirty (30) days++}[ink]");
+
+    const plain = await readDocumentContent("doc-0", docStore, emit);
+    expect(plain).toContain(`- ${REDLINE_ADVISORY}`);
+    expect(plain).not.toContain("{--");
+
+    // Clean document: no advisory on the default read, no markers in redline.
+    const cleanPlain = await readDocumentContent("doc-1", docStore, emit);
+    expect(cleanPlain).not.toContain(REDLINE_ADVISORY);
+    const cleanRedline = JSON.parse(
+      await readDocumentContent("doc-1", docStore, emit, undefined, undefined, {
+        mode: "redline",
+      }),
+    );
+    expect(cleanRedline.ok).toBe(true);
+    expect(cleanRedline.text).toBe(cleanPlain);
+    expect(cleanRedline.text).not.toContain("{++");
+  });
+
+  it("refuses the redline view for a non-DOCX document", async () => {
+    await isolatedHome();
+    await mockStorage({
+      "docs/letter.pdf": Buffer.from("%PDF-1.4 not a docx"),
+    });
+    const { readDocumentContent } = await import("../chat/tools/documentOps");
+    const pdfStore = new Map([
+      [
+        "doc-9",
+        {
+          storage_path: "docs/letter.pdf",
+          file_type: "pdf",
+          filename: "letter.pdf",
+        },
+      ],
+    ]);
+    expect(
+      JSON.parse(
+        await readDocumentContent("doc-9", pdfStore, emit, undefined, undefined, {
+          mode: "redline",
+        }),
+      ),
+    ).toEqual({ ok: false, error: "Redline view requires a DOCX document" });
   });
 
   it("keeps find_in_document offsets anchored into pure text", async () => {
