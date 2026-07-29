@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–56—DEC. 12, 2025?>
+<?I51 PUBLIC LAW 119–56—DEC. 12, 2025?>
+<?I52 PUBLIC LAW 119–56—DEC. 12, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–56: To amend title 38, United States Code, to improve the repayment by the Secretary of Veterans Affairs of benefits misused by a fiduciary, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>56</docNumber>
+<citableAs>Public Law 119–56</citableAs><citableAs>139 Stat. 709</citableAs>
+<approvedDate>2025-12-12</approvedDate>
+<dc:date>2025-12-12</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-29</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–56—DEC. 12, 2025</centerRunningHead>
+<page identifier="/us/stat/139/709">139 STAT. 709</page>
+<dc:type>Public Law</dc:type><docNumber>119–56</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend title 38, United States Code, to improve the repayment by the Secretary of Veterans Affairs of benefits misused by a fiduciary, and for other purposes.<sidenote><p class="centered fontsize8" id="x39addfe7-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658076"><approvedDate date="2025-12-12">Dec. 12, 2025</approvedDate></p><p class="centered fontsize8" id="x39addfe8-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/1912">H.R. 1912</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x39addfe9-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">Veteran Fraud Reimbursement Act of 2025.</p></sidenote>
+<section id="d1322e88" identifier="/us/pl/119/56/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x39ae06fa-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s101">38 USC 101 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Veteran Fraud Reimbursement Act of 2025</shortTitle>”.</content></section>
+<section id="d1322e103" identifier="/us/pl/119/56/s2" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>IMPROVEMENT TO REPAYMENT BY SECRETARY OF VETERANS AFFAIRS OF CERTAIN MISUSED BENEFITS.</heading><content class="firstIndent0 fontsize10" id="x39ae2e0b-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120">  <ref href="/us/usc/t38/s6107">Section 6107 of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction> to read as follows:<quotedContent><section class="centered fontsize12" id="y39ae7c2c-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658164"><num class="fontsize12" value="6107">“§ 6107.</num><heading class="fontsize12"> Reissuance of benefits</heading><subsection class="firstIndent0 fontsize10" id="y39ae7c2d-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">“(a) </num><heading class="fontsize10"><inline class="smallCaps">Reissuance of Misused Benefits</inline>.—</heading><paragraph class="inline" id="y39ae7c2e-e4c2-11f0-bc57-ad3ac4b1618c"><num value="1">(1) </num><content>In any case in which a fiduciary misuses all or part of an individual’s benefit paid to such fiduciary, the Secretary shall pay to the beneficiary or the beneficiary’s successor fiduciary an amount equal to the amount of such benefit so misused.</content></paragraph>
+<paragraph class="indentUp0 firstIndent0 fontsize10" id="y39ae7c2f-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>In any case in which the Secretary reissues a benefit payment (in whole or in part) under paragraph (1), the Secretary shall make a good faith effort to obtain recoupment from the fiduciary to whom the payment was originally made.</content></paragraph>
+<paragraph class="indentUp0 firstIndent0 fontsize10" id="y39aea340-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">“(3) </num><content><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x39aea341-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">Remittance.</p></sidenote>In any case in which the Secretary obtains recoupment from a fiduciary who has misused benefits, the Secretary shall promptly remit payment of the recouped amounts to the beneficiary or the beneficiary’s successor fiduciary, as the case may be, to the extent that such amounts have not been paid under paragraph (1).</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y39aea342-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">“(b) </num><heading class="fontsize10"><inline class="smallCaps">Reissuance of Amounts in the Case of a Deceased Beneficiary</inline>.—</heading><paragraph class="inline" id="y39aea343-e4c2-11f0-bc57-ad3ac4b1618c"><num value="1">(1) </num><content>If a beneficiary described in subsection (a)(1) predeceases a payment under such subsection, the Secretary shall pay such amount, subject to paragraph (2), to an individual or entity in accordance with section 5121 of this title.</content></paragraph>
+<paragraph class="indentUp0 firstIndent0 fontsize10" id="y39aea344-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>The Secretary may not make a payment under this subsection to a fiduciary who misused benefits of the beneficiary.</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y39aea345-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="c">“(c) </num><heading class="fontsize10"><inline class="smallCaps">Limitation on Total Amount Paid</inline>.—</heading><content>The total of the amounts paid to a beneficiary or the beneficiary’s successor fiduciary under this section may not exceed the total benefit amount misused by the fiduciary with respect to that beneficiary.</content></subsection>
+<subsection class="firstIndent0 fontsize10" id="y39aea346-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="d">“(d) </num><heading class="fontsize10"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x39aea347-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">Determination.</p></sidenote><inline class="smallCaps">Oversight of Negligence</inline>.—</heading><paragraph class="inline" id="y39aea348-e4c2-11f0-bc57-ad3ac4b1618c"><num value="1">(1) </num><content>The Secretary shall establish methods and timing with respect to determining whether an instance of misuse by a fiduciary, of all or part of an individual’s <page identifier="/us/stat/139/710">139 STAT. 710</page>
+benefit paid to such fiduciary, is the result of negligence by the Secretary.</content></paragraph>
+<paragraph class="indentUp0 firstIndent0 fontsize10" id="y39aea349-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>The Secretary may not withhold the reissuing of a benefit payment under subsection (a)(1) by reason of a pending determination under paragraph (1).</content></paragraph>
+<paragraph class="indentUp0 firstIndent0 fontsize10" id="y39aea34a-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">“(3) </num><content>The Secretary is not required to make a determination under paragraph (1) for each instance of misuse by a fiduciary, of all or part of an individual’s benefit paid to such fiduciary.”</content></paragraph>
+</subsection>
+</section>
+</quotedContent>.</content></section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-12">December 12, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/1912">H.R. 1912</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x39aea34b-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658035">May 5, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x39aea34c-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658035">Nov. 20, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

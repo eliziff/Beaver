@@ -1,0 +1,52 @@
+{
+  "dataset_id": "us-public-laws-uslm",
+  "dataset_version": "119th Congress public laws 1-80, GPO USLM 2.0.17 conversion, as published on govinfo",
+  "source_url": "https://www.govinfo.gov/app/collection/plaw/119",
+  "source_url_pattern": "https://www.govinfo.gov/content/pkg/PLAW-119publ{N}/uslm/PLAW-119publ{N}.xml",
+  "upstream_home": "https://www.govinfo.gov/bulkdata",
+  "schema": "USLM 2.0.17 (https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd), maintained by the U.S. Government Publishing Office (https://github.com/usgpo/uslm)",
+  "accessed_utc": "2026-07-28T21:41:00Z",
+  "license": "Public domain. Each file carries <dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>",
+  "license_source": "In-file dc:rights element; https://www.govinfo.gov/about/policies",
+  "attribution_required": "None legally required. Recommended: U.S. Government Publishing Office, govinfo, PLAW collection, USLM XML.",
+  "sha256_of_archive": "b4c3c3c6b8525157b32735a08f1e6c2fd545ba6a26bd98cada7b0f4c776e0534",
+  "sha256_of_archive_note": "No upstream archive exists for this slice; files were fetched individually. This value is the manifest digest = sha256 over the sorted lines \"<file sha256>  xml/<file name>\\n\" for the 79 XML files under xml/ (provenance.json and files_manifest.tsv are excluded from the digest). Per-file digests are in files_manifest.tsv.",
+  "selection_rule": "Deterministic: for N = 1..80 in ascending order, fetch https://www.govinfo.gov/content/pkg/PLAW-119publ{N}/uslm/PLAW-119publ{N}.xml; discard any single file larger than 8,000,000 bytes; stop once the retained total reaches 30,000,000 bytes. Result: 79 files retained, 9,959,471 bytes total.",
+  "exclusions": [
+    {"package": "PLAW-119publ60", "bytes": 12357201, "reason": "exceeds the 8,000,000-byte per-file cap"}
+  ],
+  "stability_note": "GPO re-runs its USLM converter over time (each file records <processedBy> and <processedDate>). These bytes are pinned by sha256 as fetched on the accessed_utc above; a later re-fetch may differ and MUST be treated as a new dataset_version.",
+  "file_count": 79,
+  "total_bytes": 9959471,
+  "shape": {
+    "hierarchy_nodes": 15199,
+    "hierarchy_nodes_with_canonical_identifier": 8870,
+    "hierarchy_nodes_without_identifier": 6329,
+    "hierarchy_node_breakdown": {
+      "section": 1965,
+      "subsection": 2459,
+      "paragraph": 5052,
+      "subparagraph": 3094,
+      "clause": 1628,
+      "subclause": 710,
+      "item": 291
+    },
+    "num_elements": 15520,
+    "heading_elements": 7712,
+    "ref_elements": 5105,
+    "ref_target_namespaces": {"us/usc": 3455, "us/pl": 1082, "us/stat": 186, "us/bill": 178, "us/cfr": 122, "us/fr": 54, "us/hrpt": 19, "us/cons": 4, "us/srpt": 4},
+    "term_elements": 555,
+    "amendingAction_elements": 4349,
+    "quotedText_elements": 2566,
+    "quotedContent_elements": 647,
+    "date_elements": 79,
+    "page_elements": 1507,
+    "chapeau_elements": 2440
+  },
+  "what_ground_truth": {
+    "a_typed_anchor_extraction": "STRONG for STATUTORY CITATIONS, weak for money/date/duration. 5,105 <ref href=\"...\"> elements give the surface citation string AND its resolved canonical target, e.g. <ref href=\"/us/usc/t8/s1226/c\">8 U.S.C. 1226(c)</ref> -> title 8, section 1226, subsection (c). 3,455 target the U.S. Code and 122 target the CFR. That is span + typed normalized value, which is exactly the shape an anchor extractor should be scored on. Dates: only 79 <date date=\"YYYY-MM-DD\"> elements (essentially the approval date of each law), so this is NOT a date-anchor corpus. Money amounts, percentages, and durations appear in the text but are NOT tagged.",
+    "b_structural_parsing": "STRONG / primary. 15,199 nested hierarchy elements (section > subsection > paragraph > subparagraph > clause > subclause > item), each with a sibling <num value=\"a\">(a) </num> element carrying both the rendered enumerator and its normalized value, and 8,870 of them additionally carrying a canonical @identifier path such as /us/pl/119/1/s2/1/E/i. Headings are separately tagged (<heading>), and lead-in text is tagged <chapeau>, so heading-vs-body and lead-in-vs-item are decidable, not guessed. 555 <term> elements mark defined terms at their point of definition, which is partial gold for a defined-term index.",
+    "c_tracked_changes_markup": "CLOSEST PUBLIC PROXY, but NOT redline gold. 4,349 <amendingAction type=\"amend|insert|delete|redesignate|add|...\"> elements paired with 2,566 <quotedText> and 647 <quotedContent> elements encode typed edit operations against a target document with the exact struck/inserted text. That validates 'produce a typed, addressed edit operation with exact text', which is the semantic core of a redline. It does NOT validate OOXML w:ins/w:del/w:comment emission, revision-mark round-tripping, or Word compatibility."
+  },
+  "why_this_corpus": "Independent of every contract-review benchmark family (CUAD/MAUD/ContractNLI/LegalBench/LegalBench-RAG and Harvey LAB), so a structure parser scored here cannot be scoring its own training distribution. It is also editorially produced rather than crowd-annotated, so the hierarchy and citation targets are publisher ground truth, not a heuristic projection."
+}

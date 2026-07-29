@@ -1,0 +1,358 @@
+{
+ "artifact_id": "ab-rsa-2000-c-o4-occupiers-liability",
+ "doc_type": "statute",
+ "jurisdiction": "CA-AB",
+ "dataset": "LEGISLATION-AB",
+ "citation": "RSA 2000, c O-4",
+ "citation_secondary": null,
+ "name": "Occupiers' Liability Act",
+ "document_date": "2019-12-05",
+ "language": "en",
+ "source_url": "https://kings-printer.alberta.ca/1266.cfm?page=O04.cfm&leg_type=Acts&isbncln=9780779814909&display=html",
+ "scraped_timestamp": "2026-07-25 14:55:59.539000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-laws",
+  "revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+  "file": "LEGISLATION-AB/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "unofficial_sections_en",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "See upstream license: https://perma.cc/7GUJ-2NNL © Alberta King's Printer. Reproduced from the Alberta King's Printer Laws Online catalogue (https://kings-printer.alberta.ca), which permits reproduction of Alberta's statutes and regulations without permission provided due diligence is exercised to ensure the accuracy of the materials, the Crown is identified as the source, and the reproduction is not represented as an official version. See the Alberta King's Printer copyright terms: https://kings-printer.alberta.ca/copyright.cfm. NOTE: This is an unofficial reproduction of Alberta legislation, made without endorsement or affiliation by the Government of Alberta. The official Statutes and Regulations should be consulted for all purposes of interpreting and applying the law.",
+  "upstream_license_id": "AlbertaKingsPrinter-Reproduction"
+ },
+ "raw_text_file": "ab-rsa-2000-c-o4-occupiers-liability.txt",
+ "raw_text_chars": 11251,
+ "raw_text_sha256": "af2fef49c1624984b503140930f27f97f0556ab67890ac69b39695af409524e6",
+ "structure_provenance": "provider-native",
+ "structure_derivation": {
+  "labels_and_bodies": "verbatim from unofficial_sections_en (provider-native, zero annotation)",
+  "raw_span": "derived: each label located in the raw text by a line-anchored heading match, disambiguated by verifying the native body follows; span ends at the next located heading",
+  "warning": "the provider's section-map key order is NOT document order for decimal labels (e.g. 83.01, 83.1, 83.02, 83.2 ...); use doc_order, not map_order"
+ },
+ "structure": {
+  "kind": "section_map",
+  "native_field": "unofficial_sections_en",
+  "label_count": 18,
+  "anchored_count": 18,
+  "anchor_kinds": {
+   "unique": 18
+  },
+  "body_classes": {
+   "substantive": 18
+  },
+  "map_order_equals_doc_order": true,
+  "labels_map_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "6.1",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "11.1",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16"
+  ],
+  "labels_doc_order": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "6.1",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "11.1",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16"
+  ],
+  "sections": [
+   {
+    "label": "1",
+    "map_order": 0,
+    "doc_order": 0,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 170,
+     "end": 1946
+    },
+    "body_chars": 1728,
+    "body_sha256": "bca10fa1ce8e1d4be9e3efff50bebf7de81bbb815c68e8ff8767568767bc2edf",
+    "body": "In this Act,\n(a) “common duty of care” means the duty of care of an occupier of premises to visitors provided for in section 5;\n(b) “entrant as of right” means a person who is empowered or permitted by law to enter premises without the permission of the occupier of those premises;\n(c) “occupier” means\n(i) a person who is in physical possession of premises, or\n(ii) a person who has responsibility for, and control over, the condition of premises, the activities conducted on those premises and the persons allowed to enter those premises,\nand for the purposes of this Act, there may be more than one occupier of the same premises;\n(d) “premises” includes\n(i) staging, scaffolding and similar structures erected on land whether affixed to the land or not,\n(ii) poles, standards, pylons and wires used for the purpose of transmission of electric power or communications or transportation of passengers, whether or not they are used in conjunction with the supporting land,\n(iii) railway locomotives and railway cars,\n(iv) ships, and\n(v) trailers used for, or designed for use as, residences, shelters or offices,\nbut does not include aircraft, motor vehicles or other vehicles or vessels except those mentioned in subclauses (iii) and (iv) or any portable derrick or other equipment or movable things except those mentioned in subclauses (i) and (v);\n(e) “visitor” means\n(i) an entrant as of right,\n(ii) a person who is lawfully present on premises by virtue of an express or implied term of a contract,\n(iii) any other person whose presence on premises is lawful, or\n(iv) a person whose presence on premises becomes unlawful after the person’s entry on those premises and who is taking reasonable steps to leave those premises."
+   },
+   {
+    "label": "2",
+    "map_order": 1,
+    "doc_order": 1,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 1946,
+     "end": 2062
+    },
+    "body_chars": 85,
+    "body_sha256": "b93b567076fdc711a37b1567046d8342dd1e9d10137d59be17cb675e90552b64",
+    "body": "This Act applies only in cases where the cause of action arose after January 1, 1974."
+   },
+   {
+    "label": "3",
+    "map_order": 2,
+    "doc_order": 2,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2062,
+     "end": 2234
+    },
+    "body_chars": 115,
+    "body_sha256": "4cf5a41c5e11916ce9ce771713e50e12441ff8025f5f1ac13afe21c3b88416ca",
+    "body": "This Act does not apply to or affect the liability of an employer in respect of the employer’s duties to employees."
+   },
+   {
+    "label": "4",
+    "map_order": 3,
+    "doc_order": 3,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2234,
+     "end": 2827
+    },
+    "body_chars": 520,
+    "body_sha256": "b892f39c70ad9f70cdb6c15ac9a16ded2c3bc5c52c7a216ef637ac21cb2c3a75",
+    "body": "(1) This Act does not apply to highways, other than leased road allowances,\n(a) where a Minister of the Crown in right of Alberta has the administration of, or the management, direction and control of, the highway,\n(b) where the Crown in right of Canada has the administration and control of the highway, or\n(c) where a municipal corporation or Metis settlement has the management, direction and control of the highway.\n(2) This Act does not apply to private streets as defined in section 78 of the Law of Property Act ."
+   },
+   {
+    "label": "5",
+    "map_order": 4,
+    "doc_order": 4,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 2827,
+     "end": 3217
+    },
+    "body_chars": 348,
+    "body_sha256": "964a23f5268febe2951a03b3b3a9851d2b159c6c7bb5686db807ae9d1a591195",
+    "body": "An occupier of premises owes a duty to every visitor on the occupier’s premises to take such care as in all the circumstances of the case is reasonable to see that the visitor will be reasonably safe in using the premises for the purposes for which the visitor is invited or permitted by the occupier to be there or is permitted by law to be there."
+   },
+   {
+    "label": "6",
+    "map_order": 5,
+    "doc_order": 5,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 3217,
+     "end": 3412
+    },
+    "body_chars": 167,
+    "body_sha256": "7aa53f4162744346631e14e9122e197c3a1d10c49abeb0226b9a8b9b1d831fc4",
+    "body": "The common duty of care applies in relation to\n(a) the condition of the premises,\n(b) activities on the premises, and\n(c) the conduct of third parties on the premises."
+   },
+   {
+    "label": "6.1",
+    "map_order": 6,
+    "doc_order": 6,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 3412,
+     "end": 4307
+    },
+    "body_chars": 859,
+    "body_sha256": "1ae1030f627b2373033eb53e5a6743770c2d4b52509249f61691b14d994337fe",
+    "body": "(1) The liability of an occupier to a person who uses the premises described in subsection (2) or a portion of them for a recreational purpose shall be determined as if the person was a trespasser unless the occupier\n(a) receives payment for the entry or activity of the person, other than a benefit or payment received from a government or government agency or non-profit recreation club or association, or\n(b) is providing the person with living accommodation on the premises.\n(2) Subsection (1) applies to the following:\n(a) rural premises that are\n(i) used for agricultural purposes including land under cultivation,\n(ii) vacant or undeveloped premises, and\n(iii) forested or wilderness premises;\n(b) golf courses when not open for playing;\n(c) utility rights-of-way excluding structures located on them;\n(d) recreational trails reasonably marked as such."
+   },
+   {
+    "label": "7",
+    "map_order": 7,
+    "doc_order": 7,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 4307,
+     "end": 4485
+    },
+    "body_chars": 143,
+    "body_sha256": "eef065141eb503ef641f993091e82730c04f48d12f9691a6956f3f0533576af5",
+    "body": "An occupier is not under an obligation to discharge the common duty of care to a visitor in respect of risks willingly accepted by the visitor."
+   },
+   {
+    "label": "8",
+    "map_order": 8,
+    "doc_order": 8,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 4485,
+     "end": 4918
+    },
+    "body_chars": 406,
+    "body_sha256": "33270998b68f0e67ebb83ed37eb6aee871931e69a777ca23219c05e1b48668f0",
+    "body": "(1) The liability of an occupier under this Act in respect of a visitor may be extended, restricted, modified or excluded by express agreement or express notice but no restriction, modification or exclusion of that liability is effective unless reasonable steps were taken to bring it to the attention of the visitor.\n(2) This section does not apply with respect to a visitor who is an entrant as of right."
+   },
+   {
+    "label": "9",
+    "map_order": 9,
+    "doc_order": 9,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 4918,
+     "end": 5196
+    },
+    "body_chars": 236,
+    "body_sha256": "f38d63df7f7541354c2ae8c3ea83ae5f0aff796ff9b4a281f6930e83100cc7b2",
+    "body": "A warning, without more, shall not be treated as absolving an occupier from discharging the common duty of care to the occupier’s visitor unless in all the circumstances the warning is enough to enable the visitor to be reasonably safe."
+   },
+   {
+    "label": "10",
+    "map_order": 10,
+    "doc_order": 10,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 5196,
+     "end": 5496
+    },
+    "body_chars": 254,
+    "body_sha256": "341b5384f903098636765dfc7d18567e423a0c09a0bbd904a0e9cfe8011c99d7",
+    "body": "When an occupier of premises is bound by a contract to permit strangers to the contract to enter or use the premises, the liability of the occupier under this Act to a stranger to the contract may not be enlarged, restricted or excluded by that contract."
+   },
+   {
+    "label": "11",
+    "map_order": 11,
+    "doc_order": 11,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 5496,
+     "end": 6160
+    },
+    "body_chars": 567,
+    "body_sha256": "af9f1ddc801aac995ae41020d131a9c4f6c18b6e4625a8d939d69e9383622051",
+    "body": "(1) An occupier is not liable under this Act when the damage is due to the negligence of an independent contractor engaged by the occupier if\n(a) the occupier exercised reasonable care in the selection and supervision of the independent contractor, and\n(b) it was reasonable in all the circumstances that the work that the independent contractor was engaged to do should have been undertaken.\n(2) Subsection (1) does not operate to abrogate or restrict the liability of an occupier for the negligence of the occupier’s independent contractor imposed by any other Act."
+   },
+   {
+    "label": "11.1",
+    "map_order": 12,
+    "doc_order": 12,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 6160,
+     "end": 6524
+    },
+    "body_chars": 340,
+    "body_sha256": "7f265e7a4a21743eaf9a5c35d88395c960d32dd89d8b9bb785b0932d42031e87",
+    "body": "The liability of a holder of an agricultural disposition issued under the Public Lands Act in respect of a person who, under section 62.1 of the Public Lands Act and the applicable regulations, enters and uses the land that is subject to the agricultural disposition shall be determined as if the person entering the land were a trespasser."
+   },
+   {
+    "label": "12",
+    "map_order": 13,
+    "doc_order": 13,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 6524,
+     "end": 8107
+    },
+    "body_chars": 1555,
+    "body_sha256": "ae5c53aca50191bb94631168b646a92b045afbd67ff3bd7fac1bffdcb5353b19",
+    "body": "(1) Subject to subsection (2) and (3) and to section 13, an occupier does not owe a duty of care to a trespasser on the occupier’s premises.\n(2) Where a trespasser is not a criminal trespasser, an occupier is not liable to the trespasser for damages for death of or injury to the trespasser unless the death or injury results from the occupier’s wilful or reckless conduct.\n(3) Where a trespasser is a criminal trespasser, no action lies against the occupier for damages for death of or injury to the trespasser unless the death or injury is caused by conduct of the occupier that\n(a) is wilful and grossly disproportionate in the circumstances, and\n(b) results in the occupier being convicted of an offence under the Criminal Code (Canada) that is prosecuted by indictment.\n(4) For the purposes of subsections (2) and (3), a trespasser is a criminal trespasser if the occupier has reasonable grounds to believe that the trespasser is committing or is about to commit an offence under the Criminal Code (Canada).\n(5) For the purposes of subsection (3), an occupier is deemed not to be convicted of an offence until the period limited by law for the commencement of an appeal from the conviction has elapsed or the appeal taken from the conviction has concluded or been abandoned.\n(6) This section applies to any action brought against an occupier by a trespasser on the occupier’s premises in relation to a trespass occurring on or after January 1, 2018, irrespective of whether the action is brought before or after the coming into force of this section."
+   },
+   {
+    "label": "13",
+    "map_order": 14,
+    "doc_order": 14,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 8107,
+     "end": 9294
+    },
+    "body_chars": 1133,
+    "body_sha256": "b28717c2a787c4e9a5c2987e32964602da70554500caf419ffc3870e12f1f187",
+    "body": "(1) When an occupier knows or has reason to know\n(a) that a child trespasser is on the occupier’s premises, and\n(b) that the condition of, or activities on, the premises create a danger of death or serious bodily harm to that child,\nthe occupier owes a duty to that child to take such care as in all the circumstances of the case is reasonable to see that the child will be reasonably safe from that danger.\n(2) In determining whether the duty of care under subsection (1) has been discharged, consideration shall be given to\n(a) the age of the child,\n(b) the ability of the child to appreciate the danger, and\n(c) the burden on the occupier of eliminating the danger or protecting the child from the danger as compared to the risk of the danger to the child.\n(3) For the purposes of subsection (1), the occupier has reason to know that a child trespasser is on the occupier’s premises if the occupier has knowledge of facts from which a reasonable person would infer that a child is present or that the presence of a child is so probable that the occupier should conduct himself or herself on the assumption that a child is present."
+   },
+   {
+    "label": "14",
+    "map_order": 15,
+    "doc_order": 15,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 9294,
+     "end": 10482
+    },
+    "body_chars": 1152,
+    "body_sha256": "cb632acb3888d86d2ec7d20bd548c81e090c45e3038176a1e129272dd7cef64f",
+    "body": "(1) Subject to subsections (2) to (4), the liability of an occupier under this Act to a visitor or trespasser extends to destruction or loss of, or damage to, property brought on to the occupier’s premises by the visitor or trespasser, as the case may be, whether or not it is owned by the visitor or trespasser or by any other person.\n(2) An occupier is not liable under this Act in respect of a loss of or damage to property of any person resulting by reason of the act of a third party.\n(3) When a person in an action under this Act claims damages in respect of the destruction or loss of, or damage to, property of which the person is the owner and that was brought on to the occupier’s premises by some other person either as a visitor or trespasser on those premises, the occupier is entitled to raise any defence to the claim that the occupier would be entitled to raise if the claimant were the visitor or trespasser, as the case may be.\n(4) This Act does not apply to or affect any liability of an occupier of premises in respect of personal property arising by virtue of\n(a) a contract of carriage,\n(b) a bailment, or\n(c) the Innkeepers Act ."
+   },
+   {
+    "label": "15",
+    "map_order": 16,
+    "doc_order": 16,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 10482,
+     "end": 11197
+    },
+    "body_chars": 693,
+    "body_sha256": "49ec4b2c8058a5d1d42d65b3f88abd379e523ed3fc8bb0811343c6f780422b28",
+    "body": "(1) When the occupier does not discharge the common duty of care to a visitor and the visitor suffers damage partly as a result of the fault of the occupier and partly as a result of the visitor’s own fault, the Contributory Negligence Act applies.\n(2) When an occupier is liable under section 12(2) or 13, and the trespasser or child trespasser, as the case may be, suffers damage partly as a result of the fault of the occupier and partly as a result of the trespasser’s or child trespasser’s own fault, the Contributory Negligence Act applies.\n(3) When in an action brought under this Act 2 or more occupiers of the same premises are each found to be at fault, the Tort-feasors Act applies."
+   },
+   {
+    "label": "16",
+    "map_order": 17,
+    "doc_order": 17,
+    "body_class": "substantive",
+    "anchored": true,
+    "anchor_kind": "unique",
+    "raw_span": {
+     "start": 11197,
+     "end": 11251
+    },
+    "body_chars": 51,
+    "body_sha256": "ecf191a852300bab8e54c21e4104d5d897bf584a031011a5014b5830bb61b6a1",
+    "body": "The Crown in right of Alberta is bound by this Act."
+   }
+  ]
+ }
+}

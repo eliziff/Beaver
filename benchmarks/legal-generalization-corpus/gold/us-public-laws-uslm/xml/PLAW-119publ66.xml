@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–66—DEC. 26, 2025?>
+<?I51 PUBLIC LAW 119–66—DEC. 26, 2025?>
+<?I52 PUBLIC LAW 119–66—DEC. 26, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–66: To reauthorize the Congressional Award Act.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>66</docNumber>
+<citableAs>Public Law 119–66</citableAs><citableAs>139 Stat. 1992</citableAs>
+<approvedDate>2025-12-26</approvedDate>
+<dc:date>2025-12-26</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-01-12</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–66—DEC. 26, 2025</centerRunningHead>
+<page identifier="/us/stat/139/1992">139 STAT. 1992</page>
+<dc:type>Public Law</dc:type><docNumber>119–66</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To reauthorize the Congressional Award Act.<sidenote><p class="centered fontsize8" id="xb9b04eb7-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658076"><approvedDate date="2025-12-26">Dec. 26, 2025</approvedDate></p><p class="centered fontsize8" id="xb9b075c8-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658076">[<ref href="/us/bill/119/s/284">S. 284</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb9b075c9-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180">Congressional Award Program Reauthorization Act.</p></sidenote>
+<section id="d891e88" identifier="/us/pl/119/66/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb9b075ca-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t2/s801">2 USC 801 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Congressional Award Program Reauthorization Act</shortTitle>”.</content></section>
+<section id="d891e103" identifier="/us/pl/119/66/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>TERMINATION.</heading><subsection class="firstIndent0 fontsize10" id="yb9b09cdb-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/66/s2/a" role="instruction" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">(a) </num><heading class="fontsize10"><inline class="smallCaps">In General</inline>.—</heading><content>Section 108 of the Congressional Award Act (<ref href="/us/usc/t2/s808">2 U.S.C. 808</ref>) <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="delete">striking</amendingAction> “<quotedText>October 1, 2023</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>October 1, 2028</quotedText>”.</content></subsection>
+<subsection class="firstIndent0 fontsize10" id="yb9b09cdc-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/66/s2/b" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">(b) </num><heading class="fontsize10"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb9b09cdd-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t2/s808">2 USC 808 note</ref>.</p></sidenote><inline class="smallCaps">Retroactive Effective Date</inline>.—</heading><content>The amendment made by subsection (a) shall take effect as if enacted on October 1, 2023.</content></subsection>
+</section>
+<section id="d891e144" identifier="/us/pl/119/66/s3" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="3">SEC. 3. </num><heading>OTHER AMENDMENTS.</heading><chapeau class="indentUp0 firstIndent0 fontsize10" id="xb9b0c3ee-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658120">  Section 102 of the Congressional Award Act (<ref href="/us/usc/t2/s802">2 U.S.C. 802</ref>) <amendingAction type="amend">is amended</amendingAction>—</chapeau><paragraph class="fontsize10" id="yb9b0c3ef-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/66/s3/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>in subsection (a), by <amendingAction type="delete">striking</amendingAction> “<quotedText>Each medal shall consist of gold-plate over bronze, rhodium over bronze, or bronze and shall be struck in accordance with subsection (f).</quotedText>”; and</content></paragraph>
+<paragraph class="fontsize10" id="yb9b0c3f0-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/66/s3/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>in subsection (f)(1), in the second sentence, by <amendingAction type="delete">striking</amendingAction> “<quotedText>Subject to subsection (a), the</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>The</quotedText>”.</content></paragraph>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-26">December 26, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/s/284">S. 284</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="xb9b0eb01-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658035">Oct. 20, considered and passed Senate.</p><p class="indentUp4 firstIndent-1" id="xb9b0eb02-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658035">Dec. 15, considered and passed House.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

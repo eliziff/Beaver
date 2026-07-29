@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–64—DEC. 26, 2025?>
+<?I51 PUBLIC LAW 119–64—DEC. 26, 2025?>
+<?I52 PUBLIC LAW 119–64—DEC. 26, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–64: To amend the Internal Revenue Code of 1986 to make the postponement of certain deadlines by reason of disasters applicable to the limitation on credit or refund, and to take postponements into account for purposes of sending collection notices.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>64</docNumber>
+<citableAs>Public Law 119–64</citableAs><citableAs>139 Stat. 1984</citableAs>
+<approvedDate>2025-12-26</approvedDate>
+<dc:date>2025-12-26</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-01-12</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–64—DEC. 26, 2025</centerRunningHead>
+<page identifier="/us/stat/139/1984">139 STAT. 1984</page>
+<dc:type>Public Law</dc:type><docNumber>119–64</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend the Internal Revenue Code of 1986 to make the postponement of certain deadlines by reason of disasters applicable to the limitation on credit or refund, and to take postponements into account for purposes of sending collection notices.<sidenote><p class="centered fontsize8" id="xb72b5173-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658076"><approvedDate date="2025-12-26">Dec. 26, 2025</approvedDate></p><p class="centered fontsize8" id="xb72b5174-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/1491">H.R. 1491</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb72b7885-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180">Disaster Related Extension of Deadlines Act.</p></sidenote>
+<section id="d776e88" identifier="/us/pl/119/64/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb72b7886-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t26/s1">26 USC 1 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Disaster Related Extension of Deadlines Act</shortTitle>”.</content></section>
+<section id="d776e103" identifier="/us/pl/119/64/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>POSTPONEMENT OF CERTAIN DEADLINES BY REASON OF DISASTERS MADE APPLICABLE TO LIMITATION ON CREDIT OR REFUND.</heading><subsection class="firstIndent0 fontsize10" id="yb72bedb7-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/a" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">(a) </num><heading class="fontsize10"><inline class="smallCaps">Extension of Time for Filing Return</inline>.—</heading><paragraph class="fontsize10" id="yb72bedb8-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/a/1" role="instruction" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><heading class="fontsize10"><inline class="smallCaps">In general</inline>.—</heading><content>Section 7508A of the Internal Revenue Code of 1986 <sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb72bedb9-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t26/s7508A">26 USC 7508A</ref>.</p></sidenote><amendingAction type="amend">is amended</amendingAction> by <amendingAction type="add">adding</amendingAction> at the end the following new subsection:<quotedContent><subsection class="indentDown1 firstIndent0 fontsize10" id="yb72c14ca-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="f">“(f) </num><heading class="fontsize10"><inline class="smallCaps">Application to Limitation on Credit or Refund</inline>.—</heading><content>For purposes of section 6511(b)(2)(A), any period disregarded under this section with respect to the time prescribed for filing any return of tax shall be treated as an extension of time for filing such return.”</content></subsection>
+</quotedContent>.</content></paragraph>
+<paragraph class="fontsize10" id="yb72c14cb-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/a/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><heading class="fontsize10"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb72c14cc-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t26/s7508A">26 USC 7508A note</ref>.</p></sidenote><inline class="smallCaps">Effective date</inline>.—</heading><content>The amendment made by this subsection shall apply to claims filed after the date of the enactment of this Act.</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="yb72c14cd-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/b" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">(b) </num><heading class="fontsize10"><inline class="smallCaps">Collection Notices</inline>.—</heading><paragraph class="fontsize10" id="yb72c14ce-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/b/1" role="instruction" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><heading class="fontsize10"><inline class="smallCaps">In general</inline>.—</heading><chapeau>Section 6303(b) of such Code <amendingAction type="amend">is amended</amendingAction>—</chapeau><subparagraph class="fontsize10" id="yb72c14cf-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/b/1/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>by <amendingAction type="delete">striking</amendingAction> “<quotedText>Except</quotedText>” and <amendingAction type="insert">inserting</amendingAction> the following:<quotedContent><paragraph class="indentDown1 fontsize10" id="yb72c14d0-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">“(1) </num><heading class="fontsize10"><inline class="smallCaps">In general</inline>.—</heading><content>Except”</content></paragraph>
+</quotedContent>, and</content></subparagraph>
+<subparagraph class="fontsize10" id="yb72c3be1-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/b/1/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>by <amendingAction type="add">adding</amendingAction> at the end the following new paragraph:<quotedContent><paragraph class="indentDown1 fontsize10" id="yb72c3be2-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><heading class="fontsize10"><inline class="smallCaps">Postponement by reason of disaster, significant fire, or terroristic or military actions</inline>.—</heading><content>For purposes of paragraph (1), the last date prescribed for payment of any tax shall be determined after taking into account any period disregarded under section 7508A.”</content></paragraph>
+</quotedContent>.<page identifier="/us/stat/139/1985">139 STAT. 1985</page></content></subparagraph>
+</paragraph>
+<paragraph class="fontsize10" id="yb72c3be3-efd4-11f0-b6da-5f2d2070469d" identifier="/us/pl/119/64/s2/b/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><heading class="fontsize10"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="xb72c3be4-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658180"><ref href="/us/usc/t26/s6303">26 USC 6303 note</ref>.</p></sidenote><inline class="smallCaps">Effective date</inline>.—</heading><content>The amendments made by this subsection shall apply to notices issued after the date of the enactment of this Act.</content></paragraph>
+</subsection>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-26">December 26, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/1491">H.R. 1491</ref>:</heading>
+<note>
+<headingText style="-uslm-lc:I658032">HOUSE REPORTS:</headingText> ┐No. <ref href="/us/hrpt/119/43">119–43</ref> (<committee>Comm. on Ways and Means</committee>).
+</note>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="xb72c3be5-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658035">Mar. 31, Apr. 1, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="xb72c3be6-efd4-11f0-b6da-5f2d2070469d" style="-uslm-lc:I658035">Dec. 11, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

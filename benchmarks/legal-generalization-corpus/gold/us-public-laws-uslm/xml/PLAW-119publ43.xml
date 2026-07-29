@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–43—DEC. 1, 2025?>
+<?I51 PUBLIC LAW 119–43—DEC. 1, 2025?>
+<?I52 PUBLIC LAW 119–43—DEC. 1, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–43: To amend title 38, United States Code, to increase the rate of the special pension payable to Medal of Honor recipients, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>43</docNumber>
+<citableAs>Public Law 119–43</citableAs><citableAs>139 Stat. 667</citableAs>
+<approvedDate>2025-12-01</approvedDate>
+<dc:date>2025-12-01</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-08</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–43—DEC. 1, 2025</centerRunningHead>
+<page identifier="/us/stat/139/667">139 STAT. 667</page>
+<dc:type>Public Law</dc:type><docNumber>119–43</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend title 38, United States Code, to increase the rate of the special pension payable to Medal of Honor recipients, and for other purposes.<sidenote><p class="centered fontsize8" id="x75719cee-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658076"><approvedDate date="2025-12-01">Dec. 1, 2025</approvedDate></p><p class="centered fontsize8" id="x75719cef-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/695">H.R. 695</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x75719cf0-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658180">Medal of Honor Act.</p></sidenote>
+<section id="d236e88" identifier="/us/pl/119/43/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x7571c401-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s101">38 USC 101 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Medal of Honor Act</shortTitle>”.</content></section>
+<section id="d236e103" identifier="/us/pl/119/43/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>FINDINGS.</heading><chapeau class="indentUp0 firstIndent0 fontsize10" id="x75728752-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658120">  Congress finds the following:</chapeau><paragraph class="fontsize10" id="y75728753-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>The Medal of Honor is the highest and most prestigious military decoration of the United States.</content></paragraph>
+<paragraph class="fontsize10" id="y75728754-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>To earn the Medal of Honor “the deed of the person . . . must be so outstanding that it clearly distinguishes his gallantry beyond the call of duty from lesser forms of bravery”.</content></paragraph>
+<paragraph class="fontsize10" id="y75728755-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/3" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">(3) </num><content>The actions of Medal of Honor recipients inspire bravery, and the willingness to give all, in those who serve in the Armed Forces and those who will serve in the future.</content></paragraph>
+<paragraph class="fontsize10" id="y75728756-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/4" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="4">(4) </num><content>Those listed on the Medal of Honor Roll exemplify the best traits of members of the Armed Forces, a long and proud lineage of those who went beyond the call of duty.</content></paragraph>
+<paragraph class="fontsize10" id="y75728757-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/5" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="5">(5) </num><content>Pursuant to <ref href="/us/usc/t38/s1562">section 1562 of title 38, United States Code</ref>, the Secretary of Veterans Affairs shall pay monthly to each living person whose name has been entered on the Army, Navy, Air Force, and Coast Guard Medal of Honor Roll a special pension.</content></paragraph>
+<paragraph class="fontsize10" id="y75728758-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s2/6" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="6">(6) </num><content>Recipients of the Medal of Honor have earned a substantial and historic increase to such special pension in recognition of their conspicuous gallantry, unwavering commitment, and heroic actions above and beyond the call of duty.</content></paragraph>
+</section>
+<section id="d236e145" identifier="/us/pl/119/43/s3" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="3">SEC. 3. </num><heading>INCREASE IN DEPARTMENT OF VETERANS AFFAIRS SPECIAL PENSION PAYABLE TO MEDAL OF HONOR RECIPIENTS.</heading><chapeau class="indentUp0 firstIndent0 fontsize10" id="x75776959-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658120">  <ref href="/us/usc/t38/s1562">Section 1562 of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction>—</chapeau><paragraph class="fontsize10" id="y7577695a-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><chapeau>in subsection (a)(1)—</chapeau><subparagraph class="fontsize10" id="y7577695b-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/1/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>by <amendingAction type="insert">inserting</amendingAction> “<quotedText>(A)</quotedText>” before “<quotedText>The Secretary</quotedText>”;</content></subparagraph>
+<subparagraph class="fontsize10" id="y7577695c-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/1/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>by <amendingAction type="delete">striking</amendingAction> “<quotedText>the rate of $1,406.73</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>the rate described in subparagraph (B)</quotedText>”; and</content></subparagraph>
+<subparagraph class="fontsize10" id="y7577695d-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/1/C" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="C">(C) </num><content>by <amendingAction type="add">adding</amendingAction> at the end the following new subparagraph:<quotedContent><subparagraph class="indentDown2 firstIndent0 fontsize10" id="y7577b77e-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">“(B) </num><content>The rate described in this subparagraph is equal to the amount of monthly compensation paid to a veteran without dependents under subsection (m) of section 1114 of this title, increased <page identifier="/us/stat/139/668">139 STAT. 668</page>
+to the next intermediate rate under subsection (p) of such section.”</content></subparagraph>
+</quotedContent>; and</content></subparagraph>
+</paragraph>
+<paragraph class="fontsize10" id="y7577b77f-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><chapeau>in subsection (e)—</chapeau><subparagraph class="fontsize10" id="y7577b780-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/2/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>by <amendingAction type="insert">inserting</amendingAction> “<quotedText>(1)</quotedText>” before “<quotedText>Effective</quotedText>”;</content></subparagraph>
+<subparagraph class="fontsize10" id="y7577de91-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/2/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>by <amendingAction type="insert">inserting</amendingAction> “<quotedText>, subject to paragraph (2),</quotedText>” before “<quotedText>shall</quotedText>”; and</content></subparagraph>
+<subparagraph class="fontsize10" id="y7577de92-d444-11f0-81dc-c5c9df115193" identifier="/us/pl/119/43/s3/2/C" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="C">(C) </num><content>by <amendingAction type="add">adding</amendingAction> at the end the following new paragraph (2):<quotedContent><paragraph class="indentDown2 firstIndent0 fontsize10" id="y7577de93-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>The Secretary shall not, under paragraph (1), increase the amount of monthly special pension payable under subsection (a) in a year if such amount was otherwise increased during such year.”</content></paragraph>
+</quotedContent>.</content></subparagraph>
+</paragraph>
+</section>
+<section id="d236e244" identifier="/us/pl/119/43/s4" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="4">SEC. 4. </num><heading>EXTENSION OF CERTAIN LIMITS ON PAYMENTS OF PENSION.</heading><content style="-uslm-lc:I658120">  <ref href="/us/usc/t38/s5503/d/7">Section 5503(d)(7) of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="delete">striking</amendingAction> “<quotedText>November 30, 2031</quotedText>” and <amendingAction type="insert">inserting</amendingAction> “<quotedText>January 31, 2033</quotedText>”.</content></section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-01">December 1, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/695">H.R. 695</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x75782cb4-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658035">Feb. 26, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x75782cb5-d444-11f0-81dc-c5c9df115193" style="-uslm-lc:I658035">Nov. 7, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

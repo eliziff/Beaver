@@ -1,0 +1,1833 @@
+{
+ "artifact_id": "nsca-2013-nsca-65",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2013 NSCA 65",
+ "citation_secondary": "",
+ "name": "Young v. Hayward",
+ "document_date": "2013-05-22",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/19934/index.do",
+ "scraped_timestamp": "2026-04-09 15:39:02.203000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2013-nsca-65.txt",
+ "raw_text_chars": 49796,
+ "raw_text_sha256": "3798e76cd5876a50e610644a7507d2fdbe9c74f6af54bcea76a9c20b6e97a0a1",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 120,
+  "spine_count": 91,
+  "quoted_count": 29,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "17",
+   "18",
+   "31",
+   "32",
+   "33",
+   "19",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "5",
+   "6",
+   "7",
+   "8",
+   "19",
+   "32",
+   "33",
+   "34",
+   "35",
+   "24",
+   "25",
+   "26",
+   "27",
+   "1",
+   "2",
+   "28",
+   "29",
+   "12",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "86",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "2",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 1053,
+     "end": 1444
+    },
+    "body_chars": 386,
+    "body_sha256": "4e45ef673bdbe1940c36aa041f7744571b1d8f091fddc47f9b79190454fc6995",
+    "body": "This decision concerns leave to appeal and an appeal from a costs award made by Nova Scotia Supreme Court Justice M. Heather Robertson following her assessment of Mr. Hayward’s damages resulting from the injuries he sustained in a motor vehicle accident on April 5, 2003. Robertson, J.’s “Damages decision” is reported at 2011 NSSC 294. Her “Costs decision” is reported at 2012 NSSC 56."
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 1444,
+     "end": 1715
+    },
+    "body_chars": 266,
+    "body_sha256": "76ab1af07da9b8f9cba5604880123038c3d9c74f6cb2f7727608cf90f3539035",
+    "body": "The defendant, Ms. Matilda Young, seeks leave to appeal and appeals Justice Robertson’s costs award claiming a number of discrete errors in both fixing the amount of costs and failing to properly account for the defendant’s fortuitous offer to settle prior to trial."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 1715,
+     "end": 2844
+    },
+    "body_chars": 1124,
+    "body_sha256": "f9a3485c6940a90ae2f47105402a8657330cdec35c367b16d7d6d88470f14b16",
+    "body": "In the main appeal (damages) I dismissed Mr. Craig Hayward’s appeal and allowed Ms. Young’s cross-appeal (2013 NSCA 64). My reasons in that case should be read as a companion to this decision. A more complete description of the circumstances giving rise to the claim can be found there. To provide context for the analysis that follows it is enough to simply recall that Mr. Hayward sought damages exceeding one million dollars for injuries sustained in a motor vehicle accident, for which the defendant Ms. Young acknowledged fault. The anchor to Mr. Hayward’s claim for damages was the assertion that the force of the crash had caused a traumatic brain injury which left him cognitively impaired and had a lasting impact on his professional career and personal life. Justice Robertson did not agree. She found that Mr. Hayward had failed to prove that the collision caused or contributed to any brain injury or subsequent cognitive deficits. She limited her award to compensation for the serious soft tissue injuries Mr. Hayward was able to prove, as well as present and anticipated future costs related to those injuries."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 2844,
+     "end": 3182
+    },
+    "body_chars": 333,
+    "body_sha256": "f49385880d7abe965de2753f5863f71bba47be141c228c0b0b0938a6bbc5e3f9",
+    "body": "Following the release of that decision the parties were unable to agree on costs. They reconvened and made further submissions to Justice Robertson. Her analysis was somewhat complicated by the fact that a pre-trial settlement offer made by the defendant Young had proved to be more generous than the compensation ultimately awarded."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 3182,
+     "end": 3912
+    },
+    "body_chars": 725,
+    "body_sha256": "e10e85e4d725fb066c98d807b88cac322c15a3503dcd49921d1406e96bd671df",
+    "body": "The judge’s ultimate decision on costs prompted this second appeal – CA 386760 - where Ms. Young says the judge erred in:\n− failing to award the appellant her costs in the Damages decision, despite her success in challenging Mr. Hayward’s attempt to claim compensation for a traumatic brain injury;\n− designating September 14, 2010 as the “finish date” when deciding costs;\n− awarding Mr. Hayward his out-of-pocket expenses of close to $30,000;\n− refusing to award Ms. Young her disbursements;\n− fixing pre-judgment interest on general damages at 2½% per annum from the date of loss; and\n− awarding half of pre-judgment interest on out-of-pocket expenses and disbursements at a rate of 4% per annum from the date of the loss."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 3912,
+     "end": 4637
+    },
+    "body_chars": 720,
+    "body_sha256": "cc344f81b3a337ca354f848064e313534fc82b14b9d357fd64eba89df4ed3694",
+    "body": "As part of her costs appeal Ms. Young also says the judge failed to take proper or any account of formal offers to settle made prior to trial. The appellant’s insurers offered $200,000 to settle the case exclusive of costs, disbursements and pre-judgment interest, whereas the damage award obtained by Mr. Hayward at trial:\n“... for his pain and suffering and loss of amenities in the amount of $120,000 and loss of future care in the amount of $10,000, out-of-pocket expenses, special damages and pre-judgment interest of 2.5 percent.”\nwas less than the formal offer. Ms. Young says the application of the Civil Procedure Rules entitle her to a significant increase in costs in accordance with the provisions of CPR 10."
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 4637,
+     "end": 4790
+    },
+    "body_chars": 148,
+    "body_sha256": "3c1a5d7c0ec5ac4260caf621a101f65d38b11a9e0705ae0a8f54fba5d3d45617",
+    "body": "Before turning to my analysis of the several grounds of appeal raised by Ms. Young, I will address the proper standard of review.\nStandard of Review"
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 4790,
+     "end": 5367
+    },
+    "body_chars": 572,
+    "body_sha256": "cbfdab0c2b0d212f93fc7782739b0a91f643ad58acb581256fdf30e63153dd7b",
+    "body": "The parties agree that a judge’s award of costs is highly discretionary and subject to a high degree of deference. We will only vary or set aside a costs order if we are satisfied that wrong principles of law were applied or that the award itself is so clearly wrong as to constitute an injustice. Whereas the appellant argues that several aspects of the trial judge’s decision are flawed and require our intervention, Mr. Hayward says the judge exercised her discretion judicially and properly throughout and that this appeal should be dismissed in its entirety.\nAnalysis"
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 5367,
+     "end": 6533
+    },
+    "body_chars": 1161,
+    "body_sha256": "264b34077122d12f1bf29e103e305a0ad69a5d4d8fa5bcefc5a39973c3378eee",
+    "body": "I will begin by reframing the issues in dispute as I see them. The simplest way to do that will be for me to answer the following questions:\ni. Did the judge err by failing to take proper or any account of Ms. Young’s formal offer to settle made prior to trial?\nii. Did the judge err by designating September 14, 2010 as the “finish date” when deciding costs?\niii. Did the judge err by failing to award Ms. Young her costs in the Damages decision, despite her success in defeating Mr. Hayward’s claim for compensation for an alleged traumatic brain injury?\niv. Did the judge err by awarding Mr. Hayward his out-of-pocket expenses of close to $30,000?\nv. Did the judge err by refusing to award Ms. Young her disbursements?\nvi. Did the judge err by fixing pre-judgment interest on general damages at 2½% per annum from the date of loss?\nvii. Did the judge err by awarding half of pre-judgment interest on out-of-pocket expenses and disbursements at a rate of 4% per annum from the date of the loss?\nviii. Given Ms. Young’s success on the main (Damages) appeal and partial success on this (Costs) appeal, what is a fair and proper result in resolving appeal costs?"
+   },
+   {
+    "label": "10",
+    "marker_order": 9,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 6533,
+     "end": 7319
+    },
+    "body_chars": 780,
+    "body_sha256": "89a755d5ebbdd7776a73f4131eff45dd176289810556ffcbf0e5b21bce0defb6",
+    "body": "For the reasons that follow I would grant leave to appeal and would allow the appeal, in part. Before addressing each of the questions listed above I should point out that the errors made by the trial judge that will result in my variation of certain aspects of her Costs Order will not have any real impact on the effect of her calculation of the “amount involved” or her finding that Scale 2 (basic) should apply. That is because any adjustment (downwards) of the “amount involved” would still be less than the offer to settle made by Ms. Young and because the judge ultimately decided not to award either party their costs – a finding I have not disturbed.\ni. Did the judge err by failing to take proper or any account of Ms. Young’s formal offer to settle made prior to trial?"
+   },
+   {
+    "label": "11",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 7319,
+     "end": 9212
+    },
+    "body_chars": 1887,
+    "body_sha256": "754061690531d106aebf33f0929de0f7f091fb76d4e618778a5a48b4c54b22ac",
+    "body": "No. In my view the judge did not err. In her written submissions to the trial judge Ms. Young sought an increase in costs based on her assertion that she was a successful party and had received a favourable judgment pursuant to Civil Procedure Rule 10.09. This Rule states:\n10.09 (1) A party obtains a “favourable judgment” when each of the following have occurred:\n(a) the party delivers a formal offer to settle an action, or a counterclaim, crossclaim, or third party claim, at least one week before a trial;\n(b) the offer is not withdrawn or accepted;\n(c) a judgment is given providing the other party with a result no better than that party would have received by accepting the offer.\n(2) A judge may award costs to a party who starts or who successfully defends a proceeding and obtains a favourable judgment, in an amount based on the tariffs increased by one of the following percentages:\n(a) one hundred percent, if the offer is made less than twenty-five days after pleadings close;\n(b) seventy-five percent, if the offer is made more than twenty-five days after pleadings close and before setting down;\n(c) fifty percent, if the offer is made after setting down and before the finish date;\n(d) twenty-five percent, if the offer is made after the finish date.\n(3) A judge may award costs in one of the following amounts to a party who defends a proceeding, does not fully succeed, and obtains a favourable judgment:\n(a) the amount that the tariffs would provide had the party been successful, if the offer is made less than twenty-five days after pleadings close;\n(b) seventy-five percent of that amount, if the offer is made more than twenty-five days after pleadings close and before setting down;\n(c) sixty percent of that amount, if the offer is made after setting down and before the finish date;\n(d) nothing, if the offer is made after the finish date. (Underlining mine)"
+   },
+   {
+    "label": "12",
+    "marker_order": 11,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 9212,
+     "end": 9707
+    },
+    "body_chars": 489,
+    "body_sha256": "bec12afa9bc24533e9fb76c504f31caa76acc4f7819c1f0be1c3aa5151b6e2e6",
+    "body": "Ms. Young said that she had made a formal offer to settle for $200,000 (exclusive of costs, pre-judgment interest and disbursements) prior to the finish date, and that she should be considered to have “successfully defended” the proceeding and that therefore (quoting from para. 61 of her Brief):\nThe costs award should be increased by fifty percent (50%) as the Defendant made a Formal Offer prior to the finish date and the Defendant obtained a favourable judgment as against that Offer."
+   },
+   {
+    "label": "13",
+    "marker_order": 12,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 9707,
+     "end": 10115
+    },
+    "body_chars": 402,
+    "body_sha256": "a30278c33fed47f2c3beb46748e06ebb00830d0def4e57a61bd77c0a05c38609",
+    "body": "Accordingly, the basis for Ms. Young’s claim of increased costs was that she fell within the criteria of CPR 10.09(2)(c), in other words, that she qualified as “a party ... who successfully defends a proceeding and obtains a favourable judgment”, thus entitling her to seek costs “in an amount ... increased by ... fifty percent, if the offer is made after setting down and before the finish date ...”."
+   },
+   {
+    "label": "14",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 10115,
+     "end": 10492
+    },
+    "body_chars": 371,
+    "body_sha256": "a7def3faf8db5a28a6c50bfb7f07a524ed12629a481d6f8c66b7cb8c89618169",
+    "body": "I begin my analysis with the observation that the incremental charting set out in CPR 10.09 is entirely discretionary. The judge “may” (or may not) choose to follow it. Rule 4.16(6)(b) directs that the trial readiness conference must be held 40 days prior to trial. That did not happen in this case. It was held 30 days before trial. No party objected to that occurrence."
+   },
+   {
+    "label": "15",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 10492,
+     "end": 10756
+    },
+    "body_chars": 258,
+    "body_sha256": "c45e56b19b7375f2b7244d0cf1f623d99965311046273e3e4d4dd953c2c8d5c8",
+    "body": "CPR 4.16(6)(c) states that the “finish date” must be fixed at no less than 20 days prior to the trial readiness conference. That didn’t happen either. Because this step had been missed, Robertson, J. was faced with the task of establishing an alternate date."
+   },
+   {
+    "label": "16",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 10756,
+     "end": 11210
+    },
+    "body_chars": 448,
+    "body_sha256": "12034d754346651378d2db766ed50fe22c2333b1e5975b47b8521de6e944e9a8",
+    "body": "Robertson, J. recognized that her assessment of Ms. Young’s claim was dependent upon her settling the “finish date”. Ordinarily that is an easy, administrative function. However, the problem here was that this important step had been neglected in earlier pre-trial attendances by the parties with the result that Robertson, J. was forced to calculate a necessarily arbitrary, but fair, cut-off date in the pre-trial proceedings. The judge reasoned:"
+   },
+   {
+    "label": "25",
+    "marker_order": 16,
+    "role": "quoted_or_foreign",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 11210,
+     "end": 11325
+    },
+    "body_chars": 109,
+    "body_sha256": "fcb8080eefdb631093aa6824c4f48579c67657bcdc783618a34c967a1d46a9f5",
+    "body": "In this case establishing the “finish date” is significant to any award of costs to be made to the defendant."
+   },
+   {
+    "label": "26",
+    "marker_order": 17,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 11325,
+     "end": 11666
+    },
+    "body_chars": 335,
+    "body_sha256": "6f9dfb0e582c92485613c78db322f642d5cfdf341242039e2dc2900664fa4eb3",
+    "body": "The pleadings closed November 15, 2005. Original trial dates were set on January 22, 2010 for July 6, 7, 8, 12, 13, 14 and 15. The trial was adjourned and new dates set May 28, 2010 for December 14, 15, 16, 20, 21 and 23, 2010 and January 18, 2011. This rules out Rule 10.09(3)(a) and (b). Rule 10(09)(3)(c) and (d) must be considered."
+   },
+   {
+    "label": "27",
+    "marker_order": 18,
+    "role": "quoted_or_foreign",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 11666,
+     "end": 11961
+    },
+    "body_chars": 289,
+    "body_sha256": "dcb60aa2164f56d5b9a3ecd0ac45cd30e6e50e3636e9b009383b1dd2ed59274a",
+    "body": "Pursuant to Rule 4.16 at date assignment conferences the trial readiness date can be no less than 40 days before the first day of trial and the finish date at no less than 20 days before the day set for the trial readiness conference; a date when all pre-trial procedures must be finished."
+   },
+   {
+    "label": "28",
+    "marker_order": 19,
+    "role": "quoted_or_foreign",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 11961,
+     "end": 12130
+    },
+    "body_chars": 163,
+    "body_sha256": "284a31bb57c2c778d8958988d2bc7d089f46779be740fdc6db812dccea46cab4",
+    "body": "After the second date assignment conference, a trial readiness conference was scheduled for November 12, 2010, a mere 30 days before trial. No finish date was set."
+   },
+   {
+    "label": "29",
+    "marker_order": 20,
+    "role": "quoted_or_foreign",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 12130,
+     "end": 12322
+    },
+    "body_chars": 186,
+    "body_sha256": "a7710d5945213406460242d8296538345b07e8f9e3879da1dca4450070ba6ec5",
+    "body": "In the absence of an assigned finish date in accordance with Rules 4.16(6)(a)(b) and (c) and 94.02, I deem the appropriate finish date to have been 60 days before the first day of trial."
+   },
+   {
+    "label": "30",
+    "marker_order": 21,
+    "role": "quoted_or_foreign",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 12322,
+     "end": 12387
+    },
+    "body_chars": 59,
+    "body_sha256": "101e66e84b7242dbc2a6182eb8c2bb88b05ff29e4b8d1e5b4a153743e77cddc9",
+    "body": "Therefore the deemed finish date is September 14, 2010. ..."
+   },
+   {
+    "label": "17",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 12387,
+     "end": 12927
+    },
+    "body_chars": 534,
+    "body_sha256": "25d27fbd00fe5eae2bacb7a0f201050802153ddc3a790143682cc033759adff4",
+    "body": "Based on the judge’s finding that the finish date in this case was September 14, 2010 (in itself a clear factual finding, and a product of the exercise of judicial discretion to which a high degree of deference is owed) – Ms. Young’s offer came after the finish date such that she would not be entitled to a 50% increase (CPR 10.09(2)(c)) and might only be entitled to a 25% increase, provided she was able to convince the judge that she had “successfully defended the proceeding and obtained a favourable judgment” (CPR 10.09(2)(d))."
+   },
+   {
+    "label": "18",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 12927,
+     "end": 12994
+    },
+    "body_chars": 61,
+    "body_sha256": "250374eacf3eb4b1eed2a0736058962b763a87bdb244f5abbd03e999e63d5b8d",
+    "body": "That argument was rejected by the judge who went on to state:"
+   },
+   {
+    "label": "31",
+    "marker_order": 24,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 12994,
+     "end": 13239
+    },
+    "body_chars": 239,
+    "body_sha256": "0f7b8563b9dbc9e6c73546999ab2a291c0cf2c3b1bbe8eb71d86f1b8f2897cf5",
+    "body": "Rule 10.09 (2)(d) allows that a judge may award costs to a party who successfully defends a proceeding if a formal offer is not accepted, in an amount based on the tariffs increased by 25 percent if the offer is made after the finish date."
+   },
+   {
+    "label": "32",
+    "marker_order": 25,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 13239,
+     "end": 13390
+    },
+    "body_chars": 145,
+    "body_sha256": "6dafa60c63035dece73d0af13d92c46c6c0742d1cbc0c9e9fd90af1bf1e06b17",
+    "body": "However Rule 10.09 (3)(d) provides for no award of costs to the only “partially successful defendant” if the offer is made after the finish date."
+   },
+   {
+    "label": "33",
+    "marker_order": 26,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 13390,
+     "end": 13534
+    },
+    "body_chars": 138,
+    "body_sha256": "70b508a66ba2c99194a8ead667e9d90a7500b6d39dcc8810c8e45eac33ca4c04",
+    "body": "Therefore, I award no costs to the defendant as the defendant was only partially successful as was the plaintiff, creating a split result."
+   },
+   {
+    "label": "19",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 13534,
+     "end": 13780
+    },
+    "body_chars": 240,
+    "body_sha256": "45c056341021372970771d9e7abe15295d4d9e534c97ef150b2969208c8464e6",
+    "body": "Reading Justice Robertson’s decision as a whole, the basis for her conclusion that each of the parties to this litigation was “partially successful” leading to a mixed or “split result” becomes obvious. For example, as she stated at ¶5 ff.:"
+   },
+   {
+    "label": "5",
+    "marker_order": 28,
+    "role": "quoted_or_foreign",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 13780,
+     "end": 13979
+    },
+    "body_chars": 194,
+    "body_sha256": "fc9db8891648d6590e650c7c5769ed1c2eb90edfbf93f06e71536d28d46d2b21",
+    "body": "Prior to trial the defendant admitted liability for the accident and admitted that the plaintiff suffered injuries that fall within the Smith v. Stubbert, [1992] N.S.J. No. 532 range of damages."
+   },
+   {
+    "label": "6",
+    "marker_order": 29,
+    "role": "quoted_or_foreign",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 13979,
+     "end": 14182
+    },
+    "body_chars": 198,
+    "body_sha256": "7e259c4e6a49a1560ab5d8f7d1f3e3057633556d1b9d89ff8cd9f579de706a32",
+    "body": "The unresolved issue between the parties was whether the plaintiff had suffered a traumatic brain injury as a result of the accident and would be thus unable to continue with his current employment."
+   },
+   {
+    "label": "7",
+    "marker_order": 30,
+    "role": "quoted_or_foreign",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 14182,
+     "end": 14284
+    },
+    "body_chars": 97,
+    "body_sha256": "fcc80a48a1a5dce71ef9adb863af68bf06a61dcf9930de6bdf990feff7a95df6",
+    "body": "The plaintiff sought $1,137,000 for loss of future income, the largest head of damages he sought."
+   },
+   {
+    "label": "8",
+    "marker_order": 31,
+    "role": "quoted_or_foreign",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 14284,
+     "end": 14471
+    },
+    "body_chars": 182,
+    "body_sha256": "b474ad65de1dad2a3e9d4ca35f0eeed07e87d669b21188b27677bab3c77c4e42",
+    "body": "In my decision of July 18, 2011, I found that the plaintiff had not suffered a traumatic brain injury as a result of the accident nor did I award any claim for loss of future income."
+   },
+   {
+    "label": "9",
+    "marker_order": 32,
+    "role": "quoted_or_foreign",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 14471,
+     "end": 14514
+    },
+    "body_chars": 38,
+    "body_sha256": "9a3655a1ed78ba1576142a1d4f21ffa5235eb0ba58eaac59bbea4798bda03534",
+    "body": "The parties cannot agree on costs.\n..."
+   },
+   {
+    "label": "19",
+    "marker_order": 33,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 14514,
+     "end": 15067
+    },
+    "body_chars": 547,
+    "body_sha256": "d853647b0e2de23e219748e3b4a66f6a9d66ab60a9dbda8581c6bbfa1fadc50e",
+    "body": "I am setting the amount involved as follows: the amount awarded for general damages ($120,000), loss of future care ($10,000), special damages as set out in the plaintiff’s brief ($13,304.15) and out-of-pocket expenses ($28,382.88) for a total of $171,686.88. Notwithstanding the lack of success on the issue of future lost wages, the plaintiff received an award on the very high end of Smith v. Stubbert when the defendant recommended an award of $35,000. The plaintiff was also successful in his award for loss of future care. (Underlining mine)"
+   },
+   {
+    "label": "20",
+    "marker_order": 34,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 15067,
+     "end": 15629
+    },
+    "body_chars": 556,
+    "body_sha256": "b852c3402ab40a8cc7f3d9e89d5feef9f0e3c3e4f84f4c6ddd6d35f44fdf4c31",
+    "body": "While Ms. Young might complain that Robertson, J. could have chosen a “finish date” which would have proved more favourable to her position, that is not a basis for us to interfere in what is clearly an exercise of the trial judge’s discretion. Once that date was chosen the only other issue for the judge to decide was how to characterize the level or degree of success achieved by the parties following trial. She decided that success had been divided. Again, the person best placed to decide or apportion “success” is the trial judge who heard the case."
+   },
+   {
+    "label": "21",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 15629,
+     "end": 15785
+    },
+    "body_chars": 150,
+    "body_sha256": "82b3536b8afd2dfeeb380a2d554b6fe9a0a78711eb6af02b7c52b82e1f6c7714",
+    "body": "Accordingly, the answer to the first question is no.\nii. Did the judge err by designating September 14, 2010 as the “finish date” when deciding costs?"
+   },
+   {
+    "label": "22",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 15785,
+     "end": 16201
+    },
+    "body_chars": 410,
+    "body_sha256": "4967f81e0cf17fed142e0f8f059d58bde822a4ef37581546fceddeb12bd17015",
+    "body": "No. For the reasons given in disposing of the first question, Justice Robertson’s decision to establish September 14, 2010 as the finish date fell well within her discretion and there is no cause to intervene.\niii. Did the judge err by failing to award Ms. Young her costs in the Damages decision, in spite of her success in defeating Mr. Hayward’s claim for compensation for an alleged traumatic brain injury?"
+   },
+   {
+    "label": "23",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 16201,
+     "end": 16551
+    },
+    "body_chars": 344,
+    "body_sha256": "dc3a9373b38f752b360bda6e6cc969ccc61e7ec9d6cc12acccaf1325c0eade56",
+    "body": "Again it is important not to parse the judge’s reasons by extracting a particular word or phrase here or there. Reading her reasons as a whole one comes to understand the basis for her conclusion that because of their mixed success each party’s costs should be set off against the other’s, effectively resulting in a “wash”. The judge reasoned:"
+   },
+   {
+    "label": "5",
+    "marker_order": 38,
+    "role": "quoted_or_foreign",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 16551,
+     "end": 16750
+    },
+    "body_chars": 194,
+    "body_sha256": "fc9db8891648d6590e650c7c5769ed1c2eb90edfbf93f06e71536d28d46d2b21",
+    "body": "Prior to trial the defendant admitted liability for the accident and admitted that the plaintiff suffered injuries that fall within the Smith v. Stubbert, [1992] N.S.J. No. 532 range of damages."
+   },
+   {
+    "label": "6",
+    "marker_order": 39,
+    "role": "quoted_or_foreign",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 16750,
+     "end": 16953
+    },
+    "body_chars": 198,
+    "body_sha256": "7e259c4e6a49a1560ab5d8f7d1f3e3057633556d1b9d89ff8cd9f579de706a32",
+    "body": "The unresolved issue between the parties was whether the plaintiff had suffered a traumatic brain injury as a result of the accident and would be thus unable to continue with his current employment."
+   },
+   {
+    "label": "7",
+    "marker_order": 40,
+    "role": "quoted_or_foreign",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 16953,
+     "end": 17055
+    },
+    "body_chars": 97,
+    "body_sha256": "fcc80a48a1a5dce71ef9adb863af68bf06a61dcf9930de6bdf990feff7a95df6",
+    "body": "The plaintiff sought $1,137,000 for loss of future income, the largest head of damages he sought."
+   },
+   {
+    "label": "8",
+    "marker_order": 41,
+    "role": "quoted_or_foreign",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 17055,
+     "end": 17246
+    },
+    "body_chars": 186,
+    "body_sha256": "0f607239b34ae40fde4f8443977747245e7cdf483291b30a46ba8b4438f9bc66",
+    "body": "In my decision of July 18, 2011, I found that the plaintiff had not suffered a traumatic brain injury as a result of the accident nor did I award any claim for loss of future income.\n..."
+   },
+   {
+    "label": "19",
+    "marker_order": 42,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 17246,
+     "end": 17784
+    },
+    "body_chars": 532,
+    "body_sha256": "81b328c6bc709e6dfb62baa26a4306f6f185ea6662f4642166504b861923703b",
+    "body": "I am setting the amount involved as follows: the amount awarded for general damages ($120,000), loss of future care ($10,000), special damages as set out in the plaintiff’s brief ($13,304.15) and out-of-pocket expenses ($28,382.88) for a total of $171,686.88. Notwithstanding the lack of success on the issue of future lost wages, the plaintiff received an award on the very high end of Smith v. Stubbert when the defendant recommended an award of $35,000. The plaintiff was also successful in his award for loss of future care.\n..."
+   },
+   {
+    "label": "32",
+    "marker_order": 43,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 17784,
+     "end": 17935
+    },
+    "body_chars": 145,
+    "body_sha256": "6dafa60c63035dece73d0af13d92c46c6c0742d1cbc0c9e9fd90af1bf1e06b17",
+    "body": "However Rule 10.09 (3)(d) provides for no award of costs to the only “partially successful defendant” if the offer is made after the finish date."
+   },
+   {
+    "label": "33",
+    "marker_order": 44,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 17935,
+     "end": 18079
+    },
+    "body_chars": 138,
+    "body_sha256": "70b508a66ba2c99194a8ead667e9d90a7500b6d39dcc8810c8e45eac33ca4c04",
+    "body": "Therefore, I award no costs to the defendant as the defendant was only partially successful as was the plaintiff, creating a split result."
+   },
+   {
+    "label": "34",
+    "marker_order": 45,
+    "role": "quoted_or_foreign",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 18079,
+     "end": 18373
+    },
+    "body_chars": 288,
+    "body_sha256": "847d1174c08ef826d86241acfb5964fd30b99caa9abafcc7548abd9c69840ff9",
+    "body": "However, I am reminded by the plaintiff that even if the Court found the defendant is entitled to his costs based on a formal offer to settle, the plaintiff says he should be entitled to receive his costs up to the date the defendant provided the formal offer to settle, Boutilier, supra."
+   },
+   {
+    "label": "35",
+    "marker_order": 46,
+    "role": "quoted_or_foreign",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 18373,
+     "end": 18532
+    },
+    "body_chars": 153,
+    "body_sha256": "8097fa5948c060ad9ab05cdb43429ff216aa492c4ea45e452a400eb7c32ce965",
+    "body": "This exercise would amount to a saw-off with respect to both sides costs. In the circumstances I think it appropriate to not award costs to either party."
+   },
+   {
+    "label": "24",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 18532,
+     "end": 18899
+    },
+    "body_chars": 361,
+    "body_sha256": "c09f68911e3f53933ac41c0688b97459e281eaaa3113e43039a9239717a567f9",
+    "body": "Here again the trial judge was in the best position to assess relative success and award or refuse costs as a consequence. In her eyes both the claimant, Mr. Hayward and the defendant, Ms. Young were successful, to some degree. Her conclusion is fully supported in the record. It drove her analysis of costs, once again a matter clearly within her jurisdiction."
+   },
+   {
+    "label": "25",
+    "marker_order": 48,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 18899,
+     "end": 19256
+    },
+    "body_chars": 351,
+    "body_sha256": "d6cfc09e93583f56c1385b0ee5030561e4c1687889cdca0bd2e20a56c31ad682",
+    "body": "In view of the trial judge’s decision that each of the parties had been successful to a degree, and that his or her costs should be set off against the other’s, effectively resulting in a “wash”, I see no error in the judge’s refusal to award Ms. Young her costs in challenging Mr. Hayward’s claim for damages. Thus, the answer to this question is no."
+   },
+   {
+    "label": "26",
+    "marker_order": 49,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 19256,
+     "end": 19589
+    },
+    "body_chars": 327,
+    "body_sha256": "8efc0914a1f0982fc859bd52c829020602a650fbb9b06efd7e55005005f28f2b",
+    "body": "However, my conclusion on this point involves different considerations than those which ought to be taken into account when assessing Ms. Young’s success on her cross-appeal. I will deal with those considerations later in my reasons.\niv. Did the judge err by awarding Mr. Hayward his out-of-pocket expenses of close to $30,000?"
+   },
+   {
+    "label": "27",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 19589,
+     "end": 19643
+    },
+    "body_chars": 48,
+    "body_sha256": "c54a4b5a89fcecbcf0a7a37906c2e55e55d222e126cce82d32fddc2806104914",
+    "body": "Robertson, J. began her Costs decision this way:"
+   },
+   {
+    "label": "1",
+    "marker_order": 51,
+    "role": "quoted_or_foreign",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 19643,
+     "end": 19961
+    },
+    "body_chars": 313,
+    "body_sha256": "14f3d4164531871781bb4c26efc6589220e36e721094ed40d8ec583a4627e323",
+    "body": "In a decision dated July 18, 2011, the plaintiff was awarded damages arising from a motor vehicle accident for his pain and suffering and loss of amenities in the amount of $120,000 and loss of future care in the amount of $10,000, out-of-pocket expenses, special damages and pre-judgment interest of 2.5 percent."
+   },
+   {
+    "label": "2",
+    "marker_order": 52,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 19961,
+     "end": 20336
+    },
+    "body_chars": 370,
+    "body_sha256": "576000c6ed578a3b1e84d883feacc065cb4e654b5d1db36601f8f190119115d1",
+    "body": "I intended that the plaintiff would recover his out-of-pocket expenses (disbursements) and special damages as had been set out in the plaintiff’s brief, which were stated to be:\n1. Dr. Erica Baker Report $ 2,300.00\n2. Jessie Gmeiner Actuarial Report $1,587.00\n3. Tom Stanley Report $816.34\n4. Out-of-Pocket Medicals to Date $8,600.81\nTotal: $13,304.15\n(Underlining mine)"
+   },
+   {
+    "label": "28",
+    "marker_order": 53,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 20336,
+     "end": 20674
+    },
+    "body_chars": 332,
+    "body_sha256": "1ab5426f49d862303886eb37710d330301b6458232313de8a47f0a09ac88c492",
+    "body": "From this it is clear that as far as the judge was concerned her intent was to compensate Mr. Hayward for his so-called “out-of-pocket expenses” and “special damages” which she lumped together as totalling $13,304.15. However, confusion arose when, later in her reasons, the judge used a different figure for out-of-pocket expenses."
+   },
+   {
+    "label": "29",
+    "marker_order": 54,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 20674,
+     "end": 20718
+    },
+    "body_chars": 38,
+    "body_sha256": "f2bb14d3e2b199aa0d586e2f7f612b77cd091569f0ad3e4fbb92539a395c63d5",
+    "body": "In ¶12 of her decision the judge says:"
+   },
+   {
+    "label": "12",
+    "marker_order": 55,
+    "role": "quoted_or_foreign",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 20718,
+     "end": 21055
+    },
+    "body_chars": 331,
+    "body_sha256": "722a5ae14a62713228bb2bc6b9ec0134021f637a9cfe6e4b9e94c2872611b02d",
+    "body": "The plaintiff submits that the amount involved is the amount awarded for general damages ($120,000) loss of future care ($10,000) and special damages ($13,304.15) and out-of-pocket expenses ($28,382.88) which the plaintiff acknowledges is less than the $200,000 offer made by the defendant on September 22, 2010. (Underlining mine)"
+   },
+   {
+    "label": "30",
+    "marker_order": 56,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 21055,
+     "end": 21412
+    },
+    "body_chars": 351,
+    "body_sha256": "a46a083af3a58d875b82fdead643edccc8c6ade530b16109ba1bc10efb6e5ab2",
+    "body": "From this it would appear that the trial judge’s tally where she combined Mr. Hayward’s out-of-pocket expenses (disbursements) and his special damages (including so-called “out-of-pocket medicals”) came to $13,304.15; yet in ¶12 of her reasons she separates these sums into $13,304.15 for “special damages” and $28,382.88 for “out-of-pocket expenses”."
+   },
+   {
+    "label": "31",
+    "marker_order": 57,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 21412,
+     "end": 22342
+    },
+    "body_chars": 924,
+    "body_sha256": "e6f1d4363fb67a165cb97c8a832058bfdf7c5c105eb5fcc4e2d89bd77bab7df2",
+    "body": "This confusion is exacerbated when one looks at the Order After Trial Without Jury (Appeal Book, pp. 41-42), the operative provisions of which state:\nIT IS HEREBY ORDERED THAT:\n1. The Plaintiff shall have judgment against the Defendant in the amount of:\n(a) $120,000 for general damages;\n(b) $10,000 for costs of future care;\n(c) $13,304.15 for special damages;\n(d) $15,078.73 for out-of-pocket expenses;\n(e) Pre-Judgment interest in the amount of 2.5% on general damages from the date of the accident (April 5th, 2003) to the 10th of February, 2012 calculated as $26,547.94 with a per diem of $8.22; and\n(f) One-half (½) of the Pre-Judgment interest in the amount of 4% on special damages and out-of-pocket expenses from the date of the accident (April 5th, 2003) to the 10 of February, 2012 calculated as $5,023.38 with a per diem of $1.55.\nIT IS HEREBY FURTHER ORDERED THAT;\n2. No costs should be awarded to either party."
+   },
+   {
+    "label": "32",
+    "marker_order": 58,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 22342,
+     "end": 23195
+    },
+    "body_chars": 847,
+    "body_sha256": "29e6889af30644bdca2144023a928a0ba236902dd7c7f4668bda56d29adcd546",
+    "body": "Whereas a reader might understand the basis for the figure of $13,304.15 “for Special Damages” as being the same figure lifted from the plaintiff’s brief and described by the judge in ¶2 of her decision, that same reader would have no understanding of the amount of $15,078.743 awarded “for out-of-pocket expenses” as described in 1(d) of the judge’s order. Trying to puzzle through it the reader might surmise that $15,078.73 was the difference (remainder) after subtracting $13,304.15 from the “out-of-pocket expenses ($28,382.88)” referenced by the judge in ¶12 of her decision. In other words, the judge had “backed out” the $13,304.15 so as to leave remaining the sum of $15,078.73. If that were true, one would not be able to tell from either the calculation or the judge’s reasons how the sum of $15,078.73 related to any paid out expenses."
+   },
+   {
+    "label": "33",
+    "marker_order": 59,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 23195,
+     "end": 23369
+    },
+    "body_chars": 168,
+    "body_sha256": "57885912ff35bad97971033ef381114f1c23f18cd5e2d1f176ec70c0bd74584b",
+    "body": "To make sense of all of this I have taken a very close look at the documents, briefs and exhibits in the court below. I will deal with each of the claims, item by item."
+   },
+   {
+    "label": "34",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 23369,
+     "end": 23781
+    },
+    "body_chars": 406,
+    "body_sha256": "9e43b3984638445293bd082f0ee031e5bb2f6ac142e5388834c5c8dce2a12ad8",
+    "body": "First, Dr. Erica Baker’s report. The trial judge showed this expense as “$2300.00”. That is wrong. Mr. Bureau, counsel to Mr. Hayward, filed an affidavit sworn October 13, 2011, to which he attached many exhibits to quantify and prove his client’s expenditures. Attached as Exhibit “A” to Mr. Bureau’s affidavit is the account rendered by Dr. Erica Baker totalling $2,200.00. That is the figure I will use."
+   },
+   {
+    "label": "35",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 23781,
+     "end": 24487
+    },
+    "body_chars": 700,
+    "body_sha256": "6389b588bd73c73fa9a8caef58bcb3d908854d0cff26e94ac6c854f0f057f571",
+    "body": "The next item allowed by the judge was an actuarial report prepared by Ms. Jessie Gmeiner at a cost of $1,587.00. That is not the only account rendered by Ms. Gmeiner. While that account is referred to by Mr. Bureau as Exhibit “B” in his affidavit, a second account rendered by Ms. Gmeiner totalling $1,932.00 is identified as Exhibit “I” in his affidavit. Curiously the judge makes no reference to this second account and does not say why one was taken into account, and the other not. Yet it does show up in a different list that appears later in Mr. Bureau’s documentation. I will discuss that list at ¶42, infra. I will limit my review now to the first invoice dated July 12, 2010, for $1,587.00."
+   },
+   {
+    "label": "36",
+    "marker_order": 62,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 24487,
+     "end": 24733
+    },
+    "body_chars": 240,
+    "body_sha256": "8be8f7c24475b2f34ac78bcda2344a536737a9f2d10611cdf86728d5f01327ac",
+    "body": "The judge’s next allowance is for the report of Tom A. Stanley said to be for “$816.34”. This figure is wrong. Mr. Bureau’s affidavit attaches as Exhibit “C” the account rendered by Tom A. Stanley for $816.25. That is the figure I will use."
+   },
+   {
+    "label": "37",
+    "marker_order": 63,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 24733,
+     "end": 24827
+    },
+    "body_chars": 88,
+    "body_sha256": "de71260d1a92e1b23fba21bfe21ae61c3a2d22e4ca3167934a8940c86a19e873",
+    "body": "The correct total for these three reports comes to $4633.25 ($2200 + $1,587 + $816.25) ."
+   },
+   {
+    "label": "38",
+    "marker_order": 64,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 24827,
+     "end": 25208
+    },
+    "body_chars": 375,
+    "body_sha256": "9de64d83ac6aa522ec01f3a5d138fdb8b94fa3e2d609de05f5bbeec4b97b24c6",
+    "body": "The next sum allowed by the trial judge is described as “out-of-pocket medicals to date $8,600.81”. This is the same description and figure listed in ¶20 of Mr. Bureau’s affidavit which is supported by Exhibit “P”, that being a chart listing the various visitations, prescriptions and treatments taken by Mr. Hayward which were “not covered under our Medical Insurance Plan”."
+   },
+   {
+    "label": "39",
+    "marker_order": 65,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 25208,
+     "end": 25545
+    },
+    "body_chars": 331,
+    "body_sha256": "48bfac11a7c184f59d051fb327d906fb6ba99f69ffde6d3dd409de7367fc2eca",
+    "body": "During argument at the hearing in this Court Mr. Chipman, counsel for Ms. Young, did not vigorously press the point, but expressed some reservation that the judge had failed to consider whether such expenditures were just and reasonable, citing this Court’s decision in Murphy v. Claussen Walters and Associates Ltd., 2002 NSCA 20."
+   },
+   {
+    "label": "40",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 25545,
+     "end": 26168
+    },
+    "body_chars": 617,
+    "body_sha256": "6608fc1000a656f930ec86294da856d8e16b00f632a1165ffd209b1d5d059afe",
+    "body": "With respect, we are ill-equipped at this stage of the proceedings to challenge the justness and reasonableness of these expenditures. Such is a matter best left to the judge who presided over the lengthy trial. The transcript shows that each counsel challenged the reasonableness of each other’s disbursements in their oral submissions at the costs hearing before Justice Robertson. Judges are presumed to know the law. One assumes, therefore, that Robertson, J. passed upon the reasonableness and justness of such expenditures. I am not prepared to look behind that assessment at this late stage in the proceedings."
+   },
+   {
+    "label": "41",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 26168,
+     "end": 26590
+    },
+    "body_chars": 416,
+    "body_sha256": "5043c91e18429f11d8ba907def4354466867bd48cf6466d36c1d41034956d8bc",
+    "body": "To summarize to this point, the correct total for the three reports is $4,633.25 (see ¶37, supra). As for the figure of $8,600.81 allowed for “out-of-pocket medicals to date” this sum is verified by Mr. Bureau in his affidavit and, as I explained earlier, there is no good reason for us to look behind that amount now. Accordingly, the proper sum to be reflected in 1(c) should be $13,234.06 ($4,633.25 + $8,600.81)."
+   },
+   {
+    "label": "42",
+    "marker_order": 68,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 26590,
+     "end": 27149
+    },
+    "body_chars": 553,
+    "body_sha256": "48149f603a418fe30f465f4bf8006d6b819653ab5f9203ce9d523c3690dea154",
+    "body": "I will turn now to the $15,078.73 which the judge awarded “for out-of-pocket expenses”. It appears to me that this sum is lifted from Mr. Bureau’s brief and affidavit and is made up, among other things, of discovery services; photocopying; courier services; witness fees; a Medavie Blue Cross subrogation claim; together with the costs of other reports from such experts as Jessie Gmeiner, Tom Stanley and several physicians. This then would seem to be the method by which the judge arrived at the figure of $28,382.88 identified in ¶12 of her decision."
+   },
+   {
+    "label": "43",
+    "marker_order": 69,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 27149,
+     "end": 27531
+    },
+    "body_chars": 376,
+    "body_sha256": "82b3e5ced585239c472ca878193d8fab18d751ddb99821f7497b72e4c5b01227",
+    "body": "Having concluded that Mr. Hayward was entitled to a portion of his disbursements and upon being satisfied that these expenditures were just and reasonable in the circumstances, I would not interfere except to correct (as explained earlier) the judge’s transcription errors and to add the clarification I have provided so as to explain the evidentiary foundation for the award."
+   },
+   {
+    "label": "44",
+    "marker_order": 70,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 27531,
+     "end": 27785
+    },
+    "body_chars": 248,
+    "body_sha256": "c804ca5bf518b9336b973e2f9b433e35f3530b0f6c50ad1f5bb757d4a69a860e",
+    "body": "Thus, while the judge made certain errors in arithmetic, which I have corrected, she did not err in deciding to award Mr. Hayward his out-of-pocket expenses of close to $30,000.\nv. Did the judge err by refusing to award Ms. Young her disbursements?"
+   },
+   {
+    "label": "45",
+    "marker_order": 71,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 27785,
+     "end": 28968
+    },
+    "body_chars": 1177,
+    "body_sha256": "a160d1c19dc783eadd463c5019c9d129a99e78d982aa9c9d794fce49a1a590cb",
+    "body": "I will now consider Ms. Young’s further complaint that the judge erred in refusing to award her anything for the disbursements she incurred in defending the claim. In my respectful opinion Ms. Young’s argument has considerable merit. Whereas the trial judge saw fit to effectively “saw off” both sides’ costs by not awarding costs to either of them, she nonetheless allowed Mr. Hayward to recover $13,234.06 (as adjusted by me) for the cost of the three experts’ reports and out-of-pocket medicals, plus an additional $15,078.73 for other out-of-pocket expenses, yet it appears that she did not ever consider Ms. Young’s own very sizeable expenses. This in spite of the fact that Mr. Chipman made very strong submissions to support their claim to recover such expenditures. For example, in an affidavit filed on Ms. Young’s behalf, counsel attached accounts from the private investigation firm they hired to conduct covert surveillance of Mr. Hayward totalling $6,350.37, together with accounts rendered by their expert Dr. Yvon Toupin totalling $30,510. Besides those accounts counsel’s affidavit confirmed other sizeable expenditures for discovery, photocopying and the like."
+   },
+   {
+    "label": "46",
+    "marker_order": 72,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 28968,
+     "end": 29636
+    },
+    "body_chars": 662,
+    "body_sha256": "e6deaaeb549ae3154ff524d91b395c9b403bfeac653ac64dc5c466dd2c62a10d",
+    "body": "Having found that they were each partially successful and that their costs should be effectively sawed off by not awarding costs to either of them, I cannot think of any reason why the judge would allow Mr. Hayward to recover a significant outlay of his expenses, yet deny Ms. Young any of hers. This is especially so when one recalls that Ms. Young successfully challenged the main appeal and won her cross-appeal. There is nothing in the written or oral submissions of counsel or in the transcript of their exchanges with the judge from which I could divine any basis for the judge’s omission. Thus, I am driven to the conclusion that she failed to address it."
+   },
+   {
+    "label": "47",
+    "marker_order": 73,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 29636,
+     "end": 30017
+    },
+    "body_chars": 375,
+    "body_sha256": "b7c8c60726423d5a18494da457dc348ad33f05458a8b641e63d88a6e3df78baf",
+    "body": "It is settled law that while the award or refusal of costs is highly discretionary, a successful party will rarely be deprived of his or her costs. Such cases are seen to be exceptional. When that occurs the judge is expected to explain the reasons for effectively penalizing the winner. That never happened here. See for example Arymoyan v. Armco Capital Inc., 2011 NSCA 22."
+   },
+   {
+    "label": "48",
+    "marker_order": 74,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 30017,
+     "end": 30189
+    },
+    "body_chars": 166,
+    "body_sha256": "24d2d472d0aa95ce4eb81a95fe71cd8db41f9a50790dfce2d6d966fbdd1c633a",
+    "body": "Accordingly, I find that the judge erred by either missing this point or failing to explain why Ms. Young should be denied any recovery of her sizeable disbursements."
+   },
+   {
+    "label": "49",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 30189,
+     "end": 31272
+    },
+    "body_chars": 1077,
+    "body_sha256": "d2e897ba4539c574aa57aaa06ae0a592791e36fd695b5f13ae2beb02c2cfe801",
+    "body": "Taking a fresh and necessarily arbitrary view of the record, it appears to me that the evidence presented through both the private investigators and Dr. Toupin figured heavily in the trial judge’s findings with respect to Mr. Hayward, his credibility and the extent of his alleged limitations. The combined accounts rendered by the clinical neuropsychologist and the private investigators hired by Ms. Young are $36,860.37, somewhat more than what Mr. Hayward was awarded for his own special damages and out-of-pocket expenses. In my view the fairest approach would be to award Ms. Young a percentage of her expenditures in an amount which would equal Mr. Hayward’s award. Accordingly, I would direct that Ms. Young is entitled to receive $28,382.88 (roughly 77% of these disbursements which she was obliged to incur), and which effectively will be set off against Mr. Hayward’s award. I would not apply pre-judgment interest to Ms. Young’s award of disbursements.\nvi. Did the judge err by fixing pre-judgment interest on general damages at 2½% per annum from the date of loss?"
+   },
+   {
+    "label": "50",
+    "marker_order": 76,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 31272,
+     "end": 31991
+    },
+    "body_chars": 713,
+    "body_sha256": "d68d6be48285baed1b2ee3c9353769852788daff6f12fb282c7be7308ae6ba04",
+    "body": "No. We were advised that the trial judge’s selection of 2½% per annum from the date of the loss was based on an agreement reached by the parties prior to trial. Thus, quite apart from the judge’s exercise of her discretion, this was clearly based on counsels’ own arrangement and I see no reason to intervene. Counsel will have to confer and recalculate the sum that will replace the figure of $26,547.94 in the third line of 1(e) in the Order and should advise the Registrar of the adjusted amount within five (5) days of receiving this Court’s decision.\nvii. Did the judge err by awarding half of pre-judgment interest on out-of-pocket expenses and disbursements at a rate of 4% per annum from the date of loss?"
+   },
+   {
+    "label": "51",
+    "marker_order": 77,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 31991,
+     "end": 33017
+    },
+    "body_chars": 1020,
+    "body_sha256": "9de1b0d7a0068b65bec5079fedce9a031ae3ebf9055300a9d84703acde4f99a2",
+    "body": "No. Again, I see no reason to intervene. While there is some merit to Ms. Young’s argument that because these expenses were not all incurred by Mr. Hayward at one time from the date of the loss, but were spread out over the years and so ought to have been charged from the date each was paid, it is a much quicker method to simply apply half of 4% for pre-judgment interest taken from the date of loss, across the board. In argument before us, counsel agreed there were several suitable choices a judge might make in the calculation. I see nothing wrong in the judge’s preferred approach here. Counsel will have to confer and recalculate the sum that will replace the figure of $5,023.38 in the third line of 1(f) in the Order and should advise the Registrar of the adjusted amount within five (5) days of receiving this Court’s decision.\nviii. Given Ms. Young’s success on the main (Damages) appeal and cross-appeal and partial success on this (Costs) appeal, what is a fair and proper result in resolving appeal costs?"
+   },
+   {
+    "label": "52",
+    "marker_order": 78,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 33017,
+     "end": 33451
+    },
+    "body_chars": 428,
+    "body_sha256": "171ecd336964730a8bffbbaad944c0dff6a9ac944e428d1fd6a63c06903e47cb",
+    "body": "This is a vexing question. I start with the observation that I am only dealing here with appeal costs, having regard to Ms. Young's complete success on the main appeal and limited success on the costs appeal. That consideration of \"success\" is informed by my assessment of the merits of the positions taken by the parties at trial as well as the important adjustments I have had to make to correct the errors in the court below."
+   },
+   {
+    "label": "53",
+    "marker_order": 79,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 33451,
+     "end": 34220
+    },
+    "body_chars": 763,
+    "body_sha256": "81dfca93b766e191adebd9a8b906884a6d11a8667716957e4456486f7ecaa323",
+    "body": "From Ms. Young's perspective she would say that Mr. Hayward's demands were excessive and completely unrealistic, that she had taken a principled and reasoned approach in assessing the value and potential exposure of the claim, had made a wise and provident offer to settle which the claimant was foolish to ignore, and now having “rolled the dice” and lost Mr. Hayward can hardly be heard to complain. From Mr. Hayward's perspective he would say that his claim of having suffered a brain injury found some support in the evidence, and that a judgment which leaves him vulnerable to pay a huge amount of money back to Ms. Young in a crushing costs award hardly seems fair in a case where she was entirely at fault and accepted full responsibility for his injuries."
+   },
+   {
+    "label": "54",
+    "marker_order": 80,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 34220,
+     "end": 34589
+    },
+    "body_chars": 363,
+    "body_sha256": "a0451ae0610d3b65ef768fa69116af901550e33ca4d4936de7cc72cfdc42d935",
+    "body": "In my opinion, and on this record, there is something to be said for both points of view. This is not to in any way suggest that a failure to marshal sufficient evidence to prove one's case will somehow \"excuse\" the unsuccessful plaintiff from paying a potentially sizeable costs award. As I made clear in Leddicote v. Attorney General (Nova Scotia) 2002 NSCA 47:"
+   },
+   {
+    "label": "86",
+    "marker_order": 81,
+    "role": "quoted_or_foreign",
+    "marker": "[86]",
+    "raw_span": {
+     "start": 34589,
+     "end": 35012
+    },
+    "body_chars": 417,
+    "body_sha256": "da5a39fe339a467080160df9529e727757bfdd677b8e10f7573507b491b6128a",
+    "body": "Before leaving the subject I might add by way of a general observation that in matters before the court, not the least personal injury litigation, one expects that a claimant's demands for relief are intended to be taken seriously. Putting them forward invites consequences. .... reminding litigants of the financial risks attendant upon suing and losing. (Underlining mine)\nSee also Landymore v. Hardy, 1992 NSSC 70."
+   },
+   {
+    "label": "55",
+    "marker_order": 82,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 35012,
+     "end": 35717
+    },
+    "body_chars": 699,
+    "body_sha256": "97582ba1ef6a8dc00b496f23e4c002cccd47f5b63ebf8f3b1d573729063bfe8c",
+    "body": "Clearly Mr. Hayward failed to persuade the judge that he had suffered a traumatic brain injury in the collision, and he failed to prove a considerable portion of his claim for damages on account of that alleged injury. Such failures carry risk and invite consequences. In such circumstances, after a trial, the successful litigant who “won” (either as a plaintiff, or as a defendant) will ordinarily recoup party-and-party costs together with reasonable disbursements. Fixing the amount of costs is driven by the long settled principle that costs are intended to provide a substantial but not a complete indemnity. See Landymore, supra and Williamson v. Williams, [1998] N.S.J. No. 498 (Q.L.)(C.A.)."
+   },
+   {
+    "label": "56",
+    "marker_order": 83,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 35717,
+     "end": 36645
+    },
+    "body_chars": 922,
+    "body_sha256": "40b935ae398ae25f9287d3aadb9926b9563ddf24b2fd52f6d238aff838f3f040",
+    "body": "But the settling of costs and disbursements for matters heard in this Court attracts additional considerations. Factors such as balance, overall fairness and proportionality come into play. Now, on appeal, where I have found that success in this Court has been divided I must look for a result that is fair and reasonable based on the unique features of this case. In my respectful opinion, in a multi-faceted case such as this where very substantial compensation was claimed under several heads of damage; where the trial judge found that each side could claim a partial victory; and whose judgment produced two appeals and a cross-appeal, with mixed success, one should always take a step back and consider the overall result. One should never lose sight of the principal objective in setting, awarding or refusing costs which should always be to do justice between the parties having regard to all of the circumstances."
+   },
+   {
+    "label": "57",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 36645,
+     "end": 36696
+    },
+    "body_chars": 45,
+    "body_sha256": "b3b7529ce3db38f43901b454b3b64801ff9cd364846e95546a0796fd7609d66b",
+    "body": "That is what I have tried to do in this case."
+   },
+   {
+    "label": "58",
+    "marker_order": 85,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 36696,
+     "end": 37064
+    },
+    "body_chars": 362,
+    "body_sha256": "ee317bd171fd13d8a72b9074abd2dca2553cbafd5c71be94d7d9ed1e216985fd",
+    "body": "In my decision in the main appeal (Damages) I dismissed Mr. Hayward’s appeal and allowed Ms. Young’s cross-appeal (2013 NSCA 64). I awarded Ms. Young costs of $2,000 inclusive of disbursements for successfully defending that appeal and $2,000 inclusive of disbursements for winning her cross-appeal. In other words, her total costs award in that case was $4,000."
+   },
+   {
+    "label": "59",
+    "marker_order": 86,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 37064,
+     "end": 37462
+    },
+    "body_chars": 392,
+    "body_sha256": "adeec9c5c5abadc597239ac5a0f4bb8e27d95702714c745a9addc80070d5caed",
+    "body": "In this case success has been mixed. While one could count up the number of issues and argue that Mr. Hayward was “more successful” than Ms. Young in defending her complaints, one could also take a qualitative view of things and conclude that from a monetary standpoint Ms. Young ought to be declared the winner. In this case neither approach seems to me to be particularly effective or fair."
+   },
+   {
+    "label": "60",
+    "marker_order": 87,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 37462,
+     "end": 37806
+    },
+    "body_chars": 338,
+    "body_sha256": "aea37755b2531dc2f534ac6afd45fbdd0373e37610297d0fddaceccaa05435b2",
+    "body": "Having regard to the extent of this record as it relates to costs (as compared to damages); the time spent on these issues by counsel at the hearing; and taking a fresh and necessarily arbitrary view of the case, as a whole, I would award Mr. Hayward his costs on this appeal in the amount of $3,000 inclusive of disbursements.\nConclusion"
+   },
+   {
+    "label": "61",
+    "marker_order": 88,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 37806,
+     "end": 38061
+    },
+    "body_chars": 249,
+    "body_sha256": "f6e4e1315cf81dfb3a0a14b4ea2ac24d92256a1c122030674f08855c3de6631f",
+    "body": "In the Damages appeal, CA 388940, Mr. Hayward’s appeal is dismissed with costs to Ms. Young in the amount of $2,000 inclusive of disbursements. Ms. Young’s cross-appeal is allowed with costs to her in the amount of $2,000 inclusive of disbursements."
+   },
+   {
+    "label": "62",
+    "marker_order": 89,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 38061,
+     "end": 38300
+    },
+    "body_chars": 233,
+    "body_sha256": "01f49c0c49868d476c2406e31da6b49aa4c571707318fe33143a2a623c83b452",
+    "body": "In this, the Costs appeal, CA 386760, Ms. Young’s appeal is allowed in part only, with costs to Mr. Hayward in the amount of $3,000 inclusive of disbursements.\nSaunders, J.A.\nConcurred in:\nHamilton, J.A.\nBeveridge, J.A. (dissenting):"
+   },
+   {
+    "label": "63",
+    "marker_order": 90,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 38300,
+     "end": 38682
+    },
+    "body_chars": 376,
+    "body_sha256": "e5cb5b9af51bf3fb5ec76f6bcf17993bc24f9b14eb27d16a6c1ea3001b865bce",
+    "body": "I have had the privilege of reading the draft reasons for judgment penned by my colleague, Saunders J.A., for both the main appeal on damages (2013 NSCA 64) and Ms. Young’s appeal on costs. I agree entirely with his views on the main appeal, but, with respect, am unable to agree with his reasons and proposed result on the costs appeal. I will try to be as brief as possible."
+   },
+   {
+    "label": "64",
+    "marker_order": 91,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 38682,
+     "end": 39051
+    },
+    "body_chars": 363,
+    "body_sha256": "b8f05cf13df5435a99bee42ea27322860536c870d84b74814479785c83f5a192",
+    "body": "The trial judge concluded that success was divided. There was, as she put it, “a split result”. The split result was the reason she gave not to award costs to Ms. Young, despite, what turned out to be, Ms. Young’s generous pre-trial (and unwithdrawn) offer of September 22, 2010 to pay to Mr. Hayward $200,000, plus costs, disbursements and pre-judgment interest."
+   },
+   {
+    "label": "65",
+    "marker_order": 92,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 39051,
+     "end": 39459
+    },
+    "body_chars": 402,
+    "body_sha256": "bc92061670390b20e438d61ec63af2bb7a23b035cdd9934abc17bfbb533604f6",
+    "body": "It cannot be gainsaid that the main issue at trial was Mr. Hayward’s claim of a traumatic brain injury, which attracted a claim for loss of future income. He sought damages of more than a million dollars. Mr. Hayward was unsuccessful on that claim. He appealed, but was still unsuccessful. What caused the trial judge to say there was “a split result” and hence decline to award any costs to Ms. Young?"
+   },
+   {
+    "label": "66",
+    "marker_order": 93,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 39459,
+     "end": 39819
+    },
+    "body_chars": 354,
+    "body_sha256": "6a34c32b2167e97083b2874e8b8f24a69001bb32b47e76b8889b15f016661885",
+    "body": "The reasons of the trial judge are found at ¶19 (2012 NSSC 56). She explained that despite Mr. Hayward’s lack of success on the issue of future loss of income, he received a general damages award of $120,000, which she described as being on the very high end of the range set by Smith v. Stubbert, and was successful on his award for loss of future care."
+   },
+   {
+    "label": "67",
+    "marker_order": 94,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 39819,
+     "end": 40245
+    },
+    "body_chars": 420,
+    "body_sha256": "13b93fffee31a60975e2727a4521dcff742fa8c7ac435811b3a1702f381069f3",
+    "body": "Ordinarily a trial judge’s determination or assessment about degree of success which illuminates a costs award is entitled to deference. Deference is no longer in play since the trial judge’s assessment of $120,000 was reversed on appeal. We have substituted exactly what Ms. Young agreed at trial was the appropriate damage award — the high end of a Smith v. Stubbert range — $35,000, adjusted for inflation to $57,500."
+   },
+   {
+    "label": "68",
+    "marker_order": 95,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 40245,
+     "end": 40991
+    },
+    "body_chars": 740,
+    "body_sha256": "ae140bcddbe43657c50f6090e5a95f82a3a3051921d6cd8a10112133f816fa4b",
+    "body": "As for Mr. Hayward succeeding in his claim for loss of future care, this does not bear scrutiny. He claimed at trial $75,000 for future care. The trial judge awarded him $10,000. Mr. Hayward appealed the $10,000 award, arguing the trial judge erred in awarding such a low amount — it was said to be “so inordinately low as to be wholly erroneous” since Mr. Hayward would require another twenty years of medical treatments and medications to combat his chronic pain. His appeal of this award was also dismissed. Mr. Hayward was also unsuccessful at trial (and on appeal) in his claim of damages ($50,000) for loss of valuable services, as the trial judge found no significant reduction in his capacity to perform unpaid work around the home."
+   },
+   {
+    "label": "69",
+    "marker_order": 96,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 40991,
+     "end": 41367
+    },
+    "body_chars": 370,
+    "body_sha256": "7c084af985a1fa093d67f6de00ad99926a1bdf9e0cd2b8ffcddddd9532825301",
+    "body": "Ms. Young was successful. My colleague acknowledges this, and the principle that when costs are denied to a successful party, a judge is expected to provide reasons declining an award of costs (¶ 47). My colleague implicitly finds that the trial judge erred in principle, compelling him to vary the order of the trial judge and award Ms. Young some of her disbursements."
+   },
+   {
+    "label": "70",
+    "marker_order": 97,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 41367,
+     "end": 41595
+    },
+    "body_chars": 222,
+    "body_sha256": "c4d36a74d2f788b52d896615251adfa068bb19a736666eff28044dd3d6669ec6",
+    "body": "Subject to some adjustment for arithmetic, my colleague would leave in place the decision and order of the trial judge to have the winning party, Ms. Young, pay Mr. Hayward his “out-of-pocket expenses” of close to $30,000."
+   },
+   {
+    "label": "71",
+    "marker_order": 98,
+    "role": "spine",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 41595,
+     "end": 41851
+    },
+    "body_chars": 250,
+    "body_sha256": "992d709e0200bc9b8e1b1fb09bd3849f2a7272726889c24a089a84d75f251856",
+    "body": "Since Mr. Hayward was damaged by Ms. Young’s admitted negligence he should be put back, as far as an award of money can, to the same position he was before. Reasonable out-of-pocket expenses incurred because of the accident are obviously recoverable."
+   },
+   {
+    "label": "72",
+    "marker_order": 99,
+    "role": "spine",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 41851,
+     "end": 42211
+    },
+    "body_chars": 354,
+    "body_sha256": "69455b3c3326482d8636cfdd8d0310e2e0cec614e8986b8dee4253b22370fbcf",
+    "body": "The problem is the award by the trial judge for “out-of-pocket expenses” included Mr. Hayward’s disbursements he incurred for the litigation. Absent a sustainable award of costs in his favour, it is contrary to principle for the successful defendant to pay the unsuccessful plaintiff his litigation expenses. But this is exactly what the trial judge did."
+   },
+   {
+    "label": "73",
+    "marker_order": 100,
+    "role": "spine",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 42211,
+     "end": 42514
+    },
+    "body_chars": 297,
+    "body_sha256": "d53ead4a871ba6248edefb52bcb7268e44e986aa194a77566727ca45db34038e",
+    "body": "In her decision on damages, the only reference by the trial judge to special damages and out-of-pocket expenses was one line: “The plaintiff shall have his out-of-pocket expenses, those special damages as outlined in the plaintiff's brief, and pre-judgment interest at 2.5%.” (¶217 2011 NSSC 294)."
+   },
+   {
+    "label": "74",
+    "marker_order": 101,
+    "role": "spine",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 42514,
+     "end": 42696
+    },
+    "body_chars": 176,
+    "body_sha256": "005b21f99d0231c1323be706d0a8bc1d9d48b7a4c40f00f8f4096e7e41b92970",
+    "body": "In her costs decision, the trial judge said she intended her award to include some of the plaintiff’s disbursements along with his claimed special damages. Her explanation was:"
+   },
+   {
+    "label": "2",
+    "marker_order": 102,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 42696,
+     "end": 43065
+    },
+    "body_chars": 364,
+    "body_sha256": "eea00258fdb9b4404f528511978b8c4f90871bcf33e78fc188e838005de2ba71",
+    "body": "I intended that the plaintiff would recover his out-of-pocket expenses (disbursements) and special damages as had been set out in the plaintiff's brief, which were stated to be:\n1. Dr. Erica Baker Report $2,300.00\n2. Jessie Gmeiner Actuarial Report $1,587.00\n3. Tom Stanley Report $816.34\n4. Out-of-Pocket Medicals to Date $8,600.81\nTotal: $13,304.15\n[my emphasis]"
+   },
+   {
+    "label": "75",
+    "marker_order": 103,
+    "role": "spine",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 43065,
+     "end": 43270
+    },
+    "body_chars": 199,
+    "body_sha256": "3818d494260813d50aafb02b33173fd61424346122278413093424129a6a496a",
+    "body": "The only item of properly recoverable special damages is for “Out-of-Pocket Medical” expenses ($8600.81). The remainder are not. They are disbursements: amounts paid to experts to advance his claims."
+   },
+   {
+    "label": "76",
+    "marker_order": 104,
+    "role": "spine",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 43270,
+     "end": 43536
+    },
+    "body_chars": 260,
+    "body_sha256": "740b6eda71343dbde252000372e394949b930ba1e6d36eb893fd28e5a94ea792",
+    "body": "The reports by Dr. Erica Baker and Jessie Gmeiner were prepared to advance Mr. Hayward’s loss of future income claim. That claim was not successful. Tom Stanley’s report was prepared to advance Mr. Hayward’s loss of services claim. That claim was unsuccessful."
+   },
+   {
+    "label": "77",
+    "marker_order": 105,
+    "role": "spine",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 43536,
+     "end": 44020
+    },
+    "body_chars": 478,
+    "body_sha256": "0e42b10ae143603f6781ac73ed0178263d3a5a20a2b978a41999513ed1158704",
+    "body": "It is an error in principle to have included these disbursements as “special damages”. That is not to say that if a plaintiff reasonably incurs disbursements in the course of prosecuting a claim, but is unsuccessful on some aspects of the claim, this translates into a disentitlement to recoup those disbursements; they are recoverable so long as a court legitimately exercises its discretion to make a costs award in favour of the plaintiff. But this is not what happened here."
+   },
+   {
+    "label": "78",
+    "marker_order": 106,
+    "role": "spine",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 44020,
+     "end": 44432
+    },
+    "body_chars": 406,
+    "body_sha256": "270002a829c47250acfc728275655b0afc27e6697609836a8feae2b3f2db74ec",
+    "body": "I see no legitimate basis to make an award to Mr. Hayward for anything other than his special damages caused by the negligent act of Ms. Young. It matters naught if they are called ‘special damage’ or ‘reasonable out-of-pocket expenses’. But what were they? Certainly they would include Mr. Hayward’s treatment costs, which were itemized in counsel’s affidavit, with supporting documentation, of $8,600.81."
+   },
+   {
+    "label": "79",
+    "marker_order": 107,
+    "role": "spine",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 44432,
+     "end": 44833
+    },
+    "body_chars": 395,
+    "body_sha256": "788c27ff3753bcc61c0594dc9b3e783c38613fcecfc0d4734f79523fadeeeaa1",
+    "body": "My colleague has already referred to the confusion between the trial judge’s reasons announcing an award of $28,382.88 for out-of-pocket expenses, and the formal order that said they were $15,078.73. I agree with Justice Saunders that the $15,078.73 comes from counsel’s brief on costs and his affidavit (which does not include the $8,600.81 already listed as being an item of ‘special damage’)."
+   },
+   {
+    "label": "80",
+    "marker_order": 108,
+    "role": "spine",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 44833,
+     "end": 45375
+    },
+    "body_chars": 536,
+    "body_sha256": "a7ff02e3d7fb29368fbfefaaffc9d2de1b6c69c742e552b26d9cdfbbd0e6e347",
+    "body": "The problem is that the items that make up the $15,078.73 are, for the most part, disbursements: courier; photocopying; printing costs; discovery and transcripts; fees paid to expert witnesses for trial preparation and attendance. The one exception is the amount Mr. Hayward was obligated to repay Medavie Blue Cross in the amount of $4,395.04 for drugs and treatments. Tellingly, on appeal, counsel for Mr. Hayward does not take issue with the fact that the disputed award for out-of-pocket expenses includes amounts for disbursements."
+   },
+   {
+    "label": "81",
+    "marker_order": 109,
+    "role": "spine",
+    "marker": "[81]",
+    "raw_span": {
+     "start": 45375,
+     "end": 45862
+    },
+    "body_chars": 481,
+    "body_sha256": "b9d37c67edf4f778f57973e060a05b855e3f1c42ae7969a0d038eb4d4f9cb48a",
+    "body": "I would, therefore, change the trial judge’s order to a judgment against the defendant as follows: $57,500 for general damages; $10,000 for cost of future care; special damages of $12,995.85 ($8,600.81 plus $4,395.04); plus prejudgment interest at the rate of 2.5% on general and special damages from April 5, 2003 to February 10, 2012. Not all of the items of special damage were incurred as of April 5, 2003. I have, therefore, used one-half of the usual rate of 5% (Rule 70.07)."
+   },
+   {
+    "label": "82",
+    "marker_order": 110,
+    "role": "spine",
+    "marker": "[82]",
+    "raw_span": {
+     "start": 45862,
+     "end": 46189
+    },
+    "body_chars": 321,
+    "body_sha256": "f4e3505df793f5ccc2c2b239b763b832748874121fa1a8c1cb2bdc4170cfb299",
+    "body": "My colleague would order Mr. Hayward to pay for the cost incurred by Ms. Young in presenting the evidence of Dr. Toupin and private investigators ($36,860.37). The specified amounts are some of the disbursements reasonably incurred by Ms. Young in defending the claim being vigorously advanced against her by Mr. Hayward."
+   },
+   {
+    "label": "83",
+    "marker_order": 111,
+    "role": "spine",
+    "marker": "[83]",
+    "raw_span": {
+     "start": 46189,
+     "end": 46427
+    },
+    "body_chars": 232,
+    "body_sha256": "6dacf32823f9b68dcb32291d62676ec92632de5930d3a204f6601d03bb728498",
+    "body": "Justice Saunders then reduces that amount to the same figure that he would require Ms. Young to pay Mr. Hayward for what the trial judge called “special damages” and “out-of-pocket expenses” ($28,382.88) in order to create “a wash”."
+   },
+   {
+    "label": "84",
+    "marker_order": 112,
+    "role": "spine",
+    "marker": "[84]",
+    "raw_span": {
+     "start": 46427,
+     "end": 46880
+    },
+    "body_chars": 447,
+    "body_sha256": "4dab7e87dd694ca774e284d6a012bf76736f793ae93f88351904ac10b9eee25e",
+    "body": "With respect, this does not address the erroneous award of Mr. Hayward’s disbursements, nor is it a principled approach to dealing with a costs award for a successful litigant. Subject to deferring to the trial judge on facts or factors that the judge articulated (or are otherwise evident) that would bear on the exercise of discretion, we are left to decide the issue of costs as we consider to be in the interests of justice (Rule 90.48(1)(c))."
+   },
+   {
+    "label": "85",
+    "marker_order": 113,
+    "role": "spine",
+    "marker": "[85]",
+    "raw_span": {
+     "start": 46880,
+     "end": 47719
+    },
+    "body_chars": 833,
+    "body_sha256": "7e1f39b11ddaeb4771627251ff8f9da641e8a364d816ac4374710fe84d6455c6",
+    "body": "After correcting the trial judge’s error on the assessment of damages, Ms. Young was successful by any measure. Furthermore, whether or not Ms. Young’s offer to settle was made after the finish date, she clearly obtained a favourable judgment within the meaning of Rule 10.09. In those circumstances, a judge is given the express jurisdiction under that Rule to increase the normal costs award based on the Tariff. Instead, the judge ordered Ms. Young to bear her own costs and disbursements, and pay some of Mr. Hayward’s disbursements. Absent some juridical reason that satisfactorily explains this anomaly, Ms. Young was entitled to at least some award for her costs and disbursements. The trial judge gave no reasons for why she denied Ms. Young such an award (other than the now reversed division of success). I would now do so."
+   },
+   {
+    "label": "86",
+    "marker_order": 114,
+    "role": "spine",
+    "marker": "[86]",
+    "raw_span": {
+     "start": 47719,
+     "end": 48083
+    },
+    "body_chars": 358,
+    "body_sha256": "810b9fa7777be45b7548114b56eea586ab6e4f73a31fce6fafebec032a9411c3",
+    "body": "Civil Procedure Rule 77 sets out the broad discretion to order costs. A court can order a lump sum (Rule 77.08) or turn to the multi-step process permitted by fixing the “amount involved” and plugging that into the appropriate Scale under Tariff A. However, even after a Tariff amount is arrived at, a court can add or subtract to or from it (Rule 77.07(1))."
+   },
+   {
+    "label": "87",
+    "marker_order": 115,
+    "role": "spine",
+    "marker": "[87]",
+    "raw_span": {
+     "start": 48083,
+     "end": 48447
+    },
+    "body_chars": 358,
+    "body_sha256": "0b864096ff320a660749c6b2ed37d1b2c3be2a16ec24c7fe0bb19dfb43e16d8b",
+    "body": "Rather than go through fixing the “amount involved”, I would award Ms. Young costs in a lump sum of $40,000, plus her reasonable and necessary disbursements. There was no dispute at trial that her reasonable disbursements were proved to be $40,278.88. I would, therefore, order Mr. Hayward to pay costs to Ms. Young in the all-inclusive amount of $80,278.88."
+   },
+   {
+    "label": "88",
+    "marker_order": 116,
+    "role": "spine",
+    "marker": "[88]",
+    "raw_span": {
+     "start": 48447,
+     "end": 48751
+    },
+    "body_chars": 298,
+    "body_sha256": "a1c3f60d64c2818a38f18eccd8a3e1222da5118af6fe9fd679f283b82a4d6f33",
+    "body": "This amount would be offset by the judgment in favour of Mr. Hayward in the amount of $96,063.01. This is calculated as follows:\nGeneral Damages $57,500\nSpecial Damages $12,995.85\nCost of Future Care $10,000\nPre-judgment Interest $15,567.16\n($70,495.85 @ 2.5%=\n$146.86 for 106 mths\nTotal $96,063.01"
+   },
+   {
+    "label": "89",
+    "marker_order": 117,
+    "role": "spine",
+    "marker": "[89]",
+    "raw_span": {
+     "start": 48751,
+     "end": 48972
+    },
+    "body_chars": 215,
+    "body_sha256": "c8379c777b04ca5e97675dcc4b0b1241ba274b59551c46732ad05e6862562d78",
+    "body": "This would have resulted in a judgment in favour of Mr. Hayward for $15,784.25. However, since Ms. Young has already paid to Mr. Hayward $189,954.20, I would order Mr. Hayward to repay the difference of $174,169.95."
+   },
+   {
+    "label": "90",
+    "marker_order": 118,
+    "role": "spine",
+    "marker": "[90]",
+    "raw_span": {
+     "start": 48972,
+     "end": 49208
+    },
+    "body_chars": 230,
+    "body_sha256": "b8664137cf442250c1fc02c83399bdd712a309a63c0765963fb3116d27c7eb19",
+    "body": "Costs have already been awarded to Ms. Young on the main appeal in the total amount of $4,000. Ms. Young has also been successful on the costs appeal and I would award her an additional amount of $1,000 inclusive of disbursements."
+   },
+   {
+    "label": "91",
+    "marker_order": 119,
+    "role": "spine",
+    "marker": "[91]",
+    "raw_span": {
+     "start": 49208,
+     "end": 49796
+    },
+    "body_chars": 582,
+    "body_sha256": "7aa47e782c12523411b097f133f0fb38a7a57afb5140adb9abd9abcbd9a49ed4",
+    "body": "Before closing I would say that I realize the result is unfortunate for Mr. Hayward, but it’s far from unjust. Although he was injured in an accident that was not his fault, he turned down a generous settlement offer. Instead, he decided to go to trial to try to achieve a damages award in excess of one million dollars. He must have known that if he lost, he would likely have to pay Ms. Young’s costs. In light of the trial judge’s clear findings against his claim, he lost. The cost consequences are not automatic, but in these circumstances they are appropriate.\nBeveridge, J.A."
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 7,
+  "values": [
+   "2011 NSSC 294",
+   "2012 NSSC 56",
+   "2013 NSCA 64",
+   "2002 NSCA 20",
+   "2011 NSCA 22",
+   "2002 NSCA 47",
+   "1992 NSSC 70"
+  ]
+ }
+}

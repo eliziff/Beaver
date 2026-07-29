@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–54—DEC. 12, 2025?>
+<?I51 PUBLIC LAW 119–54—DEC. 12, 2025?>
+<?I52 PUBLIC LAW 119–54—DEC. 12, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–54: To amend title 38, United States Code, to require the Secretary of Veterans Affairs to periodically review the automatic maximum coverage under the Servicemembers’ Group Life Insurance program and the Veterans’ Group Life Insurance program, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>54</docNumber>
+<citableAs>Public Law 119–54</citableAs><citableAs>139 Stat. 705</citableAs>
+<approvedDate>2025-12-12</approvedDate>
+<dc:date>2025-12-12</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-29</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–54—DEC. 12, 2025</centerRunningHead>
+<page identifier="/us/stat/139/705">139 STAT. 705</page>
+<dc:type>Public Law</dc:type><docNumber>119–54</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend title 38, United States Code, to require the Secretary of Veterans Affairs to periodically review the automatic maximum coverage under the Servicemembers’ Group Life Insurance program and the Veterans’ Group Life Insurance program, and for other purposes.<sidenote><p class="centered fontsize8" id="x0743fd94-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658076"><approvedDate date="2025-12-12">Dec. 12, 2025</approvedDate></p><p class="centered fontsize8" id="x0743fd95-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/970">H.R. 970</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x0743fd96-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">Fairness for Servicemembers and their Families Act of 2025.</p></sidenote>
+<section id="d1215e88" identifier="/us/pl/119/54/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x0743fd97-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s101">38 USC 101 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Fairness for Servicemembers and their Families Act of 2025</shortTitle>”.</content></section>
+<section id="d1215e103" identifier="/us/pl/119/54/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>PERIODIC REVIEW OF AUTOMATIC MAXIMUM COVERAGE UNDER SERVICEMEMBERS’ GROUP LIFE INSURANCE AND VETERANS’ GROUP LIFE INSURANCE.</heading><subsection class="firstIndent0 fontsize10" id="y074499d8-e4c2-11f0-bc57-ad3ac4b1618c" identifier="/us/pl/119/54/s2/a" role="instruction" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">(a) </num><heading class="fontsize10"><inline class="smallCaps">In General</inline>.—</heading><content><ref href="/us/usc/t38/ch19/schIII">Subchapter III of chapter 19 of title 38, United States Code</ref>, <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="add">adding</amendingAction> at the end the following new section:<quotedContent><section class="centered fontsize12" id="y0744e7f9-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658165"><num class="fontsize12" value="1980B">“§ 1980B.</num><heading class="fontsize12"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x0744e7fa-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180"><ref href="/us/usc/t38/s1980B">38 USC 1980B</ref>.</p></sidenote> Periodic review of automatic maximum coverage</heading><subsection class="firstIndent0 fontsize10" id="y0744e7fb-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">“(a) </num><heading class="fontsize10"><inline class="smallCaps">In General</inline>.—</heading><chapeau>On January 1, 2026, and every five years thereafter, the Secretary shall—</chapeau><paragraph class="fontsize10" id="y0744e7fc-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">“(1) </num><content>complete a review of how the amount specified in section 1967(a)(3)(A)(i) compares to the amount described in subsection (b); and</content></paragraph>
+<paragraph class="fontsize10" id="y0744e7fd-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>submit to the Committees on Veterans’ Affairs of the House of Representatives and the Senate the results of the review, which may serve as a guide for coverage increases within the existing administrative incremental structure.</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y0744e7fe-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">“(b) </num><heading class="fontsize10"><inline class="smallCaps">Amount Described</inline>.—</heading><chapeau>The amount described in this subsection is the amount equal to—</chapeau><paragraph class="fontsize10" id="y0744e7ff-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">“(1) </num><content>$500,000; multiplied by</content></paragraph>
+<paragraph class="fontsize10" id="y0744e800-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>the average percentage by which the Consumer Price Index changed during the five fiscal years preceding the review under subsection (a).</content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y0744e801-e4c2-11f0-bc57-ad3ac4b1618c" role="definitions" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="c">“(c) </num><heading class="fontsize10"><inline class="smallCaps">Consumer Price Index Defined</inline>.—</heading><content>In this section, the term ‘<term>Consumer Price Index</term>’ means the Consumer Price Index for All Urban Consumers published by the Bureau of Labor Statistics of the Department of Labor.”</content></subsection>
+</section>
+</quotedContent>.<page identifier="/us/stat/139/706">139 STAT. 706</page></content></subsection>
+<subsection class="firstIndent0 fontsize10" id="y0744e802-e4c2-11f0-bc57-ad3ac4b1618c" identifier="/us/pl/119/54/s2/b" role="instruction" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">(b) </num><heading class="fontsize10"><inline class="smallCaps">Clerical Amendment</inline>.—</heading><content>The table of sections at the beginning of chapter 19 of such title<sidenote><p class="leftAlign firstIndent0 fontsize8" id="x0744e803-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">38 USC</p><p class="leftAlign firstIndent0 fontsize8" id="x0744e804-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658180">prec. 1901.</p></sidenote> <amendingAction type="amend">is amended</amendingAction> by <amendingAction type="insert">inserting</amendingAction> after the item relating to section 1980A the following new item:<quotedContent><toc>
+<referenceItem role="section" style="-uslm-lc:I658242">
+<designator>“1980B. </designator>
+<label>Periodic review of automatic maximum coverage.”.<?GPOvSpace 04?></label>
+</referenceItem></toc>
+</quotedContent></content></subsection>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-12-12">December 12, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/970">H.R. 970</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x07450f15-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658035">Apr. 7, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x07450f16-e4c2-11f0-bc57-ad3ac4b1618c" style="-uslm-lc:I658035">Nov. 20, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

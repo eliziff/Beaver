@@ -1,0 +1,475 @@
+Exhibit 10.3
+
+Execution Version
+
+EXECUTIVE EMPLOYMENT AGREEMENT
+
+This Executive Employment Agreement (the "Agreement") is entered into as of July 31, 2019, by and among Chemical Financial Corporation ("Chemical"), Chemical Bank (the "Bank") and Thomas C. Shafer (the "Executive").
+
+Recitals
+
+WHEREAS, pursuant to the Agreement and Plan of Merger by and between TCF Financial Corporation ("TCF") and Chemical, dated as of January 27, 2019 (the "Merger Agreement"), TCF shall merge with and into Chemical, with Chemical surviving such merger ("Merger"), effective as of the Effective Time (as defined under the Merger Agreement) (the "Effective Time"), and immediately following the Merger or at such later time as Chemical and TCF may mutually agree, the Bank will merge with and into TCF National Bank, a national banking association and a wholly-owned subsidiary of TCF ("TCF Bank"), with TCF Bank as the surviving entity of such merger (the "Bank Merger"); and
+
+WHEREAS, Chemical and the Executive entered into an Executive Employment Agreement (the "Prior Agreement"), dated as of July 1, 2018, and desire to amend and restate and replace the Prior Agreement, in its entirety, pursuant to this Agreement, effective as of the date (the "Effective Date") which immediately precedes the date which includes the Effective Time; and
+
+WHEREAS, Chemical owns and operates the Bank, a wholly-owned subsidiary, engaged in the general business of banking, and following the Bank Merger, all references to the Bank herein shall refer to TCF Bank, as the surviving entity of such merger; and
+
+WHEREAS, The Board of Directors (the "Board") of Chemical believes that it is in the best interest of Chemical and its shareholders to secure Executive's continued services to encourage Executive's full dedication to Chemical and to ensure Executive's continued dedication and objectivity in the event of any Change in Control, as defined herein; and
+
+WHEREAS, Executive acknowledges and agrees that pursuant to his employment with Chemical he has acquired and shall continue to acquire a considerable amount of knowledge and goodwill with respect to the business of Chemical that would be detrimental to Chemical if used by Executive to compete with Chemical; and
+
+WHEREAS, Chemical wishes to protect its investment in its business, employees, customer relationships and confidential information by requiring Executive to abide by certain restrictive covenants regarding confidentiality, non-competition, non-solicitation and other matters, as set forth herein; and
+
+WHEREAS, the Board of Chemical desires to continue to employ Executive in the positions set forth below, and Executive desires to continue to be employed in and serve in such positions, on the terms and conditions set forth in this Agreement; and
+
+1
+
+NOW, THEREFORE, for and in consideration of the foregoing, the mutual agreements contained herein, the payment on behalf of Chemical in the aggregate amount of one thousand dollars ($1,000) to Executive, payable on the Effective Date, and other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the parties agree that the Prior Agreement is hereby amended and restated and replaced, in its entirety, effective as of the Effective Date, as set forth below. For purposes of this Agreement, "Chemical" includes the Bank, unless the context clearly requires otherwise, and the term "Affiliate" means any organization controlling, controlled by or under common control with Chemical.
+
+1.Employment; Term. Chemical hereby employs Executive under the terms of this Agreement, and Executive hereby accepts such employment terms for an initial two (2) year period commencing as of the Effective Date and ending on the second anniversary of the Effective Date (the "Initial Term"), unless sooner terminated as provided in Section 5 below. This Agreement automatically shall renew on each anniversary of the Effective Date for successive one (1) year periods, unless either party provides the other party with written notice of intention to terminate this Agreement in accordance with Section 14(e), at least thirty (30) days before an anniversary of the Effective Date, in which case this Agreement shall terminate at the end of the then-current two-year Term, without any further extension; provided, however, that:
+
+(a)except for termination as provided above pursuant to written notice from Executive to Chemical, this Agreement shall not terminate during an Active Change in Control Proposal Period even if Chemical has given Executive notice of its intention to terminate this Agreement. As used in this Agreement the term "Active Change in Control Proposal Period" shall mean any period:
+
+(i)during which the Board of Chemical has authorized Chemical's solicitation of offers for a transaction which, if consummated, would constitute a Change in Control; or
+
+(ii)during which Chemical has received a proposal for a transaction which, if consummated, would constitute a Change in Control, and the Board of Chemical has not determined to reject such proposal without any counter-offer or further discussions; or
+
+(iii)during which any proxy solicitation or tender offer with regard to the securities of Chemical is ongoing, if the intent of such proxy solicitation or tender offer is to cause Chemical to solicit offers for or enter into a transaction that would constitute a Change in Control;
+
+(b)except for termination as provided above pursuant to written notice from Executive to Chemical, upon the occurrence of a "Change in Control" (as defined in Section 7(a)), the Term of this Agreement shall automatically be extended until the second anniversary of the effective date of the Change in Control, even if Chemical has given notice of its intent to terminate this Agreement; and
+
+(c)termination of this Agreement shall not affect the obligations of either party accrued before termination of the Agreement, including Executive's obligations under Sections 6 through 14.
+
+2
+
+Provided, however, that the Merger, and any and all actions and omissions which are connected with the Merger and which occurred prior to or occur after the Merger shall not constitute and shall be deemed not to constitute and shall not give rise to an "Active Change in Control Proposal Period". The Initial Term and all renewals together shall constitute the "Term" of this Agreement.
+
+2.Position; Duties. Executive shall serve as: (a) the Bank's President and Chief Operating Officer (his principal positions); (b) in such positions with Affiliates as are reasonably requested by Chemical's Board; provided that the duties of such positions are consistent with Executive's responsibilities in Executive's principal positions; and (c) to the extent appointed or elected, as a director on the Boards of both Chemical and the Bank, which positions in the aggregate shall constitute Executive's employment hereunder ("Employment"). Executive shall perform the services customarily associated with the aforementioned positions and as otherwise may be assigned to Executive from time to time by Chemical's Board. Executive shall devote the majority of his business time to the affairs of Chemical and to his duties hereunder; provided, however, Executive may engage in civic and professional activities, service on boards of directors and similar activities, as long as such activities do not constitute a conflict of interest or impair Executive's performance to Chemical. Executive shall perform his Employment duties diligently and to the best of his ability, in compliance with the policies and procedures of Chemical and the laws and regulations that apply to the business of Chemical.
+
+3.Compensation and Benefits. As compensation for the services to be rendered by Executive under this Agreement, Chemical shall provide Executive with the following compensation and benefits during the Employment Term:
+
+(a)Base Salary. Chemical shall pay Executive an initial annual base salary ("Base Salary") of Nine Hundred and Fifty Thousand Dollars ($950,000), prorated for any partial year, subject to required payroll deductions and tax withholdings, payable in weekly, bi-weekly or semi-monthly installments in accordance with Chemical's normal payroll practices. Executive's Base Salary shall be subject to annual review and adjustment pursuant to Chemical's normal procedures.
+
+(b)Bonus. Executive shall be eligible to participate in annual bonus programs for senior executives of Chemical at a level commensurate with Executive's principal position. The initial annual target for Executive's bonus compensation shall be One Hundred Percent (100%) of Executive's Base Salary.
+
+(c)Equity Plans. Executive shall participate in any stock option, performance share unit, time-restricted stock unit or other equity-based compensation programs ("Equity Plans") offered by Chemical, at a level commensurate with Executive's principal position. The initial annual target for Executive's Equity Plan awards shall be One Hundred Percent (100%) of Executive's Base Salary.
+
+(d)Fringe Benefits. Executive shall participate in health and dental, life insurance, short and long term disability insurance, retirement and other employee fringe benefit programs covering Chemical's salaried employees as a group, and in any programs applicable to Chemical's senior executives. The terms of applicable insurance policies and benefit plans in effect from time to time shall govern with regard to specific issues of coverage and benefit eligibility. All benefit programs are subject to change from time to time in Chemical's discretion, except that Executive shall at all times receive the following specific benefits:
+
+3
+
+(i)Paid Time Off. Executive shall receive thirty (30) days of paid time off per year, to be taken in the year earned, and which may not be accumulated or carried forward except as permitted by Chemical policy. Such paid time off shall be subject to review annually. Executive's days of paid time off per year shall be subject to adjustment pursuant to Chemical's normal procedures.
+
+(ii)Automobile. Executive shall receive a monthly stipend of Nine Hundred Dollars ($900) per month to purchase or lease an executive automobile. Executive shall be responsible for payment of all other expenses related to the automobile, such as fuel expenses, automobile insurance, maintenance and repair costs. The automobile stipend shall be reviewed annually and is subject to adjustment pursuant to Chemical's normal procedures.
+
+(iii)Club Dues. Executive shall be reimbursed up to Twenty-Five Thousand Dollars ($25,000) per year for club membership dues in accordance with Chemical's standard reimbursement policies and procedures.
+
+(e)Tax Withholdings. Chemical shall withhold from any amounts payable under this Agreement such federal, state and local taxes as Chemical determines are required to be withheld pursuant to applicable law.
+
+4.Reimbursement of Expenses. Chemical shall reimburse Executive for all reasonable ordinary and necessary business expenses incurred by Executive in connection with the performance of his duties hereunder, including but not limited to Executive's fees and expenses for attendance at banking-related conventions and similar events, reasonable professional association and seminar expenses and other expenses authorized by Chemical, upon submission of proper documentation for tax and accounting purposes in compliance with Chemical's reimbursement policies in effect from time to time. Such reimbursements shall be made promptly but in no event later than March 15 following the calendar year in which an expense is incurred. For purposes of reimbursements subject to Section 409A of the Internal Revenue Code of 1986, as amended (the "Code"), the amount of expenses eligible for reimbursement during one (1) year shall not affect expenses eligible for reimbursement in any other year, and such amount is not subject to liquidation or exchange for another benefit.
+
+5.Termination. Executive's Employment under this Agreement shall terminate as of the earliest termination date to occur, as set forth below ("Employment Termination Date"):
+
+(a)Death. Automatically effective upon Executive's death.
+
+(b)Disability. By Chemical, effective upon written notice to Executive in the event of Executive's permanent and total disability, as defined in this Section 5(b) ("Disability"). Executive shall be deemed to have incurred a Disability if he is unable by reason of physical or mental disability to properly perform his duties hereunder for a period of one hundred and eighty (180) days. If Executive wishes to contest his termination due to Disability, he must give Chemical written notice of his disagreement within ten (10) days after receipt of the Disability notice from Chemical, and he must promptly submit to examination by a physician who is reasonably acceptable to both Executive and Chemical (with consultation from other physicians as determined by the physician). If (i) within sixty (60) days after receipt by Executive of the Disability notice from Chemical, the physician issues a written statement to the effect that in the physician's opinion, Executive is capable of resuming Executive's Employment and devoting Executive's full time and energy to discharging Executive's duties within sixty
+
+4
+
+(60) days after the date of such statement, and (ii) Executive does in fact within such sixty (60) day period resume Employment and properly perform Executive's duties hereunder, then Executive's Employment shall not be terminated due to Disability. It is understood that Chemical has the right to terminate Executive's Employment due to Disability without meeting the standards in this Section 5(b), and in such event the termination shall be deemed to be a Termination Without Cause pursuant to Section 5(d).
+
+(c)For Cause. By Chemical, effective upon written notice to Executive for Cause, unless specified otherwise below. For purposes of this Agreement, "Cause" means: (i) Executive's removal by order of a regulatory agency having jurisdiction over Chemical; (ii) Executive's material breach of any provision in this Agreement; if the breach is curable, it shall constitute Cause only if it continues uncured for a period of twenty (20) days after Executive's receipt of written notice of such breach by Chemical; (iii) Executive's failure or refusal, in any material manner to perform all lawful services required of him in his Employment positions with Chemical, which failure or refusal continues for more than twenty (20) days after Executive's receipt of written notice of such deficiency; (iv) Executive's commission of fraud, embezzlement, theft, or a crime constituting moral turpitude, whether or not involving Chemical, which in the reasonable good faith judgment of Chemical's Board, renders Executive's continued employment harmful to Chemical; (v) Executive's misappropriation of Chemical assets or property, including without limitation, obtaining material reimbursement through financial vouchers or expense reports; or (vi) Executive's conviction or the entry of a plea of guilty or no contest by Executive with respect to any felony or other crime which, in the reasonable good faith judgment of Chemical's Board, adversely affects Chemical, and its reputation.
+
+(d)Without Cause. By Chemical, effective upon thirty (30) days' written notice to Executive at any time for any reason other than for death, Cause or Executive's Disability ("Termination Without Cause").
+
+(e)Resignation. By Executive, effective upon thirty (30) days' written notice to Chemical at any time for any reason.
+
+(f)Good Reason. By Executive, effective as set forth below. For purposes of this Agreement, "Good Reason" means the occurrence of any of the following events without the written consent of Executive:
+
+(i)any material reduction in Executive's Base Salary, as it may be adjusted from time to time, without a corresponding reduction in the base salaries of the other Chemical executives;
+
+(ii)any material reduction in Executive's status, position or responsibilities;
+
+(iii)any requirement by Chemical (without Executive's consent) that Executive be principally based at any office or location more than sixty (60) miles from Executive's principal work location as of the Effective Date of this Agreement; or
+
+(iv)any material breach of this Agreement by Chemical.
+
+Notwithstanding the foregoing, a Good Reason event shall be deemed not to have occurred if Executive's positions or responsibilities change in a manner that overall constitute an enhanced position or one or more different positions with the same or greater aggregate responsibilities. Further, if Executive fails to give Chemical written notice of his intention to terminate Employment with Chemical for Good
+
+5
+
+Reason within ninety (90) days following Executive's first knowledge of any Good Reason event and a period of sixty (60) days in which Chemical may remedy the event alleged to constitute Good Reason, and if Executive has not Separated from Service (as defined in Section 14(c)) within thirty (30) days following expiration of Chemical's cure period, the event shall not constitute Good Reason, and Executive shall have no right to terminate employment for Good Reason as a result of such event.
+
+(g)Retirement. By Executive, due to retirement with at least ten (10) years of service with Chemical on or after reaching age fifty-five (55) with one years' advance written notice ("Retirement"). For purposes of this paragraph, Executive shall receive credit for his years of service with legacy banks if Chemical recognizes such service in his original hire date.
+
+(h)During any notice period under Sections 5(c), 5(d), 5(e) ,5(f) or 5(g), Chemical may, in its sole discretion, relieve Executive of some or all of his duties during the notice period, but Chemical shall continue to provide Executive with his full salary, compensation, equity vesting, and benefits during such period.
+
+6.Effect of Termination.
+
+(a)Employment Termination Following Termination of this Agreement. If Executive continues to be employed by Chemical after termination of this Agreement due to non-renewal as described in Section 1, Executive's Employment may be terminated by either party at will, and severance shall be determined based on Chemical's severance guidelines as in effect at such time and not the "Severance" or "Change in Control Severance" described in Sections 6(c) and 7(c) hereunder.
+
+(b)Termination of Employment Without Severance. In the event of termination due to death, Disability, Cause, resignation or Retirement, Executive (or Executive's estate, as applicable), shall not be entitled to any further compensation from Chemical or any Affiliate after termination of Employment, except (a) unpaid Base Salary through the Employment Termination Date; (b) any vested benefits accrued as of Executive's Employment Termination Date (or vesting that may occur due to death, Disability or Retirement) as set forth below or under the terms of any written Chemical employment, compensation or benefit program or equity award agreement, as applicable; and (c) any rights of Executive to indemnification under the provisions of the Articles of Incorporation or Bylaws of Chemical or the Bank or any indemnification agreement entered into between Executive and Chemical, the Bank or any Affiliate.
+
+(i)Death and Disability Equity-Based Awards. Following execution of the Release described in Section 6(c)(i)(A) below and expiration of the Release revocation period, all equity-based awards previously granted to Executive and outstanding at the time of his Employment Termination Date due to death or Disability shall be treated as follows: (A) all unvested stock options immediately shall vest, become exercisable and together with Executive's other vested, unexercised stock options, remain exercisable until the earlier of their original term and one (1) year following Executive's Employment Termination Date for Disability (earlier of their original term and three (3) years following Executive's Employment Termination Date due to death); (B) the restrictions on all time-based restricted stock grants immediately shall lapse; (C) all time-based restricted stock units ("TRSUs") automatically shall vest and be convertible into Chemical's Common Stock, with settlement to occur within seven (7) days thereafter; (D) all performance-based stock units ("PRSUs") shall be settled within thirty (30) days after Executive's Employment Termination Date due to death or Disability at one hundred percent (100%) of target; and (E) any other equity-based awards shall vest in accordance with the terms of the applicable equity-based
+
+6
+
+plan or agreement; provided, however, that any stock options or PRSUs granted prior to November 2, 2017 shall continue to be subject to their terms (including definitions) on such date.
+
+(ii)Retirement With Notice Equity-Based Awards. Following execution of the Release described in Section 6(c)(i)(A) below and expiration of the Release revocation period, all equity-based awards previously granted to Executive and outstanding at the time of his Employment Termination Date due to Retirement with one years' advance written notice shall be treated as follows: (A) all unvested stock options immediately shall vest, become exercisable and together with Executive's other vested, unexercised stock options, remain exercisable until the earlier of their original term and three (3) years following Executive's Employment Termination Date; (B) the restrictions on all time-based restricted stock grants immediately shall lapse; (C) all TRSUs automatically shall vest and be convertible into Chemical's Common Stock, with settlement to occur within seven (7) days thereafter; (D) all PRSUs shall be settled within thirty (30) days after Executive's Employment Termination Date due to Retirement at one hundred percent (100%) of target; and (E) any other equity-based awards shall vest in accordance with the terms of the applicable equity-based plan or agreement; provided, however, that any stock options or PRSUs granted prior to November 2, 2017 shall continue to be subject to their terms (including definitions) on such date.
+
+(c)Separation Benefits upon Certain Terminations. The following provisions apply only to qualifying Employment terminations not incurred within six (6) months before or two (2) years after a Change in Control.
+
+(i)Termination Without Cause. Upon Termination Without Cause, Executive shall be entitled to the following Severance benefits ("Severance").
+
+(A)Severance Pay. If Chemical terminates Executive's Employment pursuant to a Termination Without Cause, Executive shall be entitled to receive Severance pay in the amount of two (2) times the sum of (1) Executive's then Base Salary, disregarding any Base Salary reduction due to a Good Reason termination, plus (2) the average of Executive's bonuses under Chemical's annual executive incentive plan for each of the three (3) most recent complete calendar years of Executive's employment with Chemical (or the lesser number of complete calendar years that Executive has been employed by Chemical), payable in equal installments over one hundred and four (104) weeks, subject to installment payment adjustments, as applicable, to comply with Code Section 409A ("Severance Pay"). Severance provided hereunder is conditioned upon Executive and Chemical executing a mutually agreeable release of claims, in substantially the form attached hereto as Appendix A (the "Release"), which is enforceable within sixty (60) days following Executive's Employment Termination Date. Subject to any delayed payment due to Executive's status as a "Specified Employee" under Code Section 409A and as described more fully in Section 14(c)(ii) below, the Severance shall be payable to Executive over time in accordance with Chemical's payroll practices and procedures, beginning on the first pay date after sixty (60) days have lapsed following Executive's Separation from Service, provided that if the 60-day period spans two (2) calendar years, payments shall commence on the first pay date in the second calendar year and provided further that Chemical, in its sole discretion, may begin the payments earlier if such commencement does not violate Code Section 409A. Notwithstanding the foregoing, if Executive is entitled to receive the Severance but violates any provisions of Sections 10
+
+7
+
+through 13 hereof after termination of Employment, Chemical shall be entitled to immediately stop paying any further installments of Severance amounts or benefits provided hereunder and shall have any other remedies, including claw back, that may be available to Chemical in law or at equity.
+
+(B)Health Stipend. Chemical shall pay Executive a lump sum cash stipend equal to Ten Thousand Dollars ($10,000), conditioned on Executive's execution of the Release described herein that becomes irrevocable within sixty (60) days following Executive's Employment Termination Date, with the stipend payable on the first payroll date after sixty (60) days have lapsed following Executive's Separation from Service, provided that if the 60-day period spans two (2) calendar years, the payment shall be made on the first pay date in the second calendar year and provided further that Chemical, in its sole discretion, may make the payment earlier if such commencement does not violate Code Section 409A. Although the payment under this paragraph is intended to fund payment for health coverage, the payment is not required to be used for health coverage and Executive may use the payment for any purpose.
+
+(C)Equity-Based Awards. Effective upon expiration of the Release revocation period described in Section 6(c)(i)(A) above, all equity-based awards previously granted to Executive and outstanding at the time of his Employment Termination Date shall be treated as follows: (i) all unvested stock options immediately shall vest, become exercisable and together with Executive's other vested, unexercised stock options, remain exercisable until the earlier of their original term and three (3) years following Executive's Employment Termination Date; (ii) the restrictions on all time-based restricted stock grants immediately shall lapse; (iii) all TRSUs automatically shall vest and be convertible into Chemical's Common Stock, with settlement to occur within seven (7) days thereafter; (iv) all PRSUs shall be settled within thirty (30) days after Executive's Employment Termination Date at one hundred percent (100%) of target; and (v) any other equity-based awards shall vest in accordance with the terms of the applicable equity-based plan or agreement; provided, however, that any stock options or PRSUs granted prior to November 2, 2017 shall continue to be subject to their terms (including definitions) on such date.
+
+(D)Outplacement Services. Chemical shall provide Executive with executive-level outplacement services through an outplacement services firm selected by Chemical with Executive's approval, which approval shall not be withheld if the firm selected is reputable, for a period not to exceed twelve (12) months after Executive's Employment Termination Date. The timing of outplacement services shall be determined by Executive, provided that all costs under this subsection must be incurred, and all applicable payments to the outplacement firm made, within twelve (12) months following Executive's Employment Termination Date.
+
+(ii)Termination for Good Reason. Executive may terminate employment for Good Reason and receive the same benefits as Termination Without Cause in Section 6(c)(i), subject to the same limitations, Release and payment timing restrictions as a Termination Without Cause.
+
+(iii)Death, Disability and Retirement. For avoidance of doubt, the termination of Executive's Employment as a result of death, Disability or Retirement shall not constitute a
+
+8
+
+Termination Without Cause triggering the rights described in Section 6(c)(i); provided, however, that Executive's outstanding equity-based awards shall be treated in accordance with Section 6(b) above, with Executive's personal representative signing the Release on behalf of Executive's estate and Executive's equity-based awards being exercised by, or paid to, Executive's personal representative or such other successor in interest to Executive, as applicable.
+
+(d)Separation Benefits upon Certain Terminations On or Within Two Years After the Closing Date of the Merger. The following provisions shall apply only if Chemical terminates Executive's Employment pursuant to a Termination Without Cause, or if Executive terminates his Employment for Good Reason, on or within two (2) years after the closing date of the Merger, and shall not apply during such two (2) year period with respect to a Termination Without Cause, or if Executive terminates his Employment for Good Reason, after a subsequent Change in Control occurring after the Effective Time and during such two (2) year period.
+
+(i)Unpaid Base Salary. Any unpaid Base Salary through the Employment Termination Date;
+
+(ii)Health Stipend. Chemical shall pay Executive a lump sum cash stipend equal to Ten Thousand Dollars ($10,000), conditioned on Executive's execution of the Release described herein that becomes irrevocable within sixty (60) days following Executive's Employment Termination Date, with the stipend payable on the first payroll date after sixty (60) days have lapsed following Executive's Separation from Service, provided that if the 60-day period spans two (2) calendar years, the payment shall be made on the first pay date in the second calendar year and provided further that Chemical, in its sole discretion, may make the payment earlier if such commencement does not violate Code Section 409A. Although the payment under this paragraph is intended to fund payment for health coverage, the payment is not required to be used for health coverage and Executive may use the payment for any purpose; and
+
+(iii)Outplacement Services. Chemical shall provide Executive with executive-level outplacement services through an outplacement services firm selected by Chemical with Executive's approval, which approval shall not be withheld if the firm selected is reputable, for a period not to exceed twelve (12) months after Executive's Employment Termination Date. The timing of outplacement services shall be determined by Executive, provided that all costs under this subsection must be incurred, and all applicable payments to the outplacement firm made, within twelve (12) months following Executive's Employment Termination Date
+
+7.Change in Control.
+
+(a)Change in Control Definition. For purposes of this Agreement, "Change in Control" shall be limited to Chemical Financial Corporation and is defined as the occurrence of any of the following events: (i) a person or persons acting as a group, acquires (or has acquired during the 12-month period ending on the last acquisition) Chemical stock that together with stock held by such person or group constitutes more than forty percent (40%) of the total voting power of the stock of Chemical; (ii) the consummation of a merger or consolidation of Chemical with any other corporation, if such merger or consolidation results in the outstanding voting securities of Chemical immediately prior thereto representing sixty percent (60%) or less of the total outstanding voting securities of the surviving entity immediately after such merger or consolidation; (iii) a majority of the members of Chemical's Board are replaced during any 12-month period by directors whose appointment or election is not endorsed by a
+
+9
+
+majority of the members of the Board prior to the date of appointment or election; or (iv) the acquisition, by a person or persons acting as a group, of Chemical's assets that have a total gross fair market value equal to or exceeding forty percent (40%) of the total gross fair market value of Chemical's assets in a single transaction or within a 12-month period ending with the most recent acquisition. For purposes of this Section, gross fair market value means the value of Chemical's assets, or the value of the assets being disposed of, determined without regard to any liabilities associated with such assets. No trust department or designated fiduciary or other trustee of such trust department of Chemical or a subsidiary of Chemical, or other similar fiduciary capacity of Chemical with direct voting control of the stock shall be treated as a person or group within the meaning of subsection (i) immediately above. Further, no profit sharing, employee stock ownership, employee stock purchase and savings, employee pension, or other employee benefit plan of Chemical or any of its subsidiaries, and no trustee of any such plan in its capacity as such trustee, shall be treated as a person or group within the meaning of subsection (i) immediately above. Notwithstanding any other provision of this Agreement to the contrary, (i) to the extent that any payment or benefit subject to Code Section 409A is payable due to a Change in Control, an event shall not be considered a Change in Control with respect to such payment or benefit unless it constitutes a "change in ownership," a "change in effective control," or a "change in a substantial portion of the assets" within the meaning of 26 C.F.R. §409A-3(i)(5), (ii) the Merger shall not constitute and shall be deemed not to constitute a Change in Control for purposes of Section 1.(b) of this Agreement, (iii) the Merger shall not constitute and shall be deemed not to constitute a Change in Control for purposes of Section 7.(c) of this Agreement such that the provisions in Section 7.(c) of this Agreement shall not apply to any terminations incurred on or within two (2) years after the closing date of the Merger, (iv) for purposes of Section 6.(c) of this Agreement, the Merger shall constitute and be considered to constitute a Change in Control such that the provisions in Section 6.(c) of this Agreement shall not apply to any terminations incurred on or within two (2) years after the closing date of the Merger, and (v) subsection (iii) of this sentence shall not preclude the otherwise qualifying applicability of Section 7.(c) of this Agreement with respect to a subsequent Change in Control occurring after the Effective Time and during such two (2) year period.
+
+(b)Equity-Based Awards. Unless specified otherwise in the purchase agreement or other controlling agreement, all equity-based awards previously granted to Executive and outstanding at the time of a Change in Control shall be treated as set forth below.
+
+(i) Stock Options. All stock options shall continue to vest under the vesting schedule in effect immediately prior to the Change in Control. If Chemical is not the surviving entity, all unvested stock options shall be converted into shares of the surviving entity's common stock at the applicable exchange ratio on the date of the Change in Control. If Chemical terminates Executive's Employment Without Cause or if Executive terminates Employment for Good Reason within two (2) years following the Change in Control, upon satisfaction of the Release requirements in Section 6(c)(i)(A), any outstanding unvested stock options on the Employment Termination Date shall one hundred percent (100%) vest and be exercisable until the earlier of their original term and three (3) years following the Employment Termination Date. Stock Options granted prior to November 2, 2017 shall be treated in accordance with their terms (including definitions) as in effect on such date.
+
+(ii) TRSUs. All TRSUs shall continue to vest under the vesting schedule in effect immediately prior to the Change in Control. If Chemical is not the surviving entity, all unvested TRSUs shall be converted into TRSUs of the surviving entity's common stock at the applicable exchange ratio on the date of the Change in Control. If Chemical terminates Executive's Employment Without Cause or if Executive terminates Employment for Good Reason within two
+
+10
+
+(2) years following the Change in Control, upon satisfaction of the Release requirements in Section 6(c)(i)(A), any remaining unvested TRSUs automatically shall one hundred percent (100%) vest and be converted into Chemical's Common Stock (or that of the surviving entity, as applicable), with settlement to occur within seven (7) days thereafter.
+
+(iii) PRSUs. All PRSUs shall continue to vest on a time basis under the vesting schedule in effect immediately prior to the Change in Control. As of the date of the Change in Control, the PRSUs shall be valued at the greater of one hundred percent (100%) of Target and actual performance as of the last day of the most recently completed quarter. If Chemical terminates Executive's Employment Without Cause or if Executive terminates Employment for Good Reason within two (2) years following the Change in Control, subject to satisfaction of the Release requirements in Section 6(c)(i)(A), any unvested PRSUs automatically shall one hundred percent (100%) vest, with settlement to occur within seven (7) days thereafter. PRSUs granted prior to November 2, 2017 shall be treated in accordance with their terms (including definitions) in effect on such date.
+
+(iv) Other Equity Awards. All other equity-based awards shall continue to vest in accordance with the terms of the applicable equity-based plan or controlling agreement as in effect immediately prior to the Change in Control.
+
+(c)Termination Without Cause or Good Reason Termination. If Executive incurs a Termination Without Cause or Separates from Service due to Good Reason within either two (2) years following the date of a Change in Control or six (6) months before the date of a Change in Control ("Change in Control Termination"), he shall be entitled to Change in Control Severance, as described below ("Change in Control Severance").
+
+(i)Severance Pay. If Executive incurs a Change in Control Termination, Executive shall be entitled to receive Change in Control Severance in the amount of two (2) times the sum of (A) Executive's then Base Salary, disregarding any Base Salary reduction due to a Good Reason termination, plus (B) the average of Executive's bonuses under Chemical's annual executive incentive plan for each of the three (3) most recent complete calendar years of Executive's employment with Chemical (or the lesser number of complete calendar years that Executive has been employed by Chemical), payable in one (1) lump sum cash payment ("Change in Control Severance Pay"). The Change in Control Severance Pay is conditioned upon Executive and Chemical executing the Release described in Section 6(c)(i)(A), which is enforceable within sixty (60) days following Executive's Employment Termination Date. The Change in Control Severance Pay shall be payable to Executive on the first pay date after sixty (60) days have lapsed following Executive's Separation from Service, provided that if the 60-day period spans two (2) calendar years, the payment shall be made on the first pay date in the second calendar year and provided further that Chemical, in its sole discretion, may make the payment earlier if such commencement does not violate Code Section 409A. Notwithstanding the foregoing, if Executive is entitled to Change in Control Severance but violates any provisions of Sections 10 through 12 hereof after termination of Employment, Chemical shall have any remedies, including claw back, that may be available to Chemical in law or at equity.
+
+(ii)Health Stipend. Chemical shall pay Executive a lump sum cash stipend equal to Ten Thousand Dollars ($10,000), conditioned on Executive's execution of the Release described herein that becomes irrevocable within sixty (60) days following Executive's Employment
+
+11
+
+Termination Date, with the stipend payable on the first payroll date after sixty (60) days have lapsed following Executive's Separation from Service, provided that if the 60-day period spans two (2) calendar years, the payment shall be made on the first pay date in the second calendar year and provided further that Chemical, in its sole discretion, may make the payment earlier if such commencement does not violate Code Section 409A. Although the payment under this paragraph is intended to fund payment for health coverage, the payment is not required to be used for health coverage and Executive may use the payment for any purpose.
+
+(iii)Outplacement Services. Chemical shall provide Executive with executive-level outplacement services through an outplacement services firm selected by Chemical with Executive's approval, which approval shall not be withheld if the firm selected is reputable, for a period not to exceed twelve (12) months after Executive's Employment Termination Date. The timing of outplacement services shall be determined by Executive, provided that all costs under this subsection must be incurred, and all applicable payments to the outplacement firm made, within twelve (12) months following Executive's termination of Employment.
+
+(d)Golden Parachute Cap.
+
+(i)If the payment of any amounts or benefits to Executive under this Agreement (together with any other payments or benefits in the nature of compensation) under Code Section 280G(b)(2) (the "Total Payments") would be subject to the excise tax imposed by Code Section 4999, the aggregate Present Value of the Payments (defined below) under this Agreement shall be reduced (but not below zero) to the Reduced Amount, but only if reducing the Payments provides Executive with a Net After-Tax benefit that is greater than if the reduction is not made. The reduction of amounts or benefits payable hereunder, if applicable, shall be determined by the Accounting Firm (defined below) in an amount that has the least economic cost to Executive and, to the extent the economic cost is equivalent, then all Payments, in the aggregate, shall be reduced in the inverse order of when the Payments, in the aggregate, would have been made to Executive until the specified reduction is achieved. For purposes of this Agreement, the following definitions apply:
+
+(A)"Net After-Tax Benefit" means the Present Value of a Payment, net of all federal, state and local income, employment and excise taxes, determined by applying the highest marginal rate(s) applicable to an individual for Executive's taxable year in which Payment is made;
+
+(B)"Payment" means any payment or distribution in the nature of compensation (within the meaning of Code Section 280G(b)(2)) to or for the benefit of Executive, whether paid or payable or distributed or distributable pursuant to the terms of this Agreement or otherwise;
+
+(C)"Present Value" means the value determined in accordance with Code Section 280G;
+
+(D)"Reduced Amount" means an amount expressed in Present Value that maximizes the aggregate Present Value of Payments without causing any Payment to be subject to excise tax under Code Section 4999 or the corporate deduction limitation under Code Section 280G.
+
+12
+
+(ii)The Code Section 280G calculations under this Agreement and the determination that Payments shall be reduced or not reduced based on the Net After-Tax Benefit shall be made by a nationally recognized independent accounting firm selected by Chemical (the "Accounting Firm"), which shall provide its determination and any supporting calculations to Chemical and Executive within ten (10) calendar days after Executive's Separation from Service (as defined in Section 14(c)(ii)). The reasonable costs and expenses of the Accounting Firm shall be borne by Chemical. In making its determination, the Accounting Firm shall take into account (if applicable), the value of Executive's Non-Competition covenant set forth in Section 12, which shall be determined by the independent appraisal of a nationally-recognized business valuation firm selected and paid for by Chemical, and a portion of the Payments shall, to the extent of the appraised value, be specifically allocated as reasonable compensation for such Non-Competition covenant and shall not be treated as a parachute payment. If the Accounting Firm's determination is disputed by the Internal Revenue Service, Chemical shall reimburse Executive for the cost of (A) Executive's reasonable attorneys' fees for counsel selected by Chemical, and (B) any tax penalties (including excise taxes) and interest ultimately incurred by Executive upon resolution of the dispute. Reimbursement shall be made in accordance with the Code Section 409A procedures set forth in Section 4, above.
+
+8.Conditions to Severance and Change in Control Severance. To be eligible for Severance or Change in Control Severance, Executive must meet the following conditions: (a) Executive must comply with Executive's obligations under this Agreement and that continue after termination of Employment; (b) Executive must promptly sign and continue to honor the Release referenced above, in a form acceptable to Chemical, of any and all claims arising out of or relating to Executive's employment or its termination and any and all claims that Executive might otherwise have against Chemical, its Affiliates, or any of their officers, directors, employees and agents, provided that the Release shall not waive Executive's right to claims or rights related to (i) this Agreement; (ii) unpaid Base Salary through the Employment Termination Date; (iii) unpaid expense reimbursements for authorized business expenses incurred before the Employment Termination Date; (iv) any Equity Plan benefits; (v) benefit plans (for example to convert life insurance); (vi) any rights under the terms of any qualified retirement plan covering Executive; and (vii) rights of indemnification under Chemical's or the Bank's Articles of Incorporation or Bylaws, as applicable, or any indemnification agreement entered into between Executive, Chemical, the Bank or any Affiliate (in addition, the Release does not affect Executive's right to cooperate in an investigation by the Equal Employment Opportunity Commission); (c) Executive must resign upon written request by Chemical from all positions with or representing Chemical or any Affiliate, including but not limited to, membership on boards of directors; and (d) Executive must provide Chemical for a period of six (6) months after the Employment Termination Date with consulting services regarding matters within the scope of Executive's former duties upon request by Chemical's Chief Executive Officer; provided, however, that Executive only shall be required to provide those services by telephone at Executive's reasonable convenience and without substantial interference with Executive's other activities or commitments.
+
+9.Representations of Executive. Executive represents and warrants that he is not obligated or restricted under any agreement (including any non-competition or confidentiality agreement), judgment, decree, order or other restraint of any kind that could impair his ability to perform the duties and obligations required hereunder. Executive further agrees that he shall not divulge to Chemical or any Affiliate any confidential information and/or trade secrets belonging to others, including Executive's former employers, nor shall Chemical or an Affiliate seek to elicit from Executive such information. Consistent with the
+
+13
+
+foregoing, Executive shall not provide to Chemical or an Affiliate, nor shall they request, any documents or copies of documents containing such information.
+
+10.Confidential Information.
+
+(a)Executive acknowledges that Chemical has and shall give Executive access to certain highly-sensitive, confidential, and proprietary information belonging to Chemical, its Affiliates or third parties who may have furnished such information under obligations of confidentiality, relating to and used in Chemical's Business (collectively, "Confidential Information"). Executive acknowledges that, unless otherwise available to the public, Confidential Information includes, but is not limited to, the following categories of confidential or proprietary information and material financial statements and information; budgets, forecasts, and projections; business and strategic plans; marketing, sales, and distribution strategies; research and development projects; records relating to any intellectual property developed by, owned by, controlled, or maintained by Chemical or its Affiliates; information related to Chemical's or its Affiliates' inventions, research, products, designs, methods, formulae, techniques, systems, processes; customer lists; non-public information relating to Chemical's or its Affiliates' customers, suppliers, distributors, or investors; the specific terms of Chemical's or its Affiliates' agreements or arrangements, whether oral or written, with any customer, supplier, vendor, or contractor with which Chemical or its Affiliates may be associated from time to time; and any and all information relating to the operation of Chemical's or its Affiliates' business which Chemical or its Affiliates may from time to time designate as confidential or proprietary or that Executive reasonably knows should be, or has been, treated by Chemical or its Affiliates as confidential or proprietary. Confidential Information encompasses all formats in which information is preserved, whether electronic, print, or any other form, including all originals, copies, notes, or other reproductions or replicas thereof.
+
+(b)Confidential Information does not include any information that: (i) at the time of disclosure is generally known to, or readily ascertainable by, the public; (ii) becomes known to the public through no fault of Executive or other violation of this Agreement; or (iii) is disclosed to Executive by a third party under no obligation to maintain the confidentiality of the information.
+
+(c)Executive acknowledges that Confidential Information owned or licensed by Chemical or its Affiliates is unique, valuable, proprietary and confidential; derives independent actual or potential commercial value from not being generally known or available to the public; and is subject to reasonable efforts to maintain its secrecy. Executive hereby relinquishes, and agrees that he shall not at any time claim, any right, title or interest of any kind in or to any Confidential Information.
+
+(d)During and after his Employment with Chemical, Executive shall hold in trust and confidence all Confidential Information, and shall not disclose any Confidential Information to any person or entity, except in the course of performing duties assigned by Chemical or as authorized in writing by Chemical. Executive further agrees that during and after his Employment with Chemical, Executive shall not use any Confidential Information for the benefit of any third party, except in the course of performing duties assigned by Chemical or as authorized in writing by Chemical.
+
+(e)The restrictions in Section 10(d) above shall not apply to any information to the extent that Executive is required to disclose such information by law, provided that Executive (i) notifies Chemical of the existence and terms of such obligation, (ii) gives Chemical a reasonable opportunity to seek a protective or similar order to prevent or limit such disclosure, and (iii) only discloses that information actually required to be disclosed.
+
+14
+
+(f)Return of Property. Upon request by Chemical during Employment and automatically and immediately at termination of Employment, Executive shall return to Chemical all Confidential Information in any form (including all copies and reproductions thereof) and all other property whatsoever of Chemical in his possession or under his control. If requested by Chemical, Executive shall certify in writing that all such materials have been returned to Chemical. Executive also expressly agrees that immediately upon the termination of his Employment with Chemical for any reason, Executive shall cease using any secure website, computer systems, e-mail system, or phone system or voicemail service provided by Chemical for the use of its employees.
+
+11.Assignment of Inventions.
+
+(a)Executive agrees that all developments or inventions (including without limitation any and all software programs (source and object code), algorithms and applications, concepts, designs, discoveries, improvements, processes, techniques, know-how and data) that result from work performed by Executive for Chemical and its Affiliates, whether or not patentable or registrable under copyright or similar statutes or subject to analogous protection ("Inventions"), shall be the sole and exclusive property of Chemical or its nominees, and Executive shall and hereby does assign to Chemical all rights in and to such Inventions upon the creation of any such Invention, including, without limitation: (i) patents, patent applications and patent rights throughout the world; (ii) rights associated with works of authorship throughout the world, including copyrights, copyright applications, copyright registrations, mask work rights, mask work applications and mask work registrations; (iii) rights relating to the protection of trade secrets and confidential information throughout the world; (iv) rights analogous to those set forth herein and any other proprietary rights relating to intangible property; and (v) divisions, continuations, renewals, reissues and extensions of the foregoing (as applicable), now existing or hereafter filed, issued or acquired (collectively, the "IP Rights").
+
+(b)For avoidance of doubt, if any Inventions fall within the definition of "work made for hire" as such term is defined in 17 U.S.C. § 101, such Inventions shall be considered "work made for hire" and the copyright of such Inventions shall be owned solely and exclusively by Chemical. If any Invention does not fall within such definition of "work made for hire" then Executive's right, title and interest in and to such Inventions shall be assigned to Chemical pursuant to Section 11(a) above.
+
+(c)Chemical and its nominees shall have the right to use and/or to apply for statutory or common law protections for such Inventions in any and all countries. Executive further agrees, at Chemical's expense, to: (i) reasonably assist Chemical in obtaining and from time to time enforcing such IP Rights relating to Inventions, and (ii) execute and deliver to Chemical or its nominee upon reasonable request all such documents as Chemical or its nominee may reasonably determine are necessary or appropriate to effect the purposes of this Section 11, including assignments of inventions. Such documents may be necessary to: (A) vest in Chemical or its nominee clear and marketable title in and to Inventions; (B) apply for, prosecute and obtain patents, copyrights, mask works rights and other rights and protections relating to Inventions; or (C) enforce patents, copyrights, mask works rights and other rights and protections relating to Inventions. Executive's obligations pursuant to this Section 11 shall continue beyond the termination of Executive's Employment with Chemical. If Chemical is unable for any reason to secure Executive's signature to any lawful and necessary document required to apply for or execute any patent, trademark, copyright or other applications with respect to any Inventions (including renewals, extensions, continuations, divisions or continuations in part thereof), Executive hereby irrevocably designates and appoints Chemical and its then current Chief Executive Officer as Executive's agent and attorney-in-fact to act for and in behalf and instead of Executive, to execute and file any such application
+
+15
+
+and to do all other lawfully permitted acts to further the prosecution and issuance of patents, trademarks, copyrights or other rights thereon with the same legal force and effect as if executed by Executive.
+
+(d)The obligations of Executive under Section 11(a) above shall not apply to any Invention that Executive developed entirely on his own time without using Chemical's equipment, supplies, facility or trade secret information, except for those Inventions that (i) relate to Chemical's business or actual or demonstrably anticipated research or development, or (ii) result from any work performed by Executive for Chemical. Executive shall bear the burden of proof in establishing the applicability of this subsection to a particular circumstance.
+
+12.Non-Competition, Non-Solicitation and Non-Disparagement.
+
+(a)Purpose. Executive understands and agrees that the purpose of this Section 12 is solely to protect Chemical's legitimate business interests, including, but not limited to its confidential and proprietary information, customer relationships and goodwill, and Chemical's competitive advantage. Therefore, Executive agrees to be subject to restrictive covenants under the following terms.
+
+(b)Definitions. As used in this Agreement, the following terms have the meanings given to such terms below.
+
+(i)"Business" means the business(es) in which Chemical or its Affiliates were engaged in at the time of, or during the twelve (12) month period prior to, Executive's termination of Employment for any or no reason whether by Chemical or the Executive.
+
+(ii)"Customer" means any person or entity who is or was a customer, supplier or client of Chemical or its Affiliates with whom Executive had any contact or association for any reason and with whom Executive had dealings on behalf of Chemical or its Affiliates in the course of his employment with Chemical.
+
+(iii)"Chemical Employee" means any person who is or was an employee of Chemical or its Affiliates at the time of, or during the twelve (12) month period prior to, Executive's termination of Employment for any or no reason whether by Chemical or the Executive.
+
+(iv)"Restricted Period" means the period during Executive's Employment with Chemical and for twenty-four (24) months from and after Executive's termination of Employment for any or no reason whether by Chemical or the Executive; provided, however, that this period shall be tolled and shall not run during any time Executive is in violation of this Section 12, it being the intent of the parties that the Restricted Period shall be extended for any period of time in which Executive is in violation of this Section 12.
+
+(v)"Restricted Territory" means Michigan or any other state in which Chemical or any Affiliate operates a banking, insurance or securities products and services institution at the time of, or during the twelve (12) month period prior to, Executive's termination of Employment for any or no reason whether by Chemical or the Executive.
+
+(c)Non-Competition. During the Restricted Period, Executive shall not in the Restricted Territory, on his own behalf or on behalf of any other person:
+
+16
+
+(i)assist or have an interest in (whether or not such interest is active), whether as partner, investor, stockholder, officer, director or as any type of principal whatever, any person, firm, partnership, association, corporation or business organization, entity or enterprise that is or is about to become directly or indirectly engaged in, any business or activity (whether such enterprise is in operation or in the planning or development stage) that competes in any manner with the Business; provided, however, that Executive shall be permitted to make passive investments in the stock of any publicly traded business (including a competitive business), as long as the stock investment in any competitive business does not rise above one percent (1%) of the outstanding shares of such business; or
+
+(ii)enter into the employment of or act as an independent contractor or agent for or advisor or consultant to, any person, firm, partnership, association, corporation, business organization, entity or enterprise that is or is about to become directly or indirectly engaged in, any business or activity (whether such enterprise is in operation or in the planning or development stage) that competes in any manner with the Business, or is a governmental regulator agency of the Business.
+
+(d)Non-Solicitation. During the Restricted Period, Executive shall not, directly or indirectly, on Executive's own behalf or on behalf of any other party:
+
+(i)Call upon, solicit, divert, encourage or attempt to call upon, solicit, divert, or encourage any Customer for purposes of marketing, selling, or providing products or services to such Customer that are similar to or competitive with those offered by Chemical or its Affiliates;
+
+(ii)Accept as a customer any Customer for purposes of marketing, selling, or providing products or services to such Customer that are similar to or competitive with those offered by Chemical or its Affiliates;
+
+(iii)Induce, encourage, or attempt to induce or encourage any Customer to purchase or accept products or services that are similar to or competitive with those offered by Chemical or its Affiliates from any person or entity (other than Chemical or its Affiliates) engaging in the Business;
+
+(iv)Induce, encourage, or attempt to induce or encourage any Customer to reduce, limit, or cancel its business with Chemical or its Affiliates; or
+
+(v)Solicit, induce, or attempt to solicit or induce any employee of Chemical or its Affiliates to terminate employment with Chemical or its Affiliates.
+
+(e)Non-Disparagement. Executive agrees not to disparage Chemical and its Affiliates following Executive's termination of Employment for any or no reason whether by Chemical or the Executive.
+
+(f)Reasonableness of Restrictions. Executive acknowledges and agrees that the restrictive covenants in this Agreement (i) are essential elements of Executive's Employment by Chemical and are reasonable given Executive's access to Chemical's and its Affiliates' Confidential Information and the substantial knowledge and goodwilll Executive shall acquire with respect to the Business of Chemical and its Affiliates as a result of his Employment with Chemical, and the unique and extraordinary services
+
+17
+
+to be provided by Executive to Chemical; and (ii) are reasonable in time, territory, and scope, and in all other respects.
+
+(g)Preserve Livelihood. Executive represents that his experience, capabilities and personal assets are such that this Agreement does not deprive him from either earning a livelihood in the unrestricted business activities which remain open to him or from otherwise adequately and appropriately supporting himself and his family.
+
+(h)Judicial Modification. Should any part or provision of this Section 12 be held invalid, void, or unenforceable in any court of competent jurisdiction, such invalidity, voidness, or unenforceability shall not render invalid, void, or unenforceable any other part or provision of this Agreement. The parties further agree that if any portion of this Section 12 is found to be invalid or unenforceable by a court of competent jurisdiction because its duration, territory, or other restrictions are deemed to be invalid or unreasonable in scope, the invalid or unreasonable terms shall be replaced by terms that such court deems valid and enforceable and that come closest to expressing the intention of such invalid or unenforceable terms.
+
+13.Enforcement. Executive acknowledges and agrees that Chemical shall suffer irreparable harm in the event that Executive breaches any of Executive's obligations under Sections 10 through 12 of this Agreement and that monetary damages would be inadequate to compensate Chemical for such breach. Accordingly, Executive agrees that, in the event of a breach by Executive of any of Executive's obligations under Sections 10 through 12 of this Agreement, Chemical shall be entitled to obtain from any court of competent jurisdiction preliminary and permanent injunctive relief, and expedited discovery for the purpose of seeking relief, in order to prevent or to restrain any such breach. Chemical shall be entitled to recover its costs incurred in connection with any action to enforce Sections 10 through 12 of this Agreement, including reasonable attorneys' fees and expenses.
+
+14.Miscellaneous.
+
+(a)Entire Agreement. As of the Effective Date, this Agreement, when aggregated with the attached Release, constitutes the entire agreement between the parties with respect to the subject matter hereof and supersedes all prior agreements, including the Prior Agreement (whether written or oral and whether express or implied) between the parties to the extent related to such subject matter.
+
+(b)Successors and Assigns.
+
+(i)This Agreement shall not be terminated by any merger or consolidation of Chemical whereby Chemical is not the surviving or resulting corporation, or as a result of any transfer of all or substantially all of Chemical's assets. In the event of any such merger, consolidation or transfer of assets, the provisions of this Agreement shall be binding upon the surviving or resulting corporation or the person or entity to which such assets are transferred.
+
+(ii)Chemical agrees that concurrently with any merger, consolidation or transfer of assets constituting a Change in Control, it shall cause any successor or transferee unconditionally to assume, by written instrument delivered to Executive (or Executive's beneficiary or estate), all of Chemical's obligations hereunder. Failure of Chemical to obtain such assumption prior to the effective date of any Change in Control shall be a material breach of Chemical's obligations to Executive under this Agreement.
+
+18
+
+(iii)This Agreement shall be binding upon and inure to the benefit of the parties and their respective successors, permitted assigns and, in the case of Executive, heirs, executors, and/or personal representatives. Executive may not assign, delegate or otherwise transfer any of Executive's rights, interests or obligations in this Agreement. If Executive shall die while any amounts would be payable to Executive hereunder had Executive continued to live, all such amounts unless otherwise provided herein, shall be paid in accordance with the terms of this Agreement to such person or persons appointed in writing by Executive to receive such amounts or, if no such person is appointed, to Executive's estate.
+
+(c)Application of Internal Revenue Code Section 409A.
+
+(i)All payments and benefits provided under this Agreement are intended to be exempt from, or in accordance with, Code Section 409A, and the Agreement is to be interpreted accordingly. Each installment payment is intended to constitute a separate benefit and terms such as "employment termination," "termination from employment" or like terms are intended to constitute a Separation from Service, as defined below. To the extent exempt from Code Section 409A, payments are intended to be exempt under the short term deferral exemption, or exempt or partially exempt under the involuntary separation pay plan exemption. Notwithstanding the forgoing, neither Chemical nor any Affiliate has responsibility for any taxes, penalties or interest incurred by Executive in connection with payments and benefits provided under this Agreement, including any imposed by Code Section 409A.
+
+(ii)Despite other payment timing provisions in this Agreement, any payments and benefits provided under Sections 6(c) and 7(c) that constitute nonqualified deferred compensation that are subject to Code Section 409A, shall not commence in connection with Executive's termination of Employment unless and until Executive has also incurred a "separation from service" (as such term is defined in Treasury Regulation Section 1.409A-1(h)) ("Separation from Service). However, if Chemical determines that the Severance is subject to Code Section 409A, and Executive is a "Specified Employee" (as defined under Code Section 409A) at the time of Separation from Service, then, solely to the extent necessary to avoid adverse tax consequences to Executive under Code Section 409A, the timing of any Severance payments shall be delayed until the earlier to occur of: (A) the date that is six (6) months and one (1) day after Executive's Separation from Service, or (B) the date of Executive's death (such applicable date, the "Specified Employee Initial Payment Date"), and Chemical (or the successor entity thereto, as applicable) shall (1) pay to Executive a lump sum amount equal to the sum of the Severance payments that Executive otherwise would have received through the Specified Employee Initial Payment Date if the commencement of Severance had not been so delayed pursuant to this Section, and (2) commence paying the balance of the Severance in accordance with the applicable payment schedules set forth in this Agreement.
+
+(d)Counterparts. This Agreement may be executed in one or more counterparts, each of which shall be deemed an original but all of which together shall constitute one and the same agreement. Facsimile or PDF reproductions of original signatures shall be deemed binding for the purpose of the execution of this Agreement.
+
+(e)Notices. Any notice pursuant to this Agreement must be in writing and shall be deemed effectively given to the other party on (i) the date it is actually delivered by overnight courier service
+
+19
+
+(such as FedEx) or personal delivery of such notice in person, or (ii) three (3) days after mailing by certified or registered U.S. mail, return receipt requested; in each case the appropriate address shown below (or to such other address as a party may designate by notice to the other party):
+
+If to Executive: Thomas C. Shafer
+
+___________________
+
+___________________
+
+If to Chemical: Chemical Financial Corporation 2301 West Big Beaver Road
+
+Troy, MI 48084
+
+Attention: Chief Executive Officer (with a copy to the Chief Human Resources Officer)
+
+(f)Amendments and Waivers. No amendment of any provision of this Agreement shall be valid unless the amendment is authorized by Chemical's Board or a committee of Chemical's Board, is in writing and signed by Chemical and Executive. No waiver of any provision of this Agreement shall be valid unless the waiver is in writing and signed by the waiving party. The failure of a party at any time to require performance of any provision of this Agreement shall not affect such party's rights at a later time to enforce such provision. No waiver by a party of any breach of this Agreement shall be deemed to extend to any other breach hereunder or affect in any way any rights arising by virtue of any other breach.
+
+(g)Severability. Each provision of this Agreement is severable from every other provision of this Agreement. Any provision of this Agreement that is determined by any court of competent jurisdiction to be invalid or unenforceable shall not affect the validity or enforceability of any other provision. Any provision of this Agreement held invalid or unenforceable only in part or degree shall remain in full force and effect to the extent not held invalid or unenforceable.
+
+(h)No Further Obligations. Except as expressly provided above or as otherwise required by law, Chemical shall have no obligations to Executive in the event of the termination of this Agreement for any reason.
+
+(i)Construction. The section headings in this Agreement are inserted for convenience only and are not intended to affect the interpretation of this Agreement. Any reference in this Agreement to any "Section" refers to the corresponding Section of this Agreement. The word "including" in this Agreement means "including without limitation." This Agreement shall be construed as if drafted jointly by Chemical and Executive, and no presumption or burden of proof shall arise favoring or disfavoring Chemical or Executive by virtue of the authorship of any provision in this Agreement. All words in this Agreement shall be construed to be of such gender or number as the circumstances require.
+
+(j)Survival. The terms of Sections 6 through 14 shall survive the termination of this Agreement for any reason.
+
+(k)Remedies Cumulative. The rights and remedies of the parties under this Agreement are cumulative (not alternative) and in addition to all other rights and remedies available to such parties at law, in equity, by contract or otherwise.
+
+20
+
+(l)Venue. Executive and Chemical agree that the exclusive forum for resolving any disputes between the parties related to the Agreement shall be arbitration before the American Arbitration Association applying the Employment Arbitration Rules and Mediation Procedures as amended and effective November 1, 2009. The Arbitrator shall be empowered to grant any legal or equitable relief available to the parties, including interim equitable relief as set forth in the Optional Rules for Emergency Measures of Protection. Any award of the Arbitration may be enforced through proceedings in a court of competent jurisdiction.
+
+(m)Governing Law. This Agreement shall be governed by the laws of the State of Michigan without giving effect to any choice or conflict of law principles of any jurisdiction.
+
+[Signatures are on the Next Page]
+
+21
+
+IN WITNESS WHEREOF, the parties hereto have executed and delivered this Agreement as set forth below.
+
+/s/ Thomas C. Shafer
+
+__________________________________
+
+Thomas C. Shafer, Executive
+
+Date: July 31, 2019
+
+CHEMICAL FINANCIAL CORPORATION
+
+/s/ David T. Provost
+
+By: ________________________________
+
+Name: David T. Provost
+
+Title:President and CEO
+
+Date: July 31, 2019
+
+CHEMICAL BANK
+
+/s/ Dennis Klaeser
+
+By: ________________________________
+
+Name:Dennis Klaeser
+
+Title: Chief Financial Officer
+
+Date: July 31, 2019
+
+22
+
+APPENDIX A
+
+EMPLOYMENT AGREEMENT RELEASE
+
+THIS RELEASE AGREEMENT (the "Release") is made as of the ____ day of _______, 20__, by and between Chemical Financial Corporation (collectively with Chemical Bank and all of their affiliates, "Chemical"), and Thomas C. Shafer (the "Executive") (in the aggregate, the "Parties").
+
+WHEREAS, Chemical and Executive have entered into an Employment Agreement dated as of July 1, 2018, (the "Employment Agreement"), pursuant to which Executive is entitled to receive certain additional compensation upon termination of Executive's employment with Chemical Without Cause or for Good Reason (all as defined in the Employment Agreement); and
+
+WHEREAS, Executive's receipt of the additional compensation under the Employment Agreement is conditioned upon the execution of this Release that is mutually acceptable to the Parties; and
+
+WHEREAS, Executive's employment with Chemical has been/shall be terminated effective ______________ __, 20__ [Without Cause] [due to Good Reason by the Executive];
+
+NOW, THEREFORE, for good and valuable consideration, the receipt and sufficiency of which is hereby acknowledged, it is agreed between the Parties as follows:
+
+1. Additional Compensation. Subject to the terms and conditions hereof, Chemical shall pay Executive the additional compensation set forth in Sections 6(c) or 7(c), as applicable of the Employment Agreement, net of applicable withholding taxes, commencing after the expiration of the waiting period set forth herein and in accordance with the terms of the Employment Agreement.
+
+2. Release.
+
+(a) In exchange for the good and valuable consideration set forth herein, Executive agrees for himself, his heirs, administrators, representatives, executors, successors and assigns ("Releasors"), to irrevocably and unconditionally release, waive and forever discharge any and all manner of action, causes of action, claims, rights, promises, charges, suits, damages, debts, lawsuits, liabilities, rights, due controversies, charges, complaints, remedies, losses, demands, obligations, costs, expenses, fees (including, without limitation attorneys' fees), or any and all other liabilities or claims of whatsoever nature, whether arising in contract, tort, or any other theory of action, whether arising in law or in equity, whether known or unknown, choate or inchoate, matured or unmatured, contingent or fixed, liquidated or unliquidated, accrued or unaccrued, asserted or unasserted, including, but not limited to, any claim and/or claim of damages or other relief for tort, breach of contract, personal injury, negligence, age discrimination under The Age Discrimination In Employment Act of 1967 (as amended), employment discrimination prohibited by other federal, state or local laws including sex, race, national origin, marital status, age, handicap, height, weight, or religious discrimination, and any other claims of unlawful employment practices or any other unlawful criterion or circumstance which Executive and Releasors had, now have, or may have in the future against each or any of Chemical, its parent, divisions, affiliates and related companies or entities, regardless of its or their form of business organization (the "Company Entities"), any predecessors, successors, joint ventures, and parents of any Company Entity, and any and all of their respective past or present directors, officers, shareholders, partners, employees, consultants, independent contractors, trustees, administrators, insurers, agents, attorneys, representative and fiduciaries, successors and assigns including without limitation all persons acting by, through, under or in concert with any of them (all collectively, the "Released Parties')
+
+1
+
+arising out of or relating to his employment relationship with Chemical, its predecessors, successors or affiliates and the termination thereof. Executive understands that he does not waive rights or claims that may arise after the date of this Release.
+
+(b) Executive acknowledges that he has read this Release carefully and understands all of its terms.
+
+(c) Executive understands and agrees that he has been advised to consult with an attorney prior to executing this Release.
+
+(d) Executive understands that he is entitled to consider this Release for at least [twenty-one (21)][forty-five] days before signing the Release. However, after due deliberation, Executive may elect to sign this Release without availing himself of the opportunity to consider its provisions for at least [twenty-one (21)][forty-five] days. Executive hereby acknowledges that any decision to shorten the time for considering this Release prior to signing it is voluntary, and such decision is not induced by or through fraud, misrepresentation, or a threat to withdraw or alter the provisions set forth in this Release in the event Executive elected to consider this Release for at least [twenty-one (21)][forty-five] days prior to signing the Release.
+
+(e) Executive understands that he may revoke this Release as it relates to any potential claim that could be brought or filed under the Age Discrimination in Employment Act 29 U.S.C. §§ 621-634, within seven (7) days after the date on which he signs this Release, and that this Release as it relates to such a claim does not become effective until the expiration of the seven (7) day period. In the event that Executive wishes to revoke this Release within the seven (7) day period, Executive understands that he must provide such revocation in writing to the then Chief Executive Officer of Chemical (with a copy to the Chief Human Resources Officer) at the address set forth below.
+
+(f) In agreeing to sign this Release, Executive is doing so voluntarily and agrees that he has not relied on any oral statements or explanations made by Chemical or its representatives.
+
+(g) This Release shall not be construed as an admission of wrongdoing by either Executive or Chemical.
+
+3. Notices. Every notice relating to this Release shall be in writing and if given by mail shall be given by registered or certified mail with return receipt requested. All notices to Chemical shall be delivered to Chemical's Chief Executive Officer (with a copy to the Chief Human Resources Officer) at Chemical Financial Corporation, 2301 W. Big Beaver Rd, Troy, MI 48084. All notices by Chemical to Executive shall be delivered to Executive personally or addressed to Executive at Executive's last residence address as then contained in Chemical's records or such other address as Executive may designate. Either party by notice to the other may designate a different address to which notices shall be addressed. Any notice given by Chemical to Executive at Executive's last designated address shall be effective to bind any other person who shall acquire rights hereunder.
+
+4. Governing Law. To the extent not preempted by Federal law, this Release shall be governed by and construed in accordance with the laws of the State of Michigan, without giving effect to conflicts of laws.
+
+5. Counterparts. This Release may be executed in two (2) or more counterparts, all of which when taken together shall be considered one (1), and the same Release and shall become effective when the counterparts have been signed by each party and delivered to the other party; it being understood that both parties need not sign the same counterpart. In the event that any signature is delivered by facsimile
+
+2
+
+transmission, such signature shall create a valid and binding obligation of the party executing (or on whose behalf such signature is executed) the same with the same force and effect as if such facsimile signature page were an original thereof.
+
+6. Entire Agreement. This Release, when aggregated with the Employment Agreement, contains the entire understanding of the parties with respect to the subject matter hereof and together supersedes all prior agreements and understandings, oral or written, with respect to such matters, which the parties acknowledge have been merged into this Release.
+
+IN WITNESS WHEREOF, the parties hereto have executed this Release as of the day and year first written above.
+
+________________________________
+
+Thomas C. Shafer, Executive
+
+CHEMICAL FINANCIAL CORPORATION
+
+By: _____________________________
+
+Its: _____________________________
+
+CHEMICAL BANK
+
+By: _____________________________
+
+Its: _____________________________
+
+3
+
+WAIVER OF [21][45] DAY NOTICE PERIOD
+
+I have been provided with the General Release Agreement ("Agreement") between Chemical Financial Corporation (collectively with Chemical Bank and all of their affiliates, "Chemical") and Thomas C. Shafer ("Executive").
+
+I understand that I have [twenty-one (21)][forty-five (45)] days from the date the Agreement was presented to me to consider whether or not to sign the Agreement. I further understand that I have the right to seek counsel prior to signing the Agreement.
+
+I am knowingly and voluntarily signing and returning the Agreement prior to the expiration of the [twenty-one (21)-day][forty-five (45)-day] consideration period. I understand that I have seven (7) days from signing the Agreement to revoke the Agreement, by delivering a written notice of revocation to the Chief Executive Officer (with a copy to the Chief Human Resources Officer), Chemical Financial Corporation, 2301 W. Big Beaver Rd., Troy, MI 48084.
+
+_________________________
+
+Thomas C. Shafer, Executive
+
+Dated:___________________
+
+4845-3378-3118.24 (.22)
+
+115031\000001
+
+1

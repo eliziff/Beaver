@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 140 STAT. ?>
+<?I98 140 STAT. ?>
+<?I99 140 STAT. ?>
+<?I50 PUBLIC LAW 119–80—MAR. 20, 2026?>
+<?I51 PUBLIC LAW 119–80—MAR. 20, 2026?>
+<?I52 PUBLIC LAW 119–80—MAR. 20, 2026?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–80: To waive the 60-day notice requirement for the posthumous honorary promotion of Captain Cody Khork, United States Army.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>80</docNumber>
+<citableAs>Public Law 119–80</citableAs><citableAs>140 Stat. 750</citableAs>
+<approvedDate>2026-03-20</approvedDate>
+<dc:date>2026-03-20</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-03-26</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–80—MAR. 20, 2026</centerRunningHead>
+<page identifier="/us/stat/140/750">140 STAT. 750</page>
+<dc:type>Public Law</dc:type><docNumber>119–80</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To waive the 60-day notice requirement for the posthumous honorary promotion of Captain Cody Khork, United States Army.<sidenote><p class="centered fontsize8" id="x501ceb3d-2924-11f1-91b8-97ca6a3de08d" style="-uslm-lc:I658076"><approvedDate date="2026-03-20">Mar. 20, 2026</approvedDate></p><p class="centered fontsize8" id="x501ceb3e-2924-11f1-91b8-97ca6a3de08d" style="-uslm-lc:I658076">[<ref href="/us/bill/119/s/4138">S. 4138</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula>
+<section id="d281e85" identifier="/us/pl/119/80/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><heading>WAIVER OF 60-DAY NOTICE REQUIREMENT FOR THE POSTHUMOUS HONORARY PROMOTION OF CAPTAIN CODY KHORK, UNITED STATES ARMY.</heading><content style="-uslm-lc:I658120">  The 60-day notice requirement under <ref href="/us/usc/t10/s1563a/b">section 1563a(b) of title 10, United States Code</ref>, is hereby waived for the purpose of the posthumous honorary promotion of Captain Cody Khork, United States Army, to the rank of major.</content></section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2026-03-20">March 20, 2026</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/s/4138">S. 4138</ref>:</heading>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 172 (2026):</heading>
+<p class="indentUp4 firstIndent-1" id="x501d395f-2924-11f1-91b8-97ca6a3de08d" style="-uslm-lc:I658035">Mar. 18, considered and passed Senate.</p><p class="indentUp4 firstIndent-1" id="x501d3960-2924-11f1-91b8-97ca6a3de08d" style="-uslm-lc:I658035">Mar. 19, considered and passed House.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

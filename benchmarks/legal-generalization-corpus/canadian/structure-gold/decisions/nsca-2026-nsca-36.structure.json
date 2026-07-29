@@ -1,0 +1,3460 @@
+{
+ "artifact_id": "nsca-2026-nsca-36",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2026 NSCA 36",
+ "citation_secondary": "",
+ "name": "R. v. White",
+ "document_date": "2026-05-05",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/523689/index.do",
+ "scraped_timestamp": "2026-05-06 09:03:41.468000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2026-nsca-36.txt",
+ "raw_text_chars": 53063,
+ "raw_text_sha256": "d3ea2191049c05e6c8e3260e7cebb6247ddecad40cf2d059d119d1b0ab6eafb3",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 231,
+  "spine_count": 119,
+  "quoted_count": 112,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "166",
+   "19",
+   "24",
+   "25",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "43",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "175",
+   "176",
+   "34",
+   "35",
+   "186",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "49",
+   "56",
+   "121",
+   "142",
+   "57",
+   "58",
+   "108",
+   "59",
+   "64",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "2",
+   "68",
+   "32",
+   "33",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "37",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93",
+   "94",
+   "95",
+   "96",
+   "97",
+   "98",
+   "99",
+   "100",
+   "101",
+   "102",
+   "103",
+   "104",
+   "105",
+   "106",
+   "51",
+   "52",
+   "107",
+   "108",
+   "109",
+   "110",
+   "111",
+   "112",
+   "113",
+   "114",
+   "115",
+   "116",
+   "117",
+   "118",
+   "119",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93",
+   "94"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78",
+   "79",
+   "80",
+   "81",
+   "82",
+   "83",
+   "84",
+   "85",
+   "86",
+   "87",
+   "88",
+   "89",
+   "90",
+   "91",
+   "92",
+   "93",
+   "94",
+   "95",
+   "96",
+   "97",
+   "98",
+   "99",
+   "100",
+   "101",
+   "102",
+   "103",
+   "104",
+   "105",
+   "106",
+   "107",
+   "108",
+   "109",
+   "110",
+   "111",
+   "112",
+   "113",
+   "114",
+   "115",
+   "116",
+   "117",
+   "118",
+   "119"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 1032,
+     "end": 1342
+    },
+    "body_chars": 305,
+    "body_sha256": "413cf9c0826caf59962f4a2b6d8344b1fc4788dbf749a1cf69624c30ef542f43",
+    "body": "On May 17, 2024 Nathaniel Dominic White was convicted of drug trafficking and firearms offences.[1] He had been charged with these offences in 2020, but was acquitted owing to Charter breaches during a search of the vehicle in which he was sitting. That acquittal was set aside and a new trial ordered.[2]"
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 1342,
+     "end": 1720
+    },
+    "body_chars": 373,
+    "body_sha256": "30e68eaa3779d86b97d9b18c063f14b6c9b3a1f901285f6893f758f4d5d49f70",
+    "body": "Mr. White was found in possession of cocaine and cannabis as well as a loaded .32 calibre Smith and Wesson handgun and ammunition. His brother was with him. He had a .357 magnum handgun. The guns and drugs were seized in the early afternoon in a busy downtown Halifax parking lot. Mr. White was one of three occupants of the car in which the guns and drugs were discovered."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 1720,
+     "end": 1879
+    },
+    "body_chars": 154,
+    "body_sha256": "c7a304c24ca6b24b3bae4c83ff6ae14c03c9984da6595cf4e31a112d128aa1b3",
+    "body": "Justice Peter Rosinski described Mr. White’s possession of the loaded handgun as “a tool of his trade”. He was on probation at the time of these offences."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 1879,
+     "end": 2076
+    },
+    "body_chars": 192,
+    "body_sha256": "eca1637c34f50880773a36c4e32c34faf495da04fe7550ee5c13def3bdb38d3a",
+    "body": "Mr. White was then 24. He had 16 prior adult convictions, including for possession of a weapon. Mr. White did not remain crime-free after his arrest. While on bail, he breached his conditions."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 2076,
+     "end": 2237
+    },
+    "body_chars": 156,
+    "body_sha256": "3d600d07aa7fbb7ba4fdefdf25830571872a43888caf4ae08569f8b3356e9580",
+    "body": "Mr. White is an African Nova Scotian. The judge had the benefit of two impact of race and culture assessments,[3] which he considered when passing sentence."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 2237,
+     "end": 2713
+    },
+    "body_chars": 471,
+    "body_sha256": "5a6b6c0337273eaeaac8dc0b8fbae53d0ebb3308c4f3bb5cb609d8081db76380",
+    "body": "Taking into account all of the circumstances of the offence and the offender, the judge said he would have ordinarily imposed a sentence of between 3.5 and 5 years’ imprisonment, reduced to between 3 and 4 years’ imprisonment for totality.[4] But then the judge took an unexpected turn. Citing a decision of this Court[5] that upheld a conditional sentence order[6] for an 18-year-old first time offender, he decided that such a sentence was appropriate for Mr. White.[7]"
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 2713,
+     "end": 2918
+    },
+    "body_chars": 200,
+    "body_sha256": "128a05bcd998714ae8ea5944d6c9c050a409b6004f65661964f39a34bb6c3339",
+    "body": "Bratzer was not cited to the judge by either of the parties and was not argued before him, no doubt because neither Crown nor defence thought it had any relevance to Mr. White’s case. They were right."
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 2918,
+     "end": 3406
+    },
+    "body_chars": 483,
+    "body_sha256": "2a7eb2032d1ac8e692fb451dcf0007bfd936c417a955a29e78cc416dbae3496a",
+    "body": "The judge erred in law by relying on an exceptional precedent that bore no resemblance to the case before him. As a result, he discounted an otherwise appropriate sentence range and instead imposed an unfit sentence, that also offended principles of proportionality given the gravity of the offences and Mr. White’s responsibility for them. The judge’s sentence effectively ignored the primacy of deterrence and denunciation which typically prevail in very serious crimes like these."
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 3406,
+     "end": 3535
+    },
+    "body_chars": 124,
+    "body_sha256": "788c1a6dfe298c9c98ae663051854589809edd3ee293592746bec88119f8e804",
+    "body": "The judge’s sentence should be set aside and a sentence of 4 years should be substituted for the conditional sentence order."
+   },
+   {
+    "label": "10",
+    "marker_order": 9,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 3535,
+     "end": 3764
+    },
+    "body_chars": 223,
+    "body_sha256": "a66c04ca79d32d82373d9c8a005d83ea28d5038c1bc920691e7582cd4995e902",
+    "body": "Since Mr. White has already served part of the conditional sentence order, a question arises whether he should be incarcerated now. That question will be addressed at the conclusion of the sentencing analysis which follows."
+   },
+   {
+    "label": "11",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 3764,
+     "end": 3977
+    },
+    "body_chars": 207,
+    "body_sha256": "8c0d66f21fa673368a584834f09a105698f6bce71c37a855a1a6a9b4d70ed0b6",
+    "body": "The intervenor properly takes no position on outcome, but challenges some of the judge’s obiter[8] language. The intervenor’s submissions will be briefly addressed following discussion of the issues.\nIssues:"
+   },
+   {
+    "label": "12",
+    "marker_order": 11,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 3977,
+     "end": 4574
+    },
+    "body_chars": 591,
+    "body_sha256": "750e9d8502974531dd203298a7ff8681600a893d9aa4427a8c456c99e1587fb5",
+    "body": "The federal and provincial Crown both appeal, alleging the judge erred by:\n1.\nimposing a sentence which failed:\n(a)\nto properly interpret and apply the principle of proportionality, taking into account the gravity of the offence and the degree of responsibility of the offender;\n(b)\nto give appropriate emphasis to applicable sentencing principles, particularly denunciation, deterrence and protection of the public, by overemphasizing the personal circumstances of Mr. White.\n2.\nimposing a sentence which was demonstrably unfit considering the circumstances of the offence and the offender."
+   },
+   {
+    "label": "13",
+    "marker_order": 12,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 4574,
+     "end": 4684
+    },
+    "body_chars": 104,
+    "body_sha256": "86a1cfcf9557139ce6b7496f8d32ce4d340cfd1f54812f36f1c15731c4119751",
+    "body": "This is a sentence appeal. The appellants require leave. Leave should be granted and the appeal allowed."
+   },
+   {
+    "label": "14",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 4684,
+     "end": 5179
+    },
+    "body_chars": 489,
+    "body_sha256": "6c8c4c6d974c16f3821290b407fb076a165ed29b580853b99e3f76de20ad79c7",
+    "body": "This Court observes a deferential standard of review on sentencing. We may intervene if the sentence “implicates a flawed process (material errors in reasoning) or flawed outcome (demonstrable unfitness)”.[9] Appellate intervention is justified where:\n(a)\na sentence is demonstrably unfit; or\n(b)\nthe sentence was affected by an error in principle. These include errors of law, a failure to consider a relevant factor, or erroneous consideration of an aggravating or mitigating factor.[10]"
+   },
+   {
+    "label": "15",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 5179,
+     "end": 5426
+    },
+    "body_chars": 241,
+    "body_sha256": "8f7ff1e53c8dfd7aa97050bd9e9983589a1a1dc633f72174aa847c2bfc539058",
+    "body": "When considering whether a sentence is demonstrably unfit, the focus is on whether the sentence is proportionate to the gravity of the offence and the offender’s responsibility. Proportionality is the fundamental principle of sentencing.[11]"
+   },
+   {
+    "label": "16",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 5426,
+     "end": 5538
+    },
+    "body_chars": 106,
+    "body_sha256": "fa49f17af3138e77edc27e4d1fb7a10f09de33abb8ef57f95fd051d2a23066ed",
+    "body": "It is possible for a sentence to be demonstrably unfit even in the absence of an error in imposing it.[12]"
+   },
+   {
+    "label": "17",
+    "marker_order": 16,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 5538,
+     "end": 5720
+    },
+    "body_chars": 176,
+    "body_sha256": "d6f8caed83e019c3ed9491af026064c20ce41a279c19de6cb9ac48a17f0de593",
+    "body": "It will be useful to preface detailed discussion of the grounds of appeal with identification of the judge’s error which warrants that greater legal analysis.\nThe Bratzer error"
+   },
+   {
+    "label": "18",
+    "marker_order": 17,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 5720,
+     "end": 5934
+    },
+    "body_chars": 208,
+    "body_sha256": "3567f4bc81210639bb2a6a4886095c366080f5d74b029737b19ec60fd938b39b",
+    "body": "Following a lengthy consideration of both the principles of sentencing and the circumstances of the offence and the offender, including the two IRCA reports, the judge reached this preliminary conclusion:[13]"
+   },
+   {
+    "label": "166",
+    "marker_order": 18,
+    "role": "quoted_or_foreign",
+    "marker": "[166]",
+    "raw_span": {
+     "start": 5934,
+     "end": 6222
+    },
+    "body_chars": 281,
+    "body_sha256": "90430e473e4a2fd8c74e589cacfc51deb9dbb68c91eb07639cf9bb7946a18316",
+    "body": "All other things being equal, normally I would have seriously considered a total sentence between 3.5 and 5 years’ imprisonment, but for the principle of totality; in light of which I would have considered further reducing the total sentence to between 3 and 4 years’ imprisonment."
+   },
+   {
+    "label": "19",
+    "marker_order": 19,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 6222,
+     "end": 6536
+    },
+    "body_chars": 308,
+    "body_sha256": "83f79a14a0bf3087721f4ec2f10cbbbfc9ad1b2b8c557acacf926e59363584a0",
+    "body": "At sentencing, Mr. White, relying on this Court’s decisions in Anderson[14] and Wournell, argued for a conditional sentence order. The judge initially dispensed with that submission because Mr. White’s circumstances bore no resemblance to those of Mr. Anderson or Mr. Wournell. Citing Anderson, he concluded:"
+   },
+   {
+    "label": "24",
+    "marker_order": 20,
+    "role": "quoted_or_foreign",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 6536,
+     "end": 6764
+    },
+    "body_chars": 222,
+    "body_sha256": "28bdc3931cdc05e9c1e68c5fda16ccf0c9581ac247659fdb96d0f91f852f5b47",
+    "body": "The upshot of these comments in Anderson, demonstrate that Mr. Anderson’s circumstances are substantially different from those of Mr. White, who is guilty of simultaneous firearms and cocaine/cannabis trafficking offences."
+   },
+   {
+    "label": "25",
+    "marker_order": 21,
+    "role": "quoted_or_foreign",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 6764,
+     "end": 6905
+    },
+    "body_chars": 135,
+    "body_sha256": "7b5cf300885bbf7bac6be41e31a18111aea05232c3ab025e6817612c21eda221",
+    "body": "Mr. White’s cumulative moral blameworthiness and the seriousness of his offences are substantially greater than in Mr. Anderson’s case."
+   },
+   {
+    "label": "20",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 6905,
+     "end": 7277
+    },
+    "body_chars": 366,
+    "body_sha256": "8ee4657a92b71b2e0361ec3cfb8e9b8f500d68be5ad6f193117cbdb30bab46fa",
+    "body": "Those findings alone should have precluded a conditional sentence order as an appropriate disposition in this case. But the judge was then diverted by Bratzer, to impose a conditional sentence on Mr. White. It was an error of law for the judge to rely on Bratzer because it was materially different from Mr. White’s case, and so caused him to ignore proportionality."
+   },
+   {
+    "label": "21",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 7277,
+     "end": 7650
+    },
+    "body_chars": 367,
+    "body_sha256": "1accd69d65da6e6550f667ebcd601bf12d2079ea6ffb94c2446b32d2d4c3f614",
+    "body": "Mr. White was a 24-year-old with a lengthy record, including 16 adult offences. He was convicted of trafficking in marijuana and cocaine. He was convicted of gun charges. His gun was described as a “tool of the trade”. Neither Mr. White’s personal circumstances nor the objective seriousness of the offences for which he was convicted, bore comparison to Mr. Bratzer."
+   },
+   {
+    "label": "22",
+    "marker_order": 24,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 7650,
+     "end": 8378
+    },
+    "body_chars": 722,
+    "body_sha256": "69a1b506ce7b6e93d6fc0dcdf26a545dcf876e66b98ed07f1a29bc115d6227f5",
+    "body": "Mr. Bratzer pleaded guilty to three counts of robbery and one of committing an offence while masked. He and another individual or individuals robbed three gas stations over a period of eight days in January of 2000. Mr. Bratzer was armed with a sledgehammer. He was 18 years old. He had been diagnosed with attention deficit disorder and short-term memory loss during his junior high school years. He had attended a school for children with moderate to severe learning disabilities. At the time of the offences, Mr. Bratzer’s family had followed his father to Cambodia. Mr. Bratzer was left in the care of his older brother with whom he had a falling out. The offences occurred after he had moved out and was living alone."
+   },
+   {
+    "label": "23",
+    "marker_order": 25,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 8378,
+     "end": 9119
+    },
+    "body_chars": 735,
+    "body_sha256": "51e506799d461d1ee8d8d5013228fde66f8775e3a99a7cb69d63aaadd10163f0",
+    "body": "Mr. Bratzer had been granted interim release. He used the time wisely. Although the release conditions were stringent, the Court described his “substantial progress while on interim release”. He was a member of the militia and “had attracted the confidence of his superiors; he had a long-standing and attainable career objective; he had a good relationship with a loving and very supportive family… he was a youthful offender without a serious or longstanding past record; he had received psychiatric counseling to address his feelings of anger and inadequacy”, receiving a “positive report from his doctor”. He had successfully completed grade 12 equivalency. He had abided strictly by stringent conditions of release over 13 months."
+   },
+   {
+    "label": "24",
+    "marker_order": 26,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 9119,
+     "end": 9677
+    },
+    "body_chars": 552,
+    "body_sha256": "ea3b3389dc15bbd16aa052af3522190b5aafcfbaab2a0241d02c2401530c7c87",
+    "body": "As Mr. Hubbard for the provincial Crown appropriately summarizes, Mr. Bratzer:\n107. […]\na. took significant steps towards rehabilitation while on bail,\nb. made efforts to give back to the community,\nc. the offences he committed were found to be out of character,\nd. the offences committed were found to form a “spree”, justifying concurrent sentences,\ne. Mr. Bratzer complied with house arrest bail conditions for a significant period of time,\nf. Mr. Bratzer had no criminal record, and,\ng. Mr. Bratzer plead guilty before trial, demonstrating remorse."
+   },
+   {
+    "label": "25",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 9677,
+     "end": 10065
+    },
+    "body_chars": 382,
+    "body_sha256": "cf9432efb508f8750e668efa1194bb36100141b965eb69e7f61eff8e6d644744",
+    "body": "Mr. Bratzer made efforts to make amends to the community he had offended. He performed 50 hours of community service work, volunteered at two orphanages and taught English as a second language, all while completing his high school education. Mr. Bratzer demonstrated remorse, expressed an interest in meeting his victims, and wrote individual letters of apology to each one of them."
+   },
+   {
+    "label": "26",
+    "marker_order": 28,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 10065,
+     "end": 10317
+    },
+    "body_chars": 246,
+    "body_sha256": "cd4c60f08c8fe5b8214742de8b9819cba06a38d98005d5806017c5da015f00f9",
+    "body": "Mr. Bratzer’s three robberies were called a “spree” by the judge who sentenced him. His offending was described as shockingly out of character by all who knew him. Mr. Bratzer had acted impulsively and uncharacteristically over a nine-day period."
+   },
+   {
+    "label": "27",
+    "marker_order": 29,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 10317,
+     "end": 10408
+    },
+    "body_chars": 85,
+    "body_sha256": "01383cc0db2dd77c4e158b7d264701fb0e8e9fe79b22d7048fb2f5d7c5803d3f",
+    "body": "After a lengthy summary of Mr. Bratzer’s personal circumstances, this Court observed:"
+   },
+   {
+    "label": "43",
+    "marker_order": 30,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 10408,
+     "end": 10707
+    },
+    "body_chars": 293,
+    "body_sha256": "5b77e91e06e4c8565e193031dfc3aa01e582d21cb1a10f5f7a97d95914c05e13",
+    "body": "It is difficult to imagine what more Jesse Bratzer could have done to turn his life around in the time available to him before sentence. All information supported the judge’s conclusion that he was not the callous and brazen offender revealed in the interview immediately following his arrest."
+   },
+   {
+    "label": "28",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 10707,
+     "end": 11343
+    },
+    "body_chars": 630,
+    "body_sha256": "d3838a57873c32858cd175625b72c52f952e129ec9342de81226a501735db1d4",
+    "body": "By contrast, Mr. White’s offending was not an uncharacteristic or transient moment. He was engaged in the retail business of drug trafficking. He had customers and a contact system for selling and operating his business. He was found in possession of a cutting agent, intended to be mixed with powdered cocaine which would increase his level of profit.[15] He was found with drug trafficking paraphernalia, instrumental to his drug trafficking operation.[16] Mr. White’s possession of an illegal handgun would have required planning and deliberation. He knew another occupant of the vehicle had possession of a larger handgun.[17]"
+   },
+   {
+    "label": "29",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 11343,
+     "end": 11615
+    },
+    "body_chars": 266,
+    "body_sha256": "72a7afc6820eeea515ad5d09df9581fa3af4a538517382c5eb05f0f7479ad237",
+    "body": "Mr. White committed his offences while on probation. Following arrest, he committed further offences. His bail conditions were not especially limiting. He was not under house arrest or a curfew. He had virtually no geographic restrictions on his freedom of movement."
+   },
+   {
+    "label": "30",
+    "marker_order": 33,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 11615,
+     "end": 12024
+    },
+    "body_chars": 403,
+    "body_sha256": "2d48daf3a10e5be7df84dcaf15c8ee3075c53f3faf387613c7a9f42626cd1444",
+    "body": "The judge described Mr. White’s compliance with bail as mitigating. That was an error in this case. Mr. White’s compliance with very relaxed bail conditions would be relevant to a “Proulx”[18] analysis with respect to the risk of reoffending, but it could not be substantially mitigating as the judge here suggested. Those charged with crimes do not receive extra credit simply for not breaking the law."
+   },
+   {
+    "label": "31",
+    "marker_order": 34,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 12024,
+     "end": 12315
+    },
+    "body_chars": 285,
+    "body_sha256": "eeabf533d63d9864471fd094e1d1d8efb724dad5c28fca3408f8e92e456f5bc1",
+    "body": "Unlike Mr. Bratzer, Mr. White did not accept responsibility for his actions or express any remorse. He does not receive the mitigating benefit of a guilty plea. At trial, Mr. White denied knowledge of the illegal items located in the vehicle he occupied. The judge did not believe him."
+   },
+   {
+    "label": "32",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 12315,
+     "end": 12561
+    },
+    "body_chars": 240,
+    "body_sha256": "853c49bfb21c01432834d7504e5d53247214c7c014f147c18e90446e92e2b6dd",
+    "body": "Mr. White has a significant criminal record with repeated breaches of court orders. The trial judge was satisfied beyond a reasonable doubt that had he not been arrested, Mr. White would have continued with this drug trafficking enterprise."
+   },
+   {
+    "label": "33",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 12561,
+     "end": 12784
+    },
+    "body_chars": 217,
+    "body_sha256": "2c2eb60b041b2951dd8a6d8053e6375f16b81b6b42be53d8d7da5b91bfeca8af",
+    "body": "The judge’s inappropriate comparison of Mr. White with Mr. Bratzer was augmented by assumptions without evidentiary foundation. Mr. Hubbard for the provincial Crown refers us to these passages in the judge’s decision:"
+   },
+   {
+    "label": "175",
+    "marker_order": 37,
+    "role": "quoted_or_foreign",
+    "marker": "[175]",
+    "raw_span": {
+     "start": 12784,
+     "end": 13044
+    },
+    "body_chars": 253,
+    "body_sha256": "2b6c95b2b50175dfd56202fe783e04387c898b921743b2b2d91f5c7ad9d89793",
+    "body": "Is he to be precluded from consideration for a Conditional Sentence Order merely because he was unable to take more rehabilitative steps on account of his simply not having access to such rehabilitative services and greater family and community support?"
+   },
+   {
+    "label": "176",
+    "marker_order": 38,
+    "role": "quoted_or_foreign",
+    "marker": "[176]",
+    "raw_span": {
+     "start": 13044,
+     "end": 13217
+    },
+    "body_chars": 166,
+    "body_sha256": "c97412dcf733778e53340e5e44818ecfef17f9a2849c9dacd0ad8076d4447152",
+    "body": "Without anywhere near the supports of the kind Mr. Bratzer had, Mr. White remained on release for a long time and committed no further crimes after December 18, 2020."
+   },
+   {
+    "label": "34",
+    "marker_order": 39,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 13217,
+     "end": 14443
+    },
+    "body_chars": 1220,
+    "body_sha256": "e818fb5f2646733891d1dd3e62af664978ff37beb37c67dbfefe8ad8e26f4805",
+    "body": "Mr. White did not seek out counseling[19] as did Mr. Bratzer. No evidence sustains the assertion that Mr. White would not have had access to counseling if he had sought it. One of the IRCA reports says the opposite. It details options available to Mr. White as listed by Dr. Patrina Duhaney:[20]\na.\nThe Nova Scotia Brotherhood Initiative – a free program for Black men that offers support for improved health and well-being. Some of the services provided include both physical and mental health services addressing experiences of grief, depression, and anger management;\nb.\nThe Black Business Initiative – provides support for Black entrepreneurs including programs, training, mentorship and networking;\nc.\nThe Black Entrepreneurship Program – provides mentoring, resources, marketing strategies, and funding opportunities for Black entrepreneurs living in Nova Scotia;\nd.\nThe Nova Scotia Association of Black Social Workers – offers the Black community Toll-Free Support Line, which provides free counselling support over the telephone;\ne.\nThe Pause Mental Health Program – provides the United Pause African Ancestry Support Line, which is also a free telephone-based support service for individuals of African descent."
+   },
+   {
+    "label": "35",
+    "marker_order": 40,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 14443,
+     "end": 14664
+    },
+    "body_chars": 215,
+    "body_sha256": "ae94b30725ca5aef125b9e860749cf9b0e8358587313480e5662d34ae5b499ab",
+    "body": "There is nothing in the record supporting the judge’s statement that Mr. White could not have performed community service work or volunteered his time within his community. Further speculation of the judge followed:"
+   },
+   {
+    "label": "186",
+    "marker_order": 41,
+    "role": "quoted_or_foreign",
+    "marker": "[186]",
+    "raw_span": {
+     "start": 14664,
+     "end": 15003
+    },
+    "body_chars": 332,
+    "body_sha256": "db280a7521827910c0b730824f01d81b9888c9754807eb0fdaaeab8eb59596f7",
+    "body": "Sending him to jail for 4 years now, where he would be exposed to the full array of federally imprisoned offenders - all day, each day and with little programming suited to his specific needs, would likely reinforce his previous criminogenic perspective and significantly increase the likelihood of his returning to a life of crime."
+   },
+   {
+    "label": "36",
+    "marker_order": 42,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 15003,
+     "end": 15201
+    },
+    "body_chars": 192,
+    "body_sha256": "7e965d29665acf027d3caf78cfe598f0409fe0773c9c361510dc831be48f05de",
+    "body": "In fact, the most recent IRCA report showed that Mr. White’s life changed significantly when previously incarcerated. It was during that time that he studied the Quaran and converted to Islam."
+   },
+   {
+    "label": "37",
+    "marker_order": 43,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 15201,
+     "end": 15583
+    },
+    "body_chars": 376,
+    "body_sha256": "b3a3cb6241b6ca327d26e28e39e824b16aa0d705ef6a52ea75d5bdd764b82b94",
+    "body": "The judge also concluded that Mr. White did not have the support offered to Mr. Bratzer. To the contrary, letters of reference from Mr. White’s brother, sister and grandmother and comments made by staff at the Phoenix Youth Program are to the opposite effect. Mr. White had the support of his employer who provided a letter confirming his employment at the time of sentencing."
+   },
+   {
+    "label": "38",
+    "marker_order": 44,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 15583,
+     "end": 16127
+    },
+    "body_chars": 538,
+    "body_sha256": "7a8e05c0e7b15485a020a0bdec1f186eff2087f032ad74f8d8b02229b298d6b4",
+    "body": "There is simply no comparison between the circumstances of Mr. Bratzer and those of Mr. White. The materiality of the difference makes it an error of law for the judge to have relied on Bratzer. The judge himself earlier recognized that Mr. White’s moral culpability was much higher than Mr. Anderson or Mr. Wournell, both of whom received conditional sentences. The move from a sentencing range of 3 to 4 years of federal incarceration to a conditional sentence order was unjustified on the authority of Bratzer. It is an unfit sentence."
+   },
+   {
+    "label": "39",
+    "marker_order": 45,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 16127,
+     "end": 16530
+    },
+    "body_chars": 397,
+    "body_sha256": "00772f20975c4f69b0cacf3f50f6c5ba98363bf36c40bc9fa18371f5d0585697",
+    "body": "The judge’s error obliges this Court to perform a new sentencing analysis.[21] However, absent an error in principle, the Court must defer to the judge’s findings of fact that are untainted by error, and the presence of aggravating or mitigating factors.[22]\nThe Judge erred by imposing a sentence that did not accord with the fundamental principle of proportionality\nThe Proportionality Principle"
+   },
+   {
+    "label": "40",
+    "marker_order": 46,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 16530,
+     "end": 16785
+    },
+    "body_chars": 249,
+    "body_sha256": "e8227163209dacc9d435f529583b6c1175fe61e655e785f9d053a8e0c4cab9fe",
+    "body": "Proportionality requires consideration of the gravity of the offences and the moral blameworthiness of the offender. Proportional sentences must also respect the parity principle – like offences and offenders should receive comparable sentences.[23]"
+   },
+   {
+    "label": "41",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 16785,
+     "end": 17316
+    },
+    "body_chars": 525,
+    "body_sha256": "8bf5cc077be43f1371f24b0231ed1c64b917d0c49cf2988b6460a138c10e944d",
+    "body": "In Lacasse, the Supreme Court of Canada described application of the proportionality principle and its interplay with parity:\n[…] Proportionality is determined both on an individual basis, that is, in relation to the accused him or herself and to the offence committed by the accused, and by comparison with sentences imposed for similar offences committed in similar circumstances. Individualization and parity of sentences must be reconciled for a sentence to be proportionate: s. 718.2(a) and (b) of the Criminal Code.[24]"
+   },
+   {
+    "label": "42",
+    "marker_order": 48,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 17316,
+     "end": 17518
+    },
+    "body_chars": 196,
+    "body_sha256": "b50c81c8f08cfb38a3edd6e619e5cb27e49e4ac620e47d413b5fb025c09a50d4",
+    "body": "“Proportionality is a ‘central tenet’ of Canada’s sentencing regime, with roots that predate the recognition of it as the fundamental principle of sentencing in s. 718.1 of the Criminal Code”.[25]"
+   },
+   {
+    "label": "43",
+    "marker_order": 49,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 17518,
+     "end": 17896
+    },
+    "body_chars": 372,
+    "body_sha256": "a40de6f80795cc239c362c4a43967a38db039f6d1be0dac896a1a3d3f421b6d1",
+    "body": "Proportionality requires that the “…amount of punishment an offender receives must be proportionate to the gravity of the offence and the offender’s moral blameworthiness”.[26] The judge’s failure to respect proportionality constitutes an error of law resulting in an unfit sentence, requiring the sentence to be set aside. It requires this Court to fix a proper sentence."
+   },
+   {
+    "label": "44",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 17896,
+     "end": 18319
+    },
+    "body_chars": 417,
+    "body_sha256": "27042af3881e4d706417461fb547b56fc909f5a37851ce88a3480e27f6d50015",
+    "body": "The gravity of the offence refers to the “…seriousness of the offence in a general sense and is reflected in the potential penalty imposed by Parliament and in any specific features of the commission of the crime”.[27] The gravity of the offence includes and is measured by the consequences of the offender’s actions on victims and public safety, and the physical and psychological harms flowing from the offence[28]."
+   },
+   {
+    "label": "45",
+    "marker_order": 51,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 18319,
+     "end": 18667
+    },
+    "body_chars": 342,
+    "body_sha256": "65b58898cb0233635a1991ea833d94f952de26fd3c8d55731d40e168726d9711",
+    "body": "An offender’s moral culpability is measured against the offence’s intent requirement (mens rea), the offender’s conduct while committing the offence, any motive the offender may have had, as well as the offender’s background that may increase or decrease responsibility for the crime, including personal circumstances and mental capacity.[29]"
+   },
+   {
+    "label": "46",
+    "marker_order": 52,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 18667,
+     "end": 18940
+    },
+    "body_chars": 267,
+    "body_sha256": "39afc56b16007bf93bfa2ecb29a955f74f36f43be1b18cc9452848719244c674",
+    "body": "A sentence that fails to respect the proportionality principle is an unfit sentence[30]. Applying proportionality, the gravity of Mr. White’s offences will be considered first. Next, Mr. White’s moral blameworthiness will be addressed.\nGravity of Mr. White’s offences"
+   },
+   {
+    "label": "47",
+    "marker_order": 53,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 18940,
+     "end": 19244
+    },
+    "body_chars": 298,
+    "body_sha256": "3716599f68a6ac445beecb750e4c8f7e36d8d1edaafd5c20feaa62cbaa5ced14",
+    "body": "Mr. White was found guilty of possessing 8.5 grams of cocaine and approximately 160 grams of cannabis marijuana and resin for the purpose of trafficking. He was also convicted of possessing a loaded .32 calibre handgun and ammunition while conducting his violent and socially destructive trade.[31]"
+   },
+   {
+    "label": "48",
+    "marker_order": 54,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 19244,
+     "end": 20006
+    },
+    "body_chars": 756,
+    "body_sha256": "829ed16484d29aa2852583a8fe6b49dbf9d16c39bc624ab307ce40cc1dc8da7d",
+    "body": "As earlier described, Mr. White was arrested by police responding to a call relating to a motor vehicle accident in a busy downtown Halifax parking lot. Upon arrival, the police found Mr. White, his brother Decoda White and his partner, Miriam L. Husseni in a Volkswagon Jetta. Police received confidential information there were firearms in the car. The three were arrested and a search of the vehicle turned up the loaded .32 Smith and Weston, with extra ammunition for that gun, 17.5 grams of cocaine, 160 grams of cannabis marijuana and cannabis resin, $2,900 in cash, a cutting agent for the cocaine and two working digital scales. Police also found a .357 Magnum. The judge found that Mr. White knew his brother, Decoda had possession of that weapon."
+   },
+   {
+    "label": "49",
+    "marker_order": 55,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 20006,
+     "end": 20274
+    },
+    "body_chars": 262,
+    "body_sha256": "7b67aa2ec76caed42abb19bed6eb1d4f3d7879fd17c11fbfc60907b28e100657",
+    "body": "The judge determined that Mr. White and his brother were conducting a cocaine and cannabis trafficking enterprise which preceded his arrest and would have continued but for his apprehension by police. The guns were to protect themselves and their enterprise.[32]"
+   },
+   {
+    "label": "50",
+    "marker_order": 56,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 20274,
+     "end": 20514
+    },
+    "body_chars": 234,
+    "body_sha256": "df9c58b4ba3130264a7fa5ac83d8291542c6af91f03f0299f9f71a10e34ede46",
+    "body": "Both possession of a loaded firearm and trafficking in “hard drugs” such as cocaine are very serious crimes owing to the grave social harm and violence involved in both. Our courts routinely condemn these crimes for these reasons.[33]"
+   },
+   {
+    "label": "51",
+    "marker_order": 57,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 20514,
+     "end": 20763
+    },
+    "body_chars": 243,
+    "body_sha256": "89800934cf47b1668b5da5cf0159ad7662e09016420c61f72e4068e4ac6eded7",
+    "body": "The Supreme Court of Canada has reiterated the gravity of trafficking in hard drugs and the tragic consequences that flow from that trade.[34] Trafficking in hard drugs is a fundamental threat to public safety and an “offence of violence”.[35]"
+   },
+   {
+    "label": "52",
+    "marker_order": 58,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 20763,
+     "end": 21183
+    },
+    "body_chars": 414,
+    "body_sha256": "46fcb714fa758bea5a30fd720770b21a6a1441cef99984deac9588a5118a7def",
+    "body": "Mere possession of a loaded illegal handgun is also a serious crime. In Nur Justice Moldaver observed that the s. 95(1) Criminal Code prohibition against possession of illegal firearms was introduced in response to perennial gun violence.[36] In Nur, McLachlin C.J. opined that a 3 year sentence may be appropriate for the “vast majority” of s. 95 (possession) cases. Gun violence has not diminished since Nur.[37]"
+   },
+   {
+    "label": "53",
+    "marker_order": 59,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 21183,
+     "end": 21282
+    },
+    "body_chars": 93,
+    "body_sha256": "bdbb58e5f9998a9ac9ad500d80e29475671114bfbe622a8a9dc5a9541b5aa5e8",
+    "body": "Parliament’s setting of maximum sentences is indicative of the seriousness of an offence.[38]"
+   },
+   {
+    "label": "54",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 21282,
+     "end": 21665
+    },
+    "body_chars": 377,
+    "body_sha256": "680a1c16620d512cb8d99bb892db4bc0ca03880e667e468f9ed527128e452760",
+    "body": "In 2023 Parliament increased the maximum penalty for possession of illegal firearms from 10 to 14 years. Parliament’s upward amendment of the maximum sentence emphasizes the seriousness of this offence.[39] The maximum penalty for violating firearms prohibition orders is 10 years’ imprisonment.[40] Trafficking in hard drugs carries a maximum penalty of life imprisonment.[41]"
+   },
+   {
+    "label": "55",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 21665,
+     "end": 22159
+    },
+    "body_chars": 488,
+    "body_sha256": "8b79a93e7c20af6c155e11e1558a6fb1452c70a32bceaef9a4d0d030613742f3",
+    "body": "It has long been recognized that incidents of gun crime in Halifax and elsewhere in the Province have been increasing and put lives at risk.[42] Gun crime and drug trafficking are prevalent fellow travellers in this community. Their mutual presence elevates the threat to the public and is a “potent recipe for loss of life”.[43] In the case of a racialized offender like Mr. White, members of the African Nova Scotian community are frequently at risk. As Chief Judge Perry Borden put it:"
+   },
+   {
+    "label": "49",
+    "marker_order": 62,
+    "role": "quoted_or_foreign",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 22159,
+     "end": 22648
+    },
+    "body_chars": 483,
+    "body_sha256": "446deab586c85dd312a5f5fbecb90feffcc3ca9ccea18671973336f0bc8096d6",
+    "body": "It is not lost upon me that far too often members of our African Nova Scotian communities are affected by these offenses. Too often some of our young men are arming themselves with prohibited and restricted weapons. Too often, African Nova Scotian men are the targets of gun violence and frequently they are shot in our city streets. This has often resulted in their families burying these otherwise healthy young men who were in the early stages of their lives.[44]\n[Emphasis added]"
+   },
+   {
+    "label": "56",
+    "marker_order": 63,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 22648,
+     "end": 23058
+    },
+    "body_chars": 404,
+    "body_sha256": "7db0bf728f5800214cbd868b57c1532e4034789a293761e05b59868739e3b7c3",
+    "body": "Both Crowns expressed concern about any suggestion that the seriousness of the offences could be mitigated by the circumstances of the offender. They discern a difference of approach between this Court in Anderson[45] and the Ontario Court of Appeal in Morris.[46] Both Anderson and Morris were sentence appeals involving racialized offenders. The Crown refers us to Anderson, where this Court commented:"
+   },
+   {
+    "label": "121",
+    "marker_order": 64,
+    "role": "quoted_or_foreign",
+    "marker": "[121]",
+    "raw_span": {
+     "start": 23058,
+     "end": 23285
+    },
+    "body_chars": 220,
+    "body_sha256": "7e9890e6a9af523b5518bd671033d65bde9bdddc9815ad2fb9c607e15815feba",
+    "body": "As the ANSDPAD Coalition asked this Court to recognize, the social context information supplied by an IRCA can assist in:\n• Contextualizing the gravity of the offence and the degree of responsibility of the offender.\n[…]"
+   },
+   {
+    "label": "142",
+    "marker_order": 65,
+    "role": "quoted_or_foreign",
+    "marker": "[142]",
+    "raw_span": {
+     "start": 23285,
+     "end": 23534
+    },
+    "body_chars": 242,
+    "body_sha256": "abbceb51ea32832f9ad8936ca5ae498abb0bd28620b78534d37841d19b512753",
+    "body": "A conditional sentence must adhere to the fundamental principle of proportionality stated in s. 718.1 of the Criminal Code. Both the gravity of the offence and the degree of the offender’s responsibility for it must be addressed contextually."
+   },
+   {
+    "label": "57",
+    "marker_order": 66,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 23534,
+     "end": 24036
+    },
+    "body_chars": 496,
+    "body_sha256": "8a2a8e95dfd7ca5791b6eff310bbbe9a8d0bfeb2410fc241d7190dd276b9e99a",
+    "body": "The Crown asserts there is an apparent contrast in the Ontario Court of Appeal’s decision in Morris where it noted:\nThe gravity or seriousness of an offence is determined by its normative wrongfulness and the harm posed or caused by that conduct in the circumstances in which the conduct occurred. Accordingly, unlike when assessing the offender’s degree of personal responsibility, an offender’s experience with anti-Black racism does not impact on the seriousness or gravity of the offence;[47]"
+   },
+   {
+    "label": "58",
+    "marker_order": 67,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 24036,
+     "end": 24217
+    },
+    "body_chars": 175,
+    "body_sha256": "56c63b74c22ff80969e4ae2e1ab0c87d5510fdf22b8cc9c3afdc2efa91fb9562",
+    "body": "The Crown relies on comments by the Supreme Court of Canada in Sharma,[48] that the circumstances of the offender do not have any impact on the seriousness of the offence:[49]"
+   },
+   {
+    "label": "108",
+    "marker_order": 68,
+    "role": "quoted_or_foreign",
+    "marker": "[108]",
+    "raw_span": {
+     "start": 24217,
+     "end": 25334
+    },
+    "body_chars": 1110,
+    "body_sha256": "31e4e335b54f5c9775f1ea9cf3fd9963a9896eb0e6e97355b4c8f180082e0ba7",
+    "body": "Finally, to the extent the Court of Appeal pointed to Ms. Sharma’s circumstances as demonstrative of Parliament’s overreach, it collapsed the concept of seriousness of the offence into the concepts of circumstances of the offender and particulars of the crime. On this point, we endorse the sentencing judge’s comments: “[Ms. Sharma] committed a serious offence in importing cocaine ⸺ a reality undisturbed by her personal culpability or mitigating factors” (para. 141 (emphasis added)). The Court of Appeal for Saskatchewan made a similar point in R. v. Neary, 2017 SKCA 29, [2017] 7 W.W.R. 730: “The gravity and seriousness of the offences are not attenuated by the personal circumstances of the accused” (para. 39). We accept entirely that the circumstances which led Ms. Sharma to import drugs are tragic and that her moral culpability was thereby attenuated (which was reflected in a sentence of 18 months rather than the six years initially proposed by the Crown). But those facts do not make importation of a Sch. I substance, particularly in the quantity she carried, any less serious.\n[Emphasis added]"
+   },
+   {
+    "label": "59",
+    "marker_order": 69,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 25334,
+     "end": 25579
+    },
+    "body_chars": 239,
+    "body_sha256": "5058ceefcfcfec69104d159dcd13dcf8b78c44dd59feced384b3e3f8bb58c0f4",
+    "body": "To similar effect, the Federal Crown refers to Justice Kasirer’s comments in S.B.[50] that moral responsibility should be distinguished from the objective gravity or seriousness of the offence, citing the Ontario Court of Appeal in Morris:"
+   },
+   {
+    "label": "64",
+    "marker_order": 70,
+    "role": "quoted_or_foreign",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 25579,
+     "end": 26438
+    },
+    "body_chars": 853,
+    "body_sha256": "0399f066c4d77dc120953930f508db5977378a81207a87d6666917914e418efe",
+    "body": "S.B. argues that the Court of Appeal erred in its assessment of the EPSR because the report demonstrated that his moral culpability was diminished (A.F., at paras. 111-13). In an adult sentence application under the second prong of s. 72(1), social context evidence may indeed inform a youth court’s determination of the moral responsibility of the young person for the offence to assist in its analysis of what length of sentence will hold them accountable (I.M., at para. 179; see also R. v. Hills, 2023 SCC 2, at para. 58). This should be distinguished from the objective gravity or seriousness of the offence in a general sense, which is determined by its “normative wrongfulness” and the consequences of the conduct on the victims and society in the circumstances of a given case (Morris, at para. 13; see also Hills, at para. 58).\n[Emphasis added]"
+   },
+   {
+    "label": "60",
+    "marker_order": 71,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 26438,
+     "end": 26777
+    },
+    "body_chars": 333,
+    "body_sha256": "21b746fc1cf9926a686154180311e77b90656f8ca3e9e29ae96b1a3b33041d23",
+    "body": "Contextually, the circumstances of the offence and socially contextualizing the circumstances of the offender may well be different things. The former describing, for example, that gun possession is unconnected to any other criminal activity;[51] the latter describing personal circumstances that may attenuate moral culpability.[52]"
+   },
+   {
+    "label": "61",
+    "marker_order": 72,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 26777,
+     "end": 26934
+    },
+    "body_chars": 151,
+    "body_sha256": "1741c2541bd76c2e6cde3504adbecef2dbb10fb78729a8053d6df3187bbb1d14",
+    "body": "In any event, this appeal does not turn on resolution of this debate, and we should decline to do so.\nMr. White’s circumstances – Moral blameworthiness"
+   },
+   {
+    "label": "62",
+    "marker_order": 73,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 26934,
+     "end": 27200
+    },
+    "body_chars": 260,
+    "body_sha256": "973069057aab7c0942eb82cb4f1dd41a62db2b23beef9d21b2fac99954337c98",
+    "body": "At the time of his arrest, Mr. White was 24 and had sixteen prior convictions as an adult. Nine of these were for violating court orders:\n(a) five for breaching release orders;\n(b) two for violating probation orders; and\n(c) two for driving while disqualified."
+   },
+   {
+    "label": "63",
+    "marker_order": 74,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 27200,
+     "end": 27342
+    },
+    "body_chars": 136,
+    "body_sha256": "e804cf481de155ea502e735f34895b962d7e72bc669c514494a9657b379200fc",
+    "body": "Included in these breached court orders was a recent conviction for possessing a weapon (a knife) for a purpose dangerous to the public."
+   },
+   {
+    "label": "64",
+    "marker_order": 75,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 27342,
+     "end": 27617
+    },
+    "body_chars": 269,
+    "body_sha256": "a2cdca357b9c04591d0c2965055e3351cf4e035f5939ee27a00ba26b233dbac8",
+    "body": "Four months after his arrest on the charges related to the issues before us, Mr. White violated the conditions of a Probation Order and his Release Order. A month later, he was convicted of operating a vehicle while prohibited and was sentenced to 57 days imprisonment."
+   },
+   {
+    "label": "65",
+    "marker_order": 76,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 27617,
+     "end": 28171
+    },
+    "body_chars": 548,
+    "body_sha256": "65a5390b83391a16fb69368d511dbf1a6664ef051e72c1ac9c536ad29f417c58",
+    "body": "Possession of a loaded firearm is serious because it is inherently dangerous. Mr. White’s possession of a loaded handgun could have no other purpose than to intimidate, wound or kill and is significantly aggravating. Parliament recognized that as an aggravating factor in the context of the drug trade by requiring that it be considered in the sentencing context.[53] The seriousness of hard drug and gun crimes is why courts have emphasized protection of the public, denunciation and deterrence as paramount sentencing objective in such cases.[54]"
+   },
+   {
+    "label": "66",
+    "marker_order": 77,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 28171,
+     "end": 28396
+    },
+    "body_chars": 219,
+    "body_sha256": "187c3dca07944b18617d6ebcf1e5350f257cfcbfebadf567f94ac76c4b692d14",
+    "body": "The judge’s imposition of a conditional sentence is incongruent with other cases such as Anderson and Wournell that have imposed such sentences for simple possession of an illegal firearm. It raises the issue of parity."
+   },
+   {
+    "label": "67",
+    "marker_order": 78,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 28396,
+     "end": 28458
+    },
+    "body_chars": 56,
+    "body_sha256": "adb247bf940f2a2e353ad886be321f0f38f194c4a8a22279c7a3dd39bb9855b6",
+    "body": "In Lacasse[55] the Court described the parity principle:"
+   },
+   {
+    "label": "2",
+    "marker_order": 79,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 28458,
+     "end": 29086
+    },
+    "body_chars": 623,
+    "body_sha256": "290427296cd628654ed708be9885487805574d76897d6ff1809ed5f9562f95f1",
+    "body": "For this purpose, the courts have developed tools over the years to ensure that similar sentences are imposed on similar offenders for similar offences committed in similar circumstances — the principle of parity of sentences — and that sentences are proportionate by guiding the exercise of that discretion, and to prevent any substantial and marked disparities in the sentences imposed on offenders for similar crimes committed in similar circumstances. For example, in Quebec and other provinces, the courts have adopted a system of sentencing ranges and categories designed to achieve these objectives.\n[Emphasis added]"
+   },
+   {
+    "label": "68",
+    "marker_order": 80,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 29086,
+     "end": 29191
+    },
+    "body_chars": 99,
+    "body_sha256": "ad42d95558305bd8c3b25c4d6db1fe46f7faf97747137bb0266d5ff5dbce4f77",
+    "body": "In Friesen[56] the Supreme Court elaborated on the relationship between proportionality and parity:"
+   },
+   {
+    "label": "32",
+    "marker_order": 81,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 29191,
+     "end": 29614
+    },
+    "body_chars": 417,
+    "body_sha256": "19096ee4e11ce38d7a95f0631db6e1e0a52f27e09e495ee4a03f44beaa2aa312",
+    "body": "Parity and proportionality do not exist in tension; rather, parity is an expression of proportionality. A consistent application of proportionality will lead to parity. Conversely, an approach that assigns the same sentence to unlike cases can achieve neither parity nor proportionality (R. v. L.M., 2008 SCC 31, [2008] 2 S.C.R. 163, at paras. 36-37; R. v. Ipeelee, 2012 SCC 13, [2012] 1 S.C.R. 433, at paras. 78-79)."
+   },
+   {
+    "label": "33",
+    "marker_order": 82,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 29614,
+     "end": 30162
+    },
+    "body_chars": 542,
+    "body_sha256": "da27ae51dfdb872b07eaff5ac084b8f1d59875ba6de1e78b400445051a56491d",
+    "body": "In practice, parity gives meaning to proportionality. A proportionate sentence for a given offender and offence cannot be deduced from first principles; instead, judges calibrate the demands of proportionality by reference to the sentences imposed in other cases. Sentencing precedents reflect the range of factual situations in the world and the plurality of judicial perspectives. Precedents embody the collective experience and wisdom of the judiciary. They are the practical expression of both parity and proportionality.\n[Emphasis added]"
+   },
+   {
+    "label": "69",
+    "marker_order": 83,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 30162,
+     "end": 30950
+    },
+    "body_chars": 782,
+    "body_sha256": "1273321d0c924c23ade8a051079ad37fa7b5659ced733cdb5151ff152b733f25",
+    "body": "In this case, the Federal Crown endorsed the judge’s initial identification of a fit sentence for trafficking:\n1. In sentencing the Respondent for his drug trafficking offences, the Trial Judge properly categorized him has a street-level trafficker or petty retailer and was correct in stating that the established sentencing range for similar street-level cocaine trafficking offences was from 18 to 30 months imprisonment. The Trial Judge was also correct to find that Mr. White’s conviction for trafficking cannabis and cannabis resin in addition to cocaine aggravated the gravity of his trafficking offences and that a fit sentence for Mr. White’s drug trafficking offences alone “would closely approach, and reasonably could exceed, two years incarceration …”.\n[Emphasis added]"
+   },
+   {
+    "label": "70",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 30950,
+     "end": 31171
+    },
+    "body_chars": 215,
+    "body_sha256": "12eedae7c086c51db0b693e8e7a957b4ffcb502fe0d82e9bbc2fc78f2af5249d",
+    "body": "Similarly, both Crowns agreed with the judge’s discussion of the ranges for firearms offences. The judge identified a first-time offender using a firearm as a tool of the trade as having a range of 3 to 5 years.[57]"
+   },
+   {
+    "label": "71",
+    "marker_order": 85,
+    "role": "spine",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 31171,
+     "end": 31476
+    },
+    "body_chars": 299,
+    "body_sha256": "b8fe7f9e28cb4cbee74e2ad65c92f5d8c4ed1fb43ffee484296c595d64ef3ebf",
+    "body": "The judge initially concluded that the range of sentencing for hard drug trafficking crimes committed with the assistance of a prohibited firearm attracted sentencing in the range of 3.5 to 5 years, reduced for the principle of totality to 3 to 4 years. Both Crowns also agreed with this assessment."
+   },
+   {
+    "label": "72",
+    "marker_order": 86,
+    "role": "spine",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 31476,
+     "end": 31900
+    },
+    "body_chars": 418,
+    "body_sha256": "68acbc28153aaf0d36af156adeefb05784f7badba67a54af2a2120773e7814e7",
+    "body": "Importantly, when arriving at the 3.5 to 5 year range, the judge gave careful consideration to the two IRCAs before him. He fully appreciated the systemic and background factors that contributed to Mr. White coming into conflict with the law. He correctly concluded that Mr. White’s moral culpability and the gravity and seriousness of the offences required a sentence significantly greater than 2 years’ imprisonment."
+   },
+   {
+    "label": "73",
+    "marker_order": 87,
+    "role": "spine",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 31900,
+     "end": 31981
+    },
+    "body_chars": 75,
+    "body_sha256": "97d70e2dc6c3a40b015557d83d3b02588798799fddf60c7fafd577057826aaf9",
+    "body": "The judge then took the “Bratzer turn” making the errors already described."
+   },
+   {
+    "label": "74",
+    "marker_order": 88,
+    "role": "spine",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 31981,
+     "end": 32220
+    },
+    "body_chars": 233,
+    "body_sha256": "3f2ceb6a53fbaa17666076ed7d4742d3654ee297b7ff1a27ee27d140a1e1ac67",
+    "body": "The judge thought it mitigating that Mr. White had remained crime-free since December 2020 (passing over his post-arrest offences) and had maintained some level of employment “for a significant period of time since the offences”.[58]"
+   },
+   {
+    "label": "75",
+    "marker_order": 89,
+    "role": "spine",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 32220,
+     "end": 32436
+    },
+    "body_chars": 210,
+    "body_sha256": "4e5f12b59705c2554415af9e98d13f9f26e997a15ae4676c9e5b8a6fee2b7668",
+    "body": "After his arrest in 2020, Mr. White did find periodic employment to support his partner and child, but this is of diminished import in sentencing for serious crimes. As Justice Saunders said in R. v. Chase:[59]"
+   },
+   {
+    "label": "37",
+    "marker_order": 90,
+    "role": "quoted_or_foreign",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 32436,
+     "end": 32829
+    },
+    "body_chars": 387,
+    "body_sha256": "5f8559beaa571360368c157b66b15a1f7f5c1ffa8ad36c92f447b981e4927327",
+    "body": "In its submissions the Crown says Mr. Chase’s personal circumstances are insufficient to qualify for leniency and attract a soft sentence. I agree that finding a job and providing some financial support for a pregnant girlfriend are, in and of themselves, hardly enough to entitle a convicted cocaine trafficker to a “break” on sentence. Such efforts, while laudable, should be expected."
+   },
+   {
+    "label": "76",
+    "marker_order": 91,
+    "role": "spine",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 32829,
+     "end": 33418
+    },
+    "body_chars": 583,
+    "body_sha256": "cc7225db35f983daba8ddc899682d1bf93ab9759bd6b804aaf8c1678d9f5b8b8",
+    "body": "Generally speaking, bail compliance, remaining crime-free while awaiting trial and sentence is not mitigating but rather is simply an absence of an aggravating factor. Compliance with the law and bail conditions is expected.[60] Courts have attached mitigative value when an offender complies with strict bail conditions which had a significant impact on the offender’s liberty interests and normal social interaction, employment and the like. Adverse impact upon the accused should be demonstrated in any case in which the accused seeks to count strict conditions as mitigative.[61]"
+   },
+   {
+    "label": "77",
+    "marker_order": 92,
+    "role": "spine",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 33418,
+     "end": 33986
+    },
+    "body_chars": 562,
+    "body_sha256": "c3059c1ec212d48fe06849a404ed553b0312d3aa58b0b0aabafae998a3535c04",
+    "body": "In this case, Mr. White never endured restrictive or stringent release conditions. His initial release order in August 2020 only obliged him to: attend court when directed, not possess firearms nor possess or consume illegal drugs. That order was varied in January 2021 to allow him to live in New Brunswick. After his acquittal following his first trial in February of 2021, Mr. White had no release conditions from then until his sentencing following his second trial. In effect, Mr. White was never subject to meaningful inconvenience pending trial or appeal."
+   },
+   {
+    "label": "78",
+    "marker_order": 93,
+    "role": "spine",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 33986,
+     "end": 34245
+    },
+    "body_chars": 253,
+    "body_sha256": "3f8ede13497a140918b0506f3f545c6db1505f7fee7925fed6841f917998ece2",
+    "body": "It was wrong of the judge to assign bail compliance as mitigating in the circumstances of this case. Indeed, Mr. White was not entirely bail compliant or crime-free following his arrest.[62]\nDenunciation / deterrence / Mr. White’s personal circumstances"
+   },
+   {
+    "label": "79",
+    "marker_order": 94,
+    "role": "spine",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 34245,
+     "end": 34700
+    },
+    "body_chars": 449,
+    "body_sha256": "ff6254f89520918b639f5cf24005ff086e7eeda4e6e959239cb0eb0cb626eb0e",
+    "body": "The foregoing discloses that the judge’s imposition of a conditional sentence was inappropriate. It fails to implement the principles of denunciation and deterrence that must be given primacy in very serious offences like these. Moreover, the judge misapprehended Mr. White’s personal circumstances and diminished his moral culpability for reasons unsupported by the record and inconsistent with the cases he cited to support the errors he made.[63]"
+   },
+   {
+    "label": "80",
+    "marker_order": 95,
+    "role": "spine",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 34700,
+     "end": 34853
+    },
+    "body_chars": 147,
+    "body_sha256": "3c2e47e17edbc3d27638063bb096a1bf7328867e63bcfafed7df4c1b4a946334",
+    "body": "Mr. White’s offending mandated a penitentiary sentence greater than 2 years, thus making a conditional sentence unavailable.\nThe sentence was unfit"
+   },
+   {
+    "label": "81",
+    "marker_order": 96,
+    "role": "spine",
+    "marker": "[81]",
+    "raw_span": {
+     "start": 34853,
+     "end": 34942
+    },
+    "body_chars": 83,
+    "body_sha256": "246eb761adc6fa1e172a3a27e05fb923d02db6c0d7f87c5760e7469678dbfef0",
+    "body": "As earlier noted, a sentence that ignores proportionality is an unfit sentence.[64]"
+   },
+   {
+    "label": "82",
+    "marker_order": 97,
+    "role": "spine",
+    "marker": "[82]",
+    "raw_span": {
+     "start": 34942,
+     "end": 35530
+    },
+    "body_chars": 582,
+    "body_sha256": "e927955a7ca258f69c5c58650f899599c911d5e1a3e72682c1e5c9bfa0bdd1ec",
+    "body": "The Federal Crown reviewed sentencing decisions across Atlantic Canada involving a combination of gun possession and drug trafficking offences (for Schedule I[65] substances). These cases reflected a broad spectrum, including African Canadian, Indigenous offenders, first-time offenders and seasoned criminals. Some involved joint recommendations and contested hearings. They pre-date and post-date the decision in Nur. The range of global sentences emerging from this review was between 3.5 and 11 years in a federal penitentiary with the majority falling in the 5 to 6 year range."
+   },
+   {
+    "label": "83",
+    "marker_order": 98,
+    "role": "spine",
+    "marker": "[83]",
+    "raw_span": {
+     "start": 35530,
+     "end": 35707
+    },
+    "body_chars": 171,
+    "body_sha256": "d57057fabe0dfac41a15d4b87e9664463e3c4b8aed798315c005c6e2c13b181b",
+    "body": "For its part, the Provincial Crown identified six relatively recent Canadian cases involving possession of a gun and trafficking. Sentences ranged from 4.2 to 7 years.[66]"
+   },
+   {
+    "label": "84",
+    "marker_order": 99,
+    "role": "spine",
+    "marker": "[84]",
+    "raw_span": {
+     "start": 35707,
+     "end": 35836
+    },
+    "body_chars": 123,
+    "body_sha256": "1557f93402b95afd087ec84b51465d98e53b00048a213bd77b5713c80b45a7c3",
+    "body": "Cases in a lower range of 2 to 3 years, involved simple possession of a gun only[67] or trafficking only, but not both.[68]"
+   },
+   {
+    "label": "85",
+    "marker_order": 100,
+    "role": "spine",
+    "marker": "[85]",
+    "raw_span": {
+     "start": 35836,
+     "end": 36046
+    },
+    "body_chars": 204,
+    "body_sha256": "b05cd61bdd0155cf40135ef7e7890d3bcb4d1d36712f707d34a27983e57cd207",
+    "body": "Mr. White refers to R. v. Mero, [69] an admitted outlier that he says supports a conditional sentence order in his case. Mr. Mero was an Indigenous offender convicted of firearms and trafficking offences."
+   },
+   {
+    "label": "86",
+    "marker_order": 101,
+    "role": "spine",
+    "marker": "[86]",
+    "raw_span": {
+     "start": 36046,
+     "end": 36345
+    },
+    "body_chars": 293,
+    "body_sha256": "e21c8fa1655562d01738ba9d0a7a1faf95eda7efc0546314ff0d3f2482f72992",
+    "body": "But Mero is not this case. There was no finding that Mr. Mero’s gun was a tool of the trade. He had been compliant with severe bail restrictions for five years. He suffered from a serious medical condition. He had lost the majority of his lung function for which he was on various medications."
+   },
+   {
+    "label": "87",
+    "marker_order": 102,
+    "role": "spine",
+    "marker": "[87]",
+    "raw_span": {
+     "start": 36345,
+     "end": 36612
+    },
+    "body_chars": 261,
+    "body_sha256": "854581a8ccd838442dd2e4e1cc97166180371534d9479ea0e628a210e5746bae",
+    "body": "Mr. Mero became addicted to heroin following discontinuation of the opioid prescribed for his lung condition. Since then he had sought out treatment, was on Methadone and had been free of drugs and alcohol for 2 years by the time his Gladue Report was prepared."
+   },
+   {
+    "label": "88",
+    "marker_order": 103,
+    "role": "spine",
+    "marker": "[88]",
+    "raw_span": {
+     "start": 36612,
+     "end": 36982
+    },
+    "body_chars": 364,
+    "body_sha256": "3b47f2af3a8594e2e86a8b3764dc2154315d2d8916439242fb920edc7104fc0f",
+    "body": "Mr. Mero’s condition made him highly susceptible to Covid 19. Had he contracted it, his condition would have deteriorated rapidly and there was a much higher risk of death. The widespread presence of Covid in the penitentiary system was a factor militating against his incarceration. Mr. Mero’s circumstances were unique and bear no relation to those of Mr. White."
+   },
+   {
+    "label": "89",
+    "marker_order": 104,
+    "role": "spine",
+    "marker": "[89]",
+    "raw_span": {
+     "start": 36982,
+     "end": 37550
+    },
+    "body_chars": 562,
+    "body_sha256": "0b12d21dad0bf6eb6fd67bad2b0bd8d936a566f887438f51f64122f0c82f6f67",
+    "body": "The judge’s initial assessment was that a 3.5 to 5 year range of sentence was appropriate. He reduced that to 3 to 4 years for “totality”, including consideration of Mr. White’s personal circumstances as described in his IRCA reports, keeping in mind:\n•\nthe seriousness of both gun possession as a tool of the trade and conducting a hard drug trafficking enterprise;\n•\nMr. White’s history of offending, both pre- and post-arrest;\n•\nthe relative absence of mitigating circumstances;\n•\nMr. White’s culpability viewed through the lens of his personal circumstances."
+   },
+   {
+    "label": "90",
+    "marker_order": 105,
+    "role": "spine",
+    "marker": "[90]",
+    "raw_span": {
+     "start": 37550,
+     "end": 37719
+    },
+    "body_chars": 163,
+    "body_sha256": "520e370874c45e0e34e70d531f3fe4e87818342f4f17be33f8c1bbd3f2cfc41f",
+    "body": "Both the seriousness of the offence and Mr. White’s moral culpability call for a carceral sentence of 4 years.\nShould Charter breaches reduce Mr. White’s sentence?"
+   },
+   {
+    "label": "91",
+    "marker_order": 106,
+    "role": "spine",
+    "marker": "[91]",
+    "raw_span": {
+     "start": 37719,
+     "end": 37863
+    },
+    "body_chars": 138,
+    "body_sha256": "0745b42d205d1d1489d0ab9133509f34526bb616b7ec0f14367ae8e797b81140",
+    "body": "Mr. White argued that any new sentence should take into account Charter breaches when Mr. White was originally arrested in August of 2020."
+   },
+   {
+    "label": "92",
+    "marker_order": 107,
+    "role": "spine",
+    "marker": "[92]",
+    "raw_span": {
+     "start": 37863,
+     "end": 38107
+    },
+    "body_chars": 238,
+    "body_sha256": "b7900184a997ce7265aeb80fc6ea62b02467a4fc28e2163c6687f5661db6f8b3",
+    "body": "There is no requirement that the court reduce a sentence in the face of state misconduct.[70] To entertain any proposed reduction, there must be a connection between the police or state misconduct and the circumstances of the offence.[71]"
+   },
+   {
+    "label": "93",
+    "marker_order": 108,
+    "role": "spine",
+    "marker": "[93]",
+    "raw_span": {
+     "start": 38107,
+     "end": 38857
+    },
+    "body_chars": 744,
+    "body_sha256": "a34306d4bdcfc129f07aaec7c0b805181b872bff4460e6b91a3a92bc175e92d6",
+    "body": "Mr. White did not make this argument before Justice Rosinski when he was sentenced. However, on appeal to this Court following Mr. White’s first trial, the Crown conceded that the officer who arrested Mr. White in August of 2020 did not have reasonable grounds for a warrantless arrest.[72] The original trial judge did not find any wilful, flagrant or reckless disregard of Mr. White’s rights.[73] She recognized that officers’ safety and public safety became a live issue while investigating the vehicle accident that brought the police to the parking lot where they first encountered Mr. White. The trial judge found that the police behaviour did not rise to the level “which requires the Court to disassociate itself from such conduct.”[74]"
+   },
+   {
+    "label": "94",
+    "marker_order": 109,
+    "role": "spine",
+    "marker": "[94]",
+    "raw_span": {
+     "start": 38857,
+     "end": 39093
+    },
+    "body_chars": 230,
+    "body_sha256": "727f4504838f2853cf60c07efb0e6c6424e716d95a2affdbbccd22686f3dcfa8",
+    "body": "On appeal, this Court concluded that the impact on Mr. White’s Charter-protected interests was modest.[75] Nevertheless, there is a causal connection between finding the guns and drugs and the breach of Mr. White’s Charter rights."
+   },
+   {
+    "label": "95",
+    "marker_order": 110,
+    "role": "spine",
+    "marker": "[95]",
+    "raw_span": {
+     "start": 39093,
+     "end": 39319
+    },
+    "body_chars": 220,
+    "body_sha256": "0efad43ffd69550baa31aacf2fc50f5bca258004c33f4d5ec9deea8b79f3edab",
+    "body": "In the end, the most important consideration is proportionality. Courts are required to craft just and fit sentences for all offenders.[76] Charter breaches or state misconduct do not require reduction of a sentence.[77]"
+   },
+   {
+    "label": "96",
+    "marker_order": 111,
+    "role": "spine",
+    "marker": "[96]",
+    "raw_span": {
+     "start": 39319,
+     "end": 39645
+    },
+    "body_chars": 320,
+    "body_sha256": "b551bfdd8f2a30d72edc036572609fd7ce247ab118f986d6cb99041831354ce7",
+    "body": "Keeping in mind the need for a proportional sentence that takes into account the seriousness of the offence and the culpability of the offender, together with the impact on Mr. White of breach of his Charter rights, no adjustment should be made in Mr. White’s sentence in this case.\nShould Mr. White now be incarcerated?"
+   },
+   {
+    "label": "97",
+    "marker_order": 112,
+    "role": "spine",
+    "marker": "[97]",
+    "raw_span": {
+     "start": 39645,
+     "end": 39766
+    },
+    "body_chars": 115,
+    "body_sha256": "3ec320ea51c040c06401def2cd7c8207d7b815405a9f559a8a9a7b2ed3d6c485",
+    "body": "Mr. White has not been incarcerated. But a conditional sentence order is considered a sentence of imprisonment.[78]"
+   },
+   {
+    "label": "98",
+    "marker_order": 113,
+    "role": "spine",
+    "marker": "[98]",
+    "raw_span": {
+     "start": 39766,
+     "end": 40014
+    },
+    "body_chars": 242,
+    "body_sha256": "95fe394e1bda14756a09b9f3e36893fb800df53c26e446e744434fbd48ba56f9",
+    "body": "Mr. White submits that even if his sentence is increased, he should not be incarcerated now. He asks that any new sentence be stayed. He has remained crime-free since December of 2020. He now has two children with his partner. He is employed."
+   },
+   {
+    "label": "99",
+    "marker_order": 114,
+    "role": "spine",
+    "marker": "[99]",
+    "raw_span": {
+     "start": 40014,
+     "end": 40154
+    },
+    "body_chars": 134,
+    "body_sha256": "a8e05c274b37fc1cba1a4f9fa5bd654eb744ed6353fb82a8229f21b789b2fdff",
+    "body": "Whether to reincarcerate after imposing a fit sentence on appeal is a question of whether it is in the interests of justice do so.[79]"
+   },
+   {
+    "label": "100",
+    "marker_order": 115,
+    "role": "spine",
+    "marker": "[100]",
+    "raw_span": {
+     "start": 40154,
+     "end": 40927
+    },
+    "body_chars": 766,
+    "body_sha256": "a413749dc6711611a52b1111d06a4b9b9debf06c2c2c329decb74f908db0a038",
+    "body": "It is Mr. White’s burden to show why a fit sentence should not be enforced.[80] In Kleykens,[81] this Court listed non-exhaustive criteria that should inform the court’s deliberations on reincarceration:\n•\nthe passage of time since the arrest,\n•\nwhether the offender has served the original sentence, either entirely or in part,\n•\nthe extent to which incarceration will adversely affect the stability of the offender’s current circumstances and ultimate rehabilitation,\n•\nwhether the offender has been compliant with the conditions of their release;\n•\nthe extent to which the offender has lived a law-abiding lifestyle since their conviction, and\n•\nwhether the principles of denunciation and deterrence can be adequately served without re-incarcerating the offender."
+   },
+   {
+    "label": "101",
+    "marker_order": 116,
+    "role": "spine",
+    "marker": "[101]",
+    "raw_span": {
+     "start": 40927,
+     "end": 41138
+    },
+    "body_chars": 204,
+    "body_sha256": "73360293241d8898f12381bcf0eb191cdd42618b19be0dda2c666f60334cb3e8",
+    "body": "Substantial time has passed since Mr. White’s first arrest. But he has suffered very little limitation on his liberty interests, even after having been convicted following his second trial in May of 2024."
+   },
+   {
+    "label": "102",
+    "marker_order": 117,
+    "role": "spine",
+    "marker": "[102]",
+    "raw_span": {
+     "start": 41138,
+     "end": 41218
+    },
+    "body_chars": 73,
+    "body_sha256": "5460cda699ee4222e15d9cc35daaf5952d760541106c771707bb9d07bae31ce9",
+    "body": "Mr. White has served approximately 14 months of his conditional sentence."
+   },
+   {
+    "label": "103",
+    "marker_order": 118,
+    "role": "spine",
+    "marker": "[103]",
+    "raw_span": {
+     "start": 41218,
+     "end": 41504
+    },
+    "body_chars": 279,
+    "body_sha256": "731268fcd5b81145044de3f08d316a5f4140277e25996b9d8e29446341bfdd24",
+    "body": "Incarceration will adversely affect the stability of Mr. White’s circumstances. It does that for virtually every incarcerated offender. There is no clear indication of what impact incarceration may have on his rehabilitation. We have very little information about rehabilitation."
+   },
+   {
+    "label": "104",
+    "marker_order": 119,
+    "role": "spine",
+    "marker": "[104]",
+    "raw_span": {
+     "start": 41504,
+     "end": 41700
+    },
+    "body_chars": 189,
+    "body_sha256": "1a35e8fd08bc44b1353f608c4cd198293c953bc8289c27a8a8eb91bf48fb961c",
+    "body": "Mr. White has not been entirely compliant with his conditional sentence order. He breached that order by being intoxicated. We do not know how this came to the attention of the authorities."
+   },
+   {
+    "label": "105",
+    "marker_order": 120,
+    "role": "spine",
+    "marker": "[105]",
+    "raw_span": {
+     "start": 41700,
+     "end": 41868
+    },
+    "body_chars": 161,
+    "body_sha256": "e3ae8f2b77ff9533f94269699d32e64889277e39172a62e7ad470cfa0ac6ecdf",
+    "body": "Save for the foregoing instance of intoxication, there is no evidence that Mr. White has not been law-abiding since imposition of the conditional sentence order."
+   },
+   {
+    "label": "106",
+    "marker_order": 121,
+    "role": "spine",
+    "marker": "[106]",
+    "raw_span": {
+     "start": 41868,
+     "end": 42396
+    },
+    "body_chars": 521,
+    "body_sha256": "ae72e4cb5ce97ceacd7b6a39716fb48d36994d417b52c0f0b657e5774c089faa",
+    "body": "The most significant factors that militate against a stay are denunciation and deterrence. Particularly important in this case are general deterrence and denunciation. Mr. White committed very serious crimes, whose interruption was fortuitous. The judge was satisfied he would otherwise have carried on with his illegal activities. He was not crime-free post-arrest. He has a lengthy criminal record with numerous breaches of court orders. Mr. White’s behaviour warrants further resort to Chief Judge Borden’s lament:[82]"
+   },
+   {
+    "label": "51",
+    "marker_order": 122,
+    "role": "quoted_or_foreign",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 42396,
+     "end": 42823
+    },
+    "body_chars": 421,
+    "body_sha256": "54833b7f2160fcdfe5cdb9d554ede2e3c9ddc6381c36023be91ab04746bf2405",
+    "body": "Furthermore, conditional sentence orders, while potentially addressing some aspects of the over-incarceration crisis of African Nova Scotian offenders, also provide cold comfort to the Court with respect to efforts to change the mindset of some offenders with respect to deterrence. There is a misinformed ideology among some young African Nova Scotia offenders that gun offence convictions equate to a slap on the wrist."
+   },
+   {
+    "label": "52",
+    "marker_order": 123,
+    "role": "quoted_or_foreign",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 42823,
+     "end": 43168
+    },
+    "body_chars": 339,
+    "body_sha256": "6540bcc27f371dc22b299a50f5e1e06eb568830f2938637af4002837de712766",
+    "body": "That ideology is entirely inaccurate. Conditional sentence orders may be a viable option for some offenders in appropriate cases. However, Anderson does not stand for the proposition that a conditional sentence order is guaranteed - or automatic - for all African Nova Scotian offenders convicted of s. 95(1) offences.[83]\n[Emphasis added]"
+   },
+   {
+    "label": "107",
+    "marker_order": 124,
+    "role": "spine",
+    "marker": "[107]",
+    "raw_span": {
+     "start": 43168,
+     "end": 43525
+    },
+    "body_chars": 350,
+    "body_sha256": "4436968d98e8e9baa1a70c586911e93d224c10bab2f93e260549f4d0d0179865",
+    "body": "The Supreme Court of Canada recently ordered re-incarceration in a case involving serious historical sexual assaults on children.[84] The Court emphasized that the gravity of the offences gave prominence to denunciation and deterrence. The Court noted the legislative direction regarding the primacy of denunciation and deterrence in these cases.[85]"
+   },
+   {
+    "label": "108",
+    "marker_order": 125,
+    "role": "spine",
+    "marker": "[108]",
+    "raw_span": {
+     "start": 43525,
+     "end": 43880
+    },
+    "body_chars": 348,
+    "body_sha256": "c9dcb9008b47e38c0cae5ff71a2ed5ac141173039476776847c663ab2b49bab1",
+    "body": "Despite relatively positive parole reports, and his release on parole, the Supreme Court re-incarcerated Mr. Sheppard. A “clean record” since the historical offences in Sheppard was of no avail in resisting reincarceration. Mr. Sheppard’s criminal behaviour was not isolated. Likewise here, Mr. White’s arrest interrupted an ongoing enterprise.[86]"
+   },
+   {
+    "label": "109",
+    "marker_order": 126,
+    "role": "spine",
+    "marker": "[109]",
+    "raw_span": {
+     "start": 43880,
+     "end": 44351
+    },
+    "body_chars": 464,
+    "body_sha256": "0a88d1fbbee078a8e88fcf3f5b7df88d23a2a93af023afc020ac5c61f36ff7c7",
+    "body": "Ordering a stay now – effectively endorsing the unfit sentence granted by the judge – would send the wrong message to potential offenders, their victims, to Mr. White’s particular community, and the public at large. It would undermine public confidence in the judicial system’s treatment of the combination of very serious offences committed here and the offenders who commit them. It would not be in the interests of justice to grant a stay.\nIntervenor’s Concerns"
+   },
+   {
+    "label": "110",
+    "marker_order": 127,
+    "role": "spine",
+    "marker": "[110]",
+    "raw_span": {
+     "start": 44351,
+     "end": 44621
+    },
+    "body_chars": 263,
+    "body_sha256": "e7864a249af468522ff23030f905263e2363bf89e344117f44ada2c1f880294f",
+    "body": "The intervenor raises three fundamental concerns about the judge’s obiter comments, suggesting he:\n1. Created a “Marginalized African Nova Scotia” test;\n2. Narrowed the scope and availability of IRCAs;\n3. Misapplied Anderson.\nMarginalized African Nova Scotia test"
+   },
+   {
+    "label": "111",
+    "marker_order": 128,
+    "role": "spine",
+    "marker": "[111]",
+    "raw_span": {
+     "start": 44621,
+     "end": 44773
+    },
+    "body_chars": 145,
+    "body_sha256": "8893c7fc2a7a3d72947d6a8924b6d093443e386982a5462deabff837fcad7019",
+    "body": "The intervenor notes the judge opined that not all African Nova Scotians were “marginalized” such that Anderson may not apply in those cases.[87]"
+   },
+   {
+    "label": "112",
+    "marker_order": 129,
+    "role": "spine",
+    "marker": "[112]",
+    "raw_span": {
+     "start": 44773,
+     "end": 45280
+    },
+    "body_chars": 500,
+    "body_sha256": "b0d03c50e6628354c2cc1c11d9a9a1ebe89738256137e381d973f7e9de3551f0",
+    "body": "Sentencing is a highly individualized process that requires full contextual knowledge of the offender’s background and circumstances. IRCAs assist in that analysis for some racialized accused. The nature and extent of marginalization would be informed by this analysis and there is no need to invent a “marginalization test” before Anderson would apply. To the extent that the judge may have done so, it is not supported by Anderson and other authorities from this Court.\nNarrowing the scope of IRCAs"
+   },
+   {
+    "label": "113",
+    "marker_order": 130,
+    "role": "spine",
+    "marker": "[113]",
+    "raw_span": {
+     "start": 45280,
+     "end": 45410
+    },
+    "body_chars": 123,
+    "body_sha256": "c328f144f804401a6d492ae9138bd0186f72c46495827f6d2e210bc550fd42ed",
+    "body": "The intervenor refers us to the judge’s obiter comments that IRCAs may be confined to adult offenders in serious cases.[88]"
+   },
+   {
+    "label": "114",
+    "marker_order": 131,
+    "role": "spine",
+    "marker": "[114]",
+    "raw_span": {
+     "start": 45410,
+     "end": 45565
+    },
+    "body_chars": 148,
+    "body_sha256": "d406698658e21e17bf8619715a5ca14189e769d5b2f8b6ac2f8db4b35afe8476",
+    "body": "This narrowing of the use of IRCAs is not endorsed by Anderson or other jurisprudence from this Court and is not the law.\nMisapplication of Anderson"
+   },
+   {
+    "label": "115",
+    "marker_order": 132,
+    "role": "spine",
+    "marker": "[115]",
+    "raw_span": {
+     "start": 45565,
+     "end": 45890
+    },
+    "body_chars": 318,
+    "body_sha256": "d9507009c4b46028949f4ed0caeef11c6b978d32ea56de51f5de59a73e97ae9a",
+    "body": "The intervenor raises three sub-issues. Only the third sub-issue will be addressed. The intervenor complains that the judge interprets Anderson as giving the appearance of a “race-based discount”[89] in sentencing ranges for African Nova Scotians. Anderson does not so direct. Nor did the Supreme Court in Ipeelee.[90]"
+   },
+   {
+    "label": "116",
+    "marker_order": 133,
+    "role": "spine",
+    "marker": "[116]",
+    "raw_span": {
+     "start": 45890,
+     "end": 46022
+    },
+    "body_chars": 125,
+    "body_sha256": "b7924a15bb5f5a86fcabbebe9abf96733b17d94629b1c385c4d32e0b02c2fec9",
+    "body": "There is no need to establish a causal connection between “background factors and the commission of the current offence”.[91]"
+   },
+   {
+    "label": "117",
+    "marker_order": 134,
+    "role": "spine",
+    "marker": "[117]",
+    "raw_span": {
+     "start": 46022,
+     "end": 46778
+    },
+    "body_chars": 749,
+    "body_sha256": "157e95669456af546e804f4ec5d71a762e8ba2cebb91c79853c5ad8d22fd3c7a",
+    "body": "Nevertheless, there should be some connection between the circumstances of the offender and culpability:[92]\n[…] Furthermore, the operation of s. 718.2(e) does not logically require such a connection. Systemic and background factors do not operate as an excuse or justification for the criminal conduct. Rather, they provide the necessary context to enable a judge to determine an appropriate sentence. This is not to say that those factors need not be tied in some way to the particular offender and offence. Unless the unique circumstances of the particular offender bear on his or her culpability for the offence or indicate which sentencing objectives can and should be actualized, they will not influence the ultimate sentence.\n[Emphasis added]"
+   },
+   {
+    "label": "118",
+    "marker_order": 135,
+    "role": "spine",
+    "marker": "[118]",
+    "raw_span": {
+     "start": 46778,
+     "end": 47249
+    },
+    "body_chars": 464,
+    "body_sha256": "b655c44fecc9f7c64d5927441ae92f941c3ce87fc07da43b37f427b3010086e9",
+    "body": "An appropriate sentence is an individualized process. IRCAs assist by retailing the circumstances of a particular offender. To the extent that IRCAs may have an impact on individual sentences, they may ultimately affect the range of sentences over time. This would be a natural evolution of sentencing individual offenders in individual cases. Anderson does not suggest there should be a generic “discount” in sentencing ranges for racialized offenders.\nConclusion"
+   },
+   {
+    "label": "119",
+    "marker_order": 136,
+    "role": "spine",
+    "marker": "[119]",
+    "raw_span": {
+     "start": 47249,
+     "end": 47729
+    },
+    "body_chars": 473,
+    "body_sha256": "174489c4993bd82c4e60f333a7934bc616d374ff1a3e0ae9f3ebb52be5aefa2b",
+    "body": "The conditional sentence order should be set aside. A sentence of 4 years should be substituted. Mr. White shall surrender himself to the authorities within 48 hours of 4:00 p.m., May 5, 2026 to serve the remainder of his sentence. Mr. White should receive 1:1 credit for time served on his conditional sentence.[93] The ancillary orders originally sought by the Crown and ordered by the judge shall remain in effect.[94]\nBryson, J.A.\nConcurred in:\nBeaton, J.A.\nGogan, J.A."
+   },
+   {
+    "label": "1",
+    "marker_order": 137,
+    "role": "quoted_or_foreign",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 47729,
+     "end": 47748
+    },
+    "body_chars": 14,
+    "body_sha256": "bbd52063a262f6bea18113f195fc6088c0f5d56f81ad6324288ceb3e613bbf8e",
+    "body": "2024 NSSC 136."
+   },
+   {
+    "label": "2",
+    "marker_order": 138,
+    "role": "quoted_or_foreign",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 47748,
+     "end": 47766
+    },
+    "body_chars": 13,
+    "body_sha256": "ecf7a19cec5c30b175a0a388f3008df60eb6bcffaf3c3e5a33b770a6393f1e86",
+    "body": "2022 NSCA 61."
+   },
+   {
+    "label": "3",
+    "marker_order": 139,
+    "role": "quoted_or_foreign",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 47766,
+     "end": 47778
+    },
+    "body_chars": 7,
+    "body_sha256": "c35f808bb240859072affa3c58bcc776ee73c15e3f8cf5af76ef2b8d615165e7",
+    "body": "“IRCA”."
+   },
+   {
+    "label": "4",
+    "marker_order": 140,
+    "role": "quoted_or_foreign",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 47778,
+     "end": 47987
+    },
+    "body_chars": 204,
+    "body_sha256": "3c6e94873a495ea9268b5a4a23217d94cb7283c4b128329159716c9390f6a713",
+    "body": "The totality principle ensures that consecutive sentences should not ae unduly harsh by exceeding the overall culpability of the offender. Criminal Code, s. 718.2(c); R. v. M. (C.A.), [1996] 1 S.C.R. 500."
+   },
+   {
+    "label": "5",
+    "marker_order": 141,
+    "role": "quoted_or_foreign",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 47987,
+     "end": 48031
+    },
+    "body_chars": 39,
+    "body_sha256": "516d16c7f089d82e6e92bee2bb4e3651bf39d5125291078a4d4e0df15dfb9c6a",
+    "body": "R. v. Bratzer, 2001 NSCA 165 [Bratzer]."
+   },
+   {
+    "label": "6",
+    "marker_order": 142,
+    "role": "quoted_or_foreign",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 48031,
+     "end": 48244
+    },
+    "body_chars": 208,
+    "body_sha256": "3b0287af330b90492a7ac154a904e6c442a055655568898455021b1d4637b0e5",
+    "body": "Generally, conditional sentence orders allow a sentence to be served in the community under conditions if any potential incarceration would be less than 2 years and neither prison nor probation are necessary."
+   },
+   {
+    "label": "7",
+    "marker_order": 143,
+    "role": "quoted_or_foreign",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 48244,
+     "end": 48284
+    },
+    "body_chars": 35,
+    "body_sha256": "fccafa7d04756820ddeb6336683605dd482263d64db05c2ba127feeb99f987b2",
+    "body": "2025 NSSC 54 [Sentencing Decision]."
+   },
+   {
+    "label": "8",
+    "marker_order": 144,
+    "role": "quoted_or_foreign",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 48284,
+     "end": 48428
+    },
+    "body_chars": 139,
+    "body_sha256": "c46963fbbcd00239f281f5e319dffaba2a0e1b2a56e6461f8e3854c4f4c55819",
+    "body": "Short for obiter dictum – literally meaning “a remark by the way”. Legally it means a comment not essential to the reasoning of a decision."
+   },
+   {
+    "label": "9",
+    "marker_order": 145,
+    "role": "quoted_or_foreign",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 48428,
+     "end": 48530
+    },
+    "body_chars": 97,
+    "body_sha256": "53f9a327400c2a43c02978b5658c4daf5df64e2fd409f15383595c23beee3fea",
+    "body": "R. v. Suter, 2018 SCC 34 at para. 115; see also R. v. Lacasse, 2015 SCC 64 at para. 11 [Lacasse]."
+   },
+   {
+    "label": "10",
+    "marker_order": 146,
+    "role": "quoted_or_foreign",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 48530,
+     "end": 48584
+    },
+    "body_chars": 48,
+    "body_sha256": "79f9db51a7749791a61d7bf1d6f76486155db4a62db92ec67fb09a506da04b8d",
+    "body": "R. v. Friesen, 2020 SCC 9 at para. 26 [Friesen]."
+   },
+   {
+    "label": "11",
+    "marker_order": 147,
+    "role": "quoted_or_foreign",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 48584,
+     "end": 48667
+    },
+    "body_chars": 77,
+    "body_sha256": "f2e03ee2bf4225b60f97cf5887e6fe18ad66480171b40d4598dee48e96b1a9da",
+    "body": "Criminal Code, s. 718.1, R. v. Wournell, 2023 NSCA 53 at para. 52 [Wournell]."
+   },
+   {
+    "label": "12",
+    "marker_order": 148,
+    "role": "quoted_or_foreign",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 48667,
+     "end": 48701
+    },
+    "body_chars": 28,
+    "body_sha256": "9d20eed605f8774f6a95db559ca334a56e971e4340a3d0ae535fd0e03e2551e8",
+    "body": "Lacasse at paras. 52 and 53."
+   },
+   {
+    "label": "13",
+    "marker_order": 149,
+    "role": "quoted_or_foreign",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 48701,
+     "end": 48805
+    },
+    "body_chars": 98,
+    "body_sha256": "cc4166937d0a5467462ee77e20902b8be19269cff631fcb6ab0871314d91f0bf",
+    "body": "Broadly stated, this means the sentence is less than 2 years and could be served in the community."
+   },
+   {
+    "label": "14",
+    "marker_order": 150,
+    "role": "quoted_or_foreign",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 48805,
+     "end": 48851
+    },
+    "body_chars": 40,
+    "body_sha256": "fce0740c05cfe47e114a7582e86e95e8ef0e671bac8bee75c55938f9849e9c5a",
+    "body": "R. v. Anderson, 2021 NSCA 62 [Anderson]."
+   },
+   {
+    "label": "15",
+    "marker_order": 151,
+    "role": "quoted_or_foreign",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 48851,
+     "end": 48883
+    },
+    "body_chars": 26,
+    "body_sha256": "69308171eef4c6083a95968d93bd49a4997edf4f351a1e01b6a5e6e6c269197f",
+    "body": "2024 NSSC 136 at para. 39."
+   },
+   {
+    "label": "16",
+    "marker_order": 152,
+    "role": "quoted_or_foreign",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 48883,
+     "end": 48894
+    },
+    "body_chars": 5,
+    "body_sha256": "47e7af32e1329354359d8115b4e07b22fda7488aedd40d686c2c3e3999641179",
+    "body": "Ibid."
+   },
+   {
+    "label": "17",
+    "marker_order": 153,
+    "role": "quoted_or_foreign",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 48894,
+     "end": 48932
+    },
+    "body_chars": 32,
+    "body_sha256": "39f725cf72136fe720ab726686582582ed4200fdcb18ff52d411c5a04af50872",
+    "body": "Sentencing Decision at para. 29."
+   },
+   {
+    "label": "18",
+    "marker_order": 154,
+    "role": "quoted_or_foreign",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 48932,
+     "end": 48980
+    },
+    "body_chars": 42,
+    "body_sha256": "c3de822babb8967d1b1c580a8f06f17144e5018877313f683035336a5cfbffa5",
+    "body": "R. v. Proulx, [2000] 1 S.C.R. 61 [Proulx]."
+   },
+   {
+    "label": "19",
+    "marker_order": 155,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 48980,
+     "end": 49096
+    },
+    "body_chars": 110,
+    "body_sha256": "6e8c84f3f46626b5d154d1d591c4a328670be52e431a9f4f277eea744ac5edd7",
+    "body": "Mr. White’s second IRCA report refers to the need for counselling and his openness to “mental health support”."
+   },
+   {
+    "label": "20",
+    "marker_order": 156,
+    "role": "quoted_or_foreign",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 49096,
+     "end": 49122
+    },
+    "body_chars": 20,
+    "body_sha256": "cdb771a2a98b51fc2c8ea593769e1d12b749c64546d960a98dd29ca5a446a371",
+    "body": "Appeal Book, p. 397."
+   },
+   {
+    "label": "21",
+    "marker_order": 157,
+    "role": "quoted_or_foreign",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 49122,
+     "end": 49169
+    },
+    "body_chars": 41,
+    "body_sha256": "da3ace8b8e22f0b3deb3a85082bfa3a5b63760ae86957ebbefafd87418653932",
+    "body": "Lacasse at para. 43; Friesen at para. 27."
+   },
+   {
+    "label": "22",
+    "marker_order": 158,
+    "role": "quoted_or_foreign",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 49169,
+     "end": 49195
+    },
+    "body_chars": 20,
+    "body_sha256": "a41b5eda7f4fabbb7ae43cd8a5156ffc519e2ab0403d3a649bad056829606146",
+    "body": "Friesen at para. 28."
+   },
+   {
+    "label": "23",
+    "marker_order": 159,
+    "role": "quoted_or_foreign",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 49195,
+     "end": 49227
+    },
+    "body_chars": 26,
+    "body_sha256": "cfa263e2359a09711d7efb1b15832f27031d488cfdc7ed142a826305aa8bab92",
+    "body": "Lacasse at para. 16 above."
+   },
+   {
+    "label": "24",
+    "marker_order": 160,
+    "role": "quoted_or_foreign",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 49227,
+     "end": 49253
+    },
+    "body_chars": 20,
+    "body_sha256": "c49c034554ec66c53ff7dcad66e9915e2e8023e16ddde3fc77c071184ac887da",
+    "body": "Lacasse at para. 53."
+   },
+   {
+    "label": "25",
+    "marker_order": 161,
+    "role": "quoted_or_foreign",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 49253,
+     "end": 49562
+    },
+    "body_chars": 303,
+    "body_sha256": "004d9921b25b966fdad315f2f992857150d270a5d311f847d71276d4e7797e7b",
+    "body": "R. v. Hills, 2023 SCC 2 at para. 56 citing R. v. Ipeelee, 2012 SCC 13 at para. 36, citing R. v. Wilmot (1996), 58 D.L.R. (2d) 33 (Ont. C.A.) [Ipeelee]; R. v. Solowan, 2008 SCC 62 at para. 12; R. v. Nasogaluak, 2010 SCC 6 at paras. 40-42 [Nasogaluak]; R. v. M (C.A.), [1996] 1 S.C.R. 500 at paras. 40-42."
+   },
+   {
+    "label": "26",
+    "marker_order": 162,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 49562,
+     "end": 49606
+    },
+    "body_chars": 38,
+    "body_sha256": "406f9969864414e3809e80bbc7eea67aedd97fdee50c4b46506df129167ddd93",
+    "body": "Hills at para. 57 (citations omitted)."
+   },
+   {
+    "label": "27",
+    "marker_order": 163,
+    "role": "quoted_or_foreign",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 49606,
+     "end": 49630
+    },
+    "body_chars": 18,
+    "body_sha256": "efe82f63ff9a7b5c7bcf92fb43044e26604e81b4939dfbd926c547a1a6411313",
+    "body": "Hills at para. 58."
+   },
+   {
+    "label": "28",
+    "marker_order": 164,
+    "role": "quoted_or_foreign",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 49630,
+     "end": 49654
+    },
+    "body_chars": 18,
+    "body_sha256": "efe82f63ff9a7b5c7bcf92fb43044e26604e81b4939dfbd926c547a1a6411313",
+    "body": "Hills at para. 58."
+   },
+   {
+    "label": "29",
+    "marker_order": 165,
+    "role": "quoted_or_foreign",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 49654,
+     "end": 49678
+    },
+    "body_chars": 18,
+    "body_sha256": "efe82f63ff9a7b5c7bcf92fb43044e26604e81b4939dfbd926c547a1a6411313",
+    "body": "Hills at para. 58."
+   },
+   {
+    "label": "30",
+    "marker_order": 166,
+    "role": "quoted_or_foreign",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 49678,
+     "end": 49722
+    },
+    "body_chars": 38,
+    "body_sha256": "6e866891a3db3db49cd89e343ebcf8b092932901b66cb4d46efe6e89cc4a5ab4",
+    "body": "R. v. Ipeele, 2012 SCC 13 at para. 37."
+   },
+   {
+    "label": "31",
+    "marker_order": 167,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 49722,
+     "end": 49771
+    },
+    "body_chars": 43,
+    "body_sha256": "4fb132509333cf21da933cb3ccb00365e20b3eba74c910c3ae7bba2f6fe3feaa",
+    "body": "Sentencing Decision at paras. 101, 152-157."
+   },
+   {
+    "label": "32",
+    "marker_order": 168,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 49771,
+     "end": 49809
+    },
+    "body_chars": 32,
+    "body_sha256": "02ce71609b45185398b489018cd194f0085e55187a36f1ee0e65dc47a9b0a988",
+    "body": "Sentencing Decision at para. 98."
+   },
+   {
+    "label": "33",
+    "marker_order": 169,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 49809,
+     "end": 49960
+    },
+    "body_chars": 145,
+    "body_sha256": "652ebc66cbc9960c5bb766a585b1123cdc046cb225808874d8af4c2f47eb6934",
+    "body": "R. v. Butt, 2010 NSCA 56 at para. 13.; R. v. Scott, 2013 NSCA 28 at para. 94.; R. v. Robbins, 1993 NSCA 108 at p. 2; R. v. Stokes, 1993 NSCA 195."
+   },
+   {
+    "label": "34",
+    "marker_order": 170,
+    "role": "quoted_or_foreign",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 49960,
+     "end": 50017
+    },
+    "body_chars": 51,
+    "body_sha256": "24f83131e7d3ea46c748092458ec9c18b813f8b98612f483cef9709ed5f3cdb2",
+    "body": "R. v. Parranto, 2021 SCC 46 at para. 87 [Parranto]."
+   },
+   {
+    "label": "35",
+    "marker_order": 171,
+    "role": "quoted_or_foreign",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 50017,
+     "end": 50048
+    },
+    "body_chars": 25,
+    "body_sha256": "0bc77d9b9868079466641d0502ac5869a7f3a2ecdaa96a936b51803ea7561298",
+    "body": "Parranto at paras. 88-92."
+   },
+   {
+    "label": "36",
+    "marker_order": 172,
+    "role": "quoted_or_foreign",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 50048,
+     "end": 50135
+    },
+    "body_chars": 81,
+    "body_sha256": "2c1931b11c08497f057535e97051bc75f949733e9072eb191df1060c9c8ee746",
+    "body": "Dissenting Decision of Moldaver, J. in R. v. Nur, 2015 SCC 15 at para. 131 [Nur]."
+   },
+   {
+    "label": "37",
+    "marker_order": 173,
+    "role": "quoted_or_foreign",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 50135,
+     "end": 50329
+    },
+    "body_chars": 188,
+    "body_sha256": "20f577fe9925d0a366686ccbd1eb003c9d9ff2419d3b0d480d789a10cf62d577",
+    "body": "Mr. Nur was a first-time offender who pleaded guilty. He was Somalian. Substantial social context evidence was tendered at his sentencing hearing. The Court upheld a sentence of 40 months."
+   },
+   {
+    "label": "38",
+    "marker_order": 174,
+    "role": "quoted_or_foreign",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 50329,
+     "end": 50383
+    },
+    "body_chars": 48,
+    "body_sha256": "a25e37f07121af263c477b4b33ab5ebf1994074044172518113b7a41f427c9ce",
+    "body": "R. v. Sharma, 2022 SCC 39 at para. 106 [Sharma]."
+   },
+   {
+    "label": "39",
+    "marker_order": 175,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 50383,
+     "end": 50410
+    },
+    "body_chars": 21,
+    "body_sha256": "9acab73e54c75367efd7ab90b24c0cc2f8bf718d455638e978bf953576eec7f6",
+    "body": "Parranto at para. 60."
+   },
+   {
+    "label": "40",
+    "marker_order": 176,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 50410,
+     "end": 50436
+    },
+    "body_chars": 20,
+    "body_sha256": "85427af0860b71c1886b30c153bde427c2445cf5b9b86c7d08d18722098d439a",
+    "body": "Section 117.01(3)(a)"
+   },
+   {
+    "label": "41",
+    "marker_order": 177,
+    "role": "quoted_or_foreign",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 50436,
+     "end": 50508
+    },
+    "body_chars": 66,
+    "body_sha256": "da6c326691b3bdfe5824654fae1c51aa7dae40bec1f4c5543a169ce32dd9815f",
+    "body": "Controlled Drugs and Substances Act, S.C. 1996, c. 19, s. 5(3)(a)."
+   },
+   {
+    "label": "42",
+    "marker_order": 178,
+    "role": "quoted_or_foreign",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 50508,
+     "end": 50604
+    },
+    "body_chars": 90,
+    "body_sha256": "019f25f33426f1e05b8f9e77ca2b1a1710851e6ee6845ba3fd1ebf81671b83fc",
+    "body": "R. v. Phinn, 2015 NSCA 27 at paras. 64-68; R. v. MacDonald, 2014 NSCA 102 at paras. 15-16."
+   },
+   {
+    "label": "43",
+    "marker_order": 179,
+    "role": "quoted_or_foreign",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 50604,
+     "end": 50652
+    },
+    "body_chars": 42,
+    "body_sha256": "38b0e7b9e82c441447e53012ed9463f9f56f249f7f9d4222a22591327dec10c2",
+    "body": "R. v. Stephens, 2024 ONCA 793 at para. 19."
+   },
+   {
+    "label": "44",
+    "marker_order": 180,
+    "role": "quoted_or_foreign",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 50652,
+     "end": 50683
+    },
+    "body_chars": 25,
+    "body_sha256": "fb1fd48f2069d37c79efec1c89db1d492746800765afc0a834c8339d3b516f47",
+    "body": "R. v. C.B., 2023 NSPC 68."
+   },
+   {
+    "label": "45",
+    "marker_order": 181,
+    "role": "quoted_or_foreign",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 50683,
+     "end": 50721
+    },
+    "body_chars": 32,
+    "body_sha256": "667ca303fce065b31d65d8094bca60cdfac4b08e18522b554c3f6a908ca3e936",
+    "body": "Anderson at paras. 121-122, 142."
+   },
+   {
+    "label": "46",
+    "marker_order": 182,
+    "role": "quoted_or_foreign",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 50721,
+     "end": 50764
+    },
+    "body_chars": 37,
+    "body_sha256": "acf17398949b40f77e91eb6887d6037a8c5c79f81fb146088a81e4470cf15fde",
+    "body": "R. v. Morris, 2021 ONCA 680 [Morris]."
+   },
+   {
+    "label": "47",
+    "marker_order": 183,
+    "role": "quoted_or_foreign",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 50764,
+     "end": 50789
+    },
+    "body_chars": 19,
+    "body_sha256": "97a375e084594b776f3177ca414ab1be6c86001dd5965082b91b31fad42e3732",
+    "body": "Morris at para. 13."
+   },
+   {
+    "label": "48",
+    "marker_order": 184,
+    "role": "quoted_or_foreign",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 50789,
+     "end": 50828
+    },
+    "body_chars": 33,
+    "body_sha256": "8d08f0d1e0ddb7c98e25181b2af6eeae48c3bf8e262148f77f7c566322004b1c",
+    "body": "Sharma, 2022 SCC 39 at para. 108."
+   },
+   {
+    "label": "49",
+    "marker_order": 185,
+    "role": "quoted_or_foreign",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 50828,
+     "end": 50853
+    },
+    "body_chars": 19,
+    "body_sha256": "c74bec00cb00a8446b444f8ceddacf79a7214805e1cfca6143a73269429403f0",
+    "body": "Sharma at para 108."
+   },
+   {
+    "label": "50",
+    "marker_order": 186,
+    "role": "quoted_or_foreign",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 50853,
+     "end": 50895
+    },
+    "body_chars": 36,
+    "body_sha256": "60dbb9240ab39780072c3df2b5a69eb3f8da81a7d044a3afc60d40eb0ceb2649",
+    "body": "R. v. S.B., 2025 SCC 24 at para. 64."
+   },
+   {
+    "label": "51",
+    "marker_order": 187,
+    "role": "quoted_or_foreign",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 50895,
+     "end": 50922
+    },
+    "body_chars": 21,
+    "body_sha256": "14c97b19d95e0b279cb56a8cfeacf12c80f63d1b54513108bcf0ed4e59964197",
+    "body": "Anderson at para. 58."
+   },
+   {
+    "label": "52",
+    "marker_order": 188,
+    "role": "quoted_or_foreign",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 50922,
+     "end": 50950
+    },
+    "body_chars": 22,
+    "body_sha256": "1128e4a061883793f0508fbdbde3eef5efb2ab5d5b27f6ed13ac654d6b7ca5ca",
+    "body": "Anderson at para. 146."
+   },
+   {
+    "label": "53",
+    "marker_order": 189,
+    "role": "quoted_or_foreign",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 50950,
+     "end": 51014
+    },
+    "body_chars": 58,
+    "body_sha256": "6e560a67960eb5158c54085642610ca2dd3b1ee4cf5ea23e8e8673d4eedac9d8",
+    "body": "S. 10(2)(a)(i) of the Controlled Drugs and Substances Act."
+   },
+   {
+    "label": "54",
+    "marker_order": 190,
+    "role": "quoted_or_foreign",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 51014,
+     "end": 51077
+    },
+    "body_chars": 57,
+    "body_sha256": "4a297799f0c2d256546701318943048527b10d5e65e539eea1118126260d50ea",
+    "body": "R. v. Kleyens, 2020 NSCA 49 at para. 66; Nur at para. 82."
+   },
+   {
+    "label": "55",
+    "marker_order": 191,
+    "role": "quoted_or_foreign",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 51077,
+     "end": 51105
+    },
+    "body_chars": 22,
+    "body_sha256": "ef2af0af3c419cce24af9f4d152b57119a11ab8208b6c46199fdd1768646ce6d",
+    "body": "2015 SSC 64 at para. 2"
+   },
+   {
+    "label": "56",
+    "marker_order": 192,
+    "role": "quoted_or_foreign",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 51105,
+     "end": 51171
+    },
+    "body_chars": 60,
+    "body_sha256": "3f8b2f4fe6a3f6360156a4760d54e8d3ed2a7443d4c41f54d7cdfb74bcddbcd7",
+    "body": "Also see R. v. White, 2020 NSC 33 at paras. 49-58 and 69-70."
+   },
+   {
+    "label": "57",
+    "marker_order": 193,
+    "role": "quoted_or_foreign",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 51171,
+     "end": 51210
+    },
+    "body_chars": 33,
+    "body_sha256": "670abbd5621dde77b6593564f9a0c1103ed42939fd41c773a808398c3b8e559a",
+    "body": "Sentencing Decision at para. 166."
+   },
+   {
+    "label": "58",
+    "marker_order": 194,
+    "role": "quoted_or_foreign",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 51210,
+     "end": 51249
+    },
+    "body_chars": 33,
+    "body_sha256": "d5cd9f5acf5e8706395316232323c60813be48cbdfeb3621a4f3fcfd9a0feae9",
+    "body": "Sentencing Decision at para. 163."
+   },
+   {
+    "label": "59",
+    "marker_order": 195,
+    "role": "quoted_or_foreign",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 51249,
+     "end": 51301
+    },
+    "body_chars": 46,
+    "body_sha256": "0fd3cd5bc61a24992b9e2163f31b063797e5bfc793877d78dc7fa30f002cdf89",
+    "body": "R. v. Chase, 2019 NSCA 36 at para. 37 [Chase]."
+   },
+   {
+    "label": "60",
+    "marker_order": 196,
+    "role": "quoted_or_foreign",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 51301,
+     "end": 51513
+    },
+    "body_chars": 206,
+    "body_sha256": "c8cfc1bf9f67eddeffa9545aa94949d674868c73f58391ffd7e9e17ff63a139e",
+    "body": "R. v. Al Aazawi, 2022 ABCA 361 at para. 70; R. v. Sarrasin, 2021 ABCA 253 at para. 30; R. v. Gandour, 2018 ABCA 238 at para. 43; R. v. L.I., 2017 BCCA 444 at para. 12; R. v. R.M.D., 2014 BCCA 56 at para. 7."
+   },
+   {
+    "label": "61",
+    "marker_order": 197,
+    "role": "quoted_or_foreign",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 51513,
+     "end": 51601
+    },
+    "body_chars": 82,
+    "body_sha256": "cba3f2a9247b4a7b6f9f82e819e1fed42c7c4661f8b977c325336efcdb85d86a",
+    "body": "R. v. Irvine, 2008 MBCA 34 at para. 30; R. v. Knockwood, 2009 NSCA 98 at para. 34."
+   },
+   {
+    "label": "62",
+    "marker_order": 198,
+    "role": "quoted_or_foreign",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 51601,
+     "end": 51626
+    },
+    "body_chars": 19,
+    "body_sha256": "4bd36bd8f564901fd389ebe722dc27d9d8de8d72997088288da1c9152455788b",
+    "body": "See para. 65 above."
+   },
+   {
+    "label": "63",
+    "marker_order": 199,
+    "role": "quoted_or_foreign",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 51626,
+     "end": 51673
+    },
+    "body_chars": 41,
+    "body_sha256": "55f42723adae4e754119fe02042213f7abc6b58f2077eec02dbe4c9bf63a2544",
+    "body": "See Bratzer at para. 513; para. 19 above."
+   },
+   {
+    "label": "64",
+    "marker_order": 200,
+    "role": "quoted_or_foreign",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 51673,
+     "end": 51702
+    },
+    "body_chars": 23,
+    "body_sha256": "124385a7c75204c4c4c48be1eeb8e4d39010df5d2d326c13567145f945b461a3",
+    "body": "Paras. 43 and 46 above."
+   },
+   {
+    "label": "65",
+    "marker_order": 201,
+    "role": "quoted_or_foreign",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 51702,
+     "end": 51724
+    },
+    "body_chars": 16,
+    "body_sha256": "4fbd5d3e14dfa327d395c5cd05b63f2d4368c07325a983061306b274501c5aa5",
+    "body": "Such as cocaine."
+   },
+   {
+    "label": "66",
+    "marker_order": 202,
+    "role": "quoted_or_foreign",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 51724,
+     "end": 51869
+    },
+    "body_chars": 139,
+    "body_sha256": "d819257d755cfbf622785f7bb3ffcc38250856e1f7e9927834fa4c0c9de34d06",
+    "body": "R. v. Elvira, 2018 ONSC 7008; R. v. Morris, 2023 ONCA 816; R. v. Smith, 2023 ONCA 620; R. v. Lee, 2018 BCCA 428; R. v. Mann, 2018 BCCA 265."
+   },
+   {
+    "label": "67",
+    "marker_order": 203,
+    "role": "quoted_or_foreign",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 51869,
+     "end": 51934
+    },
+    "body_chars": 59,
+    "body_sha256": "2809c36d3a130630f3cde74bfa5e3dfd43d283bc3f0e364677f1423da739563a",
+    "body": "R. v. Anderson, 2021 NSCA 62; R. v. Wournell, 2023 NSCA 53."
+   },
+   {
+    "label": "68",
+    "marker_order": 204,
+    "role": "quoted_or_foreign",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 51934,
+     "end": 52035
+    },
+    "body_chars": 95,
+    "body_sha256": "1dd41b01d212965e4f15e3d961db391e24ec6d8b75ff59c720ed591041e4a61f",
+    "body": "R. v. Scott, 2013 NSCA 28; R. v. Steeves, 2007 NSCA 130; R. v. Desmond-Robinson, 2022 ONCA 369."
+   },
+   {
+    "label": "69",
+    "marker_order": 205,
+    "role": "quoted_or_foreign",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 52035,
+     "end": 52055
+    },
+    "body_chars": 14,
+    "body_sha256": "4384e6646120d3f77958bbb0de4774d1872d3a74f78abc3b88cc77230bb860de",
+    "body": "2021 BCCA 399."
+   },
+   {
+    "label": "70",
+    "marker_order": 206,
+    "role": "quoted_or_foreign",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 52055,
+     "end": 52101
+    },
+    "body_chars": 40,
+    "body_sha256": "d8e79e6321e20370e3f2e739e1bc11af48485a6ce849a6e37375d03198f66142",
+    "body": "R. v. Beaver, 2021 ABCA 227 at para. 22."
+   },
+   {
+    "label": "71",
+    "marker_order": 207,
+    "role": "quoted_or_foreign",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 52101,
+     "end": 52130
+    },
+    "body_chars": 23,
+    "body_sha256": "4125be1dab19b5b0f39686c6661fc7a573c6ce6d3faa0ab7243652f253e29f38",
+    "body": "Nasogaluak at para. 50."
+   },
+   {
+    "label": "72",
+    "marker_order": 208,
+    "role": "quoted_or_foreign",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 52130,
+     "end": 52160
+    },
+    "body_chars": 24,
+    "body_sha256": "636ed85985f795b7b2e9ef9fee1a5d960868bb9a38d1a2dc06425ddc32d584df",
+    "body": "2024 NSCA 61 at para. 5."
+   },
+   {
+    "label": "73",
+    "marker_order": 209,
+    "role": "quoted_or_foreign",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 52160,
+     "end": 52183
+    },
+    "body_chars": 17,
+    "body_sha256": "b36f659a8de2670bbfd948b66c5f7da60c53599d29dd4b8b32b74f86b7457dd4",
+    "body": "Ibid at para. 60."
+   },
+   {
+    "label": "74",
+    "marker_order": 210,
+    "role": "quoted_or_foreign",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 52183,
+     "end": 52206
+    },
+    "body_chars": 17,
+    "body_sha256": "7619e041e5ab11abe750f077390fde1f5683f41399b3e2172c2803a88a413abf",
+    "body": "Ibid at para. 56."
+   },
+   {
+    "label": "75",
+    "marker_order": 211,
+    "role": "quoted_or_foreign",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 52206,
+     "end": 52225
+    },
+    "body_chars": 13,
+    "body_sha256": "ecf7a19cec5c30b175a0a388f3008df60eb6bcffaf3c3e5a33b770a6393f1e86",
+    "body": "2022 NSCA 61."
+   },
+   {
+    "label": "76",
+    "marker_order": 212,
+    "role": "quoted_or_foreign",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 52225,
+     "end": 52258
+    },
+    "body_chars": 27,
+    "body_sha256": "84381a71207d61993dcbb096551012dde0fc5b5242fa78c2cca98b69c0e6ce54",
+    "body": "Nasogaluak at paras. 41-43."
+   },
+   {
+    "label": "77",
+    "marker_order": 213,
+    "role": "quoted_or_foreign",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 52258,
+     "end": 52291
+    },
+    "body_chars": 27,
+    "body_sha256": "f1cb9f63ca6f28f39cfea1f7e6703dc56f12fa54db6323f5862e46ad7a99c809",
+    "body": "Nasogaluak at paras. 39-43."
+   },
+   {
+    "label": "78",
+    "marker_order": 214,
+    "role": "quoted_or_foreign",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 52291,
+     "end": 52316
+    },
+    "body_chars": 19,
+    "body_sha256": "b358ff845c3bcd24d74b52bf76e29ace4d6e4c321894c6cc6f7df2511850a402",
+    "body": "Proulx at para. 29."
+   },
+   {
+    "label": "79",
+    "marker_order": 215,
+    "role": "quoted_or_foreign",
+    "marker": "[79]",
+    "raw_span": {
+     "start": 52316,
+     "end": 52363
+    },
+    "body_chars": 41,
+    "body_sha256": "dd03f02dcaf72ec16ebd2b667bea6e5e2ca29ae02f003d5cd5863c4308589c56",
+    "body": "R. v. Kleykens, 2020 NSCA 49 at para. 87."
+   },
+   {
+    "label": "80",
+    "marker_order": 216,
+    "role": "quoted_or_foreign",
+    "marker": "[80]",
+    "raw_span": {
+     "start": 52363,
+     "end": 52405
+    },
+    "body_chars": 36,
+    "body_sha256": "ae9e1b7125b3baefc173862117f7bf28372f15f40338368c2f92721396f949ec",
+    "body": "R. v. M.W., 2026 NSCA 9 at para. 26."
+   },
+   {
+    "label": "81",
+    "marker_order": 217,
+    "role": "quoted_or_foreign",
+    "marker": "[81]",
+    "raw_span": {
+     "start": 52405,
+     "end": 52436
+    },
+    "body_chars": 25,
+    "body_sha256": "bfe2a9e31eac518656e08af1bb67aafcf3debd1db0ba806ae05fc07dcc58a4b4",
+    "body": "2020 NSCA 49 at para. 87."
+   },
+   {
+    "label": "82",
+    "marker_order": 218,
+    "role": "quoted_or_foreign",
+    "marker": "[82]",
+    "raw_span": {
+     "start": 52436,
+     "end": 52606
+    },
+    "body_chars": 164,
+    "body_sha256": "7a9d7a57bd348685f52c36e420f5fa727e77586d556763bdddb1fda46dab9e38",
+    "body": "Sentencing judges may bring their knowledge of their community into the sentencing process: Chase at para. 56; R. v. M. (C.A.), [1996] 1 S.C.R. 500 at paras. 91-92."
+   },
+   {
+    "label": "83",
+    "marker_order": 219,
+    "role": "quoted_or_foreign",
+    "marker": "[83]",
+    "raw_span": {
+     "start": 52606,
+     "end": 52637
+    },
+    "body_chars": 25,
+    "body_sha256": "fb1fd48f2069d37c79efec1c89db1d492746800765afc0a834c8339d3b516f47",
+    "body": "R. v. C.B., 2023 NSPC 68."
+   },
+   {
+    "label": "84",
+    "marker_order": 220,
+    "role": "quoted_or_foreign",
+    "marker": "[84]",
+    "raw_span": {
+     "start": 52637,
+     "end": 52716
+    },
+    "body_chars": 73,
+    "body_sha256": "9f5462ca7876aff9e17b0cf1f88474cfb46da3c98517d403ecbaa86983ed47d3",
+    "body": "R. v. Sheppard, 2025 SCC 29 [Sheppard]. Also see R. v. M.W., 2026 NSCA 9."
+   },
+   {
+    "label": "85",
+    "marker_order": 221,
+    "role": "quoted_or_foreign",
+    "marker": "[85]",
+    "raw_span": {
+     "start": 52716,
+     "end": 52747
+    },
+    "body_chars": 25,
+    "body_sha256": "b43b9d65ce97a2e1ebb9420bef686976fb61286da08eb1de5ef41534ec96b408",
+    "body": "Criminal Code, s. 718.01."
+   },
+   {
+    "label": "86",
+    "marker_order": 222,
+    "role": "quoted_or_foreign",
+    "marker": "[86]",
+    "raw_span": {
+     "start": 52747,
+     "end": 52774
+    },
+    "body_chars": 21,
+    "body_sha256": "92c5200fdfed355fcde0b25857eaa85a933bfb4531849ddde273ab09304cecdf",
+    "body": "Sheppard at para. 95."
+   },
+   {
+    "label": "87",
+    "marker_order": 223,
+    "role": "quoted_or_foreign",
+    "marker": "[87]",
+    "raw_span": {
+     "start": 52774,
+     "end": 52820
+    },
+    "body_chars": 40,
+    "body_sha256": "b52912ca43f5e2ab5cd13762292a1357d9653442496c30acfee1f840b6f676c8",
+    "body": "Sentencing Decision at paras. 56 and 57."
+   },
+   {
+    "label": "88",
+    "marker_order": 224,
+    "role": "quoted_or_foreign",
+    "marker": "[88]",
+    "raw_span": {
+     "start": 52820,
+     "end": 52858
+    },
+    "body_chars": 32,
+    "body_sha256": "122f1a5eede01e39d82b6be3a23a0264e6f90ba42b3964d436760426495dca16",
+    "body": "Sentencing Decision at para. 14."
+   },
+   {
+    "label": "89",
+    "marker_order": 225,
+    "role": "quoted_or_foreign",
+    "marker": "[89]",
+    "raw_span": {
+     "start": 52858,
+     "end": 52881
+    },
+    "body_chars": 17,
+    "body_sha256": "2801534f4e78c60e41795d684bbf30d13330b43943daf72a725b63974d5a0bce",
+    "body": "Factum, para. 54."
+   },
+   {
+    "label": "90",
+    "marker_order": 226,
+    "role": "quoted_or_foreign",
+    "marker": "[90]",
+    "raw_span": {
+     "start": 52881,
+     "end": 52915
+    },
+    "body_chars": 28,
+    "body_sha256": "e790cb6a731b4366c2b9553ffa50628d9c7cab13093f037dd09a12e849e530e0",
+    "body": "Ipeelee at paras. 70 and 71."
+   },
+   {
+    "label": "91",
+    "marker_order": 227,
+    "role": "quoted_or_foreign",
+    "marker": "[91]",
+    "raw_span": {
+     "start": 52915,
+     "end": 52940
+    },
+    "body_chars": 19,
+    "body_sha256": "948d17721d786a677937a5e297ddbf760e345b44ab6edd477135dbc0c350546f",
+    "body": "Ipeelee at para. 8."
+   },
+   {
+    "label": "92",
+    "marker_order": 228,
+    "role": "quoted_or_foreign",
+    "marker": "[92]",
+    "raw_span": {
+     "start": 52940,
+     "end": 52966
+    },
+    "body_chars": 20,
+    "body_sha256": "56f5ec428da1d6daa1fb31a206e0ebd76f23270f4e5af310f16c73362e9335a4",
+    "body": "Ipeelee at para. 83."
+   },
+   {
+    "label": "93",
+    "marker_order": 229,
+    "role": "quoted_or_foreign",
+    "marker": "[93]",
+    "raw_span": {
+     "start": 52966,
+     "end": 53024
+    },
+    "body_chars": 52,
+    "body_sha256": "bd12d770ff7a88a334a3eb77224af643cf7f9b489bcf44ae17412500af4f5e3c",
+    "body": "R. v. Dawson; R. v. Ross, 2021 NSCA 29 at para. 111."
+   },
+   {
+    "label": "94",
+    "marker_order": 230,
+    "role": "quoted_or_foreign",
+    "marker": "[94]",
+    "raw_span": {
+     "start": 53024,
+     "end": 53063
+    },
+    "body_chars": 33,
+    "body_sha256": "aa14c4f9599762d42c9bafa4a9da057a952e2d639ef63c55e7b379831657c89f",
+    "body": "Sentencing Decision at para. 199."
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 52,
+  "values": [
+   "2017 SKCA 29",
+   "2023 SCC 2",
+   "2008 SCC 31",
+   "2012 SCC 13",
+   "2024 NSSC 136",
+   "2022 NSCA 61",
+   "2001 NSCA 165",
+   "2025 NSSC 54",
+   "2018 SCC 34",
+   "2015 SCC 64",
+   "2020 SCC 9",
+   "2023 NSCA 53",
+   "2021 NSCA 62",
+   "2008 SCC 62",
+   "2010 SCC 6",
+   "2010 NSCA 56",
+   "2013 NSCA 28",
+   "1993 NSCA 108",
+   "1993 NSCA 195",
+   "2021 SCC 46",
+   "2015 SCC 15",
+   "2022 SCC 39",
+   "2015 NSCA 27",
+   "2014 NSCA 102",
+   "2024 ONCA 793",
+   "2023 NSPC 68",
+   "2021 ONCA 680",
+   "2025 SCC 24",
+   "2020 NSCA 49",
+   "2015 SSC 64",
+   "2020 NSC 33",
+   "2019 NSCA 36",
+   "2022 ABCA 361",
+   "2021 ABCA 253",
+   "2018 ABCA 238",
+   "2017 BCCA 444",
+   "2014 BCCA 56",
+   "2008 MBCA 34",
+   "2009 NSCA 98",
+   "2018 ONSC 7008",
+   "2023 ONCA 816",
+   "2023 ONCA 620",
+   "2018 BCCA 428",
+   "2018 BCCA 265",
+   "2007 NSCA 130",
+   "2022 ONCA 369",
+   "2021 BCCA 399",
+   "2021 ABCA 227",
+   "2024 NSCA 61",
+   "2026 NSCA 9",
+   "2025 SCC 29",
+   "2021 NSCA 29"
+  ]
+ }
+}

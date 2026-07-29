@@ -1,0 +1,147 @@
+# Occupiers' Liability Act
+
+RSA 2000, c O-4
+
+HER MAJESTY, by and with the advice and consent of the Legislative Assembly of Alberta, enacts as follows:
+
+### Definitions
+
+1 In this Act,
+(a) “common duty of care” means the duty of care of an occupier of premises to visitors provided for in section 5;
+(b) “entrant as of right” means a person who is empowered or permitted by law to enter premises without the permission of the occupier of those premises;
+(c) “occupier” means
+(i) a person who is in physical possession of premises, or
+(ii) a person who has responsibility for, and control over, the condition of premises, the activities conducted on those premises and the persons allowed to enter those premises,
+and for the purposes of this Act, there may be more than one occupier of the same premises;
+(d) “premises” includes
+(i) staging, scaffolding and similar structures erected on land whether affixed to the land or not,
+(ii) poles, standards, pylons and wires used for the purpose of transmission of electric power or communications or transportation of passengers, whether or not they are used in conjunction with the supporting land,
+(iii) railway locomotives and railway cars,
+(iv) ships, and
+(v) trailers used for, or designed for use as, residences, shelters or offices,
+but does not include aircraft, motor vehicles or other vehicles or vessels except those mentioned in subclauses (iii) and (iv) or any portable derrick or other equipment or movable things except those mentioned in subclauses (i) and (v);
+(e) “visitor” means
+(i) an entrant as of right,
+(ii) a person who is lawfully present on premises by virtue of an express or implied term of a contract,
+(iii) any other person whose presence on premises is lawful, or
+(iv) a person whose presence on premises becomes unlawful after the person’s entry on those premises and who is taking reasonable steps to leave those premises.
+
+### Application of Act
+
+### Effective date
+
+2 This Act applies only in cases where the cause of action arose after January 1, 1974.
+
+### Liability of employer
+
+3 This Act does not apply to or affect the liability of an employer in respect of the employer’s duties to employees.
+
+### Act inapplicable to highways or private streets
+
+4 (1) This Act does not apply to highways, other than leased road allowances,
+(a) where a Minister of the Crown in right of Alberta has the administration of, or the management, direction and control of, the highway,
+(b) where the Crown in right of Canada has the administration and control of the highway, or
+(c) where a municipal corporation or Metis settlement has the management, direction and control of the highway.
+(2) This Act does not apply to private streets as defined in section 78 of the Law of Property Act .
+
+### Liability of Occupier to Visitors
+
+### Duty of care to visitors
+
+5 An occupier of premises owes a duty to every visitor on the occupier’s premises to take such care as in all the circumstances of the case is reasonable to see that the visitor will be reasonably safe in using the premises for the purposes for which the visitor is invited or permitted by the occupier to be there or is permitted by law to be there.
+
+### When common duty of care applies
+
+6 The common duty of care applies in relation to
+(a) the condition of the premises,
+(b) activities on the premises, and
+(c) the conduct of third parties on the premises.
+
+### Recreational users
+
+6.1 (1) The liability of an occupier to a person who uses the premises described in subsection (2) or a portion of them for a recreational purpose shall be determined as if the person was a trespasser unless the occupier
+(a) receives payment for the entry or activity of the person, other than a benefit or payment received from a government or government agency or non-profit recreation club or association, or
+(b) is providing the person with living accommodation on the premises.
+(2) Subsection (1) applies to the following:
+(a) rural premises that are
+(i) used for agricultural purposes including land under cultivation,
+(ii) vacant or undeveloped premises, and
+(iii) forested or wilderness premises;
+(b) golf courses when not open for playing;
+(c) utility rights-of-way excluding structures located on them;
+(d) recreational trails reasonably marked as such.
+
+### Risks willingly accepted
+
+7 An occupier is not under an obligation to discharge the common duty of care to a visitor in respect of risks willingly accepted by the visitor.
+
+### Variation of duty of care
+
+8 (1) The liability of an occupier under this Act in respect of a visitor may be extended, restricted, modified or excluded by express agreement or express notice but no restriction, modification or exclusion of that liability is effective unless reasonable steps were taken to bring it to the attention of the visitor.
+(2) This section does not apply with respect to a visitor who is an entrant as of right.
+
+### Effect of warning
+
+9 A warning, without more, shall not be treated as absolving an occupier from discharging the common duty of care to the occupier’s visitor unless in all the circumstances the warning is enough to enable the visitor to be reasonably safe.
+
+### Contract not to affect strangers
+
+10 When an occupier of premises is bound by a contract to permit strangers to the contract to enter or use the premises, the liability of the occupier under this Act to a stranger to the contract may not be enlarged, restricted or excluded by that contract.
+
+### Liability of independent contractor
+
+11 (1) An occupier is not liable under this Act when the damage is due to the negligence of an independent contractor engaged by the occupier if
+(a) the occupier exercised reasonable care in the selection and supervision of the independent contractor, and
+(b) it was reasonable in all the circumstances that the work that the independent contractor was engaged to do should have been undertaken.
+(2) Subsection (1) does not operate to abrogate or restrict the liability of an occupier for the negligence of the occupier’s independent contractor imposed by any other Act.
+
+### Liability of Occupier to Trespassers
+
+### Liability of agricultural disposition holder
+
+11.1 The liability of a holder of an agricultural disposition issued under the Public Lands Act in respect of a person who, under section 62.1 of the Public Lands Act and the applicable regulations, enters and uses the land that is subject to the agricultural disposition shall be determined as if the person entering the land were a trespasser.
+
+### Trespassers
+
+12 (1) Subject to subsection (2) and (3) and to section 13, an occupier does not owe a duty of care to a trespasser on the occupier’s premises.
+(2) Where a trespasser is not a criminal trespasser, an occupier is not liable to the trespasser for damages for death of or injury to the trespasser unless the death or injury results from the occupier’s wilful or reckless conduct.
+(3) Where a trespasser is a criminal trespasser, no action lies against the occupier for damages for death of or injury to the trespasser unless the death or injury is caused by conduct of the occupier that
+(a) is wilful and grossly disproportionate in the circumstances, and
+(b) results in the occupier being convicted of an offence under the Criminal Code (Canada) that is prosecuted by indictment.
+(4) For the purposes of subsections (2) and (3), a trespasser is a criminal trespasser if the occupier has reasonable grounds to believe that the trespasser is committing or is about to commit an offence under the Criminal Code (Canada).
+(5) For the purposes of subsection (3), an occupier is deemed not to be convicted of an offence until the period limited by law for the commencement of an appeal from the conviction has elapsed or the appeal taken from the conviction has concluded or been abandoned.
+(6) This section applies to any action brought against an occupier by a trespasser on the occupier’s premises in relation to a trespass occurring on or after January 1, 2018, irrespective of whether the action is brought before or after the coming into force of this section.
+
+### Child trespassers
+
+13 (1) When an occupier knows or has reason to know
+(a) that a child trespasser is on the occupier’s premises, and
+(b) that the condition of, or activities on, the premises create a danger of death or serious bodily harm to that child,
+the occupier owes a duty to that child to take such care as in all the circumstances of the case is reasonable to see that the child will be reasonably safe from that danger.
+(2) In determining whether the duty of care under subsection (1) has been discharged, consideration shall be given to
+(a) the age of the child,
+(b) the ability of the child to appreciate the danger, and
+(c) the burden on the occupier of eliminating the danger or protecting the child from the danger as compared to the risk of the danger to the child.
+(3) For the purposes of subsection (1), the occupier has reason to know that a child trespasser is on the occupier’s premises if the occupier has knowledge of facts from which a reasonable person would infer that a child is present or that the presence of a child is so probable that the occupier should conduct himself or herself on the assumption that a child is present.
+
+### General
+
+### Liability re personal property
+
+14 (1) Subject to subsections (2) to (4), the liability of an occupier under this Act to a visitor or trespasser extends to destruction or loss of, or damage to, property brought on to the occupier’s premises by the visitor or trespasser, as the case may be, whether or not it is owned by the visitor or trespasser or by any other person.
+(2) An occupier is not liable under this Act in respect of a loss of or damage to property of any person resulting by reason of the act of a third party.
+(3) When a person in an action under this Act claims damages in respect of the destruction or loss of, or damage to, property of which the person is the owner and that was brought on to the occupier’s premises by some other person either as a visitor or trespasser on those premises, the occupier is entitled to raise any defence to the claim that the occupier would be entitled to raise if the claimant were the visitor or trespasser, as the case may be.
+(4) This Act does not apply to or affect any liability of an occupier of premises in respect of personal property arising by virtue of
+(a) a contract of carriage,
+(b) a bailment, or
+(c) the Innkeepers Act .
+
+### Application of other Acts
+
+15 (1) When the occupier does not discharge the common duty of care to a visitor and the visitor suffers damage partly as a result of the fault of the occupier and partly as a result of the visitor’s own fault, the Contributory Negligence Act applies.
+(2) When an occupier is liable under section 12(2) or 13, and the trespasser or child trespasser, as the case may be, suffers damage partly as a result of the fault of the occupier and partly as a result of the trespasser’s or child trespasser’s own fault, the Contributory Negligence Act applies.
+(3) When in an action brought under this Act 2 or more occupiers of the same premises are each found to be at fault, the Tort-feasors Act applies.
+
+### Crown bound
+
+16 The Crown in right of Alberta is bound by this Act.

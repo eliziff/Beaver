@@ -1,0 +1,3634 @@
+[Portions of this Exhibit have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Exhibit that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Master Supply Agreement
+
+(for the supply of certain component parts to be incorporated into finished goods)
+
+Between
+
+Select Comfort Corporation
+
+("Select Comfort")
+
+and
+
+XXXX
+
+("Supply Partner")
+
+Master Supply Agreement
+
+(for the supply of certain component parts to be incorporated into finished goods)
+
+TABLE OF CONTENTS
+
+AGREEMENT
+
+1.1
+
+SCOPE
+
+9.13
+
+QUALITY AND VALUE ENGINEERING
+
+5
+
+1.2
+
+EXCLUSIVITY
+
+1
+
+9.14
+
+OMITTED
+
+5
+
+1.3
+
+SUPPLY PARTNER ́S EXCLUSIVITY OBLIGATION
+
+1
+
+9.15
+
+PRODUCT TESTING
+
+5
+
+1.4
+
+SELECT COMFORT ́S EXCLUSIVITY OBLIGATION
+
+1
+
+COMPLIANCE
+
+1.5
+
+BREACH OF EXCLUSIVITY
+
+2
+
+10.1
+
+COMPLIANCE
+
+5
+
+PARTS
+
+10.2
+
+HAZARDOUS MATERIALS
+
+5
+
+2.1
+
+SUPPLY AND PURCHASE
+
+2
+
+10.3
+
+PART CONTENT RESTRICTIONS
+
+5
+
+SPECIFICATIONS
+
+10.4
+
+DOCUMENTATION
+
+5
+
+3.1
+
+PART SPECIFICATIONS
+
+2
+
+10.5
+
+NOTICE OF FAILURE OR DEFECT AND SUBSEQUENT ANALYSIS
+
+5
+
+3.2
+
+PACKAGING SPECIFICATIONS
+
+2
+
+INSPECTION AND ACCEPTANCE OR REJECTION
+
+3.3
+
+CHANGES TO SPECIFICATIONS
+
+2
+
+11.1
+
+PART INSPECTION AND ACCEPTANCE
+
+6
+
+3.4
+
+CHANGES REQUIRED BY LAW
+
+2
+
+11.2
+
+MANUFACTURING PROCESS AND FACILITY ACCESS AND INSPECTION
+
+6
+
+3.5
+
+TRACEABILITY
+
+2
+
+11.3
+
+REJECTION
+
+6
+
+PRICE
+
+11.4
+
+NO ALTERATION OR DEVIATION
+
+6
+
+4.1
+
+PRICE
+
+2
+
+TERM AND TERMINATION
+
+FORECASTS AND INVENTORY
+
+12.1
+
+TERM
+
+6
+
+5.1
+
+FORECASTS
+
+2
+
+12.2
+
+TERMINATION
+
+6
+
+5.2
+
+SAFETY STOCK
+
+3
+
+12.3
+
+PURCHASE OF INVENTORY UPON TERMINATION
+
+7
+
+5.3
+
+CAPACITY
+
+3
+
+12.4
+
+OMITTED
+
+7
+
+5.4
+
+OBSOLESCENCE
+
+3
+
+12.5
+
+TERMINATION WITHOUT PREJUDICE
+
+7
+
+PURCHASE ORDERS AND RELEASES
+
+12.6
+
+SURVIVAL
+
+7
+
+6.1
+
+PURCHASE ORDERS
+
+3
+
+12.7
+
+OBLIGATIONS
+
+7
+
+6.2
+
+NOTICE OF REJECTION
+
+3
+
+12.8
+
+EFFECT OF TERMINATIONON OUTSTANDING PURCHASE ORDERS OR RELEASE
+
+7
+
+6.3
+
+RELEASE ADJUSTMENTS
+
+3
+
+INSURANCE
+
+6.4
+
+BATTLE OF THE FORMS
+
+3
+
+13.1
+
+GENERAL COMMERCIAL LIABILITY COVERAGE
+
+7
+
+SHIPPING AND DELIVERY
+
+13.2
+
+AMOUNT OF COVERAGE
+
+7
+
+7.1
+
+TITLE AND RISK OF LOSS
+
+3
+
+13.3
+
+DEDUCTIBLE OR SELF-INSURED RETENTIONS
+
+7
+
+7.2
+
+DELIVERY
+
+3
+
+13.4
+
+INSURER REQUIREMENTS
+
+8
+
+7.3
+
+NON-DELIVERY
+
+4
+
+13.5
+
+PRIMARY COVERAGE AND SUBROGATION
+
+8
+
+7.4
+
+SHIPPING TERMS
+
+4
+
+13.6
+
+EVIDENCE OF INSURANCE
+
+8
+
+7.5
+
+OMITTED
+
+4
+
+13.7
+
+NOTICE OF CANCELLATION
+
+8
+
+7.6
+
+OMITTED
+
+4
+
+13.8
+
+EFFECT OF FAILURE TO OBTAIN OR CANCELLATION OF COVERAGE
+
+8
+
+7.7
+
+NON-CONFORMING PRODUCT
+
+4
+
+13.9
+
+CLAIMS MADE COVERAGE
+
+8
+
+INVOICING AND PAYMENT
+
+13.10
+
+WORKERS' COMPENSATION AND EMPLOYER'S LIABILITY
+
+8
+
+8.1
+
+INVOICE TERMS
+
+4
+
+LIABILITY
+
+8.2
+
+ADJUSTMENTS
+
+4
+
+14.1
+
+INDIRECT OR CONSEQUENTIAL LOSS OR DAMAGES ARE NOT RECOVERABLE
+
+8
+
+8.3
+
+INVOICE DISPUTE
+
+4
+
+14.2
+
+LIMITATION OF LIABILITY
+
+8
+
+8.4
+
+INVOICE CONTENT
+
+4
+
+14.3
+
+EXCEPTIONS TO THE LIMITATION OF LIABILITY
+
+8
+
+8.5
+
+RIGHT OF INSPECTION
+
+4
+
+14.4
+
+COMPARATIVE NEGLIGENCE
+
+8
+
+8.6
+
+INTEREST FOR LATE PAYMENT
+
+4
+
+INDEMNIFICATION
+
+PART QUALITY AND WARRANTY
+
+15.1
+
+INDEMNITY BY SELECT COMFORT
+
+9
+
+9.1
+
+QUALITY WARRANTY
+
+4
+
+15.2
+
+INDEMNITY BY SUPPLY PARTNER
+
+9
+
+9.2
+
+GOOD TITLE
+
+4
+
+15.3
+
+INDEMNIFICATION PROCEDURES
+
+9
+
+9.3
+
+OMITTED
+
+4
+
+9.4
+
+OMITTED
+
+4
+
+(continued)
+
+9.5
+
+LIMITATIONS
+
+4
+
+9.6
+
+FINANCIAL REMEDY FOR BREACH OF QUALITY WARRANTY
+
+4
+
+9.7
+
+OMITTED
+
+4
+
+9.8
+
+QUALITY METRICS
+
+4
+
+9.9
+
+CATASTROPHIC FAILURE
+
+4
+
+9.10
+
+NOTICE OF CATASTROPHIC FAILURE
+
+5
+
+9.11
+
+REMEDIES FOR CATASTOPHIC FAILURE
+
+5
+
+9.12
+
+WARRANTY SURVIVAL
+
+5
+
+ii
+
+TABLE OF CONTENTS (CONTINUED)
+
+RECORDS, AUDITS AND INSPECTIONS
+
+INDEX OF TERMS
+
+16.1
+
+RECORDS
+
+9
+
+TERM
+
+SECTION (PAGE)
+
+16.2
+
+INSPECTIONS
+
+9
+
+AFFILIATE
+
+PREAMBLE (1)
+
+16.3
+
+RIGHT TO AUDIT
+
+10
+
+AGREEMENT
+
+PREAMBLE (1)
+
+16.4
+
+EXCLUSIVITY AUDIT
+
+10
+
+AUDITOR
+
+16.4 (9)
+
+16.5
+
+ANALYTICAL TESTING
+
+10
+
+BRAND
+
+RECITALS (1)
+
+16.6
+
+SUPPLY PARTNERS SELF AUDIT
+
+10
+
+BUSINESS CONTINUITY PLAN
+
+19.2 (11)
+
+CONFIDENTIALITY AND NON-DISCLOSURE
+
+CATASTROPHIC FAILURE
+
+9.9 (4)
+
+17.1
+
+NEED TO EXCHANGE INFORMATION
+
+10
+
+CATASTROPHIC FAILURE COSTS
+
+9.11 (4)
+
+17.2
+
+DEFINITION OF TRADE SECRET
+
+10
+
+CHANGE OF CONTROL
+
+12.2 (6)
+
+17.3
+
+DEFINITION OF CONFIDENTIAL INFORMATION
+
+10
+
+CLAIM
+
+14.1 (6)
+
+17.4
+
+EXCLUSIONS
+
+10
+
+CONFIDENTIAL INFORMATION
+
+17.3 (9)
+
+17.5
+
+RESTRICTIONS ON USE
+
+11
+
+COST COMPETITIVE
+
+12.2 (6)
+
+17.6
+
+RESTRICTIONS ON ACCESS
+
+11
+
+CPSC
+
+9.9 (4)
+
+17.7
+
+PERMITTED DISCLOSURE
+
+11
+
+CURE PERIOD
+
+12.2 (6)
+
+17.8
+
+REQUIRED OR COMPELLED DISCLOSURE
+
+11
+
+DAMAGES
+
+14.1 (6)
+
+17.9
+
+INQUIRIES
+
+11
+
+DISCLOSING PARTY
+
+17.1 (9)
+
+INTELLECTUAL PROPERTIES
+
+EFFECTIVE DATE
+
+PREAMBLE (1)
+
+18.1
+
+DEFINITIONS
+
+11
+
+FORECAST
+
+5.1 (2)
+
+18.2
+
+INDEPENDENTLY OWNED INTELLECTUAL PROPERTY
+
+11
+
+ICDR
+
+22.1 (12)
+
+18.3
+
+JOINT DEVELOPMENT AGREEMENT
+
+11
+
+INDEMNIFIED PARTY
+
+14.2 (6)
+
+18.4
+
+OMITTED
+
+11
+
+INDEMNIFYING PARTY
+
+14.2 (6)
+
+18.5
+
+OMITTED
+
+11
+
+INDEPENDENTLY OWNED INTELLECTUAL PROPERTY
+
+18.1.1 (10)
+
+18.6
+
+OMITTED
+
+11
+
+INITIAL TERM
+
+12.1 (5)
+
+18.7
+
+OMITTED
+
+12
+
+INTELLECTUAL PROPERTY RIGHTS
+
+18.1.2 (10)
+
+18.8
+
+OMITTED
+
+12
+
+INVENTORY
+
+5.2 (2)
+
+18.9
+
+TRADEMARKS
+
+12
+
+JOINT DEVELOPMENT AGREEMENT
+
+18.3 (11)
+
+FORCE MAJEURE AND BUSINESS INTERRUPTION
+
+LIABILITY YEAR
+
+14.2 (7)
+
+19.1
+
+FORCE MAJEURE
+
+12
+
+LIMITATION OF LIABILITY
+
+14.2 (7)
+
+19.2
+
+BUSINESS CONTINUTITY PLAN
+
+12
+
+MAIN BODY
+
+PREAMBLE (1)
+
+19.3
+
+IMPACT OF BUSINESS INTERRUPTION
+
+12
+
+NEGATIVE CONSEQUENCE
+
+12.2 (6)
+
+19.4
+
+OMITTED
+
+12
+
+NON-CONFORMING PARTS
+
+11.3 (5)
+
+19.5
+
+PRIORITY
+
+12
+
+NOTICE OF REJECTION
+
+6.2 (3)
+
+RESTRICTIONS ON ACTIVITIES
+
+PARTS
+
+1.1 (1)
+
+20.1
+
+OMITTED
+
+12
+
+PARTIES; PARTY
+
+PREAMBLE (1)
+
+20.2
+
+NO SOLICITATION; NO HIRE
+
+12
+
+PERMITTED SUPPLY
+
+1.4 (1)
+
+TOOLING
+
+PRODUCT
+
+15.1 (8)
+
+21.1
+
+COST OF TOOLING
+
+12
+
+PURCHASE ORDER
+
+6.1 (3)
+
+GENERAL TERMS AND CONDITIONS
+
+QUALITY REBATE
+
+9.6 (4)
+
+22.1
+
+GOVERNING LAW AND DISPUTE RESOLUTION
+
+12
+
+QUALITY WARRANTY
+
+9.1 (4)
+
+22.2
+
+OMITTED
+
+12
+
+RECEIVING PARTY
+
+17.1 (9)
+
+22.3
+
+CISG EXCLUSION
+
+13
+
+RECORDS
+
+16.1 (9)
+
+22.4
+
+NOTICE
+
+13
+
+RENEWAL TERM
+
+12.1 (5)
+
+22.5
+
+NO WAIVER
+
+13
+
+RELEASE
+
+6.1 (3)
+
+22.6
+
+EXPORT CONTROL
+
+13
+
+RELEVANT REGULATION
+
+3.4 (2)
+
+22.7
+
+THIRD PARTY BENEFICIARIES
+
+13
+
+SAFETY STOCK
+
+5.3 (2)
+
+22.8
+
+ASSIGNMENT TO SUPPLY PARTNER
+
+13
+
+SELECT COMFORT
+
+PREAMBLE (1)
+
+22.9
+
+ASSIGNMENT BY SELECT COMFORT
+
+13
+
+SELECT COMFORT AUDIT RIGHTS
+
+16.3 (9)
+
+22.10
+
+COUNTERPARTS
+
+13
+
+SELECT COMFORT'S EXCLUSIVITY AUDIT RIGHTS
+
+16.4 (9)
+
+22.11
+
+ENTIRE AGREEMENT
+
+13
+
+SELECT COMFORT'S EXCLUSIVITY OBLIGATION
+
+1.4 (1)
+
+22.12
+
+VALID AGREEMENT
+
+13
+
+SELECT COMFORT INDEMNITEES
+
+15.2 (8)
+
+22.13
+
+CORPORATE POWER AND AUTHORITY
+
+13
+
+SELECT COMFORT INTELLECTUAL PROPERTY
+
+18.5 (8)
+
+22.14
+
+NO CONFLICT
+
+13
+
+SIMILAR PRODUCTS
+
+1.3 (1)
+
+22.15
+
+INVALIDITY AND SEVERABILITY
+
+13
+
+SPECIFICATIONS
+
+3.1 (2)
+
+22.16
+
+HEADINGS; REFERENCE TO WHOLE
+
+14
+
+SUPPLY PARTNER
+
+PREAMBLE (1)
+
+22.17
+
+SECURITIES TRADING
+
+14
+
+SUPPLY PARTNER EXCLUSIVITY AUDIT RIGHTS
+
+16.4 (9)
+
+22.18
+
+PUBLICITY; USE OF MARKS
+
+14
+
+SUPPLY PARTNER'S EXCLUSIVITY OBLIGATION
+
+1.3 (1)
+
+22.19
+
+MODIFICATIONS
+
+14
+
+SUPPLY PARTNER INDEMNITIEES
+
+15.1 (8)
+
+22.20
+
+RELATIONSHIP OF THE PARTIES
+
+14
+
+TERM
+
+12.1 (5)
+
+22.21
+
+NOTIFICATION OF THREATENED ACTION
+
+14
+
+THIRD PARTY RIGHT
+
+15.2 (8)
+
+22.22
+
+REMEDIES CUMULATIVE
+
+14
+
+TOOLING ADDENDUM
+
+21.1 (11)
+
+TRADE SECRET
+
+17.2 (9)
+
+iii
+
+Master Supply Agreement
+
+(for the supply of certain component parts to be incorporated into finished goods)
+
+This Master Supply Agreement (the "Agreement") is made and entered into as of July 1, 2013 (the "Effective Date") by and between Select Comfort Corporation, a corporation organized under the laws of the State of Minnesota whose principal place business is 9800 59th Avenue North, Minneapolis, MN 55442 ("Select Comfort") acting for itself and on behalf of its Affiliates and XXXX, with its registered office at XXXX, ( "Supply Partner"). Select Comfort and Supply Partner are sometimes referred to herein collectively as the "Parties" and each, individually, as a "Party". For the purposes of this Agreement, "Affiliate" shall mean a corporation, company or other entity a) more than fifty (50%) percent of whose outstanding shares or securities which represent the right to vote for the election of directors or other managing authority, are, now or hereafter, owned or controlled, directly or indirectly, by a Party hereto or which is under common control with such Party, but only so long as such ownership or control exists; or b) which does not have any outstanding shares or securities, as may be the case in a partnership, joint venture or unincorporated association, but more than fifty percent (50%) of whose ownership interest representing the right to make the decisions for such entity is now or hereafter owned or controlled, directly or indirectly, by a Party hereto or which is under common control with such Party, but only so long as such ownership or control exists.
+
+This Agreement consists of all of the following: (a) the Preamble, Recitals and section 1.1 through section 22.22, inclusive, set out in this document (collectively, the "Main Body"; (b) Schedule A (SKU Number, Description, Price, Volume, Rebate), Schedule B (Specifications, Master Drawings, COA) and Schedule C (Quality Requirements); and (c) Exhibit 1 (Supply Partner Traceability Process Outline), Exhibit 2 (Supply Partner Business Continuity Plan) and Exhibit 3 (Select Comfort Supplier Barcode Labeling Requirements).
+
+RECITALS
+
+WHEREAS, Select Comfort is one of the leading bed manufacturers and retailers in the United States of America and designs, manufactures, markets and sells, at retail and at wholesale, premium quality, adjustable firmness beds and other sleep-related accessory products both domestically and internationally through multiple company-owned and non-company owned sales channels under the Sleep Number® brand and other related trademarks (hereinafter, the "Brand"); and
+
+WHEREAS, Supply Partner is a manufacturer, distributor or reseller of certain Parts of a type that are incorporated by Select Comfort into the products which it manufactures; and
+
+WHEREAS, Supply Partner wishes to sell to Select Comfort, and Select Comfort wishes to purchase from Supply Partner, such Parts as the Parties may agree upon subject to the terms and conditions contained herein.
+
+NOW, THEREFORE, in consideration of the mutual promises, covenants and commitments contained herein, the Parties agree as follows:
+
+AGREEMENT
+
+1.1
+
+SCOPE: This Agreement sets forth the only terms and conditions under which Supply Partner shall supply to Select Comfort and Select Comfort shall purchase from Supply Partner the Parts. "Parts" shall mean any products listed in Schedule A attached hereto as specified in detail in Schedule B hereto. For the avoidance of doubt, "Parts" shall not mean any products that differ from those specified in Schedule B in any material aspect (such as size, shape, particular construction etc.) even if such products were similar to or had identical purpose as the Parts. The Parties may, from time to time, amend Schedules A and B to add or remove Parts, provided that such amendment is documented and executed. Supply Partner acknowledges that the timely delivery of conforming Parts is the essence of this Agreement.
+
+1.2
+
+EXCLUSIVITY: The Parties acknowledge and agree that this Agreement is mutually exclusive.
+
+1.3
+
+SUPPLY PARTNER'S EXCLUSIVITY OBLIGATION: During the Term of this Agreement and for a period of XXXX years thereafter, Supply Partner shall not, and shall procure that any of its Affiliates do not, manufacture the Parts for or sell the Parts to any third party anywhere in the world. Select Comfort shall have a worldwide exclusive right to market and sell the Parts as described in Schedule A and Schedule B of the Master Supply Agreement and Supply Partner agrees not to offer the Parts as described in Schedule A and Schedule B for sale to any other manufacturer, reseller or retailer, inclusive of Supply Partner's or its Affiliate's own XXXX division or business. Subject to Select Comfort ́s compliance with Select Comfort ́s Exclusivity Obligation as defined here below, Supply Partner shall not manufacture, export, import, sell, advertise or offer for sale any XXXX for use in air beds (the "Similar Products") anywhere in the world except as explicitly permitted under this Agreement (the "Supply Partner ́s Exclusivity Obligation"). Notwithstanding anything to the contrary in this Agreement, Supply Partner and its Affiliates shall be
+entitled to manufacture Similar Products for use in Supply Partner ́s or its Affiliates ́ own air beds and manufacture, import, export, sell, advertise or offer for sale such air beds within XXXX under its own brand identity. For the avoidance of doubt, the aforementioned Supply Partner's Exclusivity Obligation does not permit Supply Partner to private label its own air beds for the benefit of any other manufacturer or retailer. [Portions of this Section have been
+
+omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+1.4
+
+SELECT COMFORT'S EXCLUSIVITY OBLIGATION: During the Term of this Agreement, Select Comfort shall not, and shall procure that its Affiliates do not, make or have made or purchase any Parts or Similar Products from any person other than Supply Partner anywhere in the world, except as specifically permitted herein (the "Select Comfort ́s Exclusivity Obligation"). Select Comfort and its Affiliates shall be permitted to purchase not more than that certain percentage set forth in the table below of their aggregate Parts and Similar Products requirements from alternative suppliers ofther than the Supply Partner. The maximum number of Parts and Similar Products that Select Comfort and its Affiliates may purchase from alternative suppliers in a given calendar year (the "Permitted Supply") shall be calculated by multiplying the percentage set forth in the table below for that calendar year by the total number of Parts and Similar Products delivered in the given year by all suppliers to Select Comfort and all of its Affiliates.
+
+Calendar year
+
+Permitted Supply:
+
+2013
+
+XXXX
+
+2014
+
+XXXX
+
+2015
+
+XXXX
+
+2016 and forward
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as
+
+Page 1 of 12
+
+amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Select Comfort Exclusivity Obligation does not apply to purchases of Similar Products (but not of Parts) by Select Comfort ́s Affiliate Select Comfort SC Corporation doing business as "Comfortaire".
+
+1.5
+
+BREACH OF EXCLUSIVITY. Any breach of the Select Comfort ́s Exclusivity Obligation shall automatically release Supply Partner from the Supply Partner ́s Exclusivity Obligation and vice versa. Any breach of Select Comfort ́s Exclusivity Obligation or Supply Partner ́s Exclusivity Obligation shall constitute material breach of this Agreement. Not later than 1 February of 2014 and each succeeding calendar year during the Term, Select Comfort and Supply Partner shall each provide the other Party with documentation evidencing its compliance with Select Comfort's Exclusivity Obligation or Supply Partner's Exclusivity Obligation, respectively. Exact scope of such documentation shall be mutually agreed by the Parties and the documentation shall constitute Confidential Information as defined by section 17.3 of this Agreement irrespective of whether it is marked as such.
+
+PARTS
+
+2.1
+
+SUPPLY AND PURCHASE: Subject to the terms and conditions of this Agreement, Select Comfort agrees to purchase from Supply Partner and Supply Partner agrees to sell to Select Comfort, at the prices and lead times provided therein, the Parts listed in Schedule A.
+
+SPECIFICATIONS
+
+3.1
+
+PART SPECIFICATIONS: The Parts shall be manufactured in compliance with the material, composition, and performance specifications and quality standards shown on Schedule B and as updated by mutual written agreement of the Parties from time to time (the "Specifications"). The Parties agree that in lieu of a physical attachment to this Agreement, all master drawings and other documents which constitute the Specifications may be stored electronically by Select Comfort in a manner that is accessible to Supply Partner and that the electronic maintenance thereof shall not impact this Agreement. Each change of Specifications (including the impact on Price, if any, reflecting Supply Partner's increased or decreased costs) must be mutually agreed by the Parties in writing in the form of an executed amendment to respective schedules of this Agreement to be effective.
+
+3.2
+
+PACKAGING SPECIFICATIONS: Supply Partner shall pack and ship the Parts in accordance with both a) any packaging criteria specified in Exhibit 3; and b) Select Comfort's Supplier Barcode Labeling Requirements as specified in Exhibit 3 as may be, from time to time, amended by Select Comfort. No additional charges of any kind, including charges for boxing, packing, licenses, permits, cartage, or other extras shall be allowed in connection with Supply Partner's compliance with the packaging specifications, in the Specifications. If Select Comfort, from time to time, asks Supply Partner to change the packaging and Supply Partner agrees with such change, then the Price for the Parts may be increased by Supply Partner to reflect increased costs for the new packaging (if applicable) and costs incurred by Supply Partner in relation with implementing the change. Each change to the Price for the Parts due to Select Comfort having changed the packaging criteria must be mutually agreed by the Parties in writing in the form of an executed amendment to respective schedules of this Agreement to be effective.
+
+3.3
+
+CHANGES TO SPECIFICATIONS: Each Party shall notify the other in writing of any proposed or requested change to the Specifications shown on Schedule B at least thirty (30) calendar days in advance of the anticipated implementation of such proposed or requested change. No such proposed or requested change shall be allowed or implemented and neither Party will be obligated thereto unless and until both Parties agree, in their sole discretion, to such change and such agreement is documented in a writing signed by both Parties. Further, if the proposed or requested change is implemented, such change shall not impact the pricing for the Parts unless or until Schedule A is amended to reflect such change.
+
+3.4
+
+CHANGES REQUIRED BY LAW: Notwithstanding the foregoing, however, if a Party proposes or requests a change to the Specifications for the purposes of complying with any current or anticipated Federal, state, provincial or local law, rule or regulation or binding court decision or governmental agency adjudication that is valid in the U.S.A. or in the XXXX, (each, a "Relevant Regulation"), such change is not agreed to by the other Party and resulting
+
+noncompliance with the Relevant Regulation would have material negative effect on the business of the Party proposing or requesting such change, the Party proposing or requesting such change may, at its sole option, terminate this Agreement as provided herein.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+3.5
+
+TRACEABILITY: The Parts shall be manufactured, packaged, shipped and delivered in a manner so as to permit traceability to lot, batch, factory and source of origin materials for each of the Parts and each component that makes up a Part. Further, Supply Partner specifically represents and warrants that each Part and any component, ingredient or material used to manufacture that Part will be traceable as may be required by law, rule or regulation.
+
+PRICE
+
+4.1
+
+PRICE: Select Comfort shall pay to Supply Partner, for each Part ordered and accepted by Select Comfort as provided herein, the Price set forth in Schedule A for that Part as expressed in U.S. Dollars. Unless otherwise expressly specified in the applicable Select Comfort Purchase Orders, as defined herein, the Prices shall include any and all applicable value-added or other taxes related to the sale of the Parts to Select Comfort in XXXX. Prices for Parts shall be as illustrated in Schedule A for each year of the agreement and shall adjust automatically according to the price basket formula as defined in Schedule A. Positive or negative rebates depending on total quantity of the Parts delivered by Supply Partner to Select Comfort in any given year, are described in detail in Schedule A.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+FORECASTS AND INVENTORY
+
+5.1
+
+FORECASTS: Contemporaneously with the execution of this Agreement, Select Comfort shall provide Supply Partner with a written initial projection of its anticipated requirements (downside, baseline and upside) for Parts from Supply Partner for the forthcoming one (1) year period (a "Forecast"). The Forecast must not exceed the current and agreed capacity of the Supply Partner and must be split into weeks, months, quarters, half-years. On a rolling calendar quarter basis or as more frequently as Select Comfort may elect to provide, Select Comfort shall provide Supply Partner with a written updated Forecast which will cover, at a minimum, the next one (1) year period. Any Forecast provided by Select Comfort to Supply Partner is for planning purposes only and does not constitute a Purchase Order, Release (as defined below) or other commitment by Select Comfort to purchase Parts in any quantity or at all from Supply Partner. Apart from the Select Comfort ́s Exclusivity Obligation, Select Comfort shall not be, under any circumstances, obligated to purchase any specific quantity of the Parts. Select Comfort shall have no obligation or liability with respect to the purchase of any Parts under this Agreement unless and until such Parts are specified in an issued Purchase Order or, in the case of a blanket Purchase Order, a Release. Select Comfort shall provide Supply Partner with an updated Forecast during any calendar quarter which reflects an updated projection of anticipated demand which may be higher or lower by no more than XXXX than that previously provided for the same period of time.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+5.2
+
+SAFETY STOCK: The Supply Partner is obliged to maintain safety stock in the amount equal to XXXX of the baseline Forecast for the current calendar year.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted
+
+Page 2 of 14
+
+are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+5.3
+
+CAPACITY: At least once per calendar quarter, Supply Partner shall provide Select Comfort with detailed information on current and anticipated production capacity relative to the Parts. In the event that Supply Partner's production capacity is materially reduced for any reason including, but not limited to, raw material shortage, damage to or destruction of manufacturing tooling, machinery or facilities, labor shortage or stoppage or by any other cause, Supply Partner shall promptly notify Select Comfort of such materially reduced production capacity.
+
+5.4
+
+OBSOLESCENCE: Select Comfort may determine, in its sole discretion, that certain Parts have or will become obsolete. Select Comfort shall notify Supply Partner in writing of its plans to declare as obsolete any Parts and the planned schedule for obsolescence. At that time, Select Comfort and Supply Partner shall work together to adjust any Inventory or Safety Stock requirements as may be contained herein in an effort to minimize or eliminate stocks of raw materials, work-in-process or finished Parts in a manner that is consistent with the planned schedule for obsolescence. Supply Partner shall not initiate any changes to its inventory or Safety Stock levels related to a Part subject to obsolescence without first discussing same with Select Comfort and Select Comfort agreeing to such change. Provided that Supply Partner has cooperated with efforts to minimize stocks of raw materials, work-in-process or finished Parts, Select Comfort shall, at the end of the planned scheduled for obsolescence, purchase from Supply Partner a) all finished inventory of such obsolete Parts (including Safety Stock) that conforms to the then current Specifications provided in Schedule B at the then current prices specified in Schedule A; b) thirty (30) days raw materials purchased by Supply Partner that are exclusive to the Parts purchased by Select Comfort, provided that the quantity of such raw materials is consistent with both the then-current Forecast and the schedule of obsolescence and then at a price equal to the cost incurred by the Supply Partner in purchasing said raw materials; and c) all Parts that are in a state of work-in-process to the extent that the quantity of such work in process is consistent with both the then-current Forecast and the schedule of obsolescence and then at a price equal to Supply Partner's cost in producing such work-in-process and not to exceed the then current Prices specified in Schedule A for those Parts. Select Comfort shall not be obligated to purchase any inventory, raw materials or work-in-process to the extent such inventory, raw materials or work-in-process is in excess of that required to support Select Comfort's then-current volume requirements, including Safety Stock, as reflected in the then-current Forecast or the schedule of obsolescence, whichever is less. Select Comfort shall not be obligated to purchase any raw materials, work-in-process or Parts that do not comply with the then current Specifications.
+
+PURCHASE ORDERS AND RELEASES
+
+6.1
+
+PURCHASE ORDERS: Select Comfort shall issue one or more documents (hereinafter, a "Purchase Order") requesting a specific quantity of the Parts to be delivered according to the agreed delivery terms or by specific delivery date, consistent with the current Forecast by Select Comfort. Select Comfort shall deliver each Purchase Order to the Supply Partner no later than two (2) weeks before the shipment date out of the Supply Partner ́s warehouse at the latest. If Select Comfort delivers a Purchase Order to the Supply Partner less than two (2) weeks prior to that shipment date, the Supply Partner shall a) confirm with Select Comfort whether Select Comfort is willing to postpone the shipment date such that the Supply Partner has at least two (2) weeks prior to that shipment date; b) if Select Comfort needs that Purchase Order as submitted, then the Supply Partner shall use commercially reasonable efforts to comply (with Select Comfort reimbursing the Supply Partner for its reasonably out-of-pocket expenses above Supply Partner's costs had Select Comfort delivered that Purchase Order as required above); and c) if the Supply Partner is unable to meet the shipment date requested by Select Comfort despite its use of reasonable efforts, then such failure shall not constitute a breach of this Agreement, provided that the Supply Partner actually ships the required items not more than two (2) weeks after the actual receipt date of that Purchase Order. Select Comfort may also issue a blanket Purchase Order for the purchase of a quantity of Parts which are intended to be delivered in phases over time. To the extent Select Comfort issues a blanket Purchase Order, Select Comfort shall, from time to time thereafter, issue one or more documents (each, a "Release") that specifically requests for the specific delivery of a specific quantity of the Parts previously listed on a blanket Purchase Order to be delivered to a specific location on or
+
+by specific delivery dates. The same time obligations of the Parties set out above with respect to Purchase Orders shall also apply to a Release. Select Comfort may issue a Purchase Order or Release for Parts in accordance with the current Forecast (refer to section 5.1). Select Comfort shall have no obligation or liability with respect to the purchase of any Parts under this Agreement unless and until such Parts are specified in an issued Purchase Order or, in the case of a blanket Purchase Order, a Release.
+
+6.2
+
+NOTICE OF REJECTION OF PURCHASE ORDER OR RELEASE: If a particular Purchase Order or Release exceeds the current Safety Stock or any relevant Forecast, Supply Partner may issue notice to Select Comfort rejecting such Purchase Order or Release (the "Notice of Rejection"). Such Notice of Rejection must be delivered to Select Comfort as specified herein within two working days XXXX from Supply Partner's receipt of the relevant Purchase Order or Release. The rejection of a Purchase Order or Release in excess of the current Safety Stock or any relevant Forecast will only apply to that portion of the Purchase Order or Release that is in excess of the current Safety Stock or relevant Forecast. Failure of the Supply Partner to issue a Notice of Rejection shall constitute Supply Partner's commitment to the terms of the Purchase Order or Release and Supply Partner shall be bound by the terms including but not limited to the delivery dates and locations specified therein.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+6.3
+
+RELEASE ADJUSTMENTS: Provided that Select Comfort adheres to the lead times specified in section 6.1 above, Select Comfort may, after mutual agreement, adjust or cancel and re-issue any previously issued Release for the purposes of adjusting the Parts, quantities, and locations of or time for delivery contained therein.
+
+6.4
+
+BATTLE OF THE FORMS: No additional terms and conditions that a Party includes in or with a Purchase Order, Release Adjustment, purchase order acceptance, payment, course of dealing between the Parties or industry custom, or otherwise, shall vary the terms and conditions set forth in this Agreement shall apply except as provided in Section 22.19 below.
+
+SHIPPING AND DELIVERY
+
+7.1
+
+TITLE AND RISK OF LOSS: Title to all Parts shipped by Supply Partner to Select Comfort under this Agreement and in accordance with a Purchase Order or Release shall pass to Select Comfort only upon delivery of the Parts to Select Comfort in conformity with and as specified in a Purchase Order or Release and then only after same has been accepted and not rejected within the timeframes established herein. Risk of loss or damage shall pass to Select Comfort in accordance with shipping terms set by this Agreement, unless specified otherwise by mutual written agreement of the Parties for a particular Purchase Order or Release.
+
+7.2
+
+DELIVERY: Supply Partner will deliver the Parts on the dates or within the time frames specified in the Purchase Order or Release. All non-blanket Purchase Orders and releases are required to be shipped complete unless otherwise specifically provided in a Purchase Order. Time is of the essence in the performance of this Agreement generally and each Purchase Order or Release specifically.
+
+Page 3 of 14
+
+7.3
+
+NON-DELIVERY: In the event that Supply Partner fails to meet the delivery dates or times specified in a Purchase Order or Release and Supply Partner has not previously provided Notice of Rejection, such delivery failure shall constitute a breach of this Agreement for which Select Comfort shall be entitled to recover for any additional actual costs incurred as a consequence of such failure including but not limited to the cost of expedited freight to the original location specified in the Purchase Order or Release as well as the cost of any demurrage.
+
+7.4
+
+SHIPPING TERMS: Any Parts ordered by Select Comfort under any Purchase Order or Release issued in connection with this Agreement shall be delivered by Supply Partner FCA (Supply Partner ́s factory in XXXX. Shipping terms can be changed only by mutual agreement of the Parties in writing. If a change to the shipping terms necessitates a change to the Price of the Parts, such change shall also be reflected in an amended Schedule A. The shipping terms agreed to by the Parties shall be interpreted in accordance with Incoterms 2010 defined by the International Chamber of Commerce.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+7.5
+
+OMITTED
+
+7.6
+
+OMITTED
+
+7.7
+
+NON-CONFORMING PRODUCT: Supply Partner shall not deliver any Parts to Select Comfort in the absence of a Purchase Order or Release or which otherwise do not conform to the terms contained in any issued Purchase Order or Release. Parts so delivered may, at Select Comfort's option, be rejected for return to Supply Partner at Supply Partner's expense or retained by Select Comfort at no cost to Select Comfort, provided that Supply Partner does not insist on having such Parts returned at Supply Partner's expense. The Supply Partner shall have the right to inspect, or engage a third party to inspect, Parts retained by Select Comfort under this section 7.7 to confirm the non-conformity described by Select Comfort.
+
+INVOICING AND PAYMENT
+
+8.1
+
+INVOICE TERMS: All invoices will be stated in U.S. currency and all payments will be made in U.S. currency. Terms of payment for undisputed invoices will be net XXXX days from the issue date of invoice.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+8.2
+
+ADJUSTMENTS: All invoices submitted by Supply Partner to Select Comfort are subject to adjustment by Select Comfort for mutually confirmed errors.
+
+8.3
+
+INVOICE DISPUTE: Select Comfort shall not be required to pay the disputed portion of any invoice pending resolution of that dispute provided, however, that Select Comfort provides Supply Partner with written notice of the dispute promptly after becoming aware of any reasons to dispute the invoice, in any case never later than by the payment due date of the invoice containing the disputed amount.
+
+8.4
+
+INVOICE CONTENT: The information on Supply Partner's invoice shall include, at a minimum, the issue date of the invoice, the Purchase Order or Release number, a Part reference number (e.g., part number, SKU number, etc.), a Part description, quantities, Price per unit, total amount due and payment method.
+
+8.5
+
+RIGHT OF INSPECTION: Nothing in this section shall be construed so as to eliminate, limit, shorten, or otherwise alter Select Comfort's right of inspection of the Parts.
+
+8.6
+
+INTEREST FOR LATE PAYMENT: If Select Comfort fails to pay the invoiced amounts in time Select Comfort shall pay to Supply Partner interest at the rate of XXXX of the unpaid amount per month or the highest rate permitted by applicable law, if lower, pro rated daily.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are
+
+marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+PART QUALITY AND WARRANTY
+
+9.1
+
+QUALITY WARRANTY: Supply Partner warrants to Select Comfort that all Parts will be manufactured, packaged and delivered in accordance with the Schedules B and C (hereinafter collectively, the "Quality Warranty").
+
+9.2
+
+GOOD TITLE: The Supply Partner warrants that it has good and marketable title to the Parts and that the Parts will be transferred free and clear of all liens, claims or encumbrances.
+
+9.3
+
+OMITTED
+
+9.4
+
+OMITTED
+
+9.5
+
+LIMITATIONS: The Quality Warranty set forth in this section shall not cover defects caused by misuse or mishandling of Parts by Select Comfort or the end-user consumer or installation, application or maintenance of the Parts by Select Comfort or the end-user consumer that is inconsistent with any written instructions provided with the Parts by Supply Partner.
+
+9.6
+
+FINANCIAL REMEDY FOR BREACH OF QUALITY WARRANTY: Except if explicitly stated otherwise elsewhere in this Agreement, Select Comfort's only financial remedy in the event of Supply Partner's breach of the quality warranty will be to receive a reimbursement from Supply Partner, in the form of a monthly credit against any payment obligations of Select Comfort to Supply Partner as specified in the "Quality Rebate" paragraph in Schedule C. Upon expiration or termination of this Agreement when: (a) Supply Partner has fulfilled all then-outstanding Purchase Orders and Rebates by shipping the Parts that Select Comfort ordered; and (b) Supply Partner has issued, and Select Comfort has paid, the final invoice that the parties anticipate under this Agreement, then: If any further quality rebates were to become payable under Schedule A, Supply Partner will pay those further quality rebates by wire transfer of immediately available funds in U.S. dollars (such that Select Comfort receives the net amount due) to an account in any U.S. financial institution, as designated by Select Comfort, within thirty (30) days after, as applicable:: (x) the date of the written advice that Select Comfort transmitted to Supply Partner itemizing the defects discovered in the Parts and the corresponding quality rebates due; or (y) the date that any disputes relating thereto are settled.
+
+9.7
+
+OMITTED
+
+9.8
+
+QUALITY METRICS: Quality metrics and related financial consequences of meeting or failing to meet such metrics are attached hereto and incorporated herein as Schedule C.
+
+9.9
+
+CATASTROPHIC FAILURE: A "Catastrophic Failure" shall exist if the Parts (i) contain mechanical, material or workmanship defects or doesn't meet the Specifications at a rate greater XXXX of Parts for XXXX as indicated in the Select Comfort 0-60 day product warranty dashboard for chambers or (ii) (a) some Parts fail to meet the Specifications; (b) as a result of those Parts not meeting those Specifications, the consumer products into which Select Comfort has incorporated those Parts: (1) fail to meet any consumer product safety standard or banning regulation applicable to those Parts or those consumer products, (2) contain a defect which could create a substantial product hazard to consumers, or (3) create an unreasonable risk of serious injury or death; and (c) due to (a) and (b) above, Select Comfort files a report to U.S. Consumer Product Safety Commission (the "CPSC") under the U.S. Consumer Product Safety Act, Pub. L. 92-573, 86 Stat. 1207 (Oct. 27, 1972)(codified at 15 U.S.C. §§ 2051-2089), as amended, notifying the CPSC that there is a situation that could potentially trigger a consumer recall of those products, and either (1) actually conducts such a consumer recall; or
+
+Page 4 of 14
+
+(2) under a consent order or other agreement with the staff of the CPSC, takes any other action in lieu of conducting a consumer recall to remove such Parts or consumer products from commerce.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+9.10
+
+NOTICE OF CATASTROPHIC FAILURE: Each Party shall notify the other in writing within XXXX if a Catatropic Failure exists.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+9.11
+
+REMEDIES FOR CATASTROPHIC FAILURE: In the event of a Catastrophic Failure and in addition to any other equitable remedies available under this Agreement, Supply Partner will, in addition to the financial remedy for the breach of the quality warranty generally, reimburse Select Comfort for all actual costs incurred by Select Comfort retroactive to the beginning of the specific failure, to undertake a systematic effort to locate the Part(s) in the field and to develop and implement a solution to refund, repair or replace them, including, without limitation, the cost of customer refunds and costs related to field service inspection and replacement, shipping, packaging material and labor, service center labor, monitoring and reporting procedures, professional services and attorneys' fees and other costs reasonably necessary to both satisfy customers and meet any regulatory requirements occasioned by such Catastrophic Failure (such costs being collectively referred to hereinafter as "Catastrophic Failure Costs"). Notwithstanding the foregoing, the aggregate liability of Supply Partner for Catastrophic Failure Costs, not including the general financial remedy for the breach of the quality warranty, shall never exceed XXXX of the Price as reflected in Schedule A of all Parts identified as having experienced a Catastrophic Failure. In addition to the foregoing, Select Comfort shall have the right, but not the obligation, to terminate this Agreement for cause immediately as provided in Section 12.2.B.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+9.12
+
+WARRANTY SURVIVAL: The Quality Warranty shall survive any inspection, delivery, acceptance or payment by Select Company or the expiration or termination of this Agreement for a period of XXXX years from the date the invoice for Parts has been issued.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+9.13
+
+QUALITY AND VALUE ENGINEERING: Supply Partner agrees to participate in and provide sufficient engineering and research and development resources to support joint efforts related to quality and value engineering and product development in an effort to improve Part quality, improve the development, manufacturing or delivery process and reduce costs related to development, manufacturing or delivery. Such efforts shall be guided by Select Comfort and shall follow Select Comfort's established toll-gate process for such efforts.
+
+9.14
+
+OMITTED
+
+9.15
+
+PRODUCT TESTING: At least once annually, Supply Partner agrees to provide sample Parts in order to facilitate the destructive testing of such parts for compliance with the Specifications (refer to Schedule A, B, C) including, but not limited to, XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as
+
+amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+COMPLIANCE
+
+10.1
+
+COMPLIANCE: Supply Partner represents and warrants that all Parts will be manufactured, processed, packaged, labeled, marked, tagged, tested, certified, weighed, inspected, loaded, shipped and/or sold by Supply Partner hereunder in compliance with Schedules A, B, C and with:
+
+•
+
+Any laws or regulations relating to health, safety, and the environment in the country of manufacture;
+
+•
+
+Any laws or regulations in the country of manufacture or in the country of Supply Partner's residence which are intended to prevent and/or prohibit the seeking of any influence or advantage from or the payment of any bribe to a public official of any country or political subdivision;
+
+•
+
+Any laws or regulations in the country of manufacture or in the country of Supply Partner's residence which are intended to prevent and/or prohibit the trafficking of human beings or the use of forced, slave or child labor;
+
+•
+
+Any laws or regulations in the country of manufacture or in the country of Supply Partner's residence which are intended to prevent and/or prohibit the sourcing of materials from conflict-affected or high-risk areas.
+
+10.2
+
+HAZARDOUS MATERIALS: Supply Partner agrees to comply with Select Comfort direction on Parts, containers and packing, regarding any hazardous material which is a component of or an ingredient in or a part of any of the Parts, together with such special handling instructions as may be necessary to advise Select Comfort and permit Select Comfort to advise its employees, customers and other vendors of how to exercise that measure of care and precautions which will best prevent bodily injury or property damage in the handling, transportation, processing, use or disposal of the Parts, containers or packing. In the event the Parts contain any chemicals or materials that would result in Select Comfort violating any law, rule or regulation governing the selling, handling, transportation, processing, use or disposal of the Parts or if the Parts contain any PCBs, CFCs or any other acutely hazardous materials or chemicals, Select Comfort reserves the right to terminate this Agreement for cause.
+
+10.3
+
+PART CONTENT RESTRICTIONS: Supply Partner represents and warrants that all Parts delivered to Select Comfort under this Agreement shall be free from any minerals deemed as "conflict minerals" as defined by the OECD and that the materials used in the manufacture of the Parts does not include materials produced by child labor or forced labor as defined by the US Department of Labor.
+
+10.4
+
+DOCUMENTATION: Supply Partner shall, at least annually and at such other times as may be reasonably requested by Select Comfort, provide copies of Material Safety Data Sheets ("MSDS") or such other certificates, letters or other documents as Select Comfort may reasonably request to establish Supply Partner's compliance with the aforementioned warranties and applicable laws, rules and regulations and to enable Select Comfort to comply with any and all applicable federal, state, provincial or local laws, rules, regulations and standards now in effect or hereafter promulgated.
+
+10.5
+
+NOTICE OF FAILURE OR DEFECT AND SUBSEQUENT ANALYSIS: Supply Partner shall notify Select Comfort immediately but in no event later than two (2) business days after it becomes aware of any information tending to suggest that any Part a) fails to meet the Specifications; b) fails to comply Select Comfort direction regarding any hazardous material present in any of the Parts; c) has a defect which could create a substantial Part hazard; or d) creates risk of serious injury or death. Immediately upon such notice to Select Comfort, Supply Partner shall isolate such Part and commence testing to determine the reasons for such failure or defect. Such testing must be completed within forty-eight (48) hours of notice to Select Comfort of the possibility of such failure or defect. The results of such testing shall be provided to Select Comfort within twenty-four (24) hours of it becoming
+
+Page 5 of 14
+
+available to Supply Partner. Such tests results are within the definition of Confidential Information for the purposes of this Agreement.
+
+INSPECTION AND ACCEPTANCE OR REJECTION
+
+11.1
+
+PART INSPECTION AND ACCEPTANCE: All Parts delivered to Select Comfort pursuant to this Agreement are subject to inspection and acceptance by Select Comfort at any time after receipt notwithstanding any prior payments or inspections. If any Purchase Order or Release calls for delivery in installments, Select Comfort shall have the right to inspect and accept or reject each installment. Select Comfort shall have the right to perform testing to determine if Parts comply with the Specifications SP-004 or any mutual agreed specifications and laws, as specified in Schedule C.
+
+11.2
+
+MANUFACTURING PROCESS AND FACILITY ACCESS AND INSPECTION: At Select Comfort's written request, Supply Partner shall permit Select Comfort to have access to Supply Partner's manufacturing facility and/or distribution center solely for the purpose of evaluating the Parts .
+
+11.3
+
+REJECTION: At any time after the inspection of the Parts by Select Comfort, Select Comfort may reject all or part of the delivery of Parts if the Parts do not meet the Specifications, (hereinafter, "Non-Conforming Parts"). Select Comfort shall notify Supply Partner of this rejection in writing and provide instruction to Supply Partner regarding the retrieval of the Parts. Parts rejected by Select Comfort as Non-Conforming Parts shall be designated and labeled as such by Supply Partner and shall not, under any circumstance, be re-delivered to Select Comfort under any current or future Purchase Order or Release. The delivery of Non-Conforming Parts shall be considered a material breach of this Agreement.
+
+11.4
+
+NO ALTERATION OR DEVIATION: Supply Partner represents and warrants to Select Comfort that it will not alter or remove any manufacturing process or deviate from the Specifications without Select Comfort's prior written approval. Any Parts produced, manufactured or delivered after such non-approved alteration or removal of any manufacturing process or that deviate from the Specifications will be considered Non-Conforming Parts.
+
+TERM AND TERMINATION
+
+12.1
+
+TERM: Unless terminated earlier as provided herein, the term of this Agreement (the " Term") shall commence on the Effective Date and continue until June 30, 2016 (the "Initial Term") and shall include all Renewal Terms. At the end of the Initial Term, this Agreement shall automatically renew for successive one (1) year terms (hereinafter, each a "Renewal Term") unless either Party shall give the other notice prior to the expiration of either the Initial Term or any Renewal Term of its desire not to renew this Agreement upon expiration of the relevant term. Such notice must be given in writing and at least one (1) year prior to the expiration of the term that will not be renewed. In the event there are open Purchase Orders or Releases at the expiration of the Term, the Term shall be extended until the date of last delivery under the Purchase Order or Release. The Term shall not be extended to cover dates falling after a termination other than by expiration of the Term (termination by mutual agreement or termination for cause). The Parties shall make sure that the terms and the performance of this Agreement, in particular as regards the Term and the exclusivity provisions, be at all times in compliance with the applicable rules XXXX. If the Parties come to the conclusion that some provision of this Agreement or some conduct by the Parties according to this Agreement does not comply with the effective rules XXXX, they will exert their best efforts to put the respective provision or conduct in compliance with the law.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+12.2
+
+TERMINATION: This Agreement may be terminated as follows:
+
+A.
+
+This Agreement may be terminated at any time upon the mutual written consent of the Parties.
+
+B.
+
+Either Party may terminate this Agreement by giving written notice to the other Party in the event that the other Party is in material breach of this Agreement and shall have failed to cure such breach within ninety (90) days of receipt of written notice thereof. Written notice of any material breach shall specify the nature of such breach.
+
+C.
+
+Either Party may terminate this Agreement at any time by giving written notice to the other Party if (1) the other Party at any time (a) files a petition for bankruptcy, (b) is adjudged bankrupt or insolvent, (c) makes an assignment for the benefit of its creditors, or (d) has a received appointed for it; (2) a trustee, receiver or other equivalent officer is appointed for the other Party by any court or governmental authority or any third party to administrate or liquidate the assets of the other Party where such action is not dismissed within sixty (60) days of such appointment; or (3) dissolution proceedings are commenced by or against the other Party which are not dismissed within sixty (60) days of commencement.
+
+D.
+
+Either Party may terminate this Agreement with a minimum of one (1) year written notice to the other Party if either Party intends to discontinue the manufacture or use of all Parts.
+
+E.
+
+By Select Comfort with written notice to Supply Partner if:
+
+a.
+
+Supply Partner fails to meet the Quality Warranty standards specified in Schedule B and C in any material respect for a period of at least ninety (90) consecutive days. In such event, Select Comfort shall notify Supply Partner of such failure in writing and specifying the nature of such failure and providing a ninety (90) day period for the Supply Partner to cure such failure ("Cure Period"). If Supply Partner is unwilling or unable to cure such failure within the Cure Period, Select Comfort may, but is not required to, terminate this Agreement at the expiration of the Cure Period.
+
+b.
+
+The Supply Partner repeatedly and for a period of at least sixty (60) consecutive days fails to meet the delivery requirements specified in this Agreement and any schedule or exhibit thereto. In such event, Select Comfort shall notify Supply Partner of such failure in writing and specifying the nature of such failure and providing a sixty (60) day period for the Supply Partner to cure such failure ("Cure Period"). If Supply Partner is unwilling or unable to cure such failure within the Cure Period, Select Comfort may, but is not required to, terminate this Agreement at the expiration of the Cure Period.
+
+F.
+
+By Select Comfort at any time after the third year of the Agreement with one (1) year prior written notice in the event that the Prices for the Parts cease to be Cost Competitive. For the purposes of this Agreement, "Cost Competitive" shall mean that the Prices charged by the Supply Partner for the Parts are in excess of those quoted by other suppliers, as evidenced by at least one (1) legally binding offers from third parties (which are not Affiliates of Select Comfort) offering to supply Parts to select Comfort (i) that are substantially and materially similar to the Parts offered by the Supply Partner; (ii) under at least equal terms with regard to quality, delivery and volume; and (iii) at volumes at least equal the volumes identified in Schedule A; and (iv) for Prices that are at least XXXX lower than the Prices charged by the Supply Partner for the Parts. Prior to terminating this Agreement under this section, Select Comfort shall notify Supply Partner of any offers it receives which tend to indicate that Supply Partner's Prices for the Parts is no longer Cost Competitive and provide Supply Partner with copies of such offers and the possibility to evaluate the same or similar competing product. Thereafter, Supply Partner shall have ninety (90) days within which to respond to Select Comfort with a competitive offer and shall have the opportunity to deliver the statement regarding justifiability of the claimed price. If the Supply Partner is unable or unwilling to make a competitive offer during such
+
+Page 6 of 14
+
+ninety day period, Select Comfort has the right but not the obligation to terminate this Agreement immediately at the end of the ninety day period.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+G.
+
+By either Party with one (1) year prior written notice in the event that there is a Change of Control of either Party and such Change of Control has Negative Consequence on the respective business of either Party. For the purposes of this section, "Change of Control" means the acquisition by any person or entity or group of affiliated persons or entities of more than twenty-five (25%) of the voting rights of either Party respectively. For the purposes of this section, the term "Negative Consequence" means a situation in which the Change of Control may result in a substantial deterioration in the financial ability of the Party experiencing the Change of Control to meet the terms of this Agreement or a direct competitor of Select Comfort becomes an owner or a person exercising voting rights in the Supply Partner. For the purposes of clarity, an internal restructuring of the businesses of the Parties does not constitute a Change of Control. Notwithstanding the foregoing, this Agreement is terminable by either Party immediately with notice in the event that the person, persons or legal entity which acquires any shares of the voting rights of the Party experiencing the Change of Control is a person or entity with which the other Party cannot transact business or whose business is located in a country with which trading is prohibited under U.S. law.
+
+H.
+
+By either Party with six (6) months prior written notice if such Party proposes or requests a change to the Specifications for the purposes of complying with any Relevant Regulation, and such change is not agreed to by the other Party and resulting noncompliance would have material negative effect on the business of the Party proposing or requesting such change. Any termination under this section 12.2 (H) shall not be effective earlier than four months before the Relevant Regulation the noncompliance with which is a reason for such termination enters into force.
+
+I.
+
+If the Party affected by force majeure fails to resume normal operations within 90 days, the unaffected Party can terminate the Agreement by a written notice with immediate effect.
+
+12.3
+
+PURCHASE OF INVENTORY UPON TERMINATION: In the event of the termination of this Agreement for any reason other than under section 12.2 (E), Select Comfort shall purchase from Supply Partner a) all finished inventory of such Parts (including Safety Stock) that conforms to the then current Specifications provided in Schedule B at the then current prices specified in Schedule A; b) XXXX days raw materials purchased by Supply Partner that are exclusive to the Parts purchased by Select Comfort provided that the quantity of such raw materials are consistent with both the then-current baseline Forecast and then at a price equal to the cost incurred by the Supply Partner in purchasing said raw materials; and c) all Parts that are in a state of work-in-process to the extent that the quantity of such work-in-process is consistent with the then current baseline Forecast and then at a price equal to Supply Partner's cost in producing such work-in-process and not to exceed the prices for the Parts specified in the then-current Schedule A. Select Comfort shall not be obligated to purchase any inventory, raw materials or work-in-process to the extent such inventory, raw materials or work-in-process is in excess of that required to support Select Comfort's volume requirements including Safety Stock as reflected in the most current Forecast. In no event shall Select Comfort be obligated to purchase any Parts, inventory, raw materials or work-in-process that does not comply with the then current Specifications. At Select Comfort's election, Select Comfort may ask Supply Partner to legally dispose, at Select Comfort's expense, of any Parts required to be purchased by Select Comfort under this section in lieu of taking delivery of such purchased Parts. In such case, Select Comfort shall remain obligated, if at all, to Supply Partner as if it had taken possession of the Parts so disposed.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are
+
+marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+12.4
+
+OMITTED
+
+12.5
+
+TERMINATION WITHOUT PREJUDICE: Any termination of this Agreement will be without prejudice to any other remedies which either Party may have against the other or arising out of a breach or default and will not affect any accrued rights or obligations of either Party arising under this Agreement prior to such termination.
+
+12.6
+
+SURVIVAL: Notwithstanding the termination or expiration of this Agreement, the following provisions shall survive such expiration or termination: Section 9 (Part Quality and Warranty); Section 13 (Insurance); Section 14 (Indemnification); Section 15 (Dispute Resolution); Section 16 (Records, Audit and Inspection); Section 17 (Confidentiality); Section 18 (Intellectual Property); and Section 20 (Restrictions on Activities). Further, those provisions of this Agreement that are general in nature and relate to post-termination and post-expiration related events (e.g. jurisdiction, venue, governing law, etc.) shall also survive the expiration or termination of this Agreement.
+
+12.7
+
+OBLIGATIONS: Termination or expiration of this Agreement shall not release either Party from any obligation(s) to make payment to the other Party of any and all amounts then due or thereafter payable under this Agreement. In the absence of any language in this Agreement that provides for a different time, any payments which are or become due after termination or expiration of this Agreement shall be due and payable no later than forty-five (45) days form the date of termination or expiration.
+
+12.8
+
+EFFECT OF TERMINATION ON OUTSTANDING PURCHASE ORDERS OR RELEASES: If this Agreement is terminated pursuant to Section12.2 (B) or 12.2 (C), the Party terminating the Agreement shall have the right, at its sole discretion, to either a) accelerate the delivery dates in any issued and outstanding Purchase Orders or Releases; or b) cancel any issued and outstanding Purchase Orders or Releases.
+
+INSURANCE
+
+13.1
+
+GENERAL COMMERCIAL LIABILITY COVERAGE: During the Term of this Agreement and for a period of XXXX years after its expiration or earlier termination, Supply Partner shall obtain, at its sole cost and expense, liability insurance applicable to its performance under this Agreement which shall insure Supply Partner against all liability related to its activities relating to the development, manufacture or sale of the Parts, whether such liability arises from Supply Partner's own conduct or by virtue of its participation in this Agreement, including liability for bodily injury including death, property damage and any contractual indemnity obligation imposed by this Agreement.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+13.2
+
+AMOUNT OF COVERAGE: The insurance coverage required by this section shall be in amounts that are reasonable and customary XXXX for companies engaged in the type of business so engaged by Supply Partner but in no event shall such insurance maintained by Supply Partner cover less than the greater of XXXX.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+13.3
+
+DEDUCTIBLE OR SELF-INSURED RETENTIONS: If Supply Partner has any self-insured retentions or deductible under any of the required coverages,
+
+Page 7 of 14
+
+Supply Partner must identify on the certificate of insurance the nature and amount of such self-insured retention or deductible and provide evidence satisfactory to Select Comfort of financial responsibility for such obligations. All such deductibles or self-insured retentions shall be Supply Partner's sole responsibility.
+
+13.4
+
+INSURER REQUIREMENTS: All policies issued to Supply Partner which are intended to satisfy the requirements of this section must be written on a form no less broad than ISO form 1986 edition or later and with qualified insurance carriers licensed to do business and admitted in Supply Partner's state of domicile. All such insurers must be rated no less than type A in accordance with the rating by the company Standard and Poors.
+
+13.5
+
+PRIMARY COVERAGE AND SUBROGATION: The insurance coverage required by this section shall be written as primary policies, not contributing with and not in excess of coverage which Select Comfort may carry, if any.
+
+13.6
+
+EVIDENCE OF INSURANCE: Supply Partner shall maintain evidence of insurance coverage as required by this Agreement as represented by certificates of insurance issued by the insurance carrier or its legal agent. Certificates of insurance shall be furnished to Select Comfort contemporaneously with the execution of this Agreement and from time to time thereafter as reasonably requested by Select Comfort but in any event no less frequently than annually.
+
+13.7
+
+NOTICE OF CANCELLATION: Notwithstanding the issuance of an endorsement by the insurance carrier obligating the carrier to provide notice to Select Comfort upon a change in terms to, coverage under or cancellation of the policies required by this section, Supply Partner shall promptly notify Select Comfort if, for any reason, the insurance coverage required by this section is not obtained, is changed or is cancelled.
+
+13.8
+
+EFFECT OF FAILURE TO OBTAIN OR CANCELLATION OF COVERAGE: Failure of Supply Partner to procure and maintain the insurance coverage required by this section shall constitute a material breach of the Agreement.
+
+13.9
+
+CLAIMS MADE COVERAGE: If the coverage required by this Agreement is written on a claims made basis, Supply Partner warrants that any retroactive date applicable to coverage under the policy precedes the Effective Date of this Agreement and that continuous coverage will be maintained or an extended discovery period will be exercised for a period of five (5) years beginning from the time that the Agreement is terminated or expires.
+
+13.10
+
+WORKERS' COMPENSATION AND EMPLOYERS' LIABILITY: Supply Partner will maintain statutory employers' liability insurance in the amounts and as required by applicable law valid in the country of manufacture.
+
+LIABILITY
+
+14.1
+
+INDIRECT OR CONSEQUENTIAL LOSS OR DAMAGES ARE NOT RECOVERABLE: Notwithstanding that the non-breaching Party may have advised the breaching Party of special circumstances prior to the relevant breach or breaches of this Agreement, in no event, whether in contract or tort (including, without limitation: breach of warranty, negligence and strict liability in tort) or otherwise under any other form of action, shall a Party be liable under this Agreement to the other Party for indirect or consequential loss or damages, including, without limitation, those items, types or categories of loss or damages set forth in item (A) through item (D) below:
+
+A.
+
+any item, type or category of loss or damages that may not fairly and reasonably be considered either arising naturally, i.e., according to the usual course of things, from such breach of this Agreement itself, or such as may reasonably be supposed to have been in the contemplation of both Select Comfort and the Supply Partner, at the time they made this Agreement, as the probable result of the breach of it (including without limitation: loss of profits, loss of margin, loss of business, loss or revenue, loss of goodwill, loss of or failure to achieve any anticipated savings and/or similar categories of loss;
+
+B.
+
+exemplary damages;
+
+C.
+
+punitive damages; and/or
+
+D.
+
+special damages (including without limitation, compensation for: pain and suffering, loss of companionship, loss of consortium, loss of parental care, and similar types of legal injuries).
+
+For the avoidance of doubt, with respect to losses for which one Party is obligated to indemnify the other Party, all damages awarded by a court which are covered by that indemnity shall be deemed not to be indirect or consequential; provided, however, that the indemnifying party shall not be required to pay to the indemnified party exemplary damages or punitive damages which are awarded due to the indemnified party's acts or omissions.
+
+14.2
+
+LIMITATION OF LIABILITY: Subject to the exceptions set out in section 14.3 below, each Party's maximum aggregate liability to the other Party under this Agreement, arising out of this Agreement and/or the transactions contemplated by this Agreement, for losses relating to events occurring during each Liability Year, whether in contract or tort (including without limitation: breach of warranty, negligence and strict liability in tort) or otherwise under any other form of action, shall be XXXX (the "Limitation of Liability"). A "Liability Year" is each one year period during the Term that commences on 1 January of a given calendar year and ends on 31 December of the same calendar year. If a Party incurs a loss in a currency other than U.S. dollars for which the other Party is fully or partially liable under this Agreement, then that loss shall be converted to U.S. dollars as of the date that such loss becomes final and payable, using: (a) the official exchange rate for conversion of that currency to U.S. dollars, if the country issuing such other currency has established by law a mandatory official exchange rate; or (b) if there is no such mandatory official exchange rates established by law, the exchange rate for making such conversion published by the Financial Times of London on that date (or on the first date thereafter that the Financial Times of London publishes that exchange rate). If the Financial Times of London no longer exists or ceases to publish exchange rates, then the Parties shall reasonably agree to use one of the following: The Wall Street Journal; the Australian Business Review; The Business Times (Singapore), The Economist; or a similar English language financial newspaper that is respected globally.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+14.3
+
+EXCEPTIONS TO THE LIMITATION OF LIABILITY: The Limitation of Liability set forth in section 14.2 above shall not apply with respect to any of the following:
+
+A.
+
+losses occasioned by the willful misconduct, fraud, dishonesty or intentional tort of a Party or of that Party's personnel;
+
+B.
+
+(a) aggregate Prices properly payable under this Agreement by Select Comfort to Supply Partner for purchase of the Parts and (b) any rebates properly payable under this Agreement by one Party to the other Party; in each case, net of any deductions agreed by the Parties or resulting from the resolution of a dispute;
+
+C.
+
+in the case of Supply Partner, liability for breach of Supply Partner ́s Exclusivity Obligation;
+
+D.
+
+in the case of Select Comfort, liability for breach of Select Comfort ́s Exclusivity Obligation;
+
+E.
+
+losses that are the subject of each Party's indemnity of the other Party relating to third party claims of infringement or misappropriation of that third party's intellectual property rights or trade secrets;
+
+14.4
+
+COMPARATIVE NEGLIGENCE: If a natural person or legal entity (which may be a third party or a Party) suffers loss or damages with respect to which
+
+Page 8 of 14
+
+both Select Comfort and the Supply Party are, or may be, jointly and severally liable under this Agreement as a result of Select Comfort and the Supply Party each having breached its respective duty of care owed to the natural person or legal entity suffering that loss or those damages, then, as between the Parties, the respective liability of each shall be determined in accordance with the principles of comparative negligence under New York law.
+
+INDEMNIFICATION
+
+15.1
+
+INDEMNITY BY SELECT COMFORT: Select Comfort shall indemnify, defend and hold harmless the Supply Partner and its Affiliates, and the officers, directors, employees, consultants, agents, successors and permitted assigns of each of them (collectively, the "Supply Partner Indemnitees") from any and all Losses arising from, in connection with, or based upon allegations (whenever made) of, any of the following:
+
+A.
+
+except for any claims relating to the process used to manufacture the Parts which is not required by the Specifications or otherwise required by Select Comfort in writing, any third party claims that any action by Select Comfort or by Supply Partner with regard to Parts furnished under this Agreement causes that Part, directly or indirectly, to infringe upon or misappropriate any foreign or domestic patent, trade secret, copyright, trade name, trademark or other intellectual property rights, confidential or proprietary information of any third party; and
+
+B.
+
+except for claims for which this Agreement requires Supply Partner to indemnify the Select Comfort Indemnitees, any claim made directly against one or more of the Supply Partner Indemnitees by a third party who is a wholesale or retail purchaser of any product manufactured, marketed, distributed or sold by Select Comfort or its Affiliates that contains any Part (the "Product") (even if such third party is not in direct privity of contract with Select Comfort and even if that Product is in "used" rather than "new" condition when that third party purchased it), arising out of the marketing, offering, sale, provision, delivery or alleged defective condition or failure of that Product. The foregoing indemnity is without prejudice to, and does not preclude Select Comfort from later commencing a dispute under this Agreement, to recover from the Supply Partner those damages (including court costs and reasonable and actual fees and costs of attorneys and/or experts who testified at trial) paid to the claimant under this indemnity which are attributable solely to the Supply Partner or to a defective Part. For the avoidance of doubt, all damages awarded by a court which are covered by that indemnity shall be deemed not to be indirect or consequential; provided, however, that Supply Partner shall not be required to pay to Select Comfort exemplary damages or punitive damages which are awarded due to Select Comfort's acts or omissions.
+
+15.2
+
+INDEMNITY BY SUPPLY PARTNER: Except if the Specificaion issued by Select Comfort requires, or Select Comfort otherwise requires in writing, that Supply Partner use a particular manufacturing process that is later determined to be infringing, Supply Partner shall indemnify, defend and hold harmless Select Comfort and its Affiliates, and the officers, directors, employees, consultants, agents, successors and permitted assigns of each of them (collectively, the "Select Comfort Indemnitees") from any and all Losses arising from, in connection with, or based upon allegations (whenever made) of, any third party claims that any action by Supply Partner with regard to Parts furnished under this Agreement or the process used to manufacture the Parts furnished under this Agreement, causes that Part, directly or indirectly, to infringe upon or misappropriate any patent, trade secret, copyright, trade name, trademark or other intellectual property rights, confidential or proprietary information of any third party (the "Third Party Right"), but only provided that such Third Party Right is protected in the XXXX or in any other country where Parts are manufactured by Supply Partner and only to the extent by which the alleged or actual infringement is not caused by manufacturing the Parts in accordance with the Specifications.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+15.3
+
+INDEMNIFICATION PROCEDURES: The following indemnification procedures apply:
+
+A.
+
+NOTICE OF CLAIM: The Indemnified Party must advise the Indemnifying Party of any Claim it receives, and must provide reasonable assistance to the Indemnifying Party as necessary to enable the proper defense and/or settlement of the claim. Notice of a Claim will not be considered timely under this provision if the Indemnifying Party's ability to defend or settle the Claim was materially prejudiced by the Indemnified Party's delay, if any, in sending such notice. Upon receipt of timely notice from the Indemnified Party, the Indemnifying Party will assume the defense of the Claim, at its sole cost and expense including, without limitation, payment of all settlement amounts or judgments entered. The Indemnifying Party may not settle any Claim on behalf of itself or the Indemnified Party without the prior written consent of the Indemnified Party if such settlement (a) could in any way adversely affect the Indemnified Party's interests, (b) contains any admission of fault or liability by the Indemnified Party, or (c) materially impact the Indemnified Party's processes, procedures or business. The Indemnified Party may, at its own expense, hire separate legal counsel to reasonably participate in the handling, defense and/or settlement of any Claim on its behalf.
+
+B.
+
+FAILURE TO ASSUME DEFENSE: In the event that the Indemnifying Party fails, within a reasonable period of time and whether by act or omission, to conduct and control any action or suit tendered by the Indemnified Party herewith, the Indemnified Party shall have the right to defend or contest the action or suit in any manner the Indemnified Party reasonably deems appropriate provided, however, that the Indemnified Party will not consent to the entry of any judgment or to any settlement of such claim without the prior written consent of the Indemnifying Party, such consent not being unreasonably withheld or delayed. Nothing contained in this provision shall excuse the Indemnifying Party from its obligations to indemnify the Indemnified Party as provided herein.
+
+C.
+
+NON-EXCLUSIVE REMEDY: The indemnification obligations hereunder are not an exclusive remedy for either Party and either Party may pursue any other legal theory or claim, whether based in law or in equity, against the other.
+
+D.
+
+INDEMNIFICATION SURVIVAL: The indemnification obligations provided by this Agreement will survive delivery and acceptance of the Parts supplied hereunder and any termination or expiration of this Agreement.
+
+RECORDS, AUDITS AND INSPECTIONS
+
+16.1
+
+RECORDS: Supply Partner agrees to keep and maintain accurate and detailed records ("Records") of all matters respecting the production and sale of Parts to Select Comfort in accordance with generally accepted accounting and manufacturing procedures and to demonstrate compliance with the Specifications in Schedules A, B and C. Further, Supply Partner represents and warrants that it will retain records for five (5) years post the term of the Agreement.
+
+16.2
+
+INSPECTIONS: Supply Partner will allow Select Comfort to carry out quality audits and to inspect, observe and sample all finished Parts, related raw materials or work-in-process as well as Supply Partner machinery, equipment and production processes at Supply Partner's premises upon reasonable notice, during normal working hours and without undue interruption to Supply Partner's business. No such audit or inspection will release Supply Partner from any of its obligations under this Agreement. During the quality audit, the Supply Partner has the right to refuse to permit copying of records and documents related with the air chambers production as well as taking photographs of machines and production process for Select Comfort.
+
+Page 9 of 14
+
+16.3
+
+RIGHT TO AUDIT: In addition to the foregoing rights of inspection, Select Comfort shall have the right to audit Supply Partner's facilities and certain books and records described below (the "Select Comfort Audit Rights") to confirm Supply Partner's compliance with the terms of this Agreement. Select Comfort may exercise the Select Comfort Audit Rights not more than one time in any given calendar year. Select Comfort must provide three (3) calendar day's prior written notice of its intent to exercise the Select Comfort Audit Rights. In connection with the Select Comfort Audit Rights, Select Comfort shall have access to all areas of Supply Partner's facilities. No such audit or inspection will serve, operate or otherwise be construed as a release of Supply Partner from its obligations under this Agreement. Supply Partner shall provide access only to documents which are reasonably necessary to demonstrate: (1) that the Parts comply with the Specifications, (2) that Select Comfort is in compliance with U.S. conflict mineral regulations, (3) that Supply Partner is in compliance with any Part content restrictions, (4) that Supply Partner is in compliance with Safety Stock Requirements, (5) that Supply Partner's invoices to Select Comfort and its Affiliates are accurate, (6) that Supply Partner is in compliance with section 10.1 as per 10.4, and (7) that Supply Partner is in compliance with section 13 as per 13.6. However, Supply Partner shall not be required to provide acess to the following: (a) any document which would reveal Supply Partner's trade secrets or know-how regarding its manufacturing methodology or processes; (b) any document which reveals the costs of Supply Partner's internal staffing levels (including contractors or contact employees), internal costs, costs of raw materials or costs of services consumed in manufacturing the Parts; or (c) sources from which raw materials are procured, except as specifically necessary to verify Supply Partner's compliance with specifications requiring procurement of raw materials from particular sources or to verify compliance with U.S. conflict minerals regulations to the extent that Select Comfort has previously included in its specifications for Parts. Select Comfort auditors may, at Supply Partner's premises only, inspect and take notes regarding documents to which Supply Partner gives access; but shall not have the right to make or retain electronic or hard copies of that document or any part thereof by any means, including by manual transcription. Any documents reviewed and any information acquired by Select Comfort during any audit shall be considered Confidential Information of Supply Partner for the purposes of this Agreement.
+
+16.4
+
+EXCLUSIVITY AUDIT: In addition to the foregoing rights, Select Comfort shall have the right to appoint an independent auditor or auditing firm (the "Auditor") licensed to practice in the XXXX to audit Supply Partner's and its Affiliates' books and records (the "Select Comfort Exclusivity Audit Rights") exclusively to confirm Supply Partner's compliance with the exclusivity obligation under section 1.3 of this Agreement. Select Comfort may exercise the Select Comfort Exclusivity Audit Rights not more than one time in any given calendar year. Select Comfort must provide three (3) calendar day's prior written notice of its intent to exercise the Select Comfort Exclusivity Audit Rights. In connection with the Select Comfort Exclusivity Audit Rights, Auditor appointed by Select Comfort shall have access to all Supply Partner's and its Affiliates' books and records.
+
+Supply Partner shall have the right to appoint an Auditor licensed to practice in the U.S.A. to audit Select Comfort's and its Affiliates' books and records (the "Supply Partner Exclusivity Audit Rights") exclusively to confirm Select Comfort's compliance with the exclusivity obligation under sections 1.4 of this Agreement. Supply Partner may exercise the Supply Partner Exclusivity Audit Rights not more than one time in any given calendar year. Supply Partner must provide three (3) calendar day's prior written notice of its intent to exercise the Supply Partner Exclusivity Audit Rights. In connection with the Supply Partner Exclusivity Audit Rights, Auditor appointed by Supply Partner shall have access to all Select Comfort's and its Affiliate ́s books and records.
+
+No such audit or inspection will serve, operate or otherwise be construed as a release of the audited Party from its obligations under this Agreement. The results of such audit shall be considered Confidential Information of the respective Party for the purposes of this Agreement.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+16.5
+
+ANALYTICAL TESTING: Select Comfort reserves the right to undertake quantitative, qualitative or analytical testing of Parts and to verify whether the Parts meet the Specifications of this Agreement.
+
+16.6
+
+SUPPLY PARTNER SELF AUDIT: Supply Partner agrees to undertake a self-audit at least once per calendar year to ensure a) its compliance with the terms of this Agreement; b) that the Parts continue to meet the Specifications;. Upon request, Supply Partner will present the results of such annual audit to Select Comfort for inspection only. Select Comfort shall not copy the audit results (or any part of the audit results) by any means, including hand-written notes or transcription. The results of such audit shall be considered Confidential Information of Supply Partner for the purposes of this Agreement.
+
+CONFIDENTIALITY AND NON-DISCLOSURE
+
+17.1
+
+NEED TO EXCHANGE INFORMATION: The Parties acknowledge that it may be necessary for each of them, as "Disclosing Party", to provide to the other, as "Receiving Party", certain Trade Secret or Confidential Information including, without limitation, information expressed in electronic media or format. It is the Parties' intention to protect the use and/or disclosure of such Trade Secrets or Confidential Information according to the terms contained herein.
+
+17.2
+
+DEFINITION OF TRADE SECRET: For the purposes of this Agreement, "Trade Secret" shall mean information, including any formula, pattern, compilation, program, device, method, technique, or process, that derives independent economic value, actual or potential, from not being generally known to and not being readily ascertainable by proper means by other persons who can obtain economic value from its disclosure or use, and is the subject of efforts by the Disclosing Party that are reasonable under the circumstances to maintain its secrecy.
+
+17.3
+
+DEFINITION OF CONFIDENTIAL INFORMATION: For the purposes of this Agreement, "Confidential Information" means any data or information, other than Trade Secrets, that are expressly marked as proprietary or confidential, that is of value to the Disclosing Party and is not generally known to the competitors of the Disclosing Party or the public. To the extent consistent with the foregoing, Confidential Information may include, but is not limited to, any information about Disclosing Party's officers, directors or employees, specific information relating to the Agreement or any project or work effort contemplated by the Parties, the terms and conditions of this Agreement, the existence of the discussions between the Parties, information regarding each Party's Part plans, business methods, sales and profit margin information, Part designs, processes and methods, research and development activities, samples, materials and specifications, drawings or tooling, testing, production, Part costs, Part price lists or pricing policies, finances, marketing techniques or plans, business opportunities, customers, clients, know-how and pre-release Parts, in whatever form created, embodied or received. Confidential Information may also include other documents and all copies thereof prepared by either Party or its officers, directors, employees, agents or contractors, which contain, reflect or are based upon, in whole or in part, any Confidential Information.
+
+17.4
+
+EXCLUSIONS: Trade Secret and Confidential Information shall not include information:
+
+A.
+
+that was in the public domain prior to the date of this Agreement or subsequently came into the public domain through no act or omission or fault of the Receiving Party, or that was in the public domain at the time of disclosure to the Receiving Party;
+
+B.
+
+that was lawfully disclosed to the Receiving Party by a third party having the independent right to disclose such information and, at the time of such disclosure, such third party was not known by the Receiving Party to be under an obligation of confidentiality to the Disclosing Party;
+
+C.
+
+that was already known to the Receiving Party prior to and at the time of disclosure to the Receiving Party by the Disclosing Party or by a third party on behalf of and at the direction of the Disclosing Party, as
+
+Page 10 of 14
+
+evidenced by written documents in the Receiving Party's possession at the time of disclosure and is not subject to an existing agreement or confidence between the parties;
+
+D.
+
+that is separately and independently developed by the Representatives, subsidiaries, or affiliates of the Receiving Party without any reliance upon or reference to the Disclosing Party's Trade Secret or Confidential Information.
+
+17.5
+
+RESTRICTIONS ON USE: The Receiving Party will use Trade Secret or Confidential Information solely and exclusively for the purposes of this Agreement and on a "need-to-know" basis only. The Receiving Party will not use the Disclosing Party's Trade Secret or Confidential Information in any way directly or indirectly detrimental to the Disclosing Party. The Receiving Party recognizes that the Disclosing Party's Trade Secret or Confidential Information is confidential information and proprietary and that the disclosure or unauthorized use by the Receiving Party of the Disclosing Party's Trade Secret or Confidential Information will injure the Disclosing Party. Other than as explicitly provided herein, the Receiving Party will not, at any time, use, reveal or divulge any of the Disclosing Party's Trade Secret or Confidential Information.
+
+17.6
+
+RESTRICTIONS ON ACCESS: The Receiving Party shall use all reasonable care, but in no event less than the same degree of care that it uses to protect its own Trade Secret or Confidential Information of similar importance, to prevent the unauthorized use, disclosure, publication or dissemination of the Disclosing Party's Trade Secret or Confidential Information. The Receiving Party shall restrict access to the Disclosing Party's Trade Secret or Confidential Information to those of its officers, directors, agents and employees to whom such access is reasonably necessary or appropriate for achieving the purpose contemplated herein or as otherwise permitted by this Agreement.
+
+17.7
+
+PERMITTED DISCLOSURE: The Receiving Party may disclose any or all of the Trade Secret or Confidential Information to the Receiving Party's officers, directors, agents and employees so long as they are or agree to be bound by an obligation of confidentiality and non-disclosure at least as restrictive as this Agreement and will not use or disclose the Trade Secret or Confidential Information except as provided herein. Further, the Receiving Party agrees to be responsible for any breach of this section by its officers, directors, agents and employees.
+
+17.8
+
+REQUIRED OR COMPELLED DISCLOSURE: In the event that the Receiving Party or any of its officers, directors, agents and employees become legally required or compelled, by deposition, interrogatory, request for documents, subpoena, civil investigative demand or by any similar process or by court or administrative order or by statute or regulation, to disclose any of the Trade Secret or Confidential Information, then the Receiving Party shall provide the Disclosing Party with prompt written notice of such legal requirement so that the Disclosing Party may seek a protective order or such other appropriate remedy or, at Disclosing Party's sole discretion, waive compliance with the terms of this Agreement. In the event that such protective order or other remedy is sought by the Disclosing Party, the Receiving Party agrees to reasonably cooperate in the pursuit of obtaining such protective order or other remedy at the Disclosing Party's reasonable expense. In the event that such protective order or other remedy is not obtained, and regardless of whether or not the Disclosing Party waives compliance with the terms of this Agreement, the Receiving Party agrees to disclose only that portion of the Trade Secret or Confidential Information which the Receiving Party is legally required to disclose and to exercise its best efforts to obtain assurances that confidential treatment will be accorded such Trade Secret or Confidential Information so disclosed.
+
+17.9
+
+INQUIRIES: Any inquiries that Supply Partner receives regarding Select Comfort or the Parts shall, unless otherwise prohibited by law, be directed to Select Comfort.
+
+INTELLECTUAL PROPERTY
+
+18.1
+
+DEFINITIONS: For the purposes of this section, the following definitions shall apply:
+
+18.1.1
+
+"INDEPENDENTLY OWNED INTELLECTUAL PROPERTY" shall mean any and all Intellectual Property Rights existing as of the Effective Date or thereafter which the Party, solely or jointly with a third party who is not a party to this Agreement, has developed or has developed for it, acquired or licensed, including all
+
+corrections, modifications or enhancements thereto and any modules or elements thereof and all the manuals or other documentation included therewith, provided such Intellectual Property Rights were not developed in connection with or in anticipation of this Agreement.
+
+18.1.2
+
+"INTELLECTUAL PROPERTY RIGHTS" shall mean all patents and all patent applications (including, without limitation, originals, divisions, continuations, continuations-in-part, CPAs, RCEs, provisional, extensions or reissues), design rights (whether registered or not and all applications therefor), copyrights, database rights, moral rights, topography rights, mask work rights, applications to register any of the aforementioned rights, trade secrets, rights in unpatented know-how, rights of confidence and any other intellectual or industrial property rights of any nature whatsoever in any part of the world.
+
+18.2
+
+INDEPENDENTLY OWNED INTELLECTUAL PROPERTY: Except as expressly set forth in this Agreement, Select Comfort is the sole and exclusive owner of Select Comfort's Independently Owned Intellectual Property and Supply Partner is the sole and exclusive owner of Supply Partner's Independently Owned Intellectual Property. Supply Partner hereby grants to Select Comfort a non-exclusive, non-cancellable, royalty free license of Supply Partner's Independently Owned Intellectual Property for the limited purpose of incorporating the Parts into its products, selling products containing the Parts to the public and advertising same in connection therewith. In the event Supply Partner proposes to incorporate or incorporates any Trade Secret or Confidential Information or other proprietary information of Supply Partner, whether or not patented or patentable and whether or not qualifying as Independently Owned Intellectual Property, which is owned or controlled by Supply Partner, into the Parts, goods, equipment and/or services supplied by or used in the supply by Supply Partner to Select Comfort, Supply Partner agrees to grant and does hereby grant to Select Comfort a non-cancellable, non-exclusive, royalty-free right to all intellectual property rights therein. Select Comfort hereby grants to Supply Partner a non-exclusive, non-cancellable, royalty free license of Select Comfort's Independently Owned Intellectual Property for the limited purpose of designing and manufacturing the Parts for and selling the Parts to Select Comfort. In the event Select Comfort proposes to incorporate or incorporates any Trade Secret or Confidential Information or other proprietary information of Select Comfort, whether or not patented or patentable and whether or not qualifying as Independently Owned Intellectual Property, which is owned or controlled by Select Comfort, into the Parts, goods, equipment and/or services supplied by or used in the supply by Supply Partner to Select Comfort, Select Comfort agrees to grant and does hereby grant to Supply Partner a non-cancellable, non-exclusive, royalty-free right to all intellectual property rights therein.
+
+18.3
+
+JOINT DEVELOPMENT AGREEMENT: The terms of this section will govern the ownership of intellectual property rights between the Parties unless and until such time as a joint development agreement (hereinafter, the "Joint Development Agreement") is executed between the Parties. To the extent such Joint Development Agreement is executed, either prior to the Effective Date of this Agreement or at some time thereafter during the Term, the Joint Development Agreement shall be attached hereto as Exhibit D and incorporated herein by reference. To the extent of any conflict between the provisions of this section and the Joint Development Agreement, the Joint Development Agreement will control.
+
+18.4
+
+OMITTED
+
+18.5
+
+OMITTED
+
+18.6
+
+OMITTED
+
+Page 11 of 14
+
+18.7
+
+OMITTED
+
+18.8
+
+OMITTED
+
+18.9
+
+TRADEMARKS: As agreed to, Supply Partner shall affix to the Parts and packaging thereof any trademark, trade name, or logo that Select Comfort shall direct and in the manner in which Select Comfort shall direct as well as part numbers, patent numbers, and other markings in such manner and in such locations as Select Comfort shall designate in writing. Except as provided in the preceding sentence hereof or as agreed to by the Parties in writing, no trademark, trade name, logo (including, without limitation, any Supply Partner trademark, trade name, or logo), or marking shall be affixed to the Parts, the packaging thereof, or any other items purchased hereunder. Supply Partner will make no use of any Select Comfort trademark, trade name, or logo other than as specifically provided for in this paragraph. Supply Partner may not use any Select Comfort trademark, trade name, or logo for any purpose whatsoever after the effective date of termination or expiration of this Agreement. Additionally, Supply Partner agrees that during the term of this Agreement and thereafter Supply Partner will not acquire or seek to acquire any rights to any mark or logo that is identical to, similar to, or comprising an identifiable component of any Select Comfort trademark, trade name, or logo. Nothing in this Agreement shall be construed as granting Supply Partner any rights to or interests in any Select Comfort trademark or trade name or any trademark or trade name of any affiliate of Select Comfort or any trademark or trade name which Select Comfort has the right to use pursuant to a license agreement with a third party. Supply Partner agrees not to use the Select Comfort name or the name of any subsidiary, division, or affiliate of Select Comfort (or any abbreviation or variation of such names) without the prior written approval of Select Comfort. Select Comfort grants to Supply Partner and its Affiliates a limited license (at no additional cost) for Supply Partner and its Affiliates to use Select Comfort's trademarks and logos as necessary to comply with this section 18.9.
+
+FORCE MAJEURE AND BUSINESS INTERRUPTION
+
+19.1
+
+FORCE MAJEURE: No liability or loss of rights hereunder shall result to either Party from delay or failure in performance caused by force majeure or other circumstances not existing as of the Effective Date and beyond the reasonable control of the Party affected thereby including, but not limited to, acts of God, fire, flood, earthquake, war (declared or undeclared), governmental action or orders, strikes, lockouts, labor troubles or other industrial disturbances, accidents, embargoes, blockage, riots, insurrection or any other similar cause provided, however, that the Party claiming force majeure has exerted all reasonable efforts to avoid or remedy such force majeure and thereafter takes all reasonable steps to mitigate any such delay in performance hereunder and any damages that may be incurred by the other Party thereby. The Party so prevented in the performance of its obligations hereunder shall notify the other Party of such as soon as is reasonably practicable given the circumstances and shall use diligent efforts to resume performance as quickly as possible. The Parties shall proceed under this Agreement when the cause of such non-performance has ceased or has been eliminated. Notwithstanding the foregoing, no force majeure can excuse a Party from, or permit it to delay its performance of, a contractual obligation promptly to pay money to the other Party. Neither Party can require the other Party (unless the other Party consents in its sole discretion) to pay any other payments than the Agreement otherwise requires to the Party affected by force majeure to continue to perform.
+
+19.2
+
+BUSINESS CONTINUITY PLAN: Supply Partner shall establish and maintain a business continuity plan (hereinafter, a "Business Continuity Plan") and the same shall be attached hereto as Exhibit 2 and incorporated herein by reference. In the event of a business interruption which disrupts the normal course of operations at any of Supply Partner's location, Supply Partner will initiate the Business Continuity Plan. In the event of a business interruption for which Supply Partner implements the Business Continuity Plan, Supply Partner will notify Select Comfort within twenty-four (24) hours of such business interruption and thereafter provide daily updates as to the status of Supply Partner's recovery plan.
+
+19.3
+
+IMPACT OF BUSINESS INTERRUPTION: In the event of a business interruption for which Supply Partner initiates the Business Continuity Plan and during the continuing course of such event, Select Comfort reserves the right to seek alternative supply sources for the Parts until such time as Supply Partner has recovered from the business interruption.
+
+19.4
+
+OMITTED
+
+19.5
+
+PRIORITY: If, as a result of force majeure or business interruption, availability of Parts becomes constrained, Select Comfort will receive priority allocation of Parts.
+
+RESTRICTIONS ON ACTIVITIES
+
+20.1
+
+OMITTED
+
+20.2 NO SOLICITATION; NO HIRE: During the Term of this Agreement and for a period of XXXX thereafter, neither Party shall, directly or indirectly, solicit for employment or hire (either as a employee or as a consultant/independent contractor) any officer, director or employee of the other Party or its subsidiaries or affiliates with whom such Party has or has had contact in connection with or who is otherwise known to such Party by virtue of the activities and interactions contemplated by this Agreement. This section shall not preclude a Party from soliciting for employment or employing an officer, director or employee of the other Party if the employment of such officer, director or employee has been first terminated by the originally employing Party. Within the context of this section, "solicitation" shall not include any generalized public advertisement or any other solicitation that is not specifically directed toward any such officer, director or employee or toward any group of such officers, directors or employees.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+TOOLING
+
+21.1
+
+COST OF TOOLING: To the extent that the price of any Part includes a component for the cost of tooling, the Parties will execute an addendum that will be attached hereto and incorporated herein by reference and which will specifically address the cost and ownership of any tooling required for the manufacture of the Parts (the "Tooling Addendum"). Unless and until such a Tooling Addendum is executed by the Parties, the Supply Partner represents and warrants that the prices for the Parts listed on Schedule A do not include any allocation for the recovery of costs and expenses related to tooling necessary to manufacture the Parts.
+
+GENERAL TERMS AND CONDITIONS
+
+22.1
+
+GOVERNING LAW AND DISPUTE RESOLUTION: This Agreement shall be governed by and construed in accordance with the laws of the State of New York, without regard to its conflict of laws rules, but including Section 5-1401 of the New York General Obligations Law. Any dispute, controversy, or claim arising out of or relating to this Agreement or the breach, termination, or invalidity thereof, shall be settled by a single arbitrator in accordance with the XXXX in effect as of this date of this Agreement. The appointing authority shall be the XXXX, and the case shall be administered by the XXXX The arbitral award shall include an award for the payment of costs, attorneys' fees and expenses of the arbitration proceedings and may be entered for enforcement in any court of competent jurisdiction.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+22.2
+
+OMITTED
+
+Page 12 of 14
+
+22.3
+
+CISG EXCLUSION: The United Nations Convention on Contracts for the International Sale of Goods, and any amendments thereto, shall not apply to this Agreement.
+
+22.4
+
+NOTICE: Any notice required under this Agreement or as may otherwise be necessitated by virtue of the actions of either Party under this Agreement may be made in writing and delivered personally, by nationally recognized overnight courier, or by certified mail, return receipt requested, postage prepaid, to the Parties at the following addresses which may, from time to time, be changed by a Party by providing notice of such change to the other Party as provided herein:
+
+If to Select Comfort:
+
+Select Comfort Corporation
+
+Attention: Vice President of Strategic Sourcing
+
+9800 59th Avenue North
+
+Minneapolis, MN 55442
+
+USA
+
+With a copy to:
+
+Select Comfort Corporation
+
+Attention: General Counsel
+
+9800 59th Avenue North
+
+Minneapolis, MN 55442
+
+USA
+
+If to Supply Partner:
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+With a copy to: ́
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Notice delivered personally or via overnight courier will be deemed received the day after it is sent. Notice provided via U.S. Mail will be deemed received on the earlier of the date received or five (5) days after it is sent.
+
+Any notice required by this Agreement may also be given by e-mail or facsimile transmission provided that, contemporaneously with the sending of such e-mail or facsimile transmission, a copy of such notice is also delivered personally or sent by either nationally recognized overnight courier or via first class mail. Notice provided in such a manner will be deemed to have been given as of the date of the initial e-mail or facsimile transmission provided that the copy delivered personally, by overnight courier or by first class mail is received by the other Party within five (5) days of such e-mail or facsimile transmission.
+
+22.5
+
+NO WAIVER: No failure or delay by either Party in exercising any right, power or privilege hereunder will operate as a waiver thereof, nor will any single or partial exercise thereof preclude any other or further exercise thereof or the exercise of any right, power or privilege hereunder.
+
+22.6
+
+EXPORT CONTROL: The Parties acknowledge that the Confidential Information or the Parts disclosed or provided by and to each of them under this Agreement may be subject to export controls under the laws and regulations of the United States. Each Party shall comply with such laws and regulations and agrees to not knowingly export, re-export or transfer any of the other Party's Confidential Information or Parts, to the extent even permitted herein, without
+
+first obtaining all required authorizations or licenses from the appropriate authorities.
+
+22.7
+
+THIRD PARTY BENEFICIARIES: This Agreement is for the benefit of Select Comfort and Supply Partner and their respective successors and permitted assigns. No other third party beneficiaries are intended or created by virtue of the execution of this Agreement or the effort contemplated or undertaken by the Parties hereunder.
+
+22.8 ASSIGNMENT BY SUPPLY PARTNER: Supply Partner may not assign this Agreement or any interest therein nor may Supply Partner delegate any of its rights or obligations under this Agreement to any person or entity without the prior written consent of Select Comfort except, however, that Supply Partner may assign this Agreement or delegate any of its rights or obligations hereunder to an Affiliate without the prior written consent of Select Comfort. Neither this Agreement nor any interest therein nor any rights or obligations of Supply Partner hereunder shall be assignable to a successor to all or substantially all of Supply Partner's assets without the express written consent of Select Comfort.
+
+22.9
+
+ASSIGNMENT BY SELECT COMFORT: Select Comfort may not assign this Agreement nor any interest therein nor delegate any of its duties under this Agreement without the prior written consent of Supply Partner except that Select Comfort is free to assign this Agreement or delegate any of its duties hereunder to an Affiliate without the consent of Supply Partner. Neither this Agreement nor any interest therein nor any rights or obligations of the Select Comfort hereunder shall be assignable to a successor to all or substantially all of the Select Comfort's assets without the express written consent of Supply Partner.
+
+22.10
+
+COUNTERPARTS: This Agreement may be signed in one or more counterparts, each of which shall constitute an original of this Agreement and all of which, when taken together, shall constitute one and the same Agreement. A signed facsimile or copy of this Agreement shall constitute a signed original.
+
+22.11
+
+ENTIRE AGREEMENT: This Agreement embodies the entire understanding and agreement between the Parties with respect to the subject matter hereof and supersedes all prior understandings and oral agreements except such other understanding or agreements as are committed to another writing and executed by each Party.
+
+22.12
+
+VALID AGREEMENT: Each of the Parties represents and warrants to the other that this Agreement is a legal, valid and binding obligation of and enforceable against it in accordance with its terms and conditions except as such enforceability may be limited by applicable bankruptcy, insolvency, moratorium, reorganization or similar laws, from time to time in effect and affecting creditors' rights generally.
+
+22.13
+
+CORPORATE POWER AND AUTHORITY: Each of the Parties represents that it owns or possesses the rights, title and licenses necessary to perform its obligations hereunder, has the right to enter into this Agreement and to perform its obligations hereunder and will perform the same in a workmanlike manner.
+
+22.14
+
+NO CONFLICT: The execution, delivery and performance of this Agreement by each Party does not and shall not conflict with any agreement, instrument or understanding, oral or written, to which such Party is a party or by which such Party may be bound and does not and shall not, to the best of such Party's knowledge, violate any law or regulation of any court, governmental body or administrative or other agency having authority over such Party. All consents, approvals and authorizations from all governmental authorities or other third parties required to be obtained by such Party in connection with the execution, delivery and performance of this Agreement have been obtained.
+
+22.15
+
+INVALIDITY AND SEVERABILITY: In the event that any provision of this Agreement is, by operation of law or governmental or judicial order or decree, unenforceable, the Parties shall renegotiate such provision, or portion thereof, in good faith to develop a valid, enforceable substitute provision which such substitute provision shall reflect, as closely
+
+Page 13 of 14
+
+as possible, the intent of the original provisions of this Agreement. If the Parties fail to negotiate a substitute provision or if a substitute provision is impossible, impractical or frustrates the original purpose of this Agreement and/or the original provision, then this Agreement will continue in full force and effect without said original provision, or portion thereof, and will be interpreted to reflect the original intent of the Parties as closely as possible.
+
+22.16
+
+HEADINGS; REFERENCE TO WHOLE: Any headings or section numbers used in this Agreement are for convenience of reference only and will not limit or otherwise affect any of the terms or provisions hereof. Use of the words "herein" and the like in this Agreement refer to this Agreement as a whole and not to any particular subsection or provision unless otherwise specifically noted.
+
+22.17
+
+SECURITIES TRADING: The Parties are aware and will advise their respective officers, directors, employees, agents and consultants who receive any Confidential Information or who are informed of the matters that are the subject of this Agreement that applicable securities laws restrict persons who have received material, non-public information concerning an issuer of securities from purchasing or selling securities of such issuer to whom such matters relate and from communicating such information to any other person under circumstances in which it is reasonably foreseeable that such person is likely to purchase or sell such securities or otherwise violate securities laws.
+
+22.18
+
+PUBLICITY; USE OF MARKS: Without the prior express written consent of the other Party, each Party will not and will cause its officers, directors, employees, agents or consultants not to disclose to any third party either the status of the discussions or negotiations taking place between the Parties or the ongoing business dealings between the Parties, such information being within the definition of Confidential Information. Except as otherwise provided herein, neither Party may use or permit the use of the other Party's name, brand or service or trademarks nor refer to or identify the other Party in any advertising or publicity releases, promotional or marketing materials without such other Party's prior express written approval. The obligations of the Parties under this provision shall be subject to their disclosure obligations as may exist under federal or state securities laws or regulations.
+
+22.19
+
+MODIFICATIONS: All modifications, waivers or amendments to this Agreement or any part hereof must be in writing signed by each of the Parties.
+
+22.20
+
+RELATIONSHIP OF THE PARTIES: The relationship between the Parties under this Agreement is that of independent contractors and it is agreed by the Parties that this Agreement does not create any legal structure such as a partnership, joint venture or any agency relationship between the Parties nor shall either Party hold itself out as such contrary to the terms hereof by advertising or otherwise, nor shall either Party be bound or become liable because of any representation, action or omission of the other Party. Neither Party assumes any liability or responsibility for the personnel of the other Party. Each Party shall be solely responsible for the supervision, control, compensation, withholdings, health and safety of its own personnel. Neither Party has the authority to make any statements, representations or commitments of any kind or to take any action which attempts to or does bind the other Party without the prior written authorization and consent of the other Party.
+
+22.21
+
+NOTIFICATION OF THREATENED ACTION: Throughout the Term of this Agreement and with respect to any matter to which this Agreement relates, each Party shall immediately notify the other Party of any information it becomes aware of or receives regarding any threatened or pending action by or from any third party including competent government authority. Upon receipt of such information, the Parties shall consult with each other in an effort to arrive at a mutually acceptable plan for taking appropriate action.
+
+22.22
+
+REMEDIES CUMULATIVE: Ach of the rights and remedies of the Parties set forth in this Agreement shall be cumulative with all other rights and remedies as well as with all the rights and remedies of the Parties otherwise available at law or in equity.
+
+IN WITNESS WHEREOF, the Parties have caused this Agreement to be executed by their respective duly authorized officers to be effective as provided herein.
+
+"SELECT COMFORT"
+
+SELECT COMFORT CORPORATION
+
+BY: /s/ Kathryn V. Roedel
+
+Signature
+
+__Kathryn V. Roedel________________________
+
+Printed Name
+
+__EVP - Chief Service & Fulfillment Officer______
+
+Title
+
+7/16/2013
+
+Signature Date
+
+"SUPPLY PARTNER"
+
+XXXX
+
+BY: /s/ XXXX
+
+Signature
+
+_XXXX____________________________
+
+Printed Name
+
+_Chairman of the Board of Directors___________
+
+Title
+
+9/7/2013
+
+Signature Date
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.
+
+Page 14 of 14
+
+Master Supply Agreement
+
+(for the supply of certain component parts to be incorporated into finished goods)
+
+Schedule of Attachments
+
+Schedule A
+
+Part SKU Number, Description, Pricing, and Rebate
+
+Schedule B
+
+Specifications, master Drawings, and COA
+
+Schedule C
+
+Quality Requirements
+
+Exhibit 1
+
+Supply Partner Traceability Process Outline
+
+Exhibit 2
+
+Supply Partner Business Continuity Plan
+
+Exhibit 3
+
+Select Comfort Supplier Barcode Labeling Requirements
+
+Page A-1
+
+Select Comfort/XXXX
+
+Master Supply Agreement
+
+SCHEDULE A
+
+SKU Number, Description, Price, Volume
+
+1.
+
+Prices:
+
+Prices for 2013
+
+Part Number
+
+Description
+
+2013
+
+Price per Chamber in USD
+
+100270
+
+XXXX
+
+XXXX
+
+100271
+
+XXXX
+
+XXXX
+
+100272
+
+XXXX
+
+XXXX
+
+100273
+
+XXXX
+
+XXXX
+
+100274
+
+XXXX
+
+XXXX
+
+100275
+
+XXXX
+
+XXXX
+
+100276
+
+XXXX
+
+XXXX
+
+100277
+
+XXXX
+
+XXXX
+
+100278
+
+XXXX
+
+XXXX
+
+100279
+
+XXXX
+
+XXXX
+
+100281
+
+XXXX
+
+XXXX
+
+105757
+
+XXXX
+
+XXXX
+
+106433
+
+XXXX
+
+XXXX
+
+106811
+
+XXXX
+
+XXXX
+
+106812
+
+XXXX
+
+XXXX
+
+106813
+
+XXXX
+
+XXXX
+
+106814
+
+XXXX
+
+XXXX
+
+106815
+
+XXXX
+
+XXXX
+
+106816
+
+XXXX
+
+XXXX
+
+107099
+
+XXXX
+
+XXXX
+
+107173
+
+XXXX
+
+XXXX
+
+107325
+
+XXXX
+
+XXXX
+
+116072
+
+XXXX
+
+XXXX
+
+108200
+
+XXXX
+
+XXXX
+
+108203
+
+XXXX
+
+XXXX
+
+108206
+
+XXXX
+
+XXXX
+
+108273
+
+XXXX
+
+XXXX
+
+108815
+
+XXXX
+
+XXXX
+
+111159
+
+XXXX
+
+XXXX
+
+111160
+
+XXXX
+
+XXXX
+
+111661
+
+XXXX
+
+XXXX
+
+111163
+
+XXXX
+
+XXXX
+
+117820
+
+XXXX
+
+XXXX
+
+117821
+
+XXXX
+
+XXXX
+
+117283
+
+XXXX
+
+XXXX
+
+117824
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+2.
+
+Planned Volumes
+
+a.
+
+Planned Volumes for Calendar Years 2013 Through 2016
+
+Select Comfort presents below planned volumes of Parts (in pieces) to be ordered from Supply Partner for the purposes of planning the requirements for the Supply Partner's future capacity of Parts production and for calculation of Prices:
+
+Calendar Year
+
+Baseline
+
+Downside
+
+Upside
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Where:
+
+"Baseline" means the planned volume of Parts (in pieces) that Select Comfort expects to require from Supply Partner in each calendar year, if Select Comfort's sales falls within the expected range for that calendar year;
+
+"Downside" means the minimum planned volume of Parts (in pieces) that Select Comfort would expect to require from Supply Partner in each calendar year, if Select Comfort were to suffer a downturn in its business; and
+
+"Upside" means the maximum planned volume of Parts (in pieces) that Select Comfort expect to require from Supply partner in each calendar year indicated, if Select Comfort were to enjoy an improvement in its business.
+
+b.
+
+Planned Volumes for Calendar Year 2017 and Beyond
+
+i.
+
+Not later than XXXX (and each succeeding year thereafter), Select Comfort shall deliver to Supply Partner a written notice in which it sets out the planned volumes (Baseline, Downside and Upside) for the calendar year which commences fourteen months thereafter. For instance, XXXX, planned volumes for calendar year 2017 are due, and so forth.
+
+ii.
+
+If Select Comfort fails to give the notice provided by Section 2.b.i above by XXXX in any year, then the planned volumes for corresponding calendar year shall be deemed to be identical to those in the immediately preceding calendar year, unless the Parties thereafter agree in writing to different planned volumes. For instance, if Select Comfort were to fail to give the notice due on XXXX, the planned volumes for calendar year 2017 would be deemed to be those set out in 2.a above for calendar year 2016, and so forth.
+
+iii.
+
+For the avoidance of doubt, real expected planned volumes shall be for informational purposes only, unless and until the Parties amend this Schedule A in accordance with Section 22.19 of the Main Body of this Agreement.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+3.
+
+Raw Material Basket Price Adjustment
+
+A raw material price basket shall be utilized to adjust actual price of Parts based on cost of raw materials XXXX as follows:
+
+a.
+
+Raw Material Basket Value is the sum of the cost of individual raw materials, where the value of each item is based on the percentage of the bill of materials for the air chamber that item constitutes, as shown in the table below:
+
+Raw material
+
+Price/kg
+
+Importance factor
+
+Value
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+b.
+
+Raw Material Basket Value shall be determined for each calendar month. Actual raw material prices for XXXX and XXXX for calculation of monthly Raw Material Basket Value will be determined as follows:
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+i.
+
+XXXX price will be determined as the average of closing stock prices of XXXX on the twentieth (20th) day of the given month on the XXXX and XXXX commodities exchanges.
+
+ii.
+
+XXXX price will be based on XXXX reporting for XXXX published in the given month.
+
+iii.
+
+XXXX price will be calculated from actual invoices for XXXX received by the Supply Partner between the twenty-first (21st) day of the previous month until the twentieth (20th) day of the given month.
+
+Supply Partner shall monitor actual raw material prices, calculate the Raw Material Basket Value and send the calculation to Select Comfort not later than on twenty-fifth (25th) day of each calendar month.
+
+c.
+
+Quarterly Raw Material basket Value shall be calculated for every calendar quarter as the average of Raw Material Basket Values determined for each calendar month in the respective calendar quarter.
+
+d.
+
+Baseline Raw Material Basket Value is set at XXXX.
+
+e.
+
+If the quarterly Raw Material Basket Value differs from the Baseline Raw Material Basket Value by XXXX or more, all Prices will be automatically adjusted, with the effect from the first day of the next calendar quarter, proportionately by XXXX of the difference between the quarterly Raw Material Basket Value and the Baseline Raw Material Basket Value. If the quarterly Raw Material Basket Value is higher than the Baseline Raw Material Basket Value, Prices will increase, if it is lower, Prices will decrease.
+
+[Portions of these Sections have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+f.
+
+The Raw Material Basket Price Adjustment shall never exceed XXXX in any calendar quarter or XXXX in the aggregate in any calendar year. If these thresholds would be exceeded by automatic adjustment in any calendar quarter, such adjustment will be modified in such a way that Prices are modified to the maximum extent possible and none of these thresholds is exceeded.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+g.
+
+The example below illustrates the price change mechanism:
+
+Raw material
+
+Price/kg
+
+Importance factor
+
+Value
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Example comparing the calculation of the average value of raw materials for a given quarter and the impact to chamber price adjustment;
+
+January
+
+February
+
+March
+
+average quarterly
+
+initial
+
+Change in %
+
+Resulting change of Prices in %
+
+(not reflecting maximum limits)
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+In this example Prices would be automatically decreased by XXXX (due to maximum limit for quarterly adjustment given by section 4.1(f) above) with the effect from XXXX.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+4.
+
+Volume Rebates
+
+As both Parties acknowledge that volume of Parts to be ordered by Select Comfort from Supply Partner is one of the most important factors for Supply Partner in determining the Prices, the Parties have agreed that should real volume of Parts delivered by Supply Partner to Select Comfort on the basis of Select Comfort ́s orders in any calendar year (for the avoidance of doubt, date of order is irrelevant) differ from the baseline planned volume shown in section 2 hereabove by XXXX or more, one Party will pay the other Party a Volume Rebate calculated as shown below:
+
+Difference from planned volume
+
+Volume Rebate
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Volume Rebate will be always calculated as a percentage from the aggregate Price of all Parts delivered by Supply Partner to Select Comfort in the given calendar year. If the difference between planned volume and real volume of Parts delivered by Supply Partner to select Comfort in the given calendar year is positive, i.e. if Supply Partner delivers to Select Comfort on the basis of Select Comfort ́s orders more Parts than planned according to section 2 here above than Supply Partner shall pay the Volume Rebate to Select Comfort, and if the difference is negative, i.e. if Supply Partner delivers to Select Comfort on the basis of Select Comfort ́s orders
+
+less Parts than planned according to section 2 here above, than Select Comfort shall pay the Volume Rebate to Supply Partner.
+
+5.
+
+Pricing Ratio
+
+On XXXX of each calendar year during the Initial Term starting from XXXX, each Price will be automatically reduced by XXXX of the then-current Price (i.e., Price after the Raw Material Basket Price Adjustment for the 4th calendar quarter of the previous calendar year, if any). Pricing Ratio for calendar year XXXX and beyond, if any, shall be determined by mutual agreement of the Parties.
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Schedule B
+
+Specifications, Master Drawings & COA
+
+1.
+
+Specifications
+
+As of the Effective Date, the current Specifications are referenced in the following files, which are stored in accordance with paragraph 2 below, and receipt of which is acknowledged by the Supply Partner:
+
+SP-004 - Revision D
+
+PND 44-991-11
+
+2.
+
+Electronic Storage of Specifications
+
+All Specifications (including Master Drawings) will be centrally stored in a document controlled file system at Select Comfort and these files are controlled and managed by the Select Comfort. Select Comfort shall provide Supply Partner with read-only access to those Specifications (including Master Drawings) in that file system, including the ability to download and print them at Supply Partner's location. If read-only access is not feasible, Select Comfort will send copies of Specifications (including Master Drawings) to Supply Partner as requested. The parties further agree that Specifications (including Master Drawings) will not be physically or electronically stored with the Master Supply Agreement.
+
+3.
+
+Changes to Specifications
+
+Section 3.1 through section 3.5 of the Agreement governs changes to Specifications (including Master Drawings).
+
+4.
+
+Certificate of Analysis Requirements:
+
+Once form and contents of the Certificate of Analysis (COA) are mutually agreed by the Parties, Supply Partner shall provide an electronic copy of the COA regarding each shipment of Parts to Select Comfort at the following email address: COC.COA@selectcomfort.com. Select Comfort may designate another email address upon thirty (30) days written notice sent to Supply Partner pursuant to section 22.4 of the Agreement.
+
+Schedule C
+
+Quality Requirements
+
+Quality Requirements and Acceptance Criteria:
+
+The Specifications set out in Schedule B (Specifications) take precedence over other requirements communicated to the Supply Partner, whether such requirements are verbal or written, except where a Deviation From Specification (DFS) is approved and issued to the Supply Partner by the Select Comfort.
+
+The Supply Partner shall review pre-production, prototype, first-piece, sample, or other initial part or product, with Select Comfort. This review shall include representative samples, process data (excludes proprietary trade secrets of Supply Partner), and inspection and test data, for the purpose of determining if the part or product meets the Specifications.
+
+Either party may initiate a DFS if it believes there is a need to depart from the Specifications. Supply Partner should send the DFS request via email, or other written form, to the Sourcing Manager at Select Comfort if a change is needed.
+
+The Supply Partner shall review known part or product deficiencies with Select Comfort prior to shipping the part or product to Select Comfort. In some instances, Select Comfort may approve a DFS to allow the Supply Partner to produce deficient parts or products for a limited period of time, or to ship a limited quantity of parts or products exhibiting a known deficiency.
+
+Supply Partner disputes concerning requirements, or whether part or product meets Select Comfort's engineering specifications or engineering drawing requirements, shall be reviewed and mediated by Select Comfort's representatives from the Quality Control, Manufacturing Engineering, R&D, and Supply Chain Management departments.
+
+The Supply Partner shall install appropriate controls and methods to ensure the part or product supplied meets the Specifications upon final delivery to Select Comfort. Supply Partner controls shall be considered for, but not limited to, operations within raw material receiving, work-in-process, finished goods, packaging, and shipping.
+
+Select Comfort may, at any point, reject part or product that does not meet the Specifications or deviated requirements (per an approved and issued DFS). This shall include at the receiving, storage, value-added operations, packaging, shipping, or customer service stages of Select Comfort's use, and/or sale of the supplied part or product.
+
+Rejected part or product shall be reviewed by Select Comfort with the Supply Partner for the purpose of making a disposition of the part or product. The Supply Partner shall have the opportunity to review rejected part or product, and to dispute the determination of rejection.
+
+Where a rejection is found to be valid, the Supply Partner shall perform an analysis of the part, product, process, or other element within the Supply Partner's scope of operations, as necessary, and issue a report of corrective action to Select Comfort.
+
+Supply Partner's efforts to improve, cost-reduce, boost efficiencies, or otherwise change the part, product, or the process originally agreed to, shall be reviewed in advance with Select Comfort, whether or not this activity has any affect or influence on the part or product meeting the Select Comfort's engineering specifications or engineering drawing requirements.
+
+The Supply Partner shall review plans to subcontract to another corporate entity, any part or product Select Comfort has contracted with the Supply Partner to supply. This review shall be completed prior to any such subcontracting, and shall include the review and approval by Select Comfort of the Supply Partner's quality plan for the subcontracted part or product. In some instances, Select Comfort will require first piece samples, including inspection and test data, from the subcontractor prior to approval of part or product manufactured by the subcontractor. In any event, the Supply Partner shall remain fully and completely responsible for supplying the part or product to the Specifications.
+
+All air chamber testing shall be in accordance with Select Comfort's Air Chamber, XXXX Construction, Test and Inspection Specification SP-004.
+
+Quality Rebate:
+
+Supply Partner and Select Comfort agree to have a quality rebate that will be applied to invoices on a monthly basis.
+
+The Quality rebate calculation will be as follows:
+
+•
+
+Prior month RMA claims x Standard Cost
+
+•
+
+XXXX Assignable Defects = (Total RMA minus No Defect Found minus Non XXXX defects)
+
+•
+
+Standard Cost = XXXX(Weighted average $/chamber for XXXX )
+
+•
+
+Total Select Quality Rebate = Standard cost x Number XXXX Assignable Defects
+
+Example: September 2011 had XXXX Assignable Defects, XXXX would credit Select the amount of XXXX times XXXX for a total of XXXX USD on October invoice.
+
+[Portions of this Exhibit have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Exhibit 1
+
+Supply Partner Traceability Process Outline
+
+1.
+
+Purpose
+
+All air chambers that are sent to Select Comfort must be marked to enable the product ́s traceability if necessary. This concerns especially the traceability in the manufacture and of the used semi-finished parts so that the used materials can be identified.
+
+2.
+
+Marking of air chambers
+
+The air chambers are to be marked on the XXXX with groups of numerical data:
+
+a) air chamber type
+
+b) air chamber identification, see bellow
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+[Portions of this Exhibit have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Exhibit 2
+
+Emergency Plan
+
+For securing the supplies for the company SELECT COMFORT
+
+In case of extraordinary events in XXXX
+
+CONTENT
+
+1. Introduction
+
+2. Technological methods and their logistical layout within the premises of
+
+XXXX
+
+3.
+
+Capacity profiles of the machinery on basis of various annual requirements
+
+4.
+
+Solution variants during various emergency situations
+
+5.
+
+Conclusion
+
+1. Introduction
+
+The emergency plan proceeds from the analysis of the present max. machinery capacity in XXXX which are suitable and used for the production of the air chambers for the company Select Comfort.
+
+An integral part thereof are also emergency solutions, as we can guarantee supplies for the temporary time period if there is an extraordinary event on the individual machinery, on the individual floors of buildings or the whole buildings.
+
+2. Technological complexes and their logistical layout in XXXX
+
+2.1. Production technology of the air chambers /further just AC/
+
+2.1.1. Storage of raw materials and textiles for the production of AC
+
+2.1.2.
+
+Production of XXXX
+
+a)
+
+XXXX
+
+2
+
+b)
+
+XXXX
+
+2.1.3. XXXX
+
+2.1.4. XXXX
+
+2.1.5. Cutting of textiles
+
+2.1.6. XXXX
+
+2.1.7. Assembly of AC on the lines
+
+2.1.8. XXXX of AC
+
+2.1.9. Inspection and testing of AC
+
+2.1.10. Packaging
+
+2.1.11. Store rooms and shipping department of AC
+
+2.2.
+
+Layout of technologies and store rooms in the premises
+
+of XXXX
+
+Building
+
+2.2.1
+
+Storage of raw materials and textiles
+
+6, 27
+
+2.2.2
+
+Production of XXXX
+
+17 a
+
+2.2.3
+
+Textile finishing XXXX
+
+4 c
+
+2.2.4
+
+Coating of the finished textiles XXXX
+
+13,14 3a
+
+2.2.5
+
+Cutting of textile
+
+14
+
+2.2.6
+
+XXXX
+
+14
+
+2.2.7
+
+Assembly of AC on the line
+
+14
+
+2.2.8
+
+XXXX of AC
+
+14
+
+2.2.9
+
+Inspection and testing of AC
+
+4a
+
+2.2.10
+
+Packaging
+
+4a
+
+2.2.11
+
+Store rooms and shipment department
+
+2
+
+3
+
+3. Capacity profiles of the machinery
+
+3.1.
+
+Storage of raw materials and textiles - adequate /2.1.1/
+
+3.2.
+
+Production shop of the XXXX /technology 2.1.2./
+
+max. annual production
+
+during 3-shift operation
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+3.3.
+
+Production shop for the finishing of textiles XXXX
+
+/technology 2.1.3./
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+3.4
+
+Production shop for the coating of the finished textiles XXXX
+
+Usability
+
+Max. annual production
+
+during 3-shift
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+3.5. Cutting of textiles /2.1.5./
+
+max. annual production
+
+during 2-shift operation
+
+2 automated machines
+
+XXXX
+
+3.6. Assembly of XXXX /technology 2.1.6/
+
+max. annual production
+
+during 4-shift operation
+
+2 machines XXXX
+
+XXXX
+
+3.7. Assembly of AC on the lines /technology 2.1.7./
+
+max. annual production
+
+during 2/3-shift operation
+
+4 classic lines
+
+XXXX
+
+4
+
+1 wide line
+
+XXXX
+
+1 automated line
+
+XXXX
+
+XXXX
+
+XXXX
+
+3.8. XXXX of AC /technology 2.1.8./
+
+max. annual production
+
+during 3-shift operation
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+3.9. Inspection and testing /technology 2.1.9./
+
+max. annual production
+
+during 2-shift operation
+
+XXXX
+
+XXXX
+
+3.10. Packaging /technology 2.1.10/
+
+max. annual production
+
+during 1-shift operation
+
+1 automated packaging machine
+
+XXXX
+
+4. Variants for solution during various emergency situations
+
+Emergency situations:
+
+1. stage - failure of the part of machinery
+
+2. stage - failure in the whole production shop or building
+
+3. stage - failure in the whole premises of XXXX
+
+we don`t expect this stage and it has no solution
+
+4.1. Production of XXXX mixtures /technology 2.1.2./
+
+1. stage - failure of XXXX - without limitation of production
+
+2. stage - failure of XXXX - production of XXXX.
+
+Lead time to implement XXXX days (we have some preproduction, so there is no limitation for following technologies). It has no influence to effectiveness and quality to move XXXX to different premises.
+
+4.2. Finishing of textiles with XXXX /technology 2.1.3./
+
+There are XXXX available.
+
+1.stage - without limitation of production
+
+2.stage - XXXX
+
+would be able to guarantee the production for XXXX in a continuous operation
+
+Implementation of XXXX to another line takes XXXX day. No influence to quality.
+
+We have new permanently installed antifire equipment in building 4. The workshop ith XXXX will be in case of burning filled with inert gas.
+
+5
+
+4.3. Coating of the finished textiles with XXXX
+
+/technology 2.1.4./
+
+There are 3 machines placed in different buildings. Nowadays we use for the production XXXX in the building No. 13 and 14 with sufficient capacity. The XXXX line in the building 3a can be used in case of failure. Even in case of a failure of the 2nd stage there are always 2 machines with sufficient capacity available.
+
+Quality of XXXX on these three machines are the same. Change could be done immediately.
+
+4.4. Cutting of textile /technology 2.1.5./
+
+1. stage - no limitation
+
+2. stage - we can continue production not in serial but manually - decrease of capacity to XXXX.
+
+There is no influence to quality of final products. The renovation of cutting machine take about XXXX.
+
+4.5. Assembly of XXXX /technology 2.1.6./
+
+There are two machines for this technology in XXXX
+
+1.
+
+stage - no limitation
+
+2.
+
+stage - we can continue production on one of two XXXX machine. The capacity of one machine is XXXX
+
+4.6. Assembly of AC on the lines /technology 2.1.7./
+
+The lines we need for the production of AC, that are nowadays available cover the demands for the production of AC up to XXXX pcs/year. It is a machinery produced at XXXX which is very simple (exept XXXX). All possible failures can be removed within one day.
+
+1.stage - without limitation of deliveries
+
+2.stage - if there is a failure in the whole building we can continue the manufacture but not in series on line but on the tables with templates.
+
+The capacity will be reduced to XXXX compared with the serial production.
+
+The reconstruction of the lines due to the fact that the documentation is available is possible within XXXX from the failure direct at XXXX
+
+The reconstruction of line XXXX can last XXXX depending on failure.
+
+4.7. XXXX of AC /technology 2.1.8./
+
+XXXX owns XXXX placed on 1st floor of the
+
+building No 14 with the max. capacity XXXX. When they fail, AC can be XXXX placed in 2nd floor of building No.14.
+
+1.stage - without limitation of deliveries
+
+6
+
+2.stage - during the failure of the whole building and destroying all the XXXX.
+
+Reconstruction - i.e. purchase and installation of new XXXX will take XXXX time.
+
+There is a technology replacement possible by XXXX of the material in rolls with the help of the XXXX and the following assembly using the XXXX. This is a more expensive technology based on XXXX with an essential decrease of the productivity. We stopped to use this technology in the 60`s for the production of AC, but we still use it for the production of XXXX.
+
+4.8. Inspection and testing of AC /technology 2.1.9./
+
+These operations are done in the building 4a on the floor II.
+
+2 pcs device for the XXXX tests. It could be replaced by testing push-carts which are used in the production of XXXX.
+
+There is an easy solution for the stages 1 and 2 by moving into another hall. We have also 2 testing equipments.
+
+No influence to quality, effectiveness or capacity.
+
+4.9. Packaging /technology 2.1.10./
+
+1.+2. Stage - no limitation, manual packing into bags is possible.
+
+No influence to quality.
+
+Conclusion:
+
+1.
+
+The distribution of the production technologies in different buildings means a great advantage regarding the emergency events.
+
+2.
+
+Due to the regular orders from the company Select Comfort and due to the technologies demanding certain time periods there is approx. XXXX stock as semifinished products on various stages of finishing and in average XXXX AC ready for shipment.
+
+3.
+
+XXXX are always on journey between XXXX and Select Comfort. XXXX
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+4. Emergency situation:
+
+1.stage - because of a sufficient quantity of available spare machinery the deliveries in all technologies are not endangered.
+
+2.stage - failure of this stage is unlikely for the whole building due to the fire protection system that is used in XXXX
+
+7
+
+Fire protection system at XXXX
+
+All workmen (employees and external workers) are obliged to keep the Directive SM-0013 Fire Protection Assurance and Management. This Directive is an integral part of the employees ́ initial and regular training courses concerning the fire protection.
+
+At XXXX are firewatchers on risky workplaces. All employees are obliged to be available to the commander in case of a hazard.
+
+Fire safety prevention:
+
+▪
+
+Is done by all heads of departments and by the firewatchers on their respective working areas
+
+▪
+
+The security department (the person responsible for the fire safety and the fire protection committee) assure the appropriate management and the inspection
+
+▪
+
+The Fire Safety Regulations elaborated for all fire dangerous operations and warehouses define the fire risks in individual buildings.
+
+▪
+
+Fire safety committee is nominated to evaluate and to secure the difficult targets concerning the fire protection
+
+▪
+
+The heads of departments do regular training courses once a year and make a record about the training
+
+▪
+
+The Responsible for the Fire safety instructs the heads of departments every 3 years.
+
+▪
+
+Fire prevention cooperators - 1 x per 3 months inspect all workplaces and the manufacture, operation and fire protection equipment in the area where they are responsible.
+
+▪
+
+The firewatchers are trained at least 1 x per year in theory and practice
+
+▪
+
+All production halls are equipped with the electronic fire alarm, automatic or push-button fire alarms and manually controlled extinguishers. These fire alarms are connected to one place in XXXX also to state firebrigade.
+
+▪
+
+Building 4 and 54 are equipped with permanently installed antifire equipment.
+
+▪
+
+On free days the guard-duty make inspection regarding the fire safety
+
+▪
+
+All obligations of employees in case of fire are described in the Fire Call Directive. This Directive is placed on all workplaces inclusive the Fire Evacuation Plans and the Fire Safety Regulations..
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+8
+
+Enclosure 1
+
+Capacity of technologies for producing semiproducts and assembling air chambers
+
+Semiproducts
+
+Process step
+
+XXXX
+
+XXXX
+
+XXXX
+
+Cutting [pcs]
+
+Machine/Equipment
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Shifts
+
+3
+
+3
+
+3
+
+3
+
+3
+
+3
+
+3
+
+2
+
+2
+
+Capacity of Technology
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Need for Annual Production of 700 000 pcs
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Capacity Utilization [%]
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Number of Equipment for Technology
+
+4
+
+2
+
+3
+
+2
+
+Different Building
+
+2
+
+1
+
+3
+
+1
+
+Assembly
+
+Assembly XXXX [pcs]
+
+Assembly XXXX [pcs]
+
+XXXX
+[pcs]
+
+XXXX [pcs]
+
+Packing [pcs]
+
+Machine/Equipment
+
+XXXX
+
+lines
+
+XXXX
+
+XXXX
+
+XXXX
+machines
+
+automated machine
+
+Shifts
+
+4
+
+2/4+1 line
+
+3/ 1 line
+
+3
+
+2
+
+1
+
+Capacity of Technology
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Need for Annual Production of 600 000 pcs
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Capacity Utilization 600 000 pcs [%]
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+XXXX
+
+Number of Equipment for Technology
+
+2
+
+5+1
+
+3
+
+2
+
+1
+
+Different Building
+
+1
+
+1
+
+1
+
+1
+
+1
+
+Iva Jadrná
+
+27.4.2011
+
+Radek Pochylý
+
+28.2.2013
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+1
+
+Exhibit 3
+
+Select Comfort Supplier Bar Code Labeling
+
+and Packaging Requirements
+
+A.
+
+Purpose
+
+All products that are sent to a Select Comfort Facility must have a bar code on it that complies with Select Comfort's bar code requirements outlined in this document. Select Comfort uses automation in its manufacturing facilities. Receipt of materials using bar code scanning technologies is an important part of that automated operation.
+
+B.
+
+Select Comfort Contact Information
+
+Any questions regarding bar coding can be addressed by contacting your assigned Supply Chain Representative by phone or e-mail.
+
+C.
+
+Bar Code Samples
+
+On request, the Supplier shall send an Actual Bar Code Sample (no faxes or photocopies) to your assigned Supply Chain Representative. This is required to ensure that each supplier has the capability to produce a bar code label that will meet Select Comfort's requirements. If you produce labels for your product at more than one facility, it is important that Select Comfort receive a bar code sample label from each facility.
+
+Current XXXX BAR CODE approved sample - for gaylords:
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Current XXXX BAR CODE approved sample - for polyethylene bags or film:
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of
+
+Select Comfort Supplier Bar Code Labeling and Packaging Requirements
+
+this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+vNo other bar codes on the label may be included on the same line as the Lot # and Quantity bar codes. This is to eliminate any chance of mistakenly scanning the wrong bar code on the same line
+
+D.
+
+Bar Code Label Requirements
+
+vWhen printing your bar code, make sure that the ink is evenly applied. Uneven, splotchy or smeared printing may cause the bar code to be unreadable.
+
+vPrint the bar code on the appropriate label stock for your commodity
+
+vApply the bar code to a smooth/flat surface to ensure scanner readability.
+
+vDo not:
+
+ØDo not print your bar codes directly onto corrugate. Scanners frequently cannot read bar codes printed on this material.
+
+ØDo not print your labels on glossy label stock. Glossy label stock interferes with the scanners ability to read bar codes.
+
+ØDo not apply the bar code to an uneven surface, box seam or box edge. It is unacceptable to use a bar code to seal a product's packaging.
+
+E.
+
+General Guidance
+
+Notwithstanding the foregoing or anything to the contrary in the Master Supply Agreement, the Select Comfort Corporation Barcode Labeling Requirements are non-binding and intended only as a guide for barcode labeling. Select Comfort has approved Supply Partner's current methods of barcode labeling, despite the fact that Supply Partner's current methods of barcode labeling may differ from Select Comfort Corporation Barcode Labeling Requirements.
+
+F.
+
+Packaging
+
+All air chambers must be packed either in a polyethylene bag or in a polyethylene unshrinkable film with thickness of 40 micron and labeled with following information (see sample bellow):
+
+- Air chamber type
+
+- Bar code specifying the air chamber type
+
+- Select Comfort advice
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+Page 3
+
+Select Comfort Supplier Bar Code Labeling and Packaging Requirements
+
+The air chambers packed in this way shall be place into gaylords or cardboard boxes. Then the cardboard boxes or gaylords shall be labeled with the following information (see bellow):
+
+- customer;
+
+- supplier;
+
+- order No.;
+
+- product type;
+
+- number of pieces in a package;
+
+- place of destination;
+
+[Portions of this Section have been omitted pursuant to a request for confidentiality under Rule 24b-2 of the Securities Exchange Act of 1934, as amended. The confidential portions of this Section that have been omitted are marked with "XXXX". A copy of this Exhibit with all sections intact has been filed separately with the Securities and Exchange Commission.]
+
+3031924 v.2
+
+Page 4

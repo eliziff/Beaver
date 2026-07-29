@@ -1,0 +1,180 @@
+{
+ "corpus": "legal-generalization-corpus/canadian",
+ "built": "2026-07-28",
+ "scope_note": "Canadian evaluation material for deterministic legal-text tooling: typed-anchor extraction and structural parsing. No model API was used to build, select, classify or annotate anything here. CanLII was not accessed.",
+ "files": {
+  "registry.jsonl": "33 rows, one JSON object per artifact. Rights recorded PER ARTIFACT, not per repository.",
+  "anchor-forms.jsonl": "60 hand-collected Canadian anchor surface forms, each offset-verified against a corpus file.",
+  "structure-gold/index.json": "Counts per structure-gold artifact.",
+  "structure-gold/statutes/<slug>.txt": "Verbatim A2AJ unofficial_text_en.",
+  "structure-gold/statutes/<slug>.structure.json": "Provider-native section map + derived raw-text spans.",
+  "structure-gold/decisions/<slug>.txt": "Verbatim A2AJ unofficial_text_en.",
+  "structure-gold/decisions/<slug>.structure.json": "Paragraph markers with spine/quoted roles + provider-native citation list.",
+  "external/canlegalragbench/queries.jsonl": "532 MIT-licensed CanLegalRAGBench query/answer annotations (no source document text)."
+ },
+
+ "zero_annotation_trick": {
+  "statutes": "A2AJ ships unofficial_sections_en (JSON string: section label -> section body) ALONGSIDE the raw text unofficial_text_en. The section map is produced independently of the raw text, so it is gold for a text-only skeleton parser with no human annotation. structure_provenance = 'provider-native'.",
+  "decisions": "No native section field exists for case law. Two other native signals are used: (1) the paragraph numbers the court itself published inline, e.g. '[47]', located by regex; (2) A2AJ's provider-native cases_cited_en neutral-citation list. structure_provenance = 'derived-from-native-markers' and every record carries a structure_derivation block stating the exact rule."
+ },
+
+ "json_shapes": {
+  "statute_structure_json": {
+   "artifact_id": "string",
+   "doc_type": "statute | regulation",
+   "jurisdiction": "CA-FED | CA-ON | CA-AB",
+   "dataset": "A2AJ subset code, e.g. LEGISLATION-FED",
+   "citation": "string", "citation_secondary": "string|null", "name": "string",
+   "document_date": "YYYY-MM-DD", "language": "en",
+   "source_url": "official publisher URL", "scraped_timestamp": "string",
+   "provenance": {
+    "source": "huggingface:a2aj/canadian-laws",
+    "revision": "HF commit sha",
+    "file": "<SUBSET>/train.parquet",
+    "field_raw_text": "unofficial_text_en",
+    "field_structure": "unofficial_sections_en",
+    "retrieved": "YYYY-MM-DD",
+    "code_license": "MIT",
+    "upstream_license": "full upstream licence string from the row",
+    "upstream_license_id": "short id"
+   },
+   "raw_text_file": "string", "raw_text_chars": "int", "raw_text_sha256": "hex",
+   "structure_provenance": "provider-native",
+   "structure_derivation": {
+    "labels_and_bodies": "verbatim from unofficial_sections_en",
+    "raw_span": "derived: label located by line-anchored heading match, disambiguated by verifying the native body follows; span ends at the next located heading",
+    "warning": "the provider's section-map key order is NOT document order for decimal labels; use doc_order"
+   },
+   "structure": {
+    "kind": "section_map",
+    "native_field": "unofficial_sections_en",
+    "label_count": "int",
+    "anchored_count": "int",
+    "anchor_kinds": "{unique|body-verified|range-collapsed: int}",
+    "body_classes": "{substantive|repealed|blank|amendments|omitted|empty: int}",
+    "map_order_equals_doc_order": "bool",
+    "labels_map_order": ["string"],
+    "labels_doc_order": ["string"],
+    "sections": [{
+     "label": "string, e.g. '231', '83.01', '25-49', 'Schedule'",
+     "map_order": "int, index in the provider's section map",
+     "doc_order": "int|null, index in raw-text reading order",
+     "body_class": "substantive|repealed|blank|amendments|omitted|empty",
+     "anchored": "bool",
+     "anchor_kind": "unique|body-verified|range-collapsed|null",
+     "raw_span": "{start:int,end:int}|null, char offsets into <slug>.txt",
+     "body_chars": "int", "body_sha256": "hex",
+     "body": "verbatim native section body"
+    }]
+   }
+  },
+
+  "decision_structure_json": {
+   "artifact_id": "string", "doc_type": "decision", "jurisdiction": "CA-NS",
+   "dataset": "NSCA", "court": "Nova Scotia Court of Appeal",
+   "citation": "e.g. 2016 NSCA 89", "citation_secondary": "string|null",
+   "name": "style of cause", "document_date": "YYYY-MM-DD", "language": "en",
+   "source_url": "string", "scraped_timestamp": "string",
+   "provenance": "same shape as statutes, with source=huggingface:a2aj/canadian-case-law, file=NSCA/train.parquet, field_structure=(none: paragraph numbers are inline)",
+   "raw_text_file": "string", "raw_text_chars": "int", "raw_text_sha256": "hex",
+   "structure_provenance": "derived-from-native-markers",
+   "structure_derivation": {
+    "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+    "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+    "note": "bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments"
+   },
+   "structure": {
+    "kind": "paragraph_list",
+    "marker_count": "int, every [N] token found",
+    "spine_count": "int, the decision's own paragraphs",
+    "quoted_count": "int, quoted-judgment paragraph numbers + inline footnote refs",
+    "spine_is_1_to_n": "bool",
+    "labels_all_markers": ["string"],
+    "labels_spine": ["string"],
+    "paragraphs": [{
+     "label": "string", "marker_order": "int",
+     "role": "spine|quoted_or_foreign",
+     "marker": "e.g. '[47]'",
+     "raw_span": "{start:int,end:int}",
+     "body_chars": "int", "body_sha256": "hex", "body": "string"
+    }]
+   },
+   "native_citations": {
+    "provenance": "provider-native",
+    "field": "cases_cited_en",
+    "description": "Neutral citations A2AJ detected, in order of first appearance, self-citations excluded. NEUTRAL CITATIONS ONLY: traditional reporter citations such as '[1999] 3 S.C.R. 423' are NOT captured.",
+    "count": "int", "values": ["string"]
+   }
+  },
+
+  "anchor_forms_jsonl": {
+   "form_type": "string, one of 28 types",
+   "surface_text": "string, verbatim from the source file",
+   "source_file": "canadian/structure-gold/...",
+   "note": "why this form matters / what breaks on it",
+   "char_offset": "int, exact offset of surface_text in source_file",
+   "occurrences_in_file": "int",
+   "context": "+-90 chars around the match, newlines flattened"
+  }
+ },
+
+ "how_to_score": {
+  "principle": "Run the text-only skeleton parser over <slug>.txt and compare against <slug>.structure.json. Match on LABELS, not on body text.",
+
+  "statutes_and_regulations": {
+   "gold_label_set": "G = {s.label for s in structure.sections if s.anchored}. Unanchored labels have no heading in the raw text, so including them is an unfair denominator; report them separately.",
+   "label_metrics": "precision / recall / F1 of the parser's emitted labels P against G, matching on the label STRING. Never normalise decimal labels to floats: '83.01' != '83.1'.",
+   "order_metric": "compare the parser's emitted sequence against structure.labels_doc_order (exact-sequence match or Kendall tau). Scoring against labels_map_order is a BUG: map_order_equals_doc_order is false for the Criminal Code and IRPA.",
+   "span_metric": "optional. For labels in G intersect P, character-interval IoU of the parser span against section.raw_span. raw_span runs heading-to-next-heading and therefore INCLUDES interleaved '### marginal note' headings; a parser that strips them will under-cover. Report span score separately from label score.",
+   "range_collapsed": "labels with anchor_kind == 'range-collapsed' share one heading (e.g. '**157 and 158**' covers labels '157' and '158'). Score these separately; a parser emitting only '157' is partially right.",
+   "do_not": "Do NOT score against section.body directly. The provider strips the label from the body and drops interleaved marginal-note headings, so the native body is NOT a contiguous substring of the raw text."
+  },
+
+  "decisions": {
+   "spine_detection": "Compare the parser's paragraph labels against structure.labels_spine (685 real paragraphs across the 8 decisions). Emitting any of the 375 quoted_or_foreign markers counts as a FALSE POSITIVE. This is the metric that matters: a parser scoring well on labels_all_markers but poorly on labels_spine is doing regex matching, not structural parsing.",
+   "citation_extraction": "Compare extracted neutral citations against native_citations.values (242 across the 8 decisions). Score RECALL against the native list. Score PRECISION only over neutral-citation-shaped extractions, because A2AJ extracts neutral citations ONLY: traditional reporter citations are absent from the gold and must NOT be counted as false positives.",
+   "independent_check": "Every spine is exactly 1..n and each ends on a genuine disposition paragraph, which is how the role rule was validated."
+  }
+ },
+
+ "structural_traps_encoded": [
+  {
+   "trap": "section-map key order is not document order",
+   "detail": "For decimal labels A2AJ sorts 83.01, 83.1, 83.02, 83.2, 83.03, 83.3 ... because '01' and '1' collide in its sort key. A cursor-based forward scan over map order silently drops ~59% of Criminal Code sections.",
+   "affected": ["fed-rsc-1985-c-c46-criminal-code", "fed-sc-2001-c-27-irpa"],
+   "field": "map_order_equals_doc_order"
+  },
+  {
+   "trap": "range-collapsed section headings",
+   "detail": "The map has separate keys '157' and '158' but the raw text has a single heading '**157 and 158** [Repealed, R.S., 1985, c. 19 (3rd Supp.), s. 2]'.",
+   "field": "anchor_kind == 'range-collapsed'"
+  },
+  {
+   "trap": "section map is a superset of the raw text",
+   "detail": "250 of 2848 labels never appear as a heading: repealed sections, '[blank]' placeholders, '[Amendments]', and 'Omitted (amends or repeals other Acts)'.",
+   "field": "body_class + anchored"
+  },
+  {
+   "trap": "'[N]' is overloaded in judgments",
+   "detail": "2026 NSCA 36 contains 231 '[N]' tokens but only 119 real paragraphs. The rest are paragraph numbers inside block quotations of OTHER judgments and inline footnote references such as 'offences.[1]'. Line position alone is insufficient; sequence continuity is required.",
+   "field": "role"
+  }
+ ],
+
+ "declared_gaps": [
+  "SBC / RSBC (British Columbia) citation forms: excluded because all 574 LEGISLATION-BC rows have a NULL upstream_license, so rights are unknown.",
+  "C.R.C., c. 870 (Consolidated Regulations of Canada): REGULATIONS-FED is 103.7 MB, over the per-download budget. An example exists in the Beaver fixtures at backend/src/lib/__tests__/fixtures/sourcedoc/a2aj-regs-fed-crc870-a01.json.",
+  "CARSWELLNAT database citations and Quebec RLRQ forms: observed in external/canlegalragbench/queries.jsonl but outside slice (a)'s texts, so no offset-verified entry was recorded.",
+  "French-language documents: corpus is English-only, so 'L.R.C. (1985), ch. C-46' and 'art.' pinpoints are unrepresented. A2AJ carries *_fr fields for the same rows, so this is cheap to add later."
+ ],
+
+ "attribution_required_on_redistribution": {
+  "federal_statutes": "Contains information licensed under the Open Government Licence - Canada. Unofficial reproduction, not endorsed by the Government of Canada.",
+  "ontario": "(c) King's Printer for Ontario, 2026. Not an official version. Must be reproduced accurately.",
+  "alberta": "Crown identified as source; not an official version; due diligence exercised for accuracy.",
+  "nsca_decisions": "Unofficial reproduction of a Nova Scotia Court of Appeal decision; no licensing restriction asserted by the publisher as of 2026-05-11.",
+  "cite_a2aj": "Sean Rehaag, Simon Wallace & Clifford McCarten, 'A2AJ Canadian Case Law' / 'A2AJ Canadian Laws' (2025), Hugging Face Datasets (updated 2026)."
+ },
+
+ "reproducing": "raw_text_sha256 in each .structure.json (and in registry.jsonl) pins the exact text. To re-pull an artifact, read its registry row and fetch path_in_source at revision from source_url. Bulk parquet files were held only in a scratch directory and are NOT part of this corpus; only the 18 selected documents and one MIT-licensed annotation file were copied in."
+}

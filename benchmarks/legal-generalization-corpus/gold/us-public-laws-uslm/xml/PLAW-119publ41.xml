@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–41—NOV. 25, 2025?>
+<?I51 PUBLIC LAW 119–41—NOV. 25, 2025?>
+<?I52 PUBLIC LAW 119–41—NOV. 25, 2025?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–41: To amend the Bottles and Breastfeeding Equipment Screening Act to require hygienic handling of breast milk and baby formula by security screening personnel of the Transportation Security Administration and personnel of private security companies providing security screening, and for other purposes.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>41</docNumber>
+<citableAs>Public Law 119–41</citableAs><citableAs>139 Stat. 663</citableAs>
+<approvedDate>2025-11-25</approvedDate>
+<dc:date>2025-11-25</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2025-12-08</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–41—NOV. 25, 2025</centerRunningHead>
+<page identifier="/us/stat/139/663">139 STAT. 663</page>
+<dc:type>Public Law</dc:type><docNumber>119–41</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To amend the Bottles and Breastfeeding Equipment Screening Act to require hygienic handling of breast milk and baby formula by security screening personnel of the Transportation Security Administration and personnel of private security companies providing security screening, and for other purposes.<sidenote><p class="centered fontsize8" id="x7419fcf9-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658076"><approvedDate date="2025-11-25">Nov. 25, 2025</approvedDate></p><p class="centered fontsize8" id="x7419fcfa-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658076">[<ref href="/us/bill/119/s/260">S. 260</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x7419fcfb-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Bottles and Breastfeeding Equipment Screening Enhancement Act.</p></sidenote>
+<section id="d3404e88" identifier="/us/pl/119/41/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x7419fcfc-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180"><ref href="/us/usc/t49/s40101">49 USC 40101 note</ref>.</p></sidenote><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">Bottles and Breastfeeding Equipment Screening Enhancement Act</shortTitle>”.</content></section>
+<section id="d3404e103" identifier="/us/pl/119/41/s2" role="instruction" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>HYGIENIC HANDLING OF BREAST MILK AND BABY FORMULA DURING AVIATION SECURITY SCREENING.</heading><content class="firstIndent0 fontsize10" id="x741a722d-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658120">  The Bottles and Breastfeeding Equipment Screening Act (<ref href="/us/pl/114/293">Public Law 114–293</ref>) is <sidenote><p class="leftAlign firstIndent0 fontsize8" id="x741a722e-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180"><ref href="/us/usc/t49/s44901">49 USC 44901 note</ref>.</p></sidenote>amended by <amendingAction type="add">adding</amendingAction> at the end the following new sections:<quotedContent><section class="centered fontsize12" id="y741ae75f-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658141"><num class="fontsize12" value="3">“SEC. 3. </num><heading class="fontsize12"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x741ae760-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Deadline.</p><p class="leftAlign firstIndent0 fontsize8" id="x741ae761-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Time period.</p><p class="leftAlign firstIndent0 fontsize8" id="x741ae762-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Update.</p><p class="leftAlign firstIndent0 fontsize8" id="x741ae763-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Guidance.</p></sidenote>HYGIENIC HANDLING OF BREAST MILK AND BABY FORMULA DURING AVIATION SECURITY SCREENING.</heading><chapeau class=" fontsize10" style="-uslm-lc:I658120">  “Not later than 90 days after the date of the enactment of this section and every five years thereafter, if appropriate, the Administrator of the Transportation Security Administration shall issue or update, as the case may be, guidance to minimize the risk for contamination of any breast milk, baby formula, purified deionized water for infants, and juice (as well as ice packs, freezer packs, frozen gel packs and other accessories required to cool breast milk, baby formula, and juice) that is subject to re-screening or otherwise subject to additional screening. Such guidance shall—</chapeau><paragraph class="fontsize10" id="y741ae764-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">“(1) </num><content>be developed in consultation with nationally recognized maternal health organizations;</content></paragraph>
+<paragraph class="fontsize10" id="y741ae765-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">“(2) </num><content>ensure adherence to hygienic standards, as established by the Administrator, in consultation with nationally recognized maternal health organizations;</content></paragraph>
+<paragraph class="fontsize10" id="y741ae766-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">“(3) </num><content>ensure that, when any such re-screening or additional screening requires additional testing, such testing so adheres to such standards, to so minimize such risk; and</content></paragraph>
+<paragraph class="fontsize10" id="y741ae767-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="4">“(4) </num><content><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x741ae768-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Applicability.</p></sidenote>apply to security screening personnel of the Administration and personnel of private security companies providing security screening pursuant to <ref href="/us/usc/t49/s44920">section 44920 of title 49, United States Code</ref>.</content></paragraph>
+</section>
+<section class="centered fontsize12" id="y741ae769-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658141"><num class="fontsize12" value="4">“SEC. 4. </num><heading class="fontsize12"><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x741ae76a-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Reports.</p><p class="leftAlign firstIndent0 fontsize8" id="x741ae76b-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658180">Audit.</p></sidenote>INSPECTOR GENERAL AUDIT.</heading><content class="indentUp0 firstIndent0 fontsize10" style="-uslm-lc:I658120">  “Not later than one year after the date of the enactment of this section, the Inspector General of the Department of Homeland Security shall submit to the Committee on Homeland Security <page identifier="/us/stat/139/664">139 STAT. 664</page>
+of the House of Representatives and the Committee on Commerce, Science, and Transportation of the Senate a report containing an audit of compliance with the requirements of sections 2 and 3. Such audit shall also include information relating to the effect of various types of screening technologies, including bottled liquid scanners, on the screening of breast milk, baby formula, purified deionized water for infants, and juice (as well as ice packs, freezer packs, frozen gel packs and other accessories required to cool breast milk, baby formula, and juice) that is subject to re-screening or otherwise subject to additional screening, and the rate at which such items are denied entry into the sterile area (as such term is defined in <ref href="/us/cfr/t49/s1540.5">section 1540.5 of title 49, Code of Federal Regulations</ref>).”</content></section>
+</quotedContent>.</content></section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2025-11-25">November 25, 2025</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/s/260">S. 260</ref> (<ref href="/us/bill/119/hr/820">H.R. 820</ref>):</heading>
+<note>
+<headingText style="-uslm-lc:I658032">HOUSE REPORTS:</headingText> ┐No. <ref href="/us/hrpt/119/197">119–197</ref> (<committee>Comm. on Homeland Security</committee>) accompanying <ref href="/us/bill/119/hr/820">H.R. 820</ref>.
+</note>
+<note>
+<headingText style="-uslm-lc:I658032">SENATE REPORTS:</headingText> ┐No. <ref href="/us/srpt/119/19">119–19</ref> (<committee>Comm. on Commerce, Science, and  Transportation</committee>).
+</note>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x741b0e7c-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658035">May 14, considered and passed Senate.</p><p class="indentUp4 firstIndent-1" id="x741b0e7d-d444-11f0-b8a8-e1b4a9a7cc9b" style="-uslm-lc:I658035">Nov. 17, considered and passed House.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

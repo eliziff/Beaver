@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><?xml-stylesheet type="text/css" href="uslm.css"?><pLaw xmlns="http://schemas.gpo.gov/xml/uslm" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xml:lang="en" xsi:schemaLocation="http://schemas.gpo.gov/xml/uslm https://www.govinfo.gov/schemas/xml/uslm/uslm-2.0.17.xsd">
+
+<?I97 139 STAT. ?>
+<?I98 139 STAT. ?>
+<?I99 139 STAT. ?>
+<?I50 PUBLIC LAW 119–71—JAN. 20, 2026?>
+<?I51 PUBLIC LAW 119–71—JAN. 20, 2026?>
+<?I52 PUBLIC LAW 119–71—JAN. 20, 2026?>
+
+
+<!--Disclaimer: Legislative measures that include compacts or other non-standard data structures will require additional modeling and may contain inconsistencies in the converted USLM XML.-->
+<meta><dc:title>Public Law 119–71: To direct the Secretary of Veterans Affairs and the Comptroller General of the United States to report on certain funding shortfalls in the Department of Veterans Affairs.</dc:title>
+<dc:type>Public Law</dc:type><docNumber>71</docNumber>
+<citableAs>Public Law 119–71</citableAs><citableAs>139 Stat. 1999</citableAs>
+<approvedDate>2026-01-20</approvedDate>
+<dc:date>2026-01-20</dc:date>
+<dc:publisher>United States Government Publishing Office</dc:publisher><dc:creator>National Archives and Records Administration</dc:creator><dc:creator>Office of the Federal Register</dc:creator><dc:format>text/xml</dc:format><dc:language>EN</dc:language><dc:rights>Pursuant to Title 17 Section 105 of the United States Code, this file is not subject to copyright protection and is in the public domain.</dc:rights>
+<processedBy>GPO Locator to USLM Converter 4.15.31;Stage2.20250702</processedBy><processedDate>2026-01-29</processedDate>
+<congress>119</congress><publicPrivate>public</publicPrivate>
+</meta>
+<preface><centerRunningHead>PUBLIC LAW 119–71—JAN. 20, 2026</centerRunningHead>
+<page identifier="/us/stat/139/1999">139 STAT. 1999</page>
+<dc:type>Public Law</dc:type><docNumber>119–71</docNumber>
+<congress value="119">119th Congress</congress>
+</preface>
+<main>
+<longTitle>
+<docTitle class="centered fontsize12" style="-uslm-lc:I658005">An Act</docTitle>
+<officialTitle class="indentUp0 firstIndent1 fontsize8" style="-uslm-lc:I658011">To direct the Secretary of Veterans Affairs and the Comptroller General of the United States to report on certain funding shortfalls in the Department of Veterans Affairs.<sidenote><p class="centered fontsize8" id="x22e533f6-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658076"><approvedDate date="2026-01-20">Jan. 20, 2026</approvedDate></p><p class="centered fontsize8" id="x22e533f7-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658076">[<ref href="/us/bill/119/hr/1823">H.R. 1823</ref>]<?GPOvSpace 08?></p></sidenote></officialTitle>
+</longTitle>
+<enactingFormula style="-uslm-lc:I658120"><i>  Be it enacted by the Senate and House of Representa­tives of the United States of America in Congress assembled,</i></enactingFormula><sidenote><p class="leftAlign firstIndent0 fontsize8" id="x22e533f8-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658180">VA Budget Shortfall Accountability Act.</p><p class="leftAlign firstIndent0 fontsize8" id="x22e533f9-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658180">Time periods.</p></sidenote>
+<section id="d234e90" identifier="/us/pl/119/71/s1" style="-uslm-lc:I658146"><num class="bold" value="1">SECTION 1. </num><heading>SHORT TITLE.</heading><content style="-uslm-lc:I658120">  This Act may be cited as the “<shortTitle role="act">VA Budget Shortfall Accountability Act</shortTitle>”.</content></section>
+<section id="d234e100" identifier="/us/pl/119/71/s2" style="-uslm-lc:I658141"><num class="fontsize12" value="2">SEC. 2. </num><heading>FUNDING SHORTFALLS IN CERTAIN ADMINISTRATIONS OF THE DEPARTMENT OF VETERANS AFFAIRS: REVIEWS; REPORTS.</heading><subsection class="firstIndent0 fontsize10" id="y22e9eeea-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="a">(a) </num><heading class="fontsize10"><inline class="smallCaps">First GAO Review</inline>.—</heading><paragraph class="fontsize10" id="y22ea15fb-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><heading class="fontsize10"><inline class="smallCaps">Review required</inline>.—</heading><chapeau>Not later than 30 days after the date of the enactment of this Act, the Comptroller General of the United States shall begin a review regarding the circumstances surrounding, and the causes of—</chapeau><subparagraph class="fontsize10" id="y22ea3d0c-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/1/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>the shortfall in the funding of the Veterans Benefits Administration for fiscal year 2024; and</content></subparagraph>
+<subparagraph class="fontsize10" id="y22ea3d0d-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/1/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>the expected shortfall in the funding of the Veterans Health Administration in fiscal year 2025.</content></subparagraph>
+</paragraph>
+<paragraph class="fontsize10" id="y22ea3d0e-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><heading class="fontsize10"><inline class="smallCaps">Elements</inline>.—</heading><chapeau>The review under this subsection shall include the following elements:</chapeau><subparagraph class="fontsize10" id="y22ea641f-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/A" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="A">(A) </num><content>A comparison of monthly obligations and expenditures in relevant accounts against the spending plan of the Department of Veterans Affairs.</content></subparagraph>
+<subparagraph class="fontsize10" id="y22ea6420-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/B" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="B">(B) </num><content>Any transfers between accounts described in subparagraph (A).</content></subparagraph>
+<subparagraph class="fontsize10" id="y22ea6421-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/C" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="C">(C) </num><content>The reasons for any significant diversions of obligations or expenditures from such spending plan.</content></subparagraph>
+<subparagraph class="fontsize10" id="y22ea6422-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/D" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="D">(D) </num><content>An analysis of the accuracy of any projections or estimates relevant to diversions described in subparagraph (C).</content></subparagraph>
+<subparagraph class="fontsize10" id="y22ea6423-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/E" style="-uslm-lc:I658124"><num class="fontsize10" style="-uslm-lc:emspace2" value="E">(E) </num><chapeau>Remedial actions the Secretary of Veterans Affairs may take—</chapeau><clause class="fontsize10" id="y22ea6424-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/E/i" style="-uslm-lc:I658126"><num class="fontsize10" style="-uslm-lc:emspace2" value="i">(i) </num><content>to improve the accuracy of supporting information submitted under <ref href="/us/usc/t31/s1105/a">section 1105(a) of title 31, United States Code</ref>, with respect to the Department; and</content></clause>
+<clause class="fontsize10" id="y22ea6425-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/2/E/ii" style="-uslm-lc:I658126"><num class="fontsize10" style="-uslm-lc:emspace2" value="ii">(ii) </num><content>to prevent funding shortfalls for the Department.</content></clause>
+</subparagraph>
+</paragraph>
+<paragraph class="fontsize10" id="y22ea6426-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/a/3" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="3">(3) </num><heading class="fontsize10"><inline class="smallCaps">Report</inline>.—</heading><content>Not later than 30 days after completing such review, the Comptroller General shall submit to the Secretary of Veterans Affairs a written report containing the results and findings of such review.<page identifier="/us/stat/139/2000">139 STAT. 2000</page></content></paragraph>
+</subsection>
+<subsection class="firstIndent0 fontsize10" id="y22ea6427-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/b" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="b">(b) </num><heading class="fontsize10"><inline class="smallCaps">Subsequent GAO Reviews</inline>.—</heading><content>In each of the five calendar years following the date of the enactment of this Act, the Comptroller General shall conduct a review including the elements described in subsection (a)(2), and submit a report described in subsection (a)(3), regarding the funding of the Department of Veterans Affairs for the most recent fiscal year to end before the date of such review.</content></subsection>
+<subsection class="firstIndent0 fontsize10" id="y22ea6428-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/c" style="-uslm-lc:I658120"><num class="fontsize10" style="-uslm-lc:emspace2" value="c">(c) </num><heading class="fontsize10"><inline class="smallCaps">Reports of the Secretary of Veterans Affairs</inline>.—</heading><chapeau>Not later than 30 days after the Secretary of Veterans Affairs receives a report of the Comptroller General under subsection (a) or (b), the Secretary shall submit such report to—</chapeau><paragraph class="fontsize10" id="y22ea6429-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/c/1" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="1">(1) </num><content>the Committees on Veterans’ Affairs of the House of Representatives and the Senate; and</content></paragraph>
+<paragraph class="fontsize10" id="y22ea8b3a-fd07-11f0-85eb-bfa20168462a" identifier="/us/pl/119/71/s2/c/2" style="-uslm-lc:I658122"><num class="fontsize10" style="-uslm-lc:emspace2" value="2">(2) </num><content>the Committees on Appropriations of the House of Representatives and the Senate.</content></paragraph>
+</subsection>
+</section>
+<action>
+<actionDescription style="-uslm-lc:I658030">Approved</actionDescription> <date date="2026-01-20">January 20, 2026</date>.</action>
+</main>
+<legislativeHistory>
+<heading style="-uslm-lc:I658031"><inline class="underline">LEGISLATIVE HISTORY</inline>—<ref href="/us/bill/119/hr/1823">H.R. 1823</ref>:</heading>
+<note>
+<headingText style="-uslm-lc:I658032">HOUSE REPORTS:</headingText> ┐No. <ref href="/us/hrpt/119/101">119–101</ref> (<committee>Comm. on Veterans’ Affairs</committee>).
+</note>
+<note>
+<heading style="-uslm-lc:I658032">CONGRESSIONAL RECORD, Vol. 171 (2025):</heading>
+<p class="indentUp4 firstIndent-1" id="x22ea8b3b-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658035">May 19, considered and passed House.</p><p class="indentUp4 firstIndent-1" id="x22ea8b3c-fd07-11f0-85eb-bfa20168462a" style="-uslm-lc:I658035">Dec. 18, considered and passed Senate.</p></note>
+</legislativeHistory>
+<endMarker>○</endMarker>
+</pLaw>

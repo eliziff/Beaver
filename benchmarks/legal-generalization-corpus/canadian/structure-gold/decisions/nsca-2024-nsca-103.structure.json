@@ -1,0 +1,2210 @@
+{
+ "artifact_id": "nsca-2024-nsca-103",
+ "doc_type": "decision",
+ "jurisdiction": "CA-NS",
+ "dataset": "NSCA",
+ "court": "Nova Scotia Court of Appeal",
+ "citation": "2024 NSCA 103",
+ "citation_secondary": "",
+ "name": "R. v. Alexander",
+ "document_date": "2024-12-17",
+ "language": "en",
+ "source_url": "https://decisia.lexum.com/nsc/nsca/en/item/522793/index.do",
+ "scraped_timestamp": "2026-04-09 19:13:53.538000+00:00",
+ "provenance": {
+  "source": "huggingface:a2aj/canadian-case-law",
+  "revision": "41a23437236109a4d0729c4cb1de3c13cfbe2e44",
+  "file": "NSCA/train.parquet",
+  "field_raw_text": "unofficial_text_en",
+  "field_structure": "(none: paragraph numbers are inline in unofficial_text_en)",
+  "retrieved": "2026-07-28",
+  "code_license": "MIT",
+  "upstream_license": "The Nova Scotia Courts website from which these documents were scraped does not (as of 11 May 2026) include any licensing restrictions. Note: This is an unofficial reproduction of a Nova Scotia Court of Appeal decision, without endorsement or affiliation by the Nova Scotia courts.",
+  "upstream_license_id": "none-asserted-by-publisher"
+ },
+ "raw_text_file": "nsca-2024-nsca-103.txt",
+ "raw_text_chars": 69274,
+ "raw_text_sha256": "503e0d4b6d99f7b387637ed05b5bb3a3ff648a9e18964759bfc7a0d960d86afe",
+ "structure_provenance": "derived-from-native-markers",
+ "structure_derivation": {
+  "rule": "regex ^[ \\t]*\\[(\\d+)\\] in MULTILINE mode over the verbatim raw text",
+  "role_rule": "walk markers in document order with expected=1; marker is 'spine' iff int(label)==expected (then expected+=1), else 'quoted_or_foreign'",
+  "note": "The bracketed numbers are the court's own published paragraph numbers; the only derivation is locating them and separating the decision's own sequence from paragraph numbers inside block quotations of other judgments. No model was used."
+ },
+ "structure": {
+  "kind": "paragraph_list",
+  "marker_count": 145,
+  "spine_count": 78,
+  "quoted_count": 67,
+  "spine_is_1_to_n": true,
+  "labels_all_markers": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "25",
+   "26",
+   "27",
+   "28",
+   "89",
+   "41",
+   "32",
+   "33",
+   "42",
+   "54",
+   "43",
+   "57",
+   "44",
+   "58",
+   "59",
+   "45",
+   "9",
+   "10",
+   "46",
+   "47",
+   "143",
+   "144",
+   "145",
+   "146",
+   "147",
+   "148",
+   "95",
+   "48",
+   "13",
+   "49",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "50",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "51",
+   "6",
+   "7",
+   "8",
+   "52",
+   "53",
+   "54",
+   "19",
+   "20",
+   "21",
+   "22",
+   "55",
+   "56",
+   "57",
+   "15",
+   "17",
+   "26",
+   "58",
+   "59",
+   "76",
+   "60",
+   "59",
+   "61",
+   "62",
+   "76",
+   "77",
+   "78",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "38",
+   "39",
+   "40",
+   "73",
+   "74",
+   "58",
+   "59",
+   "60",
+   "45",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "75",
+   "76",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "77",
+   "78",
+   "1"
+  ],
+  "labels_spine": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "21",
+   "22",
+   "23",
+   "24",
+   "25",
+   "26",
+   "27",
+   "28",
+   "29",
+   "30",
+   "31",
+   "32",
+   "33",
+   "34",
+   "35",
+   "36",
+   "37",
+   "38",
+   "39",
+   "40",
+   "41",
+   "42",
+   "43",
+   "44",
+   "45",
+   "46",
+   "47",
+   "48",
+   "49",
+   "50",
+   "51",
+   "52",
+   "53",
+   "54",
+   "55",
+   "56",
+   "57",
+   "58",
+   "59",
+   "60",
+   "61",
+   "62",
+   "63",
+   "64",
+   "65",
+   "66",
+   "67",
+   "68",
+   "69",
+   "70",
+   "71",
+   "72",
+   "73",
+   "74",
+   "75",
+   "76",
+   "77",
+   "78"
+  ],
+  "paragraphs": [
+   {
+    "label": "1",
+    "marker_order": 0,
+    "role": "spine",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 4211,
+     "end": 4517
+    },
+    "body_chars": 301,
+    "body_sha256": "f967f3933b0f73d6c6946877e5bb57a575c963fda63896bc382ac8f6f5df1503",
+    "body": "By indictment dated September 3, 2021, the appellant was charged with sexual assault against B.M., contrary to s. 271 of the Criminal Code. The indictment alleged the offence occurred between June 1, 2019 and November 1, 2019. The appellant and B.M. were in a romantic relationship during this period."
+   },
+   {
+    "label": "2",
+    "marker_order": 1,
+    "role": "spine",
+    "marker": "[2]",
+    "raw_span": {
+     "start": 4517,
+     "end": 4859
+    },
+    "body_chars": 337,
+    "body_sha256": "3bf3fc832f2d658c134376965d7049eeccb034b287188e056bc1397c241453e3",
+    "body": "The appellant’s trial was set for three days commencing on July 27, 2022. His original counsel, Hanna Garson, went on maternity leave and was replaced by Mr. Scot Stanfield in February 2022. The trial took place on the morning of July 27th with B.M. as the only witness. The trial took less than two hours, including closing submissions."
+   },
+   {
+    "label": "3",
+    "marker_order": 2,
+    "role": "spine",
+    "marker": "[3]",
+    "raw_span": {
+     "start": 4859,
+     "end": 5079
+    },
+    "body_chars": 215,
+    "body_sha256": "dd5ea56a3fa724f264aa5917292fdecac833a5e060177c652444f48fc1306c1a",
+    "body": "At the commencement of the trial Mr. Stanfield advised the judge he anticipated there would be a single witness testifying. At the conclusion of the Crown case he confirmed the defence would not be calling evidence."
+   },
+   {
+    "label": "4",
+    "marker_order": 3,
+    "role": "spine",
+    "marker": "[4]",
+    "raw_span": {
+     "start": 5079,
+     "end": 5264
+    },
+    "body_chars": 180,
+    "body_sha256": "d4adefe75c4ea8e5c60c6ff5672d04037bfc359619afa3477abdf1e4a1613e53",
+    "body": "On September 6, 2022 the trial judge, Justice Jeffrey R. Hunt of the Supreme Court of Nova Scotia, delivered an oral decision convicting the appellant of the sexual assault charge."
+   },
+   {
+    "label": "5",
+    "marker_order": 4,
+    "role": "spine",
+    "marker": "[5]",
+    "raw_span": {
+     "start": 5264,
+     "end": 5504
+    },
+    "body_chars": 235,
+    "body_sha256": "afb19fe2ce85f8f2f9dee3268ba0cb3f7db84859a2eead505ef96fcdfa0c8fd3",
+    "body": "Mr. Alexander appeals his conviction alleging ineffective assistance of counsel resulting in a miscarriage of justice. He also makes a motion for leave to adduce fresh evidence on appeal relating to his representation by Mr. Stanfield."
+   },
+   {
+    "label": "6",
+    "marker_order": 5,
+    "role": "spine",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 5504,
+     "end": 5666
+    },
+    "body_chars": 157,
+    "body_sha256": "52b40c7bfc4ea206ca08c2a9f9c6f59c9ca0f08719f46d85bb6284964c6f2a97",
+    "body": "For the reasons which follow, I would admit the fresh evidence (in part), allow the appeal, set aside the conviction and order a new trial.\nProduction Motion"
+   },
+   {
+    "label": "7",
+    "marker_order": 6,
+    "role": "spine",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 5666,
+     "end": 5923
+    },
+    "body_chars": 252,
+    "body_sha256": "d0cbaf562b007ee0d38db1714d7351095fb5366c5b5a8dbc8b9dc25b76712682",
+    "body": "The appellant was on parole from August 2018 until it was revoked in April 2020. During this period he was subject to conditions, including abstaining from consumption of drugs and alcohol and reporting any intimate relationships to his parole officer."
+   },
+   {
+    "label": "8",
+    "marker_order": 7,
+    "role": "spine",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 5923,
+     "end": 6509
+    },
+    "body_chars": 581,
+    "body_sha256": "100e5cd767aa04145b184d5472900b2f52543f17e14210ced0e588863a17a21e",
+    "body": "After commencement of the appeal, Mr. Alexander brought a motion pursuant to s. 683(1)(a) of the Criminal Code for an order requiring Correctional Services of Canada (“CSC”) to produce his parole records for the period May 1, 2019 to April 15, 2020. Mr. Alexander’s purpose in seeking the CSC records was for potential inclusion in his fresh evidence motion. Mr. Alexander argued these records should have been obtained by his trial counsel, and he expected they included information which could have been used to undermine the credibility and reliability of the complainant, B.M.."
+   },
+   {
+    "label": "9",
+    "marker_order": 8,
+    "role": "spine",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 6509,
+     "end": 6748
+    },
+    "body_chars": 234,
+    "body_sha256": "c57d1ce863af867ccbbaefc88155a492ee48f8f1e5e25cb133100c91d0550318",
+    "body": "The respondent opposed the motion on the basis that Mr. Alexander had not met the test for third party production in the context of a potential fresh evidence motion. That test was described by this Court in R. v. West, 2012 NSCA 112:"
+   },
+   {
+    "label": "10",
+    "marker_order": 9,
+    "role": "spine",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 6748,
+     "end": 7122
+    },
+    "body_chars": 368,
+    "body_sha256": "479d6f2eee7677b920c3cee212d7d7e83a2cbeedc6d5d10d2e364a8475e2d7e5",
+    "body": "A party to an appeal, like Mr. West, may obtain production of third party records pursuant to this Court’s ancillary powers under s. 683 of the Criminal Code. Third party production is, in essence, an extension to common law access governed by the principles of pre-trial access to records set out by the Supreme Court of Canada in R. v. O’Connor, [1995] 4 S.C.R. 411."
+   },
+   {
+    "label": "11",
+    "marker_order": 10,
+    "role": "spine",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 7122,
+     "end": 7981
+    },
+    "body_chars": 853,
+    "body_sha256": "be5abac952cc7c7caa04c98cad53432f8f9d13bdeded6ddf1026ba14e39bf32e",
+    "body": "In R. v. Trotta, [2004] O.J. No. 2439 (Q.L.) (C.A.), the Ontario Court of Appeal held that third party production orders at the appellate level are governed by the same policies and evidentiary burdens that govern in an O’Connor application at the trial level with the appropriate modifications for the appeal context. This reconciliation of the test leads to a two-part question before documents in the presence (sic) of third parties are ordered produced. The applicant must show:\n1. There is a connection between the request for production and the fresh evidence he proposes to adduce in that there is a reasonable possibility that the material sought could assist on the motion to adduce fresh evidence; and\n2. There is a reasonable possibility that the evidence to which the production request is linked may be received as fresh evidence on appeal."
+   },
+   {
+    "label": "10",
+    "marker_order": 11,
+    "role": "quoted_or_foreign",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 7981,
+     "end": 8447
+    },
+    "body_chars": 460,
+    "body_sha256": "b033ff48e9f5fab2c197d0da5c9796553208458d86401e3f06e0109e46851216",
+    "body": "The Attorney General of Canada responded to the motion on behalf of CSC and provided an affidavit of Gerry Hines, an acting parole officer supervisor. In his affidavit, Mr. Hines said:\n1. Information collected by a parole officer from collateral contacts might need to be shared with the offender in some circumstances.\n2. A parole officer could never assure a collateral contact that information provided by them would be kept in confidence from the offender."
+   },
+   {
+    "label": "11",
+    "marker_order": 12,
+    "role": "quoted_or_foreign",
+    "marker": "[11]",
+    "raw_span": {
+     "start": 8447,
+     "end": 9203
+    },
+    "body_chars": 750,
+    "body_sha256": "b7fbae90cde4fc7ad5b6466f45211b1f51c46d4419c55547a9dba8a050581840",
+    "body": "The Attorney General argued the materials sought fell within the definition of “records” in s. 278.1 of the Criminal Code:\nDefinition of record\n278.1 For the purposes of sections 278.2 to 278.92, record means any form of record that contains personal information for which there is a reasonable expectation of privacy and includes medical, psychiatric, therapeutic, counselling, education, employment, child welfare, adoption and social services records, personal journals and diaries, and records containing personal information the production or disclosure of which is protected by any other Act of Parliament or a provincial legislature, but does not include records made by persons responsible for the investigation or prosecution of the offence."
+   },
+   {
+    "label": "12",
+    "marker_order": 13,
+    "role": "spine",
+    "marker": "[12]",
+    "raw_span": {
+     "start": 9203,
+     "end": 9341
+    },
+    "body_chars": 132,
+    "body_sha256": "998ef51cd792808ce265309d8c2f609d631cbae9cf0aaae01128ab842721166b",
+    "body": "If the CSC records met this definition, the Attorney General argued the procedure set out in s. 278.1 to 278.91 would be applicable."
+   },
+   {
+    "label": "13",
+    "marker_order": 14,
+    "role": "spine",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 9341,
+     "end": 10018
+    },
+    "body_chars": 671,
+    "body_sha256": "5cfac85cfa117ed3b4e78090c155783ab0ea03b1beb538039ddb366fcb8dc01a",
+    "body": "As a result of the position taken by the Attorney General, the panel determined it was appropriate to conduct a hearing with respect to whether the CSC records were covered by s. 278.1. The panel directed that notice of the hearing be given to B.M. as well as K.M., a former romantic partner of the appellant who had been in contact with his parole officer. The hearing took place on June 12, 2024. After receiving submissions from counsel for all parties, including B.M. and K.M., the panel found CSC had not established the records met the definition in s. 278.1 of the Code. This meant the test to be applied on the production application was as set out in R. v. West."
+   },
+   {
+    "label": "14",
+    "marker_order": 15,
+    "role": "spine",
+    "marker": "[14]",
+    "raw_span": {
+     "start": 10018,
+     "end": 10220
+    },
+    "body_chars": 196,
+    "body_sha256": "76c7386f6c9332fe23f47a6c0d32d7dfec8e02cc507aaf76fe02bc5d5a161e7e",
+    "body": "The panel directed CSC to produce the parole records to it for review, following which the panel ordered they be given to the appellant in redacted form.\nFresh Evidence Motion\nAppellant’s Evidence"
+   },
+   {
+    "label": "15",
+    "marker_order": 16,
+    "role": "spine",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 10220,
+     "end": 10641
+    },
+    "body_chars": 415,
+    "body_sha256": "27cee5fed843be72235d0745d17ea7d5b2633882d5ee44fdd9716174ae28ba30",
+    "body": "Mr. Alexander provided an affidavit setting out the proposed fresh evidence. The affidavit confirmed Mr. Stanfield was retained as his counsel in February 2022. This was in relation to three matters: the sexual assault allegations by B.M., another sexual assault alleged by K.M. and charges arising out of a fatal motor vehicle accident in April 2020 in which Mr. Alexander was alleged to be driving while impaired."
+   },
+   {
+    "label": "16",
+    "marker_order": 17,
+    "role": "spine",
+    "marker": "[16]",
+    "raw_span": {
+     "start": 10641,
+     "end": 11075
+    },
+    "body_chars": 428,
+    "body_sha256": "e4a9f6ab2a58f78305489d18b5377162ba8aaf237420905bd59d5f2ce6bed2b6",
+    "body": "Mr. Alexander described his first phone call with Mr. Stanfield when he told him the allegations by B.M. were untrue. He said Mr. Stanfield told him he would not put him on the stand in light of his criminal record because cross-examination could be damaging. In a subsequent meeting with Mr. Stanfield, Mr. Alexander had the impression Mr. Stanfield felt the Crown case was weak and it was possible the charge would be dropped."
+   },
+   {
+    "label": "17",
+    "marker_order": 18,
+    "role": "spine",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 11075,
+     "end": 11660
+    },
+    "body_chars": 579,
+    "body_sha256": "8e58494a4cd61081885ae4ebdb14cf025ea1d4d66a17f4c282bab9fed48ee7fa",
+    "body": "On July 25, 2022, Mr. Alexander sent an email to Mr. Stanfield inquiring about the trial scheduled for the 27th. Mr. Stanfield responded as follows:\nHi Jason, yes it’s still set to commence on Wednesday in the Supreme Court in Truro. I’ve spoken with the Crown on one or two occasions and we have not been able to agree that the charges should be dropped, so we are going to proceed with the expectation that her allegations will collapse when cross-examined about the Facebook messages.\nWe can have a telephone conversation about details if you’d like tomorrow before noon.\nScot"
+   },
+   {
+    "label": "18",
+    "marker_order": 19,
+    "role": "spine",
+    "marker": "[18]",
+    "raw_span": {
+     "start": 11660,
+     "end": 11891
+    },
+    "body_chars": 225,
+    "body_sha256": "ce9daafe33888a6701dc04ca1e0141d9a27c57fcc97c67582c4b52a996e9f047",
+    "body": "Mr. Alexander says he and Mr. Stanfield had a telephone discussion the night before trial, at which time Mr. Stanfield assured him B.M. would be discredited during cross-examination and there was no need to prepare a defence."
+   },
+   {
+    "label": "19",
+    "marker_order": 20,
+    "role": "spine",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 11891,
+     "end": 12112
+    },
+    "body_chars": 215,
+    "body_sha256": "47d1b0436f6008fec180922c3d94e2a9022618fd8d175b76511667e15bdefc77",
+    "body": "Following the cross-examination of B.M., there was no discussion between Mr. Alexander and Mr. Stanfield about whether he would testify. Mr. Stanfield advised the judge the defence would not be calling any evidence."
+   },
+   {
+    "label": "20",
+    "marker_order": 21,
+    "role": "spine",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 12112,
+     "end": 12498
+    },
+    "body_chars": 380,
+    "body_sha256": "c02f599a27c7ae72e63a66002ef7ae4f42ec7f47408aed8145ee594c264075ec",
+    "body": "In his affidavit, Mr. Alexander acknowledged he is an alcoholic but said he was not using drugs or alcohol between June 1, 2019 and November 1, 2019. At trial, B.M. testified that she and Mr. Alexander drank alcohol and took drugs regularly during their relationship. Mr. Alexander denied this and said both his mother and parole officer could provide evidence to contradict B.M.."
+   },
+   {
+    "label": "21",
+    "marker_order": 22,
+    "role": "spine",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 12498,
+     "end": 12902
+    },
+    "body_chars": 398,
+    "body_sha256": "769e2576647e3cee2470645bd23d107dfc4cb9fc5e4665ad96d5ca3633304c62",
+    "body": "Mr. Alexander’s affidavit included evidence he said would support his evidence of sobriety during the offence period as well as information which he felt would have undermined B.M.’s testimony. The latter included references in the parole records to discussions between B.M. and the parole officer as well as text messages from B.M. and K.M., which Mr. Alexander felt undermined B.M.’s credibility."
+   },
+   {
+    "label": "22",
+    "marker_order": 23,
+    "role": "spine",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 12902,
+     "end": 13293
+    },
+    "body_chars": 385,
+    "body_sha256": "482bd045fe8215970e1cfaccf06a062bb7c5fd776dc312b6ef8b4dab84d7c858",
+    "body": "Mr. Alexander was cross-examined on his affidavit at the appeal hearing. He confirmed he was aware he could discharge his lawyer at any time but did not do so. He testified he was not surprised when Mr. Stanfield told the judge he would not be testifying because it had been discussed the night before. He had been hesitant to testify and was relieved to know he did not have to do so."
+   },
+   {
+    "label": "23",
+    "marker_order": 24,
+    "role": "spine",
+    "marker": "[23]",
+    "raw_span": {
+     "start": 13293,
+     "end": 13593
+    },
+    "body_chars": 294,
+    "body_sha256": "5dbef2cd05288d9f0ee99c2e098aac684106792217d8a1e2d3f0d94f28e57a60",
+    "body": "If he had testified at trial, Mr. Alexander confirmed he would have denied the assault happened, confirmed he was not using drugs or alcohol during the relationship with B.M. and explained why he felt B.M. and K.M. were colluding to make false allegations against him.\nEvidence of Trial Counsel"
+   },
+   {
+    "label": "24",
+    "marker_order": 25,
+    "role": "spine",
+    "marker": "[24]",
+    "raw_span": {
+     "start": 13593,
+     "end": 14041
+    },
+    "body_chars": 442,
+    "body_sha256": "3c5940458b813436bb0c5832621090230be65579bb961415516de3514dc437f9",
+    "body": "Mr. Stanfield filed an affidavit in response to the affidavit of Mr. Alexander. He confirmed he was retained in February 2022 to represent Mr. Alexander in three matters, including the one under appeal. He said the invoice attached to Mr. Alexander’s affidavit included time entries related to this matter, although, there were other tasks performed which were not included and to that extent the invoice was an incomplete record of his work."
+   },
+   {
+    "label": "25",
+    "marker_order": 26,
+    "role": "spine",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 14041,
+     "end": 14220
+    },
+    "body_chars": 173,
+    "body_sha256": "a1c632c2b00136f1c5d663313d3fc5edc604378c84116c14b72118b43b653ce8",
+    "body": "Mr. Stanfield confirmed Mr. Alexander denied B.M.’s allegations from the start and said he had not been drinking or taking drugs during the period alleged in the indictment."
+   },
+   {
+    "label": "26",
+    "marker_order": 27,
+    "role": "spine",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 14220,
+     "end": 14702
+    },
+    "body_chars": 476,
+    "body_sha256": "1b72a55322edf428dc011e53ae26c6c8a1ebb64f6e2c0d300766bc2bb5c93c37",
+    "body": "The Crown disclosure for the April 2020 motor vehicle accident included a medical report indicating Mr. Alexander was impaired at the time of the accident. In light of this, and the weakness of the Crown’s case on the sexual assault charge, Mr. Stanfield concluded that it would be problematic and not necessary to prove that Mr. Alexander was sober during the alleged offence period. He was concerned Mr. Alexander would be impeached by the information in the medical report."
+   },
+   {
+    "label": "27",
+    "marker_order": 28,
+    "role": "spine",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 14702,
+     "end": 15135
+    },
+    "body_chars": 427,
+    "body_sha256": "286e85b72f6069272eaa89e751168500a4642b577db9fe998974fb639ba2ed67",
+    "body": "Mr. Stanfield said he advised Mr. Alexander on several occasions that the Crown’s case was weak and likely not sufficient to form the basis of a conviction. He discussed the possibility of calling Mr. Alexander’s mother and the parole officer as witnesses. He cautioned Mr. Alexander about testifying due to several areas of potential concern including his criminal record. He did not discuss a Corbett application with him.[1]"
+   },
+   {
+    "label": "28",
+    "marker_order": 29,
+    "role": "spine",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 15135,
+     "end": 15508
+    },
+    "body_chars": 367,
+    "body_sha256": "d38c294498e7a5d0691975eb291f96e8fac70fe17b1e8a1c852cb142af2d4782",
+    "body": "In his affidavit, Mr. Stanfield said Mr. Alexander never told him he expected or wanted to testify. He denied telling Mr. Alexander that he would not put him on the witness stand. He told Mr. Alexander he would advise him on whether to testify based on his experience and the nature of the Crown’s evidence. It would be up to Mr. Alexander to make the final decision."
+   },
+   {
+    "label": "29",
+    "marker_order": 30,
+    "role": "spine",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 15508,
+     "end": 16047
+    },
+    "body_chars": 533,
+    "body_sha256": "e52d9e21097b9d105d533ccf1bb1729f7c7132fc775451e2805373e214e17998",
+    "body": "Mr. Stanfield’s invoice shows a 30-minute meeting with Mr. Alexander on July 8, 2022, but he cannot recall what was discussed. As of July 25th, Mr. Stanfield said he had done trial preparation which included discussing Crown disclosure with Mr. Alexander, reviewing the circumstances and the defence theory, discussing factors relevant to Mr. Alexander’s decision whether to testify and assessing the potential for a Corbett application. He also said he updated Mr. Alexander on discussions with the Crown about potential resolution."
+   },
+   {
+    "label": "30",
+    "marker_order": 31,
+    "role": "spine",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 16047,
+     "end": 16439
+    },
+    "body_chars": 386,
+    "body_sha256": "5a66c5544b4a86d02ed4fe554b21f991d38685e6cfd2f85ae5004b0e5415288d",
+    "body": "Mr. Stanfield’s affidavit indicates he spent most of July 26th preparing for trial. That evening he spoke with Mr. Alexander and told him the Crown case was weak and B.M.’s evidence would likely be sufficiently undermined to raise a reasonable doubt. He indicated there would be ample time to prepare Mr. Alexander should the Crown’s evidence change and Mr. Alexander decide to testify."
+   },
+   {
+    "label": "31",
+    "marker_order": 32,
+    "role": "spine",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 16439,
+     "end": 16722
+    },
+    "body_chars": 277,
+    "body_sha256": "108b832d1d5aa301e9ec5e55c64d5f0e8f317a2035afa3f6f3ce5bec5865d98e",
+    "body": "Mr. Stanfield said the trial proceeded as he had expected. In his cross-examination of B.M. he challenged her on her lack of recollection concerning when the alleged assault took place, her degree of impairment and social media posts which potentially undermined her testimony."
+   },
+   {
+    "label": "32",
+    "marker_order": 33,
+    "role": "spine",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 16722,
+     "end": 17082
+    },
+    "body_chars": 354,
+    "body_sha256": "53559526a1f6c49e12e81f0bcb16365385eb05d0bec91231aaaf7b0ee3cf78e6",
+    "body": "Mr. Stanfield said he spoke with Mr. Alexander during a break in B.M.’s testimony and provided his opinion that, subject to her remaining evidence, there would likely not be a finding of guilt beyond a reasonable doubt. According to Mr. Stanfield, Mr. Alexander confirmed he did not intend to testify unless there was a dramatic shift in B.M.’s evidence."
+   },
+   {
+    "label": "33",
+    "marker_order": 34,
+    "role": "spine",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 17082,
+     "end": 17666
+    },
+    "body_chars": 578,
+    "body_sha256": "b5ca2c669269da875ebe68ec178f8a7995da04f186fd2404b7113fd18a6743ed",
+    "body": "Mr. Stanfield was cross-examined at the appeal hearing. He was questioned about his invoice to Nova Scotia Legal Aid and said he approved and signed it. He also said it did not include entries for all work on this matter. He could not recall how much time was spent on unrecorded activities. He confirmed the invoice was for 22 hours although the Nova Scotia Legal Aid certificate issued to him permitted billing up to 30 hours, excluding court and travel time. He agreed an entry dated July 28th for 5.5 hours reviewing disclosure was for the day after the trial was completed."
+   },
+   {
+    "label": "34",
+    "marker_order": 35,
+    "role": "spine",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 17666,
+     "end": 18101
+    },
+    "body_chars": 429,
+    "body_sha256": "ac5ac0f98f55e2a16d62b8d831ada26b73bad93cb6867c3a9a173d50ca979f1d",
+    "body": "Mr. Stanfield indicated it was not his practice to take notes, and he had none with respect to discussions with Mr. Alexander. He did not know if his instructions were by email or telephone. He had no recollection of the July 8th meeting found in his invoice. In addition, he couldn’t recall the details of his trial preparation including whether he reviewed the audio or transcript of B.M.’s police statement with Mr. Alexander."
+   },
+   {
+    "label": "35",
+    "marker_order": 36,
+    "role": "spine",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 18101,
+     "end": 18487
+    },
+    "body_chars": 380,
+    "body_sha256": "6df5075ddc6868d8514b697517a2b8d962cdcda5aeda86d666668bdf94e20aee",
+    "body": "Mr. Stanfield had concerns about Mr. Alexander’s credibility because he claimed he was sober throughout the period of parole, which was inconsistent with a medical report provided by the Crown indicating he was impaired at the time of the accident in April 2020. Mr. Stanfield had no evidence contradicting Mr. Alexander’s assertion he was sober during his relationship with B.M.."
+   },
+   {
+    "label": "36",
+    "marker_order": 37,
+    "role": "spine",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 18487,
+     "end": 18778
+    },
+    "body_chars": 285,
+    "body_sha256": "98d5c85fb0efac5d8b3763da81d259152259e89cb5509dd024310b8046e834eb",
+    "body": "Mr. Stanfield said he prepared Mr. Alexander for a possible direct examination the morning of the trial, but did not prepare him for cross-examination because it was apparent he would not be testifying. He told Mr. Alexander he might put him on the stand depending on B.M.’s testimony."
+   },
+   {
+    "label": "37",
+    "marker_order": 38,
+    "role": "spine",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 18778,
+     "end": 19030
+    },
+    "body_chars": 246,
+    "body_sha256": "4af762abc961662c29e0beededa976270528340d8f02a072f56ae4b96f19e766",
+    "body": "Mr. Stanfield acknowledged he did not have a meaningful consultation with Mr. Alexander after the close of the Crown’s case and before advising the Court there would be no defence evidence. He said this was because of their pre-trial discussions."
+   },
+   {
+    "label": "38",
+    "marker_order": 39,
+    "role": "spine",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 19030,
+     "end": 19502
+    },
+    "body_chars": 466,
+    "body_sha256": "b513298efc3df6ccfa5be96e13bd7b9d0f7afd84b2e06b14cdc3b7e1c1480c70",
+    "body": "When cross-examined, Mr. Stanfield said Mr. Alexander told him he wanted to testify. Mr. Stanfield testified he had two concerns with him doing so. The first was Mr. Alexander’s assertion he was clean and sober for the entire period of his parole, which could be contradicted by the medical report relating to the April 2020 accident. He was also concerned about Mr. Alexander’s criminal record which he felt could be used to undermine the credibility of his denial."
+   },
+   {
+    "label": "39",
+    "marker_order": 40,
+    "role": "spine",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 19502,
+     "end": 19892
+    },
+    "body_chars": 384,
+    "body_sha256": "45ad95d8ae75f446a07188f5de1460544b0ed8fc5ed6ae7f410ba15a872889c5",
+    "body": "Mr. Alexander’s criminal record included two incidents in 2016 resulting in convictions for break and enter, assault, unlawful confinement, threats and breach of an undertaking. There was another incident in 2015 involving break and enter and assault. He had several convictions in 2004 and earlier for similar behaviour.\nLegal Principles Applicable to Ineffective Counsel Allegations"
+   },
+   {
+    "label": "40",
+    "marker_order": 41,
+    "role": "spine",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 19892,
+     "end": 20075
+    },
+    "body_chars": 177,
+    "body_sha256": "702d0f201ce2bce8172aca6453345e7fa2265267e76a8e5bc61e8366bcad3378",
+    "body": "This Court has dealt with allegations of ineffective representation by trial counsel on numerous occasions. The governing principles were summarized in R. v. Snow, 2019 NSCA 76:"
+   },
+   {
+    "label": "25",
+    "marker_order": 42,
+    "role": "quoted_or_foreign",
+    "marker": "[25]",
+    "raw_span": {
+     "start": 20075,
+     "end": 20390
+    },
+    "body_chars": 309,
+    "body_sha256": "0cccf3fd6d18b9ff94b4eaf177dec289beb31d024f206237975dd7bdb2091dda",
+    "body": "There are now legions of cases that have found or dismissed allegations that trial counsel provided ineffective assistance. For a claim to succeed, the appellant must establish on a balance of probabilities that trial counsel’s acts or omissions constituted incompetence and a miscarriage of justice resulted."
+   },
+   {
+    "label": "26",
+    "marker_order": 43,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 20390,
+     "end": 20680
+    },
+    "body_chars": 284,
+    "body_sha256": "3cc5b3d1b21a8c791fe3cd32174e64a93513a5655c935e3f9595d658fad4a1ae",
+    "body": "Incompetence is to be determined by application of a reasonableness standard. There is a strong presumption that counsel’s conduct fell within the wide range of reasonable professional assistance. The conduct of counsel is not to be assessed simply with the clairvoyance of hindsight."
+   },
+   {
+    "label": "27",
+    "marker_order": 44,
+    "role": "quoted_or_foreign",
+    "marker": "[27]",
+    "raw_span": {
+     "start": 20680,
+     "end": 20924
+    },
+    "body_chars": 238,
+    "body_sha256": "b96a758217a6f2c9fad9c2eeaa3d74dc370e6ad84e57d57488ccf763ac8f39ca",
+    "body": "If no prejudice can be demonstrated, it is appropriate to dispose of the claim on that basis and leave the issue of counsel’s conduct or performance to the profession’s self-governing body (see R. v. G.D.B., 2000 SCC 22, at paras. 26-29)."
+   },
+   {
+    "label": "28",
+    "marker_order": 45,
+    "role": "quoted_or_foreign",
+    "marker": "[28]",
+    "raw_span": {
+     "start": 20924,
+     "end": 21353
+    },
+    "body_chars": 423,
+    "body_sha256": "35a02b618c623bb99187c41e83d1df0768031409824457d784fbca33ebe84985",
+    "body": "What is meant by prejudice? An appellant must satisfy the Court that the failings of counsel caused a miscarriage of justice. This requirement can be satisfied by different considerations. In a general way, an unfair trial, or one tainted by a serious appearance of unfairness, amount to a miscarriage of justice. In R. v. Wolkins, 2005 NSCA 2, Cromwell J.A., as he then was, discussed the broad scope of this nomenclature:"
+   },
+   {
+    "label": "89",
+    "marker_order": 46,
+    "role": "quoted_or_foreign",
+    "marker": "[89]",
+    "raw_span": {
+     "start": 21353,
+     "end": 22505
+    },
+    "body_chars": 1146,
+    "body_sha256": "2638e916ed4939d02693de71ae61ac7139938a68ae05e81ad87b10fca0d28cfb",
+    "body": "The clearest example is the conviction of an innocent person. There can be no greater miscarriage of justice. Beyond that, it is much easier to give examples than a definition; there can be no “strict formula ... to determine whether a miscarriage of justice has occurred”: R. v. Khan, [2001] 3 S.C.R. 823 per LeBel, J. at para. 74. However, the courts have generally grouped miscarriages of justice under two headings. The first is concerned with whether the trial was fair in fact. A conviction entered after an unfair trial is in general a miscarriage of justice: Fanjoy, supra; R. v. Morrissey (1995), 97 C.C.C. (3d) 193 (Ont. C.A.) at 220-221. The second is concerned with the integrity of the administration of justice. A miscarriage of justice may be found where anything happens in the course of a trial, including the appearance of unfairness, which is so serious that it shakes public confidence in the administration of justice: R. v. Cameron (1991), 64 C.C.C. (3d) 96 (Ont. C.A.) at 102; leave to appeal ref’d [1991] 3 S.C.R. x.\n(See also: R. v. Joanisse, [1995] O.J. No. 2883 at para. 67; R. v. G.K.N., 2016 NSCA 29 at paras. 39-42.)"
+   },
+   {
+    "label": "41",
+    "marker_order": 47,
+    "role": "spine",
+    "marker": "[41]",
+    "raw_span": {
+     "start": 22505,
+     "end": 22780
+    },
+    "body_chars": 269,
+    "body_sha256": "da4f54fe5595820408fe46eb4afdc8c90c3f08f2dcfddcb4dbacb98efba24165",
+    "body": "The miscarriage of justice component of the analysis can be established in either of two ways. One is to demonstrate the verdict is unreliable and the other is to show the trial was procedurally unfair. This Court described this dichotomy in R. v. A.W.H., 2019 NSCA 40:"
+   },
+   {
+    "label": "32",
+    "marker_order": 48,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 22780,
+     "end": 23254
+    },
+    "body_chars": 468,
+    "body_sha256": "1be1bfe25b3ae46784302ede64fd3c912daa4c8b772b2ee3d2d36f50e252e844",
+    "body": "A.W.H. bears the burden of demonstrating incompetence of his lawyer. He must also show that this undermined trial fairness or reliability of the verdict (R. v. Gogan, 2011 NSCA 105, ¶29; R. v. Fraser, 2011 NSCA 70, ¶53; Ross, ¶34-36). Whether or not to testify is one of those things which must be discussed with the client. The client’s decision must be an informed one: Ross¸¶40; R. v. Moore, 2002 SKCA 30, ¶51; R. v. Archer (2005), 202 C.C.C. (3d) 60 (ON CA), ¶139."
+   },
+   {
+    "label": "33",
+    "marker_order": 49,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 23254,
+     "end": 23672
+    },
+    "body_chars": 412,
+    "body_sha256": "e297a6fc01dfee78f20264fabe706d96621aaf2c3eeb0db5b57a300ebce14d74",
+    "body": "To succeed, A.W.H. must demonstrate that there is a reasonable probability that had he testified, the result could have been different or that he was “actually or constructively deprived of counsel’s assistance” or “prevented from making full answer and defence” (R. v. G.K.N., 2016 NSCA 29 at ¶78; Ross, ¶59-60). The former goes to the reliability of the verdict; the latter, to trial fairness.\n[Emphasis added]"
+   },
+   {
+    "label": "42",
+    "marker_order": 50,
+    "role": "spine",
+    "marker": "[42]",
+    "raw_span": {
+     "start": 23672,
+     "end": 23869
+    },
+    "body_chars": 191,
+    "body_sha256": "f7ce783deeb8d220c1729bb5bd86e9ae2bca789625525de6cb926eb349289104",
+    "body": "The Ontario Court of Appeal in R. v. Fiorilli, 2021 ONCA 461 reviewed the prejudice requirement for a miscarriage of justice. The court confirmed the two ways prejudice might be demonstrated:"
+   },
+   {
+    "label": "54",
+    "marker_order": 51,
+    "role": "quoted_or_foreign",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 23869,
+     "end": 24272
+    },
+    "body_chars": 397,
+    "body_sha256": "4bcd43007f4a8ed1e17e58206b110bd624fe505ad593ccd04c23659dbf1510d3",
+    "body": "To satisfy the prejudice component, “the appellant must show the ineffective representation resulted in a miscarriage of justice, either by rendering the trial unfair or the verdict unreliable”: R. v. K.K.M., at para. 55. Put otherwise, the appellant must meet either or both of two alternative prejudice branches, the ‘trial fairness’ branch, and the ‘unreliable verdict’ branch.\n[Emphasis added]"
+   },
+   {
+    "label": "43",
+    "marker_order": 52,
+    "role": "spine",
+    "marker": "[43]",
+    "raw_span": {
+     "start": 24272,
+     "end": 24325
+    },
+    "body_chars": 47,
+    "body_sha256": "7f96b46d5d6fb30b04660091fe72dfee3efcab13475ba7c8e6a3b977bac79138",
+    "body": "With respect to trial fairness, the court said:"
+   },
+   {
+    "label": "57",
+    "marker_order": 53,
+    "role": "quoted_or_foreign",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 24325,
+     "end": 24931
+    },
+    "body_chars": 600,
+    "body_sha256": "2f64ec046c8d1bfbcea575063b9a8c5a39969b80f3bc621b9d2571ecf38b398a",
+    "body": "Where the trial fairness branch of the prejudice component is at issue, the focus is, in fact, on “the appearance of the fairness of the trial”: Archer, at para. 120. This is in keeping with the principle that “justice must not only be done, but must manifestly be seen to be done”: Joanisse, at p. 63, citing R. v. Cook and Cain (1980), 1980 CanLII 2839 (ON CA), 53 C.C.C. (2d) 217 (Ont. C.A.), at p. 224. If counsel’s performance has undermined the appearance of trial fairness, no further prejudice need be established: R. v. Stark, 2017 ONCA 148, 347 C.C.C. (3d) 73, at para. 14.\n[Emphasis added]"
+   },
+   {
+    "label": "44",
+    "marker_order": 54,
+    "role": "spine",
+    "marker": "[44]",
+    "raw_span": {
+     "start": 24931,
+     "end": 25154
+    },
+    "body_chars": 217,
+    "body_sha256": "5656743bfeaf3f397ecb7dc8e69584c6cafa03d552872abd0782db61d34b58a7",
+    "body": "The unreliable verdict branch requires an appellant to show additional prejudice by demonstrating a reasonable probability the outcome would have been different absent counsel’s errors. Fiorilli describes it this way:"
+   },
+   {
+    "label": "58",
+    "marker_order": 55,
+    "role": "quoted_or_foreign",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 25154,
+     "end": 26251
+    },
+    "body_chars": 1091,
+    "body_sha256": "721d9d7810fd429bc83eefce8f8f91a8dc479498584adc59c9bb1ed718869471",
+    "body": "The unreliable verdict branch of the prejudice component operates differently than the trial fairness branch. As its name suggests, the unreliable verdict branch is concerned with the confidence that can be placed in the validity or reliability of the result of the trial: R. v. Dunbar, 2007 ONCA 840, at para. 23; R. v. Nwagwu, 2015 ONCA 526, [2015] O.J. No. 3695, at para. 7. In Joanisse, at p. 63, Doherty J.A. explained this branch as follows:\nSome claims of incompetence relate to specific decisions made or actions taken by counsel in the course of the defence. These claims do not assert an actual or constructive denial of the assistance of counsel, but instead contend that the assistance given was so deficient that it was ineffective. These claims come down to the assertion that because of counsel’s incompetence, the defence was not properly put, or the Crown’s case was not properly challenged. In these situations, the effect on the fairness of the trial of counsel’s incompetence is measured by reference to the impact of the error or errors on the reliability of the result."
+   },
+   {
+    "label": "59",
+    "marker_order": 56,
+    "role": "quoted_or_foreign",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 26251,
+     "end": 27272
+    },
+    "body_chars": 1015,
+    "body_sha256": "30b122d68c50b0b581cd84239ab28044b76527098340fa078d0367c263027344",
+    "body": "This court spoke in Archer, at para. 120, of the appellant satisfying the unreliable verdict branch of the prejudice component by demonstrating that “had counsel performed in a competent fashion, there is a reasonable possibility that the verdict could have been different” (emphasis added). However, the authorities coalesce in requiring the appellant to establish a reasonable probability that the result would have been different: see e.g., Joanisse, at p. 64; Prebtani, at para. 4; R. v. R.S., 2016 ONCA 655, 341 C.C.C. (3d) 530, at para. 44; R. v. Al-Shammari, 2016 ONCA 614, 350 O.A.C. 369, at para. 75. In Joanisse, at p. 75, Doherty J.A. described a “reasonable probability” as “more than a mere possibility, but less than a likelihood”. In Al-Shammari, at para. 75, Juriansz J.A. said “a reasonable probability is established when the reviewing court is satisfied that because of counsel’s incompetence, the verdict cannot be taken as a reliable assessment of the appellant’s culpability.”\n[Emphasis added]"
+   },
+   {
+    "label": "45",
+    "marker_order": 57,
+    "role": "spine",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 27272,
+     "end": 27465
+    },
+    "body_chars": 187,
+    "body_sha256": "37fc909574e03d387eace3a4129453c812a459b6e4a40d1e6dbe67902565f903",
+    "body": "The differential assessments of prejudice between an unfair trial and an unreliable verdict was repeated by the Ontario Court of Appeal in R. v. Nnane, 2024 ONCA 609 where the court said:"
+   },
+   {
+    "label": "9",
+    "marker_order": 58,
+    "role": "quoted_or_foreign",
+    "marker": "[9]",
+    "raw_span": {
+     "start": 27465,
+     "end": 28751
+    },
+    "body_chars": 1281,
+    "body_sha256": "8015553be29eaada3c258bc10e2864cd19d40b154581449bfcb6a29a0f4cd064",
+    "body": "In order to overcome the strong presumption of competence and to succeed with an ineffective assistance of counsel appeal, an appellant must: (1) establish on the balance of probabilities the material facts the claim is grounded upon (the “factual component”); (2) demonstrate the incompetence of the representation provided by counsel by showing that it fell below a standard of reasonable professional judgment (the “performance component”); and (3) show that the ineffective assistance caused a miscarriage of justice, either by resulting in an unreliable verdict, or by undermining trial fairness (the “prejudice component”): R. v. Girn, 2019 ONCA 202, 145 O.R. (3d) 420, at para. 91; R. v. Fiorilli, 2021 ONCA 461, 156 O.R. (3d) 582, at paras. 49-54; R. v. Archer (2005), 2005 CanLII 36444 (ON CA), 202 C.C.C. (3d) 60 (Ont. C.A.), at para. 140. In R. v. S.T., 2024 ONCA 572, at para. 43, citing Fiorilli at para. 59, this court recently affirmed that to meet the unreliable verdict branch of the prejudice component “the appellant must ‘establish a reasonable probability that the result would have been different’” (emphasis in original). The trial fairness branch of the prejudice component is measured by “the appearance of the fairness of the trial”: Archer, at para. 120."
+   },
+   {
+    "label": "10",
+    "marker_order": 59,
+    "role": "quoted_or_foreign",
+    "marker": "[10]",
+    "raw_span": {
+     "start": 28751,
+     "end": 29354
+    },
+    "body_chars": 597,
+    "body_sha256": "31f671d9182c3fca4119773a53b67cd449e916f5a07ff53509b7ebd6fde5ab28",
+    "body": "As I will explain, I am satisfied that Mr. Nnane has met the factual component by establishing key allegations he is making about the ineffectiveness of the representation he received. I am also persuaded that he has met the prejudice component by showing that the representation he received undermined the appearance of the fairness of his trial, and that the representation he received fell below a standard of reasonable professional judgment, thereby satisfying the performance component of the test. I would allow the appeal, set aside his convictions, and order a new trial.\n[Emphasis added]"
+   },
+   {
+    "label": "46",
+    "marker_order": 60,
+    "role": "spine",
+    "marker": "[46]",
+    "raw_span": {
+     "start": 29354,
+     "end": 29631
+    },
+    "body_chars": 271,
+    "body_sha256": "ecc58e77dcd74e467ed3f6719ac483796f3e502592c52677554bd1e40cb56d29",
+    "body": "In many cases it is virtually impossible to assess how the testimony of an accused may have influenced the trier of fact. It will depend on how their credibility and reliability is evaluated and how any facts proven by their testimony affect the other evidence presented."
+   },
+   {
+    "label": "47",
+    "marker_order": 61,
+    "role": "spine",
+    "marker": "[47]",
+    "raw_span": {
+     "start": 29631,
+     "end": 30004
+    },
+    "body_chars": 367,
+    "body_sha256": "bcd2bb1130a548de2e27d7d6557e90514520418cd759cd5394916462ff3cfdc5",
+    "body": "In R. v. Mehl, 2021 BCCA 264, the British Columbia Court of Appeal discussed the prejudice component required to support a finding of ineffective assistance of trial counsel. The court confirmed an appellant need not demonstrate a reasonable probability of a different outcome when the trial was unfair because they were deprived of their decision whether to testify:"
+   },
+   {
+    "label": "143",
+    "marker_order": 62,
+    "role": "quoted_or_foreign",
+    "marker": "[143]",
+    "raw_span": {
+     "start": 30004,
+     "end": 31411
+    },
+    "body_chars": 1400,
+    "body_sha256": "d5f3fbb9faba5d574f33dd98f0e2d62401176d0fd50cd761291b6b04088119e3",
+    "body": "The second route to a miscarriage of justice invites examination of whether the acts or omissions of counsel found to fall outside the range of reasonable professional assistance resulted in a fundamentally unfair adjudicative process. An unfair adjudicative process alone is generally understood as being sufficient to establish a miscarriage of justice. It is not necessary for a reviewing court to ask whether the verdict would have been the same absent the incompetent provision of professional representation, because the unfair process itself gives rise to a miscarriage of justice: R. v. D.G.M., 2018 MBCA 88 at para. 6. As Doherty J.A. noted in Joanisse at para. 75, “[a] reliable verdict may still be the product of a miscarriage of justice if the process through which that verdict was reached was unfair”. Procedural unfairness may arise if, for example, counsel is impaired, acts in a conflict of interest, fails to include the appellant in a fundamental decision, or fails to comply with the instructions of the appellant: R. v. Le (T.D.), 2011 MBCA 83 at para. 187, leave to appeal ref’d [2011] S.C.C.A. No. 526; Aulakh at para. 47; Joanisse at paras. 76–77; Lundrigan at para. 67; R. v. Louie, 2015 BCCA 23 at paras. 17, 19. As with the first analytical route, the cumulative effect of pervasive incompetence may result in an unfair adjudicative process: Hamzehali at paras. 43, 88–89."
+   },
+   {
+    "label": "144",
+    "marker_order": 63,
+    "role": "quoted_or_foreign",
+    "marker": "[144]",
+    "raw_span": {
+     "start": 31411,
+     "end": 32425
+    },
+    "body_chars": 1007,
+    "body_sha256": "80ac4e88cdd553a62b69ea96a9573ad63af9f5d22cd1a25bc7bac178f5f90602",
+    "body": "The third analytical route to a miscarriage of justice—which will often be subsumed under the first two—is where the incompetent performance of counsel undermines trial fairness or the appearance of trial fairness. Section 686 (1)(a)(iii) authorizes appellate intervention on any ground where there was a miscarriage of justice. The provision reaches all errors or events that result in a miscarriage of justice. It includes events that lead to actual unfairness as well as to the appearance of unfairness: R. v. Khan, 2001 SCC 86 at para. 69, per LeBel J., concurring in the result. The appearance of justice is assessed “in relation to a reasonable and objective observer, by asking if the irregularity would be such as to taint the administration of justice in his or her eyes”: Khan at para. 73. The fairness of the trial may, in fact or appearance, be undermined where there has been a pervasive failure by counsel to properly advocate for his or her client: Hamzehali at paras. 53–54; J.B. at para. 6."
+   },
+   {
+    "label": "145",
+    "marker_order": 64,
+    "role": "quoted_or_foreign",
+    "marker": "[145]",
+    "raw_span": {
+     "start": 32425,
+     "end": 33118
+    },
+    "body_chars": 686,
+    "body_sha256": "cbc2307bc8381b1b27cc66df73cd8573791ff8c710968e77e9634418917ccedf",
+    "body": "The appearance of trial fairness, if not the actual fairness of the trial, may also be undermined where an appellant has been denied the right to make a fundamental decision about the conduct of the defence, such as whether to testify or elect the mode of trial: R. v. K.K.M., 2020 ONCA 736 at para. 91; D.G.M. at paras. 32; Stark at para. 20. This will occur when counsel makes the decision, or when counsel provides no advice or advice so deficient that the appellant is effectively precluded from making an informed choice about a matter of fundamental importance to the conduct of the defence: K.K.M. at para. 91; Stark at para. 20; R. v. Trought, 2021 ONCA 379 at paras. 69, 74–75."
+   },
+   {
+    "label": "146",
+    "marker_order": 65,
+    "role": "quoted_or_foreign",
+    "marker": "[146]",
+    "raw_span": {
+     "start": 33118,
+     "end": 33704
+    },
+    "body_chars": 579,
+    "body_sha256": "0e076b4bc092f652684c16d9990662bea9367853faa4d3162b57a8ac0e401d66",
+    "body": "Effective representation includes providing an accused with reasonable advice about whether or not to testify: Archer at para. 139. Reasonable advice, in this context, means “a reasoned explanation of the advantages and disadvantages of testifying that would enable the appellant to make an informed decision about whether to testify”: D.A. at para. 35. While the form and content of the advice will vary in almost every case, “the client cannot make an informed decision unless he or she understands what is at stake at this crucial moment in the proceedings”: D.A. at para. 33."
+   },
+   {
+    "label": "147",
+    "marker_order": 66,
+    "role": "quoted_or_foreign",
+    "marker": "[147]",
+    "raw_span": {
+     "start": 33704,
+     "end": 35018
+    },
+    "body_chars": 1307,
+    "body_sha256": "8b0ebbdaa6b4fe0e082ad872f2f5f3c29d578c172d633adb1a09a9d6e2d772de",
+    "body": "Where an accused has been denied his or her right to make an informed decision about whether to testify, the weight of the appellate authorities on point are to the effect that the miscarriage of justice is complete. In other words, an appellant need not go further and establish that had reasonable professional assistance been provided: (a) they would have testified; and (b) there is a reasonable probability based on that evidence that the result would have been different. The point was recently emphasized in K.K.M. at para. 91:\nAn accused is denied his right to choose whether to testify when counsel actually makes the decision, or when counsel provides no advice or advice that is so wanting, as to preclude the accused from making a meaningful decision about testifying. In those situations, counsel’s ineffective representation denies the accused the right to make a fundamentally important decision about the conduct of his defence. That denial goes to the appearance of the fairness of the trial, if not the actual fairness of the trial. Either results in a miscarriage of justice, regardless of the impact of the ineffective representation on the reliability of the verdict: see R. v. D.G.M., at paras. 32-36; R. v. Stark, at para. 31; R. v. Eroma, 2013 ONCA 194, at para. 8.\n[Emphasis added.]"
+   },
+   {
+    "label": "148",
+    "marker_order": 67,
+    "role": "quoted_or_foreign",
+    "marker": "[148]",
+    "raw_span": {
+     "start": 35018,
+     "end": 35174
+    },
+    "body_chars": 149,
+    "body_sha256": "f7833115c48bdd2a2b232a1cbeb79cd570cfb191036113a30a30462e60eb911b",
+    "body": "The issue has not, however, been addressed in a consistent way by appellate courts. We note that in Lundrigan, the Alberta Court of Appeal held that,"
+   },
+   {
+    "label": "95",
+    "marker_order": 68,
+    "role": "quoted_or_foreign",
+    "marker": "[95]",
+    "raw_span": {
+     "start": 35174,
+     "end": 35600
+    },
+    "body_chars": 420,
+    "body_sha256": "aa50b0eb1882a9e6ce33c9cf7edcbecdc5cade58765d51e4b0213ce31e14c68c",
+    "body": "…[i]f counsel…gives the client fundamentally flawed advice on whether to testify, this may support a finding of a miscarriage of justice if the appellant can demonstrate two things — it is reasonably probable the client would have testified had he or she…received adequate advice, and that it is reasonably probable the trial outcome would have been different if he or she had.\n[Emphasis added – underlining in original]"
+   },
+   {
+    "label": "48",
+    "marker_order": 69,
+    "role": "spine",
+    "marker": "[48]",
+    "raw_span": {
+     "start": 35600,
+     "end": 35740
+    },
+    "body_chars": 134,
+    "body_sha256": "0d3e550bdec4b80adea200236adfd0bf4515cbac740a3714402f44ece3e89343",
+    "body": "This apparent lack of consensus amongst appellate courts was identified but not resolved by this Court in R. v. Charter, 2022 NSCA 18:"
+   },
+   {
+    "label": "13",
+    "marker_order": 70,
+    "role": "quoted_or_foreign",
+    "marker": "[13]",
+    "raw_span": {
+     "start": 35740,
+     "end": 36279
+    },
+    "body_chars": 533,
+    "body_sha256": "5e1c400f3f47841653632c36a24f018b0fb98a0ec235b48823df5b26d1705cce",
+    "body": "It is unnecessary for us to determine whether on appeal Mr. Charter needed to establish that had he received sound legal advice he (a) would have testified; and (b) there is a reasonable probability he would not have been convicted. Appellate courts have not reached a consensus that this is required to find a miscarriage of justice where ineffective assistance of counsel has led to a determination the trial was unfair. ( R. v. Mehl, supra at paras. 147-148, citing R. v. Lundrigan, 2020 ABCA 281 and R. v. K.K.M., 2020 ONCA 736.)"
+   },
+   {
+    "label": "49",
+    "marker_order": 71,
+    "role": "spine",
+    "marker": "[49]",
+    "raw_span": {
+     "start": 36279,
+     "end": 36592
+    },
+    "body_chars": 307,
+    "body_sha256": "232e41a48fc98fc1f41e928047dab6e69e3dd509793b0079be7db9cb46f393b2",
+    "body": "In Snow, this Court emphasized the significance of counsel’s failure to ensure the accused has a meaningful opportunity to decide whether to give evidence and explained why failure to do so will give rise to a miscarriage. The reason is because the incompetent advice of counsel resulted in an unfair trial:"
+   },
+   {
+    "label": "29",
+    "marker_order": 72,
+    "role": "quoted_or_foreign",
+    "marker": "[29]",
+    "raw_span": {
+     "start": 36592,
+     "end": 36829
+    },
+    "body_chars": 231,
+    "body_sha256": "e58c5644a74ce421ec8043c9b1f2323fe1e57fb81d24cf7b647a3e794cb10671",
+    "body": "There are numerous decisions an accused must make. Sometimes they are difficult. Counsel, when advising an accused on those decisions, often must balance multiple conflicting considerations. Frequently there is no one right answer."
+   },
+   {
+    "label": "30",
+    "marker_order": 73,
+    "role": "quoted_or_foreign",
+    "marker": "[30]",
+    "raw_span": {
+     "start": 36829,
+     "end": 37048
+    },
+    "body_chars": 213,
+    "body_sha256": "fcf01f6dff3c8fafdcaa80067a93fe8f507f5eafde1c9edf673258f1d58d5796",
+    "body": "During the course of a trial, counsel need not get instructions on each issue that may present. But on at least two, they have a duty to advise and get instructions: whether to plead guilty and whether to testify."
+   },
+   {
+    "label": "31",
+    "marker_order": 74,
+    "role": "quoted_or_foreign",
+    "marker": "[31]",
+    "raw_span": {
+     "start": 37048,
+     "end": 37229
+    },
+    "body_chars": 175,
+    "body_sha256": "323a03b0d47aa5c8634612c4103ce4a84d064d2362c854ec89f11a2601cfaf3a",
+    "body": "If counsel fails in this duty, procedural fairness and the reliability of the result can sustain a miscarriage of justice pronouncement (see: R. v. G.D.B., supra at para. 34)."
+   },
+   {
+    "label": "32",
+    "marker_order": 75,
+    "role": "quoted_or_foreign",
+    "marker": "[32]",
+    "raw_span": {
+     "start": 37229,
+     "end": 38408
+    },
+    "body_chars": 1173,
+    "body_sha256": "e37a8050e8ee4f51200fb767064c10276a2b935ca5148599f20213757b113042",
+    "body": "Whether to testify can be of fundamental importance. Typically, it is the accused’s only opportunity to convey their story to the trier of fact. Absent an order for a new trial, there are no do-overs. However, if counsel makes the decision rather than the accused, it is a short step to a miscarriage of justice conclusion and new trial order. Doherty J.A., for the Court, in R. v. Archer, 203 O.A.C. 56 explains:\n139 While counsel owes an obligation to advise his client as to whether he or she should testify, the ultimate determination must be made by the client: G.B.D., supra, at p. 300; M. Proulx & D. Layton, Ethics and Canadian Criminal Law (Toronto: Irwin Law, 2001) at pp. 114-30. If the appellant can show that it was trial counsel and not the appellant who decided that the appellant would not testify, and that the appellant would have testified had he understood that it was his decision, it seems to me that it must be accepted that his testimony could have affected the result, thereby establishing that a miscarriage of justice occurred: see R. v. Moore (2002), 163 C.C.C. (3d) 343 at 371 (Sask. C.A.). The crucial question becomes - who made the decision?"
+   },
+   {
+    "label": "33",
+    "marker_order": 76,
+    "role": "quoted_or_foreign",
+    "marker": "[33]",
+    "raw_span": {
+     "start": 38408,
+     "end": 38558
+    },
+    "body_chars": 144,
+    "body_sha256": "0b889d59355919359e8b7c6f505a5313c1494d5b39b1bcd168c337454bcd4438",
+    "body": "Therefore, if counsel ignores his client’s instructions or overrides them, a new trial is required (see: R. v. Eroma, 2013 ONCA 194 at para. 8)."
+   },
+   {
+    "label": "34",
+    "marker_order": 77,
+    "role": "quoted_or_foreign",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 38558,
+     "end": 38948
+    },
+    "body_chars": 384,
+    "body_sha256": "d9ba3b60d88493973f97dfcb34c4d273c0020d02cb3e32b4be8ed98cc2cddf70",
+    "body": "In addition, if counsel’s advice not to testify is flawed by fundamentally incompetent advice, this can impact trial fairness and may lead to a new trial based on a miscarriage of justice analysis (see: R. v. Ross, 2012 NSCA 56 at para. 51; R. v. Moore, 2002 SKCA 30 at paras. 46-47, 51; R. v. A.W.H., 2019 NSCA 40 at para. 40; R. v. Finck, 2019 NSCA 60 at para. 54).\n[Emphasis added]"
+   },
+   {
+    "label": "50",
+    "marker_order": 78,
+    "role": "spine",
+    "marker": "[50]",
+    "raw_span": {
+     "start": 38948,
+     "end": 39256
+    },
+    "body_chars": 302,
+    "body_sha256": "f56df97c4174829447e39a3e3e21a8777379b36aac46edea732a86d5d6fbf45d",
+    "body": "The respondent argues the appellate jurisprudence has shifted and establishing the trial fairness aspect of prejudice now requires an appellant to demonstrate the probability that the outcome would have differed. The primary authority they rely on is R. v. McDonald, 2022 ONCA 574 where the court said:"
+   },
+   {
+    "label": "52",
+    "marker_order": 79,
+    "role": "quoted_or_foreign",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 39256,
+     "end": 39715
+    },
+    "body_chars": 453,
+    "body_sha256": "9a88e0b358744d71948b91f9f26e2f1824a6ec627aa6aeece7237a2e4921e43b",
+    "body": "The prejudice component engages a determination of whether a miscarriage of justice has occurred either because of some trial unfairness in the proceedings, a compromise of the reliability of the verdict, or some combination of both consequences: Girn, at para. 92. Determining whether trial counsel’s assistance resulted in prejudice is an intensely factual enquiry: R. v. Belcourt, 2020 SKCA 73, 389 C.C.C. (3d) 303, at para. 76; Sararas, at para. 46."
+   },
+   {
+    "label": "53",
+    "marker_order": 80,
+    "role": "quoted_or_foreign",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 39715,
+     "end": 40044
+    },
+    "body_chars": 323,
+    "body_sha256": "0c1c7c7962ffc64ca968783005e5ebbc12f861957687439196f36d4afcf8c128",
+    "body": "In this appeal, the appellant relies on both the reliability of the verdict and the trial fairness branches in support of the ineffectiveness of counsel argument. This court’s decision in R. v. Davies, 2008 ONCA 209, 234 O.A.C. 291, suggests that courts may consider both branches of the prejudice component simultaneously."
+   },
+   {
+    "label": "54",
+    "marker_order": 81,
+    "role": "quoted_or_foreign",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 40044,
+     "end": 40759
+    },
+    "body_chars": 709,
+    "body_sha256": "3aa88e207ea2857e6ab7d471d339440eff94c1f6071ae193f7312e8bc61184bd",
+    "body": "If a compromise of the verdict’s reliability is in issue, appellants must show that there is a reasonable probability that the result of the proceeding would have been different had they received effective assistance: Joanisse, at p. 64; Sararas, at para. 44; see also Fiorilli, at para. 59. The ineffective assistance must go to one of the central issues at trial: Sararas, at para. 47. Examples include counsel’s failure to cross-examine a Crown witness (Joanisse, at p. 64); counsel’s failure to cross-examine on prior inconsistent statements (R. v. M.B., 2009 ONCA 524, 68 C.R. (6th) 55, at para. 67); and counsel’s failure to prepare the accused for testifying (R. v. K.K.M., 2020 ONCA 736, at para. 62.)"
+   },
+   {
+    "label": "55",
+    "marker_order": 82,
+    "role": "quoted_or_foreign",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 40759,
+     "end": 42129
+    },
+    "body_chars": 1364,
+    "body_sha256": "8c1e365b44726a1e592df9fdaa4c466b5bff77ef17086b4bfa000093a0eb0ef4",
+    "body": "The trial fairness branch was described in paras. 55 and 56 of Fiorilli by Paciocco J.A.:\nThe trial fairness branch of the prejudice component is concerned with the “adjudicative fairness of the process used to arrive at the verdict”: Joanisse, at p. 57. Occasionally, appellate courts refer to “procedural” fairness instead of trial fairness to describe this branch: see e.g., R. v. G.D.B., at para. 34; Prebtani, at para. 4. In Joanisse, when illustrating the kinds of infirmities in legal representation that might cause a trial to become unfair, at pp. 62-63, Doherty J.A. spoke of lawyers who are intoxicated throughout a trial, or who are acting in a conflict of interest. In such cases, the incompetence is so pervasive that it destroys the fairness of the adjudicative process at trial, thereby amounting to a constructive denial of the assistance of counsel: Joanisse, at pp. 62-63.\nSome of the decisions that must be made during the course of a trial, such as the mode of trial, whether to testify or plead guilty, or whether to advance the defence of not criminally responsible, are so fundamental to procedural fairness that counsel’s failure to permit the appellant to make the decision, or to provide effective advice on the matter, can raise questions of procedural fairness: R. v. G.D.B., at para. 34; R. v. Trought, 2021 ONCA 379, at paras. 46-50."
+   },
+   {
+    "label": "56",
+    "marker_order": 83,
+    "role": "quoted_or_foreign",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 42129,
+     "end": 42768
+    },
+    "body_chars": 633,
+    "body_sha256": "1d4818c6ebfc4f99623fb5f36a04da29618edaddb1c4c83ffd3e75feeddf928b",
+    "body": "This last paragraph should be read in light of White (2022). Although the failure to permit an accused to make those decisions or to receive effective advice on the matter may still raise questions of trial fairness, according to White (2022), in most cases, loss of choice is insufficient. Subjective prejudice must also be established. In White (2022), Karakatsanis J. also explained the ground of appearance of unfairness stating that the standard for establishing a miscarriage of justice on that basis is high: “The defect must be ‘so serious that it shakes public confidence in the administration of justice’”.\n[Emphasis added]"
+   },
+   {
+    "label": "51",
+    "marker_order": 84,
+    "role": "spine",
+    "marker": "[51]",
+    "raw_span": {
+     "start": 42768,
+     "end": 43242
+    },
+    "body_chars": 468,
+    "body_sha256": "51a034f92e746b9a421756f0a7de5026e10441782b93e0e5adbc6e08079ae82b",
+    "body": "It is important to consider the circumstances of R. v. White, 2022 SCC 7 which was an oral decision in an “as of right” appeal where counsel for the accused failed to obtain informed instructions regarding their election of the mode of trial. The Supreme Court accepted the reasoning of the dissenting judge in the Newfoundland and Labrador Court of Appeal that it was necessary to establish subjective prejudice for that error to justify setting aside the conviction:"
+   },
+   {
+    "label": "6",
+    "marker_order": 85,
+    "role": "quoted_or_foreign",
+    "marker": "[6]",
+    "raw_span": {
+     "start": 43242,
+     "end": 43970
+    },
+    "body_chars": 723,
+    "body_sha256": "805c45340448aeecbb334c7466c0a554fa59dbe5d993bc7b1f17409ec725a7b1",
+    "body": "Rather, we agree with Hoegg J.A., in dissent, that ineffective assistance of counsel was not made out. Ineffective assistance has a “performance component” and a “prejudice component”: for such a claim to succeed, the appellant must establish that (1) counsel’s acts or omissions constituted incompetence; and (2) that a miscarriage of justice resulted (R. v. G.D.B., 2000 SCC 22, [2000] 1 S.C.R. 520, at para. 26). Here, Mr. White failed to state that he would have chosen differently had counsel informed him of his right to elect his mode of trial. Even accepting Mr. White’s evidence that there was no discussion or consultation regarding his right of election, it did not rise to a miscarriage of justice in this case."
+   },
+   {
+    "label": "7",
+    "marker_order": 86,
+    "role": "quoted_or_foreign",
+    "marker": "[7]",
+    "raw_span": {
+     "start": 43970,
+     "end": 44582
+    },
+    "body_chars": 607,
+    "body_sha256": "d646fb672ab7ef370d1ed2fe04c293c7f1c479daa4a7284a96c794e976c83ea7",
+    "body": "In G.D.B., the Court explained that counsel’s failure to discuss and obtain instructions on fundamental decisions relating to an accused’s defence “may in some circumstances raise questions of procedural fairness and the reliability of the result leading to a miscarriage of justice” (para. 34). Stark itself recognizes this at para. 32. However, the Court has never provided that the loss of those decisions alone warrants a new trial on ineffective assistance grounds. To the extent that Stark suggests otherwise, it is incorrect. The accused must, in most cases, demonstrate more than the loss of choice."
+   },
+   {
+    "label": "8",
+    "marker_order": 87,
+    "role": "quoted_or_foreign",
+    "marker": "[8]",
+    "raw_span": {
+     "start": 44582,
+     "end": 45189
+    },
+    "body_chars": 602,
+    "body_sha256": "f3052c717c63e59a062c342cf99ddf648bca02e1bc2a5bb4e1dc3f929ec27ef7",
+    "body": "Although it did not address ineffective assistance of counsel, the Court in R. v. Wong, 2018 SCC 25, [2018] 1 S.C.R. 696, explained that to withdraw a guilty plea on the basis that the accused was unaware of legally relevant consequences, an accused must show subjective prejudice. Subjective prejudice demanded that an accused demonstrate there was a “reasonable possibility” they would have acted differently (para. 6). The Court was unanimous that a mere failure to exercise an informed choice was insufficient. In our view, these principles also apply to an accused’s election of the mode of trial."
+   },
+   {
+    "label": "52",
+    "marker_order": 88,
+    "role": "spine",
+    "marker": "[52]",
+    "raw_span": {
+     "start": 45189,
+     "end": 45825
+    },
+    "body_chars": 630,
+    "body_sha256": "83a85022136dead5f9fbf036a06f501a21d171740fbf8afeccf2ada05dc587c7",
+    "body": "I do not agree with the respondent that the loss of choice as to mode of trial is functionally equivalent to being deprived of the decision whether to testify on one’s own behalf. The authorities are clear that having an opportunity to testify is fundamental to a person’s ability to make full answer and defence to a criminal charge. Where an accused is deprived of that right by incompetent counsel the trial is unfair. Nnane was decided by the Ontario Court of Appeal after McDonald and did not apply the requirement to establish the probability of a different outcome where the allegation is a breach of trial fairness.\nIssues"
+   },
+   {
+    "label": "53",
+    "marker_order": 89,
+    "role": "spine",
+    "marker": "[53]",
+    "raw_span": {
+     "start": 45825,
+     "end": 46043
+    },
+    "body_chars": 212,
+    "body_sha256": "b8d1a13e13a1035cfffc5254228ad57f9f5b28b8daebba1517bbaddf55d4b467",
+    "body": "The appeal raises two issues:\n1. Should the fresh evidence tendered by the appellant be admitted?\n2. Did trial counsel provide ineffective assistance resulting in a miscarriage of justice?\nAnalysis\nFresh Evidence"
+   },
+   {
+    "label": "54",
+    "marker_order": 90,
+    "role": "spine",
+    "marker": "[54]",
+    "raw_span": {
+     "start": 46043,
+     "end": 46199
+    },
+    "body_chars": 150,
+    "body_sha256": "b75241c221894d7578e7db21d820d43732136f7dfe4b702e7d426be167538d9f",
+    "body": "The test for admission of fresh evidence on appeal where ineffective assistance of trial counsel is alleged can be found in R. v. Finck, 2019 NSCA 60:"
+   },
+   {
+    "label": "19",
+    "marker_order": 91,
+    "role": "quoted_or_foreign",
+    "marker": "[19]",
+    "raw_span": {
+     "start": 46199,
+     "end": 46678
+    },
+    "body_chars": 473,
+    "body_sha256": "090ff27a687a0969b37a8b80b3146317c109e6f915f47f02a56a4f1864aa139d",
+    "body": "This Court has a wide discretion to admit fresh evidence on appeal \"where it considers it in the interests of justice\": Criminal Code, s. 683(1). Generally, there are two kinds of fresh evidence in cases alleging ineffective assistance of counsel: evidence relating to an issue adjudicated at trial and evidence relating to the trial process. These two types correlate to the two main categories of miscarriage of justice—unreliable verdict and unfair adjudicative process."
+   },
+   {
+    "label": "20",
+    "marker_order": 92,
+    "role": "quoted_or_foreign",
+    "marker": "[20]",
+    "raw_span": {
+     "start": 46678,
+     "end": 47660
+    },
+    "body_chars": 976,
+    "body_sha256": "378557d148e79dabe63f4fba7a017f9b689fd54dd485fafeef97012603203c43",
+    "body": "Cromwell, J.A. (as he then was) in R. v. Wolkins, 2005 NSCA 2 at ¶59 explained that the principles governing the admission of fresh evidence on appeal differ according to the type of fresh evidence to be adduced. Generally, where the fresh evidence relates to issues decided at trial, the test set out in Palmer v. R., [1980] 1 S.C.R. 759 at pg. 775 must be met. Those well-known criteria are:\n(1) The evidence should generally not be admitted if, by due diligence, it could have been adduced at trial provided that this general principle will not be applied as strictly in a criminal case as in civil cases … .\n(2) The evidence must be relevant in the sense that it bears upon a decisive or potentially decisive issue in the trial.\n(3) The evidence must be credible in the sense that it is reasonably capable of belief, and\n(4) It must be such that if believed it could reasonably, when taken with the other evidence adduced at trial, be expected to have affected the result."
+   },
+   {
+    "label": "21",
+    "marker_order": 93,
+    "role": "quoted_or_foreign",
+    "marker": "[21]",
+    "raw_span": {
+     "start": 47660,
+     "end": 48174
+    },
+    "body_chars": 508,
+    "body_sha256": "42be8879c65ba37e00130f343825bf5c8af5678cf6575d4f761331e6deb94c68",
+    "body": "The due diligence criterion is not applied inflexibly and yields where its application might lead to a miscarriage of justice: Wolkins at ¶60. In cases where it is claimed that ineffective assistance of counsel resulted in an unreliable verdict, the due diligence criterion will be met where the reason the evidence was not adduced at trial was counsel's incompetence: (R. v. Ross, 2012 NSCA 56 at ¶27 citing R. v. Appeleton (2001), 55 O.R. (3d) 321 (C.A.) at ¶23; see also R. v. G.D.B., 2000 SCC 22 at ¶36)."
+   },
+   {
+    "label": "22",
+    "marker_order": 94,
+    "role": "quoted_or_foreign",
+    "marker": "[22]",
+    "raw_span": {
+     "start": 48174,
+     "end": 48738
+    },
+    "body_chars": 558,
+    "body_sha256": "045c2a3f9d7eebccdf4faa6c3a6ee060a4e6b03e0896e77926a28514784a600d",
+    "body": "In the second type of case, where the fresh evidence proffered relates to the fairness of the trial process itself, Wolkins at ¶61 states that the Palmer test \"cannot be applied and the admissibility of the evidence depends on the nature of the issue raised.\" The examples it gave included: \"Where the appellant alleges that his trial counsel was incompetent, the fresh evidence will be received where it shows that counsel's conduct fell below the standard of reasonable professional judgment and a miscarriage of justice resulted: see R. v. G.D.B., supra.\""
+   },
+   {
+    "label": "55",
+    "marker_order": 95,
+    "role": "spine",
+    "marker": "[55]",
+    "raw_span": {
+     "start": 48738,
+     "end": 49012
+    },
+    "body_chars": 268,
+    "body_sha256": "4cfb3a85ff7785c6753e0b687f67efb9da9c90d8bb37c3008b29b5ba9157ebb3",
+    "body": "It is necessary to provisionally admit the fresh evidence offered by the appellant as well as that of trial counsel for purposes of assessing whether counsel’s representation led to a miscarriage of justice.\nIneffective Assistance Resulting in a Miscarriage of Justice"
+   },
+   {
+    "label": "56",
+    "marker_order": 96,
+    "role": "spine",
+    "marker": "[56]",
+    "raw_span": {
+     "start": 49012,
+     "end": 49512
+    },
+    "body_chars": 494,
+    "body_sha256": "eec981d1ef8ee59dbac05145811eca9005fcfdf243bc9a80be10c660092fe0df",
+    "body": "To apply the legal principles previously discussed, it is necessary to first make factual findings concerning the advice and representation provided by Mr. Stanfield. Of significance is the absence of any contemporaneous notes prepared by Mr. Stanfield recording his discussions with Mr. Alexander, the advice given and instructions received. There has been extensive judicial commentary on the importance of note taking by counsel and the implications which may arise when this does not occur."
+   },
+   {
+    "label": "57",
+    "marker_order": 97,
+    "role": "spine",
+    "marker": "[57]",
+    "raw_span": {
+     "start": 49512,
+     "end": 49818
+    },
+    "body_chars": 300,
+    "body_sha256": "6adc7c59a3000b154cb4b1f9e846ead940a3f8275cf2d346b26815ed02bc0eb4",
+    "body": "In R. v. D.A., 2020 ONCA 738, the appellant successfully appealed his convictions on the basis trial counsel failed to provide meaningful advice about whether he ought to testify. As in this case, counsel kept no notes of discussions with his client. The court made the following comments about this:"
+   },
+   {
+    "label": "15",
+    "marker_order": 98,
+    "role": "quoted_or_foreign",
+    "marker": "[15]",
+    "raw_span": {
+     "start": 49818,
+     "end": 50066
+    },
+    "body_chars": 242,
+    "body_sha256": "1f3034c8355b27dcb0207a23b6cc6d449643c0b28d509014304a3389e99939f2",
+    "body": "Trial counsel has no contemporaneous notes of any such discussion. Given this, and the manner in which the appellant received and returned the retainer agreement by email, I am unable to conclude that any such initial discussion took place.\n…"
+   },
+   {
+    "label": "17",
+    "marker_order": 99,
+    "role": "quoted_or_foreign",
+    "marker": "[17]",
+    "raw_span": {
+     "start": 50066,
+     "end": 50312
+    },
+    "body_chars": 240,
+    "body_sha256": "9f3fe36948b9592f6998e02c620d6200f931daf7d9ab4c7df04b46453dce572d",
+    "body": "Trial counsel has no notes of any discussions around testifying that took place in preparation for the trial, and could point to no specific occasions, until the exchange after the appellant’s wife testified, when the topic was discussed.\n…"
+   },
+   {
+    "label": "26",
+    "marker_order": 100,
+    "role": "quoted_or_foreign",
+    "marker": "[26]",
+    "raw_span": {
+     "start": 50312,
+     "end": 50507
+    },
+    "body_chars": 189,
+    "body_sha256": "a789fb954ee02025856faba70caa108094687f4ddea8efad7f7e4236466a06e0",
+    "body": "Trial counsel has no notes, correspondence, memoranda to file, or docket entries referring to any instructions given to him by the appellant, or regarding trial strategy or trial procedure."
+   },
+   {
+    "label": "58",
+    "marker_order": 101,
+    "role": "spine",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 50507,
+     "end": 50735
+    },
+    "body_chars": 222,
+    "body_sha256": "9d9f9037a496483db965ca360d407a098ba8f79fd44a5fe4cbc2eb652d5e1d76",
+    "body": "The court concluded counsel had not provided proper advice concerning the advantages and disadvantages of testifying in order for an informed decision to be made. A miscarriage of justice was found and a new trial ordered."
+   },
+   {
+    "label": "59",
+    "marker_order": 102,
+    "role": "spine",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 50735,
+     "end": 51019
+    },
+    "body_chars": 278,
+    "body_sha256": "44b8374dd238de5f15d0f4f03d91a829821c4df142b3f800c85b1ec40d453830",
+    "body": "In R. v. Hamzehali, 2017 BCCA 290, the appellant appealed his convictions based upon ineffective assistance of counsel. There were factual disagreements between trial counsel and his client with respect to certain discussions. Counsel did not keep notes, and the court observed:"
+   },
+   {
+    "label": "76",
+    "marker_order": 103,
+    "role": "quoted_or_foreign",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 51019,
+     "end": 51403
+    },
+    "body_chars": 378,
+    "body_sha256": "8204ea920b6b37698e6929d4cf7955c70dabeb99ef39b6c96eed434d351ce801",
+    "body": "Remarkably, Mr. Gawley has no notes of this discussion. One would expect basic training for new members of the legal profession to include emphasis on record keeping, and on obtaining critical instructions in writing. Whether or not such training was provided to Mr. Gawley, there is no excuse for such critical confirmatory evidence to be missing, as has happened in this case."
+   },
+   {
+    "label": "60",
+    "marker_order": 104,
+    "role": "spine",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 51403,
+     "end": 51641
+    },
+    "body_chars": 232,
+    "body_sha256": "da93506c3ed8b513381b84f261127fa279af43aedeb328135493204367065161",
+    "body": "The issue of counsel’s lack of notes came before the British Columbia Court of Appeal again in R. v. Lam, 2020 BCCA 276 where the appellant sought to withdraw a guilty plea based on ineffective legal assistance. The court commented:"
+   },
+   {
+    "label": "59",
+    "marker_order": 105,
+    "role": "quoted_or_foreign",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 51641,
+     "end": 52324
+    },
+    "body_chars": 677,
+    "body_sha256": "9900b631c1892c7665c727ab5c53e5a03fe530a4d0df2afa7773633f04066557",
+    "body": "She was befuddled, as I am, by trial counsel’s considered decision not to take any notes of advice given or instructions received, and by his curious explanation for not doing so—particularly after this Court’s decision in Hamzehali in which trial counsel was admonished for failing to keep notes of plea discussions and instructions obtained in that context (at para. 76). The judge concluded that by taking no notes of critical discussions, trial counsel failed in his duty to his client and to the profession. She found that this failure hampered her ability to discover the truth and determine whether it would be a miscarriage of justice to allow the guilty plea to stand."
+   },
+   {
+    "label": "61",
+    "marker_order": 106,
+    "role": "spine",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 52324,
+     "end": 52640
+    },
+    "body_chars": 310,
+    "body_sha256": "b7652ae84d21d5437e72919d1dd64f2550b3671539a0fecce5ae026bcf6fde85",
+    "body": "This Court has also considered the issue in the context of an appeal based on allegations of ineffective trial counsel. In R. v. Simpson, 2018 NSCA 25, the absence of any detailed notes or other records concerning client meetings led to the conclusion that trial counsel’s evidence was not reliable (para. 46)."
+   },
+   {
+    "label": "62",
+    "marker_order": 107,
+    "role": "spine",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 52640,
+     "end": 52851
+    },
+    "body_chars": 205,
+    "body_sha256": "f8d371c31929b9041e0632d2e7e20a7fd6e0879fba7f146c1bfdbc26bdd119d2",
+    "body": "The Ontario Court of Appeal in R. v. Trought, 2021 ONCA 379 discusses at length the risks arising from counsel’s failure to obtain written instructions particularly with respect to the issue of testifying:"
+   },
+   {
+    "label": "76",
+    "marker_order": 108,
+    "role": "quoted_or_foreign",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 52851,
+     "end": 53421
+    },
+    "body_chars": 564,
+    "body_sha256": "86db3861e172c040239b88ecaeefcb3b1f97fb7dd542c0ed6b3c7ba7c2159a33",
+    "body": "In concluding this ground of appeal, I wish to comment on trial counsel’s failure to obtain written instructions from the appellant about the decision to testify. In R. v. W.E.B., 2012 ONCA 776, 366 D.L.R. (4th) 690, aff’d 2014 SCC 2, [2014] 1 S.C.R. 34, this court recognized that the failure to obtain written instructions is a question of professional prudence, not incompetence, but noted that the failure to do so is “ill-advised and contrary to counsel’s best interests”: at para. 10. See also R. v. Shofman, 2015 ONSC 6876, 90 M.V.R. (6th) 257, at para. 48."
+   },
+   {
+    "label": "77",
+    "marker_order": 109,
+    "role": "quoted_or_foreign",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 53421,
+     "end": 53897
+    },
+    "body_chars": 470,
+    "body_sha256": "8eabda0b81e363fd98c1038a8b3eb5dc394c240e242a6bae8b527789ed5164a9",
+    "body": "The lawyer who fails to obtain written instructions risks exposure to unfounded allegations of unprofessionalism: see Christine Mainville, “Professionally Serving and Managing Clients: Defence Counsel’s Role in the Solicitor-Client Relationship”, For the Defence, 39:3 (13 February 2019), at p. 9. And although not indicative of ineffectiveness itself, the failure to obtain instructions may undercut trial counsel’s attempts to defend against claims of ineffectiveness."
+   },
+   {
+    "label": "78",
+    "marker_order": 110,
+    "role": "quoted_or_foreign",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 53897,
+     "end": 54893
+    },
+    "body_chars": 990,
+    "body_sha256": "88f665c0838e70ca53e0d122669f3ca558f73dcf6eb26a7c3747b3d1b5599e73",
+    "body": "The failure to obtain written instructions also makes it more difficult for an appellate court to adjudicate claims such as the one advanced on this appeal: see R. v. Hamzehali, 2017 BCCA 290, 350 C.C.C. (3d) 71, at para. 76, leave to appeal refused, [2017] S.C.C.A. No. 380, and R. v. Wells (2001), 2001 CanLII 24130 (Ont. C.A.), at para. 61. Written instructions may resolve competing claims on appeal. In R. v. Archer (2006), 2005 CanLII 36444 (ON CA), 202 C.C.C. (3d) 60 (Ont. C.A.), Doherty J.A. observed, at para. 143, “The largest hurdle faced by the appellant in trying to convince the court that the decision to testify was made by trial counsel is the direction signed by the appellant during the trial.” Similarly, in Faudar, at para. 82, Tulloch J.A. referred to a reporting letter sent by trial counsel about the perils of constructive possession. The same approach would also have been helpful in this case, avoiding the necessity of dueling affidavits and cross-examinations."
+   },
+   {
+    "label": "63",
+    "marker_order": 111,
+    "role": "spine",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 54893,
+     "end": 55414
+    },
+    "body_chars": 515,
+    "body_sha256": "7ced878081a939fd50013f65f5ac046664fc8de8d5331aafd03499594b45e839",
+    "body": "In this case, the only record prepared by Mr. Stanfield documenting his trial preparation and discussions with Mr. Alexander was his invoice. Mr. Stanfield testified the invoice did not represent a complete record of his work. For example, there is no entry for the initial discussion concerning the charge. In addition, there is a questionable entry for trial preparation on the day after the trial had concluded. In any event, the entries are so cryptic they are of little assistance in the fact-finding exercise."
+   },
+   {
+    "label": "64",
+    "marker_order": 112,
+    "role": "spine",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 55414,
+     "end": 55767
+    },
+    "body_chars": 347,
+    "body_sha256": "5eb56d774039b4e1903f649c3fe6703ebd1f3d6787698a14ff4636757da94b28",
+    "body": "Mr. Alexander’s allegations of ineffective assistance of counsel raise issues with respect to both the reliability of the verdict and trial fairness. For the former, he has argued there was evidence which should have been presented at trial. The trial fairness issue relates to whether he had a meaningful opportunity to choose whether to testify."
+   },
+   {
+    "label": "65",
+    "marker_order": 113,
+    "role": "spine",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 55767,
+     "end": 56316
+    },
+    "body_chars": 543,
+    "body_sha256": "433a805ba7eae91ab834a2960dd2ae7ed7e4eb2e5668b7db6b541d214f563a64",
+    "body": "The fresh evidence advanced by Mr. Alexander which he says should have been presented at trial is not persuasive. The fact his mother and parole office did not see signs of impairment does little to demonstrate he was sober throughout the offence period. The fact B.M. did not complain to the parole officer about Mr. Alexander’s conduct would not have been material for the judge’s analysis. This evidence relates to the unreliable verdict branch of miscarriage of justice and does not meet the test for admission of fresh evidence on appeal."
+   },
+   {
+    "label": "66",
+    "marker_order": 114,
+    "role": "spine",
+    "marker": "[66]",
+    "raw_span": {
+     "start": 56316,
+     "end": 56851
+    },
+    "body_chars": 529,
+    "body_sha256": "74ee46a3e05e40bac3220068e5fe9f86c3348a0620d66e4b994210485e22d35c",
+    "body": "Mr. Stanfield’s cross-examination of B.M. accomplished his objectives and raised deficiencies with her evidence. On appeal, counsel for the respondent argued that another judge could well have acquitted Mr. Alexander. While Mr. Stanfield spent little time with Mr. Alexander preparing for trial, I am not satisfied his marshalling of the evidence and conduct of the cross-examination of B.M. amounted to ineffective assistance. The issue of concern is his advice concerning whether Mr. Alexander should testify on his own behalf."
+   },
+   {
+    "label": "67",
+    "marker_order": 115,
+    "role": "spine",
+    "marker": "[67]",
+    "raw_span": {
+     "start": 56851,
+     "end": 57083
+    },
+    "body_chars": 226,
+    "body_sha256": "2df71268222b35ca92dfa7072fc2998dc9a6d2c15d9fa3e89086d7531e0ba0ca",
+    "body": "There were very few discussions between Mr. Stanfield and Mr. Alexander prior to the email of July 25th. I accept the evidence of Mr. Alexander that Mr. Stanfield told him from the beginning he did not think he should testify."
+   },
+   {
+    "label": "68",
+    "marker_order": 116,
+    "role": "spine",
+    "marker": "[68]",
+    "raw_span": {
+     "start": 57083,
+     "end": 57515
+    },
+    "body_chars": 426,
+    "body_sha256": "769c96b263f02b9cbb95937132d824c9c888be9fdec0d66f64335b7785c31b9c",
+    "body": "Mr. Stanfield testified that he told Mr. Alexander it would be his choice whether to take the witness stand. In the absence of any documentation and considering the vague recall of details by Mr. Stanfield, I am not satisfied that any advice was clear. In cross-examination, Mr. Stanfield confirmed Mr. Alexander wanted to testify. I accept Mr. Alexander’s testimony that, effectively, Mr. Stanfield made the decision for him."
+   },
+   {
+    "label": "69",
+    "marker_order": 117,
+    "role": "spine",
+    "marker": "[69]",
+    "raw_span": {
+     "start": 57515,
+     "end": 58057
+    },
+    "body_chars": 536,
+    "body_sha256": "d039345e1c48dc08920e78577233bd5e779b610fd001583aeeae45c4a7bcef39",
+    "body": "Mr. Stanfield was confident the Crown’s case was weak and Mr. Alexander would not be convicted. He maintained this position from the beginning, and it continued through the trial and up to the judge’s decision. He never prepared Mr. Alexander to testify because Mr. Stanfield never expected he would take the stand. Even if he had discussed the possibility of testifying with Mr. Alexander prior to trial, Mr. Stanfield did not return to the issue and consult further with him before announcing the defence would be calling no evidence."
+   },
+   {
+    "label": "70",
+    "marker_order": 118,
+    "role": "spine",
+    "marker": "[70]",
+    "raw_span": {
+     "start": 58057,
+     "end": 58850
+    },
+    "body_chars": 787,
+    "body_sha256": "f1af180e9641312a981265e33d4bf42ba1fedebb4ed4c553a3c0dbaa734737ea",
+    "body": "Mr. Stanfield readily acknowledges that he strongly recommended against Mr. Alexander testifying. He said this was for two reasons. The first was Mr. Alexander’s insistence he was not drinking alcohol or using drugs during his parole. Mr. Stanfield was aware the Crown had a medical report from April 2020 indicating Mr. Alexander was impaired at the time of the motor vehicle accident, and felt this could be used to impeach his credibility. The difficulty is this evidence of impairment relates to an event months after the alleged offence and the end of the relationship with B.M. If Mr. Alexander had testified in his direct examination that he was sober while he was with B.M., the medical report would not have impeached that testimony and could not have been admitted in evidence."
+   },
+   {
+    "label": "71",
+    "marker_order": 119,
+    "role": "spine",
+    "marker": "[71]",
+    "raw_span": {
+     "start": 58850,
+     "end": 59419
+    },
+    "body_chars": 563,
+    "body_sha256": "44ae2a5687ad780c80c96cf244319d28691f76454b90a1cbb6dda00c490c26f8",
+    "body": "The second concern raised by Mr. Stanfield was Mr. Alexander’s criminal record. This was a judge alone trial, and there would be no risk the judge would improperly use the criminal record to reason that Mr. Alexander was the type of person who might commit a sexual assault. Although it could be used to assess Mr. Alexander’s credibility, it would not be determinative of his guilt. Mr. Alexander had no prior convictions for dishonesty, and if he acknowledged his criminal record in his direct examination there would have been little impact on his credibility."
+   },
+   {
+    "label": "72",
+    "marker_order": 120,
+    "role": "spine",
+    "marker": "[72]",
+    "raw_span": {
+     "start": 59419,
+     "end": 59572
+    },
+    "body_chars": 147,
+    "body_sha256": "9e9b88bd55abda597c0111bd04ea626e581703dad1058d0bbd02e5f4af32fbe8",
+    "body": "In the context of evaluating trial counsel’s concerns about the impact of a criminal record on the decision to testify, this Court in A.W.H., said:"
+   },
+   {
+    "label": "38",
+    "marker_order": 121,
+    "role": "quoted_or_foreign",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 59572,
+     "end": 59819
+    },
+    "body_chars": 241,
+    "body_sha256": "ded6e769e1c1bea7f5c686f58bba3dbbb309b4d51346a249be63746d431b06f3",
+    "body": "It is a basic rule that general disposition evidence cannot be used to infer that the accused committed the offence alleged (R. v. Handy, 2002 SCC 56, ¶31-36; R. v. Corbett, [1988] 1 S.C.R. 670, pp. 688-689; R. v. Seymour, 2005 NSCA 5, ¶47)."
+   },
+   {
+    "label": "39",
+    "marker_order": 122,
+    "role": "quoted_or_foreign",
+    "marker": "[39]",
+    "raw_span": {
+     "start": 59819,
+     "end": 59978
+    },
+    "body_chars": 153,
+    "body_sha256": "cad95061583274adb93cbd8a7176d208974e08376f655e826c7b0c859ae896f3",
+    "body": "A criminal record cannot be used to impeach credibility beyond having the accused confirm the record (R. v. Upton, 2008 NSSC 338, ¶21; Corbett, pp. 696)."
+   },
+   {
+    "label": "40",
+    "marker_order": 123,
+    "role": "quoted_or_foreign",
+    "marker": "[40]",
+    "raw_span": {
+     "start": 59978,
+     "end": 60692
+    },
+    "body_chars": 708,
+    "body_sha256": "13ffdf846a12b5c0481fc5383b825f5304dbe24ea4ecd6f154ae7e1a1166e622",
+    "body": "To the extent that there may have been a hypothetical concern that subconscious moral prejudice may have influenced the Court, that concern should have disappeared in this case for at least two reasons: first, A.W.H. was not being tried by a jury but by a very experienced Provincial Court judge who is presumed to know the law and whose comments in this case leave no doubt that she was aware of that law. Second, having heard an abuse of process application and the voir dire, the trial judge already knew of A.W.H.’s unsavory record. There was no downside to him taking the stand and considerable risk of conviction to him if he remained silent in the face of the videotaped evidence once it was admitted."
+   },
+   {
+    "label": "73",
+    "marker_order": 124,
+    "role": "spine",
+    "marker": "[73]",
+    "raw_span": {
+     "start": 60692,
+     "end": 60957
+    },
+    "body_chars": 259,
+    "body_sha256": "f329bb28ac917a83a5a3d5ef91d01dc17026b458dcf11e29ff20b988f80b60a6",
+    "body": "Even if Mr. Alexander testified and the trial judge found his evidence not to be credible, the judge would still be required to assess whether he was left with a reasonable doubt based upon the entirety of the evidence (R. v. Lake, 2005 NSCA 162 at para. 12)."
+   },
+   {
+    "label": "74",
+    "marker_order": 125,
+    "role": "spine",
+    "marker": "[74]",
+    "raw_span": {
+     "start": 60957,
+     "end": 61463
+    },
+    "body_chars": 500,
+    "body_sha256": "16ec0108ef15fec204df50d6b5582d6e27f30e2ae7085c95f7a11afedc147ab5",
+    "body": "In A.W.H., counsel provided incompetent advice which lead to the appellant’s decision not to testify. This resulted in the Court finding both an unfair trial and unreliable verdict. As in this case, counsel was inappropriately concerned about the potential downside of testifying in light of the accused’s criminal record. The failure to put the accused’s version of events before the judge meant a new trial was needed. The following comments from A.W.H. are applicable to Mr. Alexander’s situation:"
+   },
+   {
+    "label": "58",
+    "marker_order": 126,
+    "role": "quoted_or_foreign",
+    "marker": "[58]",
+    "raw_span": {
+     "start": 61463,
+     "end": 62267
+    },
+    "body_chars": 798,
+    "body_sha256": "3f07f964fd3084218c87444ed939e1de37d334d0e24ae05e280e361d9f9391e7",
+    "body": "Applying the “objective standard through the eyes of a reasonable person” (Fraser, ¶80), A.W.H. has met his burden of showing that his counsel’s representation fell below the standard of reasonableness and resulted in an unfair process both in fact and in appearance. Trial counsel was wrong that A.W.H. should not testify because his past convictions would be relevant to his guilt in this case. His trial counsel described A.W.H.’s criminal record as a “significant factor” in her ultimate recommendation to him not to testify. She thought there would have been “more information” about his past criminal offences should he be cross-examined. Counsel did not identify what additional information she was referring to, but agreed that the Crown could not get into details of the prior convictions."
+   },
+   {
+    "label": "59",
+    "marker_order": 127,
+    "role": "quoted_or_foreign",
+    "marker": "[59]",
+    "raw_span": {
+     "start": 62267,
+     "end": 62657
+    },
+    "body_chars": 384,
+    "body_sha256": "89691e74071e18643a77744bf67dc99513d78a22b1049cdc05abed84f1753a24",
+    "body": "A.W.H.’s trial counsel also expressed concern about him being cross-examined on a prior statement that he had made. She admitted that the statement was exculpatory, but she was concerned about “whether or not he would be consistent with the statement he gave”. She agreed there was nothing in the prior statement that was contradicted by A.W.H.’s affidavit evidence before this Court."
+   },
+   {
+    "label": "60",
+    "marker_order": 128,
+    "role": "quoted_or_foreign",
+    "marker": "[60]",
+    "raw_span": {
+     "start": 62657,
+     "end": 63011
+    },
+    "body_chars": 348,
+    "body_sha256": "6e95895340e57c05ae2ade7de3e1de044b327588368e30d56ab3b2892fbef950",
+    "body": "Finally, A.W.H.’s trial counsel had general concerns about his credibility apart from his criminal record. That is certainly a fair consideration for counsel to take into account, but in this case, A.W.H.’s trial counsel did not prepare A.W.H. or test his credibility so as to inform her opinion about his credibility. As this Court stated in Ross:"
+   },
+   {
+    "label": "45",
+    "marker_order": 129,
+    "role": "quoted_or_foreign",
+    "marker": "[45]",
+    "raw_span": {
+     "start": 63011,
+     "end": 63774
+    },
+    "body_chars": 757,
+    "body_sha256": "b3ab20db75b2eec8c1efd41c4e264df73bcdfaac5a3b72e5cd37b95f055374f0",
+    "body": "Although he expressed concern that Bradley Ross would “give ground” on cross-examination, Mr. Jewett never prepared him to testify and never did a mock cross-examination of him, so it is not clear how he came to that conclusion. He said he thought Mr. Ross would not be credible and that it was difficult eliciting information from him. But these challenges are common with many witnesses who are less articulate than counsel might like. They can be substantially mitigated by appropriate preparation. Moreover, properly advised of the risks of his silence, Mr. Ross should have been motivated to present well as a witness. There was no other “downside” to Mr. Ross not testifying. Mr. Ross had no criminal record. This was his first encounter with the law."
+   },
+   {
+    "label": "61",
+    "marker_order": 130,
+    "role": "quoted_or_foreign",
+    "marker": "[61]",
+    "raw_span": {
+     "start": 63774,
+     "end": 64089
+    },
+    "body_chars": 309,
+    "body_sha256": "98bb83022ab67926a6710a5c46b05f3e4a618d37414fcdde9ee5f7930198667d",
+    "body": "Providing advice which is erroneous in law does not automatically constitute incompetence (G.K.N., ¶41), but it is certainly a relevant consideration (Ross, ¶58). It is especially so here where the mistake of law was intimately connected to A.W.H.’s failure to testify (R. v. Moore, 2002 SKCA 30, ¶46-47, 51)."
+   },
+   {
+    "label": "62",
+    "marker_order": 131,
+    "role": "quoted_or_foreign",
+    "marker": "[62]",
+    "raw_span": {
+     "start": 64089,
+     "end": 64285
+    },
+    "body_chars": 190,
+    "body_sha256": "490018720e73be03082fcfe3bb5326cb40d5d683ddc4161c49c28ab0c1c0e42e",
+    "body": "Counsel’s errors were compounded by the failure to put A.W.H.’s version of events before the judge in any manner—either through his testimony or through cross-examination of Crown witnesses."
+   },
+   {
+    "label": "63",
+    "marker_order": 132,
+    "role": "quoted_or_foreign",
+    "marker": "[63]",
+    "raw_span": {
+     "start": 64285,
+     "end": 64858
+    },
+    "body_chars": 567,
+    "body_sha256": "ce81443d2d683daf04fd7c406d8187f458c1c2f9dcca3ffbd80c2444c43fbb79",
+    "body": "Moreover, not putting A.W.H.’s version of events to the trial judge was inconsistent with counsel’s strategy which included not simply demonstrating that M.M. had coached G.M., but that M.M. did so specifically as retaliation “for the split and the prospect of a small claims action”. But counsel made no effort to solicit any evidence from Crown witnesses nor adduce any evidence that would support the theory that M.M. was retaliating. She asked M.M. no questions about her car loan or whether she was aware A.W.H. was considering a claim against her for that loan."
+   },
+   {
+    "label": "64",
+    "marker_order": 133,
+    "role": "quoted_or_foreign",
+    "marker": "[64]",
+    "raw_span": {
+     "start": 64858,
+     "end": 65175
+    },
+    "body_chars": 311,
+    "body_sha256": "c2d9f32d681011ff5d0030e6d80c0c83e3c53152cace22bd92a0ed7403529c5f",
+    "body": "While a failure to put A.W.H.’s version of events before the Court did not deprive him of “any reasonable prospect of successfully defending himself” (Ross, ¶1), the failure to do so in this case prevented A.W.H. from making full answer and defence, rendering the trial unfair as well as the verdict unreliable."
+   },
+   {
+    "label": "65",
+    "marker_order": 134,
+    "role": "quoted_or_foreign",
+    "marker": "[65]",
+    "raw_span": {
+     "start": 65175,
+     "end": 65554
+    },
+    "body_chars": 373,
+    "body_sha256": "e14e4ed0e3dcc97781e521fadcd297683e3fc27220dbe7ec856f5d991b6cb553",
+    "body": "A.W.H. waived his right to testify on the basis of an opinion founded on a mistake of law relating to the permissible uses of A.W.H.’s criminal record. Accordingly, A.W.H.’s waiver of the right to testify was uninformed; the trial was unfair and this unfairness was caused by counsel’s ineffective assistance. I would order a new trial on this basis alone.\n[Emphasis added]"
+   },
+   {
+    "label": "75",
+    "marker_order": 135,
+    "role": "spine",
+    "marker": "[75]",
+    "raw_span": {
+     "start": 65554,
+     "end": 66211
+    },
+    "body_chars": 651,
+    "body_sha256": "ac9838ba8281feeff478db263f44bf94cef46cf8cc66385ae10067dedced92a1",
+    "body": "The Crown’s case had weaknesses which were identified by Mr. Stanfield in his cross-examination of B.M.. She could not recall what day, month or year the alleged assault occurred, and said her recollection was impacted by impairment. In addition, she was questioned by Mr. Stanfield about social media posts which suggested a possible collusion with K.M. to make false accusations against Mr. Alexander. Respondent counsel acknowledged another judge could have acquitted on the evidence presented by the Crown. If Mr. Alexander had testified it may well have tipped the balance in his favour and left the judge with a reasonable doubt as to his guilt."
+   },
+   {
+    "label": "76",
+    "marker_order": 136,
+    "role": "spine",
+    "marker": "[76]",
+    "raw_span": {
+     "start": 66211,
+     "end": 66763
+    },
+    "body_chars": 546,
+    "body_sha256": "0f5b2ab8288b193a8a303d68938bae55370c07360ef2b85a33cb62974cb149df",
+    "body": "Mr. Stanfield failed to provide adequate advice to Mr. Alexander in order for him to freely and meaningfully decide whether to testify. In addition, he did not prepare him for doing so prior to trial. Mr. Alexander was willing to testify and was essentially talked out of it by Mr. Stanfield. Recommendations and resulting instructions on such a crucial issue should be in writing. At the very least, counsel should ensure their advice is clearly and fully explained. I would adopt the following comments from the Ontario Court of Appeal in D.A.:"
+   },
+   {
+    "label": "34",
+    "marker_order": 137,
+    "role": "quoted_or_foreign",
+    "marker": "[34]",
+    "raw_span": {
+     "start": 66763,
+     "end": 67050
+    },
+    "body_chars": 281,
+    "body_sha256": "b72addf9f230299e073b9fc73292cf1e3293107fd2e92e14f31c9f74bfe65ef7",
+    "body": "Here, there is no such evidence. Nothing exists to show that any such discussion took place. Further, I accept the evidence of trial counsel himself that he did not give the appellant any advice about whether or not to testify until the whispered conversation in front of the jury."
+   },
+   {
+    "label": "35",
+    "marker_order": 138,
+    "role": "quoted_or_foreign",
+    "marker": "[35]",
+    "raw_span": {
+     "start": 67050,
+     "end": 67403
+    },
+    "body_chars": 347,
+    "body_sha256": "c5aeebff761bdd73218d1ce5a734395ac211650bab1702e9ade26a9ce845ff26",
+    "body": "By advice, I mean a reasoned explanation of the advantages and disadvantages of testifying that would enable the appellant to make an informed decision about whether to testify. The brief whispered exchange lasting a matter of seconds in front of the jury did not amount to a reasoned explanation of the advantages and disadvantages of testifying."
+   },
+   {
+    "label": "36",
+    "marker_order": 139,
+    "role": "quoted_or_foreign",
+    "marker": "[36]",
+    "raw_span": {
+     "start": 67403,
+     "end": 67758
+    },
+    "body_chars": 349,
+    "body_sha256": "91ba7d3796c926fd4ab5099e8a7d42a7732adf056ecf1210240cc9c04e614454",
+    "body": "In contrast, in Archer, as described at paras. 143-144, the client signed a written direction during the trial confirming that the decision to testify was his own, and that the implications of testifying had been fully explained to him, taking into account his previous testimonial performance in court and in mock examinations conducted by counsel."
+   },
+   {
+    "label": "37",
+    "marker_order": 140,
+    "role": "quoted_or_foreign",
+    "marker": "[37]",
+    "raw_span": {
+     "start": 67758,
+     "end": 67924
+    },
+    "body_chars": 160,
+    "body_sha256": "4cb46acff1461598fb58312b702a90481a6c972fa51537181e17898b028701c4",
+    "body": "In this case, I conclude that trial counsel’s communications to his client did not meet the minimum standard required for legal advice about whether to testify."
+   },
+   {
+    "label": "38",
+    "marker_order": 141,
+    "role": "quoted_or_foreign",
+    "marker": "[38]",
+    "raw_span": {
+     "start": 67924,
+     "end": 68557
+    },
+    "body_chars": 627,
+    "body_sha256": "ebae7b4a20ec64783614598482d6ab188927ab293fc3650d9e811223ea8aa577",
+    "body": "Further, I find that trial counsel’s communications and his manner of expression, before and after conviction, created the impression that the appellant could not be, or had not been, allowed to testify. The appellant, his wife, and appellate counsel #1 were each left with this impression, even if trial counsel had, in his own mind, not intended to foreclose testimony from the appellant. However, my conclusion that trial counsel failed to provide meaningful advice to the appellant about the decision whether or not to testify is a sufficient basis in itself to establish ineffective assistance of counsel.\n[Emphasis added]"
+   },
+   {
+    "label": "77",
+    "marker_order": 142,
+    "role": "spine",
+    "marker": "[77]",
+    "raw_span": {
+     "start": 68557,
+     "end": 68712
+    },
+    "body_chars": 149,
+    "body_sha256": "b5ad5c522432b27ef5a59d6b4b726f1c501bdd14c92671d9f94e5d3d17b9a847",
+    "body": "I am satisfied that the ineffective representation by Mr. Stanfield resulted in an unfair trial and, therefore, a miscarriage of justice.\nDisposition"
+   },
+   {
+    "label": "78",
+    "marker_order": 143,
+    "role": "spine",
+    "marker": "[78]",
+    "raw_span": {
+     "start": 68712,
+     "end": 68928
+    },
+    "body_chars": 210,
+    "body_sha256": "8e5823b00c9e7a7fb3c1d02d5ee4068e28dd28f60b9b78ddef2fc7f2715dfddc",
+    "body": "I would admit the fresh evidence relating to Mr. Stanfield’s advice concerning Mr. Alexander’s choice to testify, allow the appeal and order a new trial.\nWood, C.J.N.S.\nConcurred in:\nBourgeois, J.A.\nGogan, J.A."
+   },
+   {
+    "label": "1",
+    "marker_order": 144,
+    "role": "quoted_or_foreign",
+    "marker": "[1]",
+    "raw_span": {
+     "start": 68928,
+     "end": 69274
+    },
+    "body_chars": 341,
+    "body_sha256": "31b499ae28a36f87f3f2bdce55d9956613a0d366c6390b38c3a039643b433e92",
+    "body": "R. v. Corbett, [1988] 1 S.C.R. 670 sets out the process whereby a judge may decide an accused’s criminal record (or a portion of it) should not be the subject of cross examination in the event they choose to testify. This is usually in the context of a jury trial where disclosure of these convictions could risk impairing fair trial rights."
+   }
+  ]
+ },
+ "native_citations": {
+  "provenance": "provider-native",
+  "field": "cases_cited_en",
+  "description": "Neutral citations A2AJ detected in this decision, in order of first appearance, self-citations excluded. Neutral-citation patterns only: traditional reporter citations (e.g. [1999] 2 S.C.R. 817) are NOT captured.",
+  "count": 47,
+  "values": [
+   "2012 NSCA 112",
+   "2019 NSCA 76",
+   "2000 SCC 22",
+   "2005 NSCA 2",
+   "2016 NSCA 29",
+   "2019 NSCA 40",
+   "2011 NSCA 105",
+   "2011 NSCA 70",
+   "2002 SKCA 30",
+   "2021 ONCA 461",
+   "2017 ONCA 148",
+   "2007 ONCA 840",
+   "2015 ONCA 526",
+   "2016 ONCA 655",
+   "2016 ONCA 614",
+   "2024 ONCA 609",
+   "2019 ONCA 202",
+   "2024 ONCA 572",
+   "2021 BCCA 264",
+   "2018 MBCA 88",
+   "2011 MBCA 83",
+   "2015 BCCA 23",
+   "2001 SCC 86",
+   "2020 ONCA 736",
+   "2021 ONCA 379",
+   "2013 ONCA 194",
+   "2022 NSCA 18",
+   "2020 ABCA 281",
+   "2012 NSCA 56",
+   "2019 NSCA 60",
+   "2022 ONCA 574",
+   "2020 SKCA 73",
+   "2008 ONCA 209",
+   "2009 ONCA 524",
+   "2022 SCC 7",
+   "2018 SCC 25",
+   "2020 ONCA 738",
+   "2017 BCCA 290",
+   "2020 BCCA 276",
+   "2018 NSCA 25",
+   "2012 ONCA 776",
+   "2014 SCC 2",
+   "2015 ONSC 6876",
+   "2002 SCC 56",
+   "2005 NSCA 5",
+   "2008 NSSC 338",
+   "2005 NSCA 162"
+  ]
+ }
+}
