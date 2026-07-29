@@ -41,7 +41,17 @@ export async function streamChatWithTools(
                 ? await (await import("./codexApi")).streamCodexApi(
                     measuredParams,
                   )
-                : await (await import("./gemini")).streamGemini(measuredParams);
+                : provider === "claude-p"
+                  ? await (await import("./claudeP")).streamClaudeP(
+                      measuredParams,
+                    )
+                  : provider === "ollama"
+                    ? await (await import("./ollamaApi")).streamOllama(
+                        measuredParams,
+                      )
+                    : await (
+                        await import("./gemini")
+                      ).streamGemini(measuredParams);
     const finishedAt = performance.now();
     await recordManifest({
       params,
@@ -109,5 +119,9 @@ export async function completeText(params: {
     });
     return result.fullText;
   }
+  if (provider === "claude-p")
+    return (await import("./claudeP")).completeClaudePText(params);
+  if (provider === "ollama")
+    return (await import("./ollamaApi")).completeOllamaText(params);
   return (await import("./gemini")).completeGeminiText(params);
 }

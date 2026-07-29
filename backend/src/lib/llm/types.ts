@@ -4,11 +4,13 @@
 
 export type Provider =
   | "claude"
+  | "claude-p"
   | "gemini"
   | "openai"
   | "deepseek"
   | "openrouter"
-  | "codex";
+  | "codex"
+  | "ollama";
 
 export type OpenAIToolSchema = {
   type: "function";
