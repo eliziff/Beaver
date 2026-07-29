@@ -148,6 +148,46 @@ describe("whitespace expansion reproduces the source's Unicode \\s", () => {
   });
 });
 
+describe("word expansion reproduces the source's Unicode \\w and \\b", () => {
+  const section = {
+    id: "t.section",
+    pattern:
+      "\\b(?:ss?\\.?|(?:sub)?sections?|rules?|rr?\\.?|articles?|arts?\\.?)\\s+(?<v>\\d+)",
+    flags: "i",
+    canonical: {},
+    vectors: [],
+  };
+
+  it("does not fire a keyword inside an accented word", () => {
+    const re = compileGrammarEntry(section);
+    re.lastIndex = 0;
+    expect(re.exec("les traités 12 pays")).toBeNull();
+    re.lastIndex = 0;
+    expect(re.exec("aux articles 15 et 16")?.groups?.v).toBe("15");
+  });
+
+  it("expands \\w inside classes and lookbehind", () => {
+    const entry = {
+      id: "t.lb",
+      pattern: "(?<![\\w.])(?<v>\\d{4})",
+      flags: "",
+      canonical: {},
+      vectors: [],
+    };
+    const re = compileGrammarEntry(entry);
+    re.lastIndex = 0;
+    expect(re.exec("é2019 stays blocked")).toBeNull();
+    re.lastIndex = 0;
+    expect(re.exec("in 2019 it was")?.groups?.v).toBe("2019");
+  });
+
+  it("refuses \\W and \\B inside a character class, keeps \\b as backspace there", () => {
+    expect(() => expandWhitespaceEscapes("[\\W]")).toThrow(/character class/);
+    expect(() => expandWhitespaceEscapes("[\\B]")).toThrow(/character class/);
+    expect(expandWhitespaceEscapes("[\\b]")).toBe("[\\b]");
+  });
+});
+
 describe("shared tables", () => {
   const tables = loadTables();
 
