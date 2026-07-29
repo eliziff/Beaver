@@ -19,10 +19,6 @@ import diff from "fast-diff";
 import { loadZip } from "./zip";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 
-// ---------------------------------------------------------------------------
-// JSZip path helpers
-// ---------------------------------------------------------------------------
-//
 // Some older Windows/Word archives store entries with backslash path
 // separators (e.g. `word\document.xml`) even though the zip spec requires
 // forward slashes. JSZip looks up entries by exact string, so
@@ -50,10 +46,6 @@ function setZipEntry(
     }
     zip.file(pathSlash, content);
 }
-
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
 
 export interface EditInput {
     find: string;
@@ -86,10 +78,6 @@ export interface ApplyTrackedEditsResult {
     /** anchored Word comments created from edit reasons (annotate mode) */
     comments: number;
 }
-
-// ---------------------------------------------------------------------------
-// Preserve-order tree helpers
-// ---------------------------------------------------------------------------
 
 type XNode = Record<string, unknown>;
 
@@ -183,10 +171,6 @@ function buildRun(rPr: XNode | null, text: string, tagName: "w:t" | "w:delText")
 function cloneNode<T>(n: T): T {
     return JSON.parse(JSON.stringify(n)) as T;
 }
-
-// ---------------------------------------------------------------------------
-// Paragraph flattening
-// ---------------------------------------------------------------------------
 
 interface RunSlot {
     childIndex: number;         // index in paragraph.children
@@ -295,10 +279,6 @@ function flattenParagraph(paraChildren: XNode[]): Flattened {
     };
 }
 
-// ---------------------------------------------------------------------------
-// Planning edits on a paragraph
-// ---------------------------------------------------------------------------
-
 /**
  * A single logical change. Spans a contiguous [start, end) character range in
  * the paragraph text (may be empty for a pure insert) and may carry an
@@ -355,10 +335,6 @@ function minimalEditClusters(
     }
     return clusters;
 }
-
-// ---------------------------------------------------------------------------
-// Paragraph reconstruction
-// ---------------------------------------------------------------------------
 
 /**
  * Given a paragraph's children and a sorted, non-overlapping list of
@@ -663,10 +639,6 @@ function mapNormRangeToOriginal(
     return { start: origStart, end: origEnd };
 }
 
-// ---------------------------------------------------------------------------
-// Main: applyTrackedEdits
-// ---------------------------------------------------------------------------
-
 function createParser() {
     return new XMLParser({
         ignoreAttributes: false,
@@ -804,13 +776,6 @@ export async function applyTrackedEdits(
 ): Promise<ApplyTrackedEditsResult> {
     const author = opts?.author ?? "Beaver";
     const now = new Date().toISOString();
-    // Annotate mode renders reasons as anchored comments where present.
-    // DEFAULT OFF, deliberately: Word comments degrade editor performance
-    // on long documents, and rationale already travels in the receipt, so
-    // comments exist only for explicit user requests. Whether every edit
-    // SHOULD carry a rationale is a policy question the caller measures,
-    // not a contract this layer enforces: unreasoned edits simply produce
-    // no comment, and the caller can count them.
     const annotate = opts?.annotate ?? false;
 
     const zip = await loadZip(bytes);
@@ -1381,10 +1346,6 @@ export async function resolveTrackedChange(
     });
     return { bytes: out, found };
 }
-
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
 
 function ensureXmlDeclaration(xml: string): string {
     if (xml.startsWith("<?xml")) return xml;
