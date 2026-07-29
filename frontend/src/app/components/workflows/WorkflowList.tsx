@@ -213,7 +213,6 @@ export function WorkflowList() {
     ) : undefined;
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Page header */}
             <PageHeader
                 shrink
                 loading={loading}
@@ -243,7 +242,6 @@ export function WorkflowList() {
                 onChange={handleTabChange}
                 actions={toolbarActions}
             />
-            {/* Table */}
             <TableScrollArea
                 header={
                     <TableHeaderRow>
@@ -270,31 +268,21 @@ export function WorkflowList() {
                         <TableHeaderCell
                             className={`ml-auto ${WORKFLOW_COLUMN.type}`}
                         >
-                            <div className="flex items-center gap-1">
-                                <span>Type</span>
-                            </div>
+                            Type
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.practice}>
-                            <div className="flex items-center gap-1">
-                                <span>Practice</span>
-                            </div>
+                            Practice
                         </TableHeaderCell>
                         <TableHeaderCell
                             className={WORKFLOW_COLUMN.jurisdiction}
                         >
-                            <div className="flex items-center gap-1">
-                                <span>Jurisdiction</span>
-                            </div>
+                            Jurisdiction
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.language}>
-                            <div className="flex items-center gap-1">
-                                <span>Language</span>
-                            </div>
+                            Language
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.source}>
-                            <div className="flex items-center gap-1">
-                                <span>Source</span>
-                            </div>
+                            Source
                         </TableHeaderCell>
                         {!isAnonymousMode && (
                             <TableHeaderCell
@@ -405,38 +393,25 @@ export function WorkflowList() {
                                     </span>
                                 </TableCell>
                                 <TableCell className={WORKFLOW_COLUMN.practice}>
-                                    {wf.metadata.practice ? (
+                                    {wf.metadata.practice && (
                                         <span className="text-xs font-medium text-gray-600">
                                             {wf.metadata.practice}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-gray-300">
-                                            —
                                         </span>
                                     )}
                                 </TableCell>
                                 <TableCell
                                     className={WORKFLOW_COLUMN.jurisdiction}
                                 >
-                                    {wf.metadata.jurisdictions &&
-                                    wf.metadata.jurisdictions.length > 0 ? (
+                                    {wf.metadata.jurisdictions?.length ? (
                                         <span className="truncate max-w-full text-xs font-medium text-gray-600">
                                             {wf.metadata.jurisdictions.join(", ")}
                                         </span>
-                                    ) : (
-                                        <span className="text-xs text-gray-300">
-                                            —
-                                        </span>
-                                    )}
+                                    ) : null}
                                 </TableCell>
                                 <TableCell className={WORKFLOW_COLUMN.language}>
-                                    {wf.metadata.language ? (
+                                    {wf.metadata.language && (
                                         <span className="text-xs font-medium text-gray-600">
                                             {wf.metadata.language}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-gray-300">
-                                            —
                                         </span>
                                     )}
                                 </TableCell>
