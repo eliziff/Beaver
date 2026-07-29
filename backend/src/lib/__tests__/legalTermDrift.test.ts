@@ -82,6 +82,90 @@ describe("termDriftReport", () => {
     expect(gap?.occurrences).toBe(1);
   });
 
+  it("keeps cross-reference bodies out of the divergence comparison", () => {
+    const pointer = {
+      name: "p.txt",
+      text: '"Reference Rate" has the meaning assigned thereto in Section 9.1.',
+    };
+    const tuesday = {
+      name: "a.txt",
+      text: '"Reference Rate" means the rate published each Tuesday by the Registrar.',
+    };
+    const thursday = {
+      name: "b.txt",
+      text: '"Reference Rate" means the rate published each Thursday by the Registrar.',
+    };
+    const report = termDriftReport([pointer, tuesday, thursday]);
+    const row = report.shared.find((r) => r.term === "Reference Rate");
+    expect(row?.status).toBe("divergent");
+    expect(row?.divergence?.documents).toEqual(["a.txt", "b.txt"]);
+    expect(row?.definitions.find((d) => d.document === "p.txt")?.isPointer).toBe(
+      true,
+    );
+  });
+
+  it("reports no row when every definition of a term is a cross-reference", () => {
+    const report = termDriftReport([
+      { name: "p.txt", text: '"Reference Rate" has the meaning set forth in Section 4.2.' },
+      { name: "q.txt", text: '"Reference Rate" shall have the meaning given to it in Schedule B.' },
+    ]);
+    expect(report.shared.find((r) => r.term === "Reference Rate")).toBeUndefined();
+  });
+
+  it("treats a body cut before its list as truncation, not drift", () => {
+    const stem = {
+      name: "stem.txt",
+      text: '"Excluded Asset" means each of the following:\n\n(a) the Norwood parcel.',
+    };
+    const full = {
+      name: "full.txt",
+      text:
+        '"Excluded Asset" means each of the following: (a) the Norwood parcel, ' +
+        "and (b) the Kestrel licence.",
+    };
+    const report = termDriftReport([stem, full]);
+    expect(report.shared.find((r) => r.term === "Excluded Asset")?.status).toBe(
+      "consistent",
+    );
+  });
+
+  it("still flags a shorter body that closed its own sentence", () => {
+    const short = { name: "s.txt", text: '"Cure Period" means ten Business Days.' };
+    const long = {
+      name: "l.txt",
+      text: '"Cure Period" means ten Business Days, extended by any Standstill Period.',
+    };
+    const report = termDriftReport([short, long]);
+    expect(report.shared.find((r) => r.term === "Cure Period")?.status).toBe(
+      "divergent",
+    );
+  });
+
+  it("suppresses imported uses in a document that expressly incorporates definitions", () => {
+    const master = {
+      name: "master.txt",
+      text: '"Collateral Pool" means the assets pledged under Schedule 2.',
+    };
+    const cert = {
+      name: "cert.txt",
+      text:
+        "Unless otherwise defined herein, capitalized terms used in this " +
+        "certificate shall have the meanings assigned to such terms in the " +
+        "Master Agreement. The Collateral Pool remains unencumbered.",
+    };
+    const plain = {
+      name: "plain.txt",
+      text: "The Collateral Pool remains unencumbered.",
+    };
+    const suppressed = termDriftReport([master, cert]);
+    expect(suppressed.importedUses).toHaveLength(0);
+    expect(suppressed.suppressedImportedUses).toBe(1);
+
+    const reported = termDriftReport([master, plain]);
+    expect(reported.importedUses[0]?.usedIn).toBe("plain.txt");
+    expect(reported.suppressedImportedUses).toBe(0);
+  });
+
   it("counts in-document duplicate definitions instead of dropping them", () => {
     const doubled = {
       name: "d.txt",
