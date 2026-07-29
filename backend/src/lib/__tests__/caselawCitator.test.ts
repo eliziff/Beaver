@@ -160,7 +160,8 @@ describe("caselaw citator note-up graph", () => {
       });
 
       const noteUp = citator.noteUpCitations({ citation: "2015 SCC 5" });
-      expect(noteUp).toMatchObject([
+      expect(noteUp).toMatchObject({ total: 2 });
+      expect(noteUp!.entries).toMatchObject([
         {
           citation: "2020 FC 100",
           name: "Doe v. Canada (Citizenship and Immigration)",
@@ -184,22 +185,24 @@ describe("caselaw citator note-up graph", () => {
           citedAs: "2015  SCC 5",
         },
       ]);
-      for (const entry of noteUp!) {
+      for (const entry of noteUp!.entries) {
         expect(entry.excerpt.length).toBeLessThanOrEqual(600);
         // The cited case itself never appears in its own note-up list.
         expect(entry.citation).not.toBe("2015 SCC 5");
       }
 
       // Punctuation/whitespace variants of one form share a key...
-      expect(citator.noteUpCitations({ citation: "2015 S.C.C. 5" })).toHaveLength(2);
-      expect(citator.noteUpCitations({ citation: "2015   SCC  5" })).toHaveLength(2);
-      expect(
-        citator.noteUpCitations({ citation: "2015 SCC 5", size: 1 }),
-      ).toMatchObject([{ citation: "2020 FC 100" }]);
+      expect(citator.noteUpCitations({ citation: "2015 S.C.C. 5" })!.entries).toHaveLength(2);
+      expect(citator.noteUpCitations({ citation: "2015   SCC  5" })!.entries).toHaveLength(2);
+      // A capped page still reports the true total — the bug that made a
+      // full-corpus Vavilov note-up look like 10 citing cases.
+      const capped = citator.noteUpCitations({ citation: "2015 SCC 5", size: 1 });
+      expect(capped!.entries).toMatchObject([{ citation: "2020 FC 100" }]);
+      expect(capped!.total).toBe(2);
       // ...but distinct forms are distinct nodes. Without resolution
       // evidence the French twin finds only French-keyed edges, and the
       // S.C.R. parallel citation only its own occurrences.
-      expect(citator.noteUpCitations({ citation: "2015 CSC 5" })).toMatchObject([
+      expect(citator.noteUpCitations({ citation: "2015 CSC 5" })!.entries).toMatchObject([
         {
           citation: "2021 CF 200",
           name: "Tremblay c. Canada (Procureur général)",
@@ -211,15 +214,15 @@ describe("caselaw citator note-up graph", () => {
         },
       ]);
       expect(
-        citator.noteUpCitations({ citation: "[2015] 1 S.C.R. 331" }),
+        citator.noteUpCitations({ citation: "[2015] 1 S.C.R. 331" })!.entries,
       ).toMatchObject([{ citation: "2020 FC 100", citedAs: "[2015] 1 S.C.R. 331" }]);
       expect(
-        citator.noteUpCitations({ citation: "[2015] 1 SCR 331" }),
+        citator.noteUpCitations({ citation: "[2015] 1 SCR 331" })!.entries,
       ).toHaveLength(1);
-      expect(citator.noteUpCitations({ citation: "384 US 436" })).toMatchObject([
+      expect(citator.noteUpCitations({ citation: "384 US 436" })!.entries).toMatchObject([
         { citation: "2020 FC 100", citedAs: "384 U.S. 436", paragraph: 4 },
       ]);
-      expect(citator.noteUpCitations({ citation: "2019 SCC 5" })).toMatchObject([
+      expect(citator.noteUpCitations({ citation: "2019 SCC 5" })!.entries).toMatchObject([
         { citation: "2020 FC 100", occurrences: 1, paragraph: 5 },
       ]);
 

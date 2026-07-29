@@ -46,6 +46,12 @@ export type NoteUpEntry = {
   excerpt: string;
 };
 
+export type NoteUpResult = {
+  /** every citing case in the graph, not just the page returned */
+  total: number;
+  entries: NoteUpEntry[];
+};
+
 export type CitatorGraphStats = {
   cases_indexed: number;
   edges: number;
@@ -117,12 +123,24 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
 export function noteUpCitations(args: {
   citation: string;
   size?: number;
-}): NoteUpEntry[] | null {
+}): NoteUpResult | null {
   const key = citationLookupKey(args.citation);
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   return withDatabase((database) => {
     const keys = keysForQuery(database, key);
     const placeholders = keys.map(() => "?").join(", ");
+    // The page is capped; the count must not be. A note-up that reports its
+    // page size as the answer understates how heavily a case has been cited.
+    const total = Number(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(DISTINCT case_id) AS total
+             FROM edge WHERE cited_key IN (${placeholders})`,
+          )
+          .get(...keys) as Row
+      ).total,
+    );
     const groups = database
       .prepare(
         `SELECT case_doc.citation, case_doc.name, case_doc.court, case_doc.date,
@@ -140,7 +158,7 @@ export function noteUpCitations(args: {
       `SELECT cited_citation, paragraph, pinpoints, excerpt
        FROM edge WHERE case_id = ? AND text_offset = ?`,
     );
-    return groups.map((group) => {
+    const entries = groups.map((group) => {
       const first = firstOccurrence.get(
         group.case_id as number,
         group.first_offset as number,
@@ -158,6 +176,7 @@ export function noteUpCitations(args: {
         excerpt: String(first.excerpt),
       };
     });
+    return { total, entries };
   });
 }
 
