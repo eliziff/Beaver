@@ -1,6 +1,6 @@
 {
   "format": "beaver-grammar-table:v1",
-  "description": "Cross-runtime citation and pinpoint grammars. Authored in the restricted dialect grammarTables.ts validates: JS-syntax named groups, no lookbehind, no \\p classes, no inline flags. Python compiles with re.ASCII and JS without the u flag, so \\d/\\w/\\b are ASCII in both.",
+  "description": "Cross-runtime citation and pinpoint grammars. Authored in the restricted dialect grammarTables.ts validates: JS-syntax named groups, fixed-width lookbehind only (Python's compile is the gate), no \\p classes, no inline flags. Python compiles with re.ASCII and JS without the u flag, so \\d/\\w/\\b are ASCII in both.",
   "entries": [
     {
       "id": "cite.neutral.ca",
