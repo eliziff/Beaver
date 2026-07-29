@@ -24,7 +24,6 @@ import {
     listDocumentVersions,
     uploadDocumentVersion,
     replaceDocumentVersionFile,
-    copyDocumentVersionFromDocument,
     deleteDocumentVersion,
     renameDocumentVersion,
     type DocumentVersion,
@@ -142,22 +141,6 @@ interface DocTableProps {
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach";
     selectionFirst?: boolean;
-}
-function apiErrorDetail(error: unknown): string | null {
-    if (!(error instanceof Error)) return null;
-    try {
-        const parsed = JSON.parse(error.message) as unknown;
-        if (
-            parsed &&
-            typeof parsed === "object" &&
-            "detail" in parsed &&
-            typeof parsed.detail === "string"
-        ) {
-            return parsed.detail;
-        }
-    } catch {
-    }
-    return error.message || null;
 }
 function documentVersionNumber(doc: Document): number | null {
     return doc.active_version_number ?? null;
@@ -509,10 +492,6 @@ export function DocTable({
     const [collectionActionWarning, setCollectionActionWarning] = useState<
         string | null
     >(null);
-    const [pendingVersionDrop, setPendingVersionDrop] = useState<{
-        targetDoc: Document;
-        sourceDoc: Document;
-    } | null>(null);
     const [pendingDocumentRemoval, setPendingDocumentRemoval] = useState<{
         documents: Document[];
         fromSelection: boolean;
@@ -693,77 +672,6 @@ export function DocTable({
                 ...newDocs.filter((d) => !prev.some((e) => e.id === d.id)),
             ],
         );
-    }
-    function removeDocumentFromLocalState(docId: string) {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
-        setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
-        setVersionsByDocId((prev) => {
-            const next = new Map(prev);
-            next.delete(docId);
-            return next;
-        });
-        setLoadingVersionDocIds((prev) => {
-            const next = new Set(prev);
-            next.delete(docId);
-            return next;
-        });
-        setUploadingVersionDocIds((prev) => {
-            const next = new Set(prev);
-            next.delete(docId);
-            return next;
-        });
-        setViewingDoc((prev) => (prev?.id === docId ? null : prev));
-        if (renamingDocumentId === docId) setRenamingDocumentId(null);
-    }
-    function restoreDocumentToLocalState(
-        doc: Document,
-        snapshot: {
-            index: number;
-            selected: boolean;
-            versions?: DocumentVersion[];
-            currentVersionId?: string | null;
-            loadingVersions: boolean;
-            uploadingVersion: boolean;
-            viewing: boolean;
-            viewingVersion: typeof viewingDocVersion;
-        },
-    ) {
-        setDocuments((prev) => {
-            if (prev.some((d) => d.id === doc.id)) return prev;
-            const nextDocs = [...prev];
-            nextDocs.splice(
-                Math.max(0, Math.min(snapshot.index, nextDocs.length)),
-                0,
-                doc,
-            );
-            return nextDocs;
-        });
-        if (snapshot.selected) {
-            setSelectedDocIds((prev) =>
-                prev.includes(doc.id) ? prev : [...prev, doc.id],
-            );
-        }
-        const versions = snapshot.versions;
-        if (versions) {
-            setVersionsByDocId((prev) => {
-                const next = new Map(prev);
-                next.set(doc.id, {
-                    currentVersionId: snapshot.currentVersionId ?? null,
-                    versions,
-                });
-                return next;
-            });
-        }
-        if (snapshot.loadingVersions) {
-            setLoadingVersionDocIds((prev) => new Set([...prev, doc.id]));
-        }
-        if (snapshot.uploadingVersion) {
-            setUploadingVersionDocIds((prev) => new Set([...prev, doc.id]));
-        }
-        if (snapshot.viewing) {
-            setViewingDoc(doc);
-            setViewingDocVersion(snapshot.viewingVersion);
-        }
     }
     async function handleRemoveDocFromFolder(docId: string) {
         setDocuments((prev) =>
@@ -1025,65 +933,11 @@ export function DocTable({
             });
         }
     }
-    async function saveExistingDocumentAsNewVersion(
-        targetDoc: Document,
-        sourceDoc: Document,
-    ) {
-        const sourceIndex =
-            documents.findIndex((doc) => doc.id === sourceDoc.id);
-        const sourceSnapshot = {
-            index: sourceIndex >= 0 ? sourceIndex : 0,
-            selected: selectedDocIds.includes(sourceDoc.id),
-            versions: versionsByDocId.get(sourceDoc.id)?.versions,
-            currentVersionId: versionsByDocId.get(sourceDoc.id)
-                ?.currentVersionId,
-            loadingVersions: loadingVersionDocIds.has(sourceDoc.id),
-            uploadingVersion: uploadingVersionDocIds.has(sourceDoc.id),
-            viewing: viewingDoc?.id === sourceDoc.id,
-            viewingVersion:
-                viewingDoc?.id === sourceDoc.id ? viewingDocVersion : null,
-        };
-        setUploadingVersionDocIds((prev) => new Set([...prev, targetDoc.id]));
-        removeDocumentFromLocalState(sourceDoc.id);
-        try {
-            await copyDocumentVersionFromDocument(
-                targetDoc.id,
-                sourceDoc.id,
-                sourceDoc.filename,
-            );
-            await refreshDocumentVersionState(targetDoc.id);
-        } catch (err) {
-            console.error("Existing document version drop failed", err);
-            restoreDocumentToLocalState(sourceDoc, sourceSnapshot);
-            setCollectionActionWarning(
-                apiErrorDetail(err) ??
-                    "Could not save this document as a new version.",
-            );
-        } finally {
-            setUploadingVersionDocIds((prev) => {
-                const next = new Set(prev);
-                next.delete(targetDoc.id);
-                return next;
-            });
-        }
-    }
-    function handleDropExistingDocumentVersion(
-        targetDoc: Document,
-        sourceDocId: string,
-    ) {
-        if (!sourceDocId || sourceDocId === targetDoc.id) return;
-        const sourceDoc = documents.find((doc) => doc.id === sourceDocId);
-        if (!sourceDoc) return;
-        setPendingVersionDrop({ targetDoc, sourceDoc });
-    }
     function handleDocumentVersionDragOver(
         e: DragEvent<HTMLDivElement>,
         docId: string,
     ) {
-        if (
-            !hasFilePayload(e.dataTransfer) &&
-            !hasDocumentPayload(e.dataTransfer)
-        ) {
+        if (!hasFilePayload(e.dataTransfer)) {
             return;
         }
         e.preventDefault();
@@ -1101,10 +955,7 @@ export function DocTable({
         e: DragEvent<HTMLDivElement>,
         doc: Document,
     ) {
-        if (
-            !hasFilePayload(e.dataTransfer) &&
-            !hasDocumentPayload(e.dataTransfer)
-        ) {
+        if (!hasFilePayload(e.dataTransfer)) {
             return;
         }
         e.preventDefault();
@@ -1114,17 +965,7 @@ export function DocTable({
         setIsDraggingCollectionFiles(false);
         setDragOverRoot(false);
         setDragOverFolderId(null);
-        if (hasFilePayload(e.dataTransfer)) {
-            void handleDropDocumentVersions(
-                doc,
-                Array.from(e.dataTransfer.files),
-            );
-            return;
-        }
-        void handleDropExistingDocumentVersion(
-            doc,
-            e.dataTransfer.getData("application/mike-doc"),
-        );
+        void handleDropDocumentVersions(doc, Array.from(e.dataTransfer.files));
     }
     async function handleDropOnFolder(
         targetFolderId: string | null,
@@ -1908,31 +1749,6 @@ export function DocTable({
     useEffect(() => {
         return () => onSelectionActionsChange?.(null);
     }, [onSelectionActionsChange]);
-    const pendingVersionDropMessage = pendingVersionDrop ? (
-        <div className="space-y-2">
-            <p>
-                You are about to save{" "}
-                <span className="font-medium text-gray-950">
-                    {pendingVersionDrop.sourceDoc.filename}
-                </span>{" "}
-                as a new version of{" "}
-                <span className="font-medium text-gray-950">
-                    {pendingVersionDrop.targetDoc.filename}
-                </span>
-                .
-            </p>
-            <p>
-                <span className="font-medium text-gray-950">
-                    {pendingVersionDrop.sourceDoc.filename}
-                </span>{" "}
-                will no longer exist as a separate document
-                {(currentVersionNumber(pendingVersionDrop.sourceDoc) ?? 1) > 1
-                    ? " and its older versions will be deleted"
-                    : ""}
-                .
-            </p>
-        </div>
-    ) : undefined;
     const pendingDeleteDoc =
         pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
             ? pendingDocumentRemoval.documents[0]
@@ -2060,23 +1876,6 @@ export function DocTable({
                 open={!!collectionActionWarning}
                 onClose={() => setCollectionActionWarning(null)}
                 message={collectionActionWarning}
-            />
-            <ConfirmPopup
-                open={!!pendingVersionDrop}
-                title="Save as new version?"
-                message={pendingVersionDropMessage}
-                confirmLabel="Confirm"
-                cancelLabel="Cancel"
-                onCancel={() => setPendingVersionDrop(null)}
-                onConfirm={() => {
-                    const pending = pendingVersionDrop;
-                    if (!pending) return;
-                    setPendingVersionDrop(null);
-                    void saveExistingDocumentAsNewVersion(
-                        pending.targetDoc,
-                        pending.sourceDoc,
-                    );
-                }}
             />
             <ConfirmPopup
                 open={!!pendingDocumentRemoval}
