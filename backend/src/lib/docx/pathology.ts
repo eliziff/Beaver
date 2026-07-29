@@ -13,6 +13,35 @@ const MAX_EXPANDED_BYTES = 96 * 1024 * 1024;
 const MAX_XML_BYTES = 32 * 1024 * 1024;
 const MAX_FIELD_SAMPLES = 5;
 const MAX_SAMPLE_CHARS = 120;
+const MAX_TRAP_SAMPLES = 5;
+const TRAP_CONTEXT_CHARS = 36;
+
+/**
+ * Characters in the text plane that do not read as they render: they are
+ * invisible, they reorder what follows, or they wear another script's
+ * shape. Counted per character, except confusables, counted per word.
+ */
+export interface UnicodeTraps {
+  /** U+202A-202E, U+2066-2069 — reorder the rendered line. */
+  bidi_controls: number;
+  /** U+200B-200D, U+FEFF, U+2060 — split a word with no visible break. */
+  zero_width: number;
+  /** Latin words carrying a Cyrillic or Greek look-alike. */
+  homoglyph_suspects: number;
+  /** U+E000-F8FF — renders as whatever the reader's font decides. */
+  private_use: number;
+  /** C0 other than tab, newline and carriage return. */
+  control_chars: number;
+  /** U+2061-2064 — invisible operators. */
+  invisible_math: number;
+}
+
+type TrapClass = keyof UnicodeTraps;
+
+export interface UnicodeTrapFindings extends UnicodeTraps {
+  /** One excerpt per class, the trap character named in place. */
+  samples: string[];
+}
 
 /**
  * What a DOCX contains, read from raw OOXML before any extraction path
@@ -43,8 +72,21 @@ export interface DocxPathologyReport {
   header_footer_literal_text: boolean;
   footnotes: { count: number };
   endnotes: { count: number };
+  /** Text-plane traps in the same story parts. */
+  unicode_traps: UnicodeTrapFindings;
   /** Routing warnings derived from the counters above. */
   notes_of_caution: string[];
+}
+
+function emptyTraps(): UnicodeTraps {
+  return {
+    bidi_controls: 0,
+    zero_width: 0,
+    homoglyph_suspects: 0,
+    private_use: 0,
+    control_chars: 0,
+    invisible_math: 0,
+  };
 }
 
 function emptyReport(): DocxPathologyReport {
@@ -67,6 +109,7 @@ function emptyReport(): DocxPathologyReport {
     header_footer_literal_text: false,
     footnotes: { count: 0 },
     endnotes: { count: 0 },
+    unicode_traps: { ...emptyTraps(), samples: [] },
     notes_of_caution: [],
   };
 }
@@ -103,6 +146,146 @@ function literalText(xml: string) {
 
 function sample(value: string) {
   return value.replace(/\s+/gu, " ").trim().slice(0, MAX_SAMPLE_CHARS);
+}
+
+/**
+ * Text as the reader meets it: runs join, paragraphs break. Without the
+ * break the last word of one paragraph would fuse with the first of the
+ * next, and a Latin paragraph above a Cyrillic one would read as mixed.
+ */
+function storyText(xml: string) {
+  let out = "";
+  for (const match of xml.matchAll(
+    /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<\/w:p>/gu,
+  )) {
+    out += match[1] === undefined ? "\n" : decodeXmlText(match[1]);
+  }
+  return out;
+}
+
+/**
+ * Cyrillic and Greek letters that wear a Latin shape, by code point: a
+ * table of look-alikes cannot be reviewed as literals. Only the
+ * look-alikes are listed — a mixed word using a letter that reads as
+ * itself is visible to the reader, and Greek read as a symbol (mu, beta,
+ * lambda, sigma, pi) is not taken for Latin at all.
+ */
+const CONFUSABLES = new Set<number>([
+  // Cyrillic a ve ie ka em en o er es te u ha, lower then upper.
+  0x0430, 0x0432, 0x0435, 0x043a, 0x043c, 0x043d, 0x043e, 0x0440, 0x0441,
+  0x0442, 0x0443, 0x0445, 0x0410, 0x0412, 0x0415, 0x041a, 0x041c, 0x041d,
+  0x041e, 0x0420, 0x0421, 0x0422, 0x0423, 0x0425,
+  // Cyrillic dze i je komi-de qa we, lower then upper.
+  0x0455, 0x0456, 0x0458, 0x0501, 0x051b, 0x051d, 0x0405, 0x0406, 0x0408,
+  0x051a, 0x051c,
+  // Greek alpha epsilon iota kappa nu omicron rho tau upsilon gamma.
+  0x03b1, 0x03b5, 0x03b9, 0x03ba, 0x03bd, 0x03bf, 0x03c1, 0x03c4, 0x03c5,
+  0x03b3,
+  // Greek capitals sharing a Latin capital shape: alpha beta epsilon zeta
+  // eta iota kappa mu nu omicron rho tau upsilon chi.
+  0x0391, 0x0392, 0x0395, 0x0396, 0x0397, 0x0399, 0x039a, 0x039c, 0x039d,
+  0x039f, 0x03a1, 0x03a4, 0x03a5, 0x03a7,
+]);
+
+/** Letters and marks only, so a hyphen cannot fuse two single-script words. */
+const WORD = /[\p{L}\p{M}]+/gu;
+const HAS_LATIN = /\p{Script=Latin}/u;
+
+/** Every trap class is BMP, so one UTF-16 unit is one candidate. */
+function classify(code: number): TrapClass | null {
+  if ((code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069)) {
+    return "bidi_controls";
+  }
+  if (
+    code === 0x200b ||
+    code === 0x200c ||
+    code === 0x200d ||
+    code === 0x2060 ||
+    code === 0xfeff
+  ) {
+    return "zero_width";
+  }
+  if (code >= 0x2061 && code <= 0x2064) return "invisible_math";
+  if (code >= 0xe000 && code <= 0xf8ff) return "private_use";
+  if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) {
+    return "control_chars";
+  }
+  return null;
+}
+
+/**
+ * Characters first, then words: a Latin word holding one look-alike is
+ * one suspect however many look-alikes it holds.
+ */
+function scanTraps(
+  text: string,
+  traps: UnicodeTraps,
+  onTrap?: (trap: TrapClass, at: number) => void,
+) {
+  for (let index = 0; index < text.length; index += 1) {
+    const trap = classify(text.charCodeAt(index));
+    if (!trap) continue;
+    traps[trap] += 1;
+    onTrap?.(trap, index);
+  }
+  for (const match of text.matchAll(WORD)) {
+    const word = match[0];
+    if (!HAS_LATIN.test(word)) continue;
+    let offset = -1;
+    for (let index = 0; index < word.length; index += 1) {
+      if (CONFUSABLES.has(word.charCodeAt(index))) {
+        offset = index;
+        break;
+      }
+    }
+    if (offset < 0) continue;
+    traps.homoglyph_suspects += 1;
+    onTrap?.("homoglyph_suspects", (match.index ?? 0) + offset);
+  }
+}
+
+function codePointName(code: number) {
+  return `U+${code.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/**
+ * One excerpt per class, naming every trap character in the window — an
+ * excerpt that still carried an override would reorder wherever it is
+ * printed.
+ */
+function addTrapSample(
+  findings: UnicodeTrapFindings,
+  trap: TrapClass,
+  text: string,
+  at: number,
+  path: string,
+) {
+  const { samples } = findings;
+  if (samples.length >= MAX_TRAP_SAMPLES) return;
+  if (samples.some((entry) => entry.startsWith(`${trap} `))) return;
+  const start = Math.max(0, at - TRAP_CONTEXT_CHARS);
+  const end = Math.min(text.length, at + 1 + TRAP_CONTEXT_CHARS);
+  let excerpt = start > 0 ? "..." : "";
+  for (let index = start; index < end; index += 1) {
+    const code = text.charCodeAt(index);
+    excerpt +=
+      index === at || classify(code) ? `<${codePointName(code)}>` : text[index];
+  }
+  if (end < text.length) excerpt += "...";
+  samples.push(
+    `${trap} ${codePointName(text.charCodeAt(at))} in ${path}: "${sample(excerpt)}"`,
+  );
+}
+
+/**
+ * The same text-plane scan without a package around it, for callers that
+ * hold extracted text. Never throws; a non-string reads as no traps.
+ */
+export function scanTextTraps(text: string): UnicodeTraps {
+  const traps = emptyTraps();
+  if (typeof text !== "string" || !text) return traps;
+  scanTraps(text, traps);
+  return traps;
 }
 
 /**
@@ -162,7 +345,11 @@ function containsNestedTable(xml: string) {
 }
 
 /** Counts markup that carries content; comments and numbering are separate parts. */
-function scanStoryPart(xml: string, report: DocxPathologyReport) {
+function scanStoryPart(
+  xml: string,
+  path: string,
+  report: DocxPathologyReport,
+) {
   report.auto_numbering.referenced_paragraphs += countElements(xml, "w:numPr");
   report.tracked_changes.insertions += countElements(xml, "w:ins");
   report.tracked_changes.deletions += countElements(xml, "w:del");
@@ -182,6 +369,13 @@ function scanStoryPart(xml: string, report: DocxPathologyReport) {
     report.text_boxes.count += 1;
     report.text_boxes.characters += literalText(match[1]).length;
   }
+
+  // Text plane, over the same fallback-free markup so a text box does not
+  // count its characters twice. Field codes and deleted runs are not w:t.
+  const text = storyText(chosen);
+  scanTraps(text, report.unicode_traps, (trap, at) => {
+    addTrapSample(report.unicode_traps, trap, text, at, path);
+  });
 
   report.tables.count += countElements(xml, "w:tbl");
   for (const match of elementBlocks(xml, "w:tcPr")) {
@@ -318,6 +512,42 @@ function deriveNotes(
       `${plural(report.footnotes.count, "footnote", "footnotes")} and ${plural(report.endnotes.count, "endnote", "endnotes")} sit outside the body flow.`,
     );
   }
+  const traps = report.unicode_traps;
+  const carried: string[] = [];
+  if (traps.bidi_controls) {
+    carried.push(plural(traps.bidi_controls, "bidi control", "bidi controls"));
+  }
+  if (traps.zero_width) {
+    carried.push(
+      plural(traps.zero_width, "zero-width character", "zero-width characters"),
+    );
+  }
+  if (traps.homoglyph_suspects) {
+    carried.push(
+      plural(traps.homoglyph_suspects, "confusable word", "confusable words"),
+    );
+  }
+  if (traps.private_use) {
+    carried.push(
+      plural(traps.private_use, "private-use character", "private-use characters"),
+    );
+  }
+  if (traps.control_chars) {
+    carried.push(
+      plural(traps.control_chars, "control character", "control characters"),
+    );
+  }
+  if (traps.invisible_math) {
+    carried.push(
+      plural(traps.invisible_math, "invisible operator", "invisible operators"),
+    );
+  }
+  if (carried.length) {
+    // Routing, not accusation: the text may not read as it renders.
+    notes.push(
+      `Document text carries invisible or confusable Unicode (${carried.join(", ")}); treat quoted matches cautiously and prefer verbatim offsets.`,
+    );
+  }
   return notes;
 }
 
@@ -360,10 +590,10 @@ export async function scanDocxPathology(
     const headerFooterPaths = paths.filter((path) =>
       /^word\/(?:header|footer)\d*\.xml$/iu.test(path),
     );
-    scanStoryPart(await read("word/document.xml"), report);
+    scanStoryPart(await read("word/document.xml"), "word/document.xml", report);
     for (const path of headerFooterPaths) {
       const xml = await read(path);
-      scanStoryPart(xml, report);
+      scanStoryPart(xml, path, report);
       // A page-number-only footer is field codes, not dropped text.
       if (literalText(xml).trim()) report.header_footer_literal_text = true;
     }
@@ -375,7 +605,7 @@ export async function scanDocxPathology(
       if (!zip.file(path)) continue;
       const xml = await read(path);
       report[`${tag}s`].count = countNotes(xml, tag);
-      scanStoryPart(xml, report);
+      scanStoryPart(xml, path, report);
     }
 
     if (zip.file("word/comments.xml")) {
