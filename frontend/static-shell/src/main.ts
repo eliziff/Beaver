@@ -36,7 +36,7 @@ function assistant() {
 }
 
 function library() {
-  const rows = state.library?.documents.map((doc) => `<li><strong>${escape(doc.filename || "Untitled document")}</strong><span>${escape(doc.file_type || "File")}</span></li>`).join("") || "";
+  const rows = state.library?.documents.map((doc) => `<li><strong>${escape(doc.filename || "Untitled document")}</strong><span>${escape(doc.file_type || "File")}</span><a class="view-link" href="${escape(api.documentHref(doc.id, doc.current_version_id))}" target="_blank" rel="noreferrer">View</a></li>`).join("") || "";
   return shell(`<section class="workspace"><div class="section-heading"><h1>Library</h1><label class="primary">Upload<input id="upload" type="file" /></label></div><section class="panel list" aria-live="polite">${state.library ? rows || `<p class="empty">No files yet.</p>` : `<p class="empty">Loading files…</p>`}</section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
 }
 
