@@ -39,7 +39,6 @@ export default function TabularReviewsPage() {
         null,
     );
     const [activeScope, setActiveScope] = useState<ReviewScope>("all");
-    const [projectFilter, setProjectFilter] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
@@ -67,15 +66,10 @@ export default function TabularReviewsPage() {
                 })
                 .filter(
                     (review) =>
-                        !projectFilter ||
-                        review.project_id === projectFilter,
-                )
-                .filter(
-                    (review) =>
                         !query ||
                         (review.title ?? "").toLowerCase().includes(query),
                 ),
-        [activeScope, projectFilter, query, reviews],
+        [activeScope, query, reviews],
     );
     async function handleNewReview(
         title: string,
@@ -161,10 +155,6 @@ export default function TabularReviewsPage() {
             current.filter((candidate) => candidate.id !== review.id),
         );
     }
-    function handleProjectFilterChange(value: string | null) {
-        setProjectFilter(value);
-        setSelectedIds([]);
-    }
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
             {selectedIds.length > 0 && (
@@ -224,8 +214,6 @@ export default function TabularReviewsPage() {
                 setSelectedReviewIds={setSelectedIds}
                 creatingReview={creating}
                 projects={projects}
-                projectFilter={projectFilter}
-                onProjectFilterChange={handleProjectFilterChange}
                 reviewHref={(review) =>
                     review.project_id
                         ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
