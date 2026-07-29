@@ -8,9 +8,11 @@ type State = { route: Route; chats: Chat[]; library: LibraryCollection | null; p
 const root = document.querySelector<HTMLDivElement>("#root")!;
 const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
 
-function routeFromPath(): Route { const route = location.pathname.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
+const shellBase = import.meta.env.BASE_URL.replace(/\/$/u, "");
+const shellPath = (route: string) => `${shellBase}/${route}`;
+function routeFromPath(): Route { const path = shellBase && location.pathname.startsWith(`${shellBase}/`) ? location.pathname.slice(shellBase.length) : location.pathname; const route = path.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
 function escape(value: unknown) { return String(value ?? "").replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
-function navigate(route: Route) { history.pushState({}, "", route === "authorities" ? "/authorities" : `/${route}`); state.route = route; state.error = ""; render(); void loadRoute(); }
+function navigate(route: Route) { history.pushState({}, "", shellPath(route)); state.route = route; state.error = ""; render(); void loadRoute(); }
 function text(event: StreamEvent) { return event.type === "error" ? event.message || "Request failed" : event.text || ""; }
 function messageText(value: unknown): string {
   if (typeof value === "string") return value;
@@ -23,7 +25,7 @@ function messageText(value: unknown): string {
 }
 
 function shell(content: string) {
-  return `<header class="topbar"><a class="brand" href="/assistant">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><button data-route="authorities" class="nav ${state.route === "authorities" ? "active" : ""}">Authorities</button><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
+  return `<header class="topbar"><a class="brand" href="${shellPath("assistant")}">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><button data-route="authorities" class="nav ${state.route === "authorities" ? "active" : ""}">Authorities</button><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
 }
 
 function assistant() {
