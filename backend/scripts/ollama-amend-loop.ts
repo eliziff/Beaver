@@ -213,38 +213,52 @@ async function listModels(): Promise<string[]> {
 
 async function callModel(model: string, testCase: Case) {
   const started = Date.now();
-  const response = await fetch(`${URL_BASE}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      format: SCHEMA,
-      options: { temperature: 0.2, num_ctx: 8192 },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content:
-            `CURRENT TEXT:\n${testCase.pre}\n\nAMENDING INSTRUCTION:\n` +
-            `${testCase.instruction}\n\nOutput the ops JSON.`,
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const body = (await response.json()) as {
-    message?: { content?: string };
-    prompt_eval_count?: number;
-    eval_count?: number;
+  const request = {
+    model,
+    stream: false,
+    format: SCHEMA,
+    // Thinking stays on (user directive: measure the models with their
+    // reasoning intact); structured `format` constrains the content channel.
+    options: { temperature: 0.2, num_ctx: 8192 },
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content:
+          `CURRENT TEXT:\n${testCase.pre}\n\nAMENDING INSTRUCTION:\n` +
+          `${testCase.instruction}\n\nOutput the ops JSON.`,
+      },
+    ],
   };
-  return {
-    content: body.message?.content ?? "",
-    latencyMs: Date.now() - started,
-    promptEval: body.prompt_eval_count ?? null,
-    evalCount: body.eval_count ?? null,
-  };
+  // The tailscale-serve TCP path drops idle-reused connections and the
+  // route can flap for a beat (ECONNRESET / ENETUNREACH) — retry those.
+  let lastNetworkError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 3000 * attempt));
+    try {
+      const response = await fetch(`${URL_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = (await response.json()) as {
+        message?: { content?: string };
+        prompt_eval_count?: number;
+        eval_count?: number;
+      };
+      return {
+        content: body.message?.content ?? "",
+        latencyMs: Date.now() - started,
+        promptEval: body.prompt_eval_count ?? null,
+        evalCount: body.eval_count ?? null,
+      };
+    } catch (error) {
+      lastNetworkError = error;
+    }
+  }
+  throw lastNetworkError;
 }
 
 export function judge(
@@ -307,11 +321,12 @@ async function main() {
               `${JSON.stringify({ ...attempt, raw: call.content.slice(0, 4000) })}\n`,
             );
         } catch (error) {
+          const cause = (error as { cause?: unknown })?.cause;
           attempt = {
             model,
             case_id: testCase.id,
             sample,
-            outcome: `call_error:${String(error).slice(0, 80)}`,
+            outcome: `call_error:${String(cause ?? error).slice(0, 120)}`,
             op_kinds: [],
             latency_ms: 0,
             prompt_eval_count: null,
