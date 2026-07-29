@@ -1,10 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import {    ChevronDown,
-    Loader2,
-    Plus,
-    RefreshCw,
-} from "lucide-react";
+import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import {
     McpConnectorFields,
@@ -969,7 +965,6 @@ function ScrollableToolList({
     ) => Promise<void>;
     fill?: boolean;
 }) {
-    const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
     if (connector.tools.length === 0) {
         return (
             <div
@@ -993,29 +988,11 @@ function ScrollableToolList({
                         !onToolEnabled ||
                         busyKey === `tool:${tool.id}` ||
                         tool.requiresConfirmation;
-                    const isExpanded = expandedToolId === tool.id;
                     const toolLabel = tool.title || tool.toolName;
                     return (
                         <div key={tool.id} className="px-3 py-2">
                             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setExpandedToolId(
-                                            isExpanded ? null : tool.id,
-                                        )
-                                    }
-                                    className="inline-flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-800"
-                                    aria-label={`${
-                                        isExpanded ? "Collapse" : "Expand"
-                                    } ${toolLabel}`}
-                                >
-                                    <ChevronDown
-                                        className={`h-3.5 w-3.5 ${
-                                            isExpanded ? "" : "-rotate-90"
-                                        }`}
-                                    />
-                                </button>
+                                <span className="h-5 w-5" />
                                 <p className="min-w-0 truncate text-sm font-medium text-gray-800">
                                     {toolLabel}
                                 </p>
@@ -1044,23 +1021,6 @@ function ScrollableToolList({
                                     </span>
                                 )}
                             </div>
-                            {isExpanded && (
-                                <div className="ml-7 mt-2 min-w-0">
-                                    {tool.requiresConfirmation && (
-                                        <p className="text-xs font-medium text-amber-700">
-                                            Confirmation required
-                                        </p>
-                                    )}
-                                    {tool.description && (
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {tool.description}
-                                        </p>
-                                    )}
-                                    <p className="mt-1 overflow-x-auto whitespace-nowrap font-mono text-[11px] text-gray-400">
-                                        {tool.openaiToolName}
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     );
                 })}
