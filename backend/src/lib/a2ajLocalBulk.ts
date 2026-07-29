@@ -1,8 +1,10 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
-import { legalProviderDatabase } from "./legalDataPath";
+import {
+  legalProviderDatabase,
+  withReadonlySqlite,
+} from "./legalDataPath";
 import type { SourceDoc } from "./sourceDoc";
 import {
   compileA2AJSourceDoc,
@@ -22,16 +24,7 @@ function a2ajLocalBulkPath() {
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  const databasePath = a2ajLocalBulkPath();
-  if (!existsSync(databasePath)) return null;
-  const { DatabaseSync } =
-    require("node:sqlite") as typeof import("node:sqlite");
-  const database = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    return operation(database);
-  } finally {
-    database.close();
-  }
+  return withReadonlySqlite(a2ajLocalBulkPath(), operation);
 }
 
 function string(row: Row, field: string) {

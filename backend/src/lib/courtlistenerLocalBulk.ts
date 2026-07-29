@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { legalProviderDatabase } from "./legalDataPath";
+import {
+  legalProviderDatabase,
+  withReadonlySqlite,
+} from "./legalDataPath";
 
 export type LocalCourtlistenerCluster = {
   id: number;
@@ -57,16 +60,7 @@ export function courtlistenerLocalBulkAvailable() {
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
-  const databasePath = courtlistenerLocalBulkPath();
-  if (!existsSync(databasePath)) return null;
-  const { DatabaseSync } =
-    require("node:sqlite") as typeof import("node:sqlite");
-  const database = new DatabaseSync(databasePath, { readOnly: true });
-  try {
-    return operation(database);
-  } finally {
-    database.close();
-  }
+  return withReadonlySqlite(courtlistenerLocalBulkPath(), operation);
 }
 
 function nullableString(value: unknown) {
