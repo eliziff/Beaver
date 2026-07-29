@@ -3,7 +3,7 @@
 > **Suggested repository path:** `docs/beaver-evaluation-context-plan.md`  
 > **Status:** implementation plan, not a request to implement everything in one change  
 > **Last verified:** 2026-07-27  
-> **Repository:** `eliziff/Beaver` / Mike-Canada
+> **Repository:** Beaver / Mike-Canada
 
 ## Operating instruction for the coding agent
 
@@ -893,10 +893,10 @@ Recheck provider documentation immediately before implementation because API beh
 
 ### Beaver
 
-- [Beaver repository](https://github.com/eliziff/Beaver)
-- [Beaver agent guide](https://github.com/eliziff/Beaver/blob/main/AGENTS.md)
-- [Existing benchmark directory](https://github.com/eliziff/Beaver/tree/main/benchmarks)
-- [Existing context-compaction experiments](https://github.com/eliziff/Beaver/tree/main/experiments)
+- [Beaver repository](https://github.com/Open-Legal-Products/mike)
+- [Beaver agent guide](../AGENTS.md)
+- [Existing benchmark directory](../benchmarks)
+- [Existing context-compaction experiments](../experiments)
 
 ### Benchmarks
 

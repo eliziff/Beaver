@@ -11,7 +11,7 @@ SHA-256 hashes in `../lab/corpus-split.json`, policy in
 upstream; restore via git and verify against the manifest before any
 sealed evaluation. Git history was stripped at vendoring; the
 integration commits are additionally preserved in
-`C:/Users/elias/Desktop/harvey-beaver-patches.bundle`. `results/` are
+`<local-harness-root>/harvey-beaver-patches.bundle`. `results/` are
 Beaver-side run artifacts, not upstream content. `.venv/` is local and
 untracked — recreate with `python -m venv .venv` plus
 `pip install anthropic openai`.

@@ -6,7 +6,7 @@
  * arms run the identical list.
  *
  *   npx tsx scripts/lab-select-tasks.ts [--n 12] [--seed lab-pilot-1]
- *     [--lab-root C:/Users/elias/Desktop/harvey-labs]
+ *     [--lab-root <lab-root>]
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -17,7 +17,7 @@ function argument(name: string, fallback: string): string {
   return index >= 0 ? (process.argv[index + 1] ?? fallback) : fallback;
 }
 
-const labRoot = argument("lab-root", "C:/Users/elias/Desktop/harvey-labs");
+const labRoot = argument("lab-root", process.env.LAB_ROOT || "");
 const n = Number(argument("n", "12"));
 const seed = argument("seed", "lab-pilot-1");
 

@@ -73,7 +73,7 @@ for anything OOXML.
 
 ## 3. What was downloaded
 
-Root: `C:\Users\elias\Desktop\legal-generalization-corpus\gold\`
+Root: `<corpus-root>/gold/`
 Total on disk: **70.7 MB / 83 files.** Every dataset has a `provenance.json`
 with `source_url`, `accessed_utc`, `license`, `sha256_of_archive`,
 `what_ground_truth`, per-file `sha256`, and a leakage warning.
@@ -114,9 +114,9 @@ tiny, but its spans are hypothesis-evidence, not typed anchors).
 
 ### CUAD v1, date/duration + money categories
 
-**File:** `C:\Users\elias\Desktop\legal-generalization-corpus\gold\cuad-v1\CUAD_v1.json`
+**File:** `<corpus-root>/gold/cuad-v1/CUAD_v1.json`
 (sha256 `ed0b77d85bdf4014d7495800e8e4a70565b48ee6f8a2e5dca9cf8655dbf10eae`)
-**Category glossary:** `C:\Users\elias\Desktop\legal-generalization-corpus\gold\cuad-v1\CUAD_v1_README.txt`
+**Category glossary:** `<corpus-root>/gold/cuad-v1/CUAD_v1_README.txt`
 
 **Why this one.** It is the only public corpus where an attorney marked, at
 character precision, *where in a real contract* the effective date, expiration
@@ -159,7 +159,7 @@ into that contract's `context`. Exactly one `paragraphs` entry per contract
    `qas` must be hit independently.
 4. **Secondary — char precision/recall.** Reuse `charPrecisionRecall` and the
    `Span = {filePath, start, end}` type already implemented at
-   `C:\Users\elias\Desktop\MikeOSS Fork\backend\src\lib\legalbenchRag.ts`
+   `backend/src/lib/legalbenchRag.ts`
    (lines ~207-231). Same span algebra, already unit-tested, so the scorer is
    not new code — satisfying the vetting doc's "freeze and independently test
    the mechanical scorer" rule.
@@ -180,7 +180,7 @@ into that contract's `context`. Exactly one `paragraphs` entry per contract
    split by row: 41 rows share one contract.
 
 **Duration-normalization companion (same recommendation, second file):**
-`C:\Users\elias\Desktop\legal-generalization-corpus\gold\maud-v1\MAUD_test.csv`,
+`<corpus-root>/gold/maud-v1/MAUD_test.csv`,
 rows where `question` is one of
 `Initial matching rights period (COR)-Answer`,
 `Initial matching rights period (FTR)-Answer`,
@@ -201,9 +201,9 @@ contains almost no statutory citations.
 
 ### GPO USLM public-law XML
 
-**Files:** `C:\Users\elias\Desktop\legal-generalization-corpus\gold\us-public-laws-uslm\xml\PLAW-119publ*.xml`
+**Files:** `<corpus-root>/gold/us-public-laws-uslm/xml/PLAW-119publ*.xml`
 (79 files, 9,959,471 B; per-file sha256 in
-`C:\Users\elias\Desktop\legal-generalization-corpus\gold\us-public-laws-uslm\files_manifest.tsv`;
+`<corpus-root>/gold/us-public-laws-uslm/files_manifest.tsv`;
 manifest digest `b4c3c3c6b8525157b32735a08f1e6c2fd545ba6a26bd98cada7b0f4c776e0534`)
 
 **Why this one.** It is the only public corpus that gives a *publisher-produced*

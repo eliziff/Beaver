@@ -6,7 +6,7 @@ import type {
   StreamChatResult,
 } from "./types";
 
-const DEFAULT_BASE_URL = "http://192.168.1.64:11434";
+const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
 const CALL_TIMEOUT_MS = 900_000;
 const ollamaBaseUrl = () =>
   (process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/u, "");

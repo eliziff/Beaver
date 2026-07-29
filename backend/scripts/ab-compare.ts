@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const LAB_ROOT = "C:/Users/elias/Desktop/harvey-labs";
+const LAB_ROOT = process.env.LAB_ROOT || "";
 
 type Metrics = {
   input_tokens?: number;

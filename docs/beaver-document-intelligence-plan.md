@@ -246,7 +246,7 @@ must continue working when it has not been built.
 Use the complete ordered manual-gold bundle on `oajd-desktop`:
 
 ```text
-C:\Users\elias\Desktop\Open Access Journals Database\Text-Fidelity-Project\
+`TEXT_FIDELITY_PROJECT_ROOT` (local checkout)
 output\multimodal_llm\manual_gold_bundles\
 train1_12_full_manual_gold_ordered_db_reading_order_20260629_01
 ```

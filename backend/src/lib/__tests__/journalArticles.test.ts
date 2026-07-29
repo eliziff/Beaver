@@ -500,7 +500,7 @@ describe("local journal articles", () => {
 
 const realDatabase =
   process.env.MIKE_PUBLIC_ENDPOINT_DB ||
-  "C:\\Users\\elias\\Desktop\\Martys Qote Verifier\\ALR-Quote-Verifier\\data\\public_endpoint.db";
+  "";
 
 it.runIf(existsSync(realDatabase))(
   "reads a real public_endpoint.db article and native page map",

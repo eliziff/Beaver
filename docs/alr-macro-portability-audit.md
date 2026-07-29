@@ -4,7 +4,7 @@ Status: static, read-only audit completed 2026-07-26. No macro was executed and
 no production code was changed.
 
 Source:
-`C:\Users\elias\Downloads\Typeset\ALR Macro [July 22 2026].dotm`
+the local ALR Macro template (`ALR_MACRO_TEMPLATE`)
 
 SHA-256:
 `683A931DADC4358A5E3494C7DCA0501090C07B96093A7306B01962A0AEE7AA1C`

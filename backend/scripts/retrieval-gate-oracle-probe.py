@@ -22,6 +22,7 @@ Usage:
       [--out src/lib/__tests__/fixtures/retrieval_gate/citation-key-oracle.json]
 """
 from __future__ import annotations
+import os
 
 import argparse
 import json
@@ -30,7 +31,7 @@ from datetime import date
 from pathlib import Path
 
 VERIFIER_ROOT = Path(
-    r"C:\Users\elias\Desktop\Martys Qote Verifier\ALR-Quote-Verifier"
+    os.environ.get("ALR_QUOTE_VERIFIER_ROOT", "")
 )
 sys.path.insert(0, str(VERIFIER_ROOT))
 

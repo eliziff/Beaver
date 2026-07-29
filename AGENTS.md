@@ -128,7 +128,7 @@ to improve a build number.
   `PYTHONIOENCODING=utf-8` for cp1252 consoles; python can't open
   `/c/...` paths (use `C:/...`).
 - Git: pathspec-only staging (never `git add -A`; concurrent sessions
-  share this tree). Pushing as eliziff requires `env -u GITHUB_TOKEN`
+  share this tree). Clear credentials before pushing.
   (the env PAT is AlbertaLawReview and 403s).
 - npm `.CMD` shims (e.g. `claude.CMD`) re-parse argv through cmd.exe:
   multi-line or quote-bearing args silently break (empty stdout). Keep

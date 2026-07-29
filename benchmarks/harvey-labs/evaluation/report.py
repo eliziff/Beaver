@@ -15,6 +15,9 @@ from utils.stdio import force_utf8_stdio
 BENCH_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = BENCH_ROOT / "results"
 
+# Python 3.11 forbids backslash escapes inside f-string expressions.
+EM_DASH = "—"
+
 
 def generate_report(run_id: str) -> Path:
     run_dir = RESULTS_DIR / run_id
@@ -108,7 +111,7 @@ def generate_report(run_id: str) -> Path:
 <div class="stats">
   <div class="stat"><div class="value">{scores['score']:.2f}</div><div class="label">Score</div></div>
   <div class="stat"><div class="value">{passed}/{total}</div><div class="label">Criteria Passed</div></div>
-  <div class="stat"><div class="value">{cov.get('documents_read', '\u2014')}/{cov.get('total_documents', '\u2014')}</div><div class="label">Doc Coverage</div></div>
+  <div class="stat"><div class="value">{cov.get('documents_read', EM_DASH)}/{cov.get('total_documents', EM_DASH)}</div><div class="label">Doc Coverage</div></div>
   <div class="stat">
     <div class="value">
       <span class="badge {'badge-allpass' if all_pass else 'badge-missed-any'}">{'ALL PASS' if all_pass else f'MISSED {total - passed}'}</span>

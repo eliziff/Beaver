@@ -46,7 +46,7 @@ function argument(name: string, fallback?: string): string {
   return value;
 }
 
-const DEFAULT_LAB_ROOT = "C:/Users/elias/Desktop/harvey-labs";
+const DEFAULT_LAB_ROOT = process.env.LAB_ROOT || "";
 // Arm A's six workspace tools plus TodoWrite (planning-only). Granting these
 // explicitly — rather than skipping permissions wholesale — keeps the nested
 // agent scoped to the same inventory the LAB reference harness exposes.
