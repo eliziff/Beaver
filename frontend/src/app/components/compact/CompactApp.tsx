@@ -2,7 +2,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AssistantMessage } from "@/app/components/assistant/AssistantMessage";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -122,11 +121,11 @@ export function CompactApp() {
                                                 key={message.id ?? index}
                                                 className="max-w-[90%] text-sm leading-6"
                                             >
-                                                <AssistantMessage
-                                                    events={message.events}
-                                                    citations={message.citations}
-                                                    isStreaming={isResponseLoading && index === messages.length - 1}
-                                                />
+                                                {message.events?.map((event, eventIndex) => (
+                                                    <p key={eventIndex} className="text-xs text-gray-600">
+                                                        {eventText(event)}
+                                                    </p>
+                                                ))}
                                                 {message.content && <p>{message.content}</p>}
                                             </div>
                                         ),
@@ -211,3 +210,14 @@ const TAB = "rounded-md px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-100";
 const ACTIVE_TAB = `${TAB} bg-red-50 font-medium text-red-800`;
 const SEND = "inline-flex h-10 items-center justify-center rounded-md border border-gray-950 bg-gray-950 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40";
 const STOP = "inline-flex h-10 items-center justify-center rounded-md border border-red-700 px-4 text-sm font-medium text-red-800 hover:bg-red-50";
+
+function eventText(event: NonNullable<Message["events"]>[number]) {
+    if (event.type === "reasoning") return event.text;
+    if (event.type === "error") return event.message;
+    if (event.type === "tool_call_start") return `Using ${event.name}`;
+    if (event.type === "thinking") return "Working…";
+    if (event.type === "doc_read") return `Read ${event.filename}`;
+    if (event.type === "doc_created") return `Created ${event.filename}`;
+    if (event.type === "doc_edited") return `Edited ${event.filename}`;
+    return event.type.replaceAll("_", " ");
+}
