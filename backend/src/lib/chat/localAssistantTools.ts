@@ -90,6 +90,10 @@ import {
   renderMarkdownDocx,
   textParserFor,
 } from "./tools/documentOps";
+import {
+  docxCautionNotes,
+  docxPathologyReportFor,
+} from "./tools/docxPathologyNotes";
 import { TEXT_OPS_TOOLS, TOOLS, WORKFLOW_TOOLS } from "./tools/toolSchemas";
 import {
   runLocalCourtlistenerTool,
@@ -1368,7 +1372,7 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-const textCache = new Map<string, string>();
+const textCache = new Map<string, { text: string; cautions: string[] }>();
 
 export async function extractLocalDocument(userId: string, documentId: string) {
   const file = await getLocalVersionFile(userId, documentId);
@@ -1376,7 +1380,7 @@ export async function extractLocalDocument(userId: string, documentId: string) {
   const cacheKey = `${documentId}:${file.version.id}:${file.version.created_at}`;
   const cached = textCache.get(cacheKey);
   if (cached !== undefined) {
-    return { filename: file.document.filename, text: cached };
+    return { filename: file.document.filename, ...cached };
   }
 
   const bytes = await readFile(file.path);
@@ -1391,12 +1395,17 @@ export async function extractLocalDocument(userId: string, documentId: string) {
         parse: () => parser.run(bytes),
       })
     : "";
+  // Additive metadata only: the sniffer's cautions ride alongside the text,
+  // which stays byte-identical to what this function has always returned.
+  const cautions = docxCautionNotes(
+    await docxPathologyReportFor({ fileType, scope: `user:${userId}`, bytes }),
+  );
 
   if (textCache.size >= 16) {
     textCache.delete(textCache.keys().next().value!);
   }
-  textCache.set(cacheKey, text);
-  return { filename: file.document.filename, text };
+  textCache.set(cacheKey, { text, cautions });
+  return { filename: file.document.filename, text, cautions };
 }
 
 async function extractLocalDraftingDocument(
@@ -2248,6 +2257,9 @@ export async function runLocalAssistantTools(
             return result(call, {
               ok: true,
               filename: document.filename,
+              ...(document.cautions.length
+                ? { notes_of_caution: document.cautions }
+                : {}),
               section: lookup.block.label,
               parent: lookup.block.parentLabel,
               text: lookup.block.text.slice(0, maxChars),
@@ -2278,6 +2290,9 @@ export async function runLocalAssistantTools(
           return result(call, {
             ok: true,
             filename: document.filename,
+            ...(document.cautions.length
+              ? { notes_of_caution: document.cautions }
+              : {}),
             ...(offset > 0 ? { offset } : {}),
             text: window,
             truncated: windowCut,
@@ -2318,6 +2333,9 @@ export async function runLocalAssistantTools(
         return result(call, {
           ok: true,
           filename: document.filename,
+          ...(document.cautions.length
+            ? { notes_of_caution: document.cautions }
+            : {}),
           query,
           totalMatches: matches.totalMatches,
           hits,
@@ -2333,6 +2351,9 @@ export async function runLocalAssistantTools(
           return result(call, {
             ok: true,
             filename: document.filename,
+            ...(document.cautions.length
+              ? { notes_of_caution: document.cautions }
+              : {}),
             nodes: 0,
             outline:
               "No numbered structure detected; use library_read or library_find.",
@@ -2341,6 +2362,9 @@ export async function runLocalAssistantTools(
         return result(call, {
           ok: true,
           filename: document.filename,
+          ...(document.cautions.length
+            ? { notes_of_caution: document.cautions }
+            : {}),
           nodes: skeleton.nodes.length,
           outline: renderAgreementOutline(skeleton, {
             maxChars: clampInt(args.max_chars, 1_000, 40_000, 8_000),

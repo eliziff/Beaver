@@ -28,6 +28,11 @@ import { extractDocxDraftingSource } from "../../docxDraftingSource";
 import { extractEmailText } from "../../emailText";
 import { cachedParse } from "../../parseCache";
 import {
+  docxCautionNotes,
+  docxNotesBlock,
+  docxPathologyReportFor,
+} from "./docxPathologyNotes";
+import {
   normalizeDocxControlTag,
   renderDocxMarkdown,
 } from "./docxMarkdown";
@@ -1124,7 +1129,16 @@ export async function readDocumentContent(
   emit: (payload: unknown) => void,
   docIndex?: DocIndex,
   db?: ReturnType<typeof createServerSupabase>,
-  opts?: { emitEvents?: boolean; mode?: "text" | "drafting" },
+  opts?: {
+    emitEvents?: boolean;
+    mode?: "text" | "drafting";
+    /**
+     * Text mode prefixes the pathology sniffer's cautions as a labeled
+     * block. Callers that consume the return value as a search corpus
+     * (find_in_document) pass false so offsets anchor into pure text.
+     */
+    includeNotes?: boolean;
+  },
 ): Promise<string> {
   const emitEvents = opts?.emitEvents ?? true;
   const mode = opts?.mode ?? "text";
@@ -1212,16 +1226,27 @@ export async function readDocumentContent(
       run: mammothRawText,
     };
     const bytes = Buffer.from(raw);
+    // Scoped to the owning document so matter content never crosses scopes.
+    const scope = `doc:${documentId ?? docInfo.storage_path}`;
     const text = await cachedParse({
-      // Scoped to the owning document so matter content never crosses scopes.
-      scope: `doc:${documentId ?? docInfo.storage_path}`,
+      scope,
       parser: parser.parser,
       version: parser.version,
       bytes,
       parse: () => parser.run(bytes),
     });
+    // Additive metadata only: the extracted text stays byte-identical and
+    // the sniffer's cautions announce themselves ahead of it.
+    const cautions =
+      opts?.includeNotes === false
+        ? []
+        : docxCautionNotes(
+            await docxPathologyReportFor({ fileType, scope, bytes }),
+          );
     emitDocRead();
-    return text;
+    return cautions.length
+      ? `${docxNotesBlock(docInfo.filename, cautions)}\n\n${text}`
+      : text;
   } catch (err) {
     devLog(`[read_document] failed for "${docInfo.filename}":`, err);
     if (emitEvents)
@@ -1429,7 +1454,9 @@ export async function findInDocumentContent(params: {
     emit,
     docIndex,
     db,
-    { emitEvents: false },
+    // Pure text: hit offsets must anchor into the parse output, not a
+    // notes block.
+    { emitEvents: false, includeNotes: false },
   );
   if (!text || text === "Document could not be read.") {
     emit({
