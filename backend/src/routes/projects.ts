@@ -20,7 +20,7 @@ import {
   createLocalDocument,
   deleteLocalDocument,
   listLocalDocumentsById,
-  renameLocalDocument,
+  updateLocalDocument,
   type LocalLibraryKind,
 } from "../lib/localDocumentStore";
 import {
@@ -65,6 +65,8 @@ async function localMatterResponse(
     name: matter.name,
     cm_number: matter.cm_number,
     practice: matter.practice,
+    metadata: matter.metadata,
+    notes: matter.notes,
     shared_with: [],
     created_at: matter.created_at,
     updated_at: matter.updated_at,
@@ -247,14 +249,17 @@ projectsRouter.post("/", async (req, res) => {
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? (req.body as Record<string, unknown>)
       : {};
-  const { name, cm_number, practice, shared_with } = body;
+  const { name, cm_number, practice, shared_with, metadata, notes } = body;
   if (isAnonymousLocalMode()) {
     if (typeof name !== "string" || !name.trim()) {
       return void res.status(400).json({ detail: "name is required" });
     }
     if (
       (cm_number != null && typeof cm_number !== "string") ||
-      (practice != null && typeof practice !== "string")
+      (practice != null && typeof practice !== "string") ||
+      (metadata != null &&
+        (typeof metadata !== "object" || Array.isArray(metadata))) ||
+      (notes != null && typeof notes !== "string")
     ) {
       return void res
         .status(400)
@@ -265,6 +270,8 @@ projectsRouter.post("/", async (req, res) => {
         name,
         cmNumber: cm_number,
         practice,
+        metadata,
+        notes,
       });
       res.status(201).json({
         ...(await localMatterResponse(userId, matter, true)),
@@ -443,6 +450,12 @@ projectsRouter.patch("/:projectId", async (req, res) => {
           cmNumber: req.body.cm_number,
           practice: Object.hasOwn(req.body ?? {}, "practice")
             ? req.body.practice
+            : undefined,
+          metadata: Object.hasOwn(req.body ?? {}, "metadata")
+            ? req.body.metadata
+            : undefined,
+          notes: Object.hasOwn(req.body ?? {}, "notes")
+            ? req.body.notes
             : undefined,
         },
       );
@@ -823,12 +836,12 @@ projectsRouter.patch("/:projectId/documents/:documentId", async (req, res) => {
     );
     if (!filename)
       return void res.status(400).json({ detail: "filename is required" });
-    const updated = await renameLocalDocument(
+    const updated = await updateLocalDocument({
       userId,
-      current.library_kind as LocalLibraryKind,
+      kind: current.library_kind as LocalLibraryKind,
       documentId,
       filename,
-    );
+    });
     if (!updated)
       return void res.status(404).json({ detail: "Document not found" });
     res.json({ ...updated, project_id: projectId, folder_id: null });

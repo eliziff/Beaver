@@ -30,9 +30,18 @@ export type LocalMatter = {
   name: string;
   cm_number: string | null;
   practice: string | null;
+  metadata: LocalMatterMetadata;
+  notes: string | null;
   created_at: string;
   updated_at: string;
   order: number;
+};
+
+export type LocalMatterMetadata = {
+  jurisdiction: string | null;
+  areas_of_law: string[];
+  document_types: string[];
+  description: string | null;
 };
 
 export type LegalKnowledgeEdge = {
@@ -123,6 +132,42 @@ function optionalMatterText(value: string | null | undefined, maximum: number) {
   if (value === null || value === undefined) return null;
   const normalized = value.trim();
   return normalized ? normalized.slice(0, maximum) : null;
+}
+
+function cleanMatterMetadata(value: unknown): LocalMatterMetadata {
+  const source =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const text = (input: unknown, maximum: number) =>
+    typeof input === "string" && input.trim()
+      ? input.trim().slice(0, maximum)
+      : null;
+  const list = (input: unknown) =>
+    Array.isArray(input)
+      ? [
+          ...new Set(
+            input
+              .filter((item): item is string => typeof item === "string")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          ),
+        ].slice(0, 20)
+      : [];
+  return {
+    jurisdiction: text(source.jurisdiction, 160),
+    areas_of_law: list(source.areas_of_law),
+    document_types: list(source.document_types),
+    description: text(source.description, 500),
+  };
+}
+
+function parseMatterMetadata(value: string | null | undefined) {
+  try {
+    return cleanMatterMetadata(value ? JSON.parse(value) : null);
+  } catch {
+    return cleanMatterMetadata(null);
+  }
 }
 
 function kind(value: string, name: string) {
@@ -294,6 +339,8 @@ export class LegalKnowledgeGraphStore {
         project_id TEXT NOT NULL,
         cm_number TEXT,
         practice TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        notes TEXT,
         PRIMARY KEY (user_id, project_id),
         FOREIGN KEY (user_id, project_id)
           REFERENCES legal_knowledge_projects(user_id, id)
@@ -313,7 +360,25 @@ export class LegalKnowledgeGraphStore {
       CREATE INDEX IF NOT EXISTS mike_matter_documents_scope
         ON mike_matter_documents(user_id, project_id, sort_order, created_at);
     `);
+    this.migrateMatterMetadata();
     this.migrateSourceMarks();
+  }
+
+  private migrateMatterMetadata() {
+    const columns = this.database
+      .prepare("PRAGMA table_info(mike_matter_metadata)")
+      .all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has("metadata_json")) {
+      this.database.exec(
+        "ALTER TABLE mike_matter_metadata ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'",
+      );
+    }
+    if (!names.has("notes")) {
+      this.database.exec(
+        "ALTER TABLE mike_matter_metadata ADD COLUMN notes TEXT",
+      );
+    }
   }
 
   close() {
@@ -439,7 +504,8 @@ export class LegalKnowledgeGraphStore {
         .prepare(
           `SELECT project.id, project.name, project.sort_order,
                   project.created_at, project.updated_at,
-                  metadata.cm_number, metadata.practice
+                  metadata.cm_number, metadata.practice,
+                  metadata.metadata_json, metadata.notes
            FROM legal_knowledge_projects AS project
            LEFT JOIN mike_matter_metadata AS metadata
              ON metadata.user_id = project.user_id
@@ -455,12 +521,16 @@ export class LegalKnowledgeGraphStore {
         updated_at: string;
         cm_number: string | null;
         practice: string | null;
+        metadata_json: string | null;
+        notes: string | null;
       }[]
     ).map((row) => ({
       id: row.id,
       name: row.name,
       cm_number: row.cm_number,
       practice: row.practice,
+      metadata: parseMatterMetadata(row.metadata_json),
+      notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
       order: row.sort_order,
@@ -475,7 +545,13 @@ export class LegalKnowledgeGraphStore {
 
   createMatter(
     userId: string,
-    input: { name: string; cmNumber?: string | null; practice?: string | null },
+    input: {
+      name: string;
+      cmNumber?: string | null;
+      practice?: string | null;
+      metadata?: unknown;
+      notes?: string | null;
+    },
   ) {
     const user = requiredText(userId, "user_id", 200);
     const id = crypto.randomUUID();
@@ -499,14 +575,16 @@ export class LegalKnowledgeGraphStore {
       this.database
         .prepare(
           `INSERT INTO mike_matter_metadata
-            (user_id, project_id, cm_number, practice)
-           VALUES (?, ?, ?, ?)`,
+            (user_id, project_id, cm_number, practice, metadata_json, notes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(
           user,
           id,
           optionalMatterText(input.cmNumber, 200),
           optionalMatterText(input.practice, 200),
+          JSON.stringify(cleanMatterMetadata(input.metadata)),
+          optionalMatterText(input.notes, 500),
         );
     });
     return this.getMatter(user, id)!;
@@ -519,6 +597,8 @@ export class LegalKnowledgeGraphStore {
       name?: string;
       cmNumber?: string | null;
       practice?: string | null;
+      metadata?: unknown;
+      notes?: string | null;
     },
   ) {
     const current = this.getMatter(userId, projectId);
@@ -535,6 +615,14 @@ export class LegalKnowledgeGraphStore {
       input.practice === undefined
         ? current.practice
         : optionalMatterText(input.practice, 200);
+    const metadata =
+      input.metadata === undefined
+        ? current.metadata
+        : cleanMatterMetadata(input.metadata);
+    const notes =
+      input.notes === undefined
+        ? current.notes
+        : optionalMatterText(input.notes, 500);
     const now = new Date().toISOString();
     this.transaction(() => {
       this.database
@@ -547,14 +635,23 @@ export class LegalKnowledgeGraphStore {
       this.database
         .prepare(
           `INSERT INTO mike_matter_metadata
-            (user_id, project_id, cm_number, practice)
-           VALUES (?, ?, ?, ?)
+            (user_id, project_id, cm_number, practice, metadata_json, notes)
+           VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id, project_id)
            DO UPDATE SET
              cm_number = excluded.cm_number,
-             practice = excluded.practice`,
+             practice = excluded.practice,
+             metadata_json = excluded.metadata_json,
+             notes = excluded.notes`,
         )
-        .run(userId, projectId, cmNumber, practice);
+        .run(
+          userId,
+          projectId,
+          cmNumber,
+          practice,
+          JSON.stringify(metadata),
+          notes,
+        );
     });
     return this.getMatter(userId, projectId);
   }

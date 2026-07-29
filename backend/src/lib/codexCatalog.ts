@@ -21,9 +21,8 @@ export type CodexModelCatalog = {
   error?: string;
 };
 
-const CATALOG_TTL_MS = 30_000;
 const CATALOG_TIMEOUT_MS = 10_000;
-let cached: { expiresAt: number; value: CodexModelCatalog } | null = null;
+let cached: CodexModelCatalog | null = null;
 let pending: Promise<CodexModelCatalog> | null = null;
 
 function codexCommand() {
@@ -164,19 +163,19 @@ async function runCatalog(args: string[]): Promise<CodexModelCatalog> {
 }
 
 export async function getCodexModelCatalog(): Promise<CodexModelCatalog> {
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) return cached;
   if (pending) return pending;
   pending = (async () => {
     try {
       const value = await runCatalog([]);
-      cached = { expiresAt: Date.now() + CATALOG_TTL_MS, value };
-      return value;
+      cached = value;
+      return cached;
     } catch (liveError) {
       try {
         const value = await runCatalog(["--bundled"]);
         const bundled = { ...value, source: "bundled" as const };
-        cached = { expiresAt: Date.now() + CATALOG_TTL_MS, value: bundled };
-        return bundled;
+        cached = bundled;
+        return cached;
       } catch (bundledError) {
         return {
           models: [],

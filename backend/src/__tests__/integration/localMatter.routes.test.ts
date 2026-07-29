@@ -235,7 +235,7 @@ describe("account-free matter routes", () => {
       ),
     ).toEqual([source.body.id]);
 
-    const unavailableFocus = await request(app)
+    const missingFocus = await request(app)
       .post("/chat")
       .send({
         project_id: firstMatter.body.id,
@@ -246,11 +246,11 @@ describe("account-free matter routes", () => {
           content: "Use the unrelated file.",
         },
         attached_documents: [
-          { filename: "unrelated.xlsx", document_id: unrelated.body.id },
+          { filename: "missing.xlsx", document_id: randomUUID() },
         ],
       });
-    expect(unavailableFocus.status).toBe(400);
-    expect(unavailableFocus.body.detail).toMatch(/not in this matter/u);
+    expect(missingFocus.status).toBe(400);
+    expect(missingFocus.body.detail).toMatch(/unavailable/u);
 
     const chatStore = await import("../../lib/anonymousChatStore");
     chatStore.appendAnonymousAssistantEvents(
@@ -397,6 +397,87 @@ describe("account-free matter routes", () => {
     expect(deletedThroughKnowledge.status).toBe(204);
     expect(orphanedChat.status).toBe(404);
     expect(mocks.supabaseCalls).toBe(0);
+  });
+
+  it("uses explicit chat documents without changing matter membership", async () => {
+    let app = await loadApp();
+    const matter = await request(app)
+      .post("/projects")
+      .send({ name: "Appeal" });
+    const source = await request(app)
+      .post("/library/files/documents")
+      .attach("file", Buffer.from("record"), "appeal-record.xlsx");
+    const store = await import("../../lib/localDocumentStore");
+    const foreign = await store.createLocalDocument({
+      userId: "00000000-0000-0000-0000-000000000099",
+      kind: "file",
+      filename: "foreign.docx",
+      bytes: Buffer.from("foreign"),
+    });
+    const chat = await request(app)
+      .post("/chat/create")
+      .send({ project_id: matter.body.id });
+    const turn = (expectedVersion: number) =>
+      request(app)
+        .post("/chat")
+        .send({
+          project_id: matter.body.id,
+          chat_id: chat.body.id,
+          expected_version: expectedVersion,
+          current_turn: {
+            kind: "message",
+            content: "Use this document.",
+            files: [
+              {
+                filename: source.body.filename,
+                document_id: source.body.id,
+              },
+            ],
+          },
+          attached_documents: [
+            {
+              filename: source.body.filename,
+              document_id: source.body.id,
+            },
+          ],
+        });
+
+    expect((await turn(0)).status).toBe(200);
+    expect((await turn(2)).status).toBe(200);
+    expect(
+      (
+        await request(app).get(`/projects/${matter.body.id}`)
+      ).body.documents.map((document: { id: string }) => document.id),
+    ).toEqual([]);
+
+    const rejected = await request(app)
+      .post("/chat")
+      .send({
+        project_id: matter.body.id,
+        chat_id: chat.body.id,
+        expected_version: 4,
+        current_turn: {
+          kind: "message",
+          content: "Use another user's document.",
+          files: [
+            {
+              filename: foreign.filename,
+              document_id: foreign.id,
+            },
+          ],
+        },
+      });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.detail).toMatch(/unavailable/u);
+
+    closeLocalStores?.();
+    closeLocalStores = null;
+    app = await loadApp();
+    expect(
+      (
+        await request(app).get(`/projects/${matter.body.id}`)
+      ).body.documents.map((document: { id: string }) => document.id),
+    ).toEqual([]);
   });
 
   it("returns 400 for malformed local project fields", async () => {

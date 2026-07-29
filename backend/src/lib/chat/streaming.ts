@@ -360,7 +360,7 @@ export async function runLLMStream({
           docStore,
           userId,
           db,
-          write,
+          emit,
           workflowStore,
           tabularStore,
           docIndex,

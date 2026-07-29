@@ -166,6 +166,10 @@ class LocalTabularStore {
         updated_at TEXT NOT NULL,
         UNIQUE (review_id, document_id, column_index)
       );
+      CREATE INDEX IF NOT EXISTS local_tabular_reviews_user_updated
+        ON local_tabular_reviews (user_id, updated_at DESC, id);
+      CREATE INDEX IF NOT EXISTS local_tabular_reviews_project_updated
+        ON local_tabular_reviews (user_id, project_id, updated_at DESC, id);
     `);
   }
 

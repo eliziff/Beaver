@@ -107,6 +107,46 @@ type WorkflowAccess =
     }
   | null;
 
+workflowsRouter.post("/archive", requireAuth, asyncRoute(async (req, res) => {
+  const requested = req.body?.files as unknown;
+  if (
+    !Array.isArray(requested) ||
+    requested.length < 1 ||
+    requested.length > 2 ||
+    !requested.every(
+      (file: unknown): file is { path: string; content: string } =>
+        !!file &&
+        typeof file === "object" &&
+        typeof (file as Record<string, unknown>).path === "string" &&
+        typeof (file as Record<string, unknown>).content === "string",
+    )
+  ) {
+    return void res.status(400).json({ detail: "Invalid workflow archive" });
+  }
+  const files = requested as { path: string; content: string }[];
+  const root = files[0].path.split("/")[0];
+  const paths = files.map((file) => file.path);
+  if (
+    !files.every(
+      (file) =>
+        /^[a-z0-9]+(?:-[a-z0-9]+)*\/(?:SKILL\.md|table-config\.yaml)$/u.test(
+          file.path,
+        ) && Buffer.byteLength(file.content) <= 1_000_000,
+    ) ||
+    !paths.includes(`${root}/SKILL.md`) ||
+    paths.some((path) => !path.startsWith(`${root}/`)) ||
+    new Set(paths).size !== paths.length
+  ) {
+    return void res.status(400).json({ detail: "Invalid workflow archive" });
+  }
+  const JSZip = (await import("jszip")).default;
+  const archive = new JSZip();
+  files.forEach(({ path, content }) => archive.file(path, content));
+  res.attachment("workflow.zip").send(
+    await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
+  );
+}));
+
 workflowsRouter.use((req, res, next) => {
   if (!isAnonymousLocalMode() || req.method === "GET") {
     next();
