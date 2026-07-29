@@ -178,6 +178,94 @@ describe("parseAmendmentInstructions", () => {
   });
 });
 
+describe("parseAmendmentInstructions (français)", () => {
+  // Verbatim from L.C. 2021, ch. 11 (laws-lois.justice.gc.ca, TexteComplet),
+  // the French twin of the English act the EN grammar was verified on.
+  const SC_2021_C11_FR = [
+    "L.R., ch. B-4Loi sur les lettres de change",
+    "2 Le sous-alinéa 42a)(i) de la Loi sur les lettres de change est " +
+      "remplacé par ce qui suit :",
+    "",
+    "(i) les dimanches, le jour de l’an, le vendredi saint, la fête de " +
+      "Victoria, la fête du Canada, la fête du Travail, la Journée nationale " +
+      "de la vérité et de la réconciliation, qui a lieu le 30 septembre, le " +
+      "jour du Souvenir et le jour de Noël,",
+    "",
+    "L.R., ch. I-21Loi d’interprétation",
+    "3 Le passage de la définition de jour férié précédant l’alinéa a), au " +
+      "paragraphe 35(1) de la Loi d’interprétation, est remplacé par ce qui " +
+      "suit :",
+    "jour fériéjour férié Outre les dimanches, le 1er janvier, le vendredi " +
+      "saint, le lundi de Pâques, le jour de Noël, l’anniversaire du " +
+      "souverain régnant ou le jour fixé par proclamation pour sa " +
+      "célébration, la fête de Victoria, la fête du Canada, le premier lundi " +
+      "de septembre, désigné comme fête du Travail, la Journée nationale de " +
+      "la vérité et de la réconciliation, qui a lieu le 30 septembre, le 11 " +
+      "novembre ou jour du Souvenir, tout jour fixé par proclamation comme " +
+      "jour de prière ou de deuil national ou jour de réjouissances ou " +
+      "d’action de grâces publiques :",
+    "",
+    "L.R., ch. L-2Code canadien du travail",
+    "4 La définition de jours fériés, à l’article 166 du Code canadien du " +
+      "travail, est remplacée par ce qui suit :",
+    "jours fériésjours fériés Le 1er janvier, le vendredi saint, la fête de " +
+      "Victoria, la fête du Canada, la fête du Travail, la Journée nationale " +
+      "de la vérité et de la réconciliation, qui a lieu le 30 septembre, le " +
+      "jour de l’Action de grâces, le jour du Souvenir, le jour de Noël et " +
+      "le lendemain de Noël; s’entend également de tout jour de substitution " +
+      "fixé dans le cadre de l’article 195. (general holiday)",
+    "",
+    "5 Le paragraphe 193(2) de la même loi est remplacé par ce qui suit :",
+    "Note marginale :Jours fériés tombant un samedi ou un dimanche",
+    "(2) Sous réserve des autres dispositions de la présente section, " +
+      "l’employé a droit à un congé payé le jour ouvrable précédant ou " +
+      "suivant le 1er janvier, la fête du Canada, la Journée nationale de la " +
+      "vérité et de la réconciliation, le jour du Souvenir, le jour de Noël " +
+      "ou le lendemain de Noël quand ces jours fériés tombent un dimanche ou " +
+      "un samedi chômé.",
+    "",
+    "Entrée en vigueur",
+    "Note marginale :Deux mois après la sanction",
+    "6 La présente loi entre en vigueur le jour qui, dans le deuxième mois " +
+      "suivant le mois de sa sanction, porte le même quantième que le jour " +
+      "de sa sanction.",
+  ].join("\n");
+
+  it("compiles French replace heads and refuses scoped ones (L.C. 2021, ch. 11)", () => {
+    const { ops, unparsed } = parseAmendmentInstructions(SC_2021_C11_FR);
+    expect(ops.map((op) => [op.kind, op.target])).toEqual([
+      ["replace_provision", "sec42(a)(i)"],
+      ["replace_provision", "sec193(2)"],
+    ]);
+    // Portion-scoped (art. 3) and definition-scoped (art. 4) must refuse.
+    expect(unparsed).toHaveLength(2);
+    for (const refusal of unparsed) {
+      expect(refusal.reason).toContain("scoped amendment");
+    }
+    // Block 1 stops at the "L.R., ch. I-21" chapter note.
+    expect(ops[0].newText).toBe(
+      "(i) les dimanches, le jour de l’an, le vendredi saint, la fête de " +
+        "Victoria, la fête du Canada, la fête du Travail, la Journée " +
+        "nationale de la vérité et de la réconciliation, qui a lieu le 30 " +
+        "septembre, le jour du Souvenir et le jour de Noël,",
+    );
+    // Block 5 drops "Note marginale :" furniture and stops at the
+    // "Entrée en vigueur" heading.
+    expect(ops[1].newText).toContain("Sous réserve des autres dispositions");
+    expect(ops[1].newText).not.toContain("Note marginale");
+    expect(ops[1].newText).not.toContain("Entrée en vigueur");
+  });
+
+  it("compiles French repeal heads", () => {
+    const { ops } = parseAmendmentInstructions(
+      "7 L’article 8 de la même loi est abrogé.",
+    );
+    expect(ops).toEqual([
+      expect.objectContaining({ kind: "repeal_provision", target: "sec8" }),
+    ]);
+  });
+});
+
 describe("applyAmendOps", () => {
   it("applies a substitute inside the addressed provision only", () => {
     const { ops } = parseAmendmentInstructions(
