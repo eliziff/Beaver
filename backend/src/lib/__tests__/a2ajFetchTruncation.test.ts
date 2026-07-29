@@ -63,7 +63,7 @@ describe("a2aj_fetch truncation signalling", () => {
     expect(payload.total_chars).toBe(60_000);
     expect(String(payload.text)).toHaveLength(50_000);
     expect(String(payload.next_required_action)).toContain(
-      "Only the first 50000 of 60000 characters",
+      "Truncated: 50000 of 60000 characters shown.",
     );
   });
 
