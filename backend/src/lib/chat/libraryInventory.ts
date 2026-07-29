@@ -14,7 +14,12 @@
 // inventory, not an outline.
 import { listLocalLibrary } from "../localDocumentStore";
 
-const MAX_LISTED_DOCUMENTS = 20;
+// Per-line listing is O(matter size) paid every turn; above the cap the
+// roster collapses to one constant-size line that still defeats the
+// measured failure (naming that the matter EXISTS), and discovery goes
+// back to the tools. The deciding many-document A/B cell is the 12-doc
+// antitrust dev task.
+const MAX_LISTED_DOCUMENTS = 8;
 
 /**
  * A compact roster of the Library documents in scope, or "" when there are
@@ -32,19 +37,21 @@ export async function libraryInventoryPrompt(
       (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
     );
     if (!inScope.length) return "";
-    const listed = inScope.slice(0, MAX_LISTED_DOCUMENTS);
-    const lines = listed.map(
+    if (inScope.length > MAX_LISTED_DOCUMENTS) {
+      return (
+        `\n\nThe user's Library holds ${inScope.length} documents available to you now. ` +
+        `Enumerate them with library_list and match loose references ("the lease", "her email") ` +
+        `against it rather than saying you have no access.\n`
+      );
+    }
+    const lines = inScope.map(
       (document) => `- ${document.filename} — document_id ${document.id}`,
     );
-    const remaining = inScope.length - listed.length;
     return (
       `\n\nThese documents are already in the user's Library and available to you now. ` +
       `Use the document_id shown here directly instead of calling library_list. ` +
       `Match a loose reference ("the lease", "her email") to one of these rather than saying you have no access.\n` +
-      `${lines.join("\n")}\n` +
-      (remaining > 0
-        ? `- (${remaining} more; call library_list to see the rest.)\n`
-        : "")
+      `${lines.join("\n")}\n`
     );
   } catch {
     return "";
