@@ -55,8 +55,6 @@ export async function executeA2AJTool(
           source: "A2AJ",
           result_count: results.length,
           results,
-          next_required_action:
-            "Use a2aj_fetch with a returned citation before relying on source text in the final answer.",
         },
       };
     }
@@ -77,7 +75,7 @@ export async function executeA2AJTool(
               ...document,
               ...(document.truncated
                 ? {
-                    next_required_action: `Only the first ${document.text.length} of ${document.total_chars} characters are shown. Use a2aj_lookup for a specific paragraph or section, or a2aj_fetch with "section", before relying on any part of this document you cannot see.`,
+                    next_required_action: `Truncated: ${document.text.length} of ${document.total_chars} characters shown.`,
                   }
                 : {}),
             }
@@ -141,7 +139,7 @@ export const A2AJ_TOOLS = [
     function: {
       name: A2AJ_TOOL_NAMES.search,
       description:
-        "Search Canadian cases or legislation through the public A2AJ legal data API. Use this for a legal concept, case name, or statute title; use a2aj_fetch when you already have a citation.",
+        "Search Canadian cases or legislation through the public A2AJ API by legal concept, case name, or statute title. With a citation in hand, use a2aj_fetch instead.",
       parameters: {
         type: "object",
         properties: {
@@ -197,7 +195,7 @@ export const A2AJ_TOOLS = [
     function: {
       name: A2AJ_TOOL_NAMES.fetch,
       description:
-        "Fetch the authoritative Canadian case or legislation text for a citation from A2AJ. Use the returned text as the evidence for any quoted legal claim.",
+        "Fetch authoritative Canadian case or legislation text for a citation from A2AJ.",
       parameters: {
         type: "object",
         properties: {
@@ -230,7 +228,7 @@ export const A2AJ_TOOLS = [
     function: {
       name: A2AJ_TOOL_NAMES.lookup,
       description:
-        "Look up one exact paragraph, reporter page, section, subsection, paragraph, or subparagraph inside an A2AJ Canadian decision or law. This uses Beaver's structural index and returns only the requested block instead of the entire document.",
+        "Look up one exact paragraph, reporter page, section, subsection, or subparagraph inside an A2AJ Canadian decision or law. Returns only the requested block, not the whole document.",
       parameters: {
         type: "object",
         properties: {

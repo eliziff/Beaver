@@ -334,12 +334,9 @@ export async function runToolCalls(
       ? {
           ...safeToolResult,
           doc_id: newDocLabel,
-          next_required_action: [
-            `Before writing your final response, call read_document with doc_id "${newDocLabel}".`,
-            `Base your description on the generated document's actual returned text, not on memory of what you intended to generate.`,
-            `Do not include download links, URLs, or markdown links to the document in your prose response; the document card is shown automatically by the UI.`,
-            `Give a concise description of the generated document and, if you make factual claims about its contents, cite it with [N] markers and a final <CITATIONS> block using doc_id "${newDocLabel}", not any source/template document.`,
-          ].join(" "),
+          // Only what the prompt cannot already teach: this doc_id, and that
+          // the rendered text — not your intent — is the source of truth.
+          next_required_action: `Read doc_id "${newDocLabel}" before describing or citing it; describe what it actually renders, not what you intended.`,
         }
       : safeToolResult;
     toolResults.push({
@@ -1085,12 +1082,7 @@ export async function runToolCalls(
               version_number: result.version_number,
               applied: result.annotations.length,
               errors: result.errors,
-              next_required_action: [
-                `The edited document remains available as doc_id "${docId}".`,
-                `Before making factual claims about the edited document's final contents, call read_document with doc_id "${docId}" and base the response on that returned text.`,
-                `Do not include download links or URLs in your prose response; the edited document card is shown automatically by the UI.`,
-                `If you describe specific content from the edited document, cite it with [N] markers and a final <CITATIONS> block using doc_id "${docId}".`,
-              ].join(" "),
+              next_required_action: `Read doc_id "${docId}" before making factual claims about the edited contents.`,
             }),
           });
         } else {

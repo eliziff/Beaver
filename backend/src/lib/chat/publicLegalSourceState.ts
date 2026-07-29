@@ -212,10 +212,13 @@ function safeDocument(
       page_count: attachment.pageCount,
     })),
     pdf_fallbacks: pdfFallbacks,
-    next_required_action:
-      pdfFallbacks.length > 0
-        ? "The provider PDF is queued for shared-cache parsing. Quote only returned text until its parse is ready."
-        : "Quote only returned text. Beaver attaches the verified source URL.",
+    // Quote-only and URL handling are prompt rules; only the queue state is new.
+    ...(pdfFallbacks.length > 0
+      ? {
+          next_required_action:
+            "The provider PDF is queued for shared-cache parsing; it is not readable yet.",
+        }
+      : {}),
   };
 }
 
@@ -252,9 +255,6 @@ function safeLookup(
         }
       : {}),
     pdf_fallbacks: pdfFallbacks,
-    next_required_action: receipt
-      ? "Quote only returned text. Preserve evidence.handle to rehydrate this exact source version; Beaver attaches the verified source URL and pinpoint."
-      : "Quote only returned text. Beaver attaches the verified source URL and pinpoint.",
   };
 }
 
@@ -294,8 +294,6 @@ export async function executePublicLegalSourceTool(
           article_id: articleId,
           hit_id: hitId,
         })),
-        next_required_action:
-          "Use public_legal_source_fetch or public_legal_source_lookup with the returned article_id before relying on text.",
       };
     } catch (error) {
       return {

@@ -79,25 +79,14 @@ export const COURTLISTENER_TOOL_NAMES = {
 } as const;
 
 export const COURTLISTENER_SYSTEM_PROMPT = `US CASE LAW RESEARCH:
-Use CourtListener when answering US-law questions that require case law.
-
-Workflow:
-1. If you have reporter citations, verify them with courtlistener_verify_citations using only clean citations: {"citations":["467 U.S. 837","323 U.S. 134"]}. Never pass case names to this tool.
-2. Fetch matched clusters with courtlistener_get_cases.
-3. Get cite-worthy text from the fetched cases with courtlistener_find_in_case. Use short 1-3 word searches, maximum 3 searches per assistant turn.
-4. For a named paragraph, reporter page, or numbered section, use courtlistener_lookup_case_locator instead of reparsing the opinion.
-5. If snippets are not enough, read only the necessary opinion(s) with courtlistener_read_case. For multi-opinion cases, choose the specific opinion_id/opinionIds needed; do not read all opinions by default.
+Use CourtListener for US-law questions that need case law. Verify reporter citations with courtlistener_verify_citations (clean citations only, never case names), fetch matched clusters with courtlistener_get_cases, then take cite-worthy text from courtlistener_find_in_case, or courtlistener_lookup_case_locator for a numbered paragraph, reporter page, or section. Read whole opinions with courtlistener_read_case only when snippets are not enough, and only the opinion_id/opinionIds needed.
 
 Citation rules:
-- Final case citations must be based on opinion text or passage snippets supplied in this turn. Do not cite cases based only on memory, metadata, search results, citationLinks, or verification results.
-- If you mention a CourtListener case as legal support in the final answer, add an inline [N] marker. Do not construct or repeat a CourtListener markdown link; Beaver attaches a verified opinion-text link automatically.
-- Assign new annotation refs in first-use order as much as possible: [1], then [2], then [3]. Reuse an existing ref when citing the same case/passage again, even if that means a later sentence cites [3] and then [1] again.
-- The final <CITATIONS> block must include one matching case entry for each [N] case marker: {"ref": N, "cluster_id": 123, "quotes": [{"opinion_id": 456, "quote": "exact verbatim opinion text"}]}.
-- Do not use doc_id, page, top-level quote, case_name, or citation fields in case entries.
-- If you have not obtained opinion text or snippets for a useful case, fetch/read it before citing it, or say you could not read it and do not rely on it.
-
-Limits:
-- If any CourtListener call returns a rate-limit/throttling/429 error, stop all CourtListener calls for that turn and answer using only information already available.`;
+- Cite a case only from opinion text or snippets supplied in this turn — never from memory, metadata, search results, citationLinks, or verification results. If you have no text for a useful case, fetch or read it, or say you could not read it and do not rely on it.
+- Add an inline [N] marker for a case used as legal support. Do not construct or repeat a CourtListener link; Beaver attaches a verified opinion-text link automatically.
+- Assign refs in first-use order where possible, and reuse an existing ref when citing the same case or passage again.
+- Each [N] case marker needs one <CITATIONS> entry: {"ref": N, "cluster_id": 123, "quotes": [{"opinion_id": 456, "quote": "exact verbatim opinion text"}]}. Case entries carry no doc_id, page, top-level quote, case_name, or citation fields.
+- On any rate-limit/throttling/429 error, stop all CourtListener calls for that turn and answer from what you already have.`;
 
 export const COURTLISTENER_TOOLS = [
   {
@@ -105,7 +94,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.searchCaseLaw,
       description:
-        "Search CourtListener case law by terms or case name. Search results are metadata only; fetch a selected cluster with courtlistener_get_cases before relying on it.",
+        "Search CourtListener case law by terms or case name. Returns metadata only.",
       parameters: {
         type: "object",
         properties: {
@@ -128,7 +117,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.getCases,
       description:
-        "Fetch and cache one or more CourtListener case clusters and their opinions by cluster ID. This returns metadata/counts only, not full opinion text. After this, call courtlistener_find_in_case for targeted passages or courtlistener_read_case if broader full-case context is needed.",
+        "Fetch and cache CourtListener case clusters and their opinions by cluster ID. Returns metadata and counts only, not opinion text.",
       parameters: {
         type: "object",
         properties: {
@@ -136,7 +125,7 @@ export const COURTLISTENER_TOOLS = [
             type: "array",
             items: { type: "integer" },
             description:
-              "CourtListener cluster IDs from courtlistener_verify_citations or other case metadata already present in the conversation.",
+              "Cluster IDs from courtlistener_verify_citations or case metadata already in the conversation.",
           },
         },
         required: ["clusterIds"],
@@ -148,28 +137,27 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.findInCase,
       description:
-        "Search within an already-fetched CourtListener case cluster for specific keyword(s) or phrases. Returns matches with surrounding opinion context. Call courtlistener_get_cases first; this tool does not fetch cases. Use no more than 3 calls to this tool in a single assistant turn.",
+        "Search an already-fetched CourtListener cluster for keywords or phrases; returns matches with surrounding opinion context. Fetch with courtlistener_get_cases first. At most 3 calls per turn.",
       parameters: {
         type: "object",
         properties: {
           clusterId: {
             type: "integer",
             description:
-              "CourtListener cluster ID previously fetched with courtlistener_get_cases.",
+              "Cluster ID previously fetched with courtlistener_get_cases.",
           },
           query: {
             type: "string",
             description:
-              "Short term to search for, 1-3 words long and likely to appear exactly as written in the opinion text. Matching is case-insensitive and collapses whitespace.",
+              "Short 1-3 word term likely to appear verbatim in the opinion. Case-insensitive, whitespace-tolerant.",
           },
           max_results: {
             type: "integer",
-            description: "Maximum number of matches to return. Default 20.",
+            description: "Maximum matches to return. Default 20.",
           },
           context_chars: {
             type: "integer",
-            description:
-              "Characters of surrounding context to include on each side of each match. Default 160.",
+            description: "Context characters on each side of a match. Default 160.",
           },
         },
         required: ["clusterId", "query"],
@@ -181,14 +169,14 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.lookupCaseLocator,
       description:
-        "Look up one numbered paragraph, reporter page, or numbered section in an already-fetched CourtListener case. Beaver uses provider-native structure when present and reconstructs missing structure from the opinion text. It returns only the selected block and small optional neighboring context.",
+        "Look up one numbered paragraph, reporter page, or section in an already-fetched CourtListener case. Returns only that block plus optional neighboring context; native structure is used when present and reconstructed otherwise.",
       parameters: {
         type: "object",
         properties: {
           clusterId: {
             type: "integer",
             description:
-              "CourtListener cluster ID previously fetched with courtlistener_get_cases.",
+              "Cluster ID previously fetched with courtlistener_get_cases.",
           },
           opinionId: {
             type: "integer",
@@ -219,14 +207,14 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.readCase,
       description:
-        "Read selected opinion text from an already-fetched CourtListener case cluster in this turn's cache. Use after courtlistener_find_in_case if snippets are insufficient. If the case has multiple opinions, pass only the opinionId/opinionIds needed. Call courtlistener_get_cases first; this tool does not fetch cases.",
+        "Read selected opinion text from an already-fetched CourtListener cluster, after courtlistener_find_in_case when snippets are insufficient. Pass only the opinionId/opinionIds needed.",
       parameters: {
         type: "object",
         properties: {
           clusterId: {
             type: "integer",
             description:
-              "CourtListener cluster ID previously fetched with courtlistener_get_cases.",
+              "Cluster ID previously fetched with courtlistener_get_cases.",
           },
           opinionId: {
             type: "integer",
@@ -237,7 +225,7 @@ export const COURTLISTENER_TOOLS = [
             type: "array",
             items: { type: "integer" },
             description:
-              "Specific opinion IDs to read. Use the smallest set needed; do not read all opinions unless the question requires it.",
+              "Opinion IDs to read. Use the smallest set the question requires.",
           },
         },
         required: ["clusterId"],
@@ -249,7 +237,7 @@ export const COURTLISTENER_TOOLS = [
     function: {
       name: COURTLISTENER_TOOL_NAMES.verifyCitations,
       description:
-        'Verify legal case citations using CourtListener\'s citation lookup. Accepts only an array of clean reporter citations, not case names. Example: {"citations":["467 U.S. 837","323 U.S. 134"]}. This returns citation metadata and clickable case refs; call courtlistener_get_cases only for matched cases that need full opinion text.',
+        "Verify reporter citations through CourtListener's citation lookup. Returns citation metadata and case refs; call courtlistener_get_cases only for matched cases that need opinion text.",
       parameters: {
         type: "object",
         properties: {
@@ -257,7 +245,7 @@ export const COURTLISTENER_TOOLS = [
             type: "array",
             items: { type: "string" },
             description:
-              'Required list of clean reporter citations only. Put each reporter citation in its own array item, e.g. ["467 U.S. 837", "323 U.S. 134"]. Do not include case names. Up to 250 items.',
+              'One clean reporter citation per item, e.g. ["467 U.S. 837", "323 U.S. 134"]. Never case names. Up to 250 items.',
           },
         },
         required: ["citations"],

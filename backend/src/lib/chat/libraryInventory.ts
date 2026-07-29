@@ -39,9 +39,8 @@ export async function libraryInventoryPrompt(
     const remaining = inScope.length - listed.length;
     return (
       `\n\nThese documents are already in the user's Library and available to you now. ` +
-      `Use the document_id shown here directly; you do not need to call library_list to find them. ` +
-      `When the user refers to a document loosely ("the lease", "her email"), match it to one of these rather than saying you have no access. ` +
-      `Before reading a long one in full, call library_outline on it to see its sections, or library_find to search it.\n` +
+      `Use the document_id shown here directly instead of calling library_list. ` +
+      `Match a loose reference ("the lease", "her email") to one of these rather than saying you have no access.\n` +
       `${lines.join("\n")}\n` +
       (remaining > 0
         ? `- (${remaining} more; call library_list to see the rest.)\n`
