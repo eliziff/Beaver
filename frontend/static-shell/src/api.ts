@@ -25,6 +25,7 @@ async function request<T>(path: string, init: RequestInit = {}) {
 
 export type Chat = { id: string; title?: string | null; updated_at?: string };
 export type ChatTranscript = { chat: Chat & { transcript_version?: number }; messages: { role: "user" | "assistant"; content: unknown }[] };
+export type Project = { id: string; name: string; practice?: string | null; cm_number?: string | null };
 export type LibraryDocument = { id: string; filename?: string | null; file_type?: string | null; updated_at?: string | null };
 export type LibraryCollection = { documents: LibraryDocument[]; folders: { id: string; name: string }[] };
 export type StreamEvent = { type?: string; text?: string; message?: string; chatId?: string; transcriptVersion?: number };
@@ -32,6 +33,8 @@ export type StreamEvent = { type?: string; text?: string; message?: string; chat
 export const api = {
   chats: () => request<Chat[]>("/chat?limit=20"),
   chat: (id: string) => request<ChatTranscript>(`/chat/${encodeURIComponent(id)}`),
+  projects: () => request<Project[]>("/projects"),
+  createProject: (name: string) => request<Project>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
   upload: (kind: string, file: File) => {
     const body = new FormData();
