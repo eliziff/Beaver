@@ -1,17 +1,19 @@
-import { api, type Chat, type LibraryCollection, type Project, type StreamEvent } from "./api";
+import { api, type Chat, type LibraryCollection, type Project, type StreamEvent, type TabularReview, type TabularReviewDetail } from "./api";
 import "./styles.css";
 
-type Route = "assistant" | "library" | "projects" | "authorities";
+type Route = "assistant" | "library" | "projects" | "reviews" | "authorities";
 type Message = { role: "user" | "assistant"; text: string };
-type State = { route: Route; chats: Chat[]; library: LibraryCollection | null; projects: Project[] | null; messages: Message[]; chatId: string | null; version: number; busy: boolean; status: string; error: string };
+type State = { route: Route; chats: Chat[]; library: LibraryCollection | null; projects: Project[] | null; reviews: TabularReview[] | null; review: TabularReviewDetail | null; reviewId: string | null; messages: Message[]; chatId: string | null; version: number; busy: boolean; status: string; error: string };
 
 const root = document.querySelector<HTMLDivElement>("#root")!;
 const shellBase = import.meta.env.BASE_URL.replace(/\/$/u, "");
 const shellPath = (route: string) => `${shellBase}/${route}`;
-function routeFromPath(): Route { const path = shellBase && location.pathname.startsWith(`${shellBase}/`) ? location.pathname.slice(shellBase.length) : location.pathname; const route = path.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
-const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
+function locationPath() { return shellBase && location.pathname.startsWith(`${shellBase}/`) ? location.pathname.slice(shellBase.length) : location.pathname; }
+function routeFromPath(): Route { const route = locationPath().replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" || route === "reviews" || route === "tabular-reviews" ? route === "tabular-reviews" ? "reviews" : route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
+function reviewIdFromPath() { const match = locationPath().match(/^\/(?:reviews|tabular-reviews)\/([^/]+)/u); return match ? decodeURIComponent(match[1]) : null; }
+const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, reviews: null, review: null, reviewId: reviewIdFromPath(), messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
 function escape(value: unknown) { return String(value ?? "").replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
-function navigate(route: Route) { history.pushState({}, "", shellPath(route)); state.route = route; state.error = ""; render(); void loadRoute(); }
+function navigate(route: Route) { history.pushState({}, "", shellPath(route)); state.route = route; state.reviewId = null; state.review = null; state.error = ""; render(); void loadRoute(); }
 function text(event: StreamEvent) { return event.type === "error" ? event.message || "Request failed" : event.text || ""; }
 function messageText(value: unknown): string {
   if (typeof value === "string") return value;
@@ -24,7 +26,7 @@ function messageText(value: unknown): string {
 }
 
 function shell(content: string) {
-  return `<header class="topbar"><a class="brand" href="${shellPath("assistant")}">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><button data-route="authorities" class="nav ${state.route === "authorities" ? "active" : ""}">Authorities</button><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
+  return `<header class="topbar"><a class="brand" href="${shellPath("assistant")}">Beaver</a><nav aria-label="Primary"><button data-route="assistant" class="nav ${state.route === "assistant" ? "active" : ""}">Assistant</button><button data-route="library" class="nav ${state.route === "library" ? "active" : ""}">Library</button><button data-route="authorities" class="nav ${state.route === "authorities" ? "active" : ""}">Authorities</button><button data-route="projects" class="nav ${state.route === "projects" ? "active" : ""}">Projects</button><button data-route="reviews" class="nav ${state.route === "reviews" ? "active" : ""}">Reviews</button></nav><span class="mode">Local</span></header><main class="content">${content}</main>`;
 }
 
 function assistant() {
@@ -47,7 +49,18 @@ function authorities() {
   return shell(`<section class="workspace"><div class="section-heading"><h1>Authorities</h1></div><section class="panel authorities-panel" aria-live="polite"><p class="empty" id="authorities-status">Checking the local Authorities host…</p><button id="launch-authorities" class="primary" disabled>Open Authorities</button></section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
 }
 
-function render() { root.innerHTML = state.route === "library" ? library() : state.route === "projects" ? projects() : state.route === "authorities" ? authorities() : assistant(); bind(); }
+function reviews() {
+  if (state.reviewId) {
+    const detail = state.review;
+    const documents = detail?.documents.map((doc) => `<li><strong>${escape(doc.filename || "Untitled document")}</strong></li>`).join("") || "";
+    const columns = detail?.review.columns_config?.map((column) => `<li><strong>${escape(column.name)}</strong><span>${escape(column.prompt)}</span></li>`).join("") || "";
+    return shell(`<section class="workspace"><div class="section-heading"><button class="nav back" data-route="reviews">Back to reviews</button><h1>${escape(detail?.review.title || "Review")}</h1></div><section class="panel list" aria-live="polite">${detail ? `<h2 class="panel-heading">Columns</h2><ul>${columns || `<li class="empty">No columns yet.</li>`}</ul><h2 class="panel-heading">Documents</h2><ul>${documents || `<li class="empty">No documents yet.</li>`}</ul>` : `<p class="empty">Loading review…</p>`}</section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
+  }
+  const rows = state.reviews?.map((review) => `<li><button class="chat-link" data-review-id="${escape(review.id)}"><strong>${escape(review.title || "Untitled review")}</strong></button><span>${review.document_count ?? 0} documents</span></li>`).join("") || "";
+  return shell(`<section class="workspace"><div class="section-heading"><h1>Reviews</h1></div><section class="panel list" aria-live="polite">${state.reviews ? rows || `<p class="empty">No reviews yet.</p>` : `<p class="empty">Loading reviews…</p>`}</section>${state.error ? `<p class="error">${escape(state.error)}</p>` : ""}</section>`);
+}
+
+function render() { root.innerHTML = state.route === "library" ? library() : state.route === "projects" ? projects() : state.route === "reviews" ? reviews() : state.route === "authorities" ? authorities() : assistant(); bind(); }
 
 function bind() {
   root.querySelectorAll<HTMLElement>("[data-route]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.route as Route)));
@@ -56,6 +69,7 @@ function bind() {
   root.querySelector<HTMLFormElement>("#project")?.addEventListener("submit", createProject);
   root.querySelector<HTMLInputElement>("#upload")?.addEventListener("change", upload);
   root.querySelector<HTMLButtonElement>("#launch-authorities")?.addEventListener("click", launchAuthorities);
+  root.querySelectorAll<HTMLButtonElement>("[data-review-id]").forEach((button) => button.addEventListener("click", () => openReview(button.dataset.reviewId!)));
 }
 
 async function openChat(id: string) {
@@ -94,6 +108,7 @@ function updateStatus(value: string) { state.status = value; const target = docu
 async function upload(event: Event) { const input = event.currentTarget as HTMLInputElement; const file = input.files?.[0]; input.value = ""; if (!file) return; state.status = "Uploading…"; state.error = ""; render(); try { await api.upload("files", file); state.library = await api.library("files"); state.status = "Ready"; } catch (error) { state.error = error instanceof Error ? error.message : "Upload failed"; state.status = "Ready"; } render(); }
 async function createProject(event: SubmitEvent) { event.preventDefault(); const input = (event.currentTarget as HTMLFormElement).elements.namedItem("name") as HTMLInputElement; const name = input.value.trim(); if (!name || state.busy) return; state.busy = true; state.status = "Creating…"; state.error = ""; render(); try { await api.createProject(name); state.projects = await api.projects(); state.status = "Ready"; } catch (error) { state.error = error instanceof Error ? error.message : "Project creation failed"; state.status = "Ready"; } state.busy = false; render(); }
 async function launchAuthorities() { const button = document.querySelector<HTMLButtonElement>("#launch-authorities"); if (!button) return; button.disabled = true; button.textContent = "Starting…"; state.error = ""; try { const result = await api.launchAuthorities(); location.href = result.url; } catch (error) { state.error = error instanceof Error ? error.message : "Authorities unavailable"; button.disabled = false; button.textContent = "Open Authorities"; render(); } }
+async function openReview(id: string) { history.pushState({}, "", `${shellPath("reviews")}/${encodeURIComponent(id)}`); state.route = "reviews"; state.reviewId = id; state.review = null; state.error = ""; render(); await loadRoute(); }
 async function loadRoute() {
   const route = state.route;
   if (route === "projects") {
@@ -118,10 +133,18 @@ async function loadRoute() {
     } catch (error) { if (state.route === route) state.error = error instanceof Error ? error.message : "Authorities unavailable"; render(); }
     return;
   }
+  if (route === "reviews") {
+    try {
+      if (state.reviewId) state.review = await api.tabularReview(state.reviewId);
+      else state.reviews = await api.tabularReviews();
+    } catch (error) { if (state.route === route) state.error = error instanceof Error ? error.message : "Reviews unavailable"; }
+    if (state.route === route) render();
+    return;
+  }
   try { state.chats = await api.chats(); }
   catch { if (state.route === route) state.status = "Start a new local chat"; }
   if (state.route === route) render();
 }
 
-window.addEventListener("popstate", () => { state.route = routeFromPath(); render(); void loadRoute(); });
+window.addEventListener("popstate", () => { state.route = routeFromPath(); state.reviewId = reviewIdFromPath(); state.review = null; render(); void loadRoute(); });
 render(); void loadRoute();
