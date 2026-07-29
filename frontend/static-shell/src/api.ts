@@ -24,12 +24,14 @@ async function request<T>(path: string, init: RequestInit = {}) {
 }
 
 export type Chat = { id: string; title?: string | null; updated_at?: string };
+export type ChatTranscript = { chat: Chat & { transcript_version?: number }; messages: { role: "user" | "assistant"; content: unknown }[] };
 export type LibraryDocument = { id: string; filename?: string | null; file_type?: string | null; updated_at?: string | null };
 export type LibraryCollection = { documents: LibraryDocument[]; folders: { id: string; name: string }[] };
 export type StreamEvent = { type?: string; text?: string; message?: string; chatId?: string; transcriptVersion?: number };
 
 export const api = {
   chats: () => request<Chat[]>("/chat?limit=20"),
+  chat: (id: string) => request<ChatTranscript>(`/chat/${encodeURIComponent(id)}`),
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
   upload: (kind: string, file: File) => {
     const body = new FormData();
