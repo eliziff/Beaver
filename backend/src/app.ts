@@ -3,15 +3,6 @@ import express, { type RequestHandler, type Router } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { chatRouter } from "./routes/chat";
-import { projectsRouter } from "./routes/projects";
-import { workflowsRouter } from "./routes/workflows";
-import { localUserRouter } from "./routes/localUser";
-import { caseLawRouter } from "./routes/caseLaw";
-import { codexRouter } from "./routes/codex";
-import { legalLibraryRouter } from "./routes/legalLibrary";
-import { legalKnowledgeRouter } from "./routes/legalKnowledge";
-import { tableOfAuthoritiesRouter } from "./routes/tableOfAuthorities";
 import { isAnonymousLocalMode } from "./lib/localMode";
 
 export const app = express();
@@ -175,8 +166,16 @@ app.delete("/user/tabular-reviews", dataDeleteLimiter);
 
 app.use(express.json({ limit: "50mb" }));
 
-app.use("/chat", chatRouter);
-app.use("/projects", projectsRouter);
+app.use(
+  "/chat",
+  lazyRouter(() => import("./routes/chat").then((mod) => mod.chatRouter)),
+);
+app.use(
+  "/projects",
+  lazyRouter(() =>
+    import("./routes/projects").then((mod) => mod.projectsRouter),
+  ),
+);
 app.use(
   "/single-documents",
   localOrCloudRouter(
@@ -184,8 +183,18 @@ app.use(
     () => import("./routes/documents").then((mod) => mod.documentsRouter),
   ),
 );
-app.use("/library/legal", legalLibraryRouter);
-app.use("/legal-knowledge", legalKnowledgeRouter);
+app.use(
+  "/library/legal",
+  lazyRouter(() =>
+    import("./routes/legalLibrary").then((mod) => mod.legalLibraryRouter),
+  ),
+);
+app.use(
+  "/legal-knowledge",
+  lazyRouter(() =>
+    import("./routes/legalKnowledge").then((mod) => mod.legalKnowledgeRouter),
+  ),
+);
 app.use(
   "/library",
   localOrCloudRouter(
@@ -197,7 +206,15 @@ app.use(
   "/tabular-review",
   lazyRouter(() => import("./routes/tabular").then((mod) => mod.tabularRouter)),
 );
-app.use("/workflows", workflowsRouter);
+app.use(
+  "/workflows",
+  lazyRouter(() =>
+    import("./routes/workflows").then((mod) => mod.workflowsRouter),
+  ),
+);
+const localUserRouter = lazyRouter(() =>
+  import("./routes/localUser").then((mod) => mod.localUserRouter),
+);
 const cloudUserRouter = lazyRouter(() =>
   import("./routes/user").then((mod) => mod.userRouter),
 );
@@ -214,9 +231,22 @@ app.use(
   "/download",
   lazyRouter(() => import("./routes/downloads").then((mod) => mod.downloadsRouter)),
 );
-app.use("/case-law", caseLawRouter);
-app.use("/codex", codexRouter);
-app.use("/table-of-authorities", tableOfAuthoritiesRouter);
+app.use(
+  "/case-law",
+  lazyRouter(() => import("./routes/caseLaw").then((mod) => mod.caseLawRouter)),
+);
+app.use(
+  "/codex",
+  lazyRouter(() => import("./routes/codex").then((mod) => mod.codexRouter)),
+);
+app.use(
+  "/table-of-authorities",
+  lazyRouter(() =>
+    import("./routes/tableOfAuthorities").then(
+      (mod) => mod.tableOfAuthoritiesRouter,
+    ),
+  ),
+);
 
 app.get("/health", (_req, res) =>
   res.json({
