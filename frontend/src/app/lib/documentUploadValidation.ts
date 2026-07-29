@@ -1,7 +1,7 @@
 export const SUPPORTED_DOCUMENT_ACCEPT =
-    ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.gif,.webp";
+    ".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.gif,.webp,.eml";
 export const UNSUPPORTED_DOCUMENT_WARNING_MESSAGE =
-    "Unsupported file type. Use PDF, Word, Excel, PowerPoint, JPEG, PNG, GIF, or WebP.";
+    "Unsupported file type. Use PDF, Word, Excel, PowerPoint, email (.eml), JPEG, PNG, GIF, or WebP.";
 const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
     "pdf",
     "docx",
@@ -16,6 +16,7 @@ const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
     "png",
     "gif",
     "webp",
+    "eml",
 ]);
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
