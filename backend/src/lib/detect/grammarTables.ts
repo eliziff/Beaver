@@ -4,7 +4,12 @@
 // and \b to identical ASCII semantics on both sides. The validator bans
 // the constructs whose semantics genuinely diverge; everything else is
 // ordinary regex. Named groups are authored JS-style ((?<name>…)); the
-// Python loader translates to (?P<name>…).
+// Python loader translates to (?P<name>…). Lookbehind is allowed because
+// Python only compiles the fixed-width form and the mandatory dual-runtime
+// vector check therefore rejects any table Python cannot hold — the gate
+// is structural, not syntactic. A table may carry `defs`, named pattern
+// fragments spliced in via {{name}} before validation and compilation,
+// mirroring how the source grammars compose rf-strings.
 
 export interface GrammarVector {
   input: string;
@@ -32,23 +37,54 @@ export interface GrammarEntry {
 export interface GrammarTable {
   format: string;
   description?: string;
+  /** Named pattern fragments, spliced into patterns via {{name}}. */
+  defs?: Record<string, string>;
   entries: GrammarEntry[];
 }
 
 export const GRAMMAR_TABLE_FORMAT = "beaver-grammar-table:v1";
 
 /**
+ * Splice {{name}} references to table defs into a pattern. Runs to a
+ * fixpoint so defs may reference other defs; throws on an unknown name
+ * or a reference cycle. Must stay byte-equivalent with the Python
+ * loader's expansion.
+ */
+export function expandGrammarPattern(
+  source: string,
+  defs: Record<string, string> = {},
+): string {
+  let out = source;
+  for (let pass = 0; ; pass += 1) {
+    const next = out.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, (_, name) => {
+      const value = defs[name];
+      if (value === undefined) {
+        throw new Error(`grammar def {{${name}}} is not defined`);
+      }
+      return value;
+    });
+    if (next === out) return out;
+    if (pass >= 10) {
+      throw new Error("grammar defs reference each other in a cycle");
+    }
+    out = next;
+  }
+}
+
+/**
  * Reject constructs whose behavior differs between Python re (with
  * re.ASCII) and JS RegExp (without u). Returns violation strings; empty
- * means the pattern is inside the shared dialect.
+ * means the pattern is inside the shared dialect. Lookbehind passes here
+ * deliberately: Python re only compiles fixed-width lookbehind, where JS
+ * semantics coincide, and the dual-runtime vector check rejects any
+ * table Python cannot compile. \uXXXX escapes pass because both engines
+ * read them identically in patterns (measured, not assumed); only the
+ * braced JS-only \u{…} form is banned.
  */
 export function validateGrammarPattern(source: string): string[] {
   const violations: string[] = [];
   if (/\(\?P/.test(source)) {
     violations.push("(?P named-group syntax: author JS-style (?<name>…)");
-  }
-  if (/\(\?<[=!]/.test(source)) {
-    violations.push("lookbehind: banned (arbitrary-width only in JS)");
   }
   if (/\\[pP]\{/.test(source)) {
     violations.push("\\p{…} classes: Python re has no support");
@@ -59,16 +95,25 @@ export function validateGrammarPattern(source: string): string[] {
   if (/\(\?\(/.test(source)) {
     violations.push("conditional groups: not portable");
   }
-  if (/\\u(?!00[0-7][0-9a-fA-F])[0-9a-fA-F]{4}/.test(source)) {
+  if (/\\u\{/.test(source)) {
     violations.push(
-      "non-ASCII \\uXXXX escape inside a pattern: write the literal character (Python re reads \\u only in strings, and JSON decoding already resolves it)",
+      "braced \\u{…} escape: JS-only (needs the u flag); use \\uXXXX or the literal character",
     );
   }
   return violations;
 }
 
-export function validateGrammarEntry(entry: GrammarEntry): string[] {
-  const violations = validateGrammarPattern(entry.pattern).map(
+export function validateGrammarEntry(
+  entry: GrammarEntry,
+  defs: Record<string, string> = {},
+): string[] {
+  let expanded: string;
+  try {
+    expanded = expandGrammarPattern(entry.pattern, defs);
+  } catch (error) {
+    return [`${entry.id}: ${error instanceof Error ? error.message : String(error)}`];
+  }
+  const violations = validateGrammarPattern(expanded).map(
     (violation) => `${entry.id}: ${violation}`,
   );
   if (!/^[ims]*$/.test(entry.flags)) {
@@ -77,9 +122,12 @@ export function validateGrammarEntry(entry: GrammarEntry): string[] {
   return violations;
 }
 
-/** Compile for JS: source verbatim, global added for iteration, never u. */
-export function compileGrammarEntry(entry: GrammarEntry): RegExp {
-  return new RegExp(entry.pattern, `${entry.flags}g`);
+/** Compile for JS: defs expanded, global added for iteration, never u. */
+export function compileGrammarEntry(
+  entry: GrammarEntry,
+  defs: Record<string, string> = {},
+): RegExp {
+  return new RegExp(expandGrammarPattern(entry.pattern, defs), `${entry.flags}g`);
 }
 
 export function canonicalizeGroups(
@@ -116,12 +164,12 @@ export interface VectorFailure {
 export function runGrammarVectors(table: GrammarTable): VectorFailure[] {
   const failures: VectorFailure[] = [];
   for (const entry of table.entries) {
-    for (const violation of validateGrammarEntry(entry)) {
+    for (const violation of validateGrammarEntry(entry, table.defs)) {
       failures.push({ id: entry.id, input: "", reason: violation });
     }
     let re: RegExp;
     try {
-      re = compileGrammarEntry(entry);
+      re = compileGrammarEntry(entry, table.defs);
     } catch (error) {
       failures.push({
         id: entry.id,
