@@ -1,202 +1,178 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
-import type { AssistantEvent } from "../../shared/types";
-import { FileTypeIcon } from "../../shared/FileTypeIcon";
+import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
+import { apiFetch } from "@/app/lib/beaverApi";
+import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import { GfmMarkdown } from "./MarkdownContent";
-function EventConnector() {
+import type { ActivityView } from "./eventUtils";
+
+export function ActivityDisclosure({
+    children,
+    isStreaming,
+    label,
+}: {
+    children?: ReactNode;
+    isStreaming: boolean;
+    label: string;
+}) {
+    const summary = `Activity — ${label}`;
+    const status = (
+        <span
+            aria-hidden="true"
+            className="grid size-4 shrink-0 place-items-center"
+        >
+            {isStreaming ? (
+                <ThinkingSpinner size={14} />
+            ) : (
+                <span className="size-1.5 rounded-full bg-gray-400" />
+            )}
+        </span>
+    );
+    const content = (
+        <>
+            {status}
+            <span className="min-w-0 truncate">
+                <span className="text-gray-500">Activity</span>
+                <span aria-hidden="true"> — </span>
+                <span className="text-gray-700">{label}</span>
+            </span>
+        </>
+    );
+    if (children === undefined) {
+        return (
+            <div
+                role="status"
+                aria-label={summary}
+                className="flex h-9 max-w-full items-center gap-2 px-1 font-serif text-sm text-gray-600"
+            >
+                {content}
+            </div>
+        );
+    }
     return (
-        <div className="absolute w-[1px] bg-gray-300 top-[14px] left-[3px] translate-x-[-50%] h-[calc(100%+10px)]" />
+        <details className="group min-w-0">
+            <summary
+                role="button"
+                aria-label={summary}
+                className="flex h-9 max-w-full cursor-pointer list-none items-center gap-2 rounded-md px-1 font-serif text-sm text-gray-600 hover:text-gray-900 [&::-webkit-details-marker]:hidden"
+            >
+                {content}
+                <ChevronDown
+                    size={12}
+                    className="shrink-0 -rotate-90 group-open:rotate-0"
+                />
+            </summary>
+            <div
+                role="list"
+                className="ml-2 mt-1 flex flex-col gap-2.5 border-l border-gray-200 pb-1 pl-3"
+            >
+                {children}
+            </div>
+        </details>
     );
 }
-export function EventBlock({
-    showConnector,
-    isStreaming,
-    dotColor = "green",
-    children,
+
+export function ActivityRow({
+    view,
+    onClick,
 }: {
-    showConnector?: boolean;
-    isStreaming?: boolean;
-    dotColor?: "green" | "gray" | "red";
-    children: ReactNode;
+    view: ActivityView;
+    onClick?: () => void;
 }) {
-    const dotColorClass =
-        dotColor === "green"
-            ? "bg-green-400 shadow-[0_1px_3px_rgba(15,23,42,0.15),inset_0_1px_0_rgba(255,255,255,0.5)]"
-            : dotColor === "red"
-              ? "bg-red-400 shadow-[0_1px_3px_rgba(15,23,42,0.15),inset_0_1px_0_rgba(255,255,255,0.5)]"
-              : "bg-gray-500 shadow-[0_1px_3px_rgba(15,23,42,0.15)]";
+    const label = `${view.label}${view.busy && !view.markdown ? "..." : ""}`;
+    const labelNode = onClick ? (
+        <button
+            type="button"
+            onClick={onClick}
+            className="text-left font-medium hover:text-gray-800"
+        >
+            {label}
+        </button>
+    ) : (
+        <span className="font-medium">{label}</span>
+    );
     return (
         <div
             role="listitem"
-            className="flex items-start text-sm font-serif text-gray-500 relative"
+            className="flex min-w-0 items-start gap-2 font-serif text-sm text-gray-600"
         >
-            {showConnector && <EventConnector />}
-            {isStreaming ? (
-                <div className="mt-2 w-1.5 h-1.5 shrink-0 rounded-full border border-gray-400 border-t-transparent animate-spin" />
-            ) : (
-                <div
-                    className={`mt-2 w-1.5 h-1.5 shrink-0 rounded-full ${dotColorClass}`}
-                />
-            )}
-            <div className="ml-2 min-w-0 flex-1 overflow-x-auto whitespace-normal break-normal">
-                {children}
+            <span
+                aria-hidden="true"
+                className="mt-1.5 grid size-2 shrink-0 place-items-center"
+            >
+                {view.busy ? (
+                    <span className="size-1.5 animate-spin rounded-full border border-gray-400 border-t-transparent" />
+                ) : (
+                    <span
+                        className={`size-1.5 rounded-full ${
+                            view.error ? "bg-red-500" : "bg-gray-400"
+                        }`}
+                    />
+                )}
+            </span>
+            <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                {view.markdown ? (
+                    <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600">
+                        <GfmMarkdown
+                            components={{
+                                code: (props) => (
+                                    <code
+                                        className="font-serif text-gray-700"
+                                        {...withoutMarkdownNode(props)}
+                                    />
+                                ),
+                            }}
+                        >
+                            {view.markdown}
+                        </GfmMarkdown>
+                    </div>
+                ) : (
+                    labelNode
+                )}
+                {view.detail && (
+                    <p
+                        className={`mt-0.5 text-xs ${
+                            view.error ? "text-red-600" : "text-gray-500"
+                        }`}
+                    >
+                        {view.detail}
+                    </p>
+                )}
+                {!!view.items?.length && (
+                    <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto pr-1 text-xs text-gray-600">
+                        {view.items.map((item, index) => (
+                            <li
+                                key={`${item.label}-${index}`}
+                                className={item.error ? "text-red-600" : ""}
+                            >
+                                {item.url ? (
+                                    <a
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="hover:underline"
+                                    >
+                                        {item.label}
+                                    </a>
+                                ) : (
+                                    item.label
+                                )}
+                                {item.detail && (
+                                    <span className="text-gray-500">
+                                        {" "}
+                                        — {item.detail}
+                                    </span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
         </div>
     );
 }
-export function ReasoningBlock({
-    text,
-    isStreaming,
-    showConnector,
-}: {
-    text: string;
-    isStreaming: boolean;
-    showConnector?: boolean;
-}) {
-    const normalizedText = text.replace(/\r\n?/g, "\n").trim();
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor="gray"
-        >
-            {normalizedText && (
-                <div className="text-sm font-serif text-gray-500 prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-500">
-                    <GfmMarkdown
-                        components={{
-                            code: (props) => (
-                                <code
-                                    className="font-serif text-gray-600"
-                                    {...withoutMarkdownNode(props)}
-                                />
-                            ),
-                        }}
-                    >
-                        {normalizedText}
-                    </GfmMarkdown>
-                </div>
-            )}
-        </EventBlock>
-    );
-}
-export function DocReadBlock({
-    filename,
-    onClick,
-    showConnector,
-    isStreaming,
-    showFileIcon = true,
-}: {
-    filename: string;
-    onClick?: () => void;
-    showConnector?: boolean;
-    isStreaming?: boolean;
-    showFileIcon?: boolean;
-}) {
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor="green"
-        >
-            <div className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 font-medium">
-                    {isStreaming ? "Reading" : "Read"}
-                </span>
-                {isStreaming ? (
-                    <span className="flex min-w-0 items-center gap-1.5">
-                        {showFileIcon && (
-                            <FileTypeIcon
-                                fileType={filename}
-                                className="h-3.5 w-3.5"
-                            />
-                        )}
-                        <span className="truncate">{filename}...</span>
-                    </span>
-                ) : onClick ? (
-                    <button
-                        onClick={onClick}
-                        className="flex min-w-0 items-center gap-1.5 text-left hover:text-gray-700 cursor-pointer"
-                    >
-                        {showFileIcon && (
-                            <FileTypeIcon
-                                fileType={filename}
-                                className="h-3.5 w-3.5"
-                            />
-                        )}
-                        <span className="truncate">{filename}</span>
-                    </button>
-                ) : (
-                    <span className="flex min-w-0 items-center gap-1.5">
-                        {showFileIcon && (
-                            <FileTypeIcon
-                                fileType={filename}
-                                className="h-3.5 w-3.5"
-                            />
-                        )}
-                        <span className="truncate">{filename}</span>
-                    </span>
-                )}
-            </div>
-        </EventBlock>
-    );
-}
-export function DocFindBlock({
-    filename,
-    query,
-    totalMatches,
-    isStreaming,
-    showConnector,
-}: {
-    filename: string;
-    query: string;
-    totalMatches: number;
-    isStreaming?: boolean;
-    showConnector?: boolean;
-}) {
-    const matchSuffix = isStreaming
-        ? ""
-        : ` (${totalMatches} ${totalMatches === 1 ? "match" : "matches"})`;
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor={totalMatches > 0 ? "green" : "gray"}
-        >
-            <span className="font-medium">
-                {isStreaming ? "Finding" : "Found"}
-            </span>{" "}
-            <span>
-                &ldquo;{query}&rdquo;{matchSuffix}
-                <span className="ml-1 text-gray-400">in {filename}</span>
-                {isStreaming && "..."}
-            </span>
-        </EventBlock>
-    );
-}
-export function DocCreatedBlock({
-    filename,
-    showConnector,
-    isStreaming,
-}: {
-    filename: string;
-    showConnector?: boolean;
-    isStreaming?: boolean;
-}) {
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor="green"
-        >
-            <span className="font-medium">
-                {isStreaming ? "Creating" : "Created"}
-            </span>{" "}
-            <span>{isStreaming ? `${filename}...` : filename}</span>
-        </EventBlock>
-    );
-}
+
 export function DocDownloadBlock({
     filename,
     download_url,
@@ -210,311 +186,76 @@ export function DocDownloadBlock({
     isReloading?: boolean;
     versionNumber?: number | null;
 }) {
-    const hasVersion =
-        typeof versionNumber === "number" &&
-        Number.isFinite(versionNumber) &&
-        versionNumber > 0;
+    const [busy, setBusy] = useState(false);
     const extMatch = filename.match(/\.(\w+)$/);
-    const ext = extMatch ? extMatch[1].toUpperCase() : "FILE";
+    const ext = extMatch?.[1].toUpperCase() ?? "FILE";
     const basename = extMatch
         ? filename.slice(0, -extMatch[0].length)
         : filename;
-    const href = download_url.startsWith("/") ? download_url : null;    const [busy, setBusy] = useState(false);
-    const handleDownload = async (e?: {
-        stopPropagation?: () => void;
-        preventDefault?: () => void;
-    }) => {
-        e?.stopPropagation?.();
-        e?.preventDefault?.();
-        if (busy || isReloading || !href) return;
+    const href = download_url.startsWith("/") ? download_url : null;
+    const spinning = busy || isReloading;
+    const handleDownload = async (event?: React.SyntheticEvent) => {
+        event?.stopPropagation();
+        event?.preventDefault();
+        if (spinning || !href) return;
         setBusy(true);
         try {
-            const resp = await apiFetch(href);            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            downloadBlob(await resp.blob(), filename);
+            const response = await apiFetch(href);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            downloadBlob(await response.blob(), filename);
         } finally {
             setBusy(false);
         }
     };
-    const spinning = busy || isReloading;
     const body = (
-        <div className="flex items-center gap-3 px-4 py-3 min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 min-w-0">
-                    <p className="text-base font-serif text-gray-900 text-wrap">
+                <div className="flex min-w-0 items-center gap-2">
+                    <p className="text-wrap font-serif text-base text-gray-900">
                         {basename}
                     </p>
-                    {hasVersion && (
-                        <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                            V{versionNumber}
-                        </span>
-                    )}
+                    {Number.isFinite(versionNumber) &&
+                        Number(versionNumber) > 0 && (
+                            <span className="shrink-0 rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                                V{versionNumber}
+                            </span>
+                        )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{ext}</p>            </div>
+                <p className="mt-0.5 text-xs text-gray-500">{ext}</p>
+            </div>
         </div>
     );
-    const downloadIcon = spinning ? (
-        <div
-            aria-disabled
-            className="shrink-0 flex items-center bg-white/25 px-6 text-gray-400 cursor-not-allowed"
-        >
-            <Loader2 size={13} className="animate-spin" />
-        </div>
-    ) : (
+    const icon = (
         <button
             type="button"
+            disabled={spinning}
             onClick={handleDownload}
-            className="shrink-0 flex items-center bg-white/25 px-6 text-gray-500 hover:bg-white/55 hover:text-gray-700 cursor-pointer"
+            className="flex shrink-0 cursor-pointer items-center bg-white/25 px-6 text-gray-500 hover:bg-white/55 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white/25"
+            aria-label={`Download ${filename}`}
         >
-            <Download size={13} />
+            {spinning ? (
+                <Loader2 size={13} className="animate-spin" />
+            ) : (
+                <Download size={13} />
+            )}
         </button>
     );
-    if (onOpen) {
-        return (
-            <div
-                className={`flex items-stretch overflow-hidden w-full font-sans ${RESPONSE_GLASS_SURFACE}`}
-            >
+    return (
+        <div
+            className={`flex w-full items-stretch overflow-hidden font-sans ${RESPONSE_GLASS_SURFACE}`}
+        >
+            {onOpen || !spinning ? (
                 <button
                     type="button"
-                    onClick={onOpen}
-                    className="flex items-stretch flex-1 min-w-0 text-left hover:bg-white/45 cursor-pointer"
+                    onClick={onOpen ?? handleDownload}
+                    className="flex min-w-0 flex-1 cursor-pointer items-stretch text-left hover:bg-white/45"
                 >
                     {body}
                 </button>
-                {downloadIcon}
-            </div>
-        );
-    }
-    if (spinning) {
-        return (
-            <div
-                className={`flex items-stretch overflow-hidden w-full font-sans ${RESPONSE_GLASS_SURFACE}`}
-            >
-                {body}
-                {downloadIcon}
-            </div>
-        );
-    }
-    return (
-        <div
-            className={`flex items-stretch overflow-hidden w-full font-sans ${RESPONSE_GLASS_SURFACE}`}
-        >
-            <button
-                type="button"
-                onClick={handleDownload}
-                className="flex items-stretch flex-1 min-w-0 text-left hover:bg-white/45 cursor-pointer"
-            >
-                {body}
-            </button>
-            {downloadIcon}
+            ) : (
+                body
+            )}
+            {icon}
         </div>
-    );
-}
-export function WorkflowAppliedBlock({
-    title,
-    showConnector,
-    onClick,
-}: {
-    title: string;
-    showConnector?: boolean;
-    onClick?: () => void;
-}) {
-    return (
-        <EventBlock showConnector={showConnector} dotColor="green">
-            <span className="font-medium">Applied Workflow</span>{" "}
-            {onClick ? (
-                <button
-                    onClick={onClick}
-                    className="text-left hover:text-gray-700 cursor-pointer"
-                >
-                    {title}
-                </button>
-            ) : (
-                <span>{title}</span>
-            )}
-        </EventBlock>
-    );
-}
-export function AskInputsBlock({
-    event,
-    response,
-    showConnector,
-}: {
-    event: Extract<AssistantEvent, { type: "ask_inputs" }>;
-    response?: Extract<AssistantEvent, { type: "ask_inputs_response" }>;
-    showConnector?: boolean;
-}) {
-    const responseById = new Map(
-        response?.responses.map((item) => [item.id, item]) ?? [],
-    );
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            dotColor={response ? "green" : "gray"}
-        >
-            <p className="font-medium text-gray-600">
-                {response ? "Asked for input" : "Asking for input"}
-            </p>
-            <div className="mt-2 space-y-2 text-gray-800">
-                {event.items.map((item, index) => {
-                    const itemResponse = responseById.get(item.id);
-                    const responseText = (() => {
-                        if (!itemResponse) return null;
-                        if (itemResponse.skipped) return "Skipped";
-                        if (itemResponse.kind === "choice") {
-                            return itemResponse.answer ?? "";
-                        }
-                        const filenames = itemResponse.filenames;
-                        return filenames.length
-                            ? filenames.join(", ")
-                            : "No documents attached";
-                    })();
-                    return (
-                        <div key={item.id}>
-                            <p className="text-xs text-gray-500">
-                                {index + 1}.{" "}
-                                {item.kind === "choice"
-                                    ? "Question"
-                                    : "Documents"}
-                            </p>
-                            <p className="mt-0.5">
-                                {item.kind === "choice"
-                                    ? item.question
-                                    : item.document_types.join(", ") ||
-                                      "Documents requested"}
-                            </p>
-                            {responseText !== null && (
-                                <p className="mt-0.5 text-gray-600">
-                                    {responseText}
-                                </p>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        </EventBlock>
-    );
-}
-export type CourtListenerBlockItem = {
-    caseName: string | null;
-    citation: string | null;
-    dateFiled?: string | null;
-    url?: string | null;
-    query?: string;
-    totalMatches?: number;
-    hasError?: boolean;
-};
-export function CourtListenerBlock({
-    label,
-    detail,
-    isStreaming,
-    hasError,
-    showConnector,
-    items,
-}: {
-    label: string;
-    detail?: string;
-    isStreaming?: boolean;
-    hasError?: boolean;
-    showConnector?: boolean;
-    items?: CourtListenerBlockItem[];
-}) {
-    const [isOpen, setIsOpen] = useState(false);
-    const hasItems = !!items && items.length > 0;
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor={hasError ? "red" : "green"}
-        >
-            {hasItems ? (
-                <button
-                    onClick={() => setIsOpen((v) => !v)}
-                    className="text-left hover:text-gray-700 inline-flex items-center"
-                >
-                    <span className="font-medium">{label}</span>
-                    {detail ? <span>&nbsp;{detail}</span> : null}
-                    {isStreaming ? <span>...</span> : null}
-                    <ChevronDown
-                        size={10}
-                        className={`relative top-px ml-1 ${isOpen ? "" : "-rotate-90"}`}
-                    />
-                </button>
-            ) : (
-                <>
-                    <span className="font-medium">{label}</span>
-                    {detail ? <span> {detail}</span> : null}
-                    {isStreaming ? <span>...</span> : null}
-                </>
-            )}
-            {isOpen && hasItems && (
-                <ul className="mt-2 flex flex-col gap-1 text-sm font-serif text-gray-500">
-                    {items!.map((item, idx) => {
-                        const label = [item.caseName, item.citation]
-                            .filter(Boolean)
-                            .join(", ");
-                        const primary = label || item.url || "Unknown case";
-                        const searchText = item.query
-                            ? `Searched for "${item.query}" in ${primary}${
-                                  typeof item.totalMatches === "number"
-                                      ? ` (${item.totalMatches} ${
-                                            item.totalMatches === 1
-                                                ? "match"
-                                                : "matches"
-                                        })`
-                                      : ""
-                              }`
-                            : null;
-                        return (
-                            <li key={idx}>
-                                <div
-                                    className={
-                                        item.hasError ? "text-red-500" : ""
-                                    }
-                                >
-                                    {item.url ? (
-                                        <a
-                                            href={item.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="hover:text-gray-700 hover:underline underline-offset-2"
-                                        >
-                                            {searchText ?? primary}
-                                        </a>
-                                    ) : searchText ? (
-                                        <span>{searchText}</span>
-                                    ) : (
-                                        <span>{primary}</span>
-                                    )}
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
-        </EventBlock>
-    );
-}
-export function DocEditedBlock({
-    filename,
-    showConnector,
-    isStreaming,
-    hasError,
-}: {
-    filename: string;
-    showConnector?: boolean;
-    isStreaming?: boolean;
-    hasError?: boolean;
-}) {
-    return (
-        <EventBlock
-            showConnector={showConnector}
-            isStreaming={isStreaming}
-            dotColor={hasError ? "red" : "green"}
-        >
-            <span className="font-medium">
-                {isStreaming ? "Editing" : hasError ? "Edit failed" : "Edited"}
-            </span>{" "}
-            <span>{isStreaming ? `${filename}...` : filename}</span>
-        </EventBlock>
     );
 }

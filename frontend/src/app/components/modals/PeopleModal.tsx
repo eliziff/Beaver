@@ -1,8 +1,6 @@
-"use client";
 import { useEffect, useState } from "react";import { Loader2, Trash2, User } from "lucide-react";
 import type { ProjectPeople } from "@/app/lib/beaverApi";
 import { AddUserInput } from "../shared/AddUserInput";
-import { NativeActionSelect } from "../ui/native-action-select";
 import { Modal } from "./Modal";
 interface SharedResource {
     id: string;
@@ -34,21 +32,20 @@ export function PeopleModal({
     breadcrumb,
     onSharedWithChange,
 }: Props) {
-    const [busy, setBusy] = useState<"add" | "remove" | null>(null);
-    const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+    const [pending, setPending] = useState<"add" | string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [people, setPeople] = useState<ProjectPeople | null>(null);
+    const [loadedRoster, setLoadedRoster] = useState<{
+        key: string;
+        data: ProjectPeople | null;
+    } | null>(null);
     const [lookupDisplayByEmail, setLookupDisplayByEmail] = useState<
         Map<string, string | null>
     >(new Map());
-    const [peopleLoading, setPeopleLoading] = useState(false);
-    const [loadedRosterKey, setLoadedRosterKey] = useState<string | null>(null);
     const resourceId = resource?.id ?? null;
     const sharedWith: string[] = Array.isArray(resource?.shared_with)        ? resource.shared_with        : [];    useEffect(() => {
         if (!open) return;
         setError(null);
-        setBusy(null);
-        setRemovingEmail(null);
+        setPending(null);
     }, [open]);
     const sharedKey = sharedWith
         .map((e) => e.toLowerCase())
@@ -58,26 +55,21 @@ export function PeopleModal({
     useEffect(() => {
         if (!open || !resourceId) return;
         let cancelled = false;
-        setPeopleLoading(true);
-        setPeople(null);
-        setLoadedRosterKey(null);
         fetchPeople(resourceId)
             .then((data) => {
-                if (cancelled) return;
-                setPeople(data);
-                setLoadedRosterKey(rosterKey);
+                if (!cancelled) setLoadedRoster({ key: rosterKey, data });
             })
             .catch(() => {
-                if (!cancelled) setLoadedRosterKey(rosterKey);
-            })
-            .finally(() => {
-                if (!cancelled) setPeopleLoading(false);
+                if (!cancelled)
+                    setLoadedRoster({ key: rosterKey, data: null });
             });
         return () => {
             cancelled = true;
         };
     }, [open, resourceId, rosterKey, fetchPeople]);
     if (!open || !resource) return null;
+    const rosterPending = loadedRoster?.key !== rosterKey;
+    const people = rosterPending ? null : loadedRoster.data;
     const memberDisplayByEmail = new Map<string, string | null>();
     for (const m of people?.members ?? []) {
         memberDisplayByEmail.set(m.email.toLowerCase(), m.display_name);
@@ -99,7 +91,7 @@ export function PeopleModal({
     }
     for (const email of sharedWith) {
         const lower = email.toLowerCase();
-        if (ownerEmail && lower === ownerEmail.toLowerCase()) continue;
+        if (lower === ownerEmail) continue;
         roster.push({
             email,
             display_name:
@@ -112,10 +104,9 @@ export function PeopleModal({
     const normalizedCurrentUserEmail =
         currentUserEmail?.trim().toLowerCase() ?? null;
     const sharedLower = sharedWith.map((e) => e.toLowerCase());
-    const rosterPending = peopleLoading || loadedRosterKey !== rosterKey;
     function validateNewEmail(email: string) {
         if (sharedLower.includes(email)) return `${email} already has access.`;
-        if (ownerEmail && email === ownerEmail.toLowerCase()) {
+        if (email === ownerEmail) {
             return `${email} is the owner.`;
         }
         if (
@@ -130,20 +121,16 @@ export function PeopleModal({
         email: string;
         display_name: string | null;
     }) {
+        if (!onSharedWithChange || pending !== null) return;
         setLookupDisplayByEmail((prev) => {
             const next = new Map(prev);
             next.set(user.email.trim().toLowerCase(), user.display_name);
             return next;
         });
-        await handleAdd(user.email);
-    }
-    async function handleAdd(email: string) {
-        if (!onSharedWithChange || busy !== null) return;
-        setBusy("add");
+        setPending("add");
         setError(null);
         try {
-            const next = [...sharedWith, email];
-            await onSharedWithChange(next);
+            await onSharedWithChange([...sharedWith, user.email]);
         } catch (e) {
             throw new Error(
                 e instanceof Error
@@ -151,13 +138,12 @@ export function PeopleModal({
                     : "Couldn't add the member. Try again.",
             );
         } finally {
-            setBusy(null);
+            setPending(null);
         }
     }
     async function handleRemove(email: string) {
-        if (!onSharedWithChange || busy !== null) return;
-        setBusy("remove");
-        setRemovingEmail(email);
+        if (!onSharedWithChange || pending !== null) return;
+        setPending(email);
         setError(null);
         try {
             const next = sharedWith.filter(
@@ -171,8 +157,7 @@ export function PeopleModal({
                     : "Couldn't remove the member. Try again.",
             );
         } finally {
-            setBusy(null);
-            setRemovingEmail(null);
+            setPending(null);
         }
     }
     return (
@@ -183,7 +168,7 @@ export function PeopleModal({
                         <AddUserInput
                             onAdd={handleAddUser}
                             validateEmail={validateNewEmail}
-                            busy={busy === "add"}
+                            busy={pending === "add"}
                             placeholder="Add by email..."
                             autoFocus
                             submitLabel="Add member"
@@ -197,14 +182,9 @@ export function PeopleModal({
                     </section>
                 )}
                 <section className="flex min-h-0 flex-1 flex-col">
-                    <div className="mb-2 flex items-center gap-2">
-                        <h3 className="text-xs font-medium text-gray-500">
-                            People with Access
-                        </h3>
-                        {peopleLoading && (
-                            <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
-                        )}
-                    </div>
+                    <h3 className="mb-2 text-xs font-medium text-gray-500">
+                        People with Access
+                    </h3>
                     {rosterPending ? (
                         <div className="min-h-0 flex-1 space-y-1">
                             {[1, 2].map((item) => (
@@ -233,22 +213,19 @@ export function PeopleModal({
                                     entry.user_id ??
                                     `${entry.role}-unknown`;
                                 const isYou =
-                                    !!currentUserEmail &&
+                                    !!normalizedCurrentUserEmail &&
                                     !!entryEmail &&
                                     entryEmail.toLowerCase() ===
-                                        currentUserEmail.toLowerCase();
-                                const isRemoving =
-                                    busy === "remove" &&
-                                    removingEmail === entryEmail;
+                                        normalizedCurrentUserEmail;
+                                const isRemoving = pending === entryEmail;
                                 const displayName = entry.display_name?.trim();
                                 const primary = isYou
                                     ? "You"
                                     : displayName || entryEmail || "User";
                                 const showEmail =
                                     !isYou && !!displayName && !!entryEmail;
-                                const initial = displayName
-                                    ?.charAt(0)
-                                    .toUpperCase();
+                                const initial =
+                                    displayName?.charAt(0).toUpperCase();
                                 return (
                                     <li
                                         key={`${entry.role}-${rowKey}`}
@@ -284,37 +261,25 @@ export function PeopleModal({
                                                 <span className="rounded-full px-2 py-1 text-xs text-gray-400">
                                                     Member
                                                 </span>
-                                                <span
-                                                    className="inline-flex h-6 w-6"
-                                                    dir="rtl"
-                                                >
-                                                    {onSharedWithChange && (
-                                                        <NativeActionSelect
-                                                            label={`Remove access for ${entryEmail}`}
-                                                            placeholder="Choose"
-                                                            items={[
-                                                                {
-                                                                    label: "Remove access",
-                                                                    onSelect: () =>
-                                                                        void handleRemove(
-                                                                            entryEmail,
-                                                                        ),
-                                                                    disabled:
-                                                                        busy !==
-                                                                        null,
-                                                                },
-                                                            ]}
-                                                            className="h-full w-full"
-                                                            triggerClassName="h-6 w-6 items-center justify-center rounded-full text-xs leading-none text-gray-500 hover:bg-gray-200 hover:text-gray-800 peer-disabled:opacity-50"
-                                                        >
-                                                            {isRemoving ? (
-                                                                <Loader2 className="h-3 w-3 animate-spin" />
-                                                            ) : (
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </NativeActionSelect>
-                                                    )}
-                                                </span>
+                                                {onSharedWithChange && (
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`Remove access for ${entryEmail}`}
+                                                        disabled={pending !== null}
+                                                        onClick={() =>
+                                                            void handleRemove(
+                                                                entryEmail,
+                                                            )
+                                                        }
+                                                        className="flex h-6 w-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50"
+                                                    >
+                                                        {isRemoving ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        )}
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </li>

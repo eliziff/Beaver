@@ -51,7 +51,7 @@ describe("TabularReviewsTable", () => {
         );
 
         expect(screen.queryByText("Project")).not.toBeInTheDocument();
-        expect(container.querySelectorAll(".h-11.min-w-max")).toHaveLength(6);
+        expect(container.querySelectorAll(".h-11.min-w-0")).toHaveLength(6);
 
         rerender(
             <TabularReviewsTable
@@ -66,7 +66,7 @@ describe("TabularReviewsTable", () => {
         );
 
         expect(screen.getByText("Project")).toBeInTheDocument();
-        expect(container.querySelectorAll(".h-11.min-w-max")).toHaveLength(4);
+        expect(container.querySelectorAll(".h-11.min-w-0")).toHaveLength(4);
 
         rerender(
             <TabularReviewsTable

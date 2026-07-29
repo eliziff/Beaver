@@ -1,5 +1,3 @@
-"use client";
-import { type CSSProperties } from "react";
 import {
     Loader2,
     Plus,
@@ -11,12 +9,13 @@ import {
     type PageHeaderAction,
 } from "@/app/components/shared/PageHeader";
 import type { Project } from "@/app/components/shared/types";import { HeaderActionsMenu } from "@/app/components/shared/HeaderActionsMenu";
-import { TABLE_PRIMARY_CELL_WIDTH_CLASS } from "@/app/components/shared/TablePrimitive";export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
-export const NAME_COL_W = TABLE_PRIMARY_CELL_WIDTH_CLASS;
+export type ProjectWorkspaceSection = "documents" | "assistant" | "reviews";
 export const DOC_NAME_COL_W = "min-w-0 flex-1";
+export const projectBreadcrumbLabel = (project: Project) =>
+    `${project.name}${project.cm_number ? ` (${project.cm_number})` : ""}`;
 const TREE_CONTROL_WIDTH_PX = 29;
 const TREE_NAME_PADDING_PX = 16;
-export function treeNameCellStyle(depth: number): CSSProperties | undefined {
+export function treeNameCellStyle(depth: number) {
     if (depth <= 0) return undefined;
     return {
         paddingLeft: TREE_NAME_PADDING_PX + depth * TREE_CONTROL_WIDTH_PX,
@@ -54,38 +53,42 @@ export function ProjectPageHeader({    project,
     onNewReview: () => void;
     onAddDocuments?: (() => void) | null;
 }) {
-    const sectionAction: PageHeaderAction =
+    const action =
         activeSection === "documents"
             ? {
-                  onClick: onAddDocuments ?? undefined,
-                  disabled: !onAddDocuments,
-                  icon: <Upload className="h-4 w-4" />,
                   label: <span className="hidden sm:inline">Documents</span>,
                   title: "Add documents",
+                  onClick: onAddDocuments ?? undefined,
+                  disabled: !onAddDocuments,
+                  busy: false,
+                  icon: Upload,
               }
             : activeSection === "assistant"
               ? {
-                    onClick: onNewChat,
-                    disabled: creatingChat,
-                    icon: creatingChat ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Plus className="h-4 w-4" />
-                    ),
                     label: <span className="hidden sm:inline">Chat</span>,
                     title: "Create chat",
+                    onClick: onNewChat,
+                    disabled: creatingChat,
+                    busy: creatingChat,
+                    icon: Plus,
                 }
               : {
-                    onClick: onNewReview,
-                    disabled: docsCount === 0 || creatingReview,
-                    icon: creatingReview ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Plus className="h-4 w-4" />
-                    ),
                     label: <span className="hidden sm:inline">Review</span>,
                     title: "Create review",
+                    onClick: onNewReview,
+                    disabled: docsCount === 0 || creatingReview,
+                    busy: creatingReview,
+                    icon: Plus,
                 };
+    const SectionIcon = action.busy ? Loader2 : action.icon;
+    const sectionAction: PageHeaderAction = {
+        ...action,
+        icon: (
+            <SectionIcon
+                className={`h-4 w-4 ${action.busy ? "animate-spin" : ""}`}
+            />
+        ),
+    };
     return (
         <PageHeader
             breadcrumbs={[
@@ -94,16 +97,12 @@ export function ProjectPageHeader({    project,
                     onClick: onBackToProjects,
                     title: "Back to Projects",
                 },
-                {
-                    ...(project
-                        ? {
-                              label: project.name,
-                          }
-                        : {
-                              loading: true,
-                              skeletonClassName: "w-40",
-                          }),
-                },
+                project
+                    ? { label: project.name }
+                    : {
+                          loading: true,
+                          skeletonClassName: "w-40",
+                      },
             ]}
             actions={[
                     {

@@ -1,5 +1,4 @@
-"use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
 import { PillButton } from "@/app/components/ui/pill-button";
@@ -7,7 +6,7 @@ import { DocumentViewer } from "../shared/views/DocumentViewer";import {
     CitationQuotesHeader,
     type CitationQuoteHeaderItem,
 } from "./CitationQuotesHeader";
-import { TrackedChangeHeader } from "./TrackedChangeHeader";
+import { useEditResolution } from "./EditCard";
 import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
 import {
     cleanCitationQuoteText,
@@ -23,33 +22,16 @@ import type {
     Citation,
     DocumentCitation,
     EditAnnotation,
+    EditResolveHandlers,
 } from "../shared/types";
 export type DocPanelMode =
     | { kind: "document" }
     | { kind: "citation"; citation: Citation }
-    | {
+    | ({
           kind: "edit";
           edit: EditAnnotation;
           isEditReloading?: boolean;
-          onResolveStart?: (args: {
-              editId: string;
-              documentId: string;
-              verb: "accept" | "reject";
-          }) => void;
-          onResolved?: (args: {
-              editId: string;
-              documentId: string;
-              status: "accepted" | "rejected";
-              versionId: string | null;
-              downloadUrl: string | null;
-          }) => void;
-          onError?: (args: {
-              editId: string;
-              documentId: string;
-              versionId: string | null;
-              message: string;
-          }) => void;
-      };
+      } & EditResolveHandlers);
 interface Props {
     documentId: string;
     filename: string;
@@ -62,6 +44,13 @@ interface Props {
     onWarningDismiss?: () => void;
     initialScrollTop?: number | null;
     onScrollChange?: (scrollTop: number) => void;
+}
+function useLocalOverride<T>(source: T) {
+    const [override, setOverride] = useState({ source, value: source });
+    return [
+        override.source === source ? override.value : source,
+        (value: T) => setOverride({ source, value }),
+    ] as const;
 }
 export function DocPanel({
     documentId,
@@ -78,57 +67,48 @@ export function DocPanel({
 }: Props) {
     const useDocxView = isDocxFilename(filename);
     const useSheetView = isSpreadsheetFilename(filename);
-    const [actionVersionId, setActionVersionId] = useState(versionId);
+    const [actionVersionId, setActionVersionId] = useLocalOverride(versionId);
     const citationQuoteId =
         mode.kind === "citation" ? `document:${mode.citation.ref}:0` : null;
-    const [activeCitationQuoteId, setActiveCitationQuoteId] = useState<
-        string | null
-    >(citationQuoteId);
+    const [activeCitationQuoteId, setActiveCitationQuoteId] =
+        useLocalOverride(citationQuoteId);
     const [quoteFocusKey, setQuoteFocusKey] = useState(0);
-    const quotes: CitationQuote[] | undefined = useMemo(() => {
-        if (mode.kind !== "citation") return undefined;
-        if (!activeCitationQuoteId) return [];
-        const selectedIndex = Number(activeCitationQuoteId.split(":").at(-1));
-        if (!Number.isFinite(selectedIndex)) return [];
-        const selectedQuote =
-            getDocumentCitationQuotes(mode.citation)[selectedIndex];
-        if (!selectedQuote) return [];
-        const documentCitation = mode.citation as DocumentCitation;        return expandCitationToEntries({            ...documentCitation,            quotes: [selectedQuote],        });    }, [activeCitationQuoteId, mode]);
-    const highlightCells = useMemo(() => {
-        if (mode.kind !== "citation") return undefined;
-        if (!activeCitationQuoteId) return [];
-        const selectedIndex = Number(activeCitationQuoteId.split(":").at(-1));
-        if (!Number.isFinite(selectedIndex)) return [];
-        const selectedQuote =
-            getDocumentCitationQuotes(mode.citation)[selectedIndex];
-        if (!selectedQuote || (!selectedQuote.cell && !selectedQuote.sheet))
-            return [];
-        return [{ sheet: selectedQuote.sheet, cell: selectedQuote.cell }];
-    }, [activeCitationQuoteId, mode]);
-    useEffect(() => {
-        setActiveCitationQuoteId(citationQuoteId);
-    }, [citationQuoteId]);
-    useEffect(() => {
-        setActionVersionId(versionId);
-    }, [versionId]);
-    const handleCitationQuoteSelect = useCallback(
-        (quoteId: string) => {
-            const shouldSelect = activeCitationQuoteId !== quoteId;
-            setActiveCitationQuoteId(shouldSelect ? quoteId : null);
-            if (shouldSelect) setQuoteFocusKey((current) => current + 1);
-        },
-        [activeCitationQuoteId],
-    );
-    const highlightEdit = useMemo(() => {
-        if (mode.kind !== "edit") return null;
-        return {
-            key: mode.edit.edit_id,
-            inserted_text: mode.edit.inserted_text,
-            deleted_text: mode.edit.deleted_text,
-            ins_w_id: mode.edit.ins_w_id ?? null,
-            del_w_id: mode.edit.del_w_id ?? null,
-        };
-    }, [mode]);
+    const selectedQuote =
+        mode.kind === "citation" && activeCitationQuoteId
+            ? getDocumentCitationQuotes(mode.citation)[
+                  Number(activeCitationQuoteId.split(":").at(-1))
+              ]
+            : undefined;
+    const quotes: CitationQuote[] | undefined =
+        mode.kind !== "citation"
+            ? undefined
+            : selectedQuote
+              ? expandCitationToEntries({
+                    ...(mode.citation as DocumentCitation),
+                    quotes: [selectedQuote],
+                })
+              : [];
+    const highlightCells =
+        mode.kind !== "citation"
+            ? undefined
+            : selectedQuote && (selectedQuote.cell || selectedQuote.sheet)
+              ? [{ sheet: selectedQuote.sheet, cell: selectedQuote.cell }]
+              : [];
+    const handleCitationQuoteSelect = (quoteId: string) => {
+        const shouldSelect = activeCitationQuoteId !== quoteId;
+        setActiveCitationQuoteId(shouldSelect ? quoteId : null);
+        if (shouldSelect) setQuoteFocusKey((current) => current + 1);
+    };
+    const highlightEdit =
+        mode.kind === "edit"
+            ? {
+                  key: mode.edit.edit_id,
+                  inserted_text: mode.edit.inserted_text,
+                  deleted_text: mode.edit.deleted_text,
+                  ins_w_id: mode.edit.ins_w_id ?? null,
+                  del_w_id: mode.edit.del_w_id ?? null,
+              }
+            : null;
     return (
         <div className="flex h-full flex-col">
             {mode.kind !== "edit" && (
@@ -151,16 +131,44 @@ export function DocPanel({
                 />
             )}
             {mode.kind === "edit" && (
-                <TrackedChangeHeader
-                    edit={mode.edit}
-                    isEditReloading={mode.isEditReloading}
-                    onResolveStart={mode.onResolveStart}
-                    onResolved={mode.onResolved}
-                    onError={mode.onError}
-                />
+                <TrackedChangeHeader {...mode} />
             )}
             <div className="flex flex-1 min-h-0 flex-col px-3 py-3">
                 <DocumentViewer                    documentId={documentId}                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}                    versionId={actionVersionId}                    quotes={quotes}                    quoteFocusKey={quoteFocusKey}                    highlightEdit={highlightEdit}                    highlightCells={highlightCells}                    warning={warning ?? null}                    onWarningDismiss={onWarningDismiss}                    initialScrollTop={initialScrollTop ?? null}                    onScrollChange={onScrollChange}                />            </div>
+        </div>
+    );
+}
+function TrackedChangeHeader({
+    edit,
+    isEditReloading,
+    ...handlers
+}: Extract<DocPanelMode, { kind: "edit" }>) {
+    const { status, resolve, disabled } = useEditResolution(
+        edit,
+        undefined,
+        isEditReloading,
+        handlers,
+    );
+    return (
+        <div className="flex shrink-0 justify-end border-b border-gray-200 px-3 py-2">
+            <div className="flex items-center gap-2">
+                <PillButton
+                    tone="black"
+                    size="sm"
+                    onClick={() => resolve("accept")}
+                    disabled={disabled}
+                >
+                    {status === "accepted" ? "Accepted" : "Accept"}
+                </PillButton>
+                <PillButton
+                    tone="white"
+                    size="sm"
+                    onClick={() => resolve("reject")}
+                    disabled={disabled}
+                >
+                    {status === "rejected" ? "Rejected" : "Reject"}
+                </PillButton>
+            </div>
         </div>
     );
 }

@@ -1,13 +1,9 @@
-"use client";
 import {
-    forwardRef,
-    useCallback,
     useEffect,
-    useImperativeHandle,
     useMemo,
     useRef,
 } from "react";
-import { Loader2, Pencil, Plus, Upload } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import type {
     ColumnConfig,
     Document,
@@ -20,8 +16,6 @@ import {
     TableSelectionPlaceholder,
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-import { PillButton } from "@/app/components/ui/pill-button";
-import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
     APP_SURFACE_ACTIVE_CLASS,
     APP_SURFACE_GROUP_HOVER_CLASS,
@@ -34,15 +28,11 @@ const DOC_COL_W =
     "w-[112px] sm:w-[220px] md:w-[280px] xl:w-[332px] shrink-0";
 const TR_STICKY_CELL_BG = "bg-app-surface";
 const TR_HEADER_BG = "bg-app-surface";
-export interface TRTableHandle {
-    scrollToCell: (colIdx: number, rowIdx: number) => void;
-}
 interface Props {
     loading: boolean;
     columns: ColumnConfig[];
     documents: Document[];
     cells: TabularCell[];
-    savingColumn: boolean;
     savingColumnsConfig: boolean;
     selectedDocIds: string[];
     uploadingFilenames?: string[];
@@ -59,16 +49,12 @@ interface Props {
         citationCell?: string,
     ) => void;
     onEditColumn: (col: ColumnConfig) => void;
-    onAddColumn: () => void;
-    onAddDocuments: () => void;
 }
-export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
-    {
+export function TRTable({
         loading,
         columns,
         documents,
         cells,
-        savingColumn,
         savingColumnsConfig,
         selectedDocIds,
         uploadingFilenames = [],
@@ -78,11 +64,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         onExpand,
         onCitationClick,
         onEditColumn,
-        onAddColumn,
-        onAddDocuments,
-    },
-    ref,
-) {
+    }: Props) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const sortedColumns = useMemo(
         () => [...columns].sort((a, b) => a.index - b.index),
@@ -103,65 +85,36 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         () => new Map(sortedColumns.map((column, index) => [column.index, index])),
         [sortedColumns],
     );
-    const onExpandRef = useRef(onExpand);
-    const onCitationClickRef = useRef(onCitationClick);
     useEffect(() => {
-        onExpandRef.current = onExpand;
-        onCitationClickRef.current = onCitationClick;
-    }, [onExpand, onCitationClick]);
-    const handleCellExpand = useCallback((cell: TabularCell) => {
-        onExpandRef.current(cell);
-    }, []);
-    const handleCellCitationClick = useCallback(
-        (
-            cell: TabularCell,
-            page: number | undefined,
-            quote: string,
-            citationRef: number,
-            sheet?: string,
-            citationCell?: string,
-        ) => {
-            onCitationClickRef.current(
-                cell,
-                page,
-                quote,
-                citationRef,
-                sheet,
-                citationCell,
+        if (!highlightedCell) return;
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const targetRow =
+            container.querySelectorAll<HTMLElement>("[data-tr-row]")[
+                highlightedCell.rowIdx
+            ];
+        if (targetRow) {
+            container.scrollTo({
+                top: Math.max(0, targetRow.offsetTop - 40),
+                behavior: "smooth",
+            });
+        }
+        const surface = container.parentElement;
+        const targetColumn = surface?.querySelectorAll<HTMLElement>(
+            "[data-tr-col-header]",
+        )[highlightedCell.colIdx];
+        const documentColumn = surface?.querySelector<HTMLElement>(
+            "[data-tr-doc-header]",
+        );
+        if (targetColumn && documentColumn) {
+            container.scrollLeft = Math.max(
+                0,
+                targetColumn.offsetLeft +
+                    targetColumn.offsetWidth / 2 -
+                    (container.clientWidth + documentColumn.offsetWidth) / 2,
             );
-        },
-        [],
-    );
-    useImperativeHandle(ref, () => ({
-        scrollToCell(colIdx: number, rowIdx: number) {
-            const container = scrollContainerRef.current;
-            if (!container) return;
-            const allRows =
-                container.querySelectorAll<HTMLElement>("[data-tr-row]");
-            const targetRow = allRows[rowIdx];
-            if (targetRow) {
-                container.scrollTo({
-                    top: Math.max(0, targetRow.offsetTop - 40),
-                    behavior: "smooth",
-                });
-            }
-            const surface = container.parentElement;
-            const targetColumn = surface?.querySelectorAll<HTMLElement>(
-                "[data-tr-col-header]",
-            )[colIdx];
-            const documentColumn = surface?.querySelector<HTMLElement>(
-                "[data-tr-doc-header]",
-            );
-            if (targetColumn && documentColumn) {
-                container.scrollLeft = Math.max(
-                    0,
-                    targetColumn.offsetLeft +
-                        targetColumn.offsetWidth / 2 -
-                        (container.clientWidth + documentColumn.offsetWidth) / 2,
-                );
-            }
-        },
-    }));
+        }
+    }, [highlightedCell]);
     function getCell(docId: string, colIdx: number) {
         return cellsByKey.get(`${docId}:${colIdx}`);
     }
@@ -171,22 +124,22 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     const someSelected =
         !allSelected && documents.some((d) => selectedDocIdSet.has(d.id));
     function toggleAll() {
-        if (allSelected) {
-            onSelectionChange([]);
-        } else {
-            onSelectionChange(documents.map((d) => d.id));
-        }
+        onSelectionChange(allSelected ? [] : documents.map((d) => d.id));
     }
     function toggleDoc(id: string) {
-        if (selectedDocIdSet.has(id)) {
-            onSelectionChange(selectedDocIds.filter((x) => x !== id));
-        } else {
-            onSelectionChange([...selectedDocIds, id]);
-        }
+        onSelectionChange(
+            selectedDocIdSet.has(id)
+                ? selectedDocIds.filter((selected) => selected !== id)
+                : [...selectedDocIds, id],
+        );
     }
+    const dragOverlay = dragOverFiles && (
+        <div className="pointer-events-none absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40" />
+    );
     if (loading) {
         return (
             <TableScrollArea
+                horizontal
                 header={
                     <div
                         className={`flex h-10 min-w-full shrink-0 ${TR_HEADER_BG}`}
@@ -239,6 +192,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     ) {
         return (
             <TableScrollArea
+                horizontal
                 header={
                     <div className={`shrink-0 flex h-10 items-center border-b border-gray-200 ${TR_HEADER_BG}`}>
                         <div
@@ -252,36 +206,11 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                 }
             >
                 <div className="relative flex min-h-0 flex-1">
-                    {dragOverFiles && (
-                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />                    )}
-                    <div className="flex flex-1 flex-col items-start justify-center w-full max-w-xs mx-auto">
-                        <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />
-                        <p className="text-2xl font-medium font-serif text-gray-900">
-                            Tabular Review
+                    {dragOverlay}
+                    <div className="mx-auto flex w-full max-w-xs flex-1 items-center">
+                        <p className="text-sm text-gray-500">
+                            Add columns and documents to begin.
                         </p>
-                        <p className="mt-1 text-xs text-gray-400 text-left">
-                            Add columns and documents to get started.
-                        </p>
-                        <div className="mt-4 flex items-center gap-2">
-                            <PillButton
-                                tone="black"
-                                size="sm"
-                                onClick={onAddColumn}
-                                className="px-3"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                                Add Columns
-                            </PillButton>
-                            <PillButton
-                                tone="white"
-                                size="sm"
-                                onClick={onAddDocuments}
-                                className="px-3"
-                            >
-                                <Upload className="h-3.5 w-3.5" />
-                                Add Documents
-                            </PillButton>
-                        </div>
                     </div>
                 </div>
             </TableScrollArea>
@@ -289,6 +218,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
     }
     return (
         <TableScrollArea
+            horizontal
             scrollRef={scrollContainerRef}
             header={
                 <div
@@ -320,7 +250,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                     type="button"
                                     aria-label={`Edit ${col.name}`}
                                     title="Edit column"
-                                    disabled={savingColumn || savingColumnsConfig}
+                                    disabled={savingColumnsConfig}
                                     onClick={() => onEditColumn(col)}
                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
                                 >
@@ -329,21 +259,12 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                             </div>
                         </div>
                     ))}
-                    <div className="flex-1 border-b border-gray-200 flex items-center justify-start p-2 min-w-8">
-                        <button
-                            onClick={onAddColumn}
-                            disabled={savingColumn || savingColumnsConfig}
-                            className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:text-gray-200"
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>
-                    </div>
+                    <div className="min-w-8 flex-1 border-b border-gray-200" />
                 </div>
             }
         >
                 <div className="relative min-h-0 flex-1">
-                    {dragOverFiles && (
-                        <div className="absolute inset-0 z-[90] border-2 border-red-400 bg-red-50/40 pointer-events-none" />                    )}
+                    {dragOverlay}
                     {uploadingFilenames.map((filename) => (
                     <div
                         key={`uploading-${filename}`}
@@ -416,10 +337,8 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                                             <TabularCellComponent
                                                 cell={cell}
                                                 column={col}
-                                                onExpand={handleCellExpand}
-                                                onCitationClick={
-                                                    handleCellCitationClick
-                                                }
+                                                onExpand={onExpand}
+                                                onCitationClick={onCitationClick}
                                             />
                                         )}
                                     </div>
@@ -432,4 +351,4 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
                 </div>
         </TableScrollArea>
     );
-});
+}

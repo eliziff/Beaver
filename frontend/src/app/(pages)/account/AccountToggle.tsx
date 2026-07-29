@@ -1,25 +1,11 @@
-import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-type AccountToggleSize = "sm" | "md";
-const sizeClasses: Record<
-    AccountToggleSize,
-    {
-        track: string;
-        thumb: string;
-        translate: string;
-    }
-> = {
-    sm: {
-        track: "h-4 w-7 p-0.5",
-        thumb: "h-3 w-3",
-        translate: "translate-x-3",
-    },
-    md: {
-        track: "h-5 w-9 p-0.5",
-        thumb: "h-4 w-4",
-        translate: "translate-x-4",
-    },
+import { cn } from "@/app/lib/utils";
+
+const sizes = {
+    sm: { track: "h-4 w-7", thumb: "size-3", shift: "translate-x-3" },
+    md: { track: "h-5 w-9", thumb: "size-4", shift: "translate-x-4" },
 };
+
 export function AccountToggle({
     checked,
     disabled,
@@ -33,12 +19,12 @@ export function AccountToggle({
     disabled?: boolean;
     loading?: boolean;
     onChange: (checked: boolean) => void;
-    size?: AccountToggleSize;
+    size?: keyof typeof sizes;
     label?: string;
     className?: string;
 }) {
-    const sizes = sizeClasses[size];
-    const button = (
+    const style = sizes[size];
+    const toggle = (
         <button
             type="button"
             role="switch"
@@ -46,27 +32,25 @@ export function AccountToggle({
             disabled={disabled || loading}
             onClick={() => onChange(!checked)}
             className={cn(
-                "flex shrink-0 items-center rounded-full",
+                "relative shrink-0 rounded-full p-0.5 disabled:cursor-not-allowed disabled:opacity-40",
                 checked ? "bg-emerald-600" : "bg-gray-200",
-                "disabled:cursor-not-allowed disabled:opacity-40",
-                sizes.track,
+                style.track,
             )}
         >
             <span
                 className={cn(
                     "flex items-center justify-center rounded-full bg-white",
-                    sizes.thumb,
-                    checked ? sizes.translate : "translate-x-0",
+                    style.thumb,
+                    checked && style.shift,
                 )}
             >
                 {loading && (
-                    <Loader2 className="h-2.5 w-2.5 animate-spin text-gray-400" />
+                    <Loader2 className="size-2.5 animate-spin text-gray-400" />
                 )}
             </span>
         </button>
     );
-    if (!label) return button;
-    return (
+    return label ? (
         <label
             className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 text-xs font-medium",
@@ -74,8 +58,10 @@ export function AccountToggle({
                 className,
             )}
         >
-            <span>{label}</span>
-            {button}
+            {label}
+            {toggle}
         </label>
+    ) : (
+        toggle
     );
 }

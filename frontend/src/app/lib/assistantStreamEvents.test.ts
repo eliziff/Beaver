@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { reduceAssistantStreamEvent } from "./assistantStreamEvents";
+import {
+  finishAssistantStreamEvents,
+  reduceAssistantStreamEvent,
+} from "./assistantStreamEvents";
 import type { AssistantEvent } from "@/app/components/shared/types";
 
 function reduce(
@@ -78,4 +81,71 @@ describe("reduceAssistantStreamEvent", () => {
       isStreaming: false,
     });
   });
+
+  it("completes only the matching concurrent document activity", () => {
+    let events: AssistantEvent[] = [];
+    events = reduce(events, {
+      type: "doc_find_start",
+      filename: "one.docx",
+      query: "notice",
+    });
+    events = reduce(events, {
+      type: "doc_find_start",
+      filename: "two.docx",
+      query: "notice",
+    });
+    events = reduce(events, {
+      type: "doc_find",
+      filename: "one.docx",
+      query: "notice",
+      total_matches: 2,
+    });
+
+    expect(events.slice(0, 2)).toEqual([
+      expect.objectContaining({
+        type: "doc_find",
+        filename: "one.docx",
+        isStreaming: false,
+      }),
+      expect.objectContaining({
+        type: "doc_find",
+        filename: "two.docx",
+        isStreaming: true,
+      }),
+    ]);
+  });
+
+  it("rejects start aliases the backend does not emit", () => {
+    expect(
+      reduceAssistantStreamEvent([], {
+        type: "workflow_applied_start",
+        workflow_id: "workflow-1",
+        title: "Review",
+      }),
+    ).toBeNull();
+  });
+});
+
+it("finishes mixed stream events in one stable pass", () => {
+  const done = {
+    type: "doc_read" as const,
+    filename: "done.docx",
+    isStreaming: false,
+  };
+  const events: AssistantEvent[] = [
+    { type: "thinking", isStreaming: true },
+    { type: "reasoning", text: "Checked", isStreaming: true },
+    { type: "content", text: "Answer.", isStreaming: true },
+    { type: "doc_read", filename: "brief.docx", isStreaming: true },
+    done,
+  ];
+
+  expect(finishAssistantStreamEvents(events)).toEqual([
+    { type: "reasoning", text: "Checked" },
+    { type: "content", text: "Answer." },
+    { type: "doc_read", filename: "brief.docx" },
+    done,
+  ]);
+  const clean = [done];
+  expect(finishAssistantStreamEvents(clean)).toBe(clean);
 });

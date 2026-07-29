@@ -78,6 +78,73 @@ vi.mock("./ChatInput", () => ({
 }));
 
 describe("ChatView displayed document context", () => {
+    it("keeps one scroll listener while streaming messages update", async () => {
+        const addEventListener = vi.spyOn(
+            HTMLElement.prototype,
+            "addEventListener",
+        );
+        const removeEventListener = vi.spyOn(
+            HTMLElement.prototype,
+            "removeEventListener",
+        );
+        const { container, rerender, unmount } = render(
+            <ChatView
+                messages={[
+                    { role: "assistant", content: "First", events: [] },
+                ]}
+                isResponseLoading
+                handleChat={vi.fn()}
+                cancel={vi.fn()}
+            />,
+        );
+        const scroller = container.querySelector(
+            ".overflow-y-auto",
+        ) as HTMLElement;
+        Object.defineProperties(scroller, {
+            scrollHeight: { configurable: true, value: 1000 },
+            clientHeight: { configurable: true, value: 500 },
+            scrollTop: { configurable: true, value: 0 },
+        });
+        addEventListener.mockClear();
+        removeEventListener.mockClear();
+
+        rerender(
+            <ChatView
+                messages={[
+                    {
+                        role: "assistant",
+                        content: "First streaming delta",
+                        events: [],
+                    },
+                ]}
+                isResponseLoading
+                handleChat={vi.fn()}
+                cancel={vi.fn()}
+            />,
+        );
+        act(() => scroller.dispatchEvent(new Event("scroll")));
+
+        await waitFor(() =>
+            expect(
+                container.querySelector("button.cursor-pointer.rounded-full"),
+            ).not.toBeNull(),
+        );
+        expect(addEventListener).not.toHaveBeenCalledWith(
+            "scroll",
+            expect.any(Function),
+        );
+        expect(removeEventListener).not.toHaveBeenCalledWith(
+            "scroll",
+            expect.any(Function),
+        );
+
+        unmount();
+        expect(removeEventListener).toHaveBeenCalledWith(
+            "scroll",
+            expect.any(Function),
+        );
+    });
+
     it("attaches the active document to a workflow turn", async () => {
         const user = userEvent.setup();
         const handleChat = vi.fn();

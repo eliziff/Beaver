@@ -1,134 +1,11 @@
 import type { ColumnConfig, Workflow } from "@/app/components/shared/types";
+import { apiBlobRequest } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 type ZipFile = {
     path: string;
     content: string;
 };
-const textEncoder = new TextEncoder();
 const TABLE_CONFIG_SCHEMA = "../schema/table-config.schema.yaml";
-const CRC_TABLE = (() => {
-    const table = new Uint32Array(256);
-    for (let i = 0; i < 256; i++) {
-        let c = i;
-        for (let k = 0; k < 8; k++) {
-            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-        }
-        table[i] = c >>> 0;
-    }
-    return table;
-})();
-function crc32(bytes: Uint8Array): number {
-    let crc = 0xffffffff;
-    for (const byte of bytes) {
-        crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-    }
-    return (crc ^ 0xffffffff) >>> 0;
-}
-function uint16(value: number): Uint8Array {
-    const bytes = new Uint8Array(2);
-    new DataView(bytes.buffer).setUint16(0, value, true);
-    return bytes;
-}
-function uint32(value: number): Uint8Array {
-    const bytes = new Uint8Array(4);
-    new DataView(bytes.buffer).setUint32(0, value, true);
-    return bytes;
-}
-function concatBytes(parts: Uint8Array[]): Uint8Array {
-    const total = parts.reduce((sum, part) => sum + part.length, 0);
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const part of parts) {
-        out.set(part, offset);
-        offset += part.length;
-    }
-    return out;
-}
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-    const buffer = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(buffer).set(bytes);
-    return buffer;
-}
-function dosDateTime(date = new Date()): { date: number; time: number } {
-    const year = Math.max(1980, date.getFullYear());
-    return {
-        time:
-            (date.getHours() << 11) |
-            (date.getMinutes() << 5) |
-            Math.floor(date.getSeconds() / 2),
-        date:
-            ((year - 1980) << 9) |
-            ((date.getMonth() + 1) << 5) |
-            date.getDate(),
-    };
-}
-function createZip(files: ZipFile[]): Blob {
-    const localParts: Uint8Array[] = [];
-    const centralParts: Uint8Array[] = [];
-    const { date, time } = dosDateTime();
-    let offset = 0;
-    for (const file of files) {
-        const name = textEncoder.encode(file.path);
-        const content = textEncoder.encode(file.content);
-        const crc = crc32(content);
-        const localHeader = concatBytes([
-            uint32(0x04034b50),
-            uint16(20),
-            uint16(0x0800),
-            uint16(0),
-            uint16(time),
-            uint16(date),
-            uint32(crc),
-            uint32(content.length),
-            uint32(content.length),
-            uint16(name.length),
-            uint16(0),
-            name,
-        ]);
-        const centralHeader = concatBytes([
-            uint32(0x02014b50),
-            uint16(20),
-            uint16(20),
-            uint16(0x0800),
-            uint16(0),
-            uint16(time),
-            uint16(date),
-            uint32(crc),
-            uint32(content.length),
-            uint32(content.length),
-            uint16(name.length),
-            uint16(0),
-            uint16(0),
-            uint16(0),
-            uint16(0),
-            uint32(0),
-            uint32(offset),
-            name,
-        ]);
-        localParts.push(localHeader, content);
-        centralParts.push(centralHeader);
-        offset += localHeader.length + content.length;
-    }
-    const centralDirectory = concatBytes(centralParts);
-    const endOfCentralDirectory = concatBytes([
-        uint32(0x06054b50),
-        uint16(0),
-        uint16(0),
-        uint16(files.length),
-        uint16(files.length),
-        uint32(centralDirectory.length),
-        uint32(offset),
-        uint16(0),
-    ]);
-    const zipBytes = concatBytes([
-        ...localParts,
-        centralDirectory,
-        endOfCentralDirectory,
-    ]);
-    return new Blob([toArrayBuffer(zipBytes)], {
-        type: "application/zip",
-    });
-}
 function slugify(input: string, fallback: string): string {
     const slug = input
         .trim()
@@ -236,11 +113,16 @@ function workflowFiles(
     }
     return { files, slug };
 }
-export function downloadWorkflowZip(
+export async function downloadWorkflowZip(
     workflow: Workflow,
     skillMd: string,
     columns: ColumnConfig[],
 ) {
     const { files, slug } = workflowFiles(workflow, skillMd, columns);
-    downloadBlob(createZip(files), `${slug}.zip`);
+    const { blob } = await apiBlobRequest("/workflows/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files }),
+    });
+    downloadBlob(blob, `${slug}.zip`);
 }

@@ -1,38 +1,63 @@
 import type { AssistantEvent } from "../../shared/types";
-export function toolCallLabel(name: string): string {
-    if (name === "ask_inputs") return "Asking for input...";
-    if (name === "generate_docx" || name === "library_create_docx")
-        return "Creating document...";
-    if (name === "generate_excel") return "Creating spreadsheet...";
-    if (name === "generate_ppt") return "Creating presentation...";
-    if (name === "edit_document" || name === "library_revise_docx")
-        return "Editing document...";
-    if (name === "read_document") return "Reading document...";
-    if (name === "fetch_documents") return "Reading documents...";
-    if (name === "find_in_document") return "Searching document...";
-    if (name === "read_workflow") return "Loading workflow...";
-    if (name === "list_workflows") return "Loading workflows...";
-    if (name === "list_documents") return "Loading documents...";
-    if (name === "courtlistener_search_case_law")
-        return "Searching case law...";
-    if (name === "courtlistener_get_cases") return "Fetching cases...";
-    if (name === "courtlistener_find_in_case") return "Searching case...";
-    if (name === "courtlistener_read_case") return "Reading case...";
-    if (name === "courtlistener_verify_citations")
-        return "Verifying citations...";
-    if (name === "a2aj_search") return "Searching Canadian legal sources...";
-    if (name === "a2aj_fetch") return "Reading Canadian legal source...";
-    if (name === "a2aj_lookup") return "Looking up Canadian legal passage...";
-    if (
-        name === "toa_submit_library_document" ||
-        name === "toa_job_status"
-    )
-        return "Creating authorities...";
-    if (name === "library_link_docx_citations")
-        return "Adding citation links...";
-    if (name === "library_fix_docx_supras")
-        return "Fixing supra references...";
-    if (name.startsWith("mcp_")) return "Using connector...";
+import { assistantEventKey } from "@/app/lib/assistantStreamEvents";
+
+type CaseCitation = Extract<AssistantEvent, { type: "case_citation" }>;
+type AskResponse = Extract<AssistantEvent, { type: "ask_inputs_response" }>;
+
+type ActivityItem = {
+    label: string;
+    detail?: string;
+    url?: string | null;
+    error?: boolean;
+};
+
+export type ActivityView = {
+    label: string;
+    detail?: string;
+    markdown?: string;
+    items?: ActivityItem[];
+    busy?: boolean;
+    error?: boolean;
+};
+
+type ActivityContext = {
+    response?: AskResponse;
+    caseCitations?: Map<string, CaseCitation>;
+    events?: AssistantEvent[];
+    index?: number;
+};
+
+const TOOLS: Record<string, readonly [string, string?]> = {
+    ask_inputs: ["Asking for input"],
+    generate_docx: ["Creating document", "doc_created"],
+    library_create_docx: ["Creating document", "doc_created"],
+    generate_excel: ["Creating spreadsheet"],
+    generate_ppt: ["Creating presentation"],
+    edit_document: ["Editing document", "doc_edited"],
+    library_revise_docx: ["Editing document", "doc_edited"],
+    read_document: ["Reading document", "doc_read"],
+    fetch_documents: ["Reading documents", "doc_read"],
+    find_in_document: ["Searching document", "doc_find"],
+    read_workflow: ["Loading workflow"],
+    list_workflows: ["Loading workflows"],
+    list_documents: ["Loading documents"],
+    courtlistener_search_case_law: ["Searching case law"],
+    courtlistener_get_cases: ["Fetching cases"],
+    courtlistener_find_in_case: ["Searching case"],
+    courtlistener_read_case: ["Reading case"],
+    courtlistener_verify_citations: ["Verifying citations"],
+    a2aj_search: ["Searching Canadian legal sources"],
+    a2aj_fetch: ["Reading Canadian legal source"],
+    a2aj_lookup: ["Looking up Canadian legal passage"],
+    toa_submit_library_document: ["Creating authorities", "automation_run"],
+    toa_job_status: ["Creating authorities", "automation_run"],
+    library_link_docx_citations: ["Adding citation links", "automation_run"],
+    library_fix_docx_supras: ["Fixing supra references", "automation_run"],
+};
+
+function toolLabel(name: string) {
+    if (TOOLS[name]) return TOOLS[name][0];
+    if (name.startsWith("mcp_")) return "Using connector";
     const readable = name
         .replace(/^(?:openai|codex|beaver|mike|library)[_:./-]+/iu, "")
         .replace(/([a-z\d])([A-Z])/gu, "$1 $2")
@@ -40,9 +65,10 @@ export function toolCallLabel(name: string): string {
         .replace(/\s+/gu, " ")
         .trim()
         .toLowerCase();
-    return readable ? `Using ${readable}...` : "Using tool...";
+    return readable ? `Using ${readable}` : "Using tool";
 }
-function plainActivityText(text: string) {
+
+function plainText(text: string) {
     return text
         .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
         .replace(/[*_`~]+/gu, "")
@@ -50,115 +76,299 @@ function plainActivityText(text: string) {
         .replace(/\s+/gu, " ")
         .trim();
 }
-export function activityLabel(event: AssistantEvent): string | null {
-    if (event.type === "reasoning")
-        return plainActivityText(event.text).slice(0, 120) || null;
-    if (event.type === "tool_call_start")
-        return toolCallLabel(event.name).replace(/\.{3}$/u, "");
-    if (event.type === "thinking") return "Thinking";
-    if (event.type === "doc_read")
-        return `${event.isStreaming ? "Reading" : "Read"} ${event.filename}`;
-    if (event.type === "doc_find")
-        return `${event.isStreaming ? "Searching" : "Searched"} ${event.filename}`;
-    if (event.type === "doc_created")
-        return `${event.isStreaming ? "Creating" : "Created"} ${event.filename}`;
-    if (event.type === "doc_edited")
-        return `${event.isStreaming ? "Editing" : event.error ? "Edit failed" : "Edited"} ${event.filename}`;
-    if (event.type === "workflow_applied") return `Applied ${event.title}`;
-    if (event.type === "ask_inputs") return "Waiting for input";
-    if (event.type === "mcp_tool_call") {
-        return event.connector_name
-            ? `${event.connector_name}: ${toolCallLabel(event.tool_name).replace(/\.{3}$/u, "")}`
-            : toolCallLabel(event.openai_tool_name).replace(/\.{3}$/u, "");
+
+function count(value: number, singular: string, plural = `${singular}s`) {
+    return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function caseLabel(
+    event: {
+        cluster_id: number | null;
+        case_name?: string | null;
+        citation?: string | null;
+    },
+    fallback = "case",
+) {
+    return (
+        [event.case_name, event.citation].filter(Boolean).join(", ") ||
+        (event.cluster_id ? `cluster ${event.cluster_id}` : fallback)
+    );
+}
+function tracked(
+    event: { isStreaming?: boolean; error?: string | null },
+    labels: readonly [string, string, string],
+    detail?: string,
+    items?: ActivityItem[],
+): ActivityView {
+    const failed = !!event.error;
+    return {
+        label: labels[event.isStreaming ? 0 : failed ? 1 : 2],
+        detail: event.error ?? detail,
+        ...(items && { items }),
+        busy: !!event.isStreaming,
+        error: failed,
+    };
+}
+
+export function activityView(
+    event: AssistantEvent,
+    context: ActivityContext = {},
+): ActivityView | null {
+    if (event.type === "reasoning") {
+        const markdown = event.text.replace(/\r\n?/gu, "\n").trim();
+        const label = plainText(markdown).slice(0, 120);
+        return label
+            ? { label, markdown, busy: !!event.isStreaming }
+            : null;
     }
-    if (event.type === "courtlistener_search_case_law")
-        return event.isStreaming ? "Searching case law" : "Searched case law";
-    if (event.type === "courtlistener_get_cases")
-        return event.isStreaming ? "Fetching cases" : "Fetched cases";
-    if (event.type === "courtlistener_find_in_case")
-        return event.isStreaming ? "Searching case" : "Searched case";
-    if (event.type === "courtlistener_read_case")
-        return event.isStreaming ? "Reading case" : "Read case";
-    if (event.type === "courtlistener_verify_citations")
-        return event.isStreaming ? "Verifying citations" : "Verified citations";
+    if (event.type === "tool_call_start")
+        return { label: toolLabel(event.name), busy: true };
+    if (event.type === "thinking")
+        return { label: "Thinking", busy: true };
+    if (event.type === "mcp_tool_call") {
+        const error = event.status === "error";
+        return {
+            label: event.isStreaming
+                ? "Using connector"
+                : event.connector_name
+                  ? `${event.connector_name}: ${toolLabel(event.tool_name)}`
+                  : toolLabel(event.openai_tool_name),
+            detail: error ? event.error : undefined,
+            busy: !!event.isStreaming,
+            error,
+        };
+    }
+    if (event.type === "doc_read")
+        return {
+            label: `${event.isStreaming ? "Reading" : "Read"} ${event.filename}`,
+            busy: !!event.isStreaming,
+        };
+    if (event.type === "doc_find")
+        return {
+            label: `${event.isStreaming ? "Searching" : "Searched"} ${event.filename}`,
+            detail: `“${event.query}”${
+                event.isStreaming
+                    ? ""
+                    : ` · ${count(event.total_matches, "match")}`
+            }`,
+            busy: !!event.isStreaming,
+        };
+    if (event.type === "doc_created")
+        return {
+            label: `${event.isStreaming ? "Creating" : "Created"} ${event.filename}`,
+            busy: !!event.isStreaming,
+        };
+    if (event.type === "doc_edited")
+        return tracked(event, [
+            `Editing ${event.filename}`,
+            `Edit failed ${event.filename}`,
+            `Edited ${event.filename}`,
+        ]);
+    if (event.type === "workflow_applied")
+        return { label: `Applied ${event.title}` };
+    if (event.type === "ask_inputs") {
+        const responseById = new Map(
+            context.response?.responses.map((item) => [item.id, item]) ?? [],
+        );
+        return {
+            label: context.response ? "Asked for input" : "Waiting for input",
+            busy: !context.response,
+            items: event.items.map((item, index) => {
+                const answer = responseById.get(item.id);
+                const detail = !answer
+                    ? undefined
+                    : answer.skipped
+                      ? "Skipped"
+                      : answer.kind === "choice"
+                        ? answer.answer
+                        : answer.filenames.join(", ") ||
+                          "No documents attached";
+                return {
+                    label: `${index + 1}. ${
+                        item.kind === "choice"
+                            ? item.question
+                            : item.document_types.join(", ") ||
+                              "Documents requested"
+                    }`,
+                    detail,
+                };
+            }),
+        };
+    }
+    if (event.type === "courtlistener_search_case_law") {
+        const results = event.result_count ?? 0;
+        return tracked(
+            event,
+            ["Searching case law", "Case law search failed", "Searched case law"],
+            event.isStreaming
+                ? event.query
+                    ? `for “${event.query}”`
+                    : undefined
+                : `${count(results, "result")}${
+                      event.query ? ` for “${event.query}”` : ""
+                  }`,
+        );
+    }
+    if (event.type === "courtlistener_get_cases") {
+        const caseCount = event.case_count ?? event.cluster_ids.length;
+        const items =
+            event.cases?.map((item) => ({
+                label:
+                    [item.case_name, item.citation]
+                        .filter(Boolean)
+                        .join(", ") || `Cluster ${item.cluster_id}`,
+                url: item.url,
+            })) ??
+            event.cluster_ids.map((id) => {
+                const citation = context.caseCitations?.get(`us-case-${id}`);
+                return {
+                    label:
+                        [citation?.case_name, citation?.citation]
+                            .filter(Boolean)
+                            .join(", ") || `Cluster ${id}`,
+                    url: citation?.url,
+                };
+            });
+        return tracked(
+            event,
+            [
+                `Fetching ${count(caseCount, "case")}`,
+                "Case fetch failed",
+                `Fetched ${count(caseCount, "case")}`,
+            ],
+            undefined,
+            items,
+        );
+    }
+    if (event.type === "courtlistener_find_in_case") {
+        const searches = event.searches ?? [];
+        if (searches.length) {
+            const matches =
+                event.total_matches ??
+                searches.reduce(
+                    (total, search) =>
+                        total + (search.total_matches ?? 0),
+                    0,
+                );
+            const cases = new Set(
+                searches.map(
+                    (search) =>
+                        search.cluster_id ??
+                        `${search.case_name ?? ""}|${search.citation ?? ""}`,
+                ),
+            ).size;
+            return tracked(
+                event,
+                [
+                    `Running ${count(searches.length, "search")} in ${count(cases, "case")}`,
+                    "Case searches failed",
+                    `Ran ${count(searches.length, "search")} in ${count(cases, "case")}`,
+                ],
+                event.isStreaming ? undefined : count(matches, "match"),
+                searches.map((search) => ({
+                    label: `“${search.query}” in ${caseLabel(search)}`,
+                    detail: count(search.total_matches ?? 0, "match"),
+                    error: !!search.error,
+                })),
+            );
+        }
+        const label = caseLabel(event);
+        return tracked(
+            event,
+            [
+                `Searching ${label}`,
+                `Search failed ${label}`,
+                `Searched ${label}`,
+            ],
+            `${count(event.total_matches ?? 0, "match")}${
+                event.query ? ` for “${event.query}”` : ""
+            }`,
+        );
+    }
+    if (event.type === "courtlistener_read_case") {
+        const label = caseLabel(event);
+        return tracked(
+            event,
+            [`Reading ${label}`, `Read failed ${label}`, `Read ${label}`],
+            event.opinion_count
+                ? count(event.opinion_count, "opinion")
+                : undefined,
+        );
+    }
+    if (event.type === "courtlistener_verify_citations") {
+        const citationCount = event.citation_count ?? 0;
+        const items: ActivityItem[] = [];
+        const allEvents = context.events ?? [];
+        for (
+            let index = (context.index ?? -1) + 1;
+            index < allEvents.length;
+            index++
+        ) {
+            const citation = allEvents[index];
+            if (citation.type !== "case_citation") break;
+            items.push({
+                label:
+                    [citation.case_name, citation.citation]
+                        .filter(Boolean)
+                        .join(", ") || "Unknown case",
+                url: citation.url,
+            });
+        }
+        return tracked(
+            event,
+            [
+                `Verifying ${count(citationCount, "citation")}`,
+                "Citation verification failed",
+                `Verified ${count(citationCount, "citation")}`,
+            ],
+            event.isStreaming
+                ? undefined
+                : count(event.match_count ?? 0, "match"),
+            items,
+        );
+    }
     if (event.type === "automation_run")
-        return event.error ? "Automation failed" : event.stage;
+        return {
+            label: event.error ? "Automation failed" : event.stage,
+            detail: event.error,
+            busy: event.status === "running" || event.status === "queued",
+            error: !!event.error,
+        };
     return null;
 }
-function activityFamily(event: AssistantEvent): string {
-    if (event.type === "automation_run") return "automation_run";
+
+function activityFamily(event: AssistantEvent) {
     if (event.type !== "tool_call_start") return event.type;
-    if (
-        event.name === "read_document" ||
-        event.name === "fetch_documents"
-    )
-        return "doc_read";
-    if (event.name === "find_in_document") return "doc_find";
-    if (
-        event.name === "generate_docx" ||
-        event.name === "library_create_docx"
-    )
-        return "doc_created";
-    if (
-        event.name === "edit_document" ||
-        event.name === "library_revise_docx"
-    )
-        return "doc_edited";
-    if (
-        event.name === "toa_submit_library_document" ||
-        event.name === "toa_job_status" ||
-        event.name === "library_link_docx_citations" ||
-        event.name === "library_fix_docx_supras"
-    )
-        return "automation_run";
-    return event.name;
+    return TOOLS[event.name]?.[1] ?? event.name;
 }
-function activityKey(event: AssistantEvent): string {
-    if (event.type === "reasoning")
-        return `reasoning:${plainActivityText(event.text)}`;
-    if (event.type === "doc_read")
-        return `doc_read:${event.filename}`;
-    if (event.type === "doc_find")
-        return `doc_find:${event.filename}:${event.query}`;
-    if (event.type === "doc_created")
-        return `doc_created:${event.document_id ?? event.filename}`;
-    if (event.type === "doc_edited")
-        return `doc_edited:${event.document_id}`;
-    if (event.type === "workflow_applied")
-        return `workflow_applied:${event.workflow_id}`;
-    if (event.type === "ask_inputs")
-        return `ask_inputs:${event.items.map((item) => item.id).join(",")}`;
-    if (event.type === "mcp_tool_call")
-        return `mcp:${event.connector_id}:${event.openai_tool_name}`;
-    if (event.type === "tool_call_start")
-        return `tool:${event.name}`;
-    if (event.type === "automation_run")
-        return `automation:${event.job_id ?? event.id}`;
-    return JSON.stringify(event);
-}
+
 export function dedupeActivityEntries<
     T extends { event: AssistantEvent; index: number },
 >(entries: T[]): T[] {
-    const seen = new Set<string>();
-    return entries
-        .filter((entry, index) => {
-            if (
-                entry.event.type === "thinking" &&
-                entries.slice(index + 1).some(({ event }) => !!activityLabel(event))
-            )
-                return false;
-            if (entry.event.type !== "tool_call_start") return true;
-            const family = activityFamily(entry.event);
-            return !entries
-                .slice(index + 1)
-                .some(({ event }) => activityFamily(event) === family);
-        })
-        .reverse()
-        .filter(({ event }) => {
-            const key = activityKey(event);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
-        .reverse();
+    const seenKeys = new Set<string>();
+    const seenFamilies = new Set<string>();
+    const result: T[] = [];
+    for (let index = entries.length - 1; index >= 0; index--) {
+        const entry = entries[index];
+        const family = activityFamily(entry.event);
+        const key =
+            entry.event.type === "reasoning"
+                ? `reasoning:${plainText(entry.event.text)}`
+                : assistantEventKey(entry.event);
+        if (
+            (entry.event.type === "reasoning" &&
+                /^analy[sz]ed (?:the )?request[.!:]*$/iu.test(
+                    plainText(entry.event.text),
+                )) ||
+            (entry.event.type === "thinking" && result.length > 0) ||
+            (entry.event.type === "tool_call_start" &&
+                seenFamilies.has(family)) ||
+            seenKeys.has(key)
+        )
+            continue;
+        seenKeys.add(key);
+        seenFamilies.add(family);
+        result.push(entry);
+    }
+    return result.reverse();
 }

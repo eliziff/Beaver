@@ -1,8 +1,4 @@
-"use client";
-import {
-    type ButtonHTMLAttributes,
-    type ReactNode,
-} from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ChevronLeft, Loader2, Plus, Search } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import {
@@ -10,6 +6,7 @@ import {
     APP_SURFACE_HOVER_CLASS,
     APP_SURFACE_PRESSED_CLASS,
 } from "@/app/components/ui/liquid-surface";
+
 export interface PageHeaderBreadcrumb {
     label?: ReactNode;
     onClick?: () => void;
@@ -17,7 +14,7 @@ export interface PageHeaderBreadcrumb {
     skeletonClassName?: string;
     title?: string;
 }
-type PageHeaderButtonAction = {
+type ButtonAction = {
     type?: never;
     icon?: ReactNode;
     label?: ReactNode;
@@ -26,234 +23,164 @@ type PageHeaderButtonAction = {
     title?: string;
     iconOnly?: boolean;
 };
-type PageHeaderSearchAction = {
+type SearchAction = {
     type: "search";
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
 };
-type PageHeaderNewAction = {
+type NewAction = {
     type: "new";
     onClick?: () => void;
     disabled?: boolean;
     loading?: boolean;
     title?: string;
 };
-type PageHeaderCustomAction = {
-    type: "custom";
-    render: ReactNode;
-};
+type CustomAction = { type: "custom"; render: ReactNode };
 export type PageHeaderAction =
-    | PageHeaderButtonAction
-    | PageHeaderSearchAction
-    | PageHeaderNewAction
-    | PageHeaderCustomAction;
-type MaybePageHeaderAction = PageHeaderAction | null | false | undefined;
-const CONTROL_CLASS =
+    | ButtonAction
+    | SearchAction
+    | NewAction
+    | CustomAction;
+type OptionalAction = PageHeaderAction | null | false | undefined;
+const CONTROL =
     "flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400";
-interface PageHeaderProps {
-    children?: ReactNode;
-    actions?: MaybePageHeaderAction[];
-    shrink?: boolean;
-    breadcrumbs?: PageHeaderBreadcrumb[];
-    loading?: boolean;
-}
+
 export function PageHeader({
     children,
     actions,
     shrink = false,
     breadcrumbs,
     loading = false,
-}: PageHeaderProps) {
-    const headerContent = breadcrumbs?.length ? (
-        <PageHeaderBreadcrumbs items={breadcrumbs} />
-    ) : (
-        children
+}: {
+    children?: ReactNode;
+    actions?: OptionalAction[];
+    shrink?: boolean;
+    breadcrumbs?: PageHeaderBreadcrumb[];
+    loading?: boolean;
+}) {
+    const items = actions?.filter(
+        (action): action is PageHeaderAction => Boolean(action),
     );
-    const actionsDisabled =
-        loading || !!breadcrumbs?.some((item) => item.loading);
-    const actionItems = actions?.filter(isPresentAction) ?? [];
-    const hasActions = actionItems.length > 0;
+    const disabled =
+        loading || !!breadcrumbs?.some((breadcrumb) => breadcrumb.loading);
     return (
         <div
             className={cn(
-                "flex min-w-0 flex-col items-stretch justify-between gap-4 md:flex-row md:items-center",
-                "mx-4 md:mx-6",
-                "min-h-[max(76px,4.625rem)] pb-4 pt-5.5",
+                "mx-4 flex min-h-[max(76px,4.625rem)] min-w-0 flex-col items-stretch justify-between gap-4 pb-4 pt-5.5 md:mx-6 md:flex-row md:items-center",
                 shrink && "shrink-0",
             )}
         >
-            {headerContent}
-            {hasActions && (
-                <div className="flex min-w-0 items-center justify-end gap-3 md:shrink-0">
-                    <PageHeaderActions
-                        actions={actionItems}
-                        actionsDisabled={actionsDisabled}
-                    />
+            {breadcrumbs?.length ? (
+                <Breadcrumbs items={breadcrumbs} />
+            ) : (
+                children
+            )}
+            {!!items?.length && (
+                <div className="flex min-w-0 items-center justify-end gap-2 md:shrink-0">
+                    {items.map((action, index) => (
+                        <Action
+                            key={index}
+                            action={action}
+                            disabled={disabled}
+                        />
+                    ))}
                 </div>
             )}
         </div>
     );
 }
-function PageHeaderActions({
-    actions,
-    actionsDisabled,
-}: {
-    actions: PageHeaderAction[];
-    actionsDisabled: boolean;
-}) {
-    return (
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            {actions.map((action, index) => (
-                <PageHeaderActionRenderer
-                    key={index}
-                    action={action}
-                    disabled={actionsDisabled}
-                />
-            ))}
-        </div>
-    );
-}
-function isPresentAction(action: MaybePageHeaderAction): action is PageHeaderAction {
-    return Boolean(action);
-}
-function PageHeaderActionRenderer({
+
+function Action({
     action,
     disabled,
 }: {
     action: PageHeaderAction;
     disabled: boolean;
 }) {
-    switch (action.type) {
-        case "search":
-            return (
-                <PageHeaderSearchActionControl
-                    action={action}
+    if (action.type === "search") {
+        return (
+            <label
+                className={cn(
+                    CONTROL,
+                    APP_SURFACE_ACTIVE_CLASS,
+                    "w-36 min-w-0 max-w-[calc(100vw-6.5rem)] flex-1 cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700 sm:w-72 sm:flex-none",
+                    disabled && "opacity-60",
+                )}
+            >
+                <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <input
+                    data-page-search
+                    aria-keyshortcuts="/"
                     disabled={disabled}
+                    type="search"
+                    placeholder={action.placeholder ?? "Search\u2026"}
+                    value={action.value}
+                    onChange={(event) => action.onChange(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
                 />
-            );
-        case "new":
-            return (
-                <PageHeaderNewActionControl
-                    action={action}
-                    disabled={disabled}
-                />
-            );
-        case "custom":
-            return (
-                <span
-                    className={cn(
-                        "inline-flex h-7 items-center",
-                        disabled && "pointer-events-none opacity-40",
-                    )}
-                >
-                    {action.render}
-                </span>
-            );
-        default:
-            return (
-                <PageHeaderButtonActionControl
-                    action={action}
-                    disabled={disabled}
-                />
-            );
+            </label>
+        );
     }
-}
-function PageHeaderButtonActionControl({
-    action,
-    disabled,
-}: {
-    action: PageHeaderButtonAction;
-    disabled: boolean;
-}) {
-    const iconOnly = action.iconOnly ?? !action.label;
+    if (action.type === "custom") {
+        return (
+            <span
+                className={cn(
+                    "inline-flex h-7 items-center",
+                    disabled && "pointer-events-none opacity-40",
+                )}
+            >
+                {action.render}
+            </span>
+        );
+    }
+    if (action.type === "new") {
+        const title = action.title ?? "New";
+        return (
+            <ActionButton
+                onClick={action.onClick}
+                disabled={disabled || action.disabled || action.loading}
+                title={title}
+                aria-label={title}
+                aria-keyshortcuts="Alt+N"
+                data-page-new
+            >
+                {action.loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                    <Plus className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">{title}</span>
+            </ActionButton>
+        );
+    }
     return (
-        <PageHeaderActionButton
+        <ActionButton
             onClick={action.onClick}
             disabled={disabled || action.disabled}
             title={action.title}
             aria-label={action.title}
-            iconOnly={iconOnly}
+            iconOnly={action.iconOnly ?? !action.label}
         >
             {action.icon}
             {action.label}
-        </PageHeaderActionButton>
+        </ActionButton>
     );
 }
-function PageHeaderNewActionControl({
-    action,
-    disabled,
-}: {
-    action: PageHeaderNewAction;
-    disabled: boolean;
-}) {
-    const title = action.title ?? "New";
-    return (
-        <PageHeaderActionButton
-            onClick={action.onClick}
-            disabled={disabled || action.disabled || action.loading}
-            title={title}
-            aria-label={title}
-            aria-keyshortcuts="Alt+N"
-            data-page-new
-        >
-            {action.loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-                <Plus className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">{title}</span>
-        </PageHeaderActionButton>
-    );
-}
-function PageHeaderSearchActionControl({
-    action,
-    disabled,
-}: {
-    action: PageHeaderSearchAction;
-    disabled: boolean;
-}) {
-    const placeholder = action.placeholder ?? "Search\u2026";
-    return (
-        <div
-            className={cn(
-                CONTROL_CLASS,
-                "min-w-0 w-36 flex-1 max-w-[calc(100vw-6.5rem)] cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700 sm:w-72 sm:flex-none",
-                APP_SURFACE_ACTIVE_CLASS,
-                disabled && "opacity-60",
-            )}
-        >
-            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <input
-                data-page-search
-                aria-keyshortcuts="/"
-                disabled={disabled}
-                type="search"
-                placeholder={placeholder}
-                value={action.value}
-                onChange={(e) => action.onChange(e.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-            />
-        </div>
-    );
-}
-type PageHeaderActionButtonProps = Omit<
-    ButtonHTMLAttributes<HTMLButtonElement>,
-    "className"
-> & {
-    iconOnly?: boolean;
-};
-function PageHeaderActionButton({
+
+function ActionButton({
     children,
     iconOnly = false,
     disabled,
     ...props
-}: PageHeaderActionButtonProps) {
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> & {
+    iconOnly?: boolean;
+}) {
     return (
         <button
             disabled={disabled}
             className={cn(
-                CONTROL_CLASS,
+                CONTROL,
                 APP_SURFACE_HOVER_CLASS,
                 APP_SURFACE_PRESSED_CLASS,
                 iconOnly ? "w-9" : "gap-1.5 px-3",
@@ -265,13 +192,14 @@ function PageHeaderActionButton({
         </button>
     );
 }
-function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
+
+function Breadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
     const parent = [...items]
         .slice(0, -1)
         .reverse()
         .find((item) => item.onClick);
     return (
-        <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 text-2xl font-medium font-serif md:flex-1">
+        <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 font-serif text-2xl font-medium md:flex-1">
             {parent?.onClick && (
                 <button
                     onClick={parent.onClick}
@@ -284,7 +212,7 @@ function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
             )}
             <div className="flex min-w-0 items-center gap-1.5">
                 {items.map((item, index) => (
-                    <BreadcrumbItem
+                    <Breadcrumb
                         key={index}
                         item={item}
                         current={index === items.length - 1}
@@ -294,7 +222,8 @@ function PageHeaderBreadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
         </div>
     );
 }
-function BreadcrumbItem({
+
+function Breadcrumb({
     item,
     current,
 }: {
@@ -302,7 +231,7 @@ function BreadcrumbItem({
     current: boolean;
 }) {
     const content = item.loading ? (
-        <div
+        <span
             className={cn(
                 "h-6 rounded bg-gray-100",
                 item.skeletonClassName ?? "w-32",
@@ -313,19 +242,19 @@ function BreadcrumbItem({
     );
     const className = cn(
         "min-w-0 truncate",
-        current && "w-full",
-        current
-            ? "text-gray-900"
-            : item.onClick
-              ? "text-gray-500 hover:text-gray-700"
-              : "text-gray-500",
-    );
-    const wrapperClassName = cn(
-        "min-w-0 items-center gap-1.5",
-        current ? "flex flex-1" : "hidden max-w-40 sm:flex",
+        current && "w-full text-gray-900",
+        !current &&
+            (item.onClick
+                ? "text-gray-500 hover:text-gray-700"
+                : "text-gray-500"),
     );
     return (
-        <span className={wrapperClassName}>
+        <span
+            className={cn(
+                "min-w-0 items-center gap-1.5",
+                current ? "flex flex-1" : "hidden max-w-40 sm:flex",
+            )}
+        >
             {current ? (
                 <span className={className}>{content}</span>
             ) : item.onClick ? (

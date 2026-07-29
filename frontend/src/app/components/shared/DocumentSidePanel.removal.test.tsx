@@ -124,11 +124,25 @@ describe("DocumentSidePanel document removal", () => {
     );
 
     const preview = await screen.findByTestId("word-preview");
+    expect(preview.parentElement).toHaveClass(
+      "flex",
+      "min-h-0",
+      "flex-col",
+      "overflow-hidden",
+    );
     expect(preview).toHaveAttribute("data-version-id", "version-3");
     expect(preview).toHaveAttribute("data-prefer-pdf", "true");
     expect(preview).toHaveAttribute(
       "data-revision",
       "2026-07-28T00:00:00.000Z",
+    );
+    const versionList = screen.getByRole("list", {
+      name: "Document versions",
+    });
+    expect(versionList).toHaveClass("min-w-0", "overflow-x-hidden");
+    expect(versionList.closest("aside")).toHaveClass(
+      "min-w-0",
+      "overflow-hidden",
     );
 
     rerender(

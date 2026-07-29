@@ -1,4 +1,3 @@
-"use client";
 import { forwardRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/app/lib/utils";
 type ModalTextInputVariant = "glass" | "minimal";

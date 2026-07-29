@@ -4,8 +4,8 @@ import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
-import { MfaVerificationPopup, needsMfaVerification } from "@/app/components/popups/MfaVerificationPopup";
-import { deleteAllChats, deleteAllProjects, deleteAllTabularReviews, exportAccountData, exportChatData, exportTabularReviewsData, isMfaRequiredError } from "@/app/lib/beaverApi";
+import { useMfaAction } from "@/app/components/account/useMfaAction";
+import { deleteAllChats, deleteAllProjects, deleteAllTabularReviews, exportAccountData, exportChatData, exportTabularReviewsData } from "@/app/lib/beaverApi";
 import { accountGlassDangerOutlineButtonClassName, accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { downloadBlob } from "@/app/lib/download";
@@ -28,50 +28,37 @@ export default function PrivacyDataPage() {
     const { loadChats } = useChatHistoryContext();
     const [busy, setBusy] = useState<PendingAction | null>(null);
     const [pendingDelete, setPendingDelete] = useState<DeleteAction | null>(null);
-    const [pendingMfa, setPendingMfa] = useState<PendingAction | null>(null);
+    const { runMfa, mfaPopup } = useMfaAction();
 
     async function runExport(item: (typeof exports)[number]) {
-        setBusy(item.action);
-        try {
-            if (await needsMfaVerification()) return setPendingMfa(item.action);
-            const result = await item.run();
-            downloadBlob(result.blob, result.filename ?? item.file);
-        } catch (error) {
-            if (isMfaRequiredError(error)) setPendingMfa(item.action);
-            else alert("The export failed. Please try again.");
-        } finally { setBusy(null); }
+        await runMfa(async () => {
+            setBusy(item.action);
+            try {
+                const result = await item.run();
+                downloadBlob(result.blob, result.filename ?? item.file);
+            } finally { setBusy(null); }
+        }, { onError: () => alert("The export failed. Please try again.") });
     }
 
     async function runDelete(action: DeleteAction) {
-        setBusy(action);
-        try {
-            if (await needsMfaVerification()) return setPendingMfa(action);
-            if (action === "chats") await deleteAllChats();
-            else if (action === "tabular-reviews") await deleteAllTabularReviews();
-            else await deleteAllProjects();
-            if (action !== "tabular-reviews") await loadChats();
-            setPendingDelete(null);
-        } catch (error) {
-            if (isMfaRequiredError(error)) setPendingMfa(action);
-            else alert("The deletion failed. Please try again.");
-        } finally { setBusy(null); }
-    }
-
-    async function retryMfa() {
-        const action = pendingMfa;
-        setPendingMfa(null);
-        if (!action) return;
-        const item = exports.find((entry) => entry.action === action);
-        if (item) return runExport(item);
-        await runDelete(action as DeleteAction);
+        await runMfa(async () => {
+            setBusy(action);
+            try {
+                if (action === "chats") await deleteAllChats();
+                else if (action === "tabular-reviews") await deleteAllTabularReviews();
+                else await deleteAllProjects();
+                if (action !== "tabular-reviews") await loadChats();
+                setPendingDelete(null);
+            } finally { setBusy(null); }
+        }, { onError: () => alert("The deletion failed. Please try again.") });
     }
 
     const deleteCopy = deletes.find((item) => item.action === pendingDelete);
     return <div className="space-y-6">
-        <section className="space-y-3"><h2 className="text-xl font-medium font-serif text-gray-900">Export data</h2><AccountSection>{exports.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.description} icon={<Download className="h-4 w-4" />} label={busy === item.action ? "Exporting…" : "Export"} disabled={busy != null} className={accountGlassPrimaryButtonClassName} onClick={() => void runExport(item)} divider={index < exports.length - 1} />)}</AccountSection></section>
-        <section className="space-y-3"><h2 className="text-xl font-medium font-serif text-gray-900">Delete data</h2><AccountSection>{deletes.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.message} icon={<Trash2 className="h-4 w-4" />} label="Delete" disabled={busy != null} className={accountGlassDangerOutlineButtonClassName} onClick={() => setPendingDelete(item.action)} divider={index < deletes.length - 1} />)}</AccountSection></section>
+        <AccountSection heading="Export data">{exports.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.description} icon={<Download className="h-4 w-4" />} label={busy === item.action ? "Exporting…" : "Export"} disabled={busy != null} className={accountGlassPrimaryButtonClassName} onClick={() => void runExport(item)} divider={index < exports.length - 1} />)}</AccountSection>
+        <AccountSection heading="Delete data">{deletes.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.message} icon={<Trash2 className="h-4 w-4" />} label="Delete" disabled={busy != null} className={accountGlassDangerOutlineButtonClassName} onClick={() => setPendingDelete(item.action)} divider={index < deletes.length - 1} />)}</AccountSection>
         <ConfirmPopup open={!!pendingDelete} title={`${deleteCopy?.title ?? "Delete data"}?`} message={deleteCopy?.message} confirmLabel="Delete" confirmStatus={busy ? "loading" : "idle"} cancelLabel="Cancel" onCancel={() => { if (!busy) setPendingDelete(null); }} onConfirm={() => { if (pendingDelete) void runDelete(pendingDelete); }} />
-        <MfaVerificationPopup open={!!pendingMfa} onCancel={() => setPendingMfa(null)} onVerified={() => void retryMfa()} title="Two-factor verification required" message="Enter a code from your authenticator app to continue." />
+        {mfaPopup}
     </div>;
 }
 

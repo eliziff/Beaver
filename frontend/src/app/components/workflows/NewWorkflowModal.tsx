@@ -1,5 +1,4 @@
-"use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { MessageSquare, Table2, Upload } from "lucide-react";
 import { createWorkflow, updateWorkflow } from "@/app/lib/beaverApi";
 import type { Workflow } from "../shared/types";
@@ -7,155 +6,33 @@ import { PRACTICE_OPTIONS } from "./practices";
 import { Modal } from "../modals/Modal";
 import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
-import { ModalSelect } from "../modals/ModalSelect";
 import { ModalTextInput } from "../modals/ModalTextInput";
 const DEFAULT_LANGUAGE = "English";
 const DEFAULT_PRACTICE = "General Transactions";
 const DEFAULT_JURISDICTION = "General";
-const LANGUAGE_OPTIONS = [
-    "English",
-    "Chinese",
-    "Spanish",
-    "French",
-    "German",
-    "Japanese",
-    "Korean",
-    "Portuguese",
-    "Italian",
-    "Dutch",
-    "Arabic",
-    "Hebrew",
-    "Persian",
-    "Urdu",
-    "Hindi",
-    "Bengali",
-    "Tamil",
-    "Telugu",
-    "Indonesian",
-    "Malay",
-    "Filipino",
-    "Vietnamese",
-    "Thai",
-    "Burmese",
-    "Khmer",
-    "Lao",
-    "Russian",
-    "Ukrainian",
-    "Turkish",
-    "Polish",
-    "Czech",
-    "Romanian",
-    "Greek",
-    "Danish",
-    "Finnish",
-    "Norwegian",
-    "Swedish",
-    "Afrikaans",
-    "Swahili",
-    "Other",
-] as const;
-const JURISDICTION_OPTIONS = [
-    "General",
-    "United States",
-    "England and Wales",
-    "European Union",
-    "Singapore",
-    "Hong Kong",
-    "Australia",
-    "Canada",
-    "India",
-    "Malaysia",
-    "Indonesia",
-    "Philippines",
-    "Thailand",
-    "Vietnam",
-    "Japan",
-    "South Korea",
-    "China",
-    "Taiwan",
-    "Germany",
-    "France",
-    "Netherlands",
-    "Ireland",
-    "Scotland",
-    "Luxembourg",
-    "Switzerland",
-    "Cayman Islands",
-    "British Virgin Islands",
-    "United Arab Emirates",
-    "Saudi Arabia",
-    "Brazil",
-    "Mexico",
-    "Other",
-] as const;
-const US_STATE_OPTIONS = [
-    "Alabama",
-    "Alaska",
-    "Arizona",
-    "Arkansas",
-    "California",
-    "Colorado",
-    "Connecticut",
-    "Delaware",
-    "Florida",
-    "Georgia",
-    "Hawaii",
-    "Idaho",
-    "Illinois",
-    "Indiana",
-    "Iowa",
-    "Kansas",
-    "Kentucky",
-    "Louisiana",
-    "Maine",
-    "Maryland",
-    "Massachusetts",
-    "Michigan",
-    "Minnesota",
-    "Mississippi",
-    "Missouri",
-    "Montana",
-    "Nebraska",
-    "Nevada",
-    "New Hampshire",
-    "New Jersey",
-    "New Mexico",
-    "New York",
-    "North Carolina",
-    "North Dakota",
-    "Ohio",
-    "Oklahoma",
-    "Oregon",
-    "Pennsylvania",
-    "Rhode Island",
-    "South Carolina",
-    "South Dakota",
-    "Tennessee",
-    "Texas",
-    "Utah",
-    "Vermont",
-    "Virginia",
-    "Washington",
-    "West Virginia",
-    "Wisconsin",
-    "Wyoming",
-    "District of Columbia",
-] as const;
-const CANADA_PROVINCE_OPTIONS = [
-    "Alberta",
-    "British Columbia",
-    "Manitoba",
-    "New Brunswick",
-    "Newfoundland and Labrador",
-    "Northwest Territories",
-    "Nova Scotia",
-    "Nunavut",
-    "Ontario",
-    "Prince Edward Island",
-    "Quebec",
-    "Saskatchewan",
-    "Yukon",
-] as const;
+const LANGUAGE_OPTIONS =
+    "English|Chinese|Spanish|French|German|Japanese|Korean|Portuguese|Italian|Dutch|Arabic|Hebrew|Persian|Urdu|Hindi|Bengali|Tamil|Telugu|Indonesian|Malay|Filipino|Vietnamese|Thai|Burmese|Khmer|Lao|Russian|Ukrainian|Turkish|Polish|Czech|Romanian|Greek|Danish|Finnish|Norwegian|Swedish|Afrikaans|Swahili".split("|");
+const JURISDICTION_OPTIONS =
+    "General|United States|England and Wales|European Union|Singapore|Hong Kong|Australia|Canada|India|Malaysia|Indonesia|Philippines|Thailand|Vietnam|Japan|South Korea|China|Taiwan|Germany|France|Netherlands|Ireland|Scotland|Luxembourg|Switzerland|Cayman Islands|British Virgin Islands|United Arab Emirates|Saudi Arabia|Brazil|Mexico".split("|");
+const US_STATE_OPTIONS =
+    "Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|District of Columbia".split("|");
+const CANADA_PROVINCE_OPTIONS =
+    "Alberta|British Columbia|Manitoba|New Brunswick|Newfoundland and Labrador|Northwest Territories|Nova Scotia|Nunavut|Ontario|Prince Edward Island|Quebec|Saskatchewan|Yukon".split("|");
+const JURISDICTION_SUGGESTIONS = [
+    ...JURISDICTION_OPTIONS,
+    ...US_STATE_OPTIONS,
+    ...CANADA_PROVINCE_OPTIONS,
+];
+const PRACTICE_SUGGESTIONS = PRACTICE_OPTIONS.filter(
+    (option) => option !== "Other",
+);
+const NEW_WORKFLOW = {
+    title: "",
+    type: "assistant" as const,
+    language: DEFAULT_LANGUAGE,
+    practice: DEFAULT_PRACTICE,
+    jurisdiction: DEFAULT_JURISDICTION,
+};
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -166,172 +43,71 @@ interface Props {
 }
 export function NewWorkflowModal({
     open,
+    ...props
+}: Props) {
+    if (!open) return null;
+    return (
+        <OpenNewWorkflowModal
+            key={props.editWorkflow?.id ?? "new"}
+            open={open}
+            {...props}
+        />
+    );
+}
+function OpenNewWorkflowModal({
+    open,
     onClose,
     onCreated,
     editWorkflow,
     readOnly = false,
     onUpdated,
 }: Props) {
-    const [title, setTitle] = useState("");
-    const [type, setType] = useState<"assistant" | "tabular">("assistant");
-    const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
-    const [customLanguage, setCustomLanguage] = useState("");
-    const [practice, setPractice] = useState<string>(DEFAULT_PRACTICE);
-    const [customPractice, setCustomPractice] = useState("");
-    const [jurisdiction, setJurisdiction] = useState(DEFAULT_JURISDICTION);
-    const [jurisdictionRegion, setJurisdictionRegion] = useState("");
-    const [customJurisdiction, setCustomJurisdiction] = useState("");
+    const defaults = editWorkflow
+        ? {
+              title: editWorkflow.metadata.title,
+              type: editWorkflow.metadata.type,
+              language: editWorkflow.metadata.language ?? DEFAULT_LANGUAGE,
+              practice: editWorkflow.metadata.practice ?? DEFAULT_PRACTICE,
+              jurisdiction:
+                  editWorkflow.metadata.jurisdictions?.join(", ") ||
+                  DEFAULT_JURISDICTION,
+          }
+        : NEW_WORKFLOW;
+    const [type, setType] = useState(defaults.type);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [importedSkillMd, setImportedSkillMd] = useState("");
     const [importedSkillName, setImportedSkillName] = useState<string | null>(
         null,
     );
     const [markdownImportError, setMarkdownImportError] = useState("");
-    const customLanguageInputRef = useRef<HTMLInputElement>(null);
-    const customInputRef = useRef<HTMLInputElement>(null);
-    const customJurisdictionInputRef = useRef<HTMLInputElement>(null);
+    const importedSkillMdRef = useRef("");
     const markdownInputRef = useRef<HTMLInputElement>(null);
     const isEditing = !!editWorkflow;
     const viewOnly = isEditing && readOnly;
-    const isOtherLanguage = language === "Other";
-    const isOtherPractice = practice === "Other";
-    const isOtherJurisdiction = jurisdiction === "Other";
-    const effectiveLanguage = isOtherLanguage
-        ? customLanguage.trim()
-        : language.trim();
-    const effectivePractice = isOtherPractice ? (customPractice.trim() || null) : (practice || null);
-    const effectiveJurisdiction = isOtherJurisdiction
-        ? customJurisdiction.trim()
-        : jurisdictionRegion.trim() || jurisdiction;
-    const languageOptions = (
-        (LANGUAGE_OPTIONS as readonly string[]).includes(language)
-            ? LANGUAGE_OPTIONS
-            : [language, ...LANGUAGE_OPTIONS]
-    ).filter(Boolean);
-    const baseJurisdictionOptions =
-        (JURISDICTION_OPTIONS as readonly string[]).includes(jurisdiction)
-            ? JURISDICTION_OPTIONS
-            : [jurisdiction, ...JURISDICTION_OPTIONS];
-    const jurisdictionOptions = baseJurisdictionOptions.filter(Boolean);
-    const jurisdictionRegionOptions =
-        jurisdiction === "United States"
-            ? US_STATE_OPTIONS
-            : jurisdiction === "Canada"
-              ? CANADA_PROVINCE_OPTIONS
-              : [];
-    const effectiveJurisdictions = effectiveJurisdiction
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
     const formId = "workflow-modal-form";
-    const resetForm = useCallback(() => {
-        setTitle("");
-        setType("assistant");
-        setLanguage(DEFAULT_LANGUAGE);
-        setCustomLanguage("");
-        setPractice(DEFAULT_PRACTICE);
-        setCustomPractice("");
-        setJurisdiction(DEFAULT_JURISDICTION);
-        setJurisdictionRegion("");
-        setCustomJurisdiction("");
-        setError("");
-        setImportedSkillMd("");
-        setImportedSkillName(null);
-        setMarkdownImportError("");
-        if (markdownInputRef.current) {
-            markdownInputRef.current.value = "";
-        }
-    }, []);
-    useEffect(() => {
-        if (open && editWorkflow) {
-            setTitle(editWorkflow.metadata.title);
-            setType(editWorkflow.metadata.type);
-            const savedLanguage =
-                editWorkflow.metadata.language ?? DEFAULT_LANGUAGE;
-            const isKnownLanguage = (LANGUAGE_OPTIONS as readonly string[]).includes(savedLanguage);
-            if (!isKnownLanguage && savedLanguage) {
-                setLanguage("Other");
-                setCustomLanguage(savedLanguage);
-            } else {
-                setLanguage(savedLanguage);
-                setCustomLanguage("");
-            }
-            const savedJurisdiction = editWorkflow.metadata.jurisdictions?.length
-                ? editWorkflow.metadata.jurisdictions.join(", ")
-                : DEFAULT_JURISDICTION;
-            const isKnownJurisdiction =
-                (JURISDICTION_OPTIONS as readonly string[]).includes(savedJurisdiction);
-            const isUsState = (US_STATE_OPTIONS as readonly string[]).includes(
-                savedJurisdiction,
-            );
-            const isCanadaProvince = (
-                CANADA_PROVINCE_OPTIONS as readonly string[]
-            ).includes(savedJurisdiction);
-            if (!isKnownJurisdiction && savedJurisdiction) {
-                if (isUsState) {
-                    setJurisdiction("United States");
-                    setJurisdictionRegion(savedJurisdiction);
-                    setCustomJurisdiction("");
-                } else if (isCanadaProvince) {
-                    setJurisdiction("Canada");
-                    setJurisdictionRegion(savedJurisdiction);
-                    setCustomJurisdiction("");
-                } else {
-                    setJurisdiction("Other");
-                    setJurisdictionRegion("");
-                    setCustomJurisdiction(savedJurisdiction);
-                }
-            } else {
-                setJurisdiction(savedJurisdiction);
-                setJurisdictionRegion("");
-                setCustomJurisdiction("");
-            }
-            const saved = editWorkflow.metadata.practice ?? DEFAULT_PRACTICE;
-            const isKnown = (PRACTICE_OPTIONS as readonly string[]).includes(saved);
-            if (!isKnown && saved) {
-                setPractice("Other");
-                setCustomPractice(saved);
-            } else {
-                setPractice(saved);
-                setCustomPractice("");
-            }
-            setError("");
-        } else if (open) {
-            resetForm();
-        }
-    }, [open, editWorkflow, resetForm]);
-    useEffect(() => {
-        if (isOtherLanguage) {
-            customLanguageInputRef.current?.focus();
-        }
-    }, [isOtherLanguage]);
-    useEffect(() => {
-        if (isOtherPractice) {
-            customInputRef.current?.focus();
-        }
-    }, [isOtherPractice]);
-    useEffect(() => {
-        if (isOtherJurisdiction) {
-            customJurisdictionInputRef.current?.focus();
-        }
-    }, [isOtherJurisdiction]);
-    if (!open) return null;
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (viewOnly) return;
-        if (!title.trim()) return;
+        const form = new FormData(e.currentTarget);
+        const title = String(form.get("title") ?? "").trim();
+        const language = String(form.get("language") ?? "").trim();
+        const practice = String(form.get("practice") ?? "").trim();
+        const jurisdictions = String(form.get("jurisdiction") ?? "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+        if (!title) return;
         setLoading(true);
         setError("");
         try {
             if (isEditing && editWorkflow) {
                 const updated = await updateWorkflow(editWorkflow.id, {
                     metadata: {
-                        title: title.trim(),
-                        language: effectiveLanguage || null,
-                        practice: effectivePractice,
-                        jurisdictions: effectiveJurisdictions.length
-                            ? effectiveJurisdictions
+                        title,
+                        language: language || null,
+                        practice: practice || null,
+                        jurisdictions: jurisdictions.length
+                            ? jurisdictions
                             : null,
                     },
                 });
@@ -339,32 +115,27 @@ export function NewWorkflowModal({
             } else {
                 const createPayload: Parameters<typeof createWorkflow>[0] = {
                     metadata: {
-                        title: title.trim(),
+                        title,
                         type,
-                        language: effectiveLanguage || null,
-                        practice: effectivePractice,
-                        jurisdictions: effectiveJurisdictions.length
-                            ? effectiveJurisdictions
+                        language: language || null,
+                        practice: practice || null,
+                        jurisdictions: jurisdictions.length
+                            ? jurisdictions
                             : null,
                     },
                 };
-                if (type === "assistant" && importedSkillMd) {
-                    createPayload.skill_md = importedSkillMd;
+                if (type === "assistant" && importedSkillMdRef.current) {
+                    createPayload.skill_md = importedSkillMdRef.current;
                 }
                 const workflow = await createWorkflow(createPayload);
                 onCreated(workflow);
             }
-            resetForm();
             onClose();
         } catch (err: unknown) {
             setError((err as Error).message || `Failed to ${isEditing ? "update" : "create"} workflow`);
         } finally {
             setLoading(false);
         }
-    }
-    function handleClose() {
-        resetForm();
-        onClose();
     }
     async function handleMarkdownImport(
         e: React.ChangeEvent<HTMLInputElement>,
@@ -377,18 +148,17 @@ export function NewWorkflowModal({
             !normalizedName.endsWith(".md") &&
             !normalizedName.endsWith(".markdown")
         ) {
-            setImportedSkillMd("");
+            importedSkillMdRef.current = "";
             setImportedSkillName(null);
             setMarkdownImportError("Choose a .md or .markdown file.");
             e.target.value = "";
             return;
         }
         try {
-            const text = await file.text();
-            setImportedSkillMd(text);
+            importedSkillMdRef.current = await file.text();
             setImportedSkillName(file.name);
         } catch {
-            setImportedSkillMd("");
+            importedSkillMdRef.current = "";
             setImportedSkillName(null);
             setMarkdownImportError("Could not read that markdown file.");
             e.target.value = "";
@@ -397,7 +167,7 @@ export function NewWorkflowModal({
     return (
         <Modal
             open={open}
-            onClose={handleClose}
+            onClose={onClose}
             breadcrumbs={[
                 "Workflows",
                 isEditing ? "View and Edit details" : "New workflow",
@@ -415,7 +185,7 @@ export function NewWorkflowModal({
                                 : "Create workflow",
                           type: "submit",
                           form: formId,
-                          disabled: !title.trim() || loading,
+                          disabled: loading,
                       }
             }
             secondaryAction={
@@ -450,12 +220,13 @@ export function NewWorkflowModal({
                         </ModalFieldLabel>
                         <ModalTextInput
                             id="workflow-title"
+                            name="title"
                             type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            defaultValue={defaults.title}
                             placeholder="Add workflow name"
                             variant="minimal"
                             disabled={viewOnly}
+                            required
                             autoFocus={!viewOnly}
                         />
                     </div>
@@ -481,113 +252,31 @@ export function NewWorkflowModal({
                         </div>
                     )}
                     <div className="grid gap-5 md:grid-cols-2">
-                        <div>
-                            <ModalFieldLabel htmlFor="workflow-language">
-                                Language
-                            </ModalFieldLabel>
-                            <ModalSelect
-                                id="workflow-language"
-                                value={language}
-                                options={languageOptions}
-                                disabled={viewOnly}
-                                onChange={(value) => {
-                                    setLanguage(value);
-                                    if (value !== "Other") {
-                                        setCustomLanguage("");
-                                    }
-                                }}
-                            />
-                            {isOtherLanguage && (
-                                <ModalTextInput
-                                    ref={customLanguageInputRef}
-                                    type="text"
-                                    value={customLanguage}
-                                    disabled={viewOnly}
-                                    onChange={(e) =>
-                                        setCustomLanguage(e.target.value)
-                                    }
-                                    placeholder="Enter language…"
-                                    className="mt-2"
-                                />
-                            )}
-                        </div>
-                        <div>
-                            <ModalFieldLabel htmlFor="workflow-practice">
-                                Practice area
-                            </ModalFieldLabel>
-                            <ModalSelect
-                                id="workflow-practice"
-                                value={practice}
-                                options={PRACTICE_OPTIONS}
-                                disabled={viewOnly}
-                                onChange={(value) => {
-                                    setPractice(value);
-                                    if (value !== "Other") {
-                                        setCustomPractice("");
-                                    }
-                                }}
-                            />
-                            {isOtherPractice && (
-                                <ModalTextInput
-                                    ref={customInputRef}
-                                    type="text"
-                                    value={customPractice}
-                                    disabled={viewOnly}
-                                    onChange={(e) =>
-                                        setCustomPractice(e.target.value)
-                                    }
-                                    placeholder="Enter practice area…"
-                                    className="mt-2"
-                                />
-                            )}
-                        </div>
-                    </div>
-                    <div>
-                        <ModalFieldLabel htmlFor="workflow-jurisdiction">
-                            Jurisdiction
-                        </ModalFieldLabel>
-                        <ModalSelect
-                            id="workflow-jurisdiction"
-                            value={jurisdiction}
-                            options={jurisdictionOptions}
+                        <DatalistField
+                            id="workflow-language"
+                            name="language"
+                            label="Language"
+                            defaultValue={defaults.language}
+                            options={LANGUAGE_OPTIONS}
                             disabled={viewOnly}
-                            onChange={(value) => {
-                                setJurisdiction(value);
-                                setJurisdictionRegion("");
-                                if (value !== "Other") {
-                                    setCustomJurisdiction("");
-                                }
-                            }}
                         />
-                        {jurisdictionRegionOptions.length > 0 && (
-                            <ModalSelect
-                                id="workflow-jurisdiction-region"
-                                className="mt-2"
-                                value={jurisdictionRegion}
-                                options={jurisdictionRegionOptions}
-                                disabled={viewOnly}
-                                placeholder={
-                                    jurisdiction === "United States"
-                                        ? "Select state..."
-                                        : "Select province..."
-                                }
-                                onChange={setJurisdictionRegion}
-                            />
-                        )}
-                        {isOtherJurisdiction && (
-                            <ModalTextInput
-                                ref={customJurisdictionInputRef}
-                                type="text"
-                                value={customJurisdiction}
-                                disabled={viewOnly}
-                                onChange={(e) =>
-                                    setCustomJurisdiction(e.target.value)
-                                }
-                                placeholder="Enter jurisdiction…"
-                                className="mt-2"
-                            />
-                        )}
+                        <DatalistField
+                            id="workflow-practice"
+                            name="practice"
+                            label="Practice area"
+                            defaultValue={defaults.practice}
+                            options={PRACTICE_SUGGESTIONS}
+                            disabled={viewOnly}
+                        />
                     </div>
+                    <DatalistField
+                        id="workflow-jurisdiction"
+                        name="jurisdiction"
+                        label="Jurisdiction"
+                        defaultValue={defaults.jurisdiction}
+                        options={JURISDICTION_SUGGESTIONS}
+                        disabled={viewOnly}
+                    />
                     {(error || markdownImportError) && (
                         <p className="text-sm text-red-500">
                             {error || markdownImportError}
@@ -603,5 +292,39 @@ export function NewWorkflowModal({
                 />
             </form>
         </Modal>
+    );
+}
+function DatalistField({
+    id,
+    name,
+    label,
+    defaultValue,
+    options,
+    disabled,
+}: {
+    id: string;
+    name: string;
+    label: string;
+    defaultValue: string;
+    options: string[];
+    disabled: boolean;
+}) {
+    return (
+        <div>
+            <ModalFieldLabel htmlFor={id}>{label}</ModalFieldLabel>
+            <ModalTextInput
+                id={id}
+                name={name}
+                list={`${id}-options`}
+                defaultValue={defaultValue}
+                disabled={disabled}
+                required
+            />
+            <datalist id={`${id}-options`}>
+                {options.map((option) => (
+                    <option key={option} value={option} />
+                ))}
+            </datalist>
+        </div>
     );
 }

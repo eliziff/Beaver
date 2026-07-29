@@ -1,5 +1,5 @@
 "use client";
-import { use, useCallback, useEffect, useState } from "react";import {
+import { useEffect, useState } from "react";import {
     deleteTabularReview,
     updateTabularReview,
 } from "@/app/lib/beaverApi";
@@ -12,27 +12,23 @@ import {
 import type { TabularReview } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { NativeActionSelect } from "@/app/components/ui/native-action-select";
-interface Props {
-    params: Promise<{ id: string }>;
-}
-export default function ProjectTabularReviewsPage({ params }: Props) {
-    use(params);
-    const workspace = useProjectWorkspace();
+export default function ProjectTabularReviewsPage() {
     const { user } = useAuth();
     const {
+        creatingReview,
         ensureProjectReviews,
+        openNewReview,
         project,
         projectId,
         projectReviews,
         search,
         setOwnerOnlyAction,
         setProjectReviews,
-    } = workspace;
+    } = useProjectWorkspace();
     const [selectedReviewIds, setSelectedReviewIds] = useState<string[]>([]);
     const [detailsReview, setDetailsReview] = useState<TabularReview | null>(
         null,
     );
-    const docs = project?.documents ?? [];
     const reviews = projectReviews ?? [];    const loading = projectReviews === null;
     useEffect(() => {
         void ensureProjectReviews();
@@ -55,22 +51,16 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
         projectId?: string | null;
     }) {
         if (!detailsReview) return;
-        if (user?.id && detailsReview.user_id !== user.id) {
-            setOwnerOnlyAction("edit tabular review details");
-            return;
-        }
         const updated = await updateTabularReview(detailsReview.id, {
             title: values.title,
             project_id: projectId,
         });
         setProjectReviews((prev) =>
             (prev ?? []).map((review) =>
-                review.id === updated.id ? { ...review, ...updated } : review,
+                review.id === updated.id ? updated : review,
             ),
         );
-        setDetailsReview((current) =>
-            current?.id === updated.id ? { ...current, ...updated } : current,
-        );
+        setDetailsReview(updated);
     }
     async function handleDeleteReviewRow(review: TabularReview) {
         if (user?.id && review.user_id !== user.id) {
@@ -82,7 +72,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
             (prev ?? []).filter((r) => r.id !== review.id),
         );
     }
-    const handleDeleteSelectedReviews = useCallback(async () => {
+    async function handleDeleteSelectedReviews() {
         const ids = [...selectedReviewIds];
         const owned = ids.filter((id) => {
             const review = reviews.find((r) => r.id === id);
@@ -101,13 +91,7 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
                 `delete ${blocked} of the selected reviews - only the review creator can delete a review`,
             );
         }
-    }, [
-        reviews,
-        selectedReviewIds,
-        setOwnerOnlyAction,
-        setProjectReviews,
-        user?.id,
-    ]);
+    }
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
             {selectedReviewIds.length > 0 && (
@@ -136,10 +120,10 @@ export default function ProjectTabularReviewsPage({ params }: Props) {
                 reviews={reviews}
                 filteredReviews={filteredReviews}
                 selectedReviewIds={selectedReviewIds}
-                creatingReview={workspace.creatingReview}
-                createDisabled={docs.length === 0}
+                creatingReview={creatingReview}
+                createDisabled={!project?.documents?.length}
                 loading={loading}
-                onCreateReview={workspace.openNewReview}
+                onCreateReview={openNewReview}
                 reviewHref={(review) =>
                     `/projects/${projectId}/tabular-reviews/${review.id}`
                 }

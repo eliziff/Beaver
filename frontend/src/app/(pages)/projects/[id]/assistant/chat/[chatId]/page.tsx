@@ -1,7 +1,6 @@
 "use client";
 import {
     use,
-    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -9,28 +8,17 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Upload } from "lucide-react";
-import {
-    createProjectFolder,
-    deleteChat,
-    deleteProjectFolder,
-    getChat,
-    getProject,
-    moveDocumentToFolder,
-    moveSubfolderToFolder,
-    removeProjectDocument,
-    renameProjectFolder,
-    updateChatProject,
-    uploadProjectDocument,
-} from "@/app/lib/beaverApi";
+import { deleteChat } from "@/app/lib/beaverApi";
 import { isAnonymousMode } from "@/app/lib/authMode";
-import { useAssistantChat } from "@/app/hooks/useAssistantChat";
+import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import {
     ChatView,
     type ChatViewHandle,
 } from "@/app/components/assistant/ChatView";
 import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
-import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
+import { useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
+import { useProjectFiles } from "@/app/components/projects/useProjectFiles";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
@@ -39,10 +27,6 @@ import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
-import type {
-    Document,
-    Project,
-} from "@/app/components/shared/types";
 interface Props {
     params: Promise<{ id: string; chatId: string }>;
 }
@@ -62,56 +46,38 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const { setSidebarOpen } = useSidebar();
     const { user } = useAuth();
     const { profile } = useUserProfile();
+    const {
+        createChat,
+        creatingChat,
+        project,
+        refreshProject,
+        setOwnerOnlyAction,
+    } = useProjectWorkspace();
+    const projectFiles = useProjectFiles();
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
-    const [project, setProject] = useState<Project | null>(null);
-    const [chatTitle, setChatTitle] = useState<string | null>(null);
-    const [chatOwnerId, setChatOwnerId] = useState<string | null>(null);
-    const [chatLoaded, setChatLoaded] = useState(false);
-    const [creatingChat, setCreatingChat] = useState(false);
     const [deletingChat, setDeletingChat] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
     const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false);
-    const [explorerDragOver, setExplorerDragOver] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const chatViewRef = useRef<ChatViewHandle>(null);
-    const {
-        peekPendingChatMessage,
-        claimPendingChatMessage,
-        chats,
-        saveChat,
-        renameChat: renameChatInHistory,
-    } = useChatHistoryContext();
-    const [initialMessage] = useState(() => peekPendingChatMessage(chatId));
-    const pendingMessageRef = useRef(initialMessage);
-    const initialMessages = initialMessage ? [initialMessage] : [];
+    const { renameChat: renameChatInHistory } = useChatHistoryContext();
     const {
         messages,
         isResponseLoading,
         handleChat,
-        setMessages,
-        setTranscriptVersion,
         rejectedTurn,
         clearRejectedTurn,
         retryRejectedTurn,
         cancel,
-    } = useAssistantChat({ initialMessages, chatId, projectId });
-    const responseLoadingRef = useRef(isResponseLoading);
-    const pendingProjectRouteRef = useRef<{ projectId: string | null } | null>(
-        null,
-    );
-    const hasLoaded = useRef(false);
-    const refreshProject = useCallback(
-        () =>
-            getProject(projectId)
-                .then(setProject)
-                .catch(() => {}),
-        [projectId],
-    );
+        chatTitle,
+        chatOwnerId,
+        chatLoaded,
+        changeProject,
+    } = useAssistantChatRoute({ chatId, projectId });
     const projectMutationSignature = useMemo(() => {
         const created: string[] = [];
         const editedPerDoc: Record<string, number> = {};
@@ -145,85 +111,8 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         setSidebarOpen(false);
     }, [setSidebarOpen]);
     useEffect(() => {
-        void refreshProject();
-    }, [refreshProject]);
-    useEffect(() => {
-        if (projectMutationSignature) void refreshProject();
+        if (projectMutationSignature) void refreshProject().catch(() => {});
     }, [projectMutationSignature, refreshProject]);
-    useEffect(() => {
-        responseLoadingRef.current = isResponseLoading;
-    }, [isResponseLoading]);
-    useEffect(() => {
-        if (hasLoaded.current) return;
-        hasLoaded.current = true;
-        if (initialMessages.length > 0) {
-            setChatLoaded(true);
-            return;
-        }
-        getChat(chatId)
-            .then(({ chat, messages: loaded }) => {
-                setChatTitle(chat.title);
-                setChatOwnerId(chat.user_id ?? null);
-                setTranscriptVersion(chat.transcript_version ?? 0);
-                if (loaded.length > 0) setMessages(loaded);
-            })
-            .catch(() => router.replace(`/projects/${projectId}/assistant`))
-            .finally(() => setChatLoaded(true));
-    }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (isResponseLoading || !pendingProjectRouteRef.current) return;
-        const { projectId: nextProjectId } = pendingProjectRouteRef.current;
-        pendingProjectRouteRef.current = null;
-        router.replace(
-            nextProjectId
-                ? `/projects/${nextProjectId}/assistant/chat/${chatId}`
-                : `/assistant/chat/${chatId}`,
-        );
-    }, [chatId, isResponseLoading, router]);
-    useEffect(() => {
-        const match = chats?.find((chat) => chat.id === chatId);
-        if (match?.title) setChatTitle(match.title);
-    }, [chats, chatId]);
-    useEffect(() => {
-        if (
-            pendingMessageRef.current &&
-            !isResponseLoading &&
-            messages.length === 1
-        ) {
-            const claimedMessage = claimPendingChatMessage(chatId);
-            if (!claimedMessage) return;
-            pendingMessageRef.current = null;
-            void handleChat(claimedMessage);
-        }
-    }, [
-        chatId,
-        claimPendingChatMessage,
-        handleChat,
-        isResponseLoading,
-        messages.length,
-    ]);
-    const addDocuments = useCallback((documents: Document[]) => {
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      documents: [
-                          ...(current.documents ?? []),
-                          ...documents,
-                      ],
-                  }
-                : current,
-        );
-    }, []);
-    async function handleNewChat() {
-        setCreatingChat(true);
-        try {
-            const id = await saveChat(projectId);
-            if (id) router.push(`/projects/${projectId}/assistant/chat/${id}`);
-        } finally {
-            setCreatingChat(false);
-        }
-    }
     function handleDeleteChat() {
         if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
             setOwnerOnlyAction("delete this chat");
@@ -252,20 +141,13 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         const trimmed = nextTitle?.trim();
         if (!trimmed || trimmed === chatTitle) return;
-        setChatTitle(trimmed);
         await renameChatInHistory(chatId, trimmed);
     }
     async function uploadFiles(files: File[]) {
         if (files.length === 0) return;
         setUploading(true);
         try {
-            addDocuments(
-                await Promise.all(
-                    files.map((file) =>
-                        uploadProjectDocument(projectId, file),
-                    ),
-                ),
-            );
+            await projectFiles.uploadFiles(files);
         } catch (error) {
             console.error("Upload failed:", error);
         } finally {
@@ -273,118 +155,9 @@ export default function ProjectAssistantChatPage({ params }: Props) {
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
-    async function handleCreateFolder(
-        parentId: string | null,
-        name: string,
-    ) {
-        const folder = await createProjectFolder(
-            projectId,
-            name,
-            parentId ?? undefined,
-        );
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      folders: [...(current.folders ?? []), folder],
-                  }
-                : current,
-        );
-    }
-    async function handleRenameFolder(folderId: string, name: string) {
-        await renameProjectFolder(projectId, folderId, name);
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      folders: (current.folders ?? []).map((folder) =>
-                          folder.id === folderId
-                              ? { ...folder, name }
-                              : folder,
-                      ),
-                  }
-                : current,
-        );
-    }
-    async function handleDeleteFolder(folderId: string) {
-        const toDelete = new Set<string>();
-        function collectIds(id: string) {
-            toDelete.add(id);
-            (project?.folders ?? [])
-                .filter((folder) => folder.parent_folder_id === id)
-                .forEach((folder) => collectIds(folder.id));
-        }
-        collectIds(folderId);
-        await deleteProjectFolder(projectId, folderId);
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      folders: (current.folders ?? []).filter(
-                          (folder) => !toDelete.has(folder.id),
-                      ),
-                      documents: (current.documents ?? []).map((document) =>
-                          document.folder_id &&
-                          toDelete.has(document.folder_id)
-                              ? { ...document, folder_id: null }
-                              : document,
-                      ),
-                  }
-                : current,
-        );
-    }
-    async function handleMoveDoc(
-        documentId: string,
-        targetFolderId: string | null,
-    ) {
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      documents: (current.documents ?? []).map((document) =>
-                          document.id === documentId
-                              ? { ...document, folder_id: targetFolderId }
-                              : document,
-                      ),
-                  }
-                : current,
-        );
-        await moveDocumentToFolder(projectId, documentId, targetFolderId);
-    }
-    async function handleMoveFolder(
-        folderId: string,
-        targetFolderId: string | null,
-    ) {
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      folders: (current.folders ?? []).map((folder) =>
-                          folder.id === folderId
-                              ? {
-                                    ...folder,
-                                    parent_folder_id: targetFolderId,
-                                }
-                              : folder,
-                      ),
-                  }
-                : current,
-        );
-        await moveSubfolderToFolder(projectId, folderId, targetFolderId);
-    }
     async function handleDeleteDoc(documentId: string) {
-        await removeProjectDocument(projectId, documentId);
+        await projectFiles.deleteDocument(documentId);
         chatViewRef.current?.closeDocument(documentId);
-        setProject((current) =>
-            current
-                ? {
-                      ...current,
-                      documents: (current.documents ?? []).filter(
-                          (document) => document.id !== documentId,
-                      ),
-                  }
-                : current,
-        );
     }
     function handleChatDrop(event: React.DragEvent) {
         event.preventDefault();
@@ -396,25 +169,12 @@ export default function ProjectAssistantChatPage({ params }: Props) {
         );
         if (document) chatViewRef.current?.attachDocument(document);
     }
-    const closeMobileExplorer = useCallback(() => {
-        setMobileExplorerOpen(false);
-    }, []);
-    const openMobileExplorer = useCallback(() => {
-        setMobileExplorerOpen(true);
-    }, []);
-    async function changeProject(nextProjectId: string | null) {
-        const updated = await updateChatProject(chatId, nextProjectId);
-        if (responseLoadingRef.current) {
-            pendingProjectRouteRef.current = {
-                projectId: updated.project_id,
-            };
+    function openProjectPicker() {
+        if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
+            setOwnerOnlyAction("change this chat's project");
             return;
         }
-        router.replace(
-            updated.project_id
-                ? `/projects/${updated.project_id}/assistant/chat/${chatId}`
-                : `/assistant/chat/${chatId}`,
-        );
+        setProjectModalOpen(true);
     }
     return (
         <div className="flex h-full flex-col">
@@ -448,62 +208,33 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 ]}
                 actions={[
                     {
-                        type: "custom",
-                        render: (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (
-                                        chatOwnerId &&
-                                        user?.id &&
-                                        chatOwnerId !== user.id
-                                    ) {
-                                        setOwnerOnlyAction(
-                                            "change this chat's project",
-                                        );
-                                        return;
-                                    }
-                                    setProjectModalOpen(true);
-                                }}
-                                aria-label={`Change project: ${project?.name ?? "current project"}`}
-                                className="inline-flex max-w-48 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"                            >
-                                <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                                <span className="hidden truncate sm:inline">
-                                    {project?.name ?? "Project"}
-                                </span>
-                            </button>
+                        onClick: openProjectPicker,
+                        icon: (
+                            <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
                         ),
+                        label: (
+                            <span className="hidden max-w-40 truncate sm:inline">
+                                {project?.name ?? "Project"}
+                            </span>
+                        ),
+                        title: "Change project",
                     },
                     {
                         type: "new",
-                        onClick: handleNewChat,
+                        onClick: () => void createChat(),
                         loading: creatingChat,
                         title: "New chat",
                     },
                     {
-                        type: "custom",
-                        render: (
-                            <button
-                                type="button"
-                                onClick={() => void handleRenameChat()}
-                                className="inline-flex h-8 items-center rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:bg-gray-50"
-                            >
-                                Rename
-                            </button>
-                        ),
+                        onClick: () => void handleRenameChat(),
+                        label: "Rename",
+                        title: "Rename chat",
                     },
                     {
-                        type: "custom",
-                        render: (
-                            <button
-                                type="button"
-                                onClick={handleDeleteChat}
-                                disabled={deletingChat}
-                                className="inline-flex h-8 items-center rounded-md border border-red-300 bg-white px-3 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {deletingChat ? "Deleting..." : "Delete"}
-                            </button>
-                        ),
+                        onClick: handleDeleteChat,
+                        disabled: deletingChat,
+                        label: deletingChat ? "Deleting\u2026" : "Delete",
+                        title: "Delete chat",
                     },
                 ]}
             />
@@ -511,29 +242,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                 <div
                     id="project-chat-explorer"
                     className={`absolute inset-y-0 left-0 z-40 w-64 flex-col border-r border-gray-200 bg-white shadow-lg ${mobileExplorerOpen ? "flex" : "hidden"} md:relative md:z-auto md:flex md:shadow-none`}
-                    onDragOver={(event) => {
-                        event.preventDefault();
-                        const types = Array.from(event.dataTransfer.types);
-                        if (
-                            !types.includes("application/mike-doc") &&
-                            !types.includes("application/mike-folder")
-                        ) {
-                            setExplorerDragOver(true);
-                        }
-                    }}
-                    onDragLeave={(event) => {
-                        if (
-                            !event.currentTarget.contains(
-                                event.relatedTarget as Node,
-                            )
-                        ) {
-                            setExplorerDragOver(false);
-                        }
-                    }}
+                    onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        setExplorerDragOver(false);
                         void uploadFiles(Array.from(event.dataTransfer.files));
                     }}
                 >
@@ -564,19 +276,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     <Upload className="h-3.5 w-3.5" />
                                 )}
                             </button>
-                            <button type="button" onClick={closeMobileExplorer} title="Close explorer" className="rounded px-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden">×</button>
+                            <button type="button" onClick={() => setMobileExplorerOpen(false)} title="Close explorer" className="rounded px-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden">×</button>
                         </div>
                     </div>
-                    <div
-                        className={`relative h-full flex-1 overflow-y-auto ${
-                            explorerDragOver ? "bg-red-50" : ""                        }`}
-                    >
-                        {explorerDragOver && (
-                            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                                <p className="text-xs font-medium text-red-600">                                    Drop to upload
-                                </p>
-                            </div>
-                        )}
+                    <div className="relative h-full flex-1 overflow-y-auto">
                         <ProjectExplorer
                             documents={project?.documents ?? []}
                             folders={project?.folders ?? []}
@@ -585,15 +288,15 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                 chatViewRef.current?.openDocument(document);
                                 setMobileExplorerOpen(false);
                             }}
-                            onCreateFolder={handleCreateFolder}
-                            onRenameFolder={handleRenameFolder}
-                            onDeleteFolder={handleDeleteFolder}
+                            onCreateFolder={projectFiles.createFolder}
+                            onRenameFolder={projectFiles.renameFolder}
+                            onDeleteFolder={projectFiles.deleteFolder}
                             onDeleteDoc={handleDeleteDoc}
                             documentRemovalMode={
                                 isAnonymousMode ? "detach" : "delete"
                             }
-                            onMoveDoc={handleMoveDoc}
-                            onMoveFolder={handleMoveFolder}
+                            onMoveDoc={projectFiles.moveDocument}
+                            onMoveFolder={projectFiles.moveFolder}
                         />
                     </div>
                 </div>
@@ -606,7 +309,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         type="button"
                         aria-controls="project-chat-explorer"
                         aria-expanded={mobileExplorerOpen}
-                        onClick={openMobileExplorer}
+                        onClick={() => setMobileExplorerOpen(true)}
                         className="absolute left-2 top-2 z-20 inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 shadow-sm md:hidden"
                     >
                         <FolderSvgIcon className="h-3.5 w-3.5" />
@@ -625,9 +328,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         projectId={projectId}
                         projectName={project?.name}
                         projectCmNumber={project?.cm_number}
-                        hideAddDocButton
                         useDisplayedDocumentContext
-                        onDocumentsUploaded={addDocuments}
                         onActiveDocumentChange={setSelectedDocId}
                     />
                     {!chatLoaded ? (
@@ -643,11 +344,6 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                     ) : null}
                 </div>
             </div>
-            <OwnerOnlyPopup
-                open={!!ownerOnlyAction}
-                action={ownerOnlyAction ?? undefined}
-                onClose={() => setOwnerOnlyAction(null)}
-            />
             <ChatDeleteWarning
                 open={deleteConfirmOpen}
                 busy={deletingChat}

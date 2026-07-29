@@ -1,4 +1,3 @@
-"use client";
 import { type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -24,6 +23,7 @@ import { formatDate } from "@/app/lib/utils";function creatorLabel(chat: Chat, c
     if (currentUserId && chat.user_id === currentUserId) return "Me";
     return chat.creator_display_name?.trim() || "Shared";
 }
+const LOADING_TITLE_WIDTHS = ["w-36", "w-40", "w-44", "w-48", "w-52"];
 export function ProjectAssistantTable({
     chats,
     filteredChats,
@@ -57,13 +57,12 @@ export function ProjectAssistantTable({
     setRenameChatValue: Dispatch<SetStateAction<string>>;
     loading?: boolean;
 }) {
-    const visibleChats = filteredChats;
     const allVisibleChatsSelected =
-        visibleChats.length > 0 &&
-        visibleChats.every((chat) => selectedChatIds.includes(chat.id));
+        filteredChats.length > 0 &&
+        filteredChats.every((chat) => selectedChatIds.includes(chat.id));
     const someVisibleChatsSelected =
         !allVisibleChatsSelected &&
-        visibleChats.some((chat) => selectedChatIds.includes(chat.id));
+        filteredChats.some((chat) => selectedChatIds.includes(chat.id));
     return (
         <TableScrollArea
             header={
@@ -87,7 +86,7 @@ export function ProjectAssistantTable({
                                         setSelectedChatIds([]);
                                     else
                                         setSelectedChatIds(
-                                            visibleChats.map((c) => c.id),
+                                            filteredChats.map((c) => c.id),
                                         );
                                 }}
                                 className="-ml-2 mr-1"
@@ -133,7 +132,7 @@ export function ProjectAssistantTable({
                 </TableEmptyState>
             ) : (
                 <TableBody>
-                    {visibleChats.map((chat) => (
+                    {filteredChats.map((chat) => (
                         <TableRow
                             key={chat.id}
                             selected={selectedChatIds.includes(chat.id)}
@@ -199,23 +198,21 @@ export function ProjectAssistantTable({
     );
 }
 function ProjectAssistantLoadingRows() {
-    const titleWidths = ["w-36", "w-40", "w-44", "w-48", "w-52"];
     return (
         <TableBody>
-            {[1, 2, 3, 4, 5].map((i) => (
+            {LOADING_TITLE_WIDTHS.map((width) => (
                 <TableRow
-                    key={i}
+                    key={width}
                     interactive={false}
                     className="pr-8 md:pr-8"
                 >
                     <TableStickyCell
-                        hover={false}
                         widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                     >
                         <div className="flex min-w-0 items-center">
                             <TableSelectionPlaceholder />
                             <SkeletonLine
-                                className={`h-3.5 ${titleWidths[i - 1]}`}
+                                className={`h-3.5 ${width}`}
                             />
                         </div>
                     </TableStickyCell>

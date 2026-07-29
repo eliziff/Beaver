@@ -3,6 +3,7 @@ import type { LegalSourceViewerPayload } from "@/app/lib/beaverApi";
 import {
     buildLegalSourceViewerSlices,
     legalSourceAnchorId,
+    legalSourceKindLabel,
 } from "./LegalSourceViewer";
 
 function payload(
@@ -49,6 +50,12 @@ function payload(
 }
 
 describe("legal source viewer slicing", () => {
+    it("uses one source-kind label mapping", () => {
+        expect(legalSourceKindLabel("cases")).toBe("Decision");
+        expect(legalSourceKindLabel("laws")).toBe("Legislation");
+        expect(legalSourceKindLabel("articles")).toBe("Journal article");
+    });
+
     it("keeps case text non-overlapping and preserves co-located anchors", () => {
         const text =
             "Reasons\n[1] The first proposition.\n[2] The second proposition.";

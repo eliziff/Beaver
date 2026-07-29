@@ -1,4 +1,3 @@
-"use client";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { providerLabel, type ModelProvider } from "@/app/lib/modelAvailability";

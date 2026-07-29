@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
@@ -28,24 +27,24 @@ export function RecyclingBinModal({
     onClose: () => void;
     onRestored: () => Promise<void>;
 }) {
-    const [chats, setChats] = useState<Chat[] | null>(null);
-    const [error, setError] = useState(false);
+    const [chats, setChats] = useState<Chat[] | "error" | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [pendingPermanent, setPendingPermanent] = useState<Chat | null>(null);
+    const removeChat = (chatId: string) =>
+        setChats((current) =>
+            Array.isArray(current)
+                ? current.filter((chat) => chat.id !== chatId)
+                : [],
+        );
     useEffect(() => {
         if (!open) return;
         let active = true;
-        setChats(null);
-        setError(false);
         void listDeletedChats()
             .then((items) => {
                 if (active) setChats(items);
             })
             .catch(() => {
-                if (active) {
-                    setChats([]);
-                    setError(true);
-                }
+                if (active) setChats("error");
             });
         return () => {
             active = false;
@@ -55,9 +54,7 @@ export function RecyclingBinModal({
         setBusyId(chatId);
         try {
             await restoreChat(chatId);
-            setChats((current) =>
-                (current ?? []).filter((chat) => chat.id !== chatId),
-            );
+            removeChat(chatId);
             await onRestored();
         } finally {
             setBusyId(null);
@@ -69,9 +66,7 @@ export function RecyclingBinModal({
         setBusyId(chatId);
         try {
             await permanentlyDeleteChat(chatId);
-            setChats((current) =>
-                (current ?? []).filter((chat) => chat.id !== chatId),
-            );
+            removeChat(chatId);
             setPendingPermanent(null);
         } finally {
             setBusyId(null);
@@ -94,7 +89,7 @@ export function RecyclingBinModal({
                         <p className="px-1 py-5 text-sm text-gray-500">
                             Loading…
                         </p>
-                    ) : error ? (
+                    ) : chats === "error" ? (
                         <p className="px-1 py-5 text-sm text-red-700">
                             Could not load deleted chats.
                         </p>

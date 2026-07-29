@@ -1,17 +1,20 @@
-"use client";
 import { useEffect, useState } from "react";import {
     ALLOWED_MODEL_IDS,
     DEFAULT_MODEL_ID,
 } from "../components/assistant/ModelToggle";
-const STORAGE_KEY = "mike.selectedModel";
+const STORAGE_KEY = "beaver.selectedModel";
+const LEGACY_STORAGE_KEY = "mike.selectedModel";
+const isDynamicModel = (id: string) => /^(codex|ollama):.+/u.test(id);
 export function readSelectedModel(): string {
     if (typeof window === "undefined") return DEFAULT_MODEL_ID;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw =
+        window.localStorage.getItem(STORAGE_KEY) ??
+        window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (
         raw &&
-        (ALLOWED_MODEL_IDS.has(raw) ||
-            (raw.startsWith("codex:") && raw.length > "codex:".length))
+        (ALLOWED_MODEL_IDS.has(raw) || isDynamicModel(raw))
     ) {
+        window.localStorage.setItem(STORAGE_KEY, raw);
         return raw;
     }
     return DEFAULT_MODEL_ID;
@@ -22,17 +25,22 @@ export function useSelectedModel(): [string, (id: string) => void] {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe localStorage read; SSR must render the default model
         setModelState(readSelectedModel());
     }, []);
-    const setModel = (id: string) => {        const next =            ALLOWED_MODEL_IDS.has(id) ||            (id.startsWith("codex:") && id.length > "codex:".length)                ? id
+    const setModel = (id: string) => {        const next =            ALLOWED_MODEL_IDS.has(id) || isDynamicModel(id)                ? id
                 : DEFAULT_MODEL_ID;
         setModelState(next);
         if (typeof window !== "undefined") {            window.localStorage.setItem(STORAGE_KEY, next);        }    };    return [model, setModel];
 }
-const EFFORT_STORAGE_KEY = "mike.reasoningEffort";
+const EFFORT_STORAGE_KEY = "beaver.reasoningEffort";
+const LEGACY_EFFORT_STORAGE_KEY = "mike.reasoningEffort";
 const VALID_EFFORT = /^[a-z0-9_-]{1,32}$/i;
 export function readSelectedReasoningEffort(): string | undefined {
     if (typeof window === "undefined") return undefined;
-    const stored = window.localStorage.getItem(EFFORT_STORAGE_KEY);
-    return stored && VALID_EFFORT.test(stored) ? stored : undefined;
+    const stored =
+        window.localStorage.getItem(EFFORT_STORAGE_KEY) ??
+        window.localStorage.getItem(LEGACY_EFFORT_STORAGE_KEY);
+    if (!stored || !VALID_EFFORT.test(stored)) return undefined;
+    window.localStorage.setItem(EFFORT_STORAGE_KEY, stored);
+    return stored;
 }
 export function useSelectedReasoningEffort(): [
     string | undefined,

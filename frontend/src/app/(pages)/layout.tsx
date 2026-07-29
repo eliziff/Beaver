@@ -21,6 +21,7 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
     const handleSidebarToggle = () => setMobileSidebarOpen((open) => !open);
     const handleAuthoritiesNavigate = () => {
         if (pathname === "/table-of-authorities") return;
+        void import("@/app/components/shared/TableOfAuthoritiesHost");
         setAuthoritiesOrigin(pathname);
     };
     const authoritiesIntent = authoritiesOrigin === pathname;
@@ -44,9 +45,9 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
             pathname.startsWith("/workflows") ||
             pathname.includes("/tabular-reviews");
         if (authLoading || !isAuthenticated || !modelRoute) return;
-        void import("@/app/lib/codexModelCatalog")
-            .then(({ preloadCodexModelCatalog }) =>
-                preloadCodexModelCatalog(),
+        void import("@/app/lib/modelCatalog")
+            .then(({ preloadModelCatalog }) =>
+                preloadModelCatalog(),
             )
             .catch(() => {});
     }, [authLoading, isAuthenticated, pathname]);

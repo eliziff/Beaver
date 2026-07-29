@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import type {

@@ -1,118 +1,91 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy } from "lucide-react";
 import { supabase } from "@/app/lib/supabase";
 import { Button } from "@/app/components/ui/button";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { isMfaRequiredError } from "@/app/lib/beaverApi";
 import { Modal } from "@/app/components/modals/Modal";
-import {
-    MfaVerificationPopup,
-    needsMfaVerification,
-    VerificationCodeInput,
-} from "@/app/components/popups/MfaVerificationPopup";
+import { VerificationCodeInput } from "@/app/components/popups/MfaVerificationPopup";
+import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
-type MfaFactor = {
-    id: string;
-    friendly_name?: string | null;
-    factor_type: string;
-    status?: string;
-};
 type Enrollment = {
     factorId: string;
     challengeId: string;
     qrCode: string;
     secret: string;
 };
-function isDuplicateFriendlyNameError(error: unknown) {
-    const message =
-        error instanceof Error
-            ? error.message
-            : typeof error === "object" &&
-                error !== null &&
-                "message" in error &&
-                typeof error.message === "string"
-              ? error.message
-              : "";
-    return message
-        .toLowerCase()
-        .includes("a factor with the friendly name");
-}
-function MfaSettingsSkeleton() {
-    return (
-        <div className="px-4 py-5">
-            <div className="space-y-1">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="h-4 w-36 rounded bg-gray-100" />
-                    <div className="h-3 w-14 shrink-0 rounded bg-gray-100" />
-                </div>
-                <div className="space-y-1.5 pt-1">
-                    <div className="h-3 w-full max-w-md rounded bg-gray-100" />
-                    <div className="h-3 w-3/4 max-w-sm rounded bg-gray-100" />
-                </div>
-            </div>
-            <div className="mt-3 flex justify-end">
-                <div className="h-9 w-20 rounded-lg bg-gray-100" />
-            </div>
-        </div>
-    );
-}
+type MfaState = {
+    factorId: string | null;
+    sessionVerified: boolean;
+};
+type SetupState = {
+    enrollment: Enrollment | null;
+    verificationCode: string;
+    keyCopied: boolean;
+};
+const emptySetup: SetupState = {
+    enrollment: null,
+    verificationCode: "",
+    keyCopied: false,
+};
+const errorMessage = (error: unknown, fallback = "") =>
+    error instanceof Error ? error.message : fallback;
 export default function SecurityPage() {
     const { profile, updateMfaOnLogin } = useUserProfile();
-    const [loading, setLoading] = useState(true);
-    const [factors, setFactors] = useState<MfaFactor[]>([]);
-    const [currentLevel, setCurrentLevel] = useState<string | null>(null);
-    const [setupModalOpen, setSetupModalOpen] = useState(false);
-    const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
-    const [verificationCode, setVerificationCode] = useState("");
-    const [setupKeyCopied, setSetupKeyCopied] = useState(false);
+    const [mfa, setMfa] = useState<MfaState | null>(null);
+    const [setup, setSetup] = useState<SetupState | null>(null);
     const [status, setStatus] = useState<string | null>(null);
-    const [busy, setBusy] = useState(false);
-    const [savingLoginPreference, setSavingLoginPreference] = useState(false);
-    const [pendingUnenrollFactorId, setPendingUnenrollFactorId] = useState<
-        string | null
+    const [busyAction, setBusyAction] = useState<
+        "setup" | "verify" | "unenroll" | "login" | null
     >(null);
-    const [pendingLoginPreference, setPendingLoginPreference] = useState<
-        boolean | null
-    >(null);
+    const { runMfa, mfaPopup } = useMfaAction();
+    const factorId = mfa?.factorId ?? null;
+    const enrollment = setup?.enrollment ?? null;
+    const verificationCode = setup?.verificationCode ?? "";
+    const setupKeyCopied = setup?.keyCopied ?? false;
+    const busy = busyAction !== null;
+    const savingLoginPreference = busyAction === "login";
+    const updateSetup = (patch: Partial<SetupState>) =>
+        setSetup((current) =>
+            current ? { ...current, ...patch } : current,
+        );
     async function refreshMfaState() {
-        setLoading(true);
         setStatus(null);
         const [factorResult, aalResult] = await Promise.all([
             supabase.auth.mfa.listFactors(),
             supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
         ]);
-        if (factorResult.error) {
-            setStatus(factorResult.error.message);
-            setFactors([]);
-        } else {
-            const verifiedTotp = (factorResult.data.totp ?? []) as MfaFactor[];
-            setFactors(verifiedTotp);
-        }
-        if (aalResult.error) {
-            setStatus(aalResult.error.message);
-            setCurrentLevel(null);
-        } else {
-            setCurrentLevel(aalResult.data.currentLevel);
-        }
-        setLoading(false);
+        setStatus(
+            aalResult.error?.message ?? factorResult.error?.message ?? null,
+        );
+        setMfa({
+            factorId: factorResult.error
+                ? null
+                : (factorResult.data.totp?.[0]?.id ?? null),
+            sessionVerified:
+                !aalResult.error && aalResult.data.currentLevel === "aal2",
+        });
     }
     useEffect(() => {
         void refreshMfaState();
     }, []);
     async function startEnrollment() {
-        setBusy(true);
+        setBusyAction("setup");
         setStatus(null);
         try {
             let { data, error } = await supabase.auth.mfa.enroll({
                 factorType: "totp",
                 friendlyName: "Beaver",
             });
-            if (error && isDuplicateFriendlyNameError(error)) {
+            if (
+                error?.message
+                    .toLowerCase()
+                    .includes("a factor with the friendly name")
+            ) {
                 const retry = await supabase.auth.mfa.enroll({
                     factorType: "totp",
                     friendlyName: `Beaver ${Date.now()}`,
@@ -126,41 +99,34 @@ export default function SecurityPage() {
                 factorId: data.id,
             });
             if (challenge.error) throw challenge.error;
-            setEnrollment({
-                factorId: data.id,
-                challengeId: challenge.data.id,
-                qrCode: data.totp.qr_code,
-                secret: data.totp.secret,
+            updateSetup({
+                enrollment: {
+                    factorId: data.id,
+                    challengeId: challenge.data.id,
+                    qrCode: data.totp.qr_code,
+                    secret: data.totp.secret,
+                },
+                verificationCode: "",
+                keyCopied: false,
             });
-            setVerificationCode("");
-            setSetupKeyCopied(false);
         } catch (error) {
-            setStatus(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to start MFA setup.",
-            );
+            setStatus(errorMessage(error, "Failed to start MFA setup."));
         } finally {
-            setBusy(false);
+            setBusyAction(null);
         }
     }
-    async function closeSetupModal() {
+    async function cancelSetup(next: SetupState | null) {
         if (busy) return;
-        setSetupModalOpen(false);
-        if (enrollment) {
-            await cancelEnrollment();
-        } else {
-            setVerificationCode("");
-            setSetupKeyCopied(false);
-        }
-    }
-    async function returnToSetupInstructions() {
-        if (busy || !enrollment) return;
-        await cancelEnrollment();
+        setSetup(next);
+        if (!enrollment) return;
+        await supabase.auth.mfa
+            .unenroll({ factorId: enrollment.factorId })
+            .catch(() => null);
+        await refreshMfaState();
     }
     async function verifyEnrollment() {
         if (!enrollment || verificationCode.trim().length !== 6) return;
-        setBusy(true);
+        setBusyAction("verify");
         setStatus(null);
         try {
             const { error } = await supabase.auth.mfa.verify({
@@ -169,129 +135,85 @@ export default function SecurityPage() {
                 code: verificationCode.trim(),
             });
             if (error) throw error;
-            setEnrollment(null);
-            setSetupModalOpen(false);
-            setVerificationCode("");
-            setSetupKeyCopied(false);
+            setSetup(null);
             setStatus("MFA enabled.");
             await refreshMfaState();
         } catch (error) {
-            setStatus(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to verify MFA code.",
-            );
+            setStatus(errorMessage(error, "Failed to verify MFA code."));
         } finally {
-            setBusy(false);
+            setBusyAction(null);
         }
-    }
-    async function cancelEnrollment() {
-        const factorId = enrollment?.factorId;
-        setEnrollment(null);
-        setVerificationCode("");
-        setSetupKeyCopied(false);
-        if (factorId) {
-            await supabase.auth.mfa.unenroll({ factorId }).catch(() => null);
-        }
-        await refreshMfaState();
     }
     async function copySetupKey() {
         if (!enrollment?.secret) return;
         await navigator.clipboard.writeText(enrollment.secret);
-        setSetupKeyCopied(true);
-        window.setTimeout(() => setSetupKeyCopied(false), 1600);
+        updateSetup({ keyCopied: true });
+        window.setTimeout(() => updateSetup({ keyCopied: false }), 1600);
     }
     async function requestUnenroll(factorId: string) {
         setStatus(null);
-        const { data, error } =
-            await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (error) {
-            setStatus(error.message);
-            return;
-        }
-        if (data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
-            setPendingUnenrollFactorId(factorId);
-            return;
-        }
-        await unenrollFactor(factorId);
+        await runMfa(
+            async () => {
+                setBusyAction("unenroll");
+                const { error } = await supabase.auth.mfa.unenroll({
+                    factorId,
+                });
+                setBusyAction(null);
+                if (error) throw error;
+                if (profile?.mfaOnLogin) void updateMfaOnLogin(false);
+                await refreshMfaState();
+            },
+            {
+                onError: (error) =>
+                    setStatus(
+                        errorMessage(
+                            error,
+                            "Failed to remove authenticator.",
+                        ),
+                    ),
+            },
+        );
     }
-    async function unenrollFactor(factorId: string) {
-        setBusy(true);
-        setStatus(null);
-        const { error } = await supabase.auth.mfa.unenroll({ factorId });
-        setBusy(false);
-        if (error) {
-            if (
-                error.message.toLowerCase().includes("aal") ||
-                error.code === "insufficient_aal"
-            ) {
-                setPendingUnenrollFactorId(factorId);
-                return;
-            }
-            setStatus(error.message);
-            return;
-        }
-        setStatus("MFA disabled.");
-        if (profile?.mfaOnLogin) {
-            void updateMfaOnLogin(false);
-        }
-        await refreshMfaState();
-    }
-    async function handleLoginPreferenceToggle() {
+    async function saveLoginPreference() {
         if (!hasVerifiedFactor || savingLoginPreference) return;
         const enabled = !(profile?.mfaOnLogin === true);
-        setSavingLoginPreference(true);
         setStatus(null);
-        try {
-            if (await needsMfaVerification()) {
-                setPendingLoginPreference(enabled);
-                return;
-            }
-            await saveLoginPreference(enabled);
-        } catch (error) {
-            setStatus(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to update login authentication preference.",
-            );
-        } finally {
-            setSavingLoginPreference(false);
-        }
+        await runMfa(
+            async () => {
+                setBusyAction("login");
+                try {
+                    if (!(await updateMfaOnLogin(enabled)))
+                        throw new Error(
+                            "Failed to update login authentication preference.",
+                        );
+                } finally {
+                    setBusyAction(null);
+                }
+            },
+            {
+                title: "Authenticator required",
+                message:
+                    "Enter a code from your authenticator app to change login verification.",
+                onError: (error) =>
+                    setStatus(
+                        errorMessage(
+                            error,
+                            "Failed to update login authentication preference.",
+                        ),
+                    ),
+            },
+        );
     }
-    async function saveLoginPreference(enabled: boolean) {
-        setSavingLoginPreference(true);
-        setStatus(null);
-        try {
-            const success = await updateMfaOnLogin(enabled);
-            if (!success) {
-                setStatus("Failed to update login authentication preference.");
-            }
-        } catch (error) {
-            if (isMfaRequiredError(error)) {
-                setPendingLoginPreference(enabled);
-            } else {
-                setStatus(
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update login authentication preference.",
-                );
-            }
-        } finally {
-            setSavingLoginPreference(false);
-        }
-    }
-    const hasVerifiedFactor = factors.length > 0;
-    const sessionVerified = currentLevel === "aal2";
+    const hasVerifiedFactor = !!factorId;
+    const sessionVerified = mfa?.sessionVerified ?? false;
     const loginMfaEnabled = profile?.mfaOnLogin === true;
     return (
         <div className="space-y-8">
-            <section className="space-y-3">
-                <h2 className="text-2xl font-medium font-serif text-gray-900">
-                    Multi-Factor Authentication
-                </h2>
-                <AccountSection>
-                    {loading ? (
-                        <MfaSettingsSkeleton />
+            <AccountSection heading="Multi-Factor Authentication">
+                    {mfa === null ? (
+                        <div className="h-36 p-4" aria-hidden>
+                            <div className="h-full rounded-lg bg-gray-100" />
+                        </div>
                     ) : (
                         <>
                             <div className="px-4 py-5">
@@ -315,29 +237,20 @@ export default function SecurityPage() {
                                     <p className="text-sm text-gray-500">
                                         {hasVerifiedFactor
                                             ? sessionVerified
-                                                ? "Authenticator app is saved on your account. Sensitive actions are unlocked for this session."
-                                                : "Authenticator app is saved on your account. Sensitive actions require a verification code."
-                                            : "Add an authenticator app to protect sensitive actions such as exporting data, deleting data, deleting your account, and changing API keys."}
+                                                ? "Sensitive actions are unlocked for this session."
+                                                : "Sensitive actions require an authenticator code."
+                                            : "Protect sensitive actions such as deleting data and changing API keys."}
                                     </p>
                                 </div>
                                 {!hasVerifiedFactor && !enrollment ? (
                                     <div className="mt-3 flex justify-end">
                                         <Button
                                             variant="outline"
-                                            onClick={() =>
-                                                setSetupModalOpen(true)
-                                            }
+                                            onClick={() => setSetup(emptySetup)}
                                             disabled={busy}
                                             className={`h-9 w-full gap-1.5 sm:w-auto ${accountGlassPrimaryButtonClassName}`}
                                         >
-                                            {busy ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    Starting...
-                                                </>
-                                            ) : (
-                                                "Set up"
-                                            )}
+                                            Set up
                                         </Button>
                                     </div>
                                 ) : null}
@@ -351,9 +264,8 @@ export default function SecurityPage() {
                                                 Login verification
                                             </p>
                                             <p className="text-sm text-gray-500">
-                                                Ask for an authenticator code
-                                                after each new login, instead of
-                                                only before sensitive actions.
+                                                Require a code after each new
+                                                login.
                                             </p>
                                         </div>
                                         <AccountToggle
@@ -362,7 +274,7 @@ export default function SecurityPage() {
                                             loading={savingLoginPreference}
                                             size="md"
                                             onChange={() =>
-                                                void handleLoginPreferenceToggle()
+                                                void saveLoginPreference()
                                             }
                                         />
                                     </div>
@@ -370,11 +282,9 @@ export default function SecurityPage() {
                                         <button
                                             type="button"
                                             onClick={() =>
-                                                void requestUnenroll(
-                                                    factors[0]?.id,
-                                                )
+                                                void requestUnenroll(factorId!)
                                             }
-                                            disabled={busy || !factors[0]?.id}
+                                            disabled={busy || !factorId}
                                             className="text-xs font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
                                         >
                                             Remove authenticator app
@@ -385,24 +295,19 @@ export default function SecurityPage() {
                         </>
                     )}
                     {status && (
-                        <>
-                            <div className="mx-4 h-px bg-gray-200" />
-                            <p className="px-4 py-3 text-xs text-gray-500">
-                                {status}
-                            </p>
-                        </>
+                        <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500">
+                            {status}
+                        </p>
                     )}
-                </AccountSection>
-            </section>
+            </AccountSection>
             <Modal
-                open={setupModalOpen}
-                onClose={() => void closeSetupModal()}
+                open={setup !== null}
+                onClose={() => void cancelSetup(null)}
                 breadcrumbs={["Security", "Set up authenticator app"]}
                 cancelAction={{
                     label: enrollment ? "Back" : "Cancel",
-                    onClick: enrollment
-                        ? () => void returnToSetupInstructions()
-                        : () => void closeSetupModal(),
+                    onClick: () =>
+                        void cancelSetup(enrollment ? emptySetup : null),
                     disabled: busy,
                 }}
                 primaryAction={
@@ -429,33 +334,18 @@ export default function SecurityPage() {
                 >
                     {!enrollment ? (
                         <>
-                            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                                Step 1
-                            </p>
                             <div className="space-y-1">
                                 <p className="text-sm font-medium text-gray-900">
-                                    Before you start
+                                    Open an authenticator app
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                    Download an authenticator app such as Google
-                                    Authenticator, Microsoft Authenticator,
-                                    Authy, 1Password, or iCloud Passwords.
+                                    Install one if needed, then choose the
+                                    option to add an account.
                                 </p>
                             </div>
-                            <ol className="list-decimal space-y-1 pl-4 text-sm text-gray-500">
-                                <li>
-                                    Download and open your authenticator app.
-                                </li>
-                                <li>
-                                    Choose the option to add a new account.
-                                </li>
-                            </ol>
                         </>
                     ) : (
                         <>
-                            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                                Step 2
-                            </p>
                             <div className="space-y-1">
                                 <p className="text-sm font-medium text-gray-900">
                                     Scan this code
@@ -484,46 +374,25 @@ export default function SecurityPage() {
                                     {enrollment.secret}
                                 </p>
                             </div>
-                            <div className="flex justify-center">
-                                <div className="flex h-48 w-48 items-center justify-center rounded-xl bg-white p-2">
-                                    <img
-                                        src={enrollment.qrCode}
-                                        alt="MFA QR code"
-                                        className="h-full w-full"
-                                    />
-                                </div>
-                            </div>
-                            <div className="min-w-0 space-y-3">
-                                <VerificationCodeInput
-                                    value={verificationCode}
-                                    onChange={setVerificationCode}
-                                    disabled={busy}
+                            <div className="mx-auto flex h-48 w-48 items-center justify-center rounded-xl bg-white p-2">
+                                <img
+                                    src={enrollment.qrCode}
+                                    alt="MFA QR code"
+                                    className="h-full w-full"
                                 />
                             </div>
+                            <VerificationCodeInput
+                                value={verificationCode}
+                                onChange={(value) =>
+                                    updateSetup({ verificationCode: value })
+                                }
+                                disabled={busy}
+                            />
                         </>
                     )}
                 </div>
             </Modal>
-            <MfaVerificationPopup
-                open={!!pendingUnenrollFactorId}
-                onCancel={() => setPendingUnenrollFactorId(null)}
-                onVerified={() => {
-                    const factorId = pendingUnenrollFactorId;
-                    setPendingUnenrollFactorId(null);
-                    if (factorId) void unenrollFactor(factorId);
-                }}
-            />
-            <MfaVerificationPopup
-                open={pendingLoginPreference !== null}
-                onCancel={() => setPendingLoginPreference(null)}
-                onVerified={() => {
-                    const enabled = pendingLoginPreference;
-                    setPendingLoginPreference(null);
-                    if (enabled !== null) void saveLoginPreference(enabled);
-                }}
-                title="Authenticator required"
-                message="Enter a code from your authenticator app to change login verification."
-            />
+            {mfaPopup}
         </div>
     );
 }

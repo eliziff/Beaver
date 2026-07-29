@@ -1,513 +1,372 @@
-"use client";
-import {
-    useState,
-    useCallback,
-    useEffect,
-    useRef,
-    forwardRef,
-    useImperativeHandle,
-} from "react";
-import {
-    ArrowRight,
-    Check,
-    Library,
-    Loader2,
-    Square,
-    Waypoints,
-    X,
-} from "lucide-react";
-import { AddDocButton } from "./AddDocButton";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { ArrowRight, Check, Library, Loader2, Plus, Square, Waypoints, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { WarningPopup } from "../popups/WarningPopup";
-import {
-    ModelToggle,
-    ReasoningEffortToggle,
-} from "./ModelToggle";
-import {
-    useSelectedModel,
-    useSelectedReasoningEffort,
-} from "@/app/hooks/useSelectedModel";
+import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
+import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import {
-    getModelProvider,
-    isModelAvailable,
-    type ModelProvider,
-} from "@/app/lib/modelAvailability";
+import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
 import type { Document, Message } from "../shared/types";
 import type { DirectoryTab } from "../shared/useDirectoryData";
 import { cn } from "@/app/lib/utils";
-import {
-    uploadProjectDocument,
-    uploadStandaloneDocument,
-} from "@/app/lib/beaverApi";
-import {
-    formatUnsupportedDocumentWarning,
-    partitionSupportedDocumentFiles,
-} from "@/app/lib/documentUploadValidation";
+import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
+import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
+type Workflow = NonNullable<Message["workflow"]>;
+
+function mergeDocuments(...groups: Document[][]) {
+    return [...new Map(
+        groups.flat().map((document) => [document.id, document]),
+    ).values()];
+}
+
+type InputChipProps = {
+    className: string; dark?: boolean; icon: React.ReactNode;
+    label: string; onRemove?: () => void;
+};
+function InputChip({ className, dark, icon, label, onRemove }: InputChipProps) {
+    return (
+        <span className={cn("inline-flex items-center gap-1 py-0.5 text-xs shadow-sm", className)}>
+            {icon}
+            <span className="max-w-[140px] truncate">{label}</span>
+            {onRemove && (
+                <button
+                    type="button" aria-label={`Remove ${label}`} onClick={onRemove}
+                    className={cn(
+                        "ml-0.5 rounded-full p-0.5",
+                        dark ? "text-white/60 hover:bg-white/20 hover:text-white" : "text-gray-400 hover:bg-gray-900/5 hover:text-gray-700",
+                    )}
+                >
+                    <X className="h-2.5 w-2.5" />
+                </button>
+            )}
+        </span>
+    );
+}
+
 export interface ChatInputHandle {
     addDoc: (doc: Document) => void;
     clearDraft: () => void;
-    startWorkflowDocumentSelection: (
-        workflow: { id: string; title: string },
-        prompt?: string,
-        options?: { initialDocumentTab?: DirectoryTab },
-    ) => void;
+    startWorkflowDocumentSelection: (workflow: Workflow, prompt?: string, options?: {
+        initialDocumentTab?: DirectoryTab;
+    }) => void;
 }
 interface Props {
     onSubmit: (message: Message) => void;
     onCancel: () => void;
     isLoading: boolean;
-    hideAddDocButton?: boolean;
+    showContextTools?: boolean;
+    rows?: number;
     projectName?: string;
     projectCmNumber?: string | null;
-    projectId?: string;
-    onDocumentsUploaded?: (documents: Document[]) => void;
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
-    {
-        onSubmit,
-        onCancel,
-        isLoading,
-        hideAddDocButton,
-        projectName,
-        projectCmNumber,
-        projectId,
-        onDocumentsUploaded,
-        restoreDraft,
-        onDraftRestored,
-    }: Props,
+    { onSubmit, onCancel, isLoading, showContextTools = true, rows = 1,
+        projectName, projectCmNumber, restoreDraft, onDraftRestored }: Props,
     ref,
 ) {
-    const [value, setValue] = useState("");
+    const [hasValue, setHasValue] = useState(false);
     const [attachedDocs, setAttachedDocs] = useState<Document[]>([]);
-    const [selectedWorkflow, setSelectedWorkflow] = useState<{
-        id: string;
-        title: string;
-    } | null>(null);
+    const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
+    const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
     const [model, setModel] = useSelectedModel();
-    const [reasoningEffort, setReasoningEffort] =
-        useSelectedReasoningEffort();
+    const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [docSelectorOpen, setDocSelectorOpen] = useState(false);
-    const [docSelectorInitialTab, setDocSelectorInitialTab] =
-        useState<DirectoryTab>("files");
-    const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
-    const [apiKeyModalProvider, setApiKeyModalProvider] =
-        useState<ModelProvider | null>(null);
-    const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+    const [picker, setPicker] = useState<DirectoryTab | "workflows" | null>(null);
+    const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
-    const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
+
+    function attachDocuments(documents: Document[], dropped = false) {
+        setAttachedDocs((current) => mergeDocuments(current, documents));
+        if (dropped) setDroppedDocuments((current) => mergeDocuments(current, documents));
+    }
+
+    function setInputValue(value: string, focus = false) {
+        if (!textareaRef.current) return;
+        textareaRef.current.value = value;
+        setHasValue(!!value.trim());
+        if (focus) textareaRef.current.focus();
+    }
+
     useImperativeHandle(ref, () => ({
-        addDoc: (doc: Document) => {
-            setAttachedDocs((prev) => {
-                if (prev.some((d) => d.id === doc.id)) return prev;
-                return [...prev, doc];
-            });
-        },
+        addDoc: (doc: Document) => attachDocuments([doc]),
         clearDraft: () => {
-            setValue("");
+            setInputValue("");
             setAttachedDocs([]);
             setSelectedWorkflow(null);
-            if (textareaRef.current) {
-                textareaRef.current.style.height = "auto";
-            }
         },
         startWorkflowDocumentSelection: (workflow, prompt, options) => {
             setSelectedWorkflow(workflow);
-            setDocSelectorInitialTab(options?.initialDocumentTab ?? "files");
-            if (prompt) {
-                setValue((current) => current || prompt);
-                requestAnimationFrame(() => {
-                    if (!textareaRef.current) return;
-                    textareaRef.current.style.height = "auto";
-                    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-                });
+            if (prompt && !textareaRef.current?.value) setInputValue(prompt);
+            if (attachedDocs.length === 0) {
+                setPicker(options?.initialDocumentTab ?? "files");
             }
-            if (attachedDocs.length === 0) setDocSelectorOpen(true);
         },
     }));
     useEffect(() => {
         if (!restoreDraft) return;
         const frame = requestAnimationFrame(() => {
-            setValue((current) =>
+            const current = textareaRef.current?.value ?? "";
+            setInputValue(
                 current.trim()
                     ? `${restoreDraft.content}\n\n${current}`
                     : restoreDraft.content,
+                true,
             );
-            const restoredIds = new Set(
-                (restoreDraft.files ?? []).flatMap((file) =>
-                    file.document_id ? [file.document_id] : [],
+            const restoredIds = new Set(restoreDraft.files?.map((file) => file.document_id));
+            setAttachedDocs((current) =>
+                mergeDocuments(
+                    current,
+                    lastSubmittedDocsRef.current.filter(({ id }) => restoredIds.has(id)),
                 ),
             );
-            setAttachedDocs((current) => {
-                const existing = new Set(
-                    current.map((document) => document.id),
-                );
-                return [
-                    ...current,
-                    ...lastSubmittedDocsRef.current.filter(
-                        (document) =>
-                            restoredIds.has(document.id) &&
-                            !existing.has(document.id),
-                    ),
-                ];
-            });
-            if (restoreDraft.workflow) {
-                setSelectedWorkflow(
-                    (current) => current ?? restoreDraft.workflow!,
-                );
-            }
-            if (textareaRef.current) {
-                textareaRef.current.style.height = "auto";
-                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-                textareaRef.current.focus();
-            }
+            setSelectedWorkflow((current) => current ?? restoreDraft.workflow ?? null);
             onDraftRestored?.();
         });
         return () => cancelAnimationFrame(frame);
     }, [onDraftRestored, restoreDraft]);
-    const handleAddDocsFromSelector = useCallback(
-        (selectedDocs: Document[]) => {
-            setAttachedDocs((prev) => {
-                const existing = new Set(prev.map((d) => d.id));
-                return [
-                    ...prev,
-                    ...selectedDocs.filter((d) => !existing.has(d.id)),
-                ];
-            });
-        },
-        [],
-    );
-    const addAttachedDocuments = useCallback((documents: Document[]) => {
-        setAttachedDocs((prev) => {
-            const existing = new Set(prev.map((document) => document.id));
-            return [
-                ...prev,
-                ...documents.filter((document) => !existing.has(document.id)),
-            ];
-        });
-    }, []);
-    const handleDroppedFiles = useCallback(
-        async (files: File[]) => {
-            const { supported, unsupported } =
-                partitionSupportedDocumentFiles(files);
-            setUploadWarning(formatUnsupportedDocumentWarning(unsupported));
-            if (supported.length === 0) return;
-            setUploadingFilenames(supported.map((file) => file.name));
-            const results = await Promise.allSettled(
-                supported.map((file) =>
-                    projectId
-                        ? uploadProjectDocument(projectId, file)
-                        : uploadStandaloneDocument(file),
-                ),
+
+    async function handleDroppedFiles(files: File[]) {
+        const { supported, unsupported } = partitionSupportedDocumentFiles(files);
+        setUploadWarning(formatUnsupportedDocumentWarning(unsupported));
+        if (supported.length === 0) return;
+        setUploadingFilenames(supported.map((file) => file.name));
+        const results = await Promise.allSettled(supported.map(uploadStandaloneDocument));
+        const uploaded = results.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : [],
+        );
+        if (uploaded.length) attachDocuments(uploaded, true);
+        if (results.some((result) => result.status === "rejected")) {
+            setUploadWarning(
+                uploaded.length
+                    ? "Some documents could not be uploaded."
+                    : "Documents could not be uploaded. Please try again.",
             );
-            const uploaded = results.flatMap((result) =>
-                result.status === "fulfilled" ? [result.value] : [],
-            );
-            if (uploaded.length > 0) {
-                addAttachedDocuments(uploaded);
-                setDroppedDocuments((prev) => {
-                    const existing = new Set(
-                        prev.map((document) => document.id),
-                    );
-                    return [
-                        ...prev,
-                        ...uploaded.filter(
-                            (document) => !existing.has(document.id),
-                        ),
-                    ];
-                });
-                onDocumentsUploaded?.(uploaded);
-            }
-            if (results.some((result) => result.status === "rejected")) {
-                setUploadWarning(
-                    uploaded.length > 0
-                        ? "Some documents could not be uploaded."
-                        : "Documents could not be uploaded. Please try again.",
-                );
-            }
-            setUploadingFilenames([]);
-        },
-        [addAttachedDocuments, onDocumentsUploaded, projectId],
-    );
-    const hasFiles = (event: React.DragEvent) =>
-        Array.from(event.dataTransfer.types).includes("Files");
-    const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        setIsDraggingFiles(true);
-    };
-    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-    };
-    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-        if (!hasFiles(event)) return;
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setIsDraggingFiles(false);
         }
-    };
-    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        setIsDraggingFiles(false);
-        void handleDroppedFiles(Array.from(event.dataTransfer.files));
-    };
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setValue(e.target.value);
-        const el = e.target;
-        el.style.height = "auto";
-        el.style.height = `${el.scrollHeight}px`;
-    };
+        setUploadingFilenames([]);
+    }
+
+    function handleFileDrag(event: React.DragEvent<HTMLDivElement>) {
+        if (!showContextTools || !event.dataTransfer.types.includes("Files")) return;
+        if (event.type !== "dragleave") event.preventDefault();
+        if (event.type === "dragenter") event.currentTarget.dataset.dragging = "true";
+        if (event.type === "dragover") event.dataTransfer.dropEffect = "copy";
+        if (event.type === "dragleave" &&
+            !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            delete event.currentTarget.dataset.dragging;
+        }
+        if (event.type === "drop") {
+            delete event.currentTarget.dataset.dragging;
+            void handleDroppedFiles(Array.from(event.dataTransfer.files));
+        }
+    }
     const handleSubmit = () => {
-        const query = value.trim();
+        const query = textareaRef.current?.value.trim();
         if (!query || isLoading) return;
         if (apiKeys && !isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
         }
-        setValue("");
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-        }
-        const files = attachedDocs.map((d) => ({
-            filename: d.filename,
-            document_id: d.id,
-        }));
+        setInputValue("");
         lastSubmittedDocsRef.current = attachedDocs;
         setAttachedDocs([]);
-        const wf = selectedWorkflow;
         setSelectedWorkflow(null);
-        onSubmit?.({
+        const files = attachedDocs.map(({ filename, id }) => ({ filename, document_id: id }));
+        onSubmit({
             role: "user",
             content: query,
-            files: files.length > 0 ? files : undefined,
-            workflow: wf ?? undefined,
+            files: files.length ? files : undefined,
+            workflow: selectedWorkflow ?? undefined,
             model,
             reasoningEffort,
         });
     };
-    const handleActionClick = () => {
-        if (isLoading) {
-            onCancel();
-        } else {
-            handleSubmit();
-        }
-    };
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit();
-        }
-    };
+    const documentButtonLabel = attachedDocs.length
+        ? `${attachedDocs.length} documents selected`
+        : "Add document";
     return (
         <>
             <div
-                className={cn(
-                    "chat-input-container w-full",
-                    isDraggingFiles && "rounded-[22px] ring-2 ring-brand/30",
-                )}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                className="chat-input-container w-full data-[dragging=true]:rounded-[22px] data-[dragging=true]:ring-2 data-[dragging=true]:ring-brand/30"
+                onDragEnter={handleFileDrag}
+                onDragOver={handleFileDrag}
+                onDragLeave={handleFileDrag}
+                onDrop={handleFileDrag}
             >
-                <div className="rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]">
-                    {/* Attached chips */}
-                    {(selectedWorkflow || attachedDocs.length > 0) && (
-                        <div className="flex flex-wrap gap-1.5 px-2 pt-2">
-                            {selectedWorkflow && (
-                                <div className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-gray-950 py-0.5 pl-2.5 pr-1 text-xs text-white shadow-sm">                                    <Library className="h-2.5 w-2.5 shrink-0" />
-                                    <span className="max-w-[140px] truncate">
-                                        {selectedWorkflow.title}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setSelectedWorkflow(null)
-                                        }
-                                        className="rounded-full p-0.5 ml-0.5 text-white/60 hover:text-white hover:bg-white/20"
-                                    >
-                                        <X className="h-2.5 w-2.5" />
-                                    </button>
-                                </div>
-                            )}
-                            {attachedDocs.map((doc) => {
-                                return (
-                                    <div
-                                        key={doc.id}
-                                        className="inline-flex items-center gap-1 rounded-[10px] border border-gray-200 bg-white py-0.5 pl-2 pr-1 text-xs text-gray-800 shadow-sm"
-                                    >
-                                        <FileTypeIcon
-                                            fileType={doc.file_type}
-                                            className="h-2.5 w-2.5"
-                                        />
-                                        <span className="max-w-[140px] truncate">
-                                            {doc.filename}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setAttachedDocs((prev) =>
-                                                    prev.filter(
-                                                        (d) => d.id !== doc.id,
-                                                    ),
-                                                )
-                                            }
-                                            className="ml-0.5 rounded-full p-0.5 text-gray-400 hover:bg-gray-900/5 hover:text-gray-700"
-                                        >
-                                            <X className="h-2.5 w-2.5" />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {uploadingFilenames.length > 0 && (
+                <form
+                    className="rounded-[18px] border border-gray-200 bg-white shadow-sm md:rounded-[22px]"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        handleSubmit();
+                    }}
+                >
+                    {(selectedWorkflow ||
+                        attachedDocs.length > 0 ||
+                        uploadingFilenames.length > 0) && (
                         <div className="flex flex-wrap items-center gap-1.5 px-2 pt-2">
-                            {uploadingFilenames.map((filename, index) => (
-                                <div
-                                    key={`${filename}-${index}`}
-                                    className="inline-flex items-center gap-1 rounded-[10px] bg-gray-50 px-2 py-1 text-xs text-gray-600 shadow-sm"
-                                >
-                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                    <span className="max-w-[140px] truncate">
-                                        {filename}
-                                    </span>
-                                </div>
+                            {selectedWorkflow && (
+                                <InputChip
+                                    className="rounded-full border border-white/20 bg-gray-950 pl-2.5 pr-1 text-white"
+                                    dark icon={<Library className="h-2.5 w-2.5 shrink-0" />}
+                                    label={selectedWorkflow.title}
+                                    onRemove={() => setSelectedWorkflow(null)}
+                                />
+                            )}
+                            {attachedDocs.map((document) => (
+                                <InputChip
+                                    key={document.id}
+                                    className="rounded-[10px] border border-gray-200 bg-white pl-2 pr-1 text-gray-800"
+                                    icon={<FileTypeIcon fileType={document.file_type}
+                                        className="h-2.5 w-2.5" />}
+                                    label={document.filename}
+                                    onRemove={() =>
+                                        setAttachedDocs((current) =>
+                                            current.filter(({ id }) => id !== document.id),
+                                        )
+                                    }
+                                />
+                            ))}
+                            {uploadingFilenames.map((label, index) => (
+                                <InputChip
+                                    key={`${label}-${index}`}
+                                    className="rounded-[10px] bg-gray-50 px-2 py-1 text-gray-600"
+                                    icon={<Loader2 className="h-2.5 w-2.5 animate-spin" />} label={label}
+                                />
                             ))}
                         </div>
                     )}
-                    {/* Input */}
                     <div className="px-4 pt-4">
                         <textarea
                             ref={textareaRef}
-                            rows={1}
+                            rows={rows}
                             placeholder="How can I help?"
-                            value={value}
-                            onChange={handleChange}
-                            onKeyDown={handleKeyDown}
-                            className="w-full resize-none text-sm overflow-hidden border-0 text-base p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
+                            onChange={(event) => {
+                                const next = !!event.currentTarget.value.trim();
+                                if (next !== hasValue) setHasValue(next);
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                    event.preventDefault();
+                                    handleSubmit();
+                                }
+                            }}
+                            className="w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-400"
                         />
                     </div>
-                    {/* Controls */}
                     <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
-                        <div className="flex items-center gap-1">
-                            {!hideAddDocButton && (
-                                <AddDocButton
-                                    onBrowseAll={() => {
-                                        setDocSelectorInitialTab("files");
-                                        setDocSelectorOpen(true);
-                                    }}
-                                    selectedDocIds={attachedDocs.map(
-                                        (d) => d.id,
+                        {showContextTools && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setPicker("files")}
+                                    className={cn(
+                                        "flex h-8 items-center gap-1 rounded-lg px-2 text-sm",
+                                        attachedDocs.length
+                                            ? "text-gray-700 hover:text-gray-900"
+                                            : "text-gray-400 hover:text-gray-700",
                                     )}
-                                />
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => setWorkflowModalOpen(true)}
-                                aria-label="Open workflows"
-                                className={cn(
-                                    "flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm",
-                                    selectedWorkflow
-                                        ? "text-red-700 hover:text-red-800"                                        : "text-gray-400 hover:text-gray-700",
-                                )}
-                            >
-                                {selectedWorkflow ? (
-                                    <Check className="h-3.5 w-3.5" />
-                                ) : (
-                                    <Waypoints className="h-3.5 w-3.5" />
-                                )}
-                                <span className="chat-input-control-label hidden sm:inline">
-                                    Workflows
-                                </span>
-                            </button>
-                        </div>
+                                    title={documentButtonLabel}
+                                    aria-label={documentButtonLabel}
+                                >
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[10px] font-medium tabular-nums">
+                                        {attachedDocs.length
+                                            ? attachedDocs.length > 99
+                                                ? "99+"
+                                                : attachedDocs.length
+                                            : <Plus className="h-4 w-4" />}
+                                    </span>
+                                    <span className="chat-input-control-label hidden sm:inline">
+                                        Documents
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPicker("workflows")}
+                                    aria-label="Open workflows"
+                                    className={cn(
+                                        "flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
+                                        selectedWorkflow
+                                            ? "text-red-700 hover:text-red-800"
+                                            : "text-gray-400 hover:text-gray-700",
+                                    )}
+                                >
+                                    {selectedWorkflow
+                                        ? <Check className="h-3.5 w-3.5" />
+                                        : <Waypoints className="h-3.5 w-3.5" />}
+                                    <span className="chat-input-control-label hidden sm:inline">
+                                        Workflows
+                                    </span>
+                                </button>
+                            </div>
+                        )}
                         <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1 sm:w-auto sm:flex-nowrap">
                             <div className="order-2 sm:order-1">
                                 <ReasoningEffortToggle
-                                    model={model}
-                                    value={reasoningEffort}
+                                    model={model} value={reasoningEffort}
                                     onChange={setReasoningEffort}
                                 />
                             </div>
                             <div className="order-1 flex w-full min-w-0 justify-end sm:order-2 sm:w-auto">
                                 <ModelToggle
-                                    value={model}
-                                    onChange={setModel}
-                                    apiKeys={apiKeys}
+                                    value={model} onChange={setModel} apiKeys={apiKeys}
                                 />
                             </div>
                             <button
-                                type="button"
-                                className={cn(
-                                    "order-3 relative flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300",
-                                )}
-                                onClick={handleActionClick}
-                                disabled={!isLoading && !value.trim()}
+                                type={isLoading ? "button" : "submit"}
+                                className="relative order-3 flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
+                                onClick={isLoading ? onCancel : undefined}
+                                aria-label={isLoading ? "Stop response" : "Send message"}
+                                disabled={!isLoading && !hasValue}
                             >
-                                {isLoading ? (
-                                    <Square
-                                        className="h-4 w-4"
-                                        fill="currentColor"
-                                        strokeWidth={0}
-                                    />
-                                ) : (
-                                    <ArrowRight className="h-4 w-4" />
-                                )}
+                                {isLoading
+                                    ? <Square className="h-4 w-4" fill="currentColor" strokeWidth={0} />
+                                    : <ArrowRight className="h-4 w-4" />}
                             </button>
                         </div>
                     </div>
-                </div>
+                </form>
             </div>
-            <AddDocumentsModal
-                open={docSelectorOpen}
-                keepMounted
-                onClose={() => setDocSelectorOpen(false)}
-                onSelect={handleAddDocsFromSelector}
-                initialSelectedDocuments={attachedDocs}
-                externalUploadedDocuments={droppedDocuments}
-                initialTab={docSelectorInitialTab}
-                projectId={projectId}
-                breadcrumb={
-                    selectedWorkflow
-                        ? ["Assistant", selectedWorkflow.title, "Add document"]
-                        : ["Assistant", "Add document"]
-                }
-                primaryLabel="Use document"
-            />
-            <AssistantWorkflowModal
-                open={workflowModalOpen}
-                onClose={() => setWorkflowModalOpen(false)}
-                onSelect={(wf) => {
-                    setSelectedWorkflow({
-                        id: wf.id,
-                        title: wf.metadata.title,
-                    });
-                    setWorkflowModalOpen(false);
-                }}
-                projectName={projectName}
-                projectCmNumber={projectCmNumber}
-            />
-            <ApiKeyMissingPopup
-                open={apiKeyModalProvider !== null}
-                provider={apiKeyModalProvider}
+            {showContextTools && (
+                <AddDocumentsModal
+                    open={picker !== null && picker !== "workflows"}
+                    keepMounted
+                    onClose={() => setPicker(null)}
+                    onSelect={(documents) => attachDocuments(documents)}
+                    initialSelectedDocuments={attachedDocs}
+                    externalUploadedDocuments={droppedDocuments}
+                    initialTab={picker && picker !== "workflows" ? picker : "files"}
+                    breadcrumb={
+                        selectedWorkflow
+                            ? ["Assistant", selectedWorkflow.title, "Add document"]
+                            : ["Assistant", "Add document"]
+                    }
+                    primaryLabel="Use document"
+                />
+            )}
+            {showContextTools && picker === "workflows" && (
+                <AssistantWorkflowModal
+                    open
+                    onClose={() => setPicker(null)}
+                    onSelect={(wf) => {
+                        setSelectedWorkflow({ id: wf.id, title: wf.metadata.title });
+                        setPicker(null);
+                    }}
+                    projectName={projectName}
+                    projectCmNumber={projectCmNumber}
+                />
+            )}
+            <ApiKeyMissingPopup open={apiKeyModalProvider !== null} provider={apiKeyModalProvider}
                 onClose={() => setApiKeyModalProvider(null)}
             />
-            <WarningPopup
-                open={!!uploadWarning}
-                message={uploadWarning}
+            <WarningPopup open={!!uploadWarning} message={uploadWarning}
                 onClose={() => setUploadWarning(null)}
             />
         </>

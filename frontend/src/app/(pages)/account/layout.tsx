@@ -1,26 +1,21 @@
 "use client";
 import { useEffect } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
-interface TabDef {
-    id: string;
-    label: string;
-    href: string;
-}
-const TABS: TabDef[] = [
-    { id: "general", label: "General", href: "/account" },
-    { id: "features", label: "Features", href: "/account/features" },
+const TABS = [
+    { label: "General", href: "/account" },
+    { label: "Features", href: "/account/features" },
     {
-        id: "privacy-data",
         label: "Privacy & data",
         href: "/account/privacy-data",
     },
-    { id: "security", label: "Security", href: "/account/security" },
-    { id: "models", label: "Models", href: "/account/models" },
-    { id: "api-keys", label: "API keys", href: "/account/api-keys" },
-    { id: "connectors", label: "Connectors", href: "/account/connectors" },
+    { label: "Security", href: "/account/security" },
+    { label: "Models", href: "/account/models" },
+    { label: "API keys", href: "/account/api-keys" },
+    { label: "Connectors", href: "/account/connectors" },
 ];
 export default function AccountLayout({
     children,
@@ -39,7 +34,7 @@ export default function AccountLayout({
         return null;
     }
     const tabs = isAnonymousMode
-        ? TABS.filter((tab) => tab.id === "api-keys")
+        ? TABS.filter((tab) => tab.href === "/account/api-keys")
         : TABS;
     const activeTab =
         tabs.find(
@@ -69,7 +64,7 @@ export default function AccountLayout({
                             className="h-9 w-auto max-w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-800 shadow-sm outline-none focus:border-gray-300 md:hidden"
                         >
                             {tabs.map((tab) => (
-                                <option key={tab.id} value={tab.href}>
+                                <option key={tab.href} value={tab.href}>
                                     {tab.label}
                                 </option>
                             ))}
@@ -78,21 +73,18 @@ export default function AccountLayout({
                             {tabs.map((tab) => {
                                 const active = tab === activeTab;
                                 return (
-                                    <li key={tab.id}>
-                                        <button
-                                            type="button"
+                                    <li key={tab.href}>
+                                        <Link
                                             aria-current={
                                                 active ? "page" : undefined
                                             }
-                                            onClick={() =>
-                                                router.push(tab.href)
-                                            }
+                                            href={tab.href}
                                             className={accountTabButtonClassName(
                                                 active,
                                             )}
                                         >
                                             {tab.label}
-                                        </button>
+                                        </Link>
                                     </li>
                                 );
                             })}

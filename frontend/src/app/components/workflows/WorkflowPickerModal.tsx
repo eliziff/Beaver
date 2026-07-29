@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState, type ReactNode } from "react";
 import { listWorkflows } from "@/app/lib/beaverApi";
 import { Modal } from "../modals/Modal";
@@ -102,8 +101,6 @@ function OpenWorkflowPickerModal({
                 search={search}
                 onSearchChange={setSearch}
                 loading={loading}
-                workflowType={workflowType}
-                previewMode={workflowType === "tabular" ? "columns" : "prompt"}
                 disabledWorkflow={disabledWorkflow}
             />
         </Modal>

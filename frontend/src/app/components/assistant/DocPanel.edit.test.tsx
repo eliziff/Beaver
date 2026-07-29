@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import {
+    cleanup,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EditAnnotation } from "../shared/types";
 
@@ -30,10 +37,6 @@ vi.mock("../shared/views/PdfView", () => ({
 
 vi.mock("../shared/views/SpreadsheetView", () => ({
     SpreadsheetView: () => <div data-testid="spreadsheet-view" />,
-}));
-
-vi.mock("./CaseLawPanel", () => ({
-    CaseLawPanel: () => <div data-testid="case-view" />,
 }));
 
 vi.mock("@/app/components/legal/LegalSourceViewer", () => ({
@@ -141,5 +144,74 @@ describe("edit document panel", () => {
         expect(container).not.toHaveTextContent(
             /Tracked Change|This repeats what the redline already shows|Inserted replacement|Deleted original/i,
         );
+    });
+});
+
+describe("assistant side panel tabs", () => {
+    it("keeps tab content mounted while switching and routes close actions", async () => {
+        const onActivateTab = vi.fn();
+        const onCloseTab = vi.fn();
+        const onCloseAll = vi.fn();
+        function Panel() {
+            const [activeTabId, setActiveTabId] = useState("first");
+            return (
+                <AssistantSidePanel
+                    tabs={[
+                        {
+                            id: "first",
+                            kind: "document",
+                            documentId: "doc-1",
+                            filename: "First.docx",
+                            versionId: "version-1",
+                            versionNumber: 1,
+                        },
+                        {
+                            id: "second",
+                            kind: "document",
+                            documentId: "doc-2",
+                            filename: "Second.docx",
+                            versionId: "version-2",
+                            versionNumber: 1,
+                        },
+                    ]}
+                    activeTabId={activeTabId}
+                    onActivateTab={(id) => {
+                        onActivateTab(id);
+                        setActiveTabId(id);
+                    }}
+                    onCloseTab={onCloseTab}
+                    onCloseAll={onCloseAll}
+                />
+            );
+        }
+        const { container } = render(<Panel />);
+
+        await waitFor(() =>
+            expect(screen.getAllByTestId("docx-view")).toHaveLength(2),
+        );
+        expect(container.firstElementChild).toHaveClass(
+            "md:w-[min(46vw,680px)]",
+        );
+        const views = screen.getAllByTestId("docx-view");
+        const firstPane = views[0].closest("[aria-hidden]");
+        const secondPane = views[1].closest("[aria-hidden]");
+        expect(firstPane).toHaveAttribute("aria-hidden", "false");
+        expect(secondPane).toHaveAttribute("aria-hidden", "true");
+
+        const closeSecond = screen.getByRole("button", {
+            name: "Close Second.docx",
+        });
+        fireEvent.click(closeSecond.parentElement!);
+
+        expect(onActivateTab).toHaveBeenCalledWith("second");
+        expect(screen.getAllByTestId("docx-view")[0]).toBe(views[0]);
+        expect(firstPane).toHaveAttribute("aria-hidden", "true");
+        expect(secondPane).toHaveAttribute("aria-hidden", "false");
+
+        fireEvent.click(closeSecond);
+        expect(onCloseTab).toHaveBeenCalledWith("second");
+        expect(onActivateTab).toHaveBeenCalledOnce();
+        fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+        expect(onCloseAll).toHaveBeenCalledOnce();
     });
 });

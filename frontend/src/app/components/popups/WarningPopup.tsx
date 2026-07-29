@@ -1,4 +1,3 @@
-"use client";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, type ReactNode } from "react";
 import { AlertCircle, X } from "lucide-react";

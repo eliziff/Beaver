@@ -1,7 +1,7 @@
 import type { Citation } from "../../shared/types";
 export function preprocessCitations(
     text: string,
-    citations: Citation[],
+    citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
 ): string {
     return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (full, refsStr) => {
@@ -9,7 +9,7 @@ export function preprocessCitations(
             .split(",")
             .map((s: string) => parseInt(s.trim(), 10));
         const tokens = refs.flatMap((ref: number) => {
-            const citation = citations.find((a) => a.ref === ref);
+            const citation = citations.get(ref);
             if (!citation) return [];
             const idx = inlineCitationTargets.length;
             inlineCitationTargets.push(citation);

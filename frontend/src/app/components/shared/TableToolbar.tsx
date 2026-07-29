@@ -16,10 +16,9 @@ export function TableToolbar<T extends string>({
     onChange,
     actions,
 }: Props<T>) {
-    const hasItems = items.length > 0;
     return (
         <div className="mx-4 mb-2 flex min-h-12 flex-wrap items-center gap-2 py-2 md:mx-6">
-            {hasItems && (
+            {!!items.length && (
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-0.5">
                     {items.map((item) => (
                         <TabPillButton

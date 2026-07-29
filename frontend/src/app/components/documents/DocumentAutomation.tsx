@@ -1,12 +1,6 @@
-"use client";
 import { createPortal } from "react-dom";
-import {
-    useEffect,
-    useState,
-    type ComponentType,
-    type MouseEventHandler,
-} from "react";
-import { BookOpen, Link2, Loader2, RefreshCw, X } from "lucide-react";
+import { useState, type ComponentType } from "react";
+import { BookOpen, Link2, Loader2, RefreshCw, WandSparkles, X } from "lucide-react";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
     fixLibraryDocxSupras,
@@ -25,7 +19,7 @@ import {
     automationLabel,
     publishAutomationRun,
 } from "@/app/components/assistant/AutomationRun";
-export type DocumentAutomationTarget = {
+type DocumentAutomationTarget = {
     id: string;
     filename: string;
     file_type?: string | null;
@@ -133,30 +127,6 @@ export function DocumentAutomation({
         />
     );
 }
-function AutomationTrigger({
-    disabled = false,
-    inspecting = false,
-    onClick,
-}: {
-    disabled?: boolean;
-    inspecting?: boolean;
-    onClick?: MouseEventHandler<HTMLButtonElement>;
-}) {
-    return (
-        <button
-            type="button"
-            aria-busy={inspecting}
-            disabled={disabled || inspecting}
-            onClick={onClick}
-            className="flex h-8 w-[6.5rem] items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
-        >
-            <span className="flex h-4 w-4 items-center justify-center">
-                {inspecting && <Loader2 className="h-4 w-4 animate-spin" />}
-            </span>
-            Automation
-        </button>
-    );
-}
 function DocumentAutomationMenu({
     document,
     onDocumentChanged,
@@ -166,32 +136,39 @@ function DocumentAutomationMenu({
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
 }) {
-    const [openFor, setOpenFor] = useState<string | null>(null);
+    const [menu, setMenu] = useState<{
+        documentId: string;
+        showSupras: boolean;
+    } | null>(null);
     const [inspecting, setInspecting] = useState(false);
-    const [showSupras, setShowSupras] = useState(false);
     const [running, setRunning] = useState<AutomationToolName | null>(null);
-    const [inspectionError, setInspectionError] = useState("");
-    const open = !!document && openFor === document.id;
-    useEffect(() => {
-        setOpenFor(null);
-        setInspectionError("");
-    }, [document?.id]);
+    const [failure, setFailure] = useState<{
+        documentId: string;
+        message: string;
+    } | null>(null);
+    const open = !!document && menu?.documentId === document.id;
+    const inspectionError =
+        document && failure?.documentId === document.id ? failure.message : "";
     async function openAutomation() {
         if (!document || inspecting) return;
         setInspecting(true);
-        setInspectionError("");
+        setFailure(null);
         try {
             const capabilities = await inspectLibraryDocumentAutomation(
                 document.id,
             );
-            setShowSupras(capabilities.supra_references === true);
-            setOpenFor(document.id);
+            setMenu({
+                documentId: document.id,
+                showSupras: capabilities.supra_references === true,
+            });
         } catch (error) {
-            setInspectionError(
-                error instanceof Error
-                    ? error.message
-                    : "Could not inspect this document.",
-            );
+            setFailure({
+                documentId: document.id,
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Could not inspect this document.",
+            });
         } finally {
             setInspecting(false);
         }
@@ -200,7 +177,7 @@ function DocumentAutomationMenu({
         if (!document) return;
         const runId = `${tool}:${document.id}`;
         setRunning(tool);
-        setOpenFor(null);
+        setMenu(null);
         publishAutomationRun({
             type: "automation_run",
             id: runId,
@@ -250,21 +227,33 @@ function DocumentAutomationMenu({
         }
     }
     const actions = ACTIONS.filter(
-        ({ tool }) => tool !== "library_fix_docx_supras" || showSupras,
+        ({ tool }) =>
+            tool !== "library_fix_docx_supras" || menu?.showSupras,
     );
     return (
         <>
-            <AutomationTrigger
-                disabled={!document || !!running}
-                inspecting={inspecting}
+            <button
+                type="button"
+                aria-busy={inspecting}
+                disabled={!document || !!running || inspecting}
                 onClick={(event) => {
                     event.stopPropagation();
                     void openAutomation();
                 }}
-            />
+                className="flex h-8 w-[6.5rem] items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            >
+                <span className="flex h-4 w-4 items-center justify-center">
+                    {inspecting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <WandSparkles className="h-4 w-4" />
+                    )}
+                </span>
+                Automation
+            </button>
             <WarningPopup
                 open={!!inspectionError}
-                onClose={() => setInspectionError("")}
+                onClose={() => setFailure(null)}
                 title="Automation unavailable"
                 message={inspectionError}
             />
@@ -283,7 +272,7 @@ function DocumentAutomationMenu({
                             <button
                                 type="button"
                                 data-shortcut-close
-                                onClick={() => setOpenFor(null)}
+                                onClick={() => setMenu(null)}
                                 aria-label="Close Automation"
                                 className="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-950"
                             >

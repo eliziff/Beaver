@@ -1,4 +1,3 @@
-"use client";
 import { Lock } from "lucide-react";
 import { WarningPopup } from "../popups/WarningPopup";
 interface Props {

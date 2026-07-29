@@ -22,27 +22,21 @@ function renderTable(
             columns={columns}
             documents={[doc]}
             cells={cells}
-            savingColumn={false}
             savingColumnsConfig={false}
             selectedDocIds={[]}
             onSelectionChange={vi.fn()}
             onExpand={onExpand}
             onCitationClick={onCitationClick}
             onEditColumn={onEditColumn}
-            onAddColumn={vi.fn()}
-            onAddDocuments={vi.fn()}
         />,
     );
 }
 
 describe("TRTable", () => {
-    // The grid here is div-based (no table/columnheader/rowheader roles), so
-    // this asserts on rendered content rather than ARIA table semantics.
     it("renders the Document header and a row for each document", () => {
         renderTable();
         expect(screen.getByText("Document")).toBeInTheDocument();
         expect(screen.getByText("report.pdf")).toBeInTheDocument();
-        // One select-all checkbox in the header plus one per document row.
         expect(screen.getAllByRole("checkbox")).toHaveLength(2);
     });
 

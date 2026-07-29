@@ -5,8 +5,6 @@ const apiBase =
     "http://localhost:3001";
 
 const nextConfig: NextConfig = {
-    /* config options here */
-    reactCompiler: true,
     typescript: {
         ignoreBuildErrors:
             process.env.BEAVER_TYPES_VERIFIED_BY === String(process.ppid),

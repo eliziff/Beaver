@@ -26,194 +26,183 @@ import {
     TableRow,
     TableScrollArea,
     TableSelectionPlaceholder,
-    TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { NativeActionSelect } from "@/app/components/ui/native-action-select";import { formatDate } from "@/app/lib/utils";function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
-    if (project.is_owner ?? project.user_id === currentUserId) return "Me";
-    return (
-        project.owner_display_name?.trim() ||
-        project.owner_email?.trim() ||
-        "Shared"
-    );
+import { formatDate } from "@/app/lib/utils";
+function isProjectOwner(project: Project, currentUserId?: string | null) {
+    return project.is_owner ?? project.user_id === currentUserId;
+}
+function projectSummary(project: Project, currentUserId?: string | null) {
+    const owner = isProjectOwner(project, currentUserId)
+        ? "Me"
+        : project.owner_display_name?.trim() ||
+          project.owner_email?.trim() ||
+          "Shared";
+    return [
+        project.cm_number && `CM ${project.cm_number}`,
+        project.practice,
+        owner,
+        `${project.document_count ?? 0} files`,
+        `${project.chat_count ?? 0} chats`,
+        `${project.review_count ?? 0} reviews`,
+    ]
+        .filter(Boolean)
+        .join(" \u00b7 ");
 }
 type ProjectFilter = "all" | "mine" | "shared-with-me";
-const PROJECT_COLUMN = {
-    cm: "hidden w-24 sm:flex",
-    practice: "hidden w-32 xl:flex",
-    owner: "hidden w-28 2xl:flex",
-    files: "hidden w-20 lg:flex",
-    chats: "hidden w-20 lg:flex",
-    reviews: "hidden w-28 xl:flex",
-    created: "hidden w-28 2xl:flex",
-    actions: "w-8",
-} as const;
+type ProjectListState = { userId: string; rows: Project[]; error: string | null };
+const PROJECT_FILTERS: { id: ProjectFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "mine", label: "Mine" },
+    { id: "shared-with-me", label: "Shared with me" },
+];
+const EMPTY_PROJECTS: Project[] = [];
+const SKELETON_ROWS = [0, 1, 2];
 export function ProjectsOverview() {
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState<string | null>(null);
+    const [projectList, setProjectList] = useState<ProjectListState | null>(
+        null,
+    );
     const [modalOpen, setModalOpen] = useState(false);
-    const [detailsProject, setDetailsProject] = useState<Project | null>(null);
+    const [detailsProjectId, setDetailsProjectId] = useState<string | null>(
+        null,
+    );
     const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
-    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(
+        () => new Set(),
+    );
     const [search, setSearch] = useState("");
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const router = useRouter();
     const { user, isAuthenticated, authLoading } = useAuth();
+    const userId = user?.id;
     useEffect(() => {
-        let cancelled = false;
-        async function loadProjects() {
-            await Promise.resolve();
-            if (cancelled) return;
-            if (authLoading) {
-                setLoading(true);
-                return;
-            }
-            if (!isAuthenticated) {
-                setProjects([]);
-                setLoadError(null);
-                setLoading(false);
-                return;
-            }
-            setLoading(true);
-            setLoadError(null);
-            try {
-                const loaded = await listProjects();
-                if (!cancelled) setProjects(loaded);
-            } catch (err) {
-                console.error("[projects] failed to load projects", err);
-                if (!cancelled) {
-                    setProjects([]);
-                    setLoadError("Could not load projects.");
-                }
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        }
-        void loadProjects();
+        if (authLoading || !isAuthenticated || !userId) return;
+        let active = true;
+        void listProjects()
+            .then((loaded) => {
+                if (active)
+                    setProjectList({ userId, rows: loaded, error: null });
+            })
+            .catch((error) => {
+                console.error("[projects] failed to load projects", error);
+                if (active)
+                    setProjectList({
+                        userId, rows: [], error: "Could not load projects.",
+                    });
+            });
         return () => {
-            cancelled = true;
+            active = false;
         };
-    }, [authLoading, isAuthenticated, user?.id]);
-    const q = search.toLowerCase();
-    const filtered = useMemo(() => {
-        const rows = (
-            activeFilter === "all"
-                ? projects
-                : activeFilter === "mine"
-                  ? projects.filter(
-                        (p) => p.is_owner ?? p.user_id === user?.id,
-                    )
-                  : projects.filter(
-                        (p) => !(p.is_owner ?? p.user_id === user?.id),
-                    )
-        )
-            .filter(
-                (p) =>
-                    !q ||
-                    p.name.toLowerCase().includes(q) ||
-                    (p.cm_number ?? "").toLowerCase().includes(q) ||
-                    (p.practice ?? "").toLowerCase().includes(q),
-            )
-        return rows;
-    }, [
-        activeFilter,
-        q,
-        user?.id,
-        projects,
-    ]);
+    }, [authLoading, isAuthenticated, userId]);
+    const currentList =
+        projectList?.userId === userId ? projectList : null;
+    const loading = authLoading || (isAuthenticated && !currentList);
+    const rows = currentList?.rows ?? EMPTY_PROJECTS;
+    const loadError = currentList?.error ?? null;
+    function updateProjects(update: (rows: Project[]) => Project[]) {
+        setProjectList((current) => {
+            if (!current || current.userId !== userId) return current;
+            return { ...current, rows: update(current.rows) };
+        });
+    }
+    const q = search.trim().toLowerCase();
+    const filtered = useMemo(
+        () =>
+            rows.filter((project) => {
+                const owned = isProjectOwner(project, user?.id);
+                return (
+                    (activeFilter === "all" ||
+                        (activeFilter === "mine" && owned) ||
+                        (activeFilter === "shared-with-me" && !owned)) &&
+                    (!q ||
+                        project.name.toLowerCase().includes(q) ||
+                        (project.cm_number ?? "").toLowerCase().includes(q) ||
+                        (project.practice ?? "").toLowerCase().includes(q))
+                );
+            }),
+        [activeFilter, q, rows, user?.id],
+    );
+    const detailsProject =
+        detailsProjectId
+            ? rows.find((project) => project.id === detailsProjectId) ?? null
+            : null;
     const allSelected =
         filtered.length > 0 &&
-        filtered.every((p) => selectedIds.includes(p.id));
+        filtered.every((project) => selectedIds.has(project.id));
     const someSelected =
-        !allSelected && filtered.some((p) => selectedIds.includes(p.id));
+        !allSelected && filtered.some((project) => selectedIds.has(project.id));
     function toggleAll() {
-        if (allSelected) {
-            setSelectedIds([]);
-        } else {
-            setSelectedIds(filtered.map((p) => p.id));
-        }
-    }
-    function toggleOne(id: string) {
-        setSelectedIds((prev) =>
-            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+        setSelectedIds(
+            allSelected
+                ? new Set()
+                : new Set(filtered.map((project) => project.id)),
         );
     }
-    function clearSelection() {
-        setSelectedIds([]);
+    function toggleOne(id: string) {
+        setSelectedIds((previous) => {
+            const next = new Set(previous);
+            if (!next.delete(id)) next.add(id);
+            return next;
+        });
     }
-    const filters: { id: ProjectFilter; label: string }[] = [
-        { id: "all", label: "All" },
-        { id: "mine", label: "Mine" },
-        { id: "shared-with-me", label: "Shared with me" },
-    ];
     async function handleProjectDetailsSave(values: {
         name: string;
         cmNumber: string;
         practice: string;
     }) {
         if (!detailsProject) return;
-        if (
-            detailsProject.is_owner === false ||
-            (user?.id && detailsProject.user_id !== user.id)
-        ) {
-            setOwnerOnlyAction("edit project details");
-            return;
-        }
-        const name = values.name.trim();
-        const cmNumber = values.cmNumber.trim();
-        const practice = values.practice.trim();
-        if (!name) return;
         const updated = await updateProject(detailsProject.id, {
-            name,
-            cm_number: cmNumber,
-            practice: practice || null,
+            name: values.name,
+            cm_number: values.cmNumber,
+            practice: values.practice || null,
         });
-        setProjects((prev) =>
-            prev.map((project) =>
-                project.id === updated.id ? { ...project, ...updated } : project,
+        updateProjects((previous) =>
+            previous.map((project) =>
+                project.id === updated.id ? updated : project,
             ),
-        );
-        setDetailsProject((current) =>
-            current?.id === updated.id ? { ...current, ...updated } : current,
         );
     }
     async function handleDeleteSelected() {
         const ids = [...selectedIds];
-        const owned = ids.filter((id) => {
-            const p = projects.find((pp) => pp.id === id);
-            return !p || (p.is_owner ?? p.user_id === user?.id);
-        });
+        const owned = rows
+            .filter(
+                (project) =>
+                    selectedIds.has(project.id) &&
+                    isProjectOwner(project, user?.id),
+            )
+            .map((project) => project.id);
+        const ownedIds = new Set(owned);
         const blocked = ids.length - owned.length;
-        setSelectedIds([]);
+        setSelectedIds(new Set());
         await Promise.all(owned.map((id) => deleteProject(id).catch(() => {})));
-        setProjects((prev) => prev.filter((p) => !owned.includes(p.id)));
+        updateProjects((previous) =>
+            previous.filter((project) => !ownedIds.has(project.id)),
+        );
         if (blocked > 0) {
             setOwnerOnlyAction(
                 `delete ${blocked} of the selected projects — only the project owner can delete a project`,
             );
         }
     }
+    async function handleDeleteOne(id: string) {
+        await deleteProject(id);
+        updateProjects((previous) =>
+            previous.filter((project) => project.id !== id),
+        );
+    }
     const toolbarActions = (
         <span className="inline-flex h-8 w-28">
-            {selectedIds.length > 0 && (
-                <NativeActionSelect
-                    label="Actions"
-                    items={[
-                        {
-                            label: "Delete",
-                            onSelect: () => void handleDeleteSelected(),
-                        },
-                    ]}
-                    className="w-full"
-                    triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100 hover:text-gray-950"
+            {selectedIds.size > 0 && (
+                <PillButton
+                    tone="danger"
+                    className="h-8 w-full"
+                    onClick={() => void handleDeleteSelected()}
                 >
-                    Actions
-                    <span aria-hidden="true">&#9662;</span>
-                </NativeActionSelect>
+                    Delete selected
+                </PillButton>
             )}
         </span>
     );
@@ -251,22 +240,22 @@ export function ProjectsOverview() {
                 </div>
             </PageHeader>
             <TableToolbar
-                items={filters}
+                items={PROJECT_FILTERS}
                 active={activeFilter}
                 onChange={(nextFilter) => {
                     setActiveFilter(nextFilter);
-                    clearSelection();
+                    setSelectedIds(new Set());
                 }}
                 actions={toolbarActions}
             />
             <TableScrollArea
                 className="[&>div]:bg-white"
                 header={
-                    <TableHeaderRow className="bg-white">
+                    <TableHeaderRow className="w-full min-w-0 bg-white">
                         <TableStickyCell
                             header
-                            className="bg-white"
-                            widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                            className="min-w-0 flex-1 bg-white"
+                            widthClassName="min-w-0 flex-1"
                         >
                             {loading ? (
                                 <span className="-ml-2 mr-1 h-9 w-9 shrink-0" />
@@ -286,190 +275,103 @@ export function ProjectsOverview() {
                             />
                             <span className="mr-1">Name</span>
                         </TableStickyCell>
-                        <TableHeaderCell className={`ml-auto ${PROJECT_COLUMN.cm}`}>
-                            <div className="flex items-center gap-1">
-                                <span>CM</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.practice}>
-                            <div className="flex items-center gap-1">
-                                <span>Practice</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.owner}>
-                            <div className="flex items-center gap-1">
-                                <span>Owner</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.files}>
-                            <div className="flex items-center gap-1">
-                                <span>Files</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.chats}>
-                            <div className="flex items-center gap-1">
-                                <span>Chats</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.reviews}>
-                            <div className="flex items-center gap-1">
-                                <span>Reviews</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.created}>
-                            <div className="flex items-center gap-1">
-                                <span>Created</span>
-                            </div>
-                        </TableHeaderCell>
-                        <TableHeaderCell className={PROJECT_COLUMN.actions} />
+                        <TableHeaderCell className="w-8" />
                     </TableHeaderRow>
                 }
             >
                 {loading ? (
                     <TableBody>
-                        {[1, 2, 3].map((i) => (
+                        {SKELETON_ROWS.map((i) => (
                             <TableRow
                                 key={i}
                                 interactive={false}
-                                className="bg-white"
+                                className="h-14 w-full min-w-0 bg-white"
                             >
                                 <TableStickyCell
-                                    hover={false}
-                                    bgClassName="bg-transparent"
-                                    widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                                    className="min-w-0 flex-1"
+                                    widthClassName="min-w-0 flex-1"
                                 >
                                     <TableSelectionPlaceholder />
                                     <div className="mr-2 h-5 w-5 shrink-0 rounded bg-gray-100" />
-                                    <SkeletonLine className="h-3.5 w-48" />
+                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                        <SkeletonLine className="h-3.5 w-48" />
+                                        <SkeletonLine className="h-2.5 w-72 max-w-full" />
+                                    </div>
                                 </TableStickyCell>
-                                <TableCell className={`ml-auto ${PROJECT_COLUMN.cm}`}>
-                                    <SkeletonLine className="w-20" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.practice}>
-                                    <SkeletonLine className="w-20" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.owner}>
-                                    <SkeletonLine className="w-16" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.files}>
-                                    <SkeletonLine className="w-8" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.chats}>
-                                    <SkeletonLine className="w-8" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.reviews}>
-                                    <SkeletonLine className="w-8" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.created}>
-                                    <SkeletonLine className="w-20" />
-                                </TableCell>
-                                <TableCell className={PROJECT_COLUMN.actions} />
+                                <TableCell className="w-8" />
                             </TableRow>
                         ))}
                     </TableBody>
-                ) : loadError ? (
+                ) : loadError || filtered.length === 0 ? (
                     <TableEmptyState className="items-center text-center">
                         <FolderSvgIcon
                             className="mb-3 h-8 w-8 text-gray-700"
                         />
-                        <p className="text-sm font-medium text-red-700">
-                            {loadError}
-                        </p>
-                    </TableEmptyState>
-                ) : filtered.length === 0 ? (
-                    <TableEmptyState className="items-center text-center">
-                        <FolderSvgIcon
-                            className="mb-3 h-8 w-8 text-gray-700"
-                        />
-                        <p className="text-sm font-medium text-gray-700">
-                            {search.trim()
-                                ? "No projects match your search."
-                                : activeFilter === "shared-with-me"
-                                  ? "No shared projects"
-                                  : "No projects"}
+                        <p
+                            className={`text-sm font-medium ${
+                                loadError ? "text-red-700" : "text-gray-700"
+                            }`}
+                        >
+                            {loadError ??
+                                (q
+                                    ? "No projects match your search."
+                                    : activeFilter === "shared-with-me"
+                                      ? "No shared projects"
+                                      : "No projects")}
                         </p>
                     </TableEmptyState>
                 ) : (
                     <TableBody>
-                        {filtered.map((project) => {
-                            return (
+                        {filtered.map((project) => (
                             <TableRow
                                 key={project.id}
-                                selected={selectedIds.includes(project.id)}
-                                className="bg-white"
-                                onClick={() => {
-                                    router.push(`/projects/${project.id}`);
-                                }}
+                                selected={selectedIds.has(project.id)}
+                                className="h-14 w-full min-w-0 bg-white"
+                                onClick={() =>
+                                    router.push(`/projects/${project.id}`)
+                                }
                             >
                                 <TablePrimaryCell
-                                    selected={selectedIds.includes(project.id)}
-                                    widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                                    selected={selectedIds.has(project.id)}
+                                    className="min-w-0 flex-1 [&>div]:flex-1"
+                                    widthClassName="min-w-0 flex-1"
                                     onSelectionChange={() =>
                                         toggleOne(project.id)
                                     }
-                                    bgClassName="bg-white"
                                 >
                                     <FolderSvgIcon
                                         className="mr-2 h-5 w-5 shrink-0 text-gray-700"
                                     />
-                                    <span className="min-w-0 flex-1 truncate text-base font-medium text-gray-900">
-                                        {project.name}
-                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate text-base font-medium text-gray-900">
+                                            {project.name}
+                                        </div>
+                                        <div className="truncate text-xs text-gray-600">
+                                            {projectSummary(project, user?.id)}
+                                            {" \u00b7 "}
+                                            <time>
+                                                {formatDate(project.created_at)}
+                                            </time>
+                                        </div>
+                                    </div>
                                 </TablePrimaryCell>
-                                <TableCell className={`ml-auto text-gray-700 ${PROJECT_COLUMN.cm}`}>
-                                    {project.cm_number ?? (
-                                        <span className="text-gray-500">
-                                            —
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.practice}`}>
-                                    {project.practice ?? (
-                                        <span className="text-gray-500">
-                                            —
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.owner}`}>
-                                    {getProjectOwnerLabel(project, user?.id)}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.files}`}>
-                                    {project.document_count ?? 0}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.chats}`}>
-                                    {project.chat_count ?? 0}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.reviews}`}>
-                                    {project.review_count ?? 0}
-                                </TableCell>
-                                <TableCell className={`text-gray-700 ${PROJECT_COLUMN.created}`}>
-                                    {formatDate(project.created_at)}
-                                </TableCell>
                                 <div
-                                    className={`${PROJECT_COLUMN.actions} shrink-0 justify-end`}
+                                    className="flex w-8 shrink-0 justify-end"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    {(project.is_owner ??
-                                        project.user_id === user?.id) && (
+                                    {isProjectOwner(project, user?.id) && (
                                         <RowActions
-                                            onEditDetails={() => {
-                                                setDetailsProject(project);
-                                            }}
-                                            onDelete={async () => {
-                                                await deleteProject(project.id);
-                                                setProjects((prev) =>
-                                                    prev.filter(
-                                                        (p) =>
-                                                            p.id !== project.id,
-                                                    ),
-                                                );
-                                            }}
+                                            onEditDetails={() =>
+                                                setDetailsProjectId(project.id)
+                                            }
+                                            onDelete={() =>
+                                                void handleDeleteOne(project.id)
+                                            }
                                         />
                                     )}
                                 </div>
                             </TableRow>
-                            );
-                        })}
+                        ))}
                     </TableBody>
                 )}
             </TableScrollArea>
@@ -477,7 +379,7 @@ export function ProjectsOverview() {
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
                 onCreated={(p) => {
-                    setProjects((prev) => [p, ...prev]);
+                    updateProjects((previous) => [p, ...previous]);
                     router.push(`/projects/${p.id}`);
                 }}
             />
@@ -485,11 +387,9 @@ export function ProjectsOverview() {
                 open={!!detailsProject}
                 project={detailsProject}
                 canEdit={
-                    !!detailsProject &&
-                    detailsProject.is_owner !== false &&
-                    (!user?.id || detailsProject.user_id === user.id)
+                    !!detailsProject && isProjectOwner(detailsProject, user?.id)
                 }
-                onClose={() => setDetailsProject(null)}
+                onClose={() => setDetailsProjectId(null)}
                 onSave={handleProjectDetailsSave}
             />
             <OwnerOnlyPopup

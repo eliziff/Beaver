@@ -6,11 +6,13 @@ export type ModelProvider =
     | "openai"
     | "deepseek"
     | "openrouter"
-    | "codex";
+    | "codex"
+    | "ollama";
 export function getModelProvider(modelId: string): ModelProvider | null {
     if (modelId.startsWith("codex:")) {
         return "codex";
     }
+    if (modelId.startsWith("ollama:")) return "ollama";
     const model = SETTINGS_MODELS.find((m) => m.id === modelId);
     if (!model) return null;
     return modelGroupToProvider(model.group);
@@ -23,11 +25,11 @@ export function isModelAvailable(
     if (!provider) return false;
     return isProviderAvailable(provider, apiKeys);
 }
-export function isProviderAvailable(
+function isProviderAvailable(
     provider: ModelProvider,
     apiKeys: ApiKeyState,
 ): boolean {
-    if (provider === "codex") return true;
+    if (provider === "codex" || provider === "ollama") return true;
     return !!apiKeys[provider]?.configured;
 }
 export function providerLabel(provider: ModelProvider): string {
@@ -36,9 +38,10 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
     if (provider === "codex") return "Codex";
+    if (provider === "ollama") return "Desktop";
     return "Google (Gemini)";
 }
-export function modelGroupToProvider(
+function modelGroupToProvider(
     group: ModelOption["group"],
 ): ModelProvider {
     if (group === "Anthropic") return "claude";
@@ -46,5 +49,6 @@ export function modelGroupToProvider(
     if (group === "DeepSeek") return "deepseek";
     if (group === "Meta") return "openrouter";
     if (group === "Codex") return "codex";
+    if (group === "Desktop") return "ollama";
     return "gemini";
 }

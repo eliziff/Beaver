@@ -1,5 +1,4 @@
-"use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 import type { Document, Project, Workflow } from "../shared/types";
 import {
@@ -13,6 +12,7 @@ import { ModalFieldLabel } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
+import { CheckboxInput } from "../ui/checkbox";
 interface Props {
     open: boolean;
     onClose: () => void;
@@ -27,7 +27,11 @@ interface Props {
     projectName?: string;
     projectCmNumber?: string | null;
 }
-export function NewTRModal({
+export function NewTRModal({ open, ...props }: Props) {
+    if (!open) return null;
+    return <OpenNewTRModal open {...props} />;
+}
+function OpenNewTRModal({
     open,
     onClose,
     onAdd,
@@ -38,7 +42,7 @@ export function NewTRModal({
 }: Props) {
     const isProjectMode = fixedProjectDocs !== undefined;
     const [step, setStep] = useState<"details" | "documents">("details");
-    const [title, setTitle] = useState("");
+    const titleRef = useRef("");
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
     const [projectDocs, setProjectDocs] = useState<Document[]>([]);
@@ -46,7 +50,9 @@ export function NewTRModal({
     const [extraStandaloneDocs, setExtraStandaloneDocs] = useState<Document[]>(
         [],
     );
-    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
+    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>(
+        fixedProjectDocs ?? [],
+    );
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(
@@ -54,37 +60,19 @@ export function NewTRModal({
     );
     const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false);
     const formId = "new-tabular-review-modal-form";
-    useEffect(() => {
-        if (!open) return;
-        if (isProjectMode) {
-            setSelectedDocuments(fixedProjectDocs ?? []);
-        }
-    }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-    if (!open) return null;
-    function handleClose() {
-        setStep("details");
-        setTitle("");
-        setUnderProject(false);
-        setSelectedProjectId("");
-        setProjectDocs([]);
-        setExtraStandaloneDocs([]);
-        setSelectedDocuments([]);
-        setSelectedWorkflow(null);
-        setWorkflowPickerOpen(false);
-        onClose();
-    }
-    function submitterValue(e: React.FormEvent<HTMLFormElement>) {
-        return (
-            (e.nativeEvent as SubmitEvent).submitter as
-                | HTMLButtonElement
-                | null
-        )?.value;
-    }
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        if (!title.trim()) return;
+        const title =
+            step === "details"
+                ? String(
+                      new FormData(e.currentTarget).get("title") ?? "",
+                  ).trim() || "Untitled review"
+                : titleRef.current;
         if (underProject && !selectedProjectId) return;
-        if (step === "details" || submitterValue(e) !== "create-review") {
+        const submitter = (e.nativeEvent as SubmitEvent)
+            .submitter as HTMLButtonElement | null;
+        if (step === "details" || submitter?.value !== "create-review") {
+            titleRef.current = title;
             setStep("documents");
             return;
         }
@@ -96,7 +84,7 @@ export function NewTRModal({
                 : undefined,
             selectedWorkflow?.columns_config ?? undefined,
         );
-        handleClose();
+        onClose();
     }
     async function handleSelectProject(projectId: string) {
         setSelectedProjectId(projectId);
@@ -126,17 +114,15 @@ export function NewTRModal({
                         : uploadStandaloneDocument(f),
                 ),
             );
-            if (underProject && selectedProjectId) {
-                setProjectDocs((prev) => [...uploaded, ...prev]);
-            } else {
-                setExtraStandaloneDocs((prev) => [...uploaded, ...prev]);
-            }
+            const addUploaded =
+                underProject && selectedProjectId
+                    ? setProjectDocs
+                    : setExtraStandaloneDocs;
+            addUploaded((prev) => [...uploaded, ...prev]);
             setSelectedDocuments((prev) => [
-                ...prev,
-                ...uploaded.filter(
-                    (document) =>
-                        !prev.some((selected) => selected.id === document.id),
-                ),
+                ...new Map(
+                    [...prev, ...uploaded].map((doc) => [doc.id, doc]),
+                ).values(),
             ]);
         } catch (err) {
             console.error("Upload failed:", err);
@@ -150,12 +136,7 @@ export function NewTRModal({
         : underProject
           ? projectDocs
           : extraStandaloneDocs;
-    const directoryLoading = isProjectMode
-        ? false
-        : underProject
-          ? loadingDocs
-          : false;
-    const showDirectory = isProjectMode || !underProject || !!selectedProjectId;
+    const directoryLoading = !isProjectMode && underProject && loadingDocs;
     const breadcrumbs =
         isProjectMode && projectName
             ? [
@@ -164,11 +145,12 @@ export function NewTRModal({
                   "New Tabular Review",
               ]
             : ["Tabular Reviews", "New Tabular Review"];
+    const invalid = underProject && !selectedProjectId;
     return (
         <>
         <Modal
             open={open && !workflowPickerOpen}
-            onClose={handleClose}
+            onClose={onClose}
             breadcrumbs={[
                 ...breadcrumbs,
                 step === "details" ? "Details" : "Add Documents",
@@ -200,24 +182,16 @@ export function NewTRModal({
                 step === "details"
                     ? {
                           label: "Next",
-                          type: "button",
-                          onClick: (event) => {
-                              event.preventDefault();
-                              setStep("documents");
-                          },
-                          disabled:
-                              !title.trim() ||
-                              (underProject && !selectedProjectId),
+                          type: "submit",
+                          form: formId,
+                          disabled: invalid,
                       }
                     : {
                           label: "Create",
                           type: "submit",
                           form: formId,
-                          name: "modalAction",
                           value: "create-review",
-                          disabled:
-                              !title.trim() ||
-                              (underProject && !selectedProjectId),
+                          disabled: invalid,
                       }
             }
         >
@@ -242,9 +216,8 @@ export function NewTRModal({
                             </ModalFieldLabel>
                             <ModalTextInput
                                 id="new-tr-title"
+                                name="title"
                                 type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
                                 placeholder="Review name"
                                 variant="minimal"
                                 className="placeholder:text-gray-400"
@@ -285,30 +258,22 @@ export function NewTRModal({
                                 <ModalFieldLabel as="p">
                                     Project
                                 </ModalFieldLabel>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const next = !underProject;
-                                        setUnderProject(next);
-                                        if (!next) {
-                                            setSelectedProjectId("");
-                                            setProjectDocs([]);
-                                            setSelectedDocuments([]);
-                                        }
-                                    }}
-                                    className="flex w-fit items-center gap-2.5"
-                                >
-                                    <span
-                                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full ${underProject ? "bg-gray-900" : "bg-gray-200"}`}
-                                    >
-                                        <span
-                                            className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white ${underProject ? "translate-x-4" : "translate-x-0"}`}
-                                        />
-                                    </span>
-                                    <span className="text-sm text-gray-600">
-                                        Create under a project
-                                    </span>
-                                </button>
+                                <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-gray-600">
+                                    <CheckboxInput
+                                        checked={underProject}
+                                        onChange={(event) => {
+                                            setUnderProject(
+                                                event.currentTarget.checked,
+                                            );
+                                            if (!event.currentTarget.checked) {
+                                                setSelectedProjectId("");
+                                                setProjectDocs([]);
+                                                setSelectedDocuments([]);
+                                            }
+                                        }}
+                                    />
+                                    Create under a project
+                                </label>
                                 {underProject && (
                                     <ProjectChoiceList
                                         projects={projects}
@@ -324,7 +289,9 @@ export function NewTRModal({
                     </div>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col">
-                        {showDirectory && (
+                        {(isProjectMode ||
+                            !underProject ||
+                            selectedProjectId) && (
                             <FileDirectory
                                 documents={directoryDocuments}
                                 loading={directoryLoading}
