@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import anthropic
@@ -242,8 +243,18 @@ class Judge:
         )
 
     def _evaluate_claude_code(self, prompt: str, _retries: int) -> dict:
+        # CLI spawns fail transiently under parallel judging (observed:
+        # exit 1 with empty stderr at --parallel 4). Spawn-level failures
+        # get more attempts with backoff; unparseable-but-successful runs
+        # keep the original tight retry budget.
         last_err: Exception | None = None
-        for _ in range(_retries):
+        spawn_failures = 0
+        _retries = max(_retries, 2)
+        for attempt in range(_retries + 3):
+            if attempt and spawn_failures == attempt:
+                time.sleep(5 * attempt)
+            if attempt >= _retries and spawn_failures < attempt:
+                break
             # Prompt via stdin (judge prompts with deliverable text exceed
             # Windows argv limits); neutral system prompt replaces the
             # Claude Code default so the judge sees only the rubric task.
@@ -262,6 +273,7 @@ class Judge:
             )
             try:
                 if run.returncode != 0:
+                    spawn_failures += 1
                     raise ValueError(f"claude CLI exit {run.returncode}: {run.stderr.strip()[:300]}")
                 envelope = json.loads(run.stdout)
                 if envelope.get("is_error"):
