@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
 import {
@@ -7,8 +7,6 @@ import {
     TableBody,
     TableCell,
     TableEmptyState,
-    TableFilters,
-    type TableFilterOption,
     TableHeaderCell,
     TableHeaderRow,
     TablePrimaryCell,
@@ -16,22 +14,16 @@ import {
     TableScrollArea,
     TableSelectionPlaceholder,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
-import { formatDate, sortRows } from "@/app/lib/utils";function creatorLabel(chat: Chat, currentUserId?: string | null) {
+import { formatDate } from "@/app/lib/utils";function creatorLabel(chat: Chat, currentUserId?: string | null) {
     if (currentUserId && chat.user_id === currentUserId) return "Me";
     return chat.creator_display_name?.trim() || "Shared";
 }
-type ProjectChatSortKey = "name" | "created";
-const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
-    { value: "asc", label: "Ascending" },
-    { value: "desc", label: "Descending" },
-];
 export function ProjectAssistantTable({
     chats,
     filteredChats,
@@ -65,79 +57,16 @@ export function ProjectAssistantTable({
     setRenameChatValue: Dispatch<SetStateAction<string>>;
     loading?: boolean;
 }) {
-    const [creatorFilter, setCreatorFilter] = useState<string | null>(null);
-    const [sort, setSort] = useState<{
-        key: ProjectChatSortKey;
-        direction: TableSortDirection;
-    } | null>(null);
     function clearSelection() {
         setSelectedChatIds([]);
     }
-    function handleCreatorFilterChange(value: string | null) {
-        setCreatorFilter(value);
-        clearSelection();
-    }
-    function handleSortChange(
-        key: ProjectChatSortKey,
-        direction: TableSortDirection | null,
-    ) {
-        setSort(direction ? { key, direction } : null);
-        clearSelection();
-    }
-    const creatorOptions = useMemo(
-        () =>
-            Array.from(
-                new Set(chats.map((chat) => creatorLabel(chat, currentUserId))),
-            )
-                .sort((a, b) => a.localeCompare(b))
-                .map((creator) => ({ value: creator, label: creator })),
-        [chats, currentUserId],
-    );
-    const visibleChats = useMemo(() => {
-        const rows = filteredChats.filter(
-            (chat) =>
-                !creatorFilter ||
-                creatorLabel(chat, currentUserId) === creatorFilter,
-        );
-        if (!sort) return rows;
-        return sortRows(rows, (a, b) => {            if (sort.key === "created") {                return (                    (new Date(a.created_at).getTime() -                        new Date(b.created_at).getTime())                );            }            return (a.title ?? "Untitled Chat").localeCompare(                b.title ?? "Untitled Chat",            );        }, sort.direction);    }, [creatorFilter, currentUserId, filteredChats, sort]);
+    const visibleChats = filteredChats;
     const allVisibleChatsSelected =
         visibleChats.length > 0 &&
         visibleChats.every((chat) => selectedChatIds.includes(chat.id));
     const someVisibleChatsSelected =
         !allVisibleChatsSelected &&
         visibleChats.some((chat) => selectedChatIds.includes(chat.id));
-    const nameSortDirection = sort?.key === "name" ? sort.direction : null;
-    const createdSortDirection =
-        sort?.key === "created" ? sort.direction : null;
-    const nameFilterButton = (
-        <TableFilters
-            label="Sort by chat name"
-            value={nameSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("name", direction)}
-        />
-    );
-    const creatorFilterButton = (
-        <TableFilters
-            label="Filter by creator"
-            searchable
-            value={creatorFilter}
-            allLabel="All Creators"
-            options={creatorOptions}
-            onChange={handleCreatorFilterChange}
-        />
-    );
-    const createdFilterButton = (
-        <TableFilters
-            label="Sort by created date"
-            value={createdSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("created", direction)}
-        />
-    );
     return (
         <TableScrollArea
             header={
@@ -168,22 +97,15 @@ export function ProjectAssistantTable({
                             />
                         )}
                         <span className="mr-1">Chats</span>
-                        {nameFilterButton}
-                        <span className="flex sm:hidden">
-                            {creatorFilterButton}
-                            {createdFilterButton}
-                        </span>
                     </TableStickyCell>
                     <TableHeaderCell className="ml-auto hidden w-28 sm:flex md:w-32">
                         <div className="flex items-center gap-1">
                             <span>Creator</span>
-                            {creatorFilterButton}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className="hidden w-28 sm:flex md:w-32">
                         <div className="flex items-center gap-1">
                             <span>Created</span>
-                            {createdFilterButton}
                         </div>
                     </TableHeaderCell>
                     <TableHeaderCell className="w-7 sm:w-8" />
