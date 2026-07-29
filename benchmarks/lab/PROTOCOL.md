@@ -172,3 +172,26 @@ Known residual imperfections (disclosed, judged immaterial):
 
 Under `C:/Users/elias/Desktop/harvey-labs/results/` (LAB layout:
 config.json / metrics.json / transcript.jsonl / output/ / scores.json).
+
+## Corpus split (2026-07-29)
+
+Contamination control: the 1,207 LAB tasks are split dev/validation/sealed
+(60/150/997) by seeded stratified draw (`split-corpus.py`, seed 20260729;
+assignments and per-task SHA-256 manifests in `corpus-split.json`). The
+tier unit is the task — sibling scenarios never straddle tiers. The 14
+tasks exposed before the split (6 run + 8 read during the 2026-07-29
+false-positive sweep) are forced into dev and marked `exposed` in the
+manifest. Every practice area keeps a sealed majority (visible share
+capped at 40%).
+
+Rules of engagement:
+- Dev: free to read, run, and debug against.
+- Validation: run at milestones; inspect scores and our own outputs only —
+  never task documents or rubrics.
+- Sealed: NOT PRESENT on this machine. The local harvey-labs clone is a
+  blob-filtered partial clone whose sparse checkout carries only dev and
+  validation tasks; sealed task content lives solely in the upstream
+  GitHub repo. At eval time: restore via git, verify each task dir against
+  the manifest hash, run once against a pre-registered harness commit.
+- Deterministic-grammar changes additionally validate on non-LAB corpora
+  (A2AJ, Desktop/legal-generalization-corpus) before landing.
