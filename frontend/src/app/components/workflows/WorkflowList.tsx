@@ -25,7 +25,6 @@ import {
 import { workflowDetailPath } from "./workflowRoutes";
 import { isAnonymousMode } from "@/app/lib/authMode";
 import {
-    SkeletonDot,
     SkeletonLine,
     TableBody,
     TableCell,
@@ -317,7 +316,7 @@ export function WorkflowList() {
                                     </TableCell>
                                     <TableCell className={WORKFLOW_COLUMN.practice}>
                                         <div className="flex items-center gap-1.5">
-                                            <SkeletonDot className="rounded-full" />
+                                            <SkeletonLine className="h-3 w-3 shrink-0 rounded-full" />
                                             <SkeletonLine className="w-24" />
                                         </div>
                                     </TableCell>
