@@ -6,11 +6,10 @@ type Message = { role: "user" | "assistant"; text: string };
 type State = { route: Route; chats: Chat[]; library: LibraryCollection | null; projects: Project[] | null; messages: Message[]; chatId: string | null; version: number; busy: boolean; status: string; error: string };
 
 const root = document.querySelector<HTMLDivElement>("#root")!;
-const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
-
 const shellBase = import.meta.env.BASE_URL.replace(/\/$/u, "");
 const shellPath = (route: string) => `${shellBase}/${route}`;
 function routeFromPath(): Route { const path = shellBase && location.pathname.startsWith(`${shellBase}/`) ? location.pathname.slice(shellBase.length) : location.pathname; const route = path.replace(/^\//u, "").split("/")[0]; return route === "library" || route === "projects" ? route : route === "table-of-authorities" || route === "authorities" ? "authorities" : "assistant"; }
+const state: State = { route: routeFromPath(), chats: [], library: null, projects: null, messages: [], chatId: null, version: 0, busy: false, status: "Ready", error: "" };
 function escape(value: unknown) { return String(value ?? "").replace(/[&<>"']/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
 function navigate(route: Route) { history.pushState({}, "", shellPath(route)); state.route = route; state.error = ""; render(); void loadRoute(); }
 function text(event: StreamEvent) { return event.type === "error" ? event.message || "Request failed" : event.text || ""; }
