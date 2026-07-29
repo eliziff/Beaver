@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
+import { citationLookupKey } from "./citationKey";
 import {
   legalProviderDatabase,
   withReadonlySqlite,
@@ -46,16 +47,7 @@ function languageField(
   );
 }
 
-function citationKey(value: string) {
-  return value
-    .normalize("NFKC")
-    .replace(/[\u2013\u2014]/gu, "-")
-    .replace(/(?<=\d)\.(?=\d)/gu, "dot")
-    .replace(/(?<=\d)-(?=\d)/gu, "dash")
-    .replace(/(?<=\d)\/(?=\d)/gu, "slash")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "");
-}
+const citationKey = citationLookupKey;
 
 function sectionMap(row: Row, language: Language) {
   const value = languageField(row, "unofficial_sections", language);

@@ -85,29 +85,7 @@ const citationKey = z
   .string()
   .regex(CITATION_KEY, "citationLookupKey output");
 
-/**
- * Beaver-owned port of local_a2aj._citation_lookup_key (read-only reference
- * implementation; equivalence proven by the oracle differential test, see
- * file header). "RSA 2000, c A-4.2" -> "rsa2000ca4dot2". Digit-bounded
- * ".", "-", "/" become "dot"/"dash"/"slash" so revision punctuation
- * survives the alphanumeric squeeze. Python's casefold() is toLowerCase()
- * plus full case folding; the one folding that survives NFKC and can reach
- * the [a-z0-9] output is sharp-s -> "ss" (the oracle differential test
- * caught exactly this divergence), so it is applied explicitly. Unicode-\d
- * differences are neutralized by the leading NFKC; the differential test
- * remains the arbiter if the corpus ever disagrees.
- */
-export function citationLookupKey(value: string): string {
-  let v = (value || "").normalize("NFKC");
-  v = v.replace(/–/gu, "-").replace(/—/gu, "-");
-  v = v.replace(/(?<=\d)\.(?=\d)/gu, "dot");
-  v = v.replace(/(?<=\d)-(?=\d)/gu, "dash");
-  v = v.replace(/(?<=\d)\/(?=\d)/gu, "slash");
-  return v
-    .toLowerCase()
-    .replace(/ß/gu, "ss")
-    .replace(/[^a-z0-9]+/gu, "");
-}
+export { citationLookupKey } from "./citationKey";
 
 export const retrievalCorpusRefSchema = z.strictObject({
   jurisdiction: z.string().regex(JURISDICTION, "CA or CA-XX"),
