@@ -624,9 +624,151 @@ export const RESEARCH_TOOLS_DISABLED =
 export const ASK_INPUTS_DISABLED =
   process.env.MIKE_DISABLE_ASK_INPUTS === "1";
 
+/**
+ * MIKE_TOOL_SHAPE=coding swaps the library navigation surface for the
+ * shapes coding agents are RL-trained on: Glob/Grep/Read over file paths,
+ * line addressing, cat -n output. Handlers are shared; only the
+ * model-facing schema changes. library_list stays as the document_id
+ * bridge for the editing tools.
+ */
+export const CODING_TOOL_SHAPE = process.env.MIKE_TOOL_SHAPE === "coding";
+
+const CODING_SHAPE_REPLACES = new Set([
+  "library_find",
+  "library_read",
+  "library_outline",
+  "library_list",
+  "library_revise_docx",
+]);
+
+const CODING_SHAPE_SUGGESTIONS: Record<string, string> = {
+  library_find: "Grep",
+  library_read: "Read",
+  library_outline: "Grep or Read",
+  library_list: "Glob",
+  library_revise_docx: "Edit",
+};
+
+const CODING_SHAPE_TOOLS: OpenAIToolSchema[] = [
+  tool(
+    "Glob",
+    'Fast file pattern matching. Supports glob patterns like "*.docx". Returns matching file paths.',
+    {
+      type: "object",
+      properties: {
+        pattern: {
+          type: "string",
+          description: "The glob pattern to match files against",
+        },
+      },
+      required: ["pattern"],
+    },
+  ),
+  tool(
+    "Grep",
+    'Content search. Full regex syntax (e.g. "Base Rent", "clause\\s+\\d+"). Filter files with glob. output_mode: "content" shows matching lines, "files_with_matches" shows file paths (default), "count" shows match counts.',
+    {
+      type: "object",
+      properties: {
+        pattern: {
+          type: "string",
+          description:
+            "The regular expression pattern to search for in file contents",
+        },
+        path: {
+          type: "string",
+          description: "File to search in. Defaults to all files.",
+        },
+        glob: {
+          type: "string",
+          description: 'Glob pattern to filter files (e.g. "*.docx")',
+        },
+        output_mode: {
+          type: "string",
+          enum: ["content", "files_with_matches", "count"],
+          description:
+            'Output mode: "content" shows matching lines (supports -C context, -n line numbers, head_limit), "files_with_matches" shows file paths (default), "count" shows match counts.',
+        },
+        "-i": { type: "boolean", description: "Case insensitive search" },
+        "-n": {
+          type: "boolean",
+          description:
+            'Show line numbers in output. Requires output_mode: "content". Defaults to true.',
+        },
+        "-C": {
+          type: "number",
+          description:
+            'Number of lines to show before and after each match. Requires output_mode: "content".',
+        },
+        head_limit: {
+          type: "number",
+          description:
+            "Limit output to first N lines/entries. Defaults to 250.",
+        },
+      },
+      required: ["pattern"],
+    },
+  ),
+  tool(
+    "Read",
+    "Reads a file. Reads up to 2000 lines by default. Results are returned using cat -n format, with line numbers starting at 1. When you already know which part of the file you need, only read that part.",
+    {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file to read",
+        },
+        offset: {
+          type: "number",
+          description:
+            "The line number to start reading from. Only provide if the file is too large to read at once",
+        },
+        limit: {
+          type: "number",
+          description:
+            "The number of lines to read. Only provide if the file is too large to read at once.",
+        },
+      },
+      required: ["file_path"],
+    },
+  ),
+  tool(
+    "Edit",
+    "Performs exact string replacement in a file, recorded as a tracked change. old_string must match the file exactly and be unique — the edit fails otherwise; make it unique with more surrounding context.",
+    {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path to the file to modify",
+        },
+        old_string: { type: "string", description: "The text to replace" },
+        new_string: {
+          type: "string",
+          description:
+            "The text to replace it with (must be different from old_string)",
+        },
+        replace_all: {
+          type: "boolean",
+          description: "Replace all occurrences of old_string (default false)",
+        },
+      },
+      required: ["file_path", "old_string", "new_string"],
+    },
+  ),
+];
+
 export const LOCAL_ASSISTANT_TOOLS: OpenAIToolSchema[] = [
   ...(ASK_INPUTS_DISABLED ? [] : LOCAL_ASK_INPUTS_TOOLS),
-  ...LOCAL_LIBRARY_TOOLS,
+  ...(CODING_TOOL_SHAPE
+    ? [
+        ...CODING_SHAPE_TOOLS,
+        ...LOCAL_LIBRARY_TOOLS.filter(
+          (entry) => !CODING_SHAPE_REPLACES.has(entry.function.name),
+        ),
+      ]
+    : LOCAL_LIBRARY_TOOLS),
   ...LOCAL_DOCX_TOOLS,
   ...COMPARE_VERSIONS_TOOLS,
   ...(TEXT_OPS_TOOLS as OpenAIToolSchema[]),
@@ -664,6 +806,227 @@ const sha256 = (value: string) =>
   crypto.createHash("sha256").update(value).digest("hex");
 const errorText = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+// ---------------------------------------------------------------------------
+// Coding-shape aliases: Glob/Grep/Read over the library, file-path addressed,
+// line-numbered. Output mirrors the native tools (cat -n reads, rg-style
+// match lines, plain-text errors) because the trained package is the whole
+// interaction grammar, not just the schema names.
+// ---------------------------------------------------------------------------
+
+const globRegExp = (pattern: string) =>
+  new RegExp(
+    `^${pattern
+      .replace(/[.+^${}()|[\]\\]/gu, "\\$&")
+      .replace(/\*\*/gu, "\u0000")
+      .replace(/\*/gu, "[^/]*")
+      .replace(/\?/gu, ".")
+      .replace(/\u0000/gu, ".*")}$`,
+    "iu",
+  );
+
+const GREP_LINE_CAP = 2_000;
+
+async function runCodingShapeCall(
+  call: NormalizedToolCall,
+  args: Record<string, unknown>,
+  userId: string,
+  allowedDocumentIds?: Set<string>,
+): Promise<NormalizedToolResult> {
+  const collection = await listLocalLibrary(userId, "file");
+  const files = collection.documents.filter(
+    (document) => !allowedDocumentIds || allowedDocumentIds.has(document.id),
+  );
+  const resolvePath = (raw: string) => {
+    const wanted = raw.replace(/^\.?[\\/]/u, "").trim().toLowerCase();
+    return files.find((document) => document.filename.toLowerCase() === wanted);
+  };
+
+  if (call.name === "Glob") {
+    const re = globRegExp(trimmed(args.pattern) || "*");
+    const names = files
+      .map((document) => document.filename)
+      .filter((name) => re.test(name));
+    return result(call, names.length ? names.join("\n") : "No files found");
+  }
+
+  if (call.name === "Read") {
+    const requested = trimmed(args.file_path);
+    const meta = resolvePath(requested);
+    if (!meta) {
+      return result(
+        call,
+        `File does not exist: ${requested}\nAvailable files:\n${files.map((document) => document.filename).join("\n")}`,
+      );
+    }
+    const document = await extractLocalDocument(userId, meta.id);
+    if (!document) return result(call, `File could not be read: ${requested}`);
+    const lines = document.text.split(/\r?\n/u);
+    const offset = clampInt(args.offset, 1, 100_000_000, 1);
+    const limit = clampInt(args.limit, 1, 2_000, 2_000);
+    const window = lines.slice(offset - 1, offset - 1 + limit);
+    if (!window.length) {
+      return result(
+        call,
+        offset > lines.length
+          ? `(offset ${offset} is past the end of the file; total lines: ${lines.length})`
+          : "(empty file)",
+      );
+    }
+    const numbered = window.map((line, i) => {
+      const text =
+        line.length > GREP_LINE_CAP
+          ? `${line.slice(0, GREP_LINE_CAP)}… [line truncated]`
+          : line;
+      return `${String(offset + i).padStart(6, " ")}\t${text}`;
+    });
+    const lastShown = offset - 1 + window.length;
+    const more =
+      lastShown < lines.length
+        ? `\n\n(File has more lines. Use 'offset' parameter to read beyond line ${lastShown}. Total lines: ${lines.length})`
+        : "";
+    return result(call, numbered.join("\n") + more);
+  }
+
+  if (call.name === "Edit") {
+    const requested = trimmed(args.file_path);
+    const meta = resolvePath(requested);
+    if (!meta) return result(call, `File does not exist: ${requested}`);
+    const oldString =
+      typeof args.old_string === "string" ? args.old_string : "";
+    const newString =
+      typeof args.new_string === "string" ? args.new_string : "";
+    if (!oldString) return result(call, "old_string is required");
+    if (oldString === newString) {
+      return result(call, "old_string and new_string must be different");
+    }
+    if (args.replace_all === true) {
+      return result(
+        call,
+        "replace_all is not supported for tracked legal edits; call Edit once per occurrence, making each old_string unique with surrounding context.",
+      );
+    }
+    // Route through the revise handler so version pinning, tracked-change
+    // receipts, and document cards behave identically across shapes. The
+    // active version is resolved here — Edit's contract has no version id.
+    const [revised] = await runLocalAssistantTools(
+      userId,
+      [
+        {
+          id: `${call.id}-revise`,
+          name: "library_revise_docx",
+          input: {
+            document_id: meta.id,
+            version_id: meta.current_version_id,
+            edits: [{ find: oldString, replace: newString }],
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      allowedDocumentIds,
+    );
+    try {
+      const payload = JSON.parse(revised.content) as {
+        ok?: boolean;
+        error?: string;
+        edit_errors?: string[];
+      };
+      if (payload.ok) {
+        return result(call, `Updated ${meta.filename}: 1 tracked change applied.`);
+      }
+      const reasons = payload.edit_errors?.length
+        ? payload.edit_errors
+        : [payload.error ?? "unknown error"];
+      return result(
+        call,
+        `The edit could not be applied — no change was made.\n${reasons.join("\n")}\nProvide a larger old_string with more surrounding context.`,
+      );
+    } catch {
+      return result(call, revised.content);
+    }
+  }
+
+  // Grep
+  const pattern = trimmed(args.pattern);
+  if (!pattern) return result(call, "pattern is required");
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern, args["-i"] === true ? "iu" : "u");
+  } catch (error) {
+    return result(
+      call,
+      `regex parse error: ${errorText(error, "invalid pattern")}`,
+    );
+  }
+  const pathArg = trimmed(args.path);
+  let targets = files;
+  if (pathArg) {
+    const meta = resolvePath(pathArg);
+    if (!meta) return result(call, `File does not exist: ${pathArg}`);
+    targets = [meta];
+  } else if (trimmed(args.glob)) {
+    const globRe = globRegExp(trimmed(args.glob));
+    targets = files.filter((document) => globRe.test(document.filename));
+  }
+  const mode =
+    args.output_mode === "content" || args.output_mode === "count"
+      ? args.output_mode
+      : "files_with_matches";
+  const headLimit = clampInt(args.head_limit, 1, 2_000, 250);
+  const context = clampInt(args["-C"], 0, 10, 0);
+  const numberLines = args["-n"] !== false;
+
+  const rows: string[] = [];
+  let truncated = false;
+  for (const meta of targets) {
+    const document = await extractLocalDocument(userId, meta.id);
+    if (!document) continue;
+    const lines = document.text.split(/\r?\n/u);
+    const matched: number[] = [];
+    for (let i = 0; i < lines.length; i += 1) {
+      if (re.test(lines[i])) matched.push(i);
+    }
+    if (!matched.length) continue;
+    if (mode === "files_with_matches") {
+      rows.push(meta.filename);
+      continue;
+    }
+    if (mode === "count") {
+      rows.push(`${meta.filename}:${matched.length}`);
+      continue;
+    }
+    let lastPrinted = -2;
+    for (const at of matched) {
+      if (rows.length >= headLimit) {
+        truncated = true;
+        break;
+      }
+      const from = Math.max(0, at - context);
+      const to = Math.min(lines.length - 1, at + context);
+      if (context && lastPrinted >= 0 && from > lastPrinted + 1) rows.push("--");
+      for (let i = Math.max(from, lastPrinted + 1); i <= to; i += 1) {
+        const sep = i === at ? ":" : "-";
+        const prefix = numberLines
+          ? `${meta.filename}${sep}${i + 1}${sep}`
+          : `${meta.filename}${sep}`;
+        rows.push(`${prefix}${lines[i].slice(0, GREP_LINE_CAP)}`);
+        lastPrinted = i;
+      }
+    }
+    if (truncated) break;
+  }
+  if (!rows.length) return result(call, "No matches found");
+  const body = rows.slice(0, headLimit).join("\n");
+  return result(
+    call,
+    truncated || rows.length > headLimit
+      ? `${body}\n(Results truncated, showing first ${headLimit} lines. Narrow the pattern or pass head_limit.)`
+      : body,
+  );
+}
 
 function pdfLocatorParams(args: Record<string, unknown>) {
   return {
@@ -1560,6 +1923,25 @@ export async function runLocalAssistantTools(
             errorText(error, "Deterministic text operations failed"),
           );
         }
+      }
+
+      if (
+        CODING_TOOL_SHAPE &&
+        (call.name === "Glob" ||
+          call.name === "Grep" ||
+          call.name === "Read" ||
+          call.name === "Edit")
+      ) {
+        return runCodingShapeCall(call, args, userId, allowedDocumentIds);
+      }
+
+      // Strict surface: names the shape swap removed must fail loudly, or a
+      // prompt that still mentions them silently un-does the experiment.
+      if (CODING_TOOL_SHAPE && CODING_SHAPE_REPLACES.has(call.name)) {
+        return result(
+          call,
+          `No such tool available: ${call.name}. Use ${CODING_SHAPE_SUGGESTIONS[call.name]} (files are addressed by file path from Glob).`,
+        );
       }
 
       if (call.name === "library_list") {

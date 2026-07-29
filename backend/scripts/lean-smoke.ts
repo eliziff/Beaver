@@ -83,6 +83,9 @@ const PROMPT = [
 async function main() {
   const model = argument("model", "claude-p:claude-sonnet-4-6");
   const effort = argument("effort", "low");
+  // --shape coding serves the Glob/Grep/Read alias surface instead of the
+  // library_* navigation tools (native-tool-shape A/B).
+  const shape = argument("shape", "library");
 
   if (!process.env.LEAN_SMOKE_CHILD) {
     const dataHome = mkdtempSync(path.join(os.tmpdir(), "beaver-lean-smoke-"));
@@ -103,6 +106,7 @@ async function main() {
           // affordances, and the research prompt sections are dead weight here.
           MIKE_DISABLE_RESEARCH_TOOLS: "1",
           MIKE_DISABLE_ASK_INPUTS: "1",
+          MIKE_TOOL_SHAPE: shape === "coding" ? "coding" : "",
           MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
         },
         stdio: "inherit",
@@ -140,7 +144,7 @@ async function main() {
       throw new Error(`upload ${name}: ${upload.status} ${upload.text}`);
   }
 
-  console.log(`asking ${model} (effort ${effort}) …\n`);
+  console.log(`asking ${model} (effort ${effort}, shape ${shape}) …\n`);
   const started = Date.now();
   const streamed = await request(app).post("/chat").send({
     model,
@@ -166,18 +170,24 @@ async function main() {
   calls.forEach((name, i) => console.log(`  ${i + 1}. ${name}`));
 
   const used = new Set(calls);
-  const editCalls = calls.filter((n) => n === "library_revise_docx").length;
+  const editTool = shape === "coding" ? "Edit" : "library_revise_docx";
+  const editCalls = calls.filter((n) => n === editTool).length;
+  const locateTools =
+    shape === "coding"
+      ? ["Grep", "Glob"]
+      : ["library_find", "library_outline"];
+  const readTool = shape === "coding" ? "Read" : "library_read";
   const wanted: [string, boolean, string][] = [
     [
       "located the clause instead of reading the lease whole",
-      used.has("library_find") || used.has("library_outline"),
-      "library_find / library_outline",
+      locateTools.some((name) => used.has(name)),
+      locateTools.join(" / "),
     ],
-    ["scoped or windowed its read", used.has("library_read"), "library_read"],
-    ["edited by anchor", used.has("library_revise_docx"), "library_revise_docx"],
+    ["scoped or windowed its read", used.has(readTool), readTool],
+    ["edited by anchor", used.has(editTool), editTool],
     [
       "recovered from the ambiguous anchor without re-reading",
-      editCalls > 0 && editCalls <= 2 && !calls.slice(calls.lastIndexOf("library_revise_docx")).includes("library_read"),
+      editCalls > 0 && editCalls <= 2 && !calls.slice(calls.lastIndexOf(editTool)).includes(readTool),
       `${editCalls} edit call(s)`,
     ],
   ];
