@@ -38,6 +38,9 @@ li span { margin-left: auto; }
 .message.assistant { justify-self: start; }
 .error { color: #8f1d15; background: #fff1ef; border: 1px solid #e1a19a; border-radius: 5px; padding: 10px 12px; }
 .section-heading { justify-content: space-between; }
+.project-form { display: flex; max-width: 520px; gap: 8px; }
+.project-name { min-width: 0; flex: 1; border: 1px solid #9c9c96; border-radius: 5px; padding: 9px 11px; background: #fff; }
+.project-name:focus { outline: 3px solid #f4bbb5; border-color: #a72219; }
 .section-heading h1 { margin: 0; }
 .primary input { display: none; }
-@media (max-width: 640px) { .topbar { padding: 0 14px; gap: 10px; } .nav { padding: 8px 6px; } .mode { display: none; } .content { padding: 28px 14px 48px; } }
+@media (max-width: 640px) { .topbar { padding: 0 14px; gap: 10px; } .nav { padding: 8px 6px; } .mode { display: none; } .content { padding: 28px 14px 48px; } .project-form { max-width: none; } }
