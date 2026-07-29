@@ -164,21 +164,6 @@ interface Props {
     readOnly?: boolean;
     onUpdated?: (workflow: Workflow) => void;
 }
-function getWorkflowSourceLabel(workflow: Workflow) {
-    if (workflow.is_system) return "System";
-    if (workflow.is_owner === false) {
-        return workflow.shared_by_name?.trim() || "Shared";
-    }
-    return "User";
-}
-const OPEN_SOURCE_STATUS_LABELS: Record<
-    NonNullable<Workflow["open_source_submission"]>["status"],
-    string
-> = {
-    pending: "Pending review",
-    approved: "Approved",
-    rejected: "Rejected",
-};
 export function NewWorkflowModal({
     open,
     onClose,
@@ -209,40 +194,6 @@ export function NewWorkflowModal({
     const markdownInputRef = useRef<HTMLInputElement>(null);
     const isEditing = !!editWorkflow;
     const viewOnly = isEditing && readOnly;
-    const workflowDetails = editWorkflow
-        ? [
-              {
-                  label: "Type",
-                  value:
-                      editWorkflow.metadata.type === "tabular"
-                          ? "Tabular"
-                          : "Assistant",
-              },
-              {
-                  label: "Source",
-                  value: getWorkflowSourceLabel(editWorkflow),
-              },
-              ...(editWorkflow.metadata.version
-                  ? [
-                        {
-                            label: "Version",
-                            value: editWorkflow.metadata.version,
-                        },
-                    ]
-                  : []),
-              ...(editWorkflow.open_source_submission
-                  ? [
-                        {
-                            label: "Open source",
-                            value:
-                                OPEN_SOURCE_STATUS_LABELS[
-                                    editWorkflow.open_source_submission.status
-                                ],
-                        },
-                    ]
-                  : []),
-          ]
-        : [];
     const isOtherLanguage = language === "Other";
     const isOtherPractice = practice === "Other";
     const isOtherJurisdiction = jurisdiction === "Other";
@@ -493,20 +444,6 @@ export function NewWorkflowModal({
                 className="flex min-h-0 flex-1 flex-col pb-5"
             >
                 <div className="space-y-6">
-                    {workflowDetails.length > 0 && (
-                        <dl className="grid grid-cols-2 gap-x-5 gap-y-4 rounded-2xl border border-gray-200 bg-white p-4 text-sm">
-                            {workflowDetails.map((detail) => (
-                                <div key={detail.label} className="min-w-0">
-                                    <dt className="text-xs text-gray-400">
-                                        {detail.label}
-                                    </dt>
-                                    <dd className="mt-0.5 truncate text-gray-700">
-                                        {detail.value}
-                                    </dd>
-                                </div>
-                            ))}
-                        </dl>
-                    )}
                     <div>
                         <ModalFieldLabel htmlFor="workflow-title">
                             Title
