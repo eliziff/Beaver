@@ -6,6 +6,7 @@ import type {
     AutomationRunEvent,
     Citation,
     EditAnnotation,
+    EditResolveHandlers,
 } from "../shared/types";
 import {
     CaseLawPanel,
@@ -62,24 +63,9 @@ interface Props {
     onCloseAll: () => void;
     isEditorReloading?: (documentId: string) => boolean;
     isEditReloading?: (editId: string) => boolean;
-    onEditResolveStart?: (args: {
-        editId: string;
-        documentId: string;
-        verb: "accept" | "reject";
-    }) => void;
-    onEditResolved?: (args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => void;
-    onEditError?: (args: {
-        editId: string;
-        documentId: string;
-        versionId: string | null;
-        message: string;
-    }) => void;
+    onEditResolveStart?: EditResolveHandlers["onResolveStart"];
+    onEditResolved?: EditResolveHandlers["onResolved"];
+    onEditError?: EditResolveHandlers["onError"];
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
 }

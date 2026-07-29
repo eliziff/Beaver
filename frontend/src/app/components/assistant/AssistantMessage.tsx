@@ -1,7 +1,14 @@
 "use client";
 import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import type { AssistantEvent, Citation, EditAnnotation } from "../shared/types";
+import type {
+    AssistantEvent,
+    Citation,
+    EditAnnotation,
+    EditResolveError,
+    EditResolveStart,
+    EditResolved,
+} from "../shared/types";
 import { EditCard } from "./EditCard";
 import { PreResponseWrapper } from "./PreResponseWrapper";
 import {
@@ -58,24 +65,9 @@ interface Props {
         versionId: string | null;
         versionNumber: number | null;
     }) => void;
-    onEditResolveStart?: (args: {
-        editId: string;
-        documentId: string;
-        verb: "accept" | "reject";
-    }) => void;
-    onEditResolved?: (args: {
-        editId: string;
-        documentId: string;
-        status: "accepted" | "rejected";
-        versionId: string | null;
-        downloadUrl: string | null;
-    }) => void;
-    onEditError?: (args: {
-        editId: string;
-        documentId: string;
-        versionId: string | null;
-        message: string;
-    }) => void;
+    onEditResolveStart?: (args: EditResolveStart) => void;
+    onEditResolved?: (args: EditResolved) => void;
+    onEditError?: (args: EditResolveError) => void;
     isDocReloading?: (documentId: string) => boolean;
     isEditReloading?: (editId: string) => boolean;
     resolvedEditStatuses?: Record<string, "accepted" | "rejected">;
