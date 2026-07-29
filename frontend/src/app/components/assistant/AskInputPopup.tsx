@@ -3,8 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
     Check,
     ChevronDown,
-    ChevronLeft,
-    ChevronRight,
     X,
 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
@@ -47,9 +45,6 @@ export function AskInputPopup({
         inputId: string;
         typeIndex: number;
     } | null>(null);
-    const [activeInputId, setActiveInputId] = useState(
-        () => event.items[0]?.id ?? "",
-    );
     const docsForItem = useCallback(
         (inputId: string) => {
             const seen = new Set<string>();
@@ -75,21 +70,6 @@ export function AskInputPopup({
             skipped.has(item.id) || confirmed.has(item.id),
         [confirmed, skipped],
     );
-    const firstUnresolvedId = useCallback(
-        (resolvedId?: string) =>
-            event.items.find((item) => {
-                if (item.id === resolvedId) return false;
-                return !itemResolved(item);
-            })?.id ?? null,
-        [event.items, itemResolved],
-    );
-    const goToNextUnresolved = useCallback(
-        (resolvedId: string) => {
-            const nextId = firstUnresolvedId(resolvedId);
-            if (nextId) setActiveInputId(nextId);
-        },
-        [firstUnresolvedId],
-    );
     const setSkippedFor = (id: string, shouldSkip = true) => {
         setSkipped((prev) => {
             const next = new Set(prev);
@@ -97,7 +77,6 @@ export function AskInputPopup({
             else next.delete(id);
             return next;
         });
-        if (shouldSkip) goToNextUnresolved(id);
     };
     const confirmItem = (id: string) => {
         setConfirmed((prev) => {
@@ -105,7 +84,6 @@ export function AskInputPopup({
             next.add(id);
             return next;
         });
-        goToNextUnresolved(id);
     };
     const addDocs = (
         inputId: string,
@@ -243,14 +221,6 @@ export function AskInputPopup({
         onDismiss?.();
     }, [dismissed, onDismiss, submitted]);
     if (dismissed) return null;
-    const activeItem =
-        event.items.find((item) => item.id === activeInputId) ?? event.items[0];
-    const activeIndex = Math.max(
-        0,
-        event.items.findIndex((item) => item.id === activeItem?.id),
-    );
-    const activeLabel =
-        activeItem?.kind === "documents" ? "Documents" : "Question";
     return (
         <>
             <div
@@ -259,7 +229,7 @@ export function AskInputPopup({
                 data-ask-input-panel
                 className={`mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-300 bg-white font-serif ${
                     isExpanded ? "h-[min(16rem,45dvh)]" : "h-10"
-                }`}
+                    }`}
             >
                 <div className="flex h-10 shrink-0 items-center gap-1 px-2">
                     <button
@@ -276,43 +246,9 @@ export function AskInputPopup({
                         <span className="min-w-0 truncate">
                             {submitted
                                 ? "Inputs sent"
-                                : `${activeLabel} ${activeIndex + 1} of ${event.items.length}`}
+                                : `${event.items.length} ${event.items.length === 1 ? "question" : "questions"}`}
                         </span>
                     </button>
-                    {isExpanded && event.items.length > 1 && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setActiveInputId(
-                                        event.items[activeIndex - 1]?.id ??
-                                            activeInputId,
-                                    )
-                                }
-                                disabled={activeIndex === 0}
-                                aria-label="Previous input"
-                                className="flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setActiveInputId(
-                                        event.items[activeIndex + 1]?.id ??
-                                            activeInputId,
-                                    )
-                                }
-                                disabled={
-                                    activeIndex === event.items.length - 1
-                                }
-                                aria-label="Next input"
-                                className="flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </>
-                    )}
                     {!submitted && (
                         <button
                             data-shortcut-close
@@ -326,145 +262,87 @@ export function AskInputPopup({
                     )}
                 </div>
                 {isExpanded && (
-                <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 px-3 pb-3">
-                    {activeItem && (
-                        <div
+                <div className="min-h-0 flex-1 overflow-y-auto border-t border-gray-200 px-3 pb-3">
+                    {event.items.map((item) => (
+                        <section
+                            key={item.id}
                             data-ask-input-body
-                            className="flex min-h-0 flex-1 flex-col pt-3"
+                            className="border-b border-gray-100 py-3 last:border-0"
                         >
-                            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                        {activeItem.kind === "choice" ? (
-                                            <p className="text-base text-gray-900">
-                                                {activeItem.question}
-                                            </p>
-                                        ) : (
-                                            <DocumentPrompt />
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="pt-3">
-                                    {activeItem.kind === "choice" ? (
-                                        <OptionInput
-                                            item={activeItem}
-                                            disabled={
-                                                submitted ||
-                                                skipped.has(activeItem.id)
-                                            }
-                                            selectedAnswer={
-                                                choiceAnswers[activeItem.id] ??
-                                                null
-                                            }
-                                            otherOpen={
-                                                !!otherOpen[activeItem.id]
-                                            }
-                                            otherValue={
-                                                otherValues[activeItem.id] ?? ""
-                                            }
-                                            onAnswer={(answer) =>
-                                                chooseAnswer(activeItem, answer)
-                                            }
-                                            onOtherOpen={() => {
-                                                setOtherOpen((prev) => ({
-                                                    ...prev,
-                                                    [activeItem.id]: true,
-                                                }));
-                                                setChoiceAnswers((prev) => ({
-                                                    ...prev,
-                                                    [activeItem.id]: (
-                                                        otherValues[
-                                                            activeItem.id
-                                                        ] ?? ""
-                                                    ).trim(),
-                                                }));
-                                            }}
-                                            onOtherValue={(value) => {
-                                                setOtherValues((prev) => ({
-                                                    ...prev,
-                                                    [activeItem.id]: value,
-                                                }));
-                                                setChoiceAnswers((prev) => ({
-                                                    ...prev,
-                                                    [activeItem.id]:
-                                                        value.trim(),
-                                                }));
-                                                if (value.trim())
-                                                    setSkippedFor(
-                                                        activeItem.id,
-                                                        false,
-                                                    );
-                                            }}
-                                        />
-                                    ) : (
-                                        <DocumentInput
-                                            item={activeItem}
-                                            disabled={
-                                                submitted ||
-                                                skipped.has(activeItem.id)
-                                            }
-                                            docsByType={
-                                                docsByInput[activeItem.id] ?? {}
-                                            }
-                                            onOpenSelector={(typeIndex) =>
-                                                setDocSelectorTarget({
-                                                    inputId: activeItem.id,
-                                                    typeIndex,
-                                                })
-                                            }
-                                            onRemoveDoc={(typeIndex, docId) =>
-                                                removeDoc(
-                                                    activeItem.id,
-                                                    typeIndex,
-                                                    docId,
-                                                )
-                                            }
-                                        />
-                                    )}
-                                </div>
+                            {item.kind === "choice" ? (
+                                <p className="text-base text-gray-900">
+                                    {item.question}
+                                </p>
+                            ) : (
+                                <DocumentPrompt />
+                            )}
+                            <div className="pt-2">
+                                {item.kind === "choice" ? (
+                                    <OptionInput
+                                        item={item}
+                                        disabled={submitted || skipped.has(item.id)}
+                                        selectedAnswer={choiceAnswers[item.id] ?? null}
+                                        otherOpen={!!otherOpen[item.id]}
+                                        otherValue={otherValues[item.id] ?? ""}
+                                        onAnswer={(answer) => chooseAnswer(item, answer)}
+                                        onOtherOpen={() => {
+                                            setOtherOpen((prev) => ({ ...prev, [item.id]: true }));
+                                            setChoiceAnswers((prev) => ({
+                                                ...prev,
+                                                [item.id]: (otherValues[item.id] ?? "").trim(),
+                                            }));
+                                        }}
+                                        onOtherValue={(value) => {
+                                            setOtherValues((prev) => ({ ...prev, [item.id]: value }));
+                                            setChoiceAnswers((prev) => ({ ...prev, [item.id]: value.trim() }));
+                                            if (value.trim()) setSkippedFor(item.id, false);
+                                        }}
+                                    />
+                                ) : (
+                                    <DocumentInput
+                                        item={item}
+                                        disabled={submitted || skipped.has(item.id)}
+                                        docsByType={docsByInput[item.id] ?? {}}
+                                        onOpenSelector={(typeIndex) =>
+                                            setDocSelectorTarget({ inputId: item.id, typeIndex })
+                                        }
+                                        onRemoveDoc={(typeIndex, docId) =>
+                                            removeDoc(item.id, typeIndex, docId)
+                                        }
+                                    />
+                                )}
                             </div>
                             {!submitted && (
-                                <div className="mt-auto flex items-center justify-end gap-2 pt-3">
+                                <div className="flex items-center justify-end gap-2 pt-2">
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setSkippedFor(
-                                                activeItem.id,
-                                                !skipped.has(activeItem.id),
-                                            )
-                                        }
+                                        onClick={() => setSkippedFor(item.id, !skipped.has(item.id))}
                                         className="min-h-9 px-2 font-sans text-sm text-gray-600 hover:text-gray-900"
                                     >
-                                        {skipped.has(activeItem.id)
-                                            ? "Unskip"
-                                            : "Skip"}
+                                        {skipped.has(item.id) ? "Unskip" : "Skip"}
                                     </button>
                                     <PillButton
                                         tone="black"
                                         type="button"
                                         disabled={
-                                            skipped.has(activeItem.id) ||
-                                            confirmed.has(activeItem.id) ||
-                                            !itemAnswered(activeItem)
+                                            skipped.has(item.id) ||
+                                            confirmed.has(item.id) ||
+                                            !itemAnswered(item)
                                         }
-                                        onClick={() =>
-                                            confirmItem(activeItem.id)
-                                        }
+                                        onClick={() => confirmItem(item.id)}
                                         className="h-9 px-4 font-sans text-sm"
                                     >
-                                        {confirmed.has(activeItem.id) ? (
+                                        {confirmed.has(item.id) ? (
                                             <>
                                                 Confirmed
                                                 <Check className="h-3 w-3" />
                                             </>
-                                        ) : (
-                                            "Confirm"
-                                        )}
+                                        ) : "Confirm"}
                                     </PillButton>
                                 </div>
                             )}
-                        </div>
-                    )}
+                        </section>
+                    ))}
                 </div>
                 )}
             </div>
