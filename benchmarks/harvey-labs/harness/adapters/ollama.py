@@ -17,7 +17,7 @@ import urllib.request
 
 from harness.adapters.base import ModelAdapter, ModelResponse, ToolCall
 
-DEFAULT_BASE_URL = "http://192.168.1.64:11434"
+DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 
 
 class OllamaAdapter(ModelAdapter):

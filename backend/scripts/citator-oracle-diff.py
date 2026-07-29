@@ -22,16 +22,16 @@ Usage:
 Exits 1 on any mismatch so it can gate a port change.
 """
 from __future__ import annotations
+import os
 
 import argparse
 import sys
 from pathlib import Path
-import os
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 TOA_ROOT = SCRIPTS_DIR.parents[1] / "TableOfAuthoritiesMaker"
 VERIFIER_ROOT = Path(
-    os.environ.get('VERIFIER_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'verifier_root'))
+    os.environ.get("ALR_QUOTE_VERIFIER_ROOT", "")
 )
 for root in (str(SCRIPTS_DIR), str(TOA_ROOT), str(VERIFIER_ROOT)):
     if root not in sys.path:

@@ -10,6 +10,7 @@ Usage:
       --per-dataset 12
 """
 from __future__ import annotations
+import os
 
 import argparse
 import json
@@ -17,10 +18,9 @@ import sys
 from pathlib import Path
 
 import pyarrow.parquet as pq
-import os
 
 VERIFIER_ROOT = Path(
-    os.environ.get('VERIFIER_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'verifier_root'))
+    os.environ.get("ALR_QUOTE_VERIFIER_ROOT", "")
 )
 sys.path.insert(0, str(VERIFIER_ROOT))
 

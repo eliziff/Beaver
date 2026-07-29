@@ -502,7 +502,7 @@ At completion, report:
 
 # Primary references
 
-- [Beaver repository](https://github.com/eliziff/Beaver)
+- [Beaver repository](https://github.com/Open-Legal-Products/mike)
 - [LegalBench-RAG](https://github.com/zeroentropy-cc/legalbenchrag)
 - [CanLegalRAGBench](https://github.com/NLP-UBC/CanLegalRAGBench)
 - [LongMemEval](https://github.com/xiaowu0162/LongMemEval)
