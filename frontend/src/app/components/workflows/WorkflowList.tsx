@@ -32,29 +32,20 @@ import {
     TableEmptyState,
     TableHeaderCell,
     TableHeaderRow,
-    TableFilters,
-    type TableFilterOption,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
     TableSelectionPlaceholder,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    type TableSortDirection,
     TableStickyCell,
 } from "../shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-type WorkflowSourceFilter = "system" | "user" | "shared";
 type WorkflowListTab = "all" | "assistant" | "tabular" | "system";
-type WorkflowSortKey = "name" | "type";
 const WORKFLOW_TABS: { id: WorkflowListTab; label: string }[] = [
     { id: "all", label: "All" },
     { id: "assistant", label: "Assistant" },
     { id: "tabular", label: "Tabular" },
     { id: "system", label: "System" },
-];
-const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
-    { value: "asc", label: "Ascending" },
-    { value: "desc", label: "Descending" },
 ];
 const WORKFLOW_COLUMN = {
     type: "hidden w-24 sm:flex",
@@ -76,17 +67,6 @@ export function WorkflowList() {
     const [hiddenSystemIds, setHiddenSystemIds] = useState<string[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState<WorkflowListTab>("all");
-    const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
-    const [jurisdictionFilter, setJurisdictionFilter] = useState<string | null>(
-        null,
-    );
-    const [languageFilter, setLanguageFilter] = useState<string | null>(null);
-    const [sourceFilter, setSourceFilter] =
-        useState<WorkflowSourceFilter | null>(null);
-    const [sort, setSort] = useState<{
-        key: WorkflowSortKey;
-        direction: TableSortDirection;
-    } | null>(null);
     const [search, setSearch] = useState("");
     useEffect(() => {
         Promise.all([
@@ -125,42 +105,10 @@ export function WorkflowList() {
             : activeTab === "system"
               ? systemRows
               : activeRows.filter((workflow) => workflow.metadata.type === activeTab);
-    const sourceRows =
-        sourceFilter === null
-            ? tabRows
-            : tabRows.filter(
-                  (workflow) => getWorkflowSource(workflow) === sourceFilter,
-              );
-    const practices = Array.from(
-        new Set(
-            sourceRows.map((wf) => wf.metadata.practice).filter((p): p is string => !!p),
-        ),
-    ).sort();
-    const jurisdictions = Array.from(
-        new Set(
-            allRows
-                .flatMap((wf) => wf.metadata.jurisdictions ?? [])
-                .filter((jurisdiction): jurisdiction is string => !!jurisdiction),
-        ),
-    ).sort();
-    const languages = Array.from(
-        new Set(
-            allRows
-                .map((wf) => wf.metadata.language)
-                .filter((language): language is string => !!language),
-        ),
-    ).sort();
     const q = search.toLowerCase();
-    const filtered = sourceRows
-        .filter((wf) => !practiceFilter || wf.metadata.practice === practiceFilter)
-        .filter(
-            (wf) =>
-                !jurisdictionFilter ||
-                wf.metadata.jurisdictions?.includes(jurisdictionFilter),
-        )
-        .filter((wf) => !languageFilter || wf.metadata.language === languageFilter)
-        .filter((wf) => !q || wf.metadata.title.toLowerCase().includes(q))
-        .sort((a, b) => compareWorkflows(a, b, sort));
+    const filtered = tabRows.filter(
+        (wf) => !q || wf.metadata.title.toLowerCase().includes(q),
+    );
     const allSelected =
         filtered.length > 0 &&
         filtered.every((wf) => selectedIds.includes(wf.id));
@@ -180,29 +128,6 @@ export function WorkflowList() {
     }
     function handleTabChange(tab: WorkflowListTab) {
         setActiveTab(tab);
-        clearSelection();
-    }
-    function handlePracticeFilterChange(value: string | null) {
-        setPracticeFilter(value);
-        clearSelection();
-    }
-    function handleJurisdictionFilterChange(value: string | null) {
-        setJurisdictionFilter(value);
-        clearSelection();
-    }
-    function handleLanguageFilterChange(value: string | null) {
-        setLanguageFilter(value);
-        clearSelection();
-    }
-    function handleSourceFilterChange(value: WorkflowSourceFilter | null) {
-        setSourceFilter(value);
-        clearSelection();
-    }
-    function handleSortChange(
-        key: WorkflowSortKey,
-        direction: TableSortDirection | null,
-    ) {
-        setSort(direction ? { key, direction } : null);
         clearSelection();
     }
     async function handleHideWorkflow(id: string) {
@@ -248,84 +173,6 @@ export function WorkflowList() {
         setHiddenSystemIds((prev) => prev.filter((id) => !ids.includes(id)));
         await Promise.all(ids.map((id) => unhideWorkflow(id).catch(() => {})));
     }
-    const nameSortDirection =
-        sort?.key === "name" ? sort.direction : null;
-    const typeSortDirection =
-        sort?.key === "type" ? sort.direction : null;
-    const nameFilterButton = (
-        <TableFilters
-            label="Sort by name"
-            value={nameSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("name", direction)}
-        />
-    );
-    const typeFilterButton = (
-        <TableFilters
-            label="Sort by type"
-            value={typeSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("type", direction)}
-        />
-    );
-    const practiceFilterButton = (
-        <TableFilters
-            label="Filter by practice"
-            searchable
-            value={practiceFilter}
-            allLabel="All Practices"
-            options={practices.map((practice) => ({
-                value: practice,
-                label: practice,
-            }))}
-            onChange={handlePracticeFilterChange}
-        />
-    );
-    const jurisdictionFilterButton = (
-        <TableFilters
-            label="Filter by jurisdiction"
-            searchable
-            value={jurisdictionFilter}
-            allLabel="All Jurisdictions"
-            options={jurisdictions.map((jurisdiction) => ({
-                value: jurisdiction,
-                label: jurisdiction,
-            }))}
-            onChange={handleJurisdictionFilterChange}
-        />
-    );
-    const languageFilterButton = (
-        <TableFilters
-            label="Filter by language"
-            searchable
-            value={languageFilter}
-            allLabel="All Languages"
-            options={languages.map((language) => ({
-                value: language,
-                label: language,
-            }))}
-            onChange={handleLanguageFilterChange}
-        />
-    );
-    const sourceOptions: TableFilterOption<WorkflowSourceFilter>[] =
-        isAnonymousMode
-            ? [{ value: "system", label: "System" }]
-            : [
-                  { value: "system", label: "System" },
-                  { value: "user", label: "User" },
-                  { value: "shared", label: "Shared with me" },
-              ];
-    const sourceFilterButton = (
-        <TableFilters
-            label="Filter by source"
-            value={sourceFilter}
-            allLabel="All Sources"
-            options={sourceOptions}
-            onChange={handleSourceFilterChange}
-        />
-    );
     const selectedHiddenSystemIds = selectedIds.filter((id) =>
         hiddenSystemIds.includes(id),
     );
@@ -419,20 +266,17 @@ export function WorkflowList() {
                                     />
                                 ))}
                             <span className="mr-1">Name</span>
-                            {nameFilterButton}
                         </TableStickyCell>
                         <TableHeaderCell
                             className={`ml-auto ${WORKFLOW_COLUMN.type}`}
                         >
                             <div className="flex items-center gap-1">
                                 <span>Type</span>
-                                {typeFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.practice}>
                             <div className="flex items-center gap-1">
                                 <span>Practice</span>
-                                {practiceFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell
@@ -440,19 +284,16 @@ export function WorkflowList() {
                         >
                             <div className="flex items-center gap-1">
                                 <span>Jurisdiction</span>
-                                {jurisdictionFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.language}>
                             <div className="flex items-center gap-1">
                                 <span>Language</span>
-                                {languageFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={WORKFLOW_COLUMN.source}>
                             <div className="flex items-center gap-1">
                                 <span>Source</span>
-                                {sourceFilterButton}
                             </div>
                         </TableHeaderCell>
                         {!isAnonymousMode && (
@@ -513,50 +354,19 @@ export function WorkflowList() {
                         </TableBody>
                     ) : filtered.length === 0 ? (
                         <TableEmptyState>
-                            {sourceFilter === "user" ? (
-                                <>
-                                    <WorkflowSkeuoIcon className="mb-4 h-8 w-8" />
-                                    <p className="text-2xl font-medium font-serif text-gray-900">
-                                        User Workflows
-                                    </p>
-                                    <p className="mt-1 text-xs text-gray-400 text-left">
-                                        Build reusable prompts and tabular
-                                        review templates tailored to your
-                                        practice.
-                                    </p>
-                                    <PillButton
-                                        tone="black"
-                                        size="sm"
-                                        onClick={() => setNewModalOpen(true)}
-                                        className="mt-4 px-3"
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                        Create
-                                    </PillButton>
-                                </>
-                            ) : sourceFilter === "shared" ? (
-                                <>
-                                    <WorkflowSkeuoIcon className="mb-4 h-8 w-8" />
-                                    <p className="text-2xl font-medium font-serif text-gray-900">
-                                        Shared Workflows
-                                    </p>
-                                    <p className="mt-1 text-xs text-gray-400 text-left">
-                                        Workflows shared with you by other users
-                                        will appear here.
-                                    </p>
-                                </>
-                            ) : (
-                                <>
-                                    <WorkflowSkeuoIcon className="mb-4 h-8 w-8" />
-                                    <p className="text-2xl font-medium font-serif text-gray-900">
-                                        Workflows
-                                    </p>
-                                    <p className="mt-1 text-xs text-gray-400 text-left">
-                                        Automate document analysis with reusable
-                                        prompts and tabular review templates.
-                                    </p>
-                                </>
-                            )}
+                            <WorkflowSkeuoIcon className="mb-4 h-8 w-8" />
+                            <p className="text-2xl font-medium font-serif text-gray-900">
+                                Workflows
+                            </p>
+                            <PillButton
+                                tone="black"
+                                size="sm"
+                                onClick={() => setNewModalOpen(true)}
+                                className="mt-4 px-3"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Create
+                            </PillButton>
                         </TableEmptyState>
                     ) : (
                         <TableBody>
@@ -727,29 +537,4 @@ export function WorkflowList() {
 }
 function getSharedByLabel(workflow: Workflow) {
     return workflow.shared_by_name?.trim() || "Shared";
-}
-function getWorkflowSource(workflow: Workflow): WorkflowSourceFilter {
-    if (workflow.is_system) return "system";
-    return workflow.is_owner === false ? "shared" : "user";
-}
-function compareWorkflows(
-    a: Workflow,
-    b: Workflow,
-    sort: { key: WorkflowSortKey; direction: TableSortDirection } | null,
-) {
-    if (!sort) return 0;
-    const direction = sort.direction === "asc" ? 1 : -1;
-    const aValue =
-        sort.key === "name"
-            ? a.metadata.title
-            : a.metadata.type === "tabular"
-              ? "Tabular"
-              : "Assistant";
-    const bValue =
-        sort.key === "name"
-            ? b.metadata.title
-            : b.metadata.type === "tabular"
-              ? "Tabular"
-              : "Assistant";
-    return aValue.localeCompare(bValue) * direction;
 }
