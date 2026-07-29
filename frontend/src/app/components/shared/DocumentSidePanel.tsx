@@ -58,7 +58,6 @@ export function DocumentSidePanel({ doc, versionId, currentVersionId, versions, 
     setEditingName(false);
 }
 catch {
-    
 }
 finally {
     setSavingName(false);
