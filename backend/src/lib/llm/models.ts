@@ -26,9 +26,6 @@ export const CLAUDE_LOW_MODELS = ["claude-haiku-4-5"] as const;
 export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
 const CODEX_MODEL_PREFIX = "codex:";
-// Experiment transports (benchmarks/lab/PROTOCOL.md): claude-p:<model> =
-// Anthropic models over headless Claude Code; ollama:<model> = local
-// models on the desktop PC. Not exposed in UI catalogs.
 const CLAUDE_P_MODEL_PREFIX = "claude-p:";
 const OLLAMA_MODEL_PREFIX = "ollama:";
 

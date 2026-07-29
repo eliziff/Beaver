@@ -6,7 +6,10 @@ import {
   formatChatMessageContent,
   parseAskInputsResponsePayload,
 } from "../lib/chat/messageFormatting";
-import { CLIENT_WORK_PRODUCT_PRESUMPTION } from "../lib/chat/prompts";
+import {
+  CLIENT_WORK_PRODUCT_PRESUMPTION,
+  buildLeanLibraryBlock,
+} from "../lib/chat/prompts";
 import {
   devLog,
   type AskInputResponseItem,
@@ -775,9 +778,8 @@ export async function streamAnonymousChat(params: {
     return fail(400, "project_id does not match chat");
   }
   const projectId = existingChat?.project_id ?? params.projectId ?? null;
-  const matterStore = legalKnowledgeGraphStore();
   const matterDocumentIds = projectId
-    ? matterStore.listMatterDocumentIds(userId, projectId)
+    ? legalKnowledgeGraphStore().listMatterDocumentIds(userId, projectId)
     : undefined;
   if (projectId && !matterDocumentIds) return fail(404, "Project not found");
   const allowedDocumentIds = matterDocumentIds
@@ -819,23 +821,9 @@ export async function streamAnonymousChat(params: {
   if (selectedDocuments.length !== selectedDocumentIds.length) {
     return fail(400, "Selected document is unavailable");
   }
-  if (projectId && allowedDocumentIds) {
-    const explicitlySelectedIds = new Set([
-      ...attachedDocumentIds,
-      ...turnDocumentIds,
-    ]);
-    for (const documentId of explicitlySelectedIds) {
-      if (allowedDocumentIds.has(documentId)) continue;
-      if (!matterStore.attachMatterDocument(userId, projectId, documentId)) {
-        return fail(404, "Project not found");
-      }
+  if (allowedDocumentIds) {
+    for (const documentId of selectedDocumentIds) {
       allowedDocumentIds.add(documentId);
-    }
-    if (
-      displayedDocumentId &&
-      !allowedDocumentIds.has(displayedDocumentId)
-    ) {
-      return fail(400, "Open document is not in this project");
     }
   }
   const selectedById = new Map(
@@ -918,16 +906,46 @@ export async function streamAnonymousChat(params: {
   const priorEvidencePrompt = localPdfEvidenceRegistryPrompt(
     priorEvidenceRegistry,
   );
-  let systemPrompt =
-    `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${
-      projectId
-        ? "The current Beaver matter is connected through its attached Library documents"
-        : "The user's local Beaver Library is connected"
-    } through library_list, library_lookup, library_evidence, library_read, library_find, library_create_docx, library_revise_docx, library_apply_text_ops, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use library_list before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with library_read, then call library_revise_docx using its exact active version_id. For mechanical transforms — changing case, find-and-replace, spelling review, sentence spacing, or quote/dash/ellipsis/whitespace normalization — call library_apply_text_ops with an op and scope instead; the server executes the transform deterministically, so never retype, quote back, or pass the affected text through library_revise_docx for these. Its check_spelling op only flags possible misspellings; correct one with an explicit replace_text op. Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of library_read; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors (amounts, dates, section references, citations) it reports missing from your draft. Prefer the deterministic organs over reasoning from memory: library_term_drift for defined-term usage across documents or versions, library_drafting_lint for prose drafting defects, library_bilingual_concordance for EN/FR structural agreement, library_apply_amendment to compile and apply amendment instructions, and library_deadline to compute deadline dates — report their findings as verified rather than recomputing them yourself.${
+  // Prompt discipline for the tool-shape experiment: never teach tool names
+  // the served surface does not carry (a prose mention overrides the schema
+  // list in practice, and silently un-does the A/B).
+  const codingShape = process.env.MIKE_TOOL_SHAPE === "coding";
+  const navigationTools = codingShape
+    ? "Glob, Grep, Read, Edit, library_lookup, library_evidence"
+    : "library_list, library_lookup, library_evidence, library_read, library_find";
+  const readToolName = codingShape ? "Read" : "library_read";
+  const editToolName = codingShape ? "Edit" : "library_revise_docx";
+  const connectedIntro = projectId
+    ? "The current Beaver matter is connected through its attached Library documents"
+    : "The user's local Beaver Library is connected";
+  const leanPromptVariant = process.env.MIKE_PROMPT_VARIANT === "lean";
+  const libraryBlock = leanPromptVariant
+    ? buildLeanLibraryBlock({
+        connectedIntro,
+        codingShape,
+        readToolName,
+        editToolName,
+        researchDisabled: RESEARCH_TOOLS_DISABLED,
+      })
+    : `${connectedIntro} through ${navigationTools}, library_create_docx, ${editToolName}, library_apply_text_ops, library_link_docx_citations, library_fix_docx_supras, and library_lint_docx_structure. Use ${codingShape ? "Glob" : "library_list"} before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with ${readToolName}, then ${
+      codingShape
+        ? "call Edit with the exact old text and its replacement"
+        : "call library_revise_docx using its exact active version_id"
+    }. ${
+      codingShape
+        ? ""
+        : "For mechanical transforms — changing case, find-and-replace, spelling review, sentence spacing, or quote/dash/ellipsis/whitespace normalization — call library_apply_text_ops with an op and scope instead; the server executes the transform deterministically, so never retype, quote back, or pass the affected text through library_revise_docx for these. Its check_spelling op only flags possible misspellings; correct one with an explicit replace_text op. "
+    } Do not substitute a prose list of proposed or suggested changes; if clarification is materially required, call ask_inputs. Never claim a document mutation succeeded without its tool receipt. Beaver shows created and edited document cards automatically, so confirm completion briefly without pasting the draft, repeating the change list, or adding a document URL. For an exact PDF page, paragraph, footnote, proposition, section, or bounded range, use library_lookup instead of ${readToolName}; rely on its evidence and do not invent locators or URLs. Beaver adds verified links for exact quoted PDF text automatically. Preserve returned mike-evidence handles when the material may be needed after compaction; rehydrate Library evidence with library_evidence, and rehydrate provider evidence with provider_pdf_lookup using both its reference_id and handle. If the user asks to add links to citations in a DOCX, call library_link_docx_citations directly; do not read or split its footnotes and do not construct the URLs yourself. If the user asks to fix or update supra-note references, call library_fix_docx_supras first; rely on its deterministic changes and reason only about the cases it reports for review. If the user asks to check a DOCX for structural drafting errors — broken internal cross-references, references to missing schedules or exhibits, numbering gaps or duplicates, or duplicate or unused defined terms — call library_lint_docx_structure first; report its findings as verified and reason yourself only about what its notes say it abstained from. For a table or book of authorities from a Library DOCX, call toa_submit_library_document, poll with toa_job_status, and link the user to job.app_url; do not parse the document or invent local paths yourself. When a tool returns app_url, use that exact value in a Markdown link instead of constructing a route. ${
+      codingShape
+        ? "For long or structured Library documents, search with Grep first and read only what you need: Grep match lines end with the enclosing [section handle], which Read and Edit accept as section= to scope to that section."
+        : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
+    } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors (amounts, dates, section references, citations) it reports missing from your draft. Prefer the deterministic organs over reasoning from memory: library_term_drift for defined-term usage across documents or versions, library_drafting_lint for prose drafting defects, library_bilingual_concordance for EN/FR structural agreement, library_apply_amendment to compile and apply amendment instructions, and library_deadline to compute deadline dates — report their findings as verified rather than recomputing them yourself.${
       RESEARCH_TOOLS_DISABLED
         ? ""
         : " Use A2AJ tools for Canadian case law and legislation. Do not construct URLs for a2aj_lookup results; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup for exact structure or evidence rehydration."
-    }\n\n` +
+    }`;
+  let systemPrompt =
+    `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
     "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
     "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
     focusPrompt +

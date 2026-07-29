@@ -837,6 +837,169 @@ const globRegExp = (pattern: string) =>
 
 const GREP_LINE_CAP = 2_000;
 
+/**
+ * The revise operation, callable without dispatch: the Edit alias uses it
+ * directly so the strict coding-shape surface can reject the public name
+ * while the alias keeps the identical pinning, receipts, and lint hook.
+ */
+async function runLocalReviseDocx(
+  call: NormalizedToolCall,
+  userId: string,
+  documentId: string,
+  args: Record<string, unknown>,
+): Promise<NormalizedToolResult> {
+  let versionId = trimmed(args.version_id);
+  const rawEdits = Array.isArray(args.edits) ? args.edits : [];
+  if (!documentId || !rawEdits.length) {
+    return fail(call, "document_id and edits are required");
+  }
+  // The model never has to courier a version id: unstated means the
+  // active version, resolved here. A provided id still asserts.
+  if (!versionId) {
+    const collection = await listLocalLibrary(userId, "file");
+    versionId =
+      collection.documents.find((meta) => meta.id === documentId)
+        ?.current_version_id ?? "";
+    if (!versionId) return fail(call, "Document not found");
+  }
+  if (rawEdits.length > 100 || rawEdits.some(invalidReviseEdit)) {
+    return fail(call, "edits are invalid");
+  }
+  try {
+    const file = await getLocalVersionFile(userId, documentId, versionId);
+    if (!file) return fail(call, "DOCX Library version not found");
+    if (file.document.current_version_id !== versionId) {
+      return fail(call, "version_id is not the active version");
+    }
+    if (file.fileType.toLowerCase() !== "docx") {
+      return fail(call, "Revision requires a DOCX Library version");
+    }
+    const edits: EditInput[] = rawEdits
+      .map((raw) => {
+        const edit = raw as Record<string, unknown>;
+        return {
+          find: edit.find as string,
+          replace: edit.replace as string,
+          context_before: edit.context_before as string,
+          context_after: edit.context_after as string,
+          reason: typeof edit.reason === "string" ? edit.reason : undefined,
+        };
+      })
+      .filter((edit) => edit.find !== edit.replace);
+    if (!edits.length) {
+      return result(call, {
+        ok: false,
+        error: "No revision was saved",
+        edit_errors: ["Every requested edit was a no-op"],
+      });
+    }
+    const annotate = args.annotate === true;
+    const edited = await applyTrackedEdits(await readFile(file.path), edits, {
+      author: "Beaver",
+      annotate,
+    });
+    if (edited.errors.length || !edited.changes.length) {
+      return result(call, {
+        ok: false,
+        error: "No revision was saved",
+        edit_errors: edited.errors,
+      });
+    }
+    const trackedEdits: LocalTrackedEdit[] = edited.changes.map((change) => ({
+      id: crypto.randomUUID(),
+      changeId: change.id,
+      delWId: change.delId,
+      insWId: change.insId,
+      deletedText: change.deletedText,
+      insertedText: change.insertedText,
+      contextBefore: change.contextBefore,
+      contextAfter: change.contextAfter,
+      reason: change.reason,
+      status: "pending",
+    }));
+    const version = await addLocalVersion({
+      userId,
+      documentId,
+      filename: file.version.filename,
+      bytes: edited.bytes,
+      expectedVersionId: versionId,
+      provenance: {
+        schemaVersion: 1,
+        actor: "assistant",
+        action: "revised",
+        parentVersionId: versionId,
+        changeCount: edited.changes.length,
+        trackedEdits,
+      },
+    });
+    if (!version) return fail(call, "version_id is no longer active");
+    // Every revision gets deterministic same-turn feedback: the
+    // structural lint runs on the freshly produced version (the
+    // determinism plan's receipt hook — not gated on annotate).
+    const lint = await lintLocalDocxStructure(
+      userId,
+      documentId,
+      version.id,
+    ).catch(() => null);
+    const downloadUrl =
+      `/single-documents/${encodeURIComponent(documentId)}/file` +
+      `?version_id=${encodeURIComponent(version.id)}`;
+    return result(call, {
+      ok: true,
+      receipt: "mike-document:v1",
+      action: "revised",
+      document_id: documentId,
+      parent_version_id: versionId,
+      version_id: version.id,
+      version_number: version.version_number,
+      filename: version.filename,
+      file_type: version.file_type,
+      source_sha256: version.source_sha256,
+      change_count: edited.changes.length,
+      comment_count: edited.comments,
+      // Counted on every revision so rationale coverage is a
+      // measurable variable (annotate mode forces it to zero by
+      // rejecting reason-free edits).
+      edits_without_reason: edits.filter((edit) => !edit.reason?.trim()).length,
+      structural_lint: lint
+        ? {
+            finding_count: lint.findings.length,
+            findings: lint.findings
+              .slice(0, 8)
+              .map(({ code, severity, subject, message }) => ({
+                code,
+                severity,
+                subject,
+                message,
+              })),
+            notes: lint.notes,
+          }
+        : undefined,
+      download_url: downloadUrl,
+      annotations: trackedEdits.map((edit) => ({
+        kind: "edit",
+        edit_id: edit.id,
+        document_id: documentId,
+        version_id: version.id,
+        version_number: version.version_number,
+        change_id: edit.changeId,
+        del_w_id: edit.delWId,
+        ins_w_id: edit.insWId,
+        deleted_text: edit.deletedText,
+        inserted_text: edit.insertedText,
+        context_before: edit.contextBefore,
+        context_after: edit.contextAfter,
+        reason: edit.reason,
+        status: edit.status,
+      })),
+      next_required_action:
+        "The tracked-edit card is shown automatically. Briefly confirm completion; do not repeat a document URL or substitute a prose change list.",
+    });
+  } catch {
+    return fail(call, "DOCX revision failed");
+  }
+}
+
 async function runCodingShapeCall(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
@@ -1058,27 +1221,13 @@ async function runCodingShapeCall(
         ),
       };
     }
-    // Route through the revise handler so version pinning, tracked-change
-    // receipts, and document cards behave identically across shapes. The
-    // active version is resolved here — Edit's contract has no version id.
-    const [revised] = await runLocalAssistantTools(
+    // Same pinning, receipts, and lint hook as the public revise tool; the
+    // active version is resolved inside — Edit's contract has no version id.
+    const revised = await runLocalReviseDocx(
+      { id: `${call.id}-revise`, name: "library_revise_docx", input: {} },
       userId,
-      [
-        {
-          id: `${call.id}-revise`,
-          name: "library_revise_docx",
-          input: {
-            document_id: meta.id,
-            version_id: meta.current_version_id,
-            edits: [edit],
-          },
-        },
-      ],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      allowedDocumentIds,
+      meta.id,
+      { edits: [edit] },
     );
     try {
       const payload = JSON.parse(revised.content) as {
@@ -1625,6 +1774,25 @@ export async function runLocalAssistantTools(
   return Promise.all(
     calls.map(async (call) => {
       const args = call.input;
+      if (
+        CODING_TOOL_SHAPE &&
+        (call.name === "Glob" ||
+          call.name === "Grep" ||
+          call.name === "Read" ||
+          call.name === "Edit")
+      ) {
+        return runCodingShapeCall(call, args, userId, allowedDocumentIds);
+      }
+      // Strict surface: names the shape swap removed must fail loudly, or a
+      // prompt that still mentions them silently un-does the experiment.
+      // Sits ahead of every handler — the guard is only as strict as its
+      // position in this chain.
+      if (CODING_TOOL_SHAPE && CODING_SHAPE_REPLACES.has(call.name)) {
+        return result(
+          call,
+          `No such tool available: ${call.name}. Use ${CODING_SHAPE_SUGGESTIONS[call.name]} (files are addressed by file path from Glob).`,
+        );
+      }
       const publicLegalResult = await executePublicLegalSourceTool(
         call.name,
         args,
@@ -1826,161 +1994,7 @@ export async function runLocalAssistantTools(
       }
 
       if (call.name === "library_revise_docx") {
-        let versionId = trimmed(args.version_id);
-        const rawEdits = Array.isArray(args.edits) ? args.edits : [];
-        if (!documentId || !rawEdits.length) {
-          return fail(call, "document_id and edits are required");
-        }
-        // The model never has to courier a version id: unstated means the
-        // active version, resolved here. A provided id still asserts.
-        if (!versionId) {
-          const collection = await listLocalLibrary(userId, "file");
-          versionId =
-            collection.documents.find((meta) => meta.id === documentId)
-              ?.current_version_id ?? "";
-          if (!versionId) return fail(call, "Document not found");
-        }
-        if (rawEdits.length > 100 || rawEdits.some(invalidReviseEdit)) {
-          return fail(call, "edits are invalid");
-        }
-        try {
-          const file = await getLocalVersionFile(userId, documentId, versionId);
-          if (!file) return fail(call, "DOCX Library version not found");
-          if (file.document.current_version_id !== versionId) {
-            return fail(call, "version_id is not the active version");
-          }
-          if (file.fileType.toLowerCase() !== "docx") {
-            return fail(call, "Revision requires a DOCX Library version");
-          }
-          const edits: EditInput[] = rawEdits
-            .map((raw) => {
-              const edit = raw as Record<string, unknown>;
-              return {
-                find: edit.find as string,
-                replace: edit.replace as string,
-                context_before: edit.context_before as string,
-                context_after: edit.context_after as string,
-                reason:
-                  typeof edit.reason === "string" ? edit.reason : undefined,
-              };
-            })
-            .filter((edit) => edit.find !== edit.replace);
-          if (!edits.length) {
-            return result(call, {
-              ok: false,
-              error: "No revision was saved",
-              edit_errors: ["Every requested edit was a no-op"],
-            });
-          }
-          const annotate = args.annotate === true;
-          const edited = await applyTrackedEdits(
-            await readFile(file.path),
-            edits,
-            { author: "Beaver", annotate },
-          );
-          if (edited.errors.length || !edited.changes.length) {
-            return result(call, {
-              ok: false,
-              error: "No revision was saved",
-              edit_errors: edited.errors,
-            });
-          }
-          const trackedEdits: LocalTrackedEdit[] = edited.changes.map(
-            (change) => ({
-              id: crypto.randomUUID(),
-              changeId: change.id,
-              delWId: change.delId,
-              insWId: change.insId,
-              deletedText: change.deletedText,
-              insertedText: change.insertedText,
-              contextBefore: change.contextBefore,
-              contextAfter: change.contextAfter,
-              reason: change.reason,
-              status: "pending",
-            }),
-          );
-          const version = await addLocalVersion({
-            userId,
-            documentId,
-            filename: file.version.filename,
-            bytes: edited.bytes,
-            expectedVersionId: versionId,
-            provenance: {
-              schemaVersion: 1,
-              actor: "assistant",
-              action: "revised",
-              parentVersionId: versionId,
-              changeCount: edited.changes.length,
-              trackedEdits,
-            },
-          });
-          if (!version) return fail(call, "version_id is no longer active");
-          // Every revision gets deterministic same-turn feedback: the
-          // structural lint runs on the freshly produced version (the
-          // determinism plan's receipt hook — not gated on annotate).
-          const lint = await lintLocalDocxStructure(
-            userId,
-            documentId,
-            version.id,
-          ).catch(() => null);
-          const downloadUrl =
-            `/single-documents/${encodeURIComponent(documentId)}/file` +
-            `?version_id=${encodeURIComponent(version.id)}`;
-          return result(call, {
-            ok: true,
-            receipt: "mike-document:v1",
-            action: "revised",
-            document_id: documentId,
-            parent_version_id: versionId,
-            version_id: version.id,
-            version_number: version.version_number,
-            filename: version.filename,
-            file_type: version.file_type,
-            source_sha256: version.source_sha256,
-            change_count: edited.changes.length,
-            comment_count: edited.comments,
-            // Counted on every revision so rationale coverage is a
-            // measurable variable (annotate mode forces it to zero by
-            // rejecting reason-free edits).
-            edits_without_reason: edits.filter((edit) => !edit.reason?.trim())
-              .length,
-            structural_lint: lint
-              ? {
-                  finding_count: lint.findings.length,
-                  findings: lint.findings
-                    .slice(0, 8)
-                    .map(({ code, severity, subject, message }) => ({
-                      code,
-                      severity,
-                      subject,
-                      message,
-                    })),
-                  notes: lint.notes,
-                }
-              : undefined,
-            download_url: downloadUrl,
-            annotations: trackedEdits.map((edit) => ({
-              kind: "edit",
-              edit_id: edit.id,
-              document_id: documentId,
-              version_id: version.id,
-              version_number: version.version_number,
-              change_id: edit.changeId,
-              del_w_id: edit.delWId,
-              ins_w_id: edit.insWId,
-              deleted_text: edit.deletedText,
-              inserted_text: edit.insertedText,
-              context_before: edit.contextBefore,
-              context_after: edit.contextAfter,
-              reason: edit.reason,
-              status: edit.status,
-            })),
-            next_required_action:
-              "The tracked-edit card is shown automatically. Briefly confirm completion; do not repeat a document URL or substitute a prose change list.",
-          });
-        } catch {
-          return fail(call, "DOCX revision failed");
-        }
+        return runLocalReviseDocx(call, userId, documentId, args);
       }
 
       if (call.name === "library_apply_text_ops") {
@@ -2113,25 +2127,6 @@ export async function runLocalAssistantTools(
             errorText(error, "Deterministic text operations failed"),
           );
         }
-      }
-
-      if (
-        CODING_TOOL_SHAPE &&
-        (call.name === "Glob" ||
-          call.name === "Grep" ||
-          call.name === "Read" ||
-          call.name === "Edit")
-      ) {
-        return runCodingShapeCall(call, args, userId, allowedDocumentIds);
-      }
-
-      // Strict surface: names the shape swap removed must fail loudly, or a
-      // prompt that still mentions them silently un-does the experiment.
-      if (CODING_TOOL_SHAPE && CODING_SHAPE_REPLACES.has(call.name)) {
-        return result(
-          call,
-          `No such tool available: ${call.name}. Use ${CODING_SHAPE_SUGGESTIONS[call.name]} (files are addressed by file path from Glob).`,
-        );
       }
 
       if (call.name === "library_list") {

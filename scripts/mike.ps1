@@ -636,7 +636,7 @@ function Invoke-Smoke {
         [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3001/library/files' }
     )
     if ($state.codex) {
-        $checks += [pscustomobject]@{ Name = 'Codex model catalog'; Url = 'http://127.0.0.1:3001/codex/models' }
+        $checks += [pscustomobject]@{ Name = 'Model catalog'; Url = 'http://127.0.0.1:3001/models' }
     }
     elseif ($Full) {
         throw 'Full smoke requires an installed and authenticated Codex CLI.'
