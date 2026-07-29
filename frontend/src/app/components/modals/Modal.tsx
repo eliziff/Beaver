@@ -63,7 +63,6 @@ export function Modal({
         primaryAction ||
         secondaryAction ||
         cancelAction;
-    const resolvedCancelAction = cancelAction;
     useEffect(() => {
         if (!open) return;
         const restoreFocus =
@@ -207,9 +206,9 @@ export function Modal({
                         )}
                         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                             {footerStatus}
-                            {resolvedCancelAction && (
+                            {cancelAction && (
                                 <ModalActionButton
-                                    action={resolvedCancelAction}
+                                    action={cancelAction}
                                     fallbackVariant="cancel"
                                 />
                             )}
