@@ -15,6 +15,10 @@
 // scan cannot pair is reported as an abstention, not guessed at; findings
 // carry the arithmetic so a reader can judge materiality.
 import { extractAnchors, type AnchorHit } from "./legalTextAnchors";
+import {
+  compileAgreementSkeleton,
+  type SkeletonNode,
+} from "./legalTextSkeleton";
 
 export interface ConflictDocument {
   name: string;
@@ -26,6 +30,16 @@ export interface FigureRef {
   display: string;
   value: number;
   excerpt: string;
+  /** char offset of the figure in its document: where to quote from */
+  at: number;
+  /**
+   * The excerpt is the document's text verbatim — no ellipsis added, no
+   * whitespace run rewritten — so a quote mined from it verifies as-is.
+   * False means quote from the document at `at`, not from the excerpt.
+   */
+  verbatim: boolean;
+  /** enclosing skeleton node label ("sec3.1"), or null in unsectioned text */
+  section: string | null;
 }
 
 export interface ConflictFinding {
@@ -124,21 +138,47 @@ interface Pct {
   consumed: boolean;
 }
 
+/** Display excerpt plus whether it is still the document's own bytes. */
 const excerptAt = (text: string, at: number, length: number) => {
   const start = Math.max(0, at - EXCERPT_CHARS / 2);
   const end = Math.min(text.length, at + length + EXCERPT_CHARS / 2);
-  return (
-    (start > 0 ? "…" : "") +
-    text.slice(start, end).replace(/\s+/gu, " ").trim() +
-    (end < text.length ? "…" : "")
-  );
+  const window = text.slice(start, end);
+  const display = window.replace(/\s+/gu, " ").trim();
+  return {
+    excerpt: (start > 0 ? "…" : "") + display + (end < text.length ? "…" : ""),
+    verbatim: start === 0 && end === text.length && display === window,
+  };
 };
 
-const ref = (text: string, fig: Fig): FigureRef => ({
+type SectionAt = (at: number) => string | null;
+
+/**
+ * Deepest skeleton node containing an offset, as a citable label. The
+ * skeleton is compiled at most once per document and only when a finding
+ * actually needs a handle, so clean documents pay nothing.
+ */
+function sectionResolver(text: string): SectionAt {
+  let nodes: SkeletonNode[] | null = null;
+  return (at) => {
+    nodes ??= compileAgreementSkeleton(text).nodes;
+    let best: SkeletonNode | null = null;
+    for (const node of nodes) {
+      if (node.start > at || at >= node.end) continue;
+      if (!best || node.depth > best.depth) best = node;
+    }
+    return best?.label ?? null;
+  };
+}
+
+const noSection: SectionAt = () => null;
+
+const ref = (text: string, fig: Fig, sectionAt: SectionAt): FigureRef => ({
   document: fig.document,
   display: fig.raw,
   value: fig.value,
-  excerpt: excerptAt(text, fig.index, fig.raw.length),
+  at: fig.index,
+  section: sectionAt(fig.index),
+  ...excerptAt(text, fig.index, fig.raw.length),
 });
 
 const fmt = (value: number) =>
@@ -188,10 +228,14 @@ export function conflictScan(
   }
   const claims: Claim[] = [];
   const partFigs: Array<{ fig: Fig; text: string }> = [];
-  const figsByDocument = new Map<string, { text: string; figs: Fig[] }>();
+  const figsByDocument = new Map<
+    string,
+    { text: string; figs: Fig[]; sectionAt: SectionAt }
+  >();
 
   for (const document of documents) {
     const hits = extractAnchors(document.text);
+    const sectionAt = sectionResolver(document.text);
     const figs: Fig[] = [];
     const pcts: Pct[] = [];
     for (const hit of hits) {
@@ -225,7 +269,7 @@ export function conflictScan(
     }
     figs.sort((a, b) => a.index - b.index);
     pcts.sort((a, b) => a.index - b.index);
-    figsByDocument.set(document.name, { text: document.text, figs });
+    figsByDocument.set(document.name, { text: document.text, figs, sectionAt });
 
     // The words-and-numerals convention restates one percent twice
     // ("five percent (5%)"); keep the digit form's precision.
@@ -287,8 +331,8 @@ export function conflictScan(
               `${fmt(whole.value)} × ${pct.value}% = ${fmt(expected)} ≠ ` +
               `${fmt(part.value)} stated (Δ ${fmt(Math.abs(part.value - expected))}; ` +
               `stated figures imply ${fmt(implied)}%)`,
-            part: ref(document.text, part),
-            whole: ref(document.text, whole),
+            part: ref(document.text, part, sectionAt),
+            whole: ref(document.text, whole, sectionAt),
             stated_percent: pct.value,
             implied_percent: Number(implied.toFixed(2)),
             expected_part: expected,
@@ -411,9 +455,9 @@ export function conflictScan(
             detail:
               `${column.map((fig) => fmt(fig.value)).join(" + ")} = ${fmt(sum)} ≠ ` +
               `${fmt(total.value)} stated total (Δ ${fmt(Math.abs(sum - total.value))})`,
-            parts: column.map((fig) => ref(document.text, fig)),
+            parts: column.map((fig) => ref(document.text, fig, sectionAt)),
             parts_sum: sum,
-            total: ref(document.text, total),
+            total: ref(document.text, total, sectionAt),
           },
           `sp:${unit}:${sum}:${total.value}`,
         );
@@ -425,6 +469,7 @@ export function conflictScan(
   // figure, which is what licenses treating them as the same quantity.
   for (const claim of claims) {
     let joined = false;
+    const wholeHome = figsByDocument.get(claim.document);
     for (const { fig: part, text } of partFigs) {
       if (part.unit !== claim.unit || part.value >= claim.whole.value) continue;
       const home = figsByDocument.get(part.document);
@@ -457,10 +502,11 @@ export function conflictScan(
             `${fmt(claim.whole.value)} × ${claim.pct.value}% = ${fmt(expected)} ≠ ` +
             `${fmt(part.value)} stated (Δ ${fmt(Math.abs(part.value - expected))}; ` +
             `stated figures imply ${fmt(implied)}%)`,
-          part: ref(text, part),
+          part: ref(text, part, home.sectionAt),
           whole: ref(
-            figsByDocument.get(claim.document)?.text ?? "",
+            wholeHome?.text ?? "",
             claim.whole,
+            wholeHome?.sectionAt ?? noSection,
           ),
           stated_percent: claim.pct.value,
           implied_percent: Number(implied.toFixed(2)),

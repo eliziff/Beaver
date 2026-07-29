@@ -140,3 +140,46 @@ describe("temporalScan", () => {
     expect(report.consistent).toBe(1);
   });
 });
+
+describe("temporal refs as citable spans", () => {
+  const notice = [
+    "ARTICLE II",
+    "Term",
+    "",
+    "2.3 Termination Notice. Notice of termination shall be given sixty (60) " +
+      "days after the Renewal Date (July 15, 2029), i.e., September 12, 2029.",
+  ].join("\n");
+
+  it("carries the enclosing section handle and each span's offset", () => {
+    const [finding] = temporalScan([{ name: "notice.txt", text: notice }])
+      .findings;
+    // Deepest enclosing node wins: the section, not ARTICLE II.
+    expect(finding.base.section).toBe("sec2.3");
+    expect(finding.duration.section).toBe("sec2.3");
+    expect(finding.stated.section).toBe("sec2.3");
+    expect(
+      notice.slice(
+        finding.stated.at,
+        finding.stated.at + finding.stated.display.length,
+      ),
+    ).toBe("September 12, 2029");
+    // The excerpt is ellipsized, so it does not vouch for itself.
+    expect(finding.stated.excerpt).toContain("…");
+    expect(finding.stated.verbatim).toBe(false);
+  });
+
+  it("reports a null section in unsectioned text, and vouches for an uncut excerpt", () => {
+    const text =
+      "Notice of termination shall be given sixty (60) days after the Renewal " +
+      "Date (July 15, 2029), i.e., September 12, 2029.";
+    const [finding] = scan(text).findings;
+    expect(finding.stated.section).toBeNull();
+    expect(finding.duration.section).toBeNull();
+    // The duration's window reaches both ends of the passage; the stated
+    // date's does not, so only the former is quotable as it stands.
+    expect(finding.duration.excerpt).toBe(text);
+    expect(finding.duration.verbatim).toBe(true);
+    expect(finding.stated.excerpt).toContain("…");
+    expect(finding.stated.verbatim).toBe(false);
+  });
+});
