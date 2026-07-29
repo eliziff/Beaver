@@ -1,0 +1,706 @@
+{
+  "schema_version": 1,
+  "set_id": "retrieval-gate-set-v1",
+  "created": "2026-07-29",
+  "notes": [
+    "EASY TIER ONLY: queries are mechanical rephrasings of section headings/marginal notes, so lexical overlap with the gold section is built in. This tier can detect a broken retriever; it cannot bless or damn a vector index. Hand-authored adversarial items (paraphrased propositions, ambiguous legal terms, cross-reference asks, and negatives with no supporting source) must be added before the asymmetric gate's verdict means anything.",
+    "Candidate pool = slice-v1.json: every section of the 48 sampled candidate documents (16 gold + 32 pure distractors), not the full corpus; absolute recall numbers are inflated accordingly.",
+    "Gold quote = first sentence of the gold section; exactly one gold locator per item. Derivation: scripts/retrieval-gate-seed.ts (deterministic, no LLM). Identity: citation_key = citationLookupKey (Beaver port of the reference normalizer, oracle-diffed in retrievalGate.test.ts)."
+  ],
+  "corpus": {
+    "source": "a2aj-laws-parquet",
+    "revision": "f2953ff691ca36ab6476706db312a377fb4cbc65",
+    "files": [
+      {
+        "path": "LEGISLATION-FED/train.parquet",
+        "sha256": "6a78e85b5e16c73c677ceda3384c3db4de4d31ef1953f831ecb69ca43b1aaa57"
+      },
+      {
+        "path": "LEGISLATION-ON/train.parquet",
+        "sha256": "5c080f82517d2f9085233c6a01e76219648962ef6d437b069b8a1e3f21666ac2"
+      },
+      {
+        "path": "LEGISLATION-BC/train.parquet",
+        "sha256": "5a6c5e369476745474050eebc1a6e0a80699ffce84c5c70bcbfe5877e364dd0a"
+      },
+      {
+        "path": "LEGISLATION-AB/train.parquet",
+        "sha256": "97e71eb41957868442a02a7e2dbe28ed1a703f06d67282c93f96772f15038417"
+      }
+    ]
+  },
+  "items": [
+    {
+      "item_id": "RG-001",
+      "query": "What does the Asia-Pacific Foundation of Canada Act say about short title?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c A-13",
+        "citation_key": "rsc1985ca13"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "This Act may be cited as the Asia-Pacific Foundation of Canada Act."
+    },
+    {
+      "item_id": "RG-002",
+      "query": "Under the Asia-Pacific Foundation of Canada Act, what are the rules on vice-Chairperson?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c A-13",
+        "citation_key": "rsc1985ca13"
+      },
+      "gold_locators": [
+        "sec14"
+      ],
+      "gold_quote": "The Board may elect from among its members a Vice-Chairperson who, in the event of the absence or incapacity of the Chairperson, or if the office of Chairperson is vacant, has all the duties and functions of the Chairperson."
+    },
+    {
+      "item_id": "RG-003",
+      "query": "Where does the Asia-Pacific Foundation of Canada Act deal with committees?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c A-13",
+        "citation_key": "rsc1985ca13"
+      },
+      "gold_locators": [
+        "sec25"
+      ],
+      "gold_quote": "The Board may appoint an Executive Committee or advisory or other committees under such terms and conditions as the Board may by by-law provide."
+    },
+    {
+      "item_id": "RG-004",
+      "query": "Dry Docks Subsidies Act: which provision addresses short title?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c D-4",
+        "citation_key": "rsc1985cd4"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "This Act may be cited as the Dry Docks Subsidies Act."
+    },
+    {
+      "item_id": "RG-005",
+      "query": "What does the Dry Docks Subsidies Act say about three classes of dry docks?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c D-4",
+        "citation_key": "rsc1985cd4"
+      },
+      "gold_locators": [
+        "sec7"
+      ],
+      "gold_quote": "Dry docks constructed under this Act shall, for the purposes of this Act, be divided into three classes as follows:"
+    },
+    {
+      "item_id": "RG-006",
+      "query": "Under the Dry Docks Subsidies Act, what are the rules on agreement to accord with plans?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c D-4",
+        "citation_key": "rsc1985cd4"
+      },
+      "gold_locators": [
+        "sec12"
+      ],
+      "gold_quote": "Any agreement under this Act shall be for the construction of a dry dock in accordance with the plans and specifications referred to in section 8."
+    },
+    {
+      "item_id": "RG-007",
+      "query": "Where does the Motor Vehicle Fuel Consumption Standards Act deal with short title?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c M-9",
+        "citation_key": "rsc1985cm9"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "This Act may be cited as the Motor Vehicle Fuel Consumption Standards Act."
+    },
+    {
+      "item_id": "RG-008",
+      "query": "Motor Vehicle Fuel Consumption Standards Act: which provision addresses notice of assessment?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c M-9",
+        "citation_key": "rsc1985cm9"
+      },
+      "gold_locators": [
+        "sec13"
+      ],
+      "gold_quote": "Where the Minister issues an assessment against a company under section 11, he shall forthwith serve a notice of the assessment on the company and cause notice of the assessment to be published in the Canada Gazette."
+    },
+    {
+      "item_id": "RG-009",
+      "query": "What does the Motor Vehicle Fuel Consumption Standards Act say about inspectors?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c M-9",
+        "citation_key": "rsc1985cm9"
+      },
+      "gold_locators": [
+        "sec23"
+      ],
+      "gold_quote": "The Minister may designate as an inspector for the purposes of this Act any person who, in his opinion, is qualified to be so designated."
+    },
+    {
+      "item_id": "RG-010",
+      "query": "Under the Department of Transport Act, what are the rules on short title?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c T-18",
+        "citation_key": "rsc1985ct18"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "This Act may be cited as the Department of Transport Act."
+    },
+    {
+      "item_id": "RG-011",
+      "query": "Where does the Department of Transport Act deal with duties of secretary?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c T-18",
+        "citation_key": "rsc1985ct18"
+      },
+      "gold_locators": [
+        "sec6"
+      ],
+      "gold_quote": "The Secretary shall, unless otherwise directed in any case by the Minister,"
+    },
+    {
+      "item_id": "RG-012",
+      "query": "Department of Transport Act: which provision addresses signatures binding on her majesty?",
+      "corpus_ref": {
+        "jurisdiction": "CA",
+        "dataset": "LEGISLATION-FED",
+        "citation": "RSC 1985, c T-18",
+        "citation_key": "rsc1985ct18"
+      },
+      "gold_locators": [
+        "sec12"
+      ],
+      "gold_quote": "No deed, contract, document or writing relating to any matter under the control or direction of the Minister shall be binding on Her Majesty unless"
+    },
+    {
+      "item_id": "RG-013",
+      "query": "What does the Agricultural Research and Innovation Ontario Act say about definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c A13",
+        "citation_key": "rso1990ca13"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n“agricultural lands” means those lands described in the regulations made under this Act"
+    },
+    {
+      "item_id": "RG-014",
+      "query": "Under the Agricultural Research and Innovation Ontario Act, what are the rules on fiscal year?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c A13",
+        "citation_key": "rso1990ca13"
+      },
+      "gold_locators": [
+        "sec3.3"
+      ],
+      "gold_quote": "The Corporation’s fiscal year begins on April 1 in each year and ends on March 31 in the following year."
+    },
+    {
+      "item_id": "RG-015",
+      "query": "Where does the Agricultural Research and Innovation Ontario Act deal with audits?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c A13",
+        "citation_key": "rso1990ca13"
+      },
+      "gold_locators": [
+        "sec6"
+      ],
+      "gold_quote": "The Managing Director shall appoint one or more licensed public accountants to audit the Corporation’s accounts and financial transactions annually."
+    },
+    {
+      "item_id": "RG-016",
+      "query": "Health Facilities Special Orders Act: which provision addresses definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c H5",
+        "citation_key": "rso1990ch5"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n“ambulance service” has the same meaning as in the Ambulance Act"
+    },
+    {
+      "item_id": "RG-017",
+      "query": "What does the Health Facilities Special Orders Act say about parties?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c H5",
+        "citation_key": "rso1990ch5"
+      },
+      "gold_locators": [
+        "sec11"
+      ],
+      "gold_quote": "The Minister, the licensee who has required the hearing and such other persons as the Board may specify are parties to proceedings before the Board under this Act. \u0003 \u0003\n(2), (3) Repealed: 2007, c. 8, s. 208 (4)."
+    },
+    {
+      "item_id": "RG-018",
+      "query": "Under the Health Facilities Special Orders Act, what are the rules on offence, individual?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c H5",
+        "citation_key": "rso1990ch5"
+      },
+      "gold_locators": [
+        "sec16"
+      ],
+      "gold_quote": "Every individual who knowingly fails to comply with an order under this Act is guilty of an offence and on conviction is liable,\n(a) for a first offence, to a fine of not more than $25,000 or to a term of imprisonment of not more than 12 months, or to both"
+    },
+    {
+      "item_id": "RG-019",
+      "query": "Where does the Motor Vehicle Accident Claims Act deal with definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c M41",
+        "citation_key": "rso1990cm41"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n“Chief Executive Officer” means the Chief Executive Officer appointed under subsection 10 (2) of the Financial Services Regulatory Authority of Ontario Act, 2016"
+    },
+    {
+      "item_id": "RG-020",
+      "query": "Motor Vehicle Accident Claims Act: which provision addresses restoration of licence on instalment payments?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c M41",
+        "citation_key": "rso1990cm41"
+      },
+      "gold_locators": [
+        "sec11"
+      ],
+      "gold_quote": "The Lieutenant Governor in Council may make regulations providing for the restoration of the drivers’ licences and owners’ permits of persons indebted to the Fund who are making repayment to the Fund in instalments."
+    },
+    {
+      "item_id": "RG-021",
+      "query": "What does the Motor Vehicle Accident Claims Act say about application?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c M41",
+        "citation_key": "rso1990cm41"
+      },
+      "gold_locators": [
+        "sec24"
+      ],
+      "gold_quote": "This section applies only to payments out of the Fund made by reason of an insurer being named a designated insurer."
+    },
+    {
+      "item_id": "RG-022",
+      "query": "Under the Public Guardian and Trustee Act, what are the rules on powers and duties of deputy?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c P51",
+        "citation_key": "rso1990cp51"
+      },
+      "gold_locators": [
+        "sec2"
+      ],
+      "gold_quote": "A deputy of the Public Guardian and Trustee has the powers and duties that the Public Guardian and Trustee delegates to him or her."
+    },
+    {
+      "item_id": "RG-023",
+      "query": "Where does the Public Guardian and Trustee Act deal with lien re fees and expenses, advances, etc.?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c P51",
+        "citation_key": "rso1990cp51"
+      },
+      "gold_locators": [
+        "sec8.1"
+      ],
+      "gold_quote": "The Public Guardian and Trustee has a lien on the real and personal property of a person, estate or trust for whom he or she acts or has acted, for the following amounts:\n1."
+    },
+    {
+      "item_id": "RG-024",
+      "query": "Public Guardian and Trustee Act: which provision addresses charitable and public trusts?",
+      "corpus_ref": {
+        "jurisdiction": "CA-ON",
+        "dataset": "LEGISLATION-ON",
+        "citation": "RSO 1990, c P51",
+        "citation_key": "rso1990cp51"
+      },
+      "gold_locators": [
+        "sec12"
+      ],
+      "gold_quote": "The Public Guardian and Trustee may accept and administer any charitable or public trust. \u0003 \u0003"
+    },
+    {
+      "item_id": "RG-025",
+      "query": "What does the Employee Investment Act say about permanent establishment?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 112",
+        "citation_key": "rsbc1996c112"
+      },
+      "gold_locators": [
+        "sec11"
+      ],
+      "gold_quote": "In this section, *permanent establishment* has the same meaning as in the Income Tax Act."
+    },
+    {
+      "item_id": "RG-026",
+      "query": "Under the Employee Investment Act, what are the rules on the register?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 112",
+        "citation_key": "rsbc1996c112"
+      },
+      "gold_locators": [
+        "sec29"
+      ],
+      "gold_quote": "The administrator must maintain a register containing the information required by subsection (3)."
+    },
+    {
+      "item_id": "RG-027",
+      "query": "Where does the Employee Investment Act deal with report to administrator?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 112",
+        "citation_key": "rsbc1996c112"
+      },
+      "gold_locators": [
+        "sec39"
+      ],
+      "gold_quote": "Every person appointed under section 37 must provide the administrator with a complete report of the investigation made including any transcript of evidence and material in the person's possession relating to the investigation."
+    },
+    {
+      "item_id": "RG-028",
+      "query": "Indian Self Government Enabling Act: which provision addresses timing?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 219",
+        "citation_key": "rsbc1996c219"
+      },
+      "gold_locators": [
+        "sec23"
+      ],
+      "gold_quote": "A regulation under section 20 or 21 (1),\n(a) if made before March 1 of a calendar year, may be made to apply starting with that calendar year or with the next calendar year, or\n(b) if made on or after March 1 of a calendar year, may be made to apply starting with the next calendar year."
+    },
+    {
+      "item_id": "RG-029",
+      "query": "What does the Indian Self Government Enabling Act say about advisory councils?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 219",
+        "citation_key": "rsbc1996c219"
+      },
+      "gold_locators": [
+        "sec25"
+      ],
+      "gold_quote": "After or in anticipation of a proclamation under section 17, the Lieutenant Governor in Council by regulation may establish an advisory council to represent all the residents of an area over which an Indian district has jurisdiction."
+    },
+    {
+      "item_id": "RG-030",
+      "query": "Under the Indian Self Government Enabling Act, what are the rules on approving officers?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 219",
+        "citation_key": "rsbc1996c219"
+      },
+      "gold_locators": [
+        "sec30"
+      ],
+      "gold_quote": "A person appointed as an approving officer by an Indian district, with respect to the area over which the Indian district has jurisdiction, may exercise the jurisdiction conferred on an approving officer by the Land Title Act, by a regulation under that Act or by any other enactment."
+    },
+    {
+      "item_id": "RG-031",
+      "query": "Where does the Members' Conflict of Interest Act deal with conflict of interest prohibition?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 287",
+        "citation_key": "rsbc1996c287"
+      },
+      "gold_locators": [
+        "sec3"
+      ],
+      "gold_quote": "A member must not exercise an official power or perform an official duty or function if the member has a conflict of interest or an apparent conflict of interest."
+    },
+    {
+      "item_id": "RG-032",
+      "query": "Members' Conflict of Interest Act: which provision addresses commissioner?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 287",
+        "citation_key": "rsbc1996c287"
+      },
+      "gold_locators": [
+        "sec14"
+      ],
+      "gold_quote": "There must be appointed a commissioner who is an officer of the Legislative Assembly."
+    },
+    {
+      "item_id": "RG-033",
+      "query": "What does the Members' Conflict of Interest Act say about inquiry?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 287",
+        "citation_key": "rsbc1996c287"
+      },
+      "gold_locators": [
+        "sec21"
+      ],
+      "gold_quote": "On receiving a request under section 19, and on giving the member concerned reasonable notice, the commissioner may conduct an inquiry."
+    },
+    {
+      "item_id": "RG-034",
+      "query": "Under the British Columbia Railway Finance Act, what are the rules on definition?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 37",
+        "citation_key": "rsbc1996c37"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act, *company* means the British Columbia Railway Company."
+    },
+    {
+      "item_id": "RG-035",
+      "query": "Where does the British Columbia Railway Finance Act deal with form of securities?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 37",
+        "citation_key": "rsbc1996c37"
+      },
+      "gold_locators": [
+        "sec9"
+      ],
+      "gold_quote": "The notes, bonds, debentures and other securities authorized and issued by the company under this Act must be in a form determined by the company or by the minister as agent for the company."
+    },
+    {
+      "item_id": "RG-036",
+      "query": "British Columbia Railway Finance Act: which provision addresses continuing grant, debt charges?",
+      "corpus_ref": {
+        "jurisdiction": "CA-BC",
+        "dataset": "LEGISLATION-BC",
+        "citation": "RSBC 1996, c 37",
+        "citation_key": "rsbc1996c37"
+      },
+      "gold_locators": [
+        "sec14"
+      ],
+      "gold_quote": "The minister must in each year, on or before the fiscal year end of the company, review the debt and capital expenditures of the company and determine the amount of a grant to be paid in respect of the company's debt charges and capital expenditures."
+    },
+    {
+      "item_id": "RG-037",
+      "query": "What does the Agricultural Societies Act say about definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c A-11",
+        "citation_key": "rsa2000ca11"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n(a) “Director” means the person designated by the Minister as the Director for the purposes of this Act"
+    },
+    {
+      "item_id": "RG-038",
+      "query": "Under the Agricultural Societies Act, what are the rules on limitation of liability of members?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c A-11",
+        "citation_key": "rsa2000ca11"
+      },
+      "gold_locators": [
+        "sec8.1"
+      ],
+      "gold_quote": "A member of a society is not, in the member’s individual capacity, liable for any debt or liability of the society."
+    },
+    {
+      "item_id": "RG-039",
+      "query": "Where does the Agricultural Societies Act deal with real estate?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c A-11",
+        "citation_key": "rsa2000ca11"
+      },
+      "gold_locators": [
+        "sec28"
+      ],
+      "gold_quote": "A society may not hold real estate outside Alberta."
+    },
+    {
+      "item_id": "RG-040",
+      "query": "Court of Appeal Act: which provision addresses definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c C-30",
+        "citation_key": "rsa2000cc30"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n(a) “Court” means the Court of Appeal of Alberta"
+    },
+    {
+      "item_id": "RG-041",
+      "query": "What does the Court of Appeal Act say about oath of office?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c C-30",
+        "citation_key": "rsa2000cc30"
+      },
+      "gold_locators": [
+        "sec5"
+      ],
+      "gold_quote": "Each judge, before entering on the duties of that office, shall take the oath prescribed by the Oaths of Office Act before the Lieutenant Governor, the Chief Justice of Alberta or the Chief Justice of the Court of King’s Bench."
+    },
+    {
+      "item_id": "RG-042",
+      "query": "Under the Court of Appeal Act, what are the rules on personnel?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c C-30",
+        "citation_key": "rsa2000cc30"
+      },
+      "gold_locators": [
+        "sec13"
+      ],
+      "gold_quote": "In accordance with the Public Service Act , there may be appointed Registrars, Deputy Registrars and case management officers of the Court and all other officers and employees that the business of the Court requires."
+    },
+    {
+      "item_id": "RG-043",
+      "query": "Where does the Freehold Mineral Rights Tax Act deal with liability for tax?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c F-26",
+        "citation_key": "rsa2000cf26"
+      },
+      "gold_locators": [
+        "sec2"
+      ],
+      "gold_quote": "A tax in respect of each taxable mineral right, calculated by the Minister in accordance with the regulations, shall be paid to the Crown in right of Alberta in respect of each taxation year."
+    },
+    {
+      "item_id": "RG-044",
+      "query": "Freehold Mineral Rights Tax Act: which provision addresses powers of court?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c F-26",
+        "citation_key": "rsa2000cf26"
+      },
+      "gold_locators": [
+        "sec5.1"
+      ],
+      "gold_quote": "On the filing of the material referred to in section 5(1) to (5), the matter is deemed to be an action in the Court."
+    },
+    {
+      "item_id": "RG-045",
+      "query": "What does the Freehold Mineral Rights Tax Act say about certificate of amount or penalty not paid?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c F-26",
+        "citation_key": "rsa2000cf26"
+      },
+      "gold_locators": [
+        "sec12.1"
+      ],
+      "gold_quote": "Where all or part of an amount that is payable in respect of a penalty assessed under section 8.1 has not been paid, the Minister may issue a certificate stating the amount that has not been paid."
+    },
+    {
+      "item_id": "RG-046",
+      "query": "Under the Justice of the Peace Act, what are the rules on definitions?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c J-4",
+        "citation_key": "rsa2000cj4"
+      },
+      "gold_locators": [
+        "sec1"
+      ],
+      "gold_quote": "In this Act,\n(a) “Chief Justice” means the Chief Justice of the Alberta Court of Justice"
+    },
+    {
+      "item_id": "RG-047",
+      "query": "Where does the Justice of the Peace Act deal with appointment of non-presiding justices of the peace?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c J-4",
+        "citation_key": "rsa2000cj4"
+      },
+      "gold_locators": [
+        "sec5"
+      ],
+      "gold_quote": "The Minister may appoint a person as a justice of the peace designated as a non-presiding justice of the peace."
+    },
+    {
+      "item_id": "RG-048",
+      "query": "Justice of the Peace Act: which provision addresses restriction on other employment?",
+      "corpus_ref": {
+        "jurisdiction": "CA-AB",
+        "dataset": "LEGISLATION-AB",
+        "citation": "RSA 2000, c J-4",
+        "citation_key": "rsa2000cj4"
+      },
+      "gold_locators": [
+        "sec10.1"
+      ],
+      "gold_quote": "Unless otherwise authorized by the Lieutenant Governor in Council,\n(a) a justice of the peace who is designated as a full-time justice of the peace shall not practise law"
+    }
+  ]
+}
