@@ -75,6 +75,94 @@ describe("auditSlaDraft", () => {
   });
 });
 
+const ledgerOf = (...documents: { name: string; text: string }[]): SlaLedger => ({
+  documents,
+  promptSection: "",
+  baseline: new Map(),
+});
+
+/** No anchors, no definitions, one modal register: every organ silent. */
+const CLEAN =
+  "The Supplier must provide the services with reasonable skill and care.";
+
+describe("auditSlaDraft composed organs", () => {
+  it("flags arithmetic in the draft that does not close", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "lease.docx",
+        text: "Tenant leases 30,000 SF of the 120,000 SF premises (25% of the premises).",
+      }),
+      "Tenant leases 30,000 SF of the 120,000 SF premises (30% of the premises).",
+    );
+    expect(audit.receipt.conflict.findings).toBeGreaterThanOrEqual(1);
+    expect(audit.repairPrompt).toContain("Arithmetic in your deliverable");
+    expect(audit.receipt.conflict.finding_details[0]).toMatch(/^draft: /u);
+  });
+
+  it("separates a source-vs-source disagreement from the drafter's own", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "note.docx",
+        text: "Borrower prepaid $300,000 of the $1,000,000 principal, a 25% reduction.",
+      }),
+      "The prepayment is described in the loan file.",
+    );
+    expect(audit.repairPrompt).toContain("source documents disagree on");
+    expect(audit.repairPrompt).not.toContain("Arithmetic in your deliverable");
+    expect(audit.receipt.conflict.finding_details[0]).toMatch(/^sources: /u);
+  });
+
+  it("flags a defined term the draft redefines", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({
+        name: "credit.docx",
+        text: '"Business Day" means a day on which banks are open in Toronto.',
+      }),
+      '"Business Day" means a day on which banks are open in Calgary.',
+    );
+    expect(audit.receipt.term_drift.divergent).toBe(1);
+    expect(audit.receipt.term_drift.terms).toEqual(["Business Day"]);
+    expect(audit.repairPrompt).toContain("Defined terms whose definitions differ");
+    expect(audit.repairPrompt).toContain("Calgary");
+  });
+
+  it("counts lint warnings without spending a revision pass on them", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({ name: "msa.docx", text: CLEAN }),
+      `${CLEAN} The Supplier and/or the Customer must give notice of termination.`,
+    );
+    expect(audit.receipt.drafting_lint.errors).toBe(0);
+    expect(audit.receipt.drafting_lint.warnings).toBe(1);
+    expect(audit.repairPrompt).toBeNull();
+  });
+
+  it("spends the revision pass on a lint error", () => {
+    const audit = auditSlaDraft(
+      ledgerOf({ name: "msa.docx", text: CLEAN }),
+      `${CLEAN} The Supplier must shall give notice of termination.`,
+    );
+    expect(audit.receipt.drafting_lint.errors).toBe(1);
+    expect(audit.repairPrompt).toContain("Drafting lint");
+    expect(audit.repairPrompt).toContain("stacked-modals");
+  });
+
+  it("reports the new receipt fields zeroed on a clean draft", () => {
+    const audit = auditSlaDraft(ledgerOf({ name: "msa.docx", text: CLEAN }), CLEAN);
+    expect(audit.repairPrompt).toBeNull();
+    expect(audit.receipt.conflict).toEqual({
+      findings: 0,
+      consistent: 0,
+      finding_details: [],
+    });
+    expect(audit.receipt.term_drift).toEqual({ divergent: 0, terms: [] });
+    expect(audit.receipt.drafting_lint).toEqual({
+      errors: 0,
+      warnings: 0,
+      info: 0,
+    });
+  });
+});
+
 describe("collectSlaDeliverable", () => {
   let home: string | null = null;
   const userId = "00000000-0000-0000-0000-000000000001";
