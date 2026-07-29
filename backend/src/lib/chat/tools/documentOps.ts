@@ -25,6 +25,7 @@ import {
 import { extractPresentationText } from "../../officeText";
 import { spreadsheetToLLMText } from "../../spreadsheet";
 import { extractDocxDraftingSource } from "../../docxDraftingSource";
+import { extractEmailText } from "../../emailText";
 import { cachedParse } from "../../parseCache";
 import {
   normalizeDocxControlTag,
@@ -111,6 +112,14 @@ export function textParserFor(fileType: string): {
       // Same flattening as the edit_document matcher so the LLM sees exactly
       // the characters it can anchor against; mammoth as fallback.
       run: async (b) => (await extractDocxBodyText(b)) || mammothRawText(b),
+    };
+  if (fileType === "eml")
+    return {
+      parser: "eml-text",
+      version: 1,
+      // Headers + decoded MIME body. Transfer decoding is the whole point:
+      // undecoded quoted-printable splits numbers mid-digit.
+      run: async (b) => extractEmailText(b),
     };
   if (isSpreadsheetDocumentType(fileType))
     return {

@@ -12,10 +12,11 @@ export const ALLOWED_DOCUMENT_TYPES = new Set([
   "png",
   "gif",
   "webp",
+  "eml",
 ]);
 
 export const ALLOWED_DOCUMENT_TYPES_LABEL =
-  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp";
+  "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp, eml";
 
 const WORD_TYPES = new Set(["docx", "doc"]);
 const SPREADSHEET_TYPES = new Set(["xlsx", "xlsm", "xls"]);
@@ -68,6 +69,8 @@ export function contentTypeForDocumentType(fileType: string | null | undefined) 
       return "image/gif";
     case "webp":
       return "image/webp";
+    case "eml":
+      return "message/rfc822";
     default:
       return "application/octet-stream";
   }
