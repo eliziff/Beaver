@@ -28,7 +28,7 @@ export type ChatTranscript = { chat: Chat & { transcript_version?: number }; mes
 export type Project = { id: string; name: string; practice?: string | null; cm_number?: string | null };
 export type TabularReview = { id: string; title?: string | null; project_id?: string | null; columns_config?: { index: number; name: string; prompt: string }[] | null; document_count?: number; updated_at?: string; created_at?: string };
 export type TabularReviewDetail = { review: TabularReview; cells: unknown[]; documents: { id: string; filename?: string | null }[] };
-export type LibraryDocument = { id: string; filename?: string | null; file_type?: string | null; updated_at?: string | null };
+export type LibraryDocument = { id: string; filename?: string | null; file_type?: string | null; current_version_id?: string | null; updated_at?: string | null };
 export type LibraryCollection = { documents: LibraryDocument[]; folders: { id: string; name: string }[] };
 export type StreamEvent = { type?: string; text?: string; message?: string; chatId?: string; transcriptVersion?: number };
 export type AuthoritiesStatus = { available: boolean; running: boolean; url: string };
@@ -43,6 +43,7 @@ export const api = {
   authoritiesStatus: () => request<AuthoritiesStatus>("/table-of-authorities/status"),
   launchAuthorities: () => request<{ ok: boolean; url: string }>("/table-of-authorities/launch", { method: "POST" }),
   library: (kind: string) => request<LibraryCollection>(`/library/${kind}`),
+  documentHref: (id: string, versionId?: string | null) => `${base()}/single-documents/${encodeURIComponent(id)}/file${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
   upload: (kind: string, file: File) => {
     const body = new FormData();
     body.append("file", file);
