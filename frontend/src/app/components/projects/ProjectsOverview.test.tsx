@@ -116,19 +116,14 @@ describe("ProjectsOverview", () => {
         expect(screen.queryByText(/Upload documents into projects/u)).not.toBeInTheDocument();
     });
 
-    it("keeps table controls mounted while rows load", () => {
+    it("keeps the table shell stable while rows load", () => {
         listProjects.mockReturnValue(new Promise(() => {}));
         render(<ProjectsOverview />);
 
-        expect(
-            screen.getByRole("combobox", { name: "Sort by project name" }),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByRole("button", { name: "Filter by owner" }),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByRole("combobox", { name: "Sort by created date" }),
-        ).toBeInTheDocument();
+        expect(screen.getByRole("searchbox", { name: "Search projects" }))
+            .toBeDisabled();
+        expect(screen.queryByRole("combobox", { name: /sort|filter/i }))
+            .not.toBeInTheDocument();
     });
 
     it("keeps the action slot mounted and deletes through the native picker", async () => {
