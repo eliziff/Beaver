@@ -394,7 +394,12 @@ export async function runToolCalls(
     if (tc.function.name === "read_document") {
       const rawDocId = args.doc_id as string;
       const docId = resolveDocLabel(rawDocId, docStore, docIndex) ?? rawDocId;
-      const readMode = args.mode === "drafting" ? "drafting" : "text";
+      const readMode =
+        args.mode === "drafting"
+          ? "drafting"
+          : args.mode === "redline"
+            ? "redline"
+            : "text";
       const readIdentity = await getTurnReadIdentity({
         docLabel: docId,
         docStore,
@@ -421,7 +426,8 @@ export async function runToolCalls(
       const filename = docStore.get(docId)?.filename;
       const documentId = docIndex?.[docId]?.document_id;
       let readSucceeded = true;
-      if (readMode === "drafting") {
+      if (readMode !== "text") {
+        // drafting and redline results are JSON envelopes with an ok flag.
         try {
           readSucceeded = JSON.parse(content)?.ok === true;
         } catch {

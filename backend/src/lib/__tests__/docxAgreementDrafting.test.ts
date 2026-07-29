@@ -157,8 +157,8 @@ describe("agreement DOCX drafting", () => {
     );
     const prompt = buildSystemPrompt(false);
 
-    expect(readerMode.enum).toEqual(["text", "drafting"]);
-    expect(localMode.enum).toEqual(["text", "drafting"]);
+    expect(readerMode.enum).toEqual(["text", "drafting", "redline"]);
+    expect(localMode.enum).toEqual(["text", "drafting", "redline"]);
     expect(toolNames).not.toContain("replicate_document");
     expect(workflow?.skill_md).toContain("mode");
     expect(workflow?.skill_md).not.toContain("file-copy");
