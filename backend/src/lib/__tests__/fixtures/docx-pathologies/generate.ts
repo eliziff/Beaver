@@ -32,6 +32,17 @@ import { loadZip } from "../../../zip";
 
 const REVISION = { author: "Counsel", date: "2026-01-01T00:00:00Z" };
 
+/**
+ * Named rather than pasted: these characters are invisible or wear
+ * another letter's shape, so a literal would not survive review.
+ */
+const RIGHT_TO_LEFT_OVERRIDE = String.fromCodePoint(0x202e);
+const POP_DIRECTIONAL = String.fromCodePoint(0x202c);
+const ZERO_WIDTH_JOINER = String.fromCodePoint(0x200d);
+const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
+const CYRILLIC_IE = String.fromCodePoint(0x0435);
+const PRIVATE_USE = String.fromCodePoint(0xe000);
+
 type Block = Paragraph | Table;
 
 /** Raw OOXML the packager has no builder for — the w:sdt shape. */
@@ -404,6 +415,53 @@ export const pathologyFixtureBuilders: Record<
       }),
     ),
 
+  /**
+   * Text that does not read as it renders: a reordered span, a joiner
+   * inside a defined term, a Cyrillic letter inside a Latin word, and a
+   * private-use character in a header.
+   */
+  "unicode-traps": () =>
+    Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            headers: {
+              default: new Header({
+                children: [
+                  new Paragraph(
+                    `PRIVILEGED${PRIVATE_USE} AND CONFIDENTIAL`,
+                  ),
+                ],
+              }),
+            },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun(
+                    `The amount payable is USD ${RIGHT_TO_LEFT_OVERRIDE}00.1${POP_DIRECTIONAL} per unit.`,
+                  ),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun(
+                    `"Confidential${ZERO_WIDTH_JOINER} Information" means information disclosed in writing.`,
+                  ),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun(
+                    `This Agr${CYRILLIC_IE}ement is governed by Ontario law.`,
+                  ),
+                ],
+              }),
+            ],
+          },
+        ],
+      }),
+    ),
+
   /** Several pathologies at once, plus an embedded object part. */
   "kitchen-sink": async () =>
     withEmbeddedObject(
@@ -462,7 +520,12 @@ export const pathologyFixtureBuilders: Record<
                   ],
                 }),
                 new Textbox({
-                  children: [new TextRun("Internal note: confirm the cap.")],
+                  // A trap in text that body extraction never reaches.
+                  children: [
+                    new TextRun(
+                      `Internal${ZERO_WIDTH_SPACE} note: confirm the cap.`,
+                    ),
+                  ],
                 }),
                 new Table({
                   width: { size: 9000, type: WidthType.DXA },
