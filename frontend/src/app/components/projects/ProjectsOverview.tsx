@@ -20,8 +20,6 @@ import {
     TableBody,
     TableCell,
     TableEmptyState,
-    TableFilters,
-    type TableFilterOption,
     TableHeaderCell,
     TableHeaderRow,
     TablePrimaryCell,
@@ -29,13 +27,12 @@ import {
     TableScrollArea,
     TableSelectionPlaceholder,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    type TableSortDirection,
     TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { NativeActionSelect } from "@/app/components/ui/native-action-select";import { formatDate, sortRows } from "@/app/lib/utils";function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
+import { NativeActionSelect } from "@/app/components/ui/native-action-select";import { formatDate } from "@/app/lib/utils";function getProjectOwnerLabel(project: Project, currentUserId?: string | null) {
     if (project.is_owner ?? project.user_id === currentUserId) return "Me";
     return (
         project.owner_display_name?.trim() ||
@@ -44,17 +41,6 @@ import { NativeActionSelect } from "@/app/components/ui/native-action-select";im
     );
 }
 type ProjectFilter = "all" | "mine" | "shared-with-me";
-type ProjectSortKey =
-    | "name"
-    | "cm"
-    | "files"
-    | "chats"
-    | "reviews"
-    | "created";
-const SORT_OPTIONS: TableFilterOption<TableSortDirection>[] = [
-    { value: "asc", label: "Ascending" },
-    { value: "desc", label: "Descending" },
-];
 const PROJECT_COLUMN = {
     cm: "hidden w-24 sm:flex",
     practice: "hidden w-32 xl:flex",
@@ -72,12 +58,6 @@ export function ProjectsOverview() {
     const [modalOpen, setModalOpen] = useState(false);
     const [detailsProject, setDetailsProject] = useState<Project | null>(null);
     const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
-    const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
-    const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
-    const [sort, setSort] = useState<{
-        key: ProjectSortKey;
-        direction: TableSortDirection;
-    } | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [search, setSearch] = useState("");
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
@@ -119,7 +99,7 @@ export function ProjectsOverview() {
         };
     }, [authLoading, isAuthenticated, user?.id]);
     const q = search.toLowerCase();
-    const practices = Array.from(        new Set(            projects                .map((project) => project.practice?.trim())                .filter((practice): practice is string => !!practice),        ),    ).sort((a, b) => a.localeCompare(b));    const ownerOptions = Array.from(        new Set(projects.map((project) => getProjectOwnerLabel(project, user?.id))),    )        .sort((a, b) => a.localeCompare(b))        .map((owner) => ({ value: owner, label: owner }));    const filtered = useMemo(() => {
+    const filtered = useMemo(() => {
         const rows = (
             activeFilter === "all"
                 ? projects
@@ -138,23 +118,10 @@ export function ProjectsOverview() {
                     (p.cm_number ?? "").toLowerCase().includes(q) ||
                     (p.practice ?? "").toLowerCase().includes(q),
             )
-            .filter(
-                (p) =>
-                    !practiceFilter ||
-                    (p.practice?.trim() ?? "") === practiceFilter,
-            )
-            .filter(
-                (p) =>
-                    !ownerFilter ||
-                    getProjectOwnerLabel(p, user?.id) === ownerFilter,
-            );
-        if (!sort) return rows;
-        return sortRows(rows, (a, b) => {            if (sort.key === "cm") {                return (a.cm_number ?? "").localeCompare(b.cm_number ?? "");            }            if (sort.key === "files") {                return (a.document_count ?? 0) - (b.document_count ?? 0);            }            if (sort.key === "chats") {                return (a.chat_count ?? 0) - (b.chat_count ?? 0);            }            if (sort.key === "reviews") {                return (a.review_count ?? 0) - (b.review_count ?? 0);            }            if (sort.key === "created") {                return (                    new Date(a.created_at).getTime() -                    new Date(b.created_at).getTime()                );            }            return a.name.localeCompare(b.name);        }, sort.direction);    }, [
+        return rows;
+    }, [
         activeFilter,
-        ownerFilter,
-        practiceFilter,
         q,
-        sort,
         user?.id,
         projects,
     ]);
@@ -178,111 +145,11 @@ export function ProjectsOverview() {
     function clearSelection() {
         setSelectedIds([]);
     }
-    function handlePracticeFilterChange(value: string | null) {
-        setPracticeFilter(value);
-        clearSelection();
-    }
-    function handleOwnerFilterChange(value: string | null) {
-        setOwnerFilter(value);
-        clearSelection();
-    }
-    function handleSortChange(
-        key: ProjectSortKey,
-        direction: TableSortDirection | null,
-    ) {
-        setSort(direction ? { key, direction } : null);
-        clearSelection();
-    }
     const filters: { id: ProjectFilter; label: string }[] = [
         { id: "all", label: "All" },
         { id: "mine", label: "Mine" },
         { id: "shared-with-me", label: "Shared with me" },
     ];
-    const nameSortDirection = sort?.key === "name" ? sort.direction : null;
-    const cmSortDirection = sort?.key === "cm" ? sort.direction : null;
-    const filesSortDirection = sort?.key === "files" ? sort.direction : null;
-    const chatsSortDirection = sort?.key === "chats" ? sort.direction : null;
-    const reviewsSortDirection =
-        sort?.key === "reviews" ? sort.direction : null;
-    const createdSortDirection =
-        sort?.key === "created" ? sort.direction : null;
-    const nameFilterButton = (
-        <TableFilters
-            label="Sort by project name"
-            value={nameSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("name", direction)}
-        />
-    );
-    const cmFilterButton = (
-        <TableFilters
-            label="Sort by CM"
-            value={cmSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("cm", direction)}
-        />
-    );
-    const practiceFilterButton = (
-        <TableFilters
-            label="Filter by practice"
-            searchable
-            value={practiceFilter}
-            allLabel="All Practices"
-            options={practices.map((practice) => ({
-                value: practice,
-                label: practice,
-            }))}
-            onChange={handlePracticeFilterChange}
-        />
-    );
-    const ownerFilterButton = (
-        <TableFilters
-            label="Filter by owner"
-            searchable
-            value={ownerFilter}
-            allLabel="All Owners"
-            options={ownerOptions}
-            onChange={handleOwnerFilterChange}
-        />
-    );
-    const filesFilterButton = (
-        <TableFilters
-            label="Sort by files"
-            value={filesSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("files", direction)}
-        />
-    );
-    const chatsFilterButton = (
-        <TableFilters
-            label="Sort by chats"
-            value={chatsSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("chats", direction)}
-        />
-    );
-    const reviewsFilterButton = (
-        <TableFilters
-            label="Sort by tabular reviews"
-            value={reviewsSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("reviews", direction)}
-        />
-    );
-    const createdFilterButton = (
-        <TableFilters
-            label="Sort by created date"
-            value={createdSortDirection}
-            allLabel="Default Order"
-            options={SORT_OPTIONS}
-            onChange={(direction) => handleSortChange("created", direction)}
-        />
-    );
     async function handleProjectDetailsSave(values: {
         name: string;
         cmNumber: string;
@@ -418,48 +285,40 @@ export function ProjectsOverview() {
                                 className="mr-2 h-5 w-5 shrink-0"
                             />
                             <span className="mr-1">Name</span>
-                            {nameFilterButton}
                         </TableStickyCell>
                         <TableHeaderCell className={`ml-auto ${PROJECT_COLUMN.cm}`}>
                             <div className="flex items-center gap-1">
                                 <span>CM</span>
-                                {cmFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.practice}>
                             <div className="flex items-center gap-1">
                                 <span>Practice</span>
-                                {practiceFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.owner}>
                             <div className="flex items-center gap-1">
                                 <span>Owner</span>
-                                {ownerFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.files}>
                             <div className="flex items-center gap-1">
                                 <span>Files</span>
-                                {filesFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.chats}>
                             <div className="flex items-center gap-1">
                                 <span>Chats</span>
-                                {chatsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.reviews}>
                             <div className="flex items-center gap-1">
                                 <span>Reviews</span>
-                                {reviewsFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.created}>
                             <div className="flex items-center gap-1">
                                 <span>Created</span>
-                                {createdFilterButton}
                             </div>
                         </TableHeaderCell>
                         <TableHeaderCell className={PROJECT_COLUMN.actions} />
