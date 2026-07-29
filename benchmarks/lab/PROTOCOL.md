@@ -18,14 +18,24 @@ the model constant?
      (`claude -p`, subscription flat rate; adapter
      `harness/adapters/claude_code.py`). Transport-only: Anthropic message
      format, tool calls as JSON-in-text (no schema enforcement, retried),
-     no temperature pin, no thinking control.
+     no temperature pin. Adaptive thinking is ACTIVE over this transport
+     (probe-verified: thinking blocks on hard prompts) and effort passes
+     through as `--effort`; experiment runs pin effort HIGH to match
+     Harvey's published `claude-sonnet-4-6-high` config label. Known cap:
+     the CLI limits output to 32,000 tokens per call — a whole-deliverable
+     turn approaches it. Calls stream (`--include-partial-messages`) with
+     a 240s inactivity watchdog instead of a total-time cap.
   2. `ollama/<qwen slug>` — the desktop PC's local Qwen over ollama
      (`harness/adapters/ollama.py`, native /api/chat tool calling,
      OLLAMA_BASE_URL / OLLAMA_NUM_CTX). The small-model pairing is the
      lean-context thesis test.
   The 2026-07-28 pilots ran both arms on `codex/gpt-5.6-sol` because it was
-  the only wired flat-rate route at the time. Those rows are pilot history,
-  not experiment rows — no codex in any experiment cell.
+  the only wired flat-rate route at the time; those rows are pilot history.
+  The INITIAL experiment pairing is sonnet-4-6 deliberately: it is the model
+  Harvey's own rig uses, so our Arm A rows can be sanity-checked against
+  Harvey's published reference-harness numbers (modulo the transport
+  deviations below) before reading the Beaver delta. Other models —
+  including codex/gpt-5.6-sol — can join later as additional pairings.
 - Sandbox: LAB's container sandbox via Docker (`LAB_SANDBOX_ENGINE=docker`;
   podman not installed on this machine). Same image (`ghcr.io/harveyai/lab-sandbox`),
   same isolation flags.
@@ -67,11 +77,11 @@ output, no temperature pin.
 Bulk/iteration judge (pilot era only): `codex/gpt-5.6-sol`. Calibration on
 the smoke runs (112 criterion verdicts, both arms): 110/112 agreement
 (98.2%); both disagreements were borderline implicit-vs-express-statement
-calls where codex was the STRICTER judge, on the Beaver arm. Experiment
-rows are judged exclusively by the headline claude-code judge — no codex
-anywhere in the experiment. The sonnet-4-6 agent cells are therefore
-self-graded by model family, which matches Harvey's own rig (their judge
-IS claude-sonnet-4-6).
+calls where codex was the STRICTER judge, on the Beaver arm. Initial experiment
+rows are judged exclusively by the headline claude-code judge; the codex
+bulk judge may return for later pairings (quote its calibration when
+used). The sonnet-4-6 agent cells are therefore self-graded by model
+family, which matches Harvey's own rig (their judge IS claude-sonnet-4-6).
 
 ## Task selection
 
@@ -91,8 +101,11 @@ Scale-up only after pilot results are reviewed.
    rejects it) nor on the claude-code transport; ollama accepts it and
    runs at LAB's 0.0 default. The claude-code transport additionally
    carries tool calls as JSON-in-text (no schema enforcement; parse
-   failures retried) — both arms must use the SAME transport per pairing
-   so the deviation cancels in the comparison.
+   failures retried) and caps output at 32,000 tokens per call — both
+   arms must use the SAME transport per pairing so these deviations
+   cancel in the comparison. Thinking: adaptive thinking is active over
+   claude -p and effort is pinned high (Harvey's own config label);
+   thinking-token accounting rides inside output_tokens.
 3. Docker instead of podman for the sandbox.
 4. LAB's LLM deliverable-filename matcher (Anthropic API, fires only when
    filenames don't match) now falls back to headless Claude Code with the
