@@ -39,6 +39,7 @@ import {
   slaWorkflowEnabled,
   type SlaLedger,
 } from "../lib/chat/slaWorkflow";
+import { libraryInventoryPrompt } from "../lib/chat/libraryInventory";
 import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
@@ -794,7 +795,6 @@ export async function streamAnonymousChat(params: {
   if (
     (params.displayedDocument && !displayedDocumentId) ||
     attachedDocumentIds.some((documentId) => !documentId) ||
-    (requestedFocusIds.length > 0 && !allowedDocumentIds) ||
     (allowedDocumentIds &&
       requestedFocusIds.some(
         (documentId) => !allowedDocumentIds.has(documentId),
@@ -932,6 +932,12 @@ export async function streamAnonymousChat(params: {
     (RESEARCH_TOOLS_DISABLED
       ? ""
       : COURTLISTENER_SYSTEM_PROMPT + "\n\n" + PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
+  // Name the documents the user already has. Telling the model the tools
+  // exist is not the same as telling it the matter exists.
+  systemPrompt += await libraryInventoryPrompt(
+    userId,
+    allowedDocumentIds ?? null,
+  );
   // SLA workflow (Spec→Ledger): outline the in-scope documents into the
   // prompt and keep their texts for the deterministic post-draft audit.
   let slaLedger: SlaLedger | null = null;
