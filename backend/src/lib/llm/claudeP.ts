@@ -157,6 +157,172 @@ function runClaudeP(
   });
 }
 
+/**
+ * Persistent-session variant (opt-in: MIKE_CLAUDE_P_PERSIST=1). One
+ * long-lived `claude -p --input-format stream-json` process serves a
+ * whole agent conversation: the first turn carries the full payload
+ * exactly like the per-call path; each later iteration sends ONLY the
+ * new tool results, because the session already holds the context.
+ * Probed live 2026-07-30 (CLI 2.1.220): one process answers sequential
+ * user events with one `result` envelope each. Wins: no per-iteration
+ * process spawn and no full-context reprocessing. Any session failure
+ * (parse error, death, silence) falls back to a FRESH session with the
+ * full conversation replayed — the maintained `messages` array makes
+ * that always possible, so persistence never changes what the model
+ * sees on the recovery path.
+ */
+const persistEnabled = () => process.env.MIKE_CLAUDE_P_PERSIST === "1";
+
+const PERSIST_PROTOCOL_ADDENDUM =
+  '\n- Follow-up user messages in this session are JSON objects {"tool_results":[{"tool_use_id","content"}, ...]} — the outputs of your last TOOL_CALLS. Continue under the same protocol and reply in the same TOOL_CALLS/FINAL format.';
+
+class ClaudePSession {
+  private child: ReturnType<typeof spawn>;
+  private buffer = "";
+  private stderrText = "";
+  private pending: {
+    resolve: (envelope: Envelope) => void;
+    reject: (error: unknown) => void;
+  } | null = null;
+  private sawActivity = false;
+  private lastActivity = Date.now();
+  private turnStarted = Date.now();
+  private watchdog: NodeJS.Timeout;
+  private readonly onAbort = () => this.fail(abortError());
+  dead = false;
+
+  constructor(
+    model: string,
+    effort: string | undefined,
+    private readonly abortSignal?: AbortSignal,
+  ) {
+    const { file, shell } = resolveCli();
+    const args = [
+      "-p",
+      "--model",
+      model,
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--tools",
+      "",
+      "--strict-mcp-config",
+      "--disable-slash-commands",
+      "--setting-sources",
+      "",
+      "--include-partial-messages",
+      "--system-prompt",
+      shell ? `"${SYSTEM_ARG}"` : SYSTEM_ARG,
+    ];
+    if (effort) args.push("--effort", effort);
+    this.child = spawn(file, args, {
+      shell,
+      env: { ...process.env, ANTHROPIC_API_KEY: "" },
+      windowsHide: true,
+    });
+    this.watchdog = setInterval(() => {
+      if (!this.pending) return;
+      const now = Date.now();
+      const limit = this.sawActivity
+        ? INACTIVITY_LIMIT_MS
+        : FIRST_MODEL_EVENT_GRACE_MS;
+      if (now - this.lastActivity > limit)
+        this.fail(
+          new Error(`claude -p session silent for ${limit / 1000}s — killed`),
+        );
+      else if (now - this.turnStarted > HARD_LIMIT_MS)
+        this.fail(new Error("claude -p session exceeded hard time limit — killed"));
+    }, 5_000);
+    this.abortSignal?.addEventListener("abort", this.onAbort, { once: true });
+    this.child.stdout?.on("data", (chunk: Buffer) => {
+      this.buffer += chunk.toString("utf8");
+      let newline = this.buffer.indexOf("\n");
+      while (newline !== -1) {
+        const line = this.buffer.slice(0, newline).trim();
+        this.buffer = this.buffer.slice(newline + 1);
+        newline = this.buffer.indexOf("\n");
+        if (!line.startsWith("{")) continue;
+        let event: (Envelope & { type?: string }) | null = null;
+        try {
+          event = JSON.parse(line) as Envelope & { type?: string };
+        } catch {
+          continue;
+        }
+        if (
+          event.type === "stream_event" ||
+          event.type === "assistant" ||
+          event.type === "result"
+        ) {
+          this.sawActivity = true;
+          this.lastActivity = Date.now();
+        }
+        if (event.type === "result" && this.pending) {
+          const { resolve } = this.pending;
+          this.pending = null;
+          resolve(event);
+        }
+      }
+    });
+    this.child.stderr?.on(
+      "data",
+      (chunk: Buffer) => (this.stderrText += chunk.toString("utf8")),
+    );
+    this.child.on("error", (error) => this.fail(error));
+    this.child.on("close", (code) =>
+      this.fail(
+        new Error(
+          `claude -p session closed (exit ${code}): ${this.stderrText.slice(0, 300)}`,
+        ),
+      ),
+    );
+  }
+
+  private fail(error: unknown) {
+    this.dead = true;
+    clearInterval(this.watchdog);
+    this.abortSignal?.removeEventListener("abort", this.onAbort);
+    this.child.kill();
+    if (this.pending) {
+      const { reject } = this.pending;
+      this.pending = null;
+      reject(error);
+    }
+  }
+
+  /** Send one user event; resolves at this turn's `result` envelope. */
+  turn(text: string): Promise<Envelope> {
+    if (this.dead) return Promise.reject(new Error("claude -p session is dead"));
+    if (this.pending)
+      return Promise.reject(new Error("claude -p session turn already pending"));
+    this.sawActivity = false;
+    this.lastActivity = Date.now();
+    this.turnStarted = Date.now();
+    return new Promise((resolve, reject) => {
+      this.pending = { resolve, reject };
+      this.child.stdin?.write(
+        `${JSON.stringify({
+          type: "user",
+          message: { role: "user", content: [{ type: "text", text }] },
+        })}\n`,
+        "utf8",
+        (error) => {
+          if (error) this.fail(error);
+        },
+      );
+    });
+  }
+
+  dispose() {
+    this.dead = true;
+    clearInterval(this.watchdog);
+    this.abortSignal?.removeEventListener("abort", this.onAbort);
+    this.child.stdin?.end();
+    this.child.kill();
+  }
+}
+
 /** Last `type:"result"` event line of a stream-json transcript. */
 function resultEnvelope(stdout: string): Envelope {
   const lines = stdout.split(/\r?\n/u);
@@ -238,88 +404,132 @@ export async function streamClaudeP(
     cacheWriteInputTokens: 0,
   };
 
-  for (let iter = 0; iter < maxIter; iter++) {
-    throwIfAborted(params.abortSignal);
-    const payload = JSON.stringify({
-      transport_protocol: TRANSPORT_PROTOCOL,
-      system: params.systemPrompt,
-      messages,
-      tools: claudeTools,
-    });
-
-    let blocks: AnthropicBlock[] | null = null;
-    let lastError: unknown = null;
-    for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
+  const persist = persistEnabled();
+  let session: ClaudePSession | null = null;
+  // Set when the previous iteration ended in tool calls: the compact
+  // follow-up a live session can consume instead of a full replay.
+  let continuation: string | null = null;
+  try {
+    for (let iter = 0; iter < maxIter; iter++) {
       throwIfAborted(params.abortSignal);
-      if (attempt > 0)
-        await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
-      const run = await runClaudeP(
-        slug,
-        payload,
-        params.reasoningEffort,
-        params.abortSignal,
-      );
-      try {
-        if (run.code !== 0)
-          throw new Error(`claude -p exit ${run.code}: ${run.stderr.slice(0, 300)}`);
-        const envelope = resultEnvelope(run.stdout);
-        if (envelope.is_error)
-          throw new Error(`claude -p error result: ${String(envelope.result).slice(0, 300)}`);
-        const parsed = parseReply(String(envelope.result ?? ""), iter);
-        const e = envelope.usage ?? {};
-        usage.inputTokens =
-          (usage.inputTokens ?? 0) + (e.input_tokens ?? 0);
-        usage.outputTokens = (usage.outputTokens ?? 0) + (e.output_tokens ?? 0);
-        usage.cacheReadInputTokens =
-          (usage.cacheReadInputTokens ?? 0) + (e.cache_read_input_tokens ?? 0);
-        usage.cacheWriteInputTokens =
-          (usage.cacheWriteInputTokens ?? 0) + (e.cache_creation_input_tokens ?? 0);
-        blocks = parsed;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    if (!blocks)
-      throw new Error(`claude-p transport: unparseable reply after retries: ${lastError}`);
+      const payload = JSON.stringify({
+        transport_protocol: persist
+          ? TRANSPORT_PROTOCOL + PERSIST_PROTOCOL_ADDENDUM
+          : TRANSPORT_PROTOCOL,
+        system: params.systemPrompt,
+        messages,
+        tools: claudeTools,
+      });
 
-    const toolCalls: NormalizedToolCall[] = [];
-    for (const block of blocks) {
-      if (block.type === "text") {
-        fullText += block.text;
-        callbacks.onContentDelta?.(block.text);
-      } else if (block.type === "tool_use") {
-        const call: NormalizedToolCall = {
-          id: block.id,
-          name: block.name,
-          input: block.input,
+      let blocks: AnthropicBlock[] | null = null;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3 && !blocks; attempt++) {
+        throwIfAborted(params.abortSignal);
+        if (attempt > 0)
+          await new Promise((resolve) => setTimeout(resolve, 15_000 * attempt));
+        try {
+          let envelope: Envelope;
+          if (persist) {
+            // A live session takes the compact follow-up; any dead or
+            // absent session (including every retry) gets a fresh
+            // process and the FULL replay, so recovery is stateless.
+            const liveContinuation =
+              session && !session.dead && continuation && attempt === 0;
+            if (!liveContinuation) {
+              session?.dispose();
+              session = new ClaudePSession(
+                slug,
+                params.reasoningEffort,
+                params.abortSignal,
+              );
+            }
+            envelope = await session!.turn(
+              liveContinuation ? continuation! : payload,
+            );
+          } else {
+            const run = await runClaudeP(
+              slug,
+              payload,
+              params.reasoningEffort,
+              params.abortSignal,
+            );
+            if (run.code !== 0)
+              throw new Error(
+                `claude -p exit ${run.code}: ${run.stderr.slice(0, 300)}`,
+              );
+            envelope = resultEnvelope(run.stdout);
+          }
+          if (envelope.is_error)
+            throw new Error(
+              `claude -p error result: ${String(envelope.result).slice(0, 300)}`,
+            );
+          const parsed = parseReply(String(envelope.result ?? ""), iter);
+          const e = envelope.usage ?? {};
+          usage.inputTokens =
+            (usage.inputTokens ?? 0) + (e.input_tokens ?? 0);
+          usage.outputTokens = (usage.outputTokens ?? 0) + (e.output_tokens ?? 0);
+          usage.cacheReadInputTokens =
+            (usage.cacheReadInputTokens ?? 0) + (e.cache_read_input_tokens ?? 0);
+          usage.cacheWriteInputTokens =
+            (usage.cacheWriteInputTokens ?? 0) +
+            (e.cache_creation_input_tokens ?? 0);
+          blocks = parsed;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!blocks)
+        throw new Error(
+          `claude-p transport: unparseable reply after retries: ${lastError}`,
+        );
+
+      const toolCalls: NormalizedToolCall[] = [];
+      for (const block of blocks) {
+        if (block.type === "text") {
+          fullText += block.text;
+          callbacks.onContentDelta?.(block.text);
+        } else if (block.type === "tool_use") {
+          const call: NormalizedToolCall = {
+            id: block.id,
+            name: block.name,
+            input: block.input,
+          };
+          callbacks.onToolCallStart?.(call);
+          toolCalls.push(call);
+        }
+      }
+      callbacks.onContentBlockEnd?.();
+
+      if (!toolCalls.length || !runTools) break;
+      const results = await runTools(toolCalls);
+      throwIfAborted(params.abortSignal);
+      if (results.some((result) => result.terminal)) break;
+      // Halfway budget meter — same contract as the Responses adapter.
+      if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
+        const last = results[results.length - 1];
+        results[results.length - 1] = {
+          ...last,
+          content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
         };
-        callbacks.onToolCallStart?.(call);
-        toolCalls.push(call);
       }
+      messages.push({ role: "assistant", content: blocks });
+      messages.push({
+        role: "user",
+        content: results.map((result) => ({
+          type: "tool_result" as const,
+          tool_use_id: result.tool_use_id,
+          content: result.content,
+        })),
+      });
+      continuation = JSON.stringify({
+        tool_results: results.map((result) => ({
+          tool_use_id: result.tool_use_id,
+          content: result.content,
+        })),
+      });
     }
-    callbacks.onContentBlockEnd?.();
-
-    if (!toolCalls.length || !runTools) break;
-    const results = await runTools(toolCalls);
-    throwIfAborted(params.abortSignal);
-    if (results.some((result) => result.terminal)) break;
-    // Halfway budget meter — same contract as the Responses adapter.
-    if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
-      const last = results[results.length - 1];
-      results[results.length - 1] = {
-        ...last,
-        content: `${last.content}\n\n[Tool budget: ${iter + 1} of ${maxIter} rounds used. Plan the remaining rounds to end with the final answer.]`,
-      };
-    }
-    messages.push({ role: "assistant", content: blocks });
-    messages.push({
-      role: "user",
-      content: results.map((result) => ({
-        type: "tool_result" as const,
-        tool_use_id: result.tool_use_id,
-        content: result.content,
-      })),
-    });
+  } finally {
+    session?.dispose();
   }
 
   return { fullText, usage };
