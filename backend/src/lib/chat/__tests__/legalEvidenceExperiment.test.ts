@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { A2AJLocatorLookup } from "../../a2aj";
+import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import {
   createA2AJLookupEvidence,
   createBenchmarkEvidence,
   createLegalEvidenceTurnState,
   deterministicClaimSupport,
+  finalizeLegalEvidenceExperiment,
   legalEvidenceExperimentTools,
   legalEvidenceReceiptEvent,
   planLegalEvidence,
@@ -55,7 +56,7 @@ describe("provisional legal evidence contract", () => {
         {
           claims: [
             {
-              text: "The governing test has three elements: 2024 SCC 6 at para. 12.",
+              text: "The governing test has three elements.",
               evidence_ids: [evidence.evidence_id],
             },
           ],
@@ -81,10 +82,10 @@ describe("provisional legal evidence contract", () => {
       ),
     ).toEqual({ ok: true, terminal: true });
     expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The governing test has three elements: [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).",
+      "The governing test has three elements [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
-      schema_version: 4,
+      schema_version: 5,
       mode: "compose_check",
       status: "passed",
       verification: {
@@ -149,6 +150,113 @@ describe("provisional legal evidence contract", () => {
     ).toEqual({
       ok: false,
       errors: ["claims[0] uses evidence outside the accepted plan"],
+    });
+  });
+
+  it("places a verified paragraph-range citation without parsing claim prose", async () => {
+    const text = [
+      "[8] The earlier paragraph supplies unrelated procedural background.",
+      "[9] This paragraph supplies additional history before the disputed issue.",
+      "[10] The range begins with a distinctive finding about the payor's disclosure default.",
+      "[11] The court explains why the resulting financial disarray cannot establish hardship.",
+      "[12] The range ends by explaining why the cost cannot be shifted to the child.",
+      "[13] The next paragraph addresses costs on the appeal.",
+    ].join("\n");
+    const rangeLookup: A2AJLocatorLookup = {
+      ...lookup,
+      citation: "2010 BCCA 170",
+      name: "Tschudi v. Tschudi",
+      dataset: "BCCA",
+      url: "https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html",
+      requested: {
+        kind: "paragraph",
+        locator: "10-12",
+        label: "par10-par12",
+      },
+      matches: ["par10", "par11", "par12"],
+      block: {
+        kind: "paragraph",
+        label: "par10-par12",
+        start: text.indexOf("[10]"),
+        end: text.indexOf("\n[13]"),
+        origin: "native",
+        text: text.slice(text.indexOf("[10]"), text.indexOf("\n[13]")),
+      },
+    };
+    const document: A2AJDocument = {
+      dataset: rangeLookup.dataset,
+      citation: rangeLookup.citation,
+      alternateCitation: null,
+      name: rangeLookup.name,
+      date: "2010-04-13",
+      url: rangeLookup.url,
+      text,
+      language: "en",
+      upstreamLicense: null,
+      structure: {
+        status: "unavailable",
+        source: "flat_text",
+        counts: { paragraph: 0, page: 0, section: 0 },
+      },
+    };
+    const state = createLegalEvidenceTurnState(null);
+    const evidence = createA2AJLookupEvidence(rangeLookup)!;
+    registerLegalEvidence(state, evidence, { lookup: rangeLookup, document });
+
+    expect(state.mode).toBe("citation_structure");
+    for (const text of [
+      "The court rejected the hardship argument: paras. 10-12.",
+      "2010 BCCA 170 rejected the hardship argument.",
+    ]) {
+      expect(
+        submitLegalEvidenceAnswer(
+          {
+            claims: [{ text, evidence_ids: [evidence.evidence_id] }],
+          },
+          state,
+        ),
+      ).toEqual({
+        ok: false,
+        errors: [
+          "claims[0].text must omit citation text; Beaver places it from evidence_ids",
+        ],
+      });
+    }
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "The court rejected the payor's hardship argument.",
+              evidence_ids: [evidence.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    await expect(
+      finalizeLegalEvidenceExperiment({
+        state,
+        model: "unused",
+        draft: "",
+      }),
+    ).resolves.toMatchObject({ passed: true, modelCalls: 0 });
+
+    const rendered = renderLegalEvidenceAnswer(state)!;
+    expect(rendered).toContain(
+      "[2010 BCCA 170 at paras. 10\u201312](https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html#par10:~:text=",
+    );
+    expect(rendered).toMatch(/#par10:~:text=[^)]+,[^)]+\)\.$/u);
+    expect(legalEvidenceReceiptEvent(state)).toMatchObject({
+      schema_version: 5,
+      mode: "citation_structure",
+      status: "passed",
+      verification: {
+        reference: "verified",
+        semantic: "not_run",
+        coverage: "not_run",
+      },
     });
   });
 
@@ -272,6 +380,11 @@ describe("provisional legal evidence contract", () => {
       ),
     ).toEqual(["submit_grounded_answer"]);
     expect(
+      legalEvidenceExperimentTools(null).map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(["submit_grounded_answer"]);
+    expect(
       JSON.stringify(legalEvidenceExperimentTools("compose_check")),
     ).not.toContain("claim_type");
     expect(
@@ -331,7 +444,7 @@ describe("provisional legal evidence contract", () => {
       {
         claims: [
           {
-            text: "The governing test has three elements: 2024 SCC 6 at para. 12.",
+            text: "The governing test has three elements.",
             evidence_ids: [evidence.evidence_id],
           },
         ],
@@ -350,7 +463,7 @@ describe("provisional legal evidence contract", () => {
       "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
-      schema_version: 4,
+      schema_version: 5,
       status: "passed",
       verification: {
         answerability: "not_run",
@@ -359,6 +472,69 @@ describe("provisional legal evidence contract", () => {
         coverage: "complete",
       },
     });
+  });
+});
+
+describe("quote_first deterministic contract enforcement", () => {
+  const passage =
+    "If rent is unpaid when due, the landlord may deliver a written notice " +
+    "to terminate the lease not less than seven business days after receipt.";
+
+  function quoteFirstState() {
+    const state = createLegalEvidenceTurnState("quote_first");
+    const receipt = createBenchmarkEvidence({
+      stableSourceId: "test:qf",
+      sourceText: passage,
+      spanText: passage,
+      citation: "ALA. CODE § 35-9A-421(b)",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "ALA. CODE § 35-9A-421(b)",
+      jurisdiction: "US",
+      sourceClass: "legislation",
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, id: receipt.evidence_id };
+  }
+
+  it("rejects answers with more than one non-verbatim claim", () => {
+    const { state, id } = quoteFirstState();
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          { text: "Alabama broadly regulates evictions.", evidence_ids: [id] },
+          { text: "Notice is always required in every case.", evidence_ids: [id] },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toContain("verbatim quotations");
+    expect(state.answer).toBeNull();
+  });
+
+  it("accepts verbatim quotes plus one conclusion claim", () => {
+    const { state, id } = quoteFirstState();
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text:
+                "If rent is unpaid when due, the landlord may deliver a " +
+                "written notice to terminate the lease not less than seven " +
+                "business days after receipt.",
+              evidence_ids: [id],
+            },
+            {
+              text: "Yes — written notice must precede termination.",
+              evidence_ids: [id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
   });
 });
 
@@ -469,7 +645,7 @@ describe("deterministic verbatim-quote tier (tiered_check)", () => {
     const text =
       "“If rent is unpaid when due, the landlord may deliver a written " +
       "notice to terminate the lease — a date not less than seven business " +
-      "days after receipt of the notice.” (ALA. CODE § 35-9A-421(b))";
+      "days after receipt of the notice.”";
     expect(
       submitLegalEvidenceAnswer({ claims: [claim(text, id)] }, state),
     ).toEqual({ ok: true, terminal: true });
