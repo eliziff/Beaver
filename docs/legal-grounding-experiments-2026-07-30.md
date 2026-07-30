@@ -949,7 +949,7 @@ Falsified by: any new false accept; audited-pair degradation; a lint
 flag rate on grounded compositions high enough to depress rendering
 below tiered_check; or no checker-call reduction.
 
-## Stage 8 — attested framing / H12 widened tier (pre-registered, not yet run)
+## Stage 8 — attested framing / H12 widened tier (run 2026-07-30)
 
 ### Frozen Hypothesis 8
 
@@ -1011,6 +1011,96 @@ exists. Charlotin probe feasibility: 1,426 court-described
 Misrepresented rows in the misgrounding corpus, of which 121 are
 Canadian and can be probed against the live citator.
 
+### Results (2026-07-30, by amendment against the frozen predictions)
+
+Registered run: the Stage 6 held-constant 41-item matrix, arms
+tiered_check + attested_framing × composers claude-p:claude-sonnet-4-6
+and codex:gpt-5.6-sol, checker pinned claude-p:claude-sonnet-4-6,
+164/164 cells, 0 errors, receipts `stage8-h8.jsonl` (sha in the table
+below). The Charlotin adversarial probe set named in the design was
+NOT included in this run (deferred to the queued probe work with
+`--cases`); the amendment below is scoped to the matrix actually run.
+
+Runner note: a pre-run smoke caught that the runner passed full
+"name, citation, pinpoint" strings to standsForProfile, which keys
+whole strings — every case cell silently degenerated to profile none.
+Fixed before the registered run by extracting neutral citations with
+the citator builder's own regex; every run receipt now carries an
+`attested_characterizations` audit column (citation → candidate
+count), so feed-forward coverage is self-reporting.
+
+**Prediction 1 — composed overreach falls to ~zero on case cells:
+CONFIRMED.** Ladder/abstraction language in submitted case-cell
+claims: codex 3/42 claims under tiered_check (all escalated to the
+model checker) vs 2/45 under attested_framing — and both surviving
+claims cleared the deterministic tier as verbatim passage quotes
+("our cases have held that…" quoted from the cited opinion itself).
+claude-p: 6/30 tiered vs 0/9 attested (denominator caveat below). No
+freely composed stands-for claim survived the attested arm.
+
+**Prediction 2 — checker calls fall: CONFIRMED for codex, FALSIFIED
+for claude-p.** Codex escalated-claim share dropped in every bucket
+(CLERC 25/32 → 5/29; CSLB case 8/10 → 10/16; CSLB leg 24/27 → 11/25),
+and three all-deterministic CLERC cells skipped the holistic checker
+entirely (holistic runs 8 → 5). claude-p cleared 0 claims
+deterministically in either arm on case cells — it paraphrases even
+under quote-first prompting (consistent with Stage 6) — so its
+checker load was unchanged.
+
+**Prediction 3 — thin/none refusals reported as such: MIXED.** The
+none-profile path never produced the typed
+no-attested-characterization statement. Codex took the other
+permitted branch — passage-quotation-only answers (24/29 CLERC claims
+deterministically verbatim). claude-p instead FAILED TO SUBMIT on all
+9 none-profile case cells (8 CLERC + cslb:adv-pss-0045): three typed
+rejections each, then "The model did not submit a grounded answer."
+This triggers the pre-registered falsifier "coverage collapse beyond
+thin-profile refusals" — for one composer. The contract gives a
+compliant path (quote the passage); claude-p did not find it within
+maxIterations=3. Composer-dependent coverage collapse, not a
+contract impossibility.
+
+**Prediction 4 — HousingQA indistinguishable from tiered_check:
+MECHANISM CONFIRMED, STRICT READING FALSIFIED.** The feed-forward is
+a provable no-op on statutes (`attested_characterizations` empty; zero
+attested receipts registered). But the arm's quote-first-flavored
+system prompt alone changed composition: codex housing claims went
+0/12 deterministically-verbatim under tiered to 15/27 under attested,
+and 1/12 codex + 3/12 claude-p housing verdicts flipped. The prompt,
+not the mechanism, is the confound; future arms that add a mechanism
+should hold the composition prompt constant on control cells.
+
+**Prediction 5 — no widened-tier false pass: CONFIRMED (weakly).**
+Both deterministically-cleared ladder claims were spot-checked
+verbatim in their cited spans. But the check is weak for a stark
+reason: across all 82 attested-arm cells, ZERO claims cited an
+attested characterization. The widened tier was never exercised live.
+
+**Prediction 6 — audited decisions unchanged: CONFIRMED for the
+audited pair.** The Stage 6-audited codex housing:163/housing:0
+verdicts are identical across arms.
+
+**Headline negative result (unpredicted): feed-forward attested
+characterizations were fed, seen, and never used.** Rich-profile
+cells (up to 8 candidates; adversarial cslb:adv-pss-0015 resisted the
+mismatched-SCC bait, proving the candidates were read) produced zero
+claims quoting a candidate — composers always preferred quoting the
+passage in front of them. H12's enforcement half (stands-for language
+must be verbatim-attested) did its job by SUPPRESSING composed
+framing; the affordance half (borrow a citing court's words, with
+attribution) was declined. Costs were real: codex input tokens 29k →
+74k, latency 13.7s → 20.9s, case-cell token-F1 0.57 → 0.38.
+
+Amendment: H12-as-suppression is validated and cheap to keep (the
+widened tier plus typed rejection); H12-as-affordance needs a
+different composition contract (e.g. a required characterization slot
+that must name an attested candidate or the typed refusal) before it
+can be evaluated at all — recorded as a candidate Stage 8b, not
+pursued until the Charlotin probes and the misgrounded-positive
+sample growth land. The claude-p none-profile collapse also caps
+maxIterations sensitivity: the next case-law arm must include the
+passage-quote-only fallback in the composer instructions verbatim.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1030,6 +1120,7 @@ committed.
 | `stage4-h4.jsonl` | `13C6859455021AFC2B6E9E94AFCF1EB76A0901386E49E26BD18C6B9343D0C69E` |
 | `stage5-h5.jsonl` | `1690AD59C6660EB11D25D19EBA242E00F522CB0DCF010278D34DD09145D6951B` |
 | `stage6-h6.jsonl` | `F79FDEB8C530281AB3DD247BA7CAF50D6FE2E5B5D0837DECEBD35B506C774615` |
+| `stage8-h8.jsonl` | `2E51CB52786FB289DC78FA759FD3178B0BA6752EFC9190BAF51B7FC7C595714C` |
 
 ## Validation and final selection gate
 
