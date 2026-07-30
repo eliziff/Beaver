@@ -159,6 +159,39 @@ function runTool(
   };
 }
 
+/**
+ * Locate a gate-accepted quote in original text with exact offsets. The
+ * verbatim gate normalizes quote glyphs and whitespace, so a claim can
+ * carry wrapping curly quotes or reflowed whitespace around a genuinely
+ * verbatim span (observed: maud:002 pilot). Strip wrapping quote
+ * glyphs, try exact, then a whitespace/quote-glyph-tolerant regex whose
+ * match still yields exact original coordinates.
+ */
+export function locateQuote(
+  haystack: string,
+  needle: string,
+): { start: number; end: number } | null {
+  const bare = needle
+    .replace(/^[\s"'“”‘’]+/u, "")
+    .replace(/[\s"'“”‘’]+$/u, "");
+  if (!bare) return null;
+  const exact = haystack.indexOf(bare);
+  if (exact >= 0) return { start: exact, end: exact + bare.length };
+  const pattern = bare
+    .split(/\s+/u)
+    .map((word) =>
+      word
+        .replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")
+        .replace(/["“”]/gu, '["“”]')
+        .replace(/['‘’]/gu, "['‘’]"),
+    )
+    .join("\\s+");
+  const match = new RegExp(pattern, "u").exec(haystack);
+  return match
+    ? { start: match.index, end: match.index + match[0].length }
+    : null;
+}
+
 function scoreSpans(spans: Span[], gold: Span[]): RowSpanScore {
   const { precision, recall } = charPrecisionRecall(spans, gold);
   const goldDocs = new Set(gold.map((span) => span.filePath));
@@ -369,24 +402,19 @@ async function main() {
       for (const evidenceId of claim.evidence_ids) {
         const span = bySnippetId.get(evidenceId);
         if (!span) continue;
-        const inSnippet = span.snippet.indexOf(claim.text);
-        if (inSnippet >= 0) {
+        const inSnippet = locateQuote(span.snippet, claim.text);
+        if (inSnippet) {
           quoted.push({
             filePath: span.filePath,
-            start: span.start + inSnippet,
-            end: span.start + inSnippet + claim.text.length,
+            start: span.start + inSnippet.start,
+            end: span.start + inSnippet.end,
           });
           located = true;
           break;
         }
-        const doc = corpusText.get(span.filePath) ?? "";
-        const inDoc = doc.indexOf(claim.text);
-        if (inDoc >= 0) {
-          quoted.push({
-            filePath: span.filePath,
-            start: inDoc,
-            end: inDoc + claim.text.length,
-          });
+        const inDoc = locateQuote(corpusText.get(span.filePath) ?? "", claim.text);
+        if (inDoc) {
+          quoted.push({ filePath: span.filePath, ...inDoc });
           located = true;
           break;
         }
@@ -514,7 +542,8 @@ async function main() {
   console.log(`\nReceipts: ${output}`);
 }
 
-main().catch((error) => {
-  console.error("[legalbench-rag-grounding]", error);
-  process.exit(1);
-});
+if (require.main === module)
+  main().catch((error) => {
+    console.error("[legalbench-rag-grounding]", error);
+    process.exit(1);
+  });
