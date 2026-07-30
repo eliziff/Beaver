@@ -1160,7 +1160,7 @@ sample growth land. The claude-p none-profile collapse also caps
 maxIterations sensitivity: the next case-law arm must include the
 passage-quote-only fallback in the composer instructions verbatim.
 
-## Stage 8b — contract shape and prompt factorization (pre-registered, not yet run)
+## Stage 8b — contract shape and prompt factorization (pre-registered; run and analyzed 2026-07-30)
 
 Stage 8 settled that the harness carries grounding and exposed that the
 composition PROMPT is the under-controlled half of the harness. Stage
@@ -1362,6 +1362,119 @@ effort low; pool 8/2; receipts
 the typed-role lint exemption is unit-tested contract infrastructure,
 and Stage 7 already measured the lint arm's economics.
 
+### Stage 8b run history (2026-07-30)
+
+The run survived four relaunches and a machine reboot on resume
+support added mid-run (runner `--resume 1`, commit `c81627a4`): a
+non-error row marks its cell (model|arm|checker|case_id) done; errored
+cells re-run; the receipts file may hold both rows. Analysis dedupes
+keeping the LAST row per cell; first-attempt error rates are computed
+over ALL rows including superseded ones. Concurrency was tuned for
+machine load (pool 8/2 → 12/4 → 16/16 → 6/6 → 3/3, worker priority
+BelowNormal then Idle). Both codex lanes and the sonnet lane
+completed; the haiku lane was STOPPED early by Eli's directive — its
+attrition profile (below) was judged the result, not worth the
+remaining wall-clock. Final receipts: 859 rows, 601/656 unique cells
+attempted, 549 clean (sol 164/164, sonnet 161/164, mini 164/164,
+haiku 60/164; haiku's `required_slot` arm never started).
+
+### Mid-run observation — the small-tier cost surfaces as latency and
+transport attrition, not unsoundness (registered mid-run per Eli)
+
+Haiku, nominally the fastest model in the roster, was the slowest
+lane by an order of magnitude: median clean-cell latency 91.6s (p90
+153s) vs 8.1–16.2s for the other three, with median output tokens
+3312 per cell vs 335–420 — roughly 8× the emission for the same
+contract. Its organic failure mode is protocol-following, not
+verdicts: over all rows, 46 replies that were neither FINAL nor
+TOOL_CALLS, 9 malformed-JSON replies, concentrated on 38 distinct
+cells (first-attempt error rates 45–48% per arm). A further 37
+"Stream aborted" rows are partly artifacts of the operator kills and
+the machine reboot (24 cells are abort-only and ambiguous; they are
+excluded from the protocol-failure count). On the 60 cells haiku DID
+complete, soundness held: 25/25 passed on tiered_check, and its 8
+quotation bounces all converged in exactly one revision. The
+contract's iteration-plus-protocol burden lands on a small-tier
+model as latency and attrition BEFORE it lands as unsound output —
+consistent with the frozen small-tier prediction. Haiku's per-arm F1
+is NOT comparable to full lanes (survivor bias: sonnet's F1 on the
+haiku-completed subsets shifts ±0.09 in both directions vs its full
+matrix).
+
+### Stage 8b results by frozen prediction (analysis 2026-07-30)
+
+Receipts `stage8b-h15h16h17.jsonl`, sha256
+`f7c3861b9669d7963512ced1fb623928ea3fd221008b088d289589f015592067`,
+859 rows. All numbers below are over deduped clean cells; checker is
+same-model; labels remain checker-derived, not gold.
+
+**H15 (required slot) — core confirmed, but two registered falsifiers
+triggered.** The slot is syntactically airtight: on case-law cells,
+every SUBMITTED answer either quoted an attested characterization
+verbatim or used the exact typed refusal sentence —
+submitted-but-neither = 0 for all models. Uptake is contract-driven
+as hypothesized: attested-quote clearances went from Stage 8's zero
+(optional candidates) to 5/18 case cells (sol), 3/18 (mini), 1/15
+(sonnet) under the required slot, and the degenerate-slot-filling
+falsifier did NOT fire (no irrelevant candidate quoted to satisfy the
+slot). But the slot costs coverage on rich cells, which was a
+registered falsifier: no-submission on case cells with candidates
+available ran 7/18 (sol), 8/15 (sonnet), 12/18 (mini), and every
+typed refusal (6 sol, 6 sonnet, 3 mini) occurred DESPITE candidates
+being offered — the refusal sentence acted as an escape hatch, the
+inverse failure of the one the falsifier anticipated. Arm pass rates
+(49–61%) also sat below tiered_check on the same cells (76–85%), the
+third registered falsifier. Verdict: contract shape determines
+affordance uptake (H15's mechanism stands), but THIS slot design
+trades too much coverage — models bail rather than choose among
+candidates. The candidate-selection burden, not the quoting burden,
+is the binding constraint; any Stage 9 slot design must make
+selection cheap (fewer, better-ranked candidates) before requiring
+it.
+
+**H16′ (diff-carrying bounces) — supported; falsifier clean.** The
+headline collapse is fixed: sonnet non-submission on quote_first fell
+from Stage 8's 9/9 to 1/41. Of 247 verbatim-type bounce errors, 101
+carried a repair suggestion (thin-overlap cells get none by design);
+19 final submissions adopted the suggested excerpt and all 19 cleared
+the deterministic tier. Excerpt-parroting did not materialize: F1 on
+bounce-heavy arms did not degrade (haiku's attested_framing, all
+repaired cells, is the matrix's highest F1 at 0.402). Convergence
+after one quotation bounce: sonnet 35/52 (41/52 eventually), haiku
+8/8, mini 15/31, sol 7/16 — the "≤1 revision" prediction holds as
+the majority mode but not universally; the never-converged residue
+concentrates in required_slot cells where the failure is H15's
+candidate-selection bail, not quote repair. Claude-family models use
+the repair machinery far more than codex (52 sonnet bounced cells vs
+16 sol), consistent with codex first-drafting verbatim quotes more
+often.
+
+**H17 (prompt factorization) — confirmed; adopted as standing design
+rule.** On the 23 legislation/housing cells where attested arms are
+prompt-identical to quote_first, `prompt_modules` receipts confirm
+identity 23/23 per model, and outcome flips across those arm pairs
+were 0/23 (sol), 1/23 (sonnet), 3/23 (mini), 0/2 (haiku) — a
+measured checker-stochasticity floor of 0–13% that future arm
+contrasts must clear before claiming an effect. Stage 8's
+control-cell drift is thereby attributed to global prompt wording,
+not mechanism leakage.
+
+**Typed claim roles — working as specified.** premise_correction was
+used spontaneously by every model (18 sol / 23 sonnet / 16 mini / 3
+haiku claims) and every single one carried a verified premise anchor
+(premise_support true 60/60). The schema-side dissolution of Stage
+7's premise-correction false-positive class is functioning in vivo,
+not just in unit vectors.
+
+**Small-tier prediction (capability trades coverage, never
+soundness) — supported on both points.** mini's soundness matches
+the anchors (submitted-but-neither 0, pass rates on par with sol,
+zero transport errors); its cost shows exactly where predicted, as
+coverage: 12/18 case-cell non-submissions on required_slot vs sol's
+7/18. Haiku's version of the same trade is the transport-attrition
+observation above. No false accept was observed in any small-tier
+lane (audit caveat: checker-derived labels).
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1383,6 +1496,7 @@ committed.
 | `stage6-h6.jsonl` | `F79FDEB8C530281AB3DD247BA7CAF50D6FE2E5B5D0837DECEBD35B506C774615` |
 | `stage7-h7.jsonl` | `6ED54A338EA3B7AE04F3E20ACEF0D9D240FB39E120D8C641EE1D484A39E26DED` |
 | `stage8-h8.jsonl` | `2E51CB52786FB289DC78FA759FD3178B0BA6752EFC9190BAF51B7FC7C595714C` |
+| `stage8b-h15h16h17.jsonl` (haiku lane stopped early per Eli) | `F7C3861B9669D7963512CED1FB623928EA3FD221008B088D289589F015592067` |
 
 ## Validation and final selection gate
 
