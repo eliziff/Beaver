@@ -18,6 +18,8 @@ export type OpenAIToolSchema = {
     name: string;
     description: string;
     parameters: Record<string, unknown>;
+    /** Ask providers that support it to constrain arguments to the schema. */
+    strict?: boolean;
   };
 };
 
@@ -43,6 +45,8 @@ export type NormalizedToolCall = {
 export type NormalizedToolResult = {
   tool_use_id: string;
   content: string;
+  /** End the provider loop after this result; the caller owns final rendering. */
+  terminal?: boolean;
 };
 
 export type StreamCallbacks = {

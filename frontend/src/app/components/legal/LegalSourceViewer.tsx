@@ -24,6 +24,7 @@ export type LegalSourceViewerProps = {
     docType?: LegalDocumentType | "auto"; language?: "en" | "fr";
     dataset?: string | null; quotes?: { quote: string }[];
     citationRef?: number; compact?: boolean;
+    initialLocator?: string | null;
     caseTab?: CaseTab;
 };
 export type CaseTab = {
@@ -37,6 +38,7 @@ export type LegalSourceTab = {
     name: string | null; dataset: string | null;
     provider?: "a2aj" | "journal"; sourceId?: string | null;
     docType: LegalDocumentType | "auto"; language: "en" | "fr"; citationRef?: number;
+    initialLocator?: string | null;
     quotes?: { quote: string }[];
 };
 const caseOpinionsCache = new Map<
@@ -132,6 +134,15 @@ export function legalSourceKindLabel(docType?: LegalDocumentType) {
 }
 export function legalSourceAnchorId(label: string) {
     return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
+}
+export function legalSourceLocatorFromUrl(value: string | null | undefined) {
+    if (!value) return null;
+    try {
+        const hash = decodeURIComponent(new URL(value).hash.slice(1));
+        return hash.match(/^((?:par|sec)\d[^:]*)/iu)?.[1] ?? null;
+    } catch {
+        return null;
+    }
 }
 function locatorLabel(label: string) {
     if (label.startsWith("page")) return `Page ${label.slice(4)}`;
@@ -251,7 +262,7 @@ export function legalSourceViewerActions(metadata: ViewerMetadata) {
     return (
         [
             ["source", "View original source", metadata.url],
-            ["pdf", "View authoritative PDF", metadata.pdfUrl],
+            ["pdf", "View PDF", metadata.pdfUrl],
         ] as const
     ).flatMap(([kind, label, value]) => {
         const href = safeExternalHref(value);
@@ -419,6 +430,7 @@ export function LegalSourceViewer({
     quotes = EMPTY_QUOTES,
     citationRef,
     compact = false,
+    initialLocator,
     caseTab,
 }: LegalSourceViewerProps) {
     const caseClusterId = caseTab?.clusterId;
@@ -440,6 +452,9 @@ export function LegalSourceViewer({
         : undefined;
     const error = typeof current === "string" ? current : null;
     const [activeQuote, setActiveQuote] = useState(0);
+    const [activeLocator, setActiveLocator] = useState<string | null>(
+        initialLocator ?? null,
+    );
     const [activeOpinionId, setActiveOpinionId] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
     useEffect(() => {
@@ -545,16 +560,33 @@ export function LegalSourceViewer({
         );
     }, [activeOpinion, activeQuote, payload, sourceQuotes]);
     useEffect(() => {
-        if (!payload || !window.location.hash) return;
-        const label = decodeURIComponent(window.location.hash.slice(1))
-            .replace(/^legal-/u, "");
-        if (!label) return;
-        window.requestAnimationFrame(() =>
-            contentRef.current
-                ?.querySelector<HTMLElement>(`#${legalSourceAnchorId(label)}`)
-                ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        if (!payload) return;
+        setActiveLocator(
+            initialLocator ??
+            (window.location.hash
+                ? decodeURIComponent(window.location.hash.slice(1))
+                    .replace(/^legal-/u, "")
+                : null),
         );
-    }, [payload]);
+    }, [initialLocator, payload]);
+    useEffect(() => {
+        const root = contentRef.current;
+        if (!payload || !root || !activeLocator) return;
+        const frame = window.requestAnimationFrame(() => {
+            const target = root.querySelector<HTMLElement>(
+                `#${legalSourceAnchorId(activeLocator)}`,
+            );
+            if (!target) return;
+            // Deep links must land immediately. A smooth trip through a long
+            // content-visibility document materializes intermediate blocks
+            // and can leave the target thousands of pixels away.
+            const scrollBehavior = root.style.scrollBehavior;
+            root.style.scrollBehavior = "auto";
+            target.scrollIntoView({ behavior: "auto", block: "center" });
+            root.style.scrollBehavior = scrollBehavior;
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [activeLocator, payload]);
     if (!payload && !caseTab) {
         return (
             <div className="flex h-full items-center justify-center p-6">
@@ -714,11 +746,15 @@ export function LegalSourceViewer({
                                 ? locatorLabel(slice.primary.label)
                                 : null;
                         const blocks = presentation.get(slice.key);
+                        const pinpointed = !!activeLocator &&
+                            slice.anchors.some(
+                                (anchor) => anchor.label === activeLocator,
+                            );
                         return (
                             <section
                                 key={slice.key}
                                 id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
-                                className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
+                                className={`scroll-mt-4 target:bg-amber-100/70 target:outline target:outline-1 target:outline-amber-300 ${pinpointed ? "rounded-md bg-amber-100/70 outline outline-1 outline-amber-300" : ""} ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
                                 style={{
                                     contentVisibility: "auto",
                                     containIntrinsicSize: "auto 150px",

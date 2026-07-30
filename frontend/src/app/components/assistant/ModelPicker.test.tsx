@@ -31,11 +31,15 @@ describe("ModelPicker", () => {
                 onChange={vi.fn()}
             />,
         );
-        await userEvent.click(screen.getByRole("combobox"));
-        const options = screen.getByRole("listbox", { name: "Models" });
+        await userEvent.click(
+            screen.getByRole("button", { name: "Model: GPT-5.6 Terra" }),
+        );
+        const options = screen.getByRole("group", { name: "Models" });
 
-        within(options).getByRole("option", { name: "GPT-5.6 Terra" });
-        within(options).getByRole("option", { name: "Claude Sonnet 4.6" });
+        expect(
+            within(options).getByRole("button", { name: "GPT-5.6 Terra" }),
+        ).toHaveAttribute("aria-pressed", "true");
+        within(options).getByRole("button", { name: "Claude Sonnet 4.6" });
         expect(within(options).queryByText(/Gemini|DeepSeek|Muse/u)).toBeNull();
         expect(options).not.toHaveTextContent("API key missing");
     });
@@ -48,9 +52,13 @@ describe("ModelPicker", () => {
                 onChange={vi.fn()}
             />,
         );
-        await userEvent.click(screen.getByRole("combobox"));
+        await userEvent.click(
+            screen.getByRole("button", { name: "Model: GPT-5.6 Terra" }),
+        );
         expect(
-            screen.getAllByRole("option").map((option) => option.textContent),
+            within(screen.getByRole("group", { name: "Models" }))
+                .getAllByRole("button")
+                .map((option) => option.textContent),
         ).toEqual(["GPT-5.6 Terra"]);
     });
 });

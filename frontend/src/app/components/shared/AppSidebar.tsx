@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from "react";import { PanelLeft, Settings, Trash2 } from "lucide-react";
+import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
@@ -34,6 +34,9 @@ const NAV_ITEMS = [
   },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
 ];
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const CHAT_DRAG_TYPE = "application/x-beaver-chat-ids";
 interface AppSidebarProps {
   mobileOpen: boolean;
   onToggle: () => void;
@@ -47,13 +50,124 @@ export function AppSidebar({
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatProjectTarget, setChatProjectTarget] = useState<Chat | null>(null);
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [recyclingDragOver, setRecyclingDragOver] = useState(false);
+  const [recyclingBusy, setRecyclingBusy] = useState(false);
   const [movingChatIds, setMovingChatIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const { chats, hasMoreChats, loadMoreChats, loadChats } =
+  const selectionAnchorRef = useRef<string | null>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const { chats, hasMoreChats, loadMoreChats, loadChats, deleteChat } =
     useChatHistoryContext();
   const pathname = usePathname();
-  const routeChatId = pathname.startsWith("/assistant/chat/")    ? pathname.split("/").pop() ?? null    : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??      null);  const assistantChats =    chats?.filter(      (chat) => !chat.project_id && !movingChatIds.has(chat.id),    ) ?? chats;  async function moveChatToProject(projectId: string | null) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(frame);
+      if (
+        opener?.isConnected &&
+        sidebarRef.current?.contains(document.activeElement)
+      ) {
+        opener.focus();
+      }
+    };
+  }, [mobileOpen]);
+  const routeChatId = pathname.startsWith("/assistant/chat/")
+    ? pathname.split("/").pop() ?? null
+    : (pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/)?.[1] ??
+      null);
+  const assistantChats =
+    chats?.filter(
+      (chat) => !chat.project_id && !movingChatIds.has(chat.id),
+    ) ?? chats;
+  const selectionActionChatId =
+    assistantChats?.find((chat) => selectedChatIds.has(chat.id))?.id ?? null;
+  function selectChat(
+    chatId: string,
+    modifiers: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  ) {
+    const ids = assistantChats?.map((chat) => chat.id) ?? [];
+    setSelectedChatIds((current) => {
+      if (modifiers.shiftKey && selectionAnchorRef.current) {
+        const anchor = ids.indexOf(selectionAnchorRef.current);
+        const target = ids.indexOf(chatId);
+        if (anchor >= 0 && target >= 0) {
+          const next =
+            modifiers.ctrlKey || modifiers.metaKey
+              ? new Set(current)
+              : new Set<string>();
+          for (
+            let index = Math.min(anchor, target);
+            index <= Math.max(anchor, target);
+            index += 1
+          ) {
+            next.add(ids[index]);
+          }
+          return next;
+        }
+      }
+      selectionAnchorRef.current = chatId;
+      const next = new Set(current);
+      if (next.has(chatId)) next.delete(chatId);
+      else next.add(chatId);
+      return next;
+    });
+  }
+  function dragChat(chatId: string, event: DragEvent<HTMLDivElement>) {
+    const ids = selectedChatIds.has(chatId)
+      ? [...selectedChatIds]
+      : [chatId];
+    if (!selectedChatIds.has(chatId)) {
+      selectionAnchorRef.current = chatId;
+      setSelectedChatIds(new Set(ids));
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(CHAT_DRAG_TYPE, JSON.stringify(ids));
+    event.dataTransfer.setData("text/plain", ids.join(","));
+  }
+  async function recycleChats(ids: string[]) {
+    const uniqueIds = [...new Set(ids)].filter((id) =>
+      assistantChats?.some((chat) => chat.id === id),
+    );
+    if (!uniqueIds.length) return;
+    setRecyclingBusy(true);
+    setRecyclingDragOver(false);
+    try {
+      await Promise.all(uniqueIds.map((id) => deleteChat(id)));
+      if (routeChatId && uniqueIds.includes(routeChatId)) {
+        router.replace("/assistant");
+      }
+    } finally {
+      setSelectedChatIds(new Set());
+      selectionAnchorRef.current = null;
+      setRecyclingBusy(false);
+    }
+  }
+  function dropChats(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    let ids: unknown;
+    try {
+      ids = JSON.parse(event.dataTransfer.getData(CHAT_DRAG_TYPE));
+    } catch {
+      ids = null;
+    }
+    if (Array.isArray(ids) && ids.every((id) => typeof id === "string")) {
+      void recycleChats(ids);
+    } else {
+      setRecyclingDragOver(false);
+    }
+  }
+  async function moveChatToProject(projectId: string | null) {
     const chat = chatProjectTarget;
     if (!chat) return;
     setMovingChatIds((current) => new Set(current).add(chat.id));
@@ -89,13 +203,41 @@ export function AppSidebar({
         />
       )}
       <aside
+        ref={sidebarRef}
+        role={mobileOpen ? "dialog" : undefined}
+        aria-modal={mobileOpen ? true : undefined}
+        aria-label={mobileOpen ? "Navigation" : undefined}
+        onKeyDown={(event) => {
+          if (!mobileOpen) return;
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onToggle();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const focusable = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>(
+              FOCUSABLE_SELECTOR,
+            ),
+          );
+          if (!focusable.length) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
         className={cn(
           mobileOpen
             ? "max-lg:h-[calc(100dvh-1rem)] max-lg:w-64"
             : "max-lg:hidden",
           "lg:h-[calc(100dvh-1.5rem)] lg:w-64",
           "my-2 ml-2 mr-0 lg:my-3 lg:ml-3 lg:mr-0 rounded-2xl border border-gray-300 bg-app-surface overflow-visible",
-          "flex flex-col absolute lg:relative z-[99] [contain:paint]",
+          "flex flex-col absolute lg:relative z-[99] overscroll-contain [contain:paint]",
         )}
       >
         <div className="flex items-center justify-between px-2.5 py-3">
@@ -110,6 +252,8 @@ export function AppSidebar({
             </Link>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onToggle}
             className={cn(
               "flex h-9 w-9 items-center p-2.5 lg:hidden",
@@ -195,10 +339,28 @@ export function AppSidebar({
                         key={chat.id}
                         chat={chat}
                         isActive={routeChatId === chat.id}
+                        isSelected={selectedChatIds.has(chat.id)}
+                        selectedCount={selectedChatIds.size}
+                        isSelectionActionOwner={
+                          selectionActionChatId === chat.id
+                        }
                         href={`/assistant/chat/${chat.id}`}
                         onNavigate={mobileOpen ? onToggle : undefined}
-                        onMoveToProject={() => {                          setChatProjectTarget(chat);                          if (mobileOpen) onToggle();
+                        onClearSelection={() => {
+                          setSelectedChatIds(new Set());
+                          selectionAnchorRef.current = chat.id;
                         }}
+                        onSelect={(modifiers) =>
+                          selectChat(chat.id, modifiers)
+                        }
+                        onDragChat={(event) => dragChat(chat.id, event)}
+                        onMoveToProject={() => {
+                          setChatProjectTarget(chat);
+                          if (mobileOpen) onToggle();
+                        }}
+                        onDeleteSelection={() =>
+                          recycleChats([...selectedChatIds])
+                        }
                       />
                     ))}
                   </div>
@@ -220,17 +382,66 @@ export function AppSidebar({
               )}
             </div>
             <div className="shrink-0 px-2.5 pt-1">
-              <button                type="button"                onPointerEnter={() => void loadRecyclingBinModal()}                onClick={() => {                  setRecyclingOpen(true);
+              <button
+                type="button"
+                disabled={recyclingBusy}
+                onPointerEnter={() => void loadRecyclingBinModal()}
+                onClick={() => {
+                  if (selectedChatIds.size) {
+                    void recycleChats([...selectedChatIds]);
+                  } else {
+                    setRecyclingOpen(true);
+                  }
                   if (mobileOpen) onToggle();
                 }}
+                onDragEnter={(event) => {
+                  if (event.dataTransfer.types.includes(CHAT_DRAG_TYPE)) {
+                    event.preventDefault();
+                    setRecyclingDragOver(true);
+                  }
+                }}
+                onDragOver={(event) => {
+                  if (event.dataTransfer.types.includes(CHAT_DRAG_TYPE)) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }
+                }}
+                onDragLeave={(event) => {
+                  if (
+                    !event.currentTarget.contains(
+                      event.relatedTarget as Node | null,
+                    )
+                  ) {
+                    setRecyclingDragOver(false);
+                  }
+                }}
+                onDrop={dropChats}
+                aria-label={
+                  selectedChatIds.size
+                    ? `Move ${selectedChatIds.size} selected ${selectedChatIds.size === 1 ? "chat" : "chats"} to Recycling bin`
+                    : "Recycling bin"
+                }
                 className={cn(
-                  "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm font-medium text-gray-700",
-                  APP_SURFACE_HOVER_CLASS,
+                  "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm font-medium text-gray-700 disabled:opacity-50",
+                  recyclingDragOver
+                    ? "bg-red-100 text-red-800"
+                    : APP_SURFACE_HOVER_CLASS,
                 )}
               >
                 <Trash2 className="h-4 w-4 shrink-0" />
                 Recycling bin
+                <span
+                  aria-hidden="true"
+                  className="ml-auto w-5 text-right text-xs tabular-nums text-red-700"
+                >
+                  {selectedChatIds.size || ""}
+                </span>
               </button>
+              <span className="sr-only" role="status" aria-live="polite">
+                {selectedChatIds.size
+                  ? `${selectedChatIds.size} ${selectedChatIds.size === 1 ? "chat" : "chats"} selected`
+                  : ""}
+              </span>
             </div>
           </section>
         )}

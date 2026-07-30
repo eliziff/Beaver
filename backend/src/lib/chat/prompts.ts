@@ -4,6 +4,44 @@ import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "./tools/publicLegalSourceTool
 export const CLIENT_WORK_PRODUCT_PRESUMPTION =
   "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.";
 
+export type JurisdictionPreference = {
+  mode: "ask" | "presume";
+  jurisdictions: string[];
+};
+
+export function parseJurisdictionPreference(
+  value: unknown,
+): JurisdictionPreference | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const jurisdictions = Array.isArray(row.jurisdictions)
+    ? [
+        ...new Set(
+          row.jurisdictions
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim().slice(0, 80))
+            .filter(Boolean),
+        ),
+      ].slice(0, 64)
+    : [];
+  return row.mode === "presume" && jurisdictions.length
+    ? { mode: "presume", jurisdictions }
+    : { mode: "ask", jurisdictions: [] };
+}
+
+export function jurisdictionPreferencePrompt(
+  preference: JurisdictionPreference | null,
+) {
+  if (!preference) return "";
+  if (preference.mode === "ask") {
+    return "STANDING JURISDICTION PREFERENCE: None. Ask only when jurisdiction is material and cannot be reliably inferred from the request.";
+  }
+  const jurisdictions = preference.jurisdictions.join("; ");
+  return `STANDING JURISDICTION PREFERENCE: ${jurisdictions}. If the request does not specify a jurisdiction, presume ${
+    preference.jurisdictions.length === 1 ? "this jurisdiction" : "these jurisdictions"
+  }. An explicit jurisdiction overrides this preference. This is context, not a restriction on research sources.`;
+}
+
 /**
  * MIKE_PROMPT_VARIANT=lean serves this condensed library block instead of
  * the full one in routes/chat.ts (prompt-hygiene A/B). Rule of inclusion:
@@ -16,7 +54,6 @@ export function buildLeanLibraryBlock(options: {
   codingShape: boolean;
   readToolName: string;
   editToolName: string;
-  researchDisabled: boolean;
 }): string {
   const { connectedIntro, codingShape, readToolName, editToolName } = options;
   return (
@@ -26,10 +63,7 @@ export function buildLeanLibraryBlock(options: {
     `For an exact PDF page, paragraph, footnote, section, or bounded range, use library_lookup and rely on its evidence; never invent locators or URLs. Preserve returned mike-evidence handles for material needed after compaction and rehydrate through the evidence tools. ` +
     `${codingShape ? "For long or structured documents, search with Grep first and read only what you need; Grep match lines end with the enclosing [section handle], which Read and Edit accept as section=." : "For long or structured documents, call library_outline first and read only the needed span with library_read section=."} ` +
     `Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, table of authorities, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified. Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing. ` +
-    `When a tool returns app_url, link that exact value.` +
-    (options.researchDisabled
-      ? ""
-      : " Use A2AJ tools for Canadian case law and legislation; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup.")
+    `When a tool returns app_url, link that exact value.`
   );
 }
 
@@ -84,11 +118,10 @@ GENERAL GUIDANCE:
 - Do not use emojis.
 `;
 
-const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
-Use A2AJ for Canadian case law and legislation; it is a public API needing no user key. a2aj_lookup for a specific decision paragraph, reporter page, or statutory section/subsection/paragraph, in preference to refetching the whole document.
+export const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
+Use A2AJ for Canadian case law and legislation; it is a public API needing no user key. Use a2aj_lookup for a specific decision paragraph, paragraph range (locator plus end_locator), reporter page, or statutory section/subsection/paragraph, in preference to refetching the whole document.
 - Base quoted or source-specific claims on text returned by a2aj_fetch or a2aj_lookup, not on search metadata or memory.
-- Preserve the returned upstreamLicense notice in any source list or document that includes the fetched text.
-- When relying on an A2AJ source, include an inline [N] marker and a matching <CITATIONS> entry: {"ref": N, "source": "a2aj", "citation": "...", "name": "...", "dataset": "...", "quotes": [{"quote": "exact returned text"}]}. Copy a2aj_fetch's returned "url"; omit "url" for a2aj_lookup, whose pinpoint link Beaver attaches automatically.
+- After retrieving exact passages with a2aj_lookup, finish with submit_grounded_answer. Put prose without citation text in each support unit and attach its evidence_id; Beaver places and links the complete citations from those receipts.
 - If A2AJ returns no document, say the citation was not found; do not infer that the source or proposition does not exist.`;
 
 /**

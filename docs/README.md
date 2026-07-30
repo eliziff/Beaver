@@ -35,6 +35,8 @@
 - [Minimal evaluation, context, compaction, and caching plan](beaver-minimal-evaluation-context-plan.md)
   — **adopted**; measure engineering changes before building infrastructure.
 - [Legal skill and plugin ecosystems compared to Beaver](legal-skills-ecosystem-comparison.md)
+- [Three-stage legal grounding experiment log](legal-grounding-experiments-2026-07-30.md)
+  — three completed failure-driven experiments; no model-judge winner.
 - [DOCX benchmark design and first local results](docx-benchmark-design.md)
 - [DOCX live-model benchmark gate](docx-live-model-benchmark-2026-07-27.md)
 - [Runnable private-corpus harness](../benchmarks/docx_corpus/README.md)

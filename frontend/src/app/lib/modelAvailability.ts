@@ -6,9 +6,11 @@ export type ModelProvider =
     | "openai"
     | "deepseek"
     | "openrouter"
+    | "claude-p"
     | "codex"
     | "ollama";
 export function getModelProvider(modelId: string): ModelProvider | null {
+    if (modelId.startsWith("claude-p:")) return "claude-p";
     if (modelId.startsWith("codex:")) {
         return "codex";
     }
@@ -29,7 +31,12 @@ function isProviderAvailable(
     provider: ModelProvider,
     apiKeys: ApiKeyState,
 ): boolean {
-    if (provider === "codex" || provider === "ollama") return true;
+    if (
+        provider === "claude-p" ||
+        provider === "codex" ||
+        provider === "ollama"
+    )
+        return true;
     return !!apiKeys[provider]?.configured;
 }
 export function providerLabel(provider: ModelProvider): string {
@@ -37,6 +44,7 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "openai") return "OpenAI";
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
+    if (provider === "claude-p") return "Anthropic subscription";
     if (provider === "codex") return "Codex";
     if (provider === "ollama") return "Desktop";
     return "Google (Gemini)";
@@ -44,6 +52,7 @@ export function providerLabel(provider: ModelProvider): string {
 function modelGroupToProvider(
     group: ModelOption["group"],
 ): ModelProvider {
+    if (group === "Anthropic subscription") return "claude-p";
     if (group === "Anthropic") return "claude";
     if (group === "OpenAI") return "openai";
     if (group === "DeepSeek") return "deepseek";

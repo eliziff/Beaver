@@ -5,6 +5,7 @@ import { useQuickActionsPreference } from "@/app/components/assistant/quickActio
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
+import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 export default function FeaturesPage() {
     const { profile, updateLegalResearchUs } = useUserProfile();
     const { visibleActions, showAllQuickActions, hideAllQuickActions } =
@@ -52,26 +53,31 @@ export default function FeaturesPage() {
                         />
                     </div>
             </AccountSection>
-            <AccountSection heading="Legal Research">
+            <AccountSection heading="Jurisdiction preference">
+                <div className="px-4 py-5">
+                    <p className="mb-4 text-sm leading-5 text-gray-500">
+                        This gives the assistant a standing assumption. A jurisdiction named in your message still takes priority.
+                    </p>
+                    <JurisdictionPreferenceEditor />
+                </div>
+            </AccountSection>
+            <AccountSection heading="Case law sources">
                     <div className="px-4 py-5">
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-gray-900">
-                                Jurisdiction
+                                US and Canadian sources
                             </p>
                             <p className="text-sm text-gray-500">
-                                Choose which jurisdictions the assistant can
-                                research. When a jurisdiction is enabled, its
-                                case-law research tools are available in chat.
+                                Make CourtListener and A2AJ available in chat.
                             </p>
                         </div>
                         <label className="mt-4 flex min-h-10 cursor-pointer items-start justify-between gap-3 rounded-md bg-gray-50 px-3 py-3">
                             <span className="min-w-0 select-none">
                                 <p className="text-sm text-gray-900">
-                                    US + Canada
+                                    Enable case law research
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                    Enable case law research in chat
-                                    (CourtListener for US and A2AJ for Canada).
+                                    CourtListener for the US and A2AJ for Canada.
                                 </p>
                             </span>
                             <CheckboxInput

@@ -7,6 +7,7 @@ import {
     type ApiKeyState,
     type ModelCatalog,
 } from "@/app/lib/beaverApi";
+import { useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { resetModelCatalogSession } from "@/app/lib/modelCatalog";
 import { ModelToggle, ReasoningEffortToggle } from "./ModelToggle";
 
@@ -64,7 +65,7 @@ describe("ModelToggle", () => {
             />,
         );
 
-        screen.getByRole("combobox", { name: /GPT 5.6 Terra/ });
+        screen.getByRole("button", { name: /GPT 5.6 Terra/ });
     });
 
     it("shows configured desktop Qwen models before the catalog request completes", async () => {
@@ -75,15 +76,15 @@ describe("ModelToggle", () => {
         render(
             <ModelToggle value="codex:gpt-5.6-terra" onChange={vi.fn()} />,
         );
-        await userEvent.click(screen.getByRole("combobox"));
-        const menu = screen.getByRole("listbox", { name: "Models" });
-        within(menu).getByRole("option", {
+        await userEvent.click(screen.getByRole("button", { name: /^Model:/ }));
+        const menu = screen.getByRole("group", { name: "Models" });
+        within(menu).getByRole("button", {
             name: /Qwen 3.5 2B \(Q4_K_M\)/,
         });
-        within(menu).getByRole("option", {
+        within(menu).getByRole("button", {
             name: /Qwen 3.5 4B \(Q4_K_M\)/,
         });
-        within(menu).getByRole("option", { name: /Qwen 3.5 9B/ });
+        within(menu).getByRole("button", { name: /Qwen 3.5 9B/ });
     });
 
     it("keeps one fixed control and its selection while options refresh", async () => {
@@ -101,17 +102,19 @@ describe("ModelToggle", () => {
             />,
         );
 
-        const initial = screen.getByRole("combobox", {
+        const initial = screen.getByRole("button", {
             name: /GPT 5.6 Terra/,
         });
 
         resolveCatalog(catalog([luna()]));
         await waitFor(() => expect(getCatalogMock).toHaveBeenCalled());
         await user.click(initial);
-        await screen.findByRole("option", { name: "GPT-5.6-Luna" });
+        await screen.findByRole("button", { name: "GPT-5.6-Luna" });
 
         expect(
-            screen.getByRole("combobox", { name: /GPT 5.6 Terra/ }),
+            screen.getByRole("button", {
+                name: "Model: GPT 5.6 Terra",
+            }),
         ).toBe(initial);
         expect(initial).toHaveTextContent("GPT 5.6 Terra");
     });
@@ -176,17 +179,17 @@ describe("ModelToggle", () => {
                 apiKeys={configuredApiKeys}
             />,
         );
-        const trigger = await screen.findByRole("combobox", {
+        const trigger = await screen.findByRole("button", {
             name: /GPT-5.6-Luna/,
         });
         await userEvent.click(trigger);
-        const menu = screen.getByRole("listbox", { name: "Models" });
+        const menu = screen.getByRole("group", { name: "Models" });
 
         expect(
-            within(menu).getAllByRole("option", { name: "GPT-5.6-Luna" }),
+            within(menu).getAllByRole("button", { name: "GPT-5.6-Luna" }),
         ).toHaveLength(1);
         expect(
-            within(menu).queryByRole("option", {
+            within(menu).queryByRole("button", {
                 name: "GPT-5.3-Codex-Spark",
             }),
         ).not.toBeInTheDocument();
@@ -200,7 +203,9 @@ describe("ModelToggle", () => {
             within(menu).getByText(group);
         }
         within(menu).getByText("Claude Fable 5");
-        expect(screen.getAllByRole("combobox")).toHaveLength(1);
+        expect(
+            screen.getAllByRole("button", { name: /^Model:/ }),
+        ).toHaveLength(1);
         expect(within(menu).queryByText("Codex (local)")).not.toBeInTheDocument();
         expect(within(menu).queryByText("GPT-5.5")).not.toBeInTheDocument();
     });
@@ -233,13 +238,13 @@ describe("ModelToggle", () => {
             </>,
         );
 
-        const trigger = await screen.findByRole("combobox", {
+        const trigger = await screen.findByRole("button", {
             name: /Qwen3 32B/,
         });
         await userEvent.click(trigger);
-        const menu = screen.getByRole("listbox", { name: "Models" });
+        const menu = screen.getByRole("group", { name: "Models" });
         within(menu).getByText("Desktop");
-        within(menu).getByRole("option", { name: "Qwen3 32B" });
+        within(menu).getByRole("button", { name: "Qwen3 32B" });
         expect(
             screen.getByRole("combobox", { name: /Reasoning effort/i }),
         ).toHaveValue("off");
@@ -267,13 +272,14 @@ describe("ModelToggle", () => {
             />,
         );
         await userEvent.click(
-            await screen.findByRole("combobox", {
+            await screen.findByRole("button", {
                 name: /Qwen 3.5 9B — desktop offline/,
             }),
         );
-        screen.getByRole("option", {
-            name: /Qwen 3.5 9B — desktop offline/,
-        });
+        within(screen.getByRole("group", { name: "Models" })).getByRole(
+            "button",
+            { name: /Qwen 3.5 9B — desktop offline/ },
+        );
     });
 
     it("changes provider and model in one grouped control", async () => {
@@ -289,15 +295,40 @@ describe("ModelToggle", () => {
         );
 
         await user.click(
-            await screen.findByRole("combobox", {
+            await screen.findByRole("button", {
                 name: /GPT-5.6-Luna/,
             }),
         );
         await user.click(
-            screen.getByRole("option", { name: "Claude Sonnet 4.6" }),
+            screen.getByRole("button", { name: "Claude Sonnet 4.6" }),
         );
 
         expect(onChange).toHaveBeenCalledWith("claude-sonnet-4-6");
+    });
+
+    it("routes Anthropic subscription choices through claude -p", async () => {
+        const onChange = vi.fn();
+        getCatalogMock.mockResolvedValue(catalog([]));
+        render(
+            <ModelToggle
+                value="codex:gpt-5.6-terra"
+                onChange={onChange}
+                apiKeys={configuredApiKeys}
+            />,
+        );
+
+        await userEvent.click(
+            screen.getByRole("button", { name: /GPT 5.6 Terra/ }),
+        );
+        await userEvent.click(
+            screen.getByRole("button", {
+                name: "Claude Sonnet 4.6 · subscription",
+            }),
+        );
+
+        expect(onChange).toHaveBeenCalledWith(
+            "claude-p:claude-sonnet-4-6",
+        );
     });
 
     it("uses the last good catalog when refresh is unavailable", async () => {
@@ -316,7 +347,7 @@ describe("ModelToggle", () => {
             <ModelToggle value="codex:gpt-5.6-luna" onChange={vi.fn()} />,
         );
 
-        await screen.findByRole("combobox", {
+        await screen.findByRole("button", {
             name: /Cached Luna Label/,
         });
         await waitFor(() => expect(getCatalogMock).toHaveBeenCalled());
@@ -332,11 +363,11 @@ describe("ModelToggle", () => {
             />,
         );
 
-        const trigger = screen.getByRole("combobox", {
+        const trigger = screen.getByRole("button", {
             name: /DeepSeek V4 Flash/,
         });
         await userEvent.click(trigger);
-        const menu = screen.getByRole("listbox", { name: "Models" });
+        const menu = screen.getByRole("group", { name: "Models" });
         within(menu).getByText("DeepSeek V4 Flash");
         within(menu).getByText("DeepSeek V4 Pro");
         expect(menu).not.toHaveTextContent(/deepseek-(chat|reasoner)/u);
@@ -353,9 +384,9 @@ describe("ModelToggle", () => {
         );
 
         await userEvent.click(
-            screen.getByRole("combobox", { name: /Muse Spark 1.1/ }),
+            screen.getByRole("button", { name: /Muse Spark 1.1/ }),
         );
-        screen.getByRole("option", { name: "Muse Spark 1.1" });
+        screen.getByRole("button", { name: "Muse Spark 1.1" });
     });
 
     it("keeps the searchable list bounded with keyboard dismissal", async () => {
@@ -370,21 +401,21 @@ describe("ModelToggle", () => {
             />,
         );
 
-        const trigger = await screen.findByRole("combobox", {
+        const trigger = await screen.findByRole("button", {
             name: /GPT-5.6-Luna/,
         });
         await user.click(trigger);
-        const listbox = screen.getByRole("listbox", { name: "Models" });
+        const choices = screen.getByRole("group", { name: "Models" });
         const search = screen.getByRole("searchbox", {
             name: "Search models",
         });
         await user.type(search, "sonnet");
-        screen.getByRole("option", { name: "Claude Sonnet 4.6" });
+        screen.getByRole("button", { name: "Claude Sonnet 4.6" });
         expect(
-            screen.queryByRole("option", { name: "GPT-5.6-Luna" }),
+            screen.queryByRole("button", { name: "GPT-5.6-Luna" }),
         ).not.toBeInTheDocument();
         await user.keyboard("{Escape}");
-        expect(listbox).not.toBeInTheDocument();
+        expect(choices).not.toBeInTheDocument();
         expect(trigger).toHaveFocus();
 
         await user.click(trigger);
@@ -400,12 +431,40 @@ describe("ModelToggle", () => {
             document.querySelector<HTMLElement>("[data-shortcut-layer]")!,
         );
         expect(
-            screen.queryByRole("listbox", { name: "Models" }),
+            screen.queryByRole("group", { name: "Models" }),
         ).not.toBeInTheDocument();
     });
 });
 
 describe("ReasoningEffortToggle", () => {
+    it("preserves the saved effort while a cached catalog hydrates", async () => {
+        window.localStorage.setItem(
+            "beaver.modelCatalog.v1",
+            JSON.stringify({ catalog: catalog([luna()]) }),
+        );
+        window.localStorage.setItem("beaver.reasoningEffort", "max");
+        getCatalogMock.mockResolvedValue(catalog([luna()]));
+        function PersistedEffort() {
+            const [effort, setEffort] = useSelectedReasoningEffort();
+            return (
+                <ReasoningEffortToggle
+                    model="codex:gpt-5.6-luna"
+                    value={effort}
+                    onChange={setEffort}
+                />
+            );
+        }
+
+        render(<PersistedEffort />);
+
+        await screen.findByRole("combobox", {
+            name: "Reasoning effort: max",
+        });
+        expect(window.localStorage.getItem("beaver.reasoningEffort")).toBe(
+            "max",
+        );
+    });
+
     it("keeps a disabled control while Codex capabilities load", async () => {
         let resolveCatalog!: (value: ModelCatalog) => void;
         getCatalogMock.mockReturnValue(
@@ -486,7 +545,7 @@ describe("ReasoningEffortToggle", () => {
         screen.getByRole("option", { name: "Automatic" });
     });
 
-    it("offers only high and max for DeepSeek, defaulting to high", async () => {
+    it("offers only high and max for DeepSeek, displaying high initially", async () => {
         const onChange = vi.fn();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
@@ -503,10 +562,9 @@ describe("ReasoningEffortToggle", () => {
             item.textContent?.trim(),
         );
         expect(items).toEqual(["high", "max"]);
-        expect(onChange).toHaveBeenCalledWith("high");
     });
 
-    it("offers Muse Spark's supported efforts, defaulting to medium", async () => {
+    it("offers Muse Spark's supported efforts, displaying medium initially", async () => {
         const onChange = vi.fn();
         getCatalogMock.mockResolvedValue(catalog([]));
         render(
@@ -524,6 +582,5 @@ describe("ReasoningEffortToggle", () => {
                 item.textContent?.trim(),
             ),
         ).toEqual(["xhigh", "high", "medium", "low", "minimal"]);
-        expect(onChange).toHaveBeenCalledWith("medium");
     });
 });

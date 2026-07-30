@@ -94,7 +94,7 @@ export const TOOLS = [
     function: {
       name: "ask_inputs",
       description:
-        "Stop the turn and ask the user for a blocker only — an instruction only the user can give, or a document never provided. Never ask for permission to do the work requested. Put every blocking question in one items array, then stop and wait.",
+        "Stop the turn and ask the user for a blocker only — an instruction only the user can give, or a document never provided. Never ask for permission to do the work requested. Put every blocking question in one items array, then stop and wait. The UI adds write-in and decline controls.",
       parameters: {
         type: "object",
         properties: {
@@ -135,16 +135,6 @@ export const TOOLS = [
                     },
                     required: ["value"],
                   },
-                },
-                allow_other: {
-                  type: "boolean",
-                  description:
-                    "choice only: show an Other free-text option. Defaults to true.",
-                },
-                other_label: {
-                  type: "string",
-                  description:
-                    "choice only: label for the free-text option. Defaults to Other.",
                 },
                 document_types: {
                   type: "array",
@@ -300,7 +290,7 @@ export const TOOLS = [
                 source_reference: {
                   type: "string",
                   description:
-                    "Cached provider-PDF evidence only: the mike-provider-pdf source_reference returned with the handle.",
+                    "Cached legal-source PDF evidence only: the opaque source_reference returned with the handle.",
                 },
                 quotes: {
                   type: "array",

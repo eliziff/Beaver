@@ -34,6 +34,16 @@ function mergeDocuments(current: Document[], added: Document[]) {
     for (const document of added) documents.set(document.id, document);
     return [...documents.values()];
 }
+function uploadFailureMessage(files: File[]) {
+    return files.length === 1
+        ? `Unable to upload ${files[0].name}. Check the file and your connection, then try again.`
+        : `Unable to upload ${files.length} documents. Check the files and your connection, then try again.`;
+}
+function assignmentFailureMessage(documents: Document[]) {
+    return documents.length === 1
+        ? `Unable to add ${documents[0].filename} to this project. Check your connection and try again.`
+        : `Unable to add ${documents.length} documents to this project. Check your connection and try again.`;
+}
 export function AddDocumentsModal({
     open,
     onClose,
@@ -106,22 +116,40 @@ export function AddDocumentsModal({
             );
             if (toAssign.length > 0) {
                 setUploading(true);
+                setUploadWarning(null);
                 try {
-                    const assigned = await Promise.all(
-                        toAssign.map((d) =>
-                            addDocumentToProject(projectId, d.id),
+                    const results = await Promise.allSettled(
+                        toAssign.map((document) =>
+                            Promise.resolve().then(() =>
+                                addDocumentToProject(projectId, document.id),
+                            ),
                         ),
                     );
-                    onSelect([...alreadyHere, ...assigned], projectId);
-                } catch (err) {
-                    console.error("Failed to assign documents:", err);
+                    const assigned = results.flatMap((result) =>
+                        result.status === "fulfilled" ? [result.value] : [],
+                    );
+                    const failed = toAssign.filter(
+                        (_, index) => results[index].status === "rejected",
+                    );
+                    if (failed.length) {
+                        setSelectedDocuments(
+                            mergeDocuments(
+                                mergeDocuments(alreadyHere, assigned),
+                                failed,
+                            ),
+                        );
+                        setUploadWarning(assignmentFailureMessage(failed));
+                    } else {
+                        onSelect([...alreadyHere, ...assigned], projectId);
+                        onClose();
+                    }
                 } finally {
                     setUploading(false);
                 }
             } else {
                 onSelect(alreadyHere, projectId);
+                onClose();
             }
-            onClose();
             return;
         }
         const projectIds = new Set(
@@ -137,7 +165,9 @@ export function AddDocumentsModal({
         if (!files.length) return;
         const { supported, unsupported } =
             partitionSupportedDocumentFiles(files);
-        setUploadWarning(formatUnsupportedDocumentWarning(unsupported));
+        const unsupportedWarning =
+            formatUnsupportedDocumentWarning(unsupported);
+        setUploadWarning(unsupportedWarning);
         if (supported.length === 0) {
             if (fileInputRef.current) fileInputRef.current.value = "";
             return;
@@ -145,17 +175,30 @@ export function AddDocumentsModal({
         setUploadingFilenames(supported.map((file) => file.name));
         setUploading(true);
         try {
-            const uploaded = await Promise.all(
-                supported.map((f) =>
-                    projectId
-                        ? uploadProjectDocument(projectId, f)
-                        : uploadStandaloneDocument(f),
+            const results = await Promise.allSettled(
+                supported.map((file) =>
+                    Promise.resolve().then(() =>
+                        projectId
+                            ? uploadProjectDocument(projectId, file)
+                            : uploadStandaloneDocument(file),
+                    ),
                 ),
+            );
+            const uploaded = results.flatMap((result) =>
+                result.status === "fulfilled" ? [result.value] : [],
+            );
+            const failed = supported.filter(
+                (_, index) => results[index].status === "rejected",
             );
             setExtraUploadedDocs((prev) => [...uploaded, ...prev]);
             setSelectedDocuments((prev) => mergeDocuments(prev, uploaded));
-        } catch (err) {
-            console.error("Upload failed:", err);
+            if (failed.length) {
+                setUploadWarning(
+                    [unsupportedWarning, uploadFailureMessage(failed)]
+                        .filter(Boolean)
+                        .join(" "),
+                );
+            }
         } finally {
             setUploading(false);
             setUploadingFilenames([]);
@@ -193,8 +236,15 @@ export function AddDocumentsModal({
                 onChange={handleUpload}
             />
             {uploadWarning && (
-                <div className="mb-2 flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-gray-900">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                <div
+                    role="alert"
+                    aria-atomic="true"
+                    className="mb-2 flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-gray-900"
+                >
+                    <AlertCircle
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5 shrink-0 text-red-600"
+                    />
                     <span className="min-w-0 flex-1">{uploadWarning}</span>
                     <button
                         type="button"
@@ -202,7 +252,7 @@ export function AddDocumentsModal({
                         className="shrink-0 rounded p-0.5 text-black hover:bg-gray-100"
                         aria-label="Dismiss warning"
                     >
-                        <X className="h-3.5 w-3.5" />
+                        <X aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
                 </div>
             )}

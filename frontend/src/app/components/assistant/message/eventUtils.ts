@@ -1,5 +1,8 @@
 import type { AssistantEvent } from "../../shared/types";
-import { assistantEventKey } from "@/app/lib/assistantStreamEvents";
+import {
+    assistantActivityFamily,
+    assistantEventKey,
+} from "@/app/lib/assistantStreamEvents";
 
 type CaseCitation = Extract<AssistantEvent, { type: "case_citation" }>;
 type AskResponse = Extract<AssistantEvent, { type: "ask_inputs_response" }>;
@@ -54,6 +57,9 @@ const TOOLS: Record<string, readonly [string, string?]> = {
     library_link_docx_citations: ["Adding citation links", "automation_run"],
     library_fix_docx_supras: ["Fixing supra references", "automation_run"],
 };
+
+const GENERIC_LEGAL_SEARCH =
+    /^(?:searching|searched)\s+(?:canadian\s+)?(?:cases?|case law|legislation|legal sources)[.!]*$/iu;
 
 function toolLabel(name: string) {
     if (TOOLS[name]) return TOOLS[name][0];
@@ -122,7 +128,10 @@ export function activityView(
             : null;
     }
     if (event.type === "tool_call_start")
-        return { label: toolLabel(event.name), busy: true };
+        return {
+            label: event.label ?? toolLabel(event.name),
+            busy: !!event.isStreaming,
+        };
     if (event.type === "thinking")
         return { label: "Thinking", busy: true };
     if (event.type === "mcp_tool_call") {
@@ -337,37 +346,43 @@ export function activityView(
     return null;
 }
 
-function activityFamily(event: AssistantEvent) {
-    if (event.type !== "tool_call_start") return event.type;
-    return TOOLS[event.name]?.[1] ?? event.name;
-}
-
 export function dedupeActivityEntries<
     T extends { event: AssistantEvent; index: number },
 >(entries: T[]): T[] {
-    const seenKeys = new Set<string>();
-    const seenFamilies = new Set<string>();
+    const completedKeys = new Set<string>();
+    const concreteFamilies = new Set<string>();
     const result: T[] = [];
     for (let index = entries.length - 1; index >= 0; index--) {
         const entry = entries[index];
-        const family = activityFamily(entry.event);
+        const isStreaming =
+            "isStreaming" in entry.event && !!entry.event.isStreaming;
+        const family = assistantActivityFamily(entry.event);
         const key =
             entry.event.type === "reasoning"
                 ? `reasoning:${plainText(entry.event.text)}`
                 : assistantEventKey(entry.event);
+        const nextEntry = result.at(-1);
         if (
             (entry.event.type === "reasoning" &&
-                /^analy[sz]ed (?:the )?request[.!:]*$/iu.test(
+                (/^analy[sz]ed (?:the )?request[.!:]*$/iu.test(
                     plainText(entry.event.text),
-                )) ||
+                ) ||
+                    GENERIC_LEGAL_SEARCH.test(
+                        plainText(entry.event.text),
+                    ))) ||
             (entry.event.type === "thinking" && result.length > 0) ||
             (entry.event.type === "tool_call_start" &&
-                seenFamilies.has(family)) ||
-            seenKeys.has(key)
+                concreteFamilies.has(family)) ||
+            (isStreaming && completedKeys.has(key)) ||
+            (entry.event.type === "reasoning" &&
+                nextEntry?.event.type === "reasoning" &&
+                plainText(nextEntry.event.text) ===
+                    plainText(entry.event.text))
         )
             continue;
-        seenKeys.add(key);
-        seenFamilies.add(family);
+        if (!isStreaming) completedKeys.add(key);
+        if (entry.event.type !== "tool_call_start")
+            concreteFamilies.add(family);
         result.push(entry);
     }
     return result.reverse();

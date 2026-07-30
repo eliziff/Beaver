@@ -13,6 +13,8 @@ import {
   createTextSourceDoc,
   lookupSourceDoc,
   normalizeSourceDocLocator,
+  sliceSourceDocBlocks,
+  sourceDocBlockText,
   type SourceDoc,
   type SourceDocBlock,
   type SourceDocLocatorKind,
@@ -515,6 +517,10 @@ function structureFor(
   return doc;
 }
 
+export function getA2AJDocumentSourceDoc(document: A2AJDocument) {
+  return structureFor(document, "cases");
+}
+
 function readerSegments(
   text: string,
   structure: A2AJStructureView,
@@ -774,12 +780,14 @@ export async function fetchA2AJDocument(args: {
   if (!document) return null;
   const maxChars = args.maxChars ?? 50_000;
   const totalChars = document.text.length;
-  return {
+  const fetched: A2AJFetchedDocument = {
     ...document,
     text: totalChars > maxChars ? document.text.slice(0, maxChars) : document.text,
     truncated: totalChars > maxChars,
     total_chars: totalChars,
   };
+  structureIndexes.set(fetched, structureFor(document, args.docType ?? "cases"));
+  return fetched;
 }
 
 export async function lookupA2AJLocator(args: {
@@ -789,12 +797,16 @@ export async function lookupA2AJLocator(args: {
   dataset?: string;
   kind: A2AJLocatorKind;
   locator: string;
+  endLocator?: string;
   contextBlocks?: number;
 }): Promise<A2AJLocatorLookup | null> {
   const citation = args.citation.trim();
   const locator = args.locator.trim();
+  const endLocator = args.endLocator?.trim();
   if (!citation) throw new Error("citation is required");
   if (!locator) throw new Error("locator is required");
+  if (endLocator && args.kind !== "paragraph")
+    throw new Error("end_locator is supported only for paragraph ranges");
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
   const document = await fullA2AJDocument({
@@ -805,6 +817,90 @@ export async function lookupA2AJLocator(args: {
   });
   if (!document) return null;
   const compiled = structureFor(document, docType);
+  if (endLocator) {
+    const range = sliceSourceDocBlocks(
+      compiled,
+      "paragraph",
+      locator,
+      endLocator,
+    );
+    const first = range[0];
+    const last = range.at(-1);
+    const label = [
+      normalizeSourceDocLocator("paragraph", locator),
+      normalizeSourceDocLocator("paragraph", endLocator),
+    ].join("-");
+    if (!first || !last) {
+      const lookup: A2AJLocatorLookup = {
+        status: "not_found",
+        citation: document.citation,
+        alternateCitation: document.alternateCitation,
+        name: document.name,
+        dataset: document.dataset,
+        url: document.url,
+        language: document.language,
+        requested: {
+          kind: "paragraph",
+          locator: `${locator}-${endLocator}`,
+          label,
+        },
+        matches: [],
+        block: null,
+        before: [],
+        after: [],
+        structure: document.structure,
+        sourceMethod: "structure_index",
+      };
+      lookupDocuments.set(lookup, compiled);
+      return lookup;
+    }
+    const paragraphs = compiled.blocks.filter(
+      (block) => block.kind === "paragraph",
+    );
+    const firstIndex = paragraphs.indexOf(first);
+    const lastIndex = paragraphs.indexOf(last);
+    const context = Math.min(
+      Math.max(Math.trunc(args.contextBlocks ?? 0), 0),
+      2,
+    );
+    const materialize = (block: SourceDocBlock) => ({
+      ...block,
+      text: sourceDocBlockText(compiled, block),
+    });
+    const block = {
+      ...first,
+      label,
+      aliases: undefined,
+      end: last.end,
+      text: compiled.text.slice(first.start, last.end).trim(),
+    };
+    const lookup: A2AJLocatorLookup = {
+      status: "found",
+      citation: document.citation,
+      alternateCitation: document.alternateCitation,
+      name: document.name,
+      dataset: document.dataset,
+      url: document.url,
+      language: document.language,
+      requested: {
+        kind: "paragraph",
+        locator: `${locator}-${endLocator}`,
+        label,
+      },
+      matches: range.map(({ label: match }) => match),
+      block,
+      before: paragraphs
+        .slice(Math.max(0, firstIndex - context), firstIndex)
+        .map(materialize),
+      after: paragraphs
+        .slice(lastIndex + 1, lastIndex + 1 + context)
+        .map(materialize),
+      structure: document.structure,
+      sourceMethod: "structure_index",
+    };
+    lookupDocuments.set(lookup, compiled);
+    return lookup;
+  }
   const result = lookupSourceDoc(
     compiled,
     args.kind,

@@ -4,6 +4,14 @@ import {
   type CourtlistenerToolEvent,
 } from "./courtlistenerTools";
 import { executeA2AJTool } from "./a2ajTools";
+import {
+  LEGAL_EVIDENCE_PLAN_TOOL_NAME,
+  LEGAL_EVIDENCE_TOOL_NAME,
+  planLegalEvidence,
+  registerLegalEvidence,
+  submitLegalEvidenceAnswer,
+  type LegalEvidenceTurnState,
+} from "../legalEvidenceExperiment";
 import { PUBLIC_LEGAL_SOURCE_TOOL_NAMES } from "./publicLegalSourceTools";
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import {
@@ -217,6 +225,7 @@ export async function runToolCalls(
   courtlistenerState?: CourtlistenerTurnState,
   apiKeys?: import("../../llm").UserApiKeys,
   publicLegalState?: PublicLegalSourceState,
+  legalEvidenceState?: LegalEvidenceTurnState,
 ): Promise<{
   toolResults: unknown[];
   docsRead: { filename: string; document_id?: string }[];
@@ -354,6 +363,31 @@ export async function runToolCalls(
       /* ignore */
     }
     const a2aj = await executeA2AJTool(tc.function.name, args);
+
+    if (tc.function.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
+      const planned = legalEvidenceState
+        ? planLegalEvidence(args, legalEvidenceState)
+        : { ok: false, errors: ["Legal evidence state is unavailable"] };
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(planned),
+      });
+      continue;
+    }
+
+    if (tc.function.name === LEGAL_EVIDENCE_TOOL_NAME) {
+      const submitted = legalEvidenceState
+        ? submitLegalEvidenceAnswer(args, legalEvidenceState)
+        : { ok: false, errors: ["Legal evidence state is unavailable"] };
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(submitted),
+        terminal: submitted.terminal === true,
+      });
+      continue;
+    }
 
     if (tc.function.name.startsWith("mcp_")) {
       emit({
@@ -617,6 +651,12 @@ export async function runToolCalls(
       if (a2aj.document?.url) a2ajDocuments.push(a2aj.document);
       if (a2aj.lookup?.status === "found" && a2aj.lookup.block) {
         a2ajLookups.push(a2aj.lookup);
+      }
+      if (legalEvidenceState) {
+        registerLegalEvidence(legalEvidenceState, a2aj.evidence, {
+          document: a2aj.document,
+          lookup: a2aj.lookup,
+        });
       }
       toolResults.push({
         role: "tool",

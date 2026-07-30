@@ -1,17 +1,23 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("Ollama model catalog", () => {
   beforeEach(() => {
     vi.resetModules();
     process.env.OLLAMA_BASE_URL = "http://desktop.test:11434";
+    delete process.env.OLLAMA_HOST_HEADER;
     delete process.env.OLLAMA_MODELS;
     delete process.env.OLLAMA_THINKING_MODELS;
+    delete process.env.OLLAMA_NUM_CTX;
   });
 
   afterEach(() => {
     delete process.env.OLLAMA_BASE_URL;
+    delete process.env.OLLAMA_HOST_HEADER;
     delete process.env.OLLAMA_MODELS;
     delete process.env.OLLAMA_THINKING_MODELS;
+    delete process.env.OLLAMA_NUM_CTX;
     vi.unstubAllGlobals();
   });
 
@@ -81,6 +87,48 @@ describe("Ollama model catalog", () => {
     ).toMatchObject({ think: false });
   });
 
+  it("sets the configured reverse-proxy host header", async () => {
+    const hosts: (string | undefined)[] = [];
+    const server = createServer((request, response) => {
+      hosts.push(request.headers.host);
+      request.resume();
+      request.on("end", () => {
+        response.setHeader("Content-Type", "application/json");
+        response.end(
+          JSON.stringify(
+            request.url === "/api/tags"
+              ? { models: [] }
+              : { message: { role: "assistant", content: "ready" } },
+          ),
+        );
+      });
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const { port } = server.address() as AddressInfo;
+    process.env.OLLAMA_BASE_URL = `http://127.0.0.1:${port}`;
+    process.env.OLLAMA_HOST_HEADER = "localhost:11434";
+    const { getOllamaModelCatalog, streamOllama } = await import(
+      "../llm/ollamaApi"
+    );
+
+    try {
+      await getOllamaModelCatalog();
+      await streamOllama({
+        model: "ollama:qwen3:32b",
+        systemPrompt: "",
+        messages: [{ role: "user", content: "test" }],
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+
+    expect(hosts).toEqual(["localhost:11434", "localhost:11434"]);
+  });
+
   it("reports an unreachable desktop instead of a generic fetch failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const { streamOllama } = await import("../llm/ollamaApi");
@@ -94,6 +142,88 @@ describe("Ollama model catalog", () => {
     ).rejects.toThrow(
       "Desktop Ollama is unreachable at http://desktop.test:11434",
     );
+  });
+
+  it("surfaces Ollama's structured error with a recovery step", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: async () =>
+          JSON.stringify({
+            error: "failed to parse JSON: unexpected end of JSON input",
+          }),
+      }),
+    );
+    const { streamOllama } = await import("../llm/ollamaApi");
+
+    await expect(
+      streamOllama({
+        model: "ollama:qwen3.5:2b",
+        systemPrompt: "",
+        messages: [{ role: "user", content: "research" }],
+      }),
+    ).rejects.toThrow(
+      "Desktop Ollama failed (HTTP 500): failed to parse JSON: unexpected end of JSON input. Retry the request.",
+    );
+  });
+
+  it("compacts old tool output while preserving the newest result", async () => {
+    process.env.OLLAMA_NUM_CTX = "500";
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn().mockImplementation(
+      async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        const call = fetchMock.mock.calls.length;
+        return {
+          ok: true,
+          json: async () => ({
+            message:
+              call < 3
+                ? {
+                    role: "assistant",
+                    content: "",
+                    tool_calls: [
+                      {
+                        function: {
+                          name: "search",
+                          arguments: { query: `query-${call}` },
+                        },
+                      },
+                    ],
+                  }
+                : { role: "assistant", content: "done" },
+          }),
+        };
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { streamOllama } = await import("../llm/ollamaApi");
+    let resultNumber = 0;
+
+    await streamOllama({
+      model: "ollama:qwen3.5:2b",
+      systemPrompt: "",
+      messages: [{ role: "user", content: "research" }],
+      runTools: async (calls) => {
+        resultNumber += 1;
+        return calls.map((call) => ({
+          tool_use_id: call.id,
+          content: `result-${resultNumber}:${"x".repeat(1_000)}`,
+        }));
+      },
+    });
+
+    const thirdMessages = bodies[2]?.messages as {
+      role: string;
+      content: string;
+    }[];
+    const toolResults = thirdMessages.filter(
+      (message) => message.role === "tool",
+    );
+    expect(toolResults[0]?.content).toContain('"compacted":true');
+    expect(toolResults[1]?.content).toContain("result-2:");
   });
 
   it("fails closed when the desktop is unavailable", async () => {

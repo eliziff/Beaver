@@ -9,6 +9,7 @@ export interface ModelOption {
     label: string;
     group:
         | "Anthropic"
+        | "Anthropic subscription"
         | "Google"
         | "OpenAI"
         | "DeepSeek"
@@ -59,7 +60,6 @@ export function ModelPicker({
             />
             <button
                 type="button"
-                role="combobox"
                 aria-expanded={open}
                 aria-haspopup="dialog"
                 disabled={disabled}

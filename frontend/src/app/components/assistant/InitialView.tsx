@@ -124,16 +124,20 @@ export function InitialView({
         }
     }
     return (
-        <div className="grid h-full w-full grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] px-6">
+        <div
+            className="h-full min-w-0 w-full overflow-y-auto px-4 sm:px-6"
+            style={{ scrollbarGutter: "stable" }}
+        >
+            <div className="mx-auto grid min-h-full w-full max-w-4xl grid-rows-[minmax(min-content,1fr)_auto_minmax(min-content,1fr)] py-4 xl:px-8">
             <div className="flex min-h-0 items-end justify-center pb-6">
-                <div className="flex h-10 w-full max-w-4xl items-center justify-center gap-3 px-0 xl:px-8">
+                <div className="flex min-h-10 min-w-0 w-full items-center justify-center gap-3">
                     <BeaverIcon size={30} />
-                    <h1 className="whitespace-nowrap font-serif text-4xl font-light text-gray-900">
+                    <h1 className="min-w-0 break-words text-center font-serif text-3xl font-light text-gray-900 sm:text-4xl">
                         Hi, {username}
                     </h1>
                 </div>
             </div>
-            <div className="w-full max-w-4xl justify-self-center px-0 xl:px-8">
+            <div className="w-full justify-self-center">
                 <ChatInput
                     ref={chatInputRef}
                     onSubmit={onSubmit}
@@ -141,9 +145,9 @@ export function InitialView({
                     isLoading={false}
                 />
             </div>
-            <div className="min-h-0 w-full max-w-4xl justify-self-center px-0 pt-1 xl:px-8">
+            <div className="min-h-0 w-full justify-self-center pt-1">
                 <div className="text-center">
-                    <p className="text-xs py-2 mb-12 text-gray-500">
+                    <p className="mb-12 py-2 text-xs text-gray-600">
                         AI can make mistakes. Answers are not legal advice.
                     </p>
                 </div>
@@ -163,13 +167,13 @@ export function InitialView({
                                 <MoreHorizontal className="h-3.5 w-3.5" />
                             </button>
                         </div>
-                        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+                        <div className="mt-3 grid w-full max-w-3xl grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                             {visibleQuickActions.map((action) => (
                                 <button
                                     key={action.id}
                                     type="button"
                                     onClick={() => handleQuickAction(action.id)}
-                                    className="inline-flex h-8 items-center justify-center rounded-full border border-gray-200 bg-white px-3 font-medium text-gray-600 hover:text-gray-900 disabled:cursor-default disabled:opacity-45"
+                                    className="inline-flex min-h-8 items-center justify-center rounded-full border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-600 hover:text-gray-900 disabled:cursor-default disabled:opacity-45"
                                 >
                                     {action.label}
                                 </button>
@@ -177,6 +181,7 @@ export function InitialView({
                         </div>
                     </div>
                 )}
+            </div>
             </div>
             {modal === "quickActions" && (
                 <Modal

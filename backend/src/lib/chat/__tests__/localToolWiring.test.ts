@@ -55,11 +55,15 @@ describe("local assistant tool wiring", () => {
     delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
     const open = await loadTools();
     expect(names(open.LOCAL_ASSISTANT_TOOLS)).toContain("caselaw_note_up");
+    expect(names(open.LOCAL_ASSISTANT_TOOLS)).toContain(
+      "submit_grounded_answer",
+    );
 
     process.env.MIKE_DISABLE_RESEARCH_TOOLS = "1";
     const sealed = await loadTools();
     const sealedNames = names(sealed.LOCAL_ASSISTANT_TOOLS);
     expect(sealedNames).not.toContain("caselaw_note_up");
+    expect(sealedNames).not.toContain("submit_grounded_answer");
     // Document tools survive the gate; only information sources are removed.
     expect(sealedNames).toContain("library_compare_versions");
   });

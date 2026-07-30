@@ -159,4 +159,90 @@ describe("ChatView rejected normal turn", () => {
         );
         expect(mocks.clearDraft).toHaveBeenCalledOnce();
     });
+
+    it("announces response progress and only reports successful completion", async () => {
+        const handleChat = vi.fn().mockResolvedValue(null);
+        const cancel = vi.fn();
+        const { rerender } = render(
+            <ChatView
+                chatId="chat-1"
+                messages={[]}
+                isResponseLoading={false}
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        const status = screen.getByRole("status");
+        expect(status).toBeEmptyDOMElement();
+
+        rerender(
+            <ChatView
+                chatId="chat-1"
+                messages={[
+                    { role: "user", content: "Question" },
+                    { role: "assistant", content: "" },
+                ]}
+                isResponseLoading
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        await waitFor(() =>
+            expect(status).toHaveTextContent("Assistant is responding."),
+        );
+
+        rerender(
+            <ChatView
+                chatId="chat-1"
+                messages={[
+                    { role: "user", content: "Question" },
+                    { role: "assistant", content: "Answer" },
+                ]}
+                isResponseLoading={false}
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        await waitFor(() =>
+            expect(status).toHaveTextContent("Response ready."),
+        );
+
+        rerender(
+            <ChatView
+                chatId="chat-1"
+                messages={[
+                    { role: "user", content: "Question" },
+                    { role: "assistant", content: "" },
+                    { role: "user", content: "Another question" },
+                    { role: "assistant", content: "" },
+                ]}
+                isResponseLoading
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        await waitFor(() =>
+            expect(status).toHaveTextContent("Assistant is responding."),
+        );
+
+        rerender(
+            <ChatView
+                chatId="chat-1"
+                messages={[
+                    { role: "user", content: "Question" },
+                    { role: "assistant", content: "" },
+                    { role: "user", content: "Another question" },
+                    {
+                        role: "assistant",
+                        content: "",
+                        error: "Provider unavailable.",
+                    },
+                ]}
+                isResponseLoading={false}
+                handleChat={handleChat}
+                cancel={cancel}
+            />,
+        );
+        await waitFor(() => expect(status).toBeEmptyDOMElement());
+    });
 });

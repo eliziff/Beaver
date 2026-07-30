@@ -57,6 +57,29 @@ describe("A2AJ compiler spine", () => {
     ).toContain("primary judgment resumes");
   });
 
+  it("recovers a numbered paragraph joined to its preceding heading", () => {
+    // Real A2AJ shape from 2024 ONCA 468: "Qualified Privilege [63] ...".
+    // The heading must not make the local reader lose the pinpoint target.
+    const text = [
+      "[1] First substantive judgment paragraph contains enough ordinary words for reliable structural validation.",
+      "[2] Second substantive judgment paragraph contains enough ordinary words for reliable structural validation.",
+      "(a) Qualified Privilege [3] The court begins by setting out the governing legal principles and their application to the record.",
+      "[4] The primary judgment resumes with enough ordinary substantive words for structural validation.",
+      "[5] The primary judgment continues with enough ordinary substantive words for structural validation.",
+      "[6] The disposition follows from the preceding analysis and resolves the remaining issues between the parties.",
+    ].join("\n");
+    const doc = compile({ text, docType: "cases" });
+
+    expect(
+      doc.blocks
+        .filter((block) => block.kind === "paragraph")
+        .map((block) => block.label),
+    ).toEqual(["par1", "par2", "par3", "par4", "par5", "par6"]);
+    expect(lookupSourceDoc(doc, "paragraph", "3").block?.text).toMatch(
+      /^\[3\] The court begins/u,
+    );
+  });
+
   it("accepts a complete short [1]..[N] ladder in a short order", () => {
     // Short orders / oral reasons / costs rulings: 17/29 of the
     // full-sweep none-queue sample were exactly this shape, killed by

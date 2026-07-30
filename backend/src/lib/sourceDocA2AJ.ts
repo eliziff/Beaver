@@ -446,6 +446,127 @@ function monotoneScopes(markers: NumberedMarker[], maxGap = 8) {
   return scopes;
 }
 
+const HEADING_CONNECTORS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "by",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "v.",
+]);
+
+function looksLikeJoinedHeading(value: string) {
+  const heading = value
+    .trim()
+    .replace(/^\([\p{L}\p{N}]+\)\s+/u, "");
+  if (!heading || heading.length > 120 || /[\[\];!?]/u.test(heading)) {
+    return false;
+  }
+  const words = heading.split(/\s+/u);
+  return (
+    words.length <= 12 &&
+    words.some((word) => /^\p{Lu}/u.test(word)) &&
+    words.every(
+      (word) =>
+        HEADING_CONNECTORS.has(word) ||
+        /^\p{Lu}[\p{L}\p{M}’'’-]*:?$/u.test(word) ||
+        /^\p{Lu}\.$/u.test(word) ||
+        /^\d+(?:\.\d+)*[.):]?$/u.test(word),
+    )
+  );
+}
+
+/**
+ * A2AJ occasionally joins a heading to the numbered paragraph that follows:
+ * `Qualified Privilege [63] ...`. Recover only a unique missing marker
+ * bracketed by an already-proven paragraph spine (or immediately before its
+ * first marker). This stays fail-closed on bracketed quotations and citations.
+ */
+function recoverHeadingJoinedParagraphs(
+  text: string,
+  spine: NumberedMarker[],
+) {
+  const knownStarts = new Set(spine.map(({ start }) => start));
+  const candidates = new Map<number, NumberedMarker[]>();
+  for (const match of text.matchAll(/\[(\d{1,4})\]/gu)) {
+    if (knownStarts.has(match.index)) continue;
+    const number = Number(match[1]);
+    let before: NumberedMarker | undefined;
+    for (const marker of spine) {
+      if (marker.start >= match.index) break;
+      before = marker;
+    }
+    const after = spine.find((marker) => marker.start > match.index);
+    const between =
+      !!before &&
+      !!after &&
+      before.number < number &&
+      number < after.number;
+    const leading =
+      !before &&
+      !!after &&
+      number > 0 &&
+      after.number - number <= 2 &&
+      after.start - match.index <= 2_000;
+    if (!between && !leading) continue;
+    const lineStart = text.lastIndexOf("\n", match.index - 1) + 1;
+    if (!looksLikeJoinedHeading(text.slice(lineStart, match.index))) continue;
+    candidates.set(number, [
+      ...(candidates.get(number) ?? []),
+      { number, start: match.index },
+    ]);
+  }
+  const recovered = [...candidates.values()]
+    .filter((matches) => matches.length === 1)
+    .flat();
+  return [...spine, ...recovered].sort(
+    (left, right) => left.start - right.start,
+  );
+}
+
+function paragraphSourceBlocks(
+  text: string,
+  spine: NumberedMarker[],
+  allMarkers: ParagraphMarker[],
+  style: ParagraphMarker["style"],
+) {
+  const selected =
+    style === "bracket"
+      ? recoverHeadingJoinedParagraphs(text, spine)
+      : spine;
+  const boundaries = [
+    ...new Set([
+      ...allMarkers
+        .filter((marker) => marker.style === style)
+        .map(({ start }) => start),
+      ...selected.map(({ start }) => start),
+      text.length,
+    ]),
+  ].sort((left, right) => left - right);
+  const nextOffset = new Map(
+    boundaries.map((offset, index) => [
+      offset,
+      boundaries[index + 1] ?? text.length,
+    ]),
+  );
+  return selected.map((marker) => ({
+    kind: "paragraph" as const,
+    label: `par${marker.number}`,
+    start: marker.start,
+    end: nextOffset.get(marker.start) ?? text.length,
+    origin: "heuristic" as const,
+  }));
+}
+
 function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
   if (!text) return [];
   const markers: ParagraphMarker[] = [];
@@ -550,7 +671,12 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
           ),
         ) >= 30
       ) {
-        return blocks;
+        return paragraphSourceBlocks(
+          text,
+          hypothesis.markers,
+          markers,
+          hypothesis.style,
+        );
       }
       continue;
     }
@@ -566,7 +692,12 @@ function paragraphBlocks(text: string, minRun = 5): SourceDocBlock[] {
     ) {
       continue;
     }
-    return blocks;
+    return paragraphSourceBlocks(
+      text,
+      hypothesis.markers,
+      markers,
+      hypothesis.style,
+    );
   }
   return [];
 }
