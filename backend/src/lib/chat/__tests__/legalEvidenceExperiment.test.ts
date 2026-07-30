@@ -764,4 +764,139 @@ describe("attested characterizations (H12 widened tier)", () => {
       ),
     ).toBe(false);
   });
+
+  it("labels commentary characterizations with the journal, not a court", () => {
+    const receipt = attestedCharacterizationReceipt({
+      citedCitation: "2016 SCC 27",
+      characterization: {
+        ...characterization,
+        citingCitation: null,
+        citingCourt: null,
+        sourceKind: "commentary",
+        journalName: "McGill Law Journal",
+      },
+    });
+    expect(receipt).toMatchObject({
+      dataset: "journal-commentary",
+      stable_source_id: "citator:standsfor:McGill Law Journal",
+    });
+    expect(receipt.locator.label).toBe(
+      "as characterized in McGill Law Journal",
+    );
+  });
+});
+
+describe("attested_framing stands-for gate (Stage 8)", () => {
+  const characterization = {
+    text:
+      "the Supreme Court has set a presumptive ceiling beyond which delay " +
+      "is presumed unreasonable unless exceptional circumstances justify it",
+    citingCitation: "2023 SCC 30",
+    citingName: "R. v. Citing Example",
+    citingCourt: "SCC",
+    citingDate: "2023-05-05",
+    spanSha256: "ignored-by-receipt-builder",
+  };
+
+  function framingState() {
+    const state = createLegalEvidenceTurnState("attested_framing");
+    const passage = createBenchmarkEvidence({
+      stableSourceId: "test:jordan",
+      sourceText: "The total delay was 49.5 months in provincial court.",
+      spanText: "The total delay was 49.5 months in provincial court.",
+      citation: "2016 SCC 27",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "para 5",
+      jurisdiction: "CA",
+      sourceClass: "case",
+    });
+    registerLegalEvidence(state, passage);
+    const attested = attestedCharacterizationReceipt({
+      citedCitation: "2016 SCC 27",
+      characterization,
+    });
+    registerLegalEvidence(state, attested);
+    return { state, passage, attested };
+  }
+
+  it("rejects composed stands-for framing even as the one conclusion claim", () => {
+    const { state, passage } = framingState();
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "“The total delay was 49.5 months in provincial court.”",
+            evidence_ids: [passage.evidence_id],
+          },
+          {
+            text: "The case establishes a comprehensive framework governing unreasonable delay.",
+            evidence_ids: [passage.evidence_id],
+          },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toContain("stands-for language");
+  });
+
+  it("accepts stands-for framing quoted verbatim from the attested characterization", () => {
+    const { state, passage, attested } = framingState();
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "“The total delay was 49.5 months in provincial court.”",
+              evidence_ids: [passage.evidence_id],
+            },
+            {
+              text:
+                "“the Supreme Court has set a presumptive ceiling beyond " +
+                "which delay is presumed unreasonable unless exceptional " +
+                "circumstances justify it”",
+              evidence_ids: [attested.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+  });
+
+  it("leaves statute conclusions alone — the gate needs case evidence (HousingQA no-op)", () => {
+    const state = createLegalEvidenceTurnState("attested_framing");
+    const statute = createBenchmarkEvidence({
+      stableSourceId: "test:statute",
+      sourceText:
+        "A landlord may terminate a tenancy only on a ground set out in this section.",
+      spanText:
+        "A landlord may terminate a tenancy only on a ground set out in this section.",
+      citation: "RTA s 37",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "s 37",
+      jurisdiction: "CA",
+      sourceClass: "legislation",
+    });
+    registerLegalEvidence(state, statute);
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "“A landlord may terminate a tenancy only on a ground set out in this section.”",
+              evidence_ids: [statute.evidence_id],
+            },
+            {
+              text: "The section governs which grounds permit termination.",
+              evidence_ids: [statute.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+  });
 });
