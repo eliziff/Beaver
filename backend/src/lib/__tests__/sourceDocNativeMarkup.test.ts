@@ -6,20 +6,31 @@ import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
 import {
   compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
+  nativeMarkupCitedRefs,
   summarizeLegalSourceDoc,
 } from "../sourceDocNativeMarkup";
 
 /**
- * Parity gate for the legalSourceStructure engine the native-markup compiler
- * replaced (master plan P1.1a stage 4).
+ * Parity gates for the native-markup compiler.
  *
  * Every fixture in `fixtures/nativemarkup` is a REAL payload captured on
  * 2026-07-27 (TNA Akoma Ntoso XML, Harvard CAP casebody HTML, GOV.UK ET
  * content, a GovInfo package summary, a journals-provider article).
- * `legacy-structure.json` is the frozen output of the deleted engine,
- * machine-captured from it before removal: rendered text hash, every block
- * boundary, and a lookup battery whose payload hashes use the exact shape
- * TNA evidence receipts persist (`payload_sha256`). Do not regenerate it.
+ *
+ * `legacy-structure.json` is the frozen output of the deleted
+ * legalSourceStructure engine (master plan P1.1a stage 4), machine-captured
+ * before removal. Do not regenerate it. Since the v2 structure enrichment
+ * (CAP star-pagination pages + footnote asides, TNA lvl_N sections;
+ * 2026-07-30) the compiler intentionally indexes MORE than the legacy
+ * engine, so the legacy recording now gates the invariants that must
+ * survive enrichment: rendered text stays byte-identical, every legacy
+ * block survives verbatim, and every legacy PARAGRAPH lookup replays with
+ * an identical receipt payload hash (lookup context is same-kind, so new
+ * page/footnote/section blocks cannot enter it).
+ *
+ * `native-structure-v2.json` is the frozen output of the enriched
+ * compiler — the byte-exact gate for current behavior, in the exact shape
+ * TNA evidence receipts persist (`payload_sha256`, schema v2).
  */
 
 const FIXTURE_DIR = path.join(__dirname, "fixtures", "nativemarkup");
@@ -52,6 +63,10 @@ type Recording = {
 
 const LEGACY = JSON.parse(
   readFileSync(path.join(FIXTURE_DIR, "legacy-structure.json"), "utf8"),
+) as Record<string, Recording>;
+
+const V2 = JSON.parse(
+  readFileSync(path.join(FIXTURE_DIR, "native-structure-v2.json"), "utf8"),
 ) as Record<string, Recording>;
 
 function fixture<T>(file: string): T {
@@ -127,37 +142,68 @@ function assertRecording(doc: SourceDoc, recording: Recording) {
   }
 }
 
-describe("parity with the legalSourceStructure engine replaced", () => {
-  it("renders a real TNA judgment byte-identically", () => {
+/**
+ * The enrichment invariants vs the deleted engine's recording: text bytes
+ * unchanged, no legacy block lost, and every legacy paragraph lookup —
+ * the shape v1 receipts persisted — replays with an identical payload
+ * hash under the enriched index.
+ */
+function assertLegacyInvariants(doc: SourceDoc, recording: Recording) {
+  expect(sha256(doc.text)).toBe(recording.textSha256);
+  expect(doc.text.length).toBe(recording.textLength);
+  const current = new Set(
+    doc.blocks.map((block) =>
+      JSON.stringify([
+        block.kind,
+        block.label,
+        block.start,
+        block.end,
+        block.anchor ?? null,
+        block.parentLabel ?? null,
+      ]),
+    ),
+  );
+  for (const block of recording.blocks) {
+    expect(current.has(JSON.stringify(block))).toBe(true);
+  }
+  for (const before of recording.lookups) {
+    if (before.kind !== "paragraph" || before.status !== "found") continue;
+    const after = lookupLegalSourceDoc(doc, before.kind, before.locator, 2);
+    expect(sha256(JSON.stringify(lookupPayload(after)))).toBe(
+      before.payloadSha256,
+    );
+  }
+}
+
+describe("parity with the frozen structure recordings", () => {
+  it("renders a real TNA judgment byte-identically (v2 + legacy invariants)", () => {
     const source = fixture<{ citation: string; markup: string }>(
       "tna-eat-2025-1",
     );
-    assertRecording(
-      compileNativeMarkupSourceDoc({
-        provider: "tna",
-        id: source.citation,
-        text: "",
-        markup: source.markup,
-        citation: source.citation,
-      }),
-      LEGACY["tna-eat-2025-1"],
-    );
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "tna",
+      id: source.citation,
+      text: "",
+      markup: source.markup,
+      citation: source.citation,
+    });
+    assertRecording(doc, V2["tna-eat-2025-1"]);
+    assertLegacyInvariants(doc, LEGACY["tna-eat-2025-1"]);
   });
 
-  it("renders real Harvard CAP casebody HTML byte-identically", () => {
+  it("renders real Harvard CAP casebody HTML byte-identically (v2 + legacy invariants)", () => {
     const source = fixture<{ citation: string; markup: string }>(
       "courtlistener-cap-372us335",
     );
-    assertRecording(
-      compileNativeMarkupSourceDoc({
-        provider: "courtlistener",
-        id: source.citation,
-        text: "",
-        markup: source.markup,
-        citation: source.citation,
-      }),
-      LEGACY["courtlistener-cap-372us335"],
-    );
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: source.citation,
+      text: "",
+      markup: source.markup,
+      citation: source.citation,
+    });
+    assertRecording(doc, V2["courtlistener-cap-372us335"]);
+    assertLegacyInvariants(doc, LEGACY["courtlistener-cap-372us335"]);
   });
 
   it("keeps plain-text providers on the shared prose spine", () => {
@@ -243,6 +289,90 @@ describe("native markup compilation", () => {
     expect(
       lookupLegalSourceDoc(doc, "page", "410").block?.text,
     ).toContain("Distinctive reporter page passage");
+  });
+
+  it("compiles CAP star pagination inline without breaking text flow", () => {
+    const markup =
+      '<article class="opinion"><p>The sentence continues across ' +
+      '<a id="p880" href="#p880" data-label="880" class="page-label">*880</a> ' +
+      "the reporter page boundary without interruption.</p></article>";
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cap-1",
+      text: "",
+      markup,
+    });
+    expect(doc.text).toContain(
+      "continues across *880 the reporter page boundary",
+    );
+    const page = lookupLegalSourceDoc(doc, "page", "880");
+    expect(page.status).toBe("found");
+    expect(page.block?.anchor).toBe("p880");
+    expect(page.block?.origin).toBe("native");
+    expect(page.block?.text).toContain("*880 the reporter page");
+  });
+
+  it("compiles CAP footnote asides to native footnote blocks", () => {
+    const markup =
+      '<article class="opinion"><p>Body text with a mark' +
+      '<a class="footnotemark" href="#footnote_1_2" id="ref_footnote_1_2">2</a>.</p>' +
+      '<aside data-label="2" class="footnote" id="footnote_1_2">' +
+      "<p>The distinctive footnote body text.</p></aside></article>";
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "courtlistener",
+      id: "cap-2",
+      text: "",
+      markup,
+    });
+    const footnote = lookupLegalSourceDoc(doc, "footnote", "footnote 2");
+    expect(footnote.status).toBe("found");
+    expect(footnote.block?.label).toBe("fn2");
+    expect(footnote.block?.anchor).toBe("footnote_1_2");
+    expect(footnote.block?.text).toContain("distinctive footnote body");
+  });
+
+  it("compiles TNA lvl_N levels to native section blocks", () => {
+    const markup = `
+      <judgment>
+        <level eId="lvl_1"><heading>Introduction</heading>
+          <paragraph eId="para_1"><content>Opening body.</content></paragraph>
+        </level>
+        <level eId="lvl_2"><heading>The relevant background</heading>
+          <paragraph eId="para_2"><content>Background body.</content></paragraph>
+        </level>
+      </judgment>`;
+    const doc = compileNativeMarkupSourceDoc({
+      provider: "tna",
+      id: "[2025] TEST 2",
+      text: "",
+      markup,
+    });
+    const section = lookupLegalSourceDoc(doc, "section", "2");
+    expect(section.status).toBe("found");
+    expect(section.block?.anchor).toBe("lvl_2");
+    expect(section.block?.text).toContain("The relevant background");
+  });
+
+  it("collects TNA <ref> cited authorities as data", () => {
+    const markup =
+      '<judgment><p>As held in <ref uk:canonical="[2016] UKSC 11" uk:type="case" ' +
+      'href="https://caselaw.nationalarchives.gov.uk/id/uksc/2016/11">' +
+      "Patel v Mirza [2016] UKSC 11</ref> and applied under " +
+      '<ref uk:canonical="1996 c. 18" uk:type="legislation">Employment Rights Act 1996</ref>, ' +
+      'repeated as <ref uk:canonical="[2016] UKSC 11" uk:type="case">Patel</ref>.</p></judgment>';
+    expect(nativeMarkupCitedRefs(markup)).toEqual([
+      {
+        citation: "Patel v Mirza [2016] UKSC 11",
+        canonical: "[2016] UKSC 11",
+        type: "case",
+      },
+      {
+        citation: "Employment Rights Act 1996",
+        canonical: "1996 c. 18",
+        type: "legislation",
+      },
+    ]);
+    expect(nativeMarkupCitedRefs("<p>no refs here</p>")).toEqual([]);
   });
 
   it("reconstructs numbered paragraphs when markup has no native locators", () => {

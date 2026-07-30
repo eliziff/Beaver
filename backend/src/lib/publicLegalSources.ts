@@ -12,6 +12,8 @@ import type {
 import {
   compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
+  nativeMarkupCitedRefs,
+  type NativeMarkupRef,
 } from "./sourceDocNativeMarkup";
 import type { JournalArticleSearchResult } from "./journalArticles";
 import { sha256 } from "./hash";
@@ -69,6 +71,8 @@ export type PublicLegalDocument = {
   text: string;
   structure: SourceDoc;
   attachments: PublicLegalAttachment[];
+  /** Cited authorities the provider's markup states as data (TNA <ref>). */
+  citedAuthorities?: NativeMarkupRef[];
   sourceVersion?: {
     format: "tna-akn-xml";
     url: string;
@@ -83,8 +87,16 @@ export type PublicLegalLookup = SourceDocLookup & {
   anchor: string | null;
 };
 
-const EVIDENCE_SCHEMA = "mike.provider_legal_evidence.v1";
-const EVIDENCE_HANDLE = /^mike-provider-evidence:v1:([0-9a-f]{64})$/u;
+// v2 (2026-07-30): the native-markup compiler learned CAP star-pagination
+// pages, CAP footnote asides, and TNA level (lvl_N) sections. Receipt
+// payload hashes cover same-kind context blocks, so v1 hashes computed
+// over the poorer block index can no longer be re-verified; v1 receipts
+// are refused BY VERSION (typed, honest) instead of failing with a
+// misleading source-integrity error. Source blobs are content-addressed
+// and version-independent.
+const EVIDENCE_SCHEMA = "mike.provider_legal_evidence.v2";
+const EVIDENCE_HANDLE = /^mike-provider-evidence:v2:([0-9a-f]{64})$/u;
+const EVIDENCE_HANDLE_V1 = /^mike-provider-evidence:v1:[0-9a-f]{64}$/u;
 
 export type PublicLegalEvidenceReceipt = {
   schema_version: typeof EVIDENCE_SCHEMA;
@@ -129,13 +141,20 @@ const xmlParser = new XMLParser({
 });
 
 function evidencePath(handle: string) {
+  if (EVIDENCE_HANDLE_V1.test(handle)) {
+    throw new Error(
+      "Provider evidence receipt uses the superseded v1 structure schema " +
+        "(pre CAP-page/footnote and TNA-level blocks); re-run the lookup " +
+        "to capture a v2 receipt",
+    );
+  }
   const digest = handle.match(EVIDENCE_HANDLE)?.[1];
   if (!digest) throw new Error("Invalid provider evidence handle");
   return path.join(
     mikeLocalDataHome(),
     "evidence",
     "provider-native",
-    "v1",
+    "v2",
     `${digest}.json`,
   );
 }
@@ -256,7 +275,7 @@ function receiptValue(value: unknown): PublicLegalEvidenceReceipt {
   const { handle: _handle, ...identity } =
     receipt as PublicLegalEvidenceReceipt;
   if (
-    `mike-provider-evidence:v1:${sha256(JSON.stringify(identity))}` !==
+    `mike-provider-evidence:v2:${sha256(JSON.stringify(identity))}` !==
     receipt.handle
   ) {
     throw new Error(
@@ -309,7 +328,7 @@ export async function persistPublicLegalEvidence(
       payload_sha256: sha256(JSON.stringify(lookupPayload(lookup))),
     },
   };
-  const handle = `mike-provider-evidence:v1:${sha256(JSON.stringify(identity))}`;
+  const handle = `mike-provider-evidence:v2:${sha256(JSON.stringify(identity))}`;
   const receipt: PublicLegalEvidenceReceipt = { ...identity, handle };
   const blob = sourcePath(sourceVersion.sha256);
   await atomicWriteOnce(blob, sourceVersion.body);
@@ -357,6 +376,7 @@ export async function rehydratePublicLegalEvidence(handle: string) {
     text: structure.text,
     structure,
     attachments: [],
+    citedAuthorities: nativeMarkupCitedRefs(body),
     sourceVersion: {
       format: receipt.source.format,
       url: receipt.source.source_url,
@@ -614,6 +634,7 @@ export async function fetchTnaCase(
     text: structure.text,
     structure,
     attachments: [],
+    citedAuthorities: nativeMarkupCitedRefs(xml),
     sourceVersion: {
       format: "tna-akn-xml",
       url: xmlUrl,
@@ -696,6 +717,21 @@ function hiddenText(value: unknown): string {
   return "";
 }
 
+/** The same field kept as raw HTML for the native-markup compiler. */
+function hiddenMarkup(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value))
+    return value.map(hiddenMarkup).filter(Boolean).join("\n");
+  return "";
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;");
+}
+
 function govUkAttachments(value: unknown): PublicLegalAttachment[] {
   const allowed = new Set(["www.gov.uk", "assets.publishing.service.gov.uk"]);
   return asArray(value).flatMap((raw) => {
@@ -734,25 +770,38 @@ export async function fetchGovUkEtCase(
   const body = await responseJson(`${GOVUK_ORIGIN}/api/content${path}`);
   const details = asRecord(body.details) ?? {};
   const title = asString(body.title) ?? result.title;
+  const description = asString(body.description);
   const text = [
     title,
-    asString(body.description),
+    description,
     hiddenText(details.hidden_indexable_content),
   ]
     .filter((value): value is string => Boolean(value))
     .join("\n\n");
+  // hidden_indexable_content is HTML whose <p>[N] ...</p> markup carries
+  // the paragraph boundaries; tag-stripping it first forced the compiler
+  // to re-guess them from flattened text (structural-richness survey
+  // 2026-07-29, finding 4). Title/description ride along as escaped
+  // paragraphs so the rendered document keeps its header.
+  const hiddenHtml = hiddenMarkup(details.hidden_indexable_content);
   const structure = compileNativeMarkupSourceDoc({
     provider: "govuk-et",
     id: result.caseNumber,
     url: publicUrl,
     text,
+    markup: hiddenHtml
+      ? [title, description]
+          .filter((value): value is string => Boolean(value))
+          .map((value) => `<p>${escapeHtml(value)}</p>`)
+          .join("") + hiddenHtml
+      : null,
   });
   return {
     provider: "govuk-et",
     identity: result.caseNumber,
     title,
     url: publicUrl,
-    text,
+    text: structure.text,
     structure,
     attachments: govUkAttachments(details.attachments),
   };
