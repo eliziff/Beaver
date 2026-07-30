@@ -235,6 +235,21 @@ D2. Stands-for profiles: per cited case, the prose citing contexts
     weights, public domain), LePaRD (21.9M citing-context→quoted-
     passage pairs, CC-BY-NC-SA), δ-Stance (signal polarity), courts-db
     (US court levels) + a ~30-row hand map for A2AJ court codes.
+    FOOTNOTE-PAIR PRONG BUILT (2026-07-30):
+    scripts/pair_journal_footnotes.py — a lightweight adapter of the
+    TFP footnote_pairing_v2 essentials (engine best_chain backbone DP,
+    monotone first-occurrence ref assignment, _sentence_at) over the
+    public_endpoint.db plaintext export, three label dialects
+    (N<TAB>, N.<TAB>, N<spaces>), page map walked as data. Output
+    citator/journal_commentary.sqlite (proposition + passage + hashes
+    per paired note, case citations keyed for the citator join;
+    crossref/truncation/ambiguity witnesses per article). Wired into
+    standsForProfile as sourceKind "commentary" (classifier-gated,
+    sentence-exact, court prose outranks commentary, null when DB
+    absent). Digital-native articles' upstream fn_ref/fn_label
+    annotations (journals.db final contracts) become the preferred
+    source for those articles once fully registered; the plaintext
+    lane is the breadth pass and states its own quality.
 D3. Stage 8 ablations (each frozen separately):
     - feed-forward: "other courts cite this case for: …" (top prose
       contexts / parentheticals) in the composition prompt; measure
