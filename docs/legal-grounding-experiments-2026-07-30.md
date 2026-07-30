@@ -1854,6 +1854,25 @@ Falsified by: any false pass; transport attrition >20% of either
 lane's cells (would mean the lane measures transport, not grounding,
 per the Stage 8b haiku precedent).
 
+### Stage 12 result: CUT by Eli mid-run; transport-falsified on what landed
+
+Eli cut the run after the sonnet-5 lane completed (41/41 cells) and
+the opus-5 lane had 10 rows. Every error on both lanes is the same
+content-shaped `unparseable reply after retries` JSON failure — none
+are kill artifacts. Attrition: sonnet-5 **8/41 (20%)**, opus-5 **6/10
+(60%)** — both hit the registered >20%-attrition falsifier, so per
+the registration the lanes measure transport, not grounding, and no
+grounding conclusion is drawn. The Claude 5 family breaks the
+`claude -p` JSON reply protocol MORE than sonnet-4-6 (4/41 in Stage
+10), killing P2's direction. Clean-cell glimpse, recorded but NOT
+scored (small n, attrition-biased toward easy cells): sonnet-5 case
+no-sub 4/15; opus-5 4 clean case cells, 3 passed, 0 no-sub, 0
+transport-clean bails. Prerequisite recorded: the claude-p transport
+needs a structured-output/JSON-repair hardening pass before any
+Claude-5 lane is runnable; until then the claude-family lane stays
+on sonnet-4-6. Receipts `stage12-claude5.jsonl` (partial), sha256
+`951FAC9DBA05921520C2175DB77E55CD0F639FF3893789908AC9BF5C359B064E`.
+
 ### Stage 11 results (run 2026-07-30, 77 cells, 0 errors; smoke 2/2 clean)
 
 Case cells (n=18 per policy), luna medium, required_slot:
@@ -1890,6 +1909,40 @@ refusal-despite-candidates; ranks 1/2/3 all used under every policy.
   ordering, NOT flat_recency (coverage cost beyond the floor);
   between authority and banded the data cannot separate — Eli's
   banded proposal survives at no measured cost vs the incumbent.
+
+## Stage 13 — codex tier/effort ladder
+(pre-registered 2026-07-30; Eli's corrected roster directive: "test
+luna, terra, and sol. Let's try luna max, terra max, sol medium, and
+then a small set for sol max")
+
+Design: arm `required_slot`, rank policy **authority** held constant
+(the Stage 11 recommendation; flat_recency is retired as default),
+same-model checker, timeout 300s (max-effort headroom), all codex
+lanes (transport-clean — the claude lane is parked pending the
+Stage 12 hardening prerequisite):
+- `codex:gpt-5.6-luna` effort **max** — full 41-item matrix;
+- `codex:gpt-5.6-terra` effort **max** — full 41-item matrix (first
+  terra lane of the program);
+- `codex:gpt-5.6-sol` effort **medium** — full 41-item matrix;
+- `codex:gpt-5.6-sol` effort **max** — the 18 case cells only (the
+  small set, spent where the residual lives).
+141 cells. With Stage 9's sol-low and Stage 11's luna-medium lanes,
+this yields effort ladders luna medium→max and sol low→medium→max
+(case cells) plus a fresh frontier-adjacent tier (terra).
+
+Frozen predictions:
+- P1 (capacity hypothesis, the live question after H18's
+  falsification): if the residual case-cell no-submission is
+  capacity-bound, it falls monotonically with effort within each
+  model (sol low 2/18 → medium → max; luna medium 3/18 → max) and
+  the strongest lane reaches ≤1/18. If it is contract-bound, effort
+  does not move it beyond the 13% floor — which would say the bail
+  is the contract's honest price, not a model limitation.
+- P2: zero verbatim-tier false passes; refusal-despite-candidates
+  counted (behavioral recurrence expected rare).
+- P3 (cost): latency/tokens per lane reported; max-effort lanes must
+  stay under the 300s timeout without saturating the flat-rate lane.
+Falsified by: any false pass; transport attrition >20% on any lane.
 
 ## Durable receipts
 
