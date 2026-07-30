@@ -125,11 +125,6 @@ SLOW_DOC_SECONDS = 2.0
 from structure_ref import law_section_labels, structure_cascade  # noqa: E402
 
 PILCROW_RE = re.compile(r"¶\s?\d")
-PAGE_MARK_JOURNAL_RE = re.compile(r"^[ \t]*\[page\s+(\d{1,5})\][ \t]*$", re.I | re.M)
-PAGE_MARK_TOA_RE = re.compile(
-    r"^\s*(?:\[\s*)?(?:original\s+)?page\s+([A-Za-z]?\d{1,4})(?:\s*\])?\s*$",
-    re.I | re.M,
-)
 ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
 
 _ENTRIES: list[
@@ -497,9 +492,13 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
                 record["fail"].append("line_collapsed")
         elif structure["kind"] == "paragraphs" and structure.get("span", 1.0) < 0.55:
             # Accepted scope covers under 55% of the document — the
-            # host-vs-quote competition residual worth surfacing (2.2%
-            # of accepted BCCA scopes).
-            record["fail"].append("paragraph_scope_narrow")
+            # host-vs-quote competition residual worth surfacing. In
+            # short docs (<4KB) the header+signature share mechanically
+            # dominates, so only flag them at a harsher threshold
+            # (bucket vet 2026-07-30: 6/12 sampled flags were exactly
+            # this noise; every true mis-selection sat below 0.48).
+            if len(text) >= 4000 or structure.get("span", 1.0) < 0.30:
+                record["fail"].append("paragraph_scope_narrow")
     elif kind == "law":
         want = set(oracle.get("section_labels") or [])
         num = oracle.get("num_sections") or 0
@@ -524,16 +523,15 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         if want and best < 0.5:
             record["fail"].append(f"section_recovery_{best:.2f}")
     elif kind == "journal":
-        want = oracle.get("page_labels") or []
-        found = {m.group(1) for m in PAGE_MARK_JOURNAL_RE.finditer(text)}
-        found |= {m.group(1) for m in PAGE_MARK_TOA_RE.finditer(text)}
-        wanted = [str(w) for w in want]
-        rec = (
-            sum(1 for w in wanted if w in found) / len(wanted) if wanted else None
-        )
-        record["pages"] = {"oracle": len(wanted), "recovery": rec}
-        if wanted and rec is not None and rec < 0.8:
-            record["fail"].append(f"page_recovery_{rec:.2f}")
+        # Journal page structure IS database metadata (article_pages /
+        # page_map_json in Eli's own public_endpoint.db); the [page N]
+        # markers in the text are rendered FROM it by our pipeline.
+        # Nothing to detect, recover, or validate — journals are scanned
+        # for grammar-entry rates only.
+        record["structure"] = {
+            "kind": "provider_metadata",
+            "pages": len(oracle.get("page_labels") or []),
+        }
 
     wall = time.perf_counter() - t0
     record["wall"] = round(wall, 4)

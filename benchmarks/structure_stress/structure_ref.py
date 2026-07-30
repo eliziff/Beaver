@@ -18,8 +18,16 @@ expansion and named-heading recovery are oracle-justified general
 mechanisms (the pre-1985 federal oracle collapses 51.6% of its labels
 into ranges; 4.18% of all oracle labels are non-numeric).
 
-Run `python -X utf8 structure_ref.py --parity` with the reference repo
-present to prove the paragraph port byte-equal over live corpus text.
+Paragraph-side extensions (2026-07-30, from the full-sweep none-queue
+close inspection: 17/29 sampled "no structure" docs were complete
+[1]..[N] ladders the guards rejected): short complete bracket ladders
+(contiguous from 1, ladder owns the doc) are accepted below min_run;
+the substance guard is median>=12 OR mean>=20 words so "I agree."
+concurrence tails cannot sink a real ladder; cascade span credits the
+final paragraph's body bounded by 2x median length. These deliberately
+diverge from the ALR reference — `--parity` now reports the docs the
+extensions newly capture; parity on the accepted-by-both set is the
+invariant that must hold.
 """
 
 from __future__ import annotations
@@ -108,19 +116,39 @@ def paragraph_index(text: str, *, min_run: int = 5) -> list[Paragraph]:
         bracket, dot, bare = match.groups()
         markers.append((match.start(), int(bracket or dot or bare),
                         "bracket" if bracket else "dot" if dot else "bare"))
-    hypotheses: list[tuple[str, list[tuple[int, int]]]] = []
+    hypotheses: list[tuple[str, list[tuple[int, int]], bool]] = []
     for style in ("bracket", "dot", "bare"):
         styled = [(offset, number) for offset, number, marker_style in markers if marker_style == style]
         for scope in monotone_scopes(styled):
             if len(scope) >= min_run:
-                hypotheses.append((style, scope))
+                hypotheses.append((style, scope, False))
+            elif (
+                style == "bracket"
+                and len(scope) >= 2
+                and [n for _, n in scope] == list(range(1, len(scope) + 1))
+            ):
+                # Complete short [1]..[N] ladders are real structure in
+                # short orders / oral reasons / costs rulings — 17 of 29
+                # docs in the none-queue close-inspection sample
+                # (2026-07-30) were exactly this shape, killed by min_run.
+                # Contiguity from 1 excludes quoted-fragment ladders and
+                # bracketed years ([1999] parses as 1999).
+                hypotheses.append((style, scope, True))
     if not hypotheses:
         return []
     rank = {"bracket": 2, "dot": 1, "bare": 0}
-    primary = [item for item in hypotheses if item[1][0][1] <= 5]
-    ordered = sorted(primary or hypotheses,
-                     key=lambda item: (len(item[1]), rank[item[0]], -item[1][0][1]), reverse=True)
-    for style, candidate in ordered:
+    # Short-complete hypotheses are a last resort: they must never enter
+    # the primary/fallback decision for full scopes (a tail [1]..[4] list
+    # in a big doc would otherwise shadow the real ladder — [1969] SCR
+    # 277 regression in the reservoir differential).
+    full = [item for item in hypotheses if not item[2]]
+    short = [item for item in hypotheses if item[2]]
+    primary = [item for item in full if item[1][0][1] <= 5]
+    key = lambda item: (len(item[1]), rank[item[0]], -item[1][0][1])  # noqa: E731
+    ordered = sorted(primary or full, key=key, reverse=True) + sorted(
+        short, key=key, reverse=True
+    )
+    for style, candidate, short_complete in ordered:
         out = _numbered_index(text, candidate, [offset for offset, _number, marker_style in markers
                                                 if marker_style == style])
         # A short numbered list followed by a long unnumbered tail otherwise
@@ -130,8 +158,35 @@ def paragraph_index(text: str, *, min_run: int = 5) -> list[Paragraph]:
         marker_span = (out[-1][1] - out[0][1]) / len(text)
         start_ratio = out[0][1] / len(text)
         bounded = out[:-1] or out
-        median_words = statistics.median(_word_count(item[3]) for item in bounded)
-        if median_words < 12 or marker_span < 0.05:
+        counts = [_word_count(item[3]) for item in bounded]
+        median_words = statistics.median(counts)
+        # Median alone rejects real ladders whose tail is short "I
+        # agree" concurrence lines; the mean stays high when a ladder
+        # carries substantive prose anywhere, and stays low for the
+        # uniformly-tiny items of quoted lists.
+        # Substance = median prose, or mean pulled up by real reasons
+        # (concurrence tails sink the median: "ROWLES, J.A.: I agree."),
+        # or at least one full prose paragraph (max) — quoted lists and
+        # endnote ladders are uniformly tiny on all three.
+        substantive = (
+            median_words >= 12
+            or statistics.fmean(counts) >= 20
+            or max(counts) >= 30
+        )
+        if short_complete:
+            # The ladder IS the document. Case headers are bounded
+            # absolutely (~500-900 chars) OR relatively (half the doc) —
+            # sub-1.5KB oral rulings fail the ratio while 2-4KB costs
+            # rulings fail the absolute, so accept either; a tail
+            # fragment in a 22KB doc fails both plus the size cap.
+            if (
+                len(text) <= 6000
+                and (out[0][1] <= 1200 or start_ratio <= 0.5)
+                and max(_word_count(item[3]) for item in out) >= 30
+            ):
+                return out
+            continue
+        if not substantive or marker_span < 0.05:
             continue
         if style != "bracket" and sum(_word_count(item[3]) >= 12 for item in out) / len(out) < 0.70:
             continue
@@ -378,9 +433,23 @@ def structure_cascade(text: str, *citations: str) -> dict:
     """
     paragraphs = paragraph_index(text)
     if paragraphs:
+        # Span credits the final paragraph's body, bounded by 2x the
+        # median paragraph length: marker-offset-only span mechanically
+        # flagged every correct short judgment (its whole last paragraph
+        # plus signatures counted as "uncovered"), while an unbounded
+        # end would let an EOF-inherited tail hide genuinely narrow
+        # scopes (quoted lists, order enumerations).
+        body_lens = [p[2] - p[1] for p in paragraphs[:-1]] or [
+            paragraphs[-1][2] - paragraphs[-1][1]
+        ]
+        credit = min(
+            paragraphs[-1][2] - paragraphs[-1][1],
+            2 * statistics.median(body_lens),
+        )
+        span = (paragraphs[-1][1] + credit - paragraphs[0][1]) / max(1, len(text))
         return {"kind": "paragraphs", "count": len(paragraphs),
                 "first": paragraphs[0][0], "last": paragraphs[-1][0],
-                "span": round((paragraphs[-1][1] - paragraphs[0][1]) / max(1, len(text)), 4)}
+                "span": round(min(span, 1.0), 4)}
     report_start = reporter_start_page(*citations)
     pages = page_structure(text, report_start)
     if pages:
