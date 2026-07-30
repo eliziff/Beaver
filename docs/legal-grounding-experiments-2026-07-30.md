@@ -1,7 +1,12 @@
 # Legal grounding experiment log — 2026-07-30
 
 Status: **completed benchmark experiment; not production-validated**. The
-experiment is off by default. This log owns the hypotheses, fixed comparisons,
+model-checking experiment is off by default. The deterministic composition
+contract is now production wiring: after an exact A2AJ passage lookup, each
+support unit's evidence receipt supplies its complete citation and locator,
+and Beaver places the linked citation at that unit boundary without parsing
+model citation prose. This does not promote any stochastic verifier result.
+This log owns the hypotheses, fixed comparisons,
 failure evidence, and promotion decision for this four-stage run. It does not
 convert automatic or derivative benchmark labels into human gold. Stages 1–3
 ran under the strict all-gates rule (no winner); Stage 4 runs under the
@@ -777,6 +782,67 @@ family**. The two open levers are unchanged: firmer quote-anchoring for
 Claude compositions so the zero-call path fires (Codex compositions
 prove it fires on real answers), and authority/current-law validation,
 which no stage has touched.
+
+## Stage 6 — the quote-first composition contract
+
+### Frozen Hypothesis 6
+
+The remaining grounding failures and unrealized savings are
+composition-shaped, not verification-shaped. Requiring the composer to
+build answers from exactly two claim kinds — verbatim quotation claims
+(exact passage text) and at most one conclusion claim (the direct
+answer, asserting nothing beyond what the quoted text establishes, with
+framing/characterization like "the state has a statutory eviction
+framework" banned unless quoted) — will, under the UNCHANGED tiered
+verifier, raise deterministic-clear rates, eliminate the
+overreach-shaped rejections, and preserve every audited grounding
+decision. The contract is enforced DETERMINISTICALLY at submission: the
+tool rejects any answer with more than one non-verbatim claim (the same
+tier that later renders quotes checker-free), naming the offending
+claims so the model requotes; composition gets one extra tool
+iteration. Claims carry no citation text under the production
+citation-placement wiring; Beaver places citations from evidence
+receipts.
+
+Evidence basis: every remaining failure in Stages 1–5 is an
+overreach-framing failure (the Alabama false accepts; Stage 5's
+housing:1/57 rejections repeat the same shape); composition discipline
+is the proven lever (Stage 4's quote preference flipped both housing
+gates; Stage 5 showed quote-anchored compositions were judged correctly
+by both checker families); the zero-call path is proven but starved
+(all 17 deterministic clears verbatim; all three zero-call cells were
+Codex compositions). Literature: According-to prompting / QUIP-Score
+(more quoting, fewer hallucinations, incl. US legal text), LLMQuoter's
+quote-first-then-answer, the extractive-abstractive verifiability
+trade-off, Copy-Paste hallucination mitigation.
+
+### Design, predictions, falsification
+
+41 held-constant items (the actual selection at per-source 8): 21 CSLB
+(8 ordinary case, 7 ordinary legislation, 6 adversarial — the
+validation split's full stock of the latter two), 8 CLERC
+continuations, 12 HousingQA rows (audited 163/0 pair + ids 286, 1, 57,
+58, 5, 354, 356, 590, 595, 290 unaudited, five yes / five no). Arms
+control, tiered_check, quote_first × composers Claude and Codex,
+Claude-family checker throughout (Stage 5's recommended lane) — 246
+cells, bounded pool 4/2.
+
+Predictions: audited pair correct in every quote_first lane; Claude
+zero-checker-call cells go 0 → >0 and per-claim deterministic-clear
+rate rises materially; quote_first renders at least as many answerable
+cells as tiered_check (the overreach class specifically recovers);
+submission-contract rejections are absorbed within the extra iteration
+(non-submission rate does not rise materially); every deterministic
+clear re-audits verbatim.
+
+Falsified by: any weak-reference false accept; audited-pair
+degradation; no deterministic-clear gain for the Claude composer;
+answerable rendering below tiered_check; or contract-driven
+non-submission/over-refusal materially above tiered_check's.
+
+### Stage 6 result
+
+Result: **pending — frozen before the run.**
 
 ## Durable receipts
 
