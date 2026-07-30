@@ -46,6 +46,7 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "quote_first",
   "attested_framing",
   "required_slot",
+  "witness_panel",
   "lint_gated",
   "arbitrary_source_spans",
 ] as const;
@@ -72,6 +73,16 @@ export type LegalEvidenceExperimentMode =
 export type LegalEvidenceMode =
   | "citation_structure"
   | LegalEvidenceExperimentMode;
+
+/**
+ * witness_panel (Stage 10 H18) carries required_slot's ENTIRE submission
+ * contract unchanged; the arms differ only in the composition prompt
+ * (the pre-composition facts panel, injected runner-side). Every gate
+ * keyed on required_slot must key on this predicate instead.
+ */
+function slotContractMode(mode: LegalEvidenceMode | null): boolean {
+  return mode === "required_slot" || mode === "witness_panel";
+}
 
 /**
  * PROVISIONAL, NOT PRODUCTION-VALIDATED EXPERIMENT.
@@ -837,7 +848,7 @@ export function submitLegalEvidenceAnswer(
   if (
     state.mode === "quote_first" ||
     state.mode === "attested_framing" ||
-    state.mode === "required_slot"
+    slotContractMode(state.mode)
   ) {
     const support = parsed.claims.map((claim) =>
       deterministicClaimSupport(claim, state),
@@ -869,7 +880,7 @@ export function submitLegalEvidenceAnswer(
       );
     if (
       state.mode === "attested_framing" ||
-      state.mode === "required_slot"
+      slotContractMode(state.mode)
     ) {
       const standsFor = parsed.claims.flatMap((claim, index) =>
         !support[index] &&
@@ -895,7 +906,7 @@ export function submitLegalEvidenceAnswer(
       // its slot filled by an attested-verbatim quote (citator receipt)
       // or the exact typed refusal — free paraphrase is not a slot value.
       if (
-        state.mode === "required_slot" &&
+        slotContractMode(state.mode) &&
         state.requiredCharacterizations?.length
       ) {
         const unfilled = state.requiredCharacterizations.filter(
@@ -1264,7 +1275,7 @@ export function legalEvidenceExperimentTools(
     mode === "tiered_check" ||
     mode === "quote_first" ||
     mode === "attested_framing" ||
-    mode === "required_slot" ||
+    slotContractMode(mode) ||
     mode === "lint_gated" ||
     mode === "arbitrary_source_spans"
   )
@@ -1427,7 +1438,7 @@ function allClaimsSupported(state: LegalEvidenceTurnState) {
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
     state.mode === "attested_framing" ||
-    state.mode === "required_slot" ||
+    slotContractMode(state.mode) ||
     state.mode === "lint_gated"
   )
     return (
@@ -1687,7 +1698,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
     state.mode === "attested_framing" ||
-    state.mode === "required_slot" ||
+    slotContractMode(state.mode) ||
     state.mode === "lint_gated"
   ) {
     state.deterministicSupport = state.answer.map((claim) =>
@@ -1921,14 +1932,31 @@ export function renderLegalEvidenceAnswer(
       );
       const url = urls.size === 1 ? [...urls][0] : null;
       if (!url) return [];
+      const drawable = source.flatMap(
+        ({ entry, block, document, quotes }) => {
+          const passage = {
+            key: entry.receipt.evidence_id,
+            blockText: block,
+            documentText: document,
+            quotes,
+          };
+          const verified = quotes.filter((quote) =>
+            buildLegalSourceMultiPassageUrl(url, [{
+              ...passage,
+              quotes: [quote],
+            }]),
+          );
+          return verified.length ? [{ ...passage, quotes: verified }] : [];
+        },
+      );
+      const quoteCount = drawable.reduce(
+        (count, passage) => count + passage.quotes.length,
+        0,
+      );
+      if (quoteCount < 2) return [];
       const target = buildLegalSourceMultiPassageUrl(
         url,
-        source.map(({ entry, block, document, quotes }) => ({
-          key: entry.receipt.evidence_id,
-          blockText: block,
-          documentText: document,
-          quotes,
-        })),
+        drawable,
       );
       if (!target) return [];
       const label = source[0].entry.receipt.citation;
