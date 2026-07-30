@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
 import {
+  attestedCharacterizationReceipt,
   createA2AJLookupEvidence,
   createBenchmarkEvidence,
   createLegalEvidenceTurnState,
@@ -215,12 +216,12 @@ describe("provisional legal evidence contract", () => {
           },
           state,
         ),
-      ).toEqual({
-        ok: false,
-        errors: [
-          "claims[0].text must omit citation text; Beaver places it from evidence_ids",
-        ],
-      });
+      ).toEqual({ ok: true, terminal: true });
+      const rendered = renderLegalEvidenceAnswer(state)!;
+      expect(
+        rendered.match(/\[2010 BCCA 170 at paras\. 10\u201312\]/gu),
+      ).toHaveLength(1);
+      expect(rendered).toContain("#par10:~:text=");
     }
     expect(
       submitLegalEvidenceAnswer(
@@ -663,5 +664,104 @@ describe("deterministic verbatim-quote tier (tiered_check)", () => {
       },
       claims: [{ deterministic_support: true }],
     });
+  });
+});
+
+describe("attested characterizations (H12 widened tier)", () => {
+  const characterization = {
+    text:
+      "the Supreme Court has set a presumptive ceiling beyond which delay " +
+      "is presumed unreasonable unless exceptional circumstances justify it",
+    citingCitation: "2023 SCC 30",
+    citingName: "R. v. Citing Example",
+    citingCourt: "SCC",
+    citingDate: "2023-05-05",
+    spanSha256: "ignored-by-receipt-builder",
+  };
+
+  function statePlusCharacterization() {
+    const state = createLegalEvidenceTurnState("quote_first");
+    const receipt = attestedCharacterizationReceipt({
+      citedCitation: "2016 SCC 27",
+      characterization,
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, receipt };
+  }
+
+  it("builds a citator receipt that names whose words these are", () => {
+    const { receipt } = statePlusCharacterization();
+    expect(receipt).toMatchObject({
+      provider: "citator",
+      source_class: "case",
+      citation: "2016 SCC 27",
+      name: "R. v. Citing Example",
+      block_id: "standsfor:2023 SCC 30",
+      resolver_version: "citator-standsfor-v1",
+    });
+    expect(receipt.locator.label).toBe(
+      "as characterized by 2023 SCC 30 (SCC)",
+    );
+    expect(receipt.span_text).toBe(characterization.text);
+  });
+
+  it("clears a claim quoting the attested characterization verbatim", () => {
+    const { state, receipt } = statePlusCharacterization();
+    expect(
+      deterministicClaimSupport(
+        {
+          text:
+            "“the Supreme Court has set a presumptive ceiling beyond which " +
+            "delay is presumed unreasonable unless exceptional circumstances " +
+            "justify it” (2016 SCC 27)",
+          evidence_ids: [receipt.evidence_id],
+        },
+        state,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a mutated citance — one substituted word fails the tier", () => {
+    const { state, receipt } = statePlusCharacterization();
+    expect(
+      deterministicClaimSupport(
+        {
+          text:
+            "“the Supreme Court has set a mandatory ceiling beyond which " +
+            "delay is presumed unreasonable unless exceptional circumstances " +
+            "justify it” (2016 SCC 27)",
+          evidence_ids: [receipt.evidence_id],
+        },
+        state,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a splice across characterization and passage evidence", () => {
+    const { state, receipt } = statePlusCharacterization();
+    const passage = createBenchmarkEvidence({
+      stableSourceId: "test:jordan",
+      sourceText: "The total delay was 49.5 months in provincial court.",
+      spanText: "The total delay was 49.5 months in provincial court.",
+      citation: "2016 SCC 27",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "para 5",
+      jurisdiction: "CA",
+      sourceClass: "case",
+    });
+    registerLegalEvidence(state, passage);
+    expect(
+      deterministicClaimSupport(
+        {
+          text:
+            "“the Supreme Court has set a presumptive ceiling beyond which " +
+            "delay is presumed unreasonable The total delay was 49.5 months " +
+            "in provincial court.” (2016 SCC 27)",
+          evidence_ids: [receipt.evidence_id, passage.evidence_id],
+        },
+        state,
+      ),
+    ).toBe(false);
   });
 });

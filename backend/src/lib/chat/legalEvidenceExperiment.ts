@@ -62,7 +62,7 @@ export type LegalSourceClass = "case" | "legislation";
 
 export type LegalEvidenceReceipt = {
   evidence_id: string;
-  provider: "a2aj" | "benchmark";
+  provider: "a2aj" | "benchmark" | "citator";
   jurisdiction: string;
   source_class: LegalSourceClass;
   stable_source_id: string;
@@ -81,7 +81,10 @@ export type LegalEvidenceReceipt = {
     kind: "document" | A2AJLocatorLookup["requested"]["kind"];
     label: string;
   };
-  resolver_version: "a2aj-inline-v1" | "benchmark-span-v1";
+  resolver_version:
+    | "a2aj-inline-v1"
+    | "benchmark-span-v1"
+    | "citator-standsfor-v1";
 };
 
 type RegisteredEvidence = {
@@ -270,6 +273,62 @@ export function createBenchmarkEvidence(args: {
   };
 }
 
+/**
+ * Receipt for an ATTESTED CHARACTERIZATION of a cited case (H12): the
+ * span text is another court's prose about the cited decision, taken
+ * verbatim from a citator edge excerpt's classified prose window. A
+ * claim naming this evidence_id clears the deterministic verbatim tier
+ * only by quoting the citing court's own words — the receipt records
+ * WHOSE words they are, so rendering can attribute ("as the ONCA put
+ * it") instead of presenting borrowed framing as synthesis.
+ */
+export function attestedCharacterizationReceipt(args: {
+  /** the CITED case the claim is about, e.g. "2016 SCC 27" */
+  citedCitation: string;
+  characterization: {
+    text: string;
+    citingCitation: string | null;
+    citingName: string | null;
+    citingCourt: string | null;
+    citingDate: string | null;
+    spanSha256: string;
+  };
+  jurisdiction?: string;
+  language?: "en" | "fr";
+}): LegalEvidenceReceipt {
+  const citing =
+    args.characterization.citingCitation ??
+    args.characterization.citingName ??
+    "unknown citing case";
+  return {
+    evidence_id: evidenceId(),
+    provider: "citator",
+    jurisdiction: args.jurisdiction ?? "CA",
+    source_class: "case",
+    stable_source_id: `citator:standsfor:${citing}`,
+    source_sha256: sha256(args.characterization.text),
+    scope: "passage",
+    block_id: `standsfor:${citing}`,
+    span_sha256: sha256(normalizeWhitespace(args.characterization.text)),
+    span_text: args.characterization.text,
+    citation: args.citedCitation,
+    name: args.characterization.citingName,
+    dataset: "citator",
+    language: args.language ?? "en",
+    version: args.characterization.citingDate,
+    external_url: null,
+    locator: {
+      kind: "document",
+      label: `as characterized by ${citing}${
+        args.characterization.citingCourt
+          ? ` (${args.characterization.citingCourt})`
+          : ""
+      }`,
+    },
+    resolver_version: "citator-standsfor-v1",
+  };
+}
+
 export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
   receipt: LegalEvidenceReceipt | undefined,
@@ -425,24 +484,6 @@ export function submitLegalEvidenceAnswer(
       state,
       `claims[${index}]`,
     );
-    const normalizedClaim = normalizeWhitespace(claim.text).toLowerCase();
-    const inlineCitations = claim.evidence_ids.flatMap((id) => {
-      const citation = state.evidence.get(id)?.receipt.citation;
-      return citation &&
-        normalizedClaim.includes(normalizeWhitespace(citation).toLowerCase())
-        ? [citation]
-        : [];
-    });
-    if (
-      inlineCitations.length ||
-      /\b(?:at\s+)?(?:(?:paras?|paragraphs?|pages?|sections?)\.?|pp?\.?|ss?\.?)\s*\d[\dA-Za-z().-]*(?:\s*[-\u2013\u2014]\s*\d[\dA-Za-z().-]*)?[.!)]*$/iu.test(
-        claim.text.trim(),
-      )
-    ) {
-      claimErrors.push(
-        `claims[${index}].text must omit citation text; Beaver places it from evidence_ids`,
-      );
-    }
     if (
       state.mode === "evidence_first" &&
       (!state.plannedEvidenceIds ||
@@ -569,7 +610,7 @@ const claimItems = {
       type: "string",
       maxLength: 4_000,
       description:
-        "One independently checkable support unit in natural Markdown. Preserve attribution, conditions, dates, modality, and other meaning-critical context.",
+        "One independently checkable support unit in natural Markdown. Preserve meaning-critical context, but omit formal citation and pinpoint text (for example, '2010 BCCA 170' or 'paras. 10-12'); Beaver appends it from evidence_ids.",
     },
     evidence_ids: {
       type: "array",
@@ -1062,6 +1103,29 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   )
     return { passed: false, modelCalls, usage, diagnostic: null };
 
+  if (
+    state.mode === "citation_structure" &&
+    !state.answer &&
+    args.draft.trim()
+  ) {
+    const result = await structuredAnswerPass({
+      state,
+      model: args.model,
+      prompt: JSON.stringify({
+        instruction:
+          "Convert the candidate answer into prose-only support units. Keep only propositions supported by their exact passages; omit citation and pinpoint text.",
+        request: args.requestContext,
+        candidate_answer: args.draft,
+        evidence: evidencePrompt(state),
+      }),
+      apiKeys: args.apiKeys,
+      reasoningEffort: args.reasoningEffort,
+      abortSignal: args.abortSignal,
+    });
+    usage = mergeUsage(usage, result.usage);
+    modelCalls += 1;
+  }
+
   if (!state.answer) {
     state.failure = "The model did not submit a grounded answer.";
     return { passed: false, modelCalls, usage, diagnostic: null };
@@ -1237,8 +1301,23 @@ export function renderLegalEvidenceAnswer(
           : ` at ${locator}`
         : "",
     ].join("");
-    if (!url) return label;
-    return `[${label.replace(/[\\[\]]/gu, "\\$&")}](${url.replace(/\)/gu, "%29")})`;
+    const markdown = url
+      ? `[${label.replace(/[\\[\]]/gu, "\\$&")}](${url.replace(/\)/gu, "%29")})`
+      : label;
+    const locatorVariants = locator
+      ? [
+          locator,
+          locator.replace(/\u2013/gu, "-"),
+          locator.replace(/\./gu, ""),
+          locator.replace(/\./gu, "").replace(/\u2013/gu, "-"),
+        ]
+      : [];
+    return {
+      markdown,
+      candidates: [...new Set([label, receipt.citation, ...locatorVariants])]
+        .filter(Boolean)
+        .sort((left, right) => right.length - left.length),
+    };
   };
   return state.answer
     .map((claim) => {
@@ -1256,9 +1335,37 @@ export function renderLegalEvidenceAnswer(
         ).values(),
       ];
       if (!citations.length) return claim.text;
-      const punctuation = claim.text.match(/[.!?]$/u)?.[0] ?? "";
-      const body = punctuation ? claim.text.slice(0, -1) : claim.text;
-      return `${body} ${citations.join("; ")}${punctuation}`;
+      let text = claim.text;
+      const pending: string[] = [];
+      const replacements = new Map<string, string>();
+      for (const [index, placement] of citations.entries()) {
+        const normalized = text.toLocaleLowerCase("en-CA");
+        const candidate = placement.candidates.find((value) =>
+          normalized.includes(value.toLocaleLowerCase("en-CA")),
+        );
+        if (!candidate) {
+          pending.push(placement.markdown);
+          continue;
+        }
+        const start = normalized.indexOf(
+          candidate.toLocaleLowerCase("en-CA"),
+        );
+        const token = `\u0000legal-citation-${index}\u0000`;
+        text =
+          text.slice(0, start) +
+          token +
+          text.slice(start + candidate.length);
+        replacements.set(token, placement.markdown);
+      }
+      if (pending.length) {
+        const punctuation = text.match(/[.!?]$/u)?.[0] ?? "";
+        const body = punctuation ? text.slice(0, -1) : text;
+        text = `${body} ${pending.join("; ")}${punctuation}`;
+      }
+      for (const [token, markdown] of replacements) {
+        text = text.replace(token, markdown);
+      }
+      return text;
     })
     .join("\n\n");
 }
