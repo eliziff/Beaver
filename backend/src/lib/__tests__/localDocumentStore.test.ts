@@ -14,6 +14,7 @@ vi.mock("../localPdfIngestion", () => ({
     status: "queued",
     flat_text_fallback_available: true,
   })),
+  peekLocalPdfParseState: vi.fn(async () => null),
   removeLocalPdfParseArtifacts: vi.fn(async () => undefined),
 }));
 

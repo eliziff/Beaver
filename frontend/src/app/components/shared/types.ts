@@ -53,6 +53,25 @@ export interface Document {
   page_count: number | null;
   structure_tree: unknown[] | null;
   status: "pending" | "processing" | "ready" | "error";
+  /**
+   * Structural PDF parse lifecycle, denormalized from the durable parse
+   * job (local lane). null / absent = no parse lane (non-PDF versions,
+   * cloud lane); flat text always remains available regardless.
+   */
+  parse_state?: {
+    status: "queued" | "parsing" | "ready" | "degraded" | "failed";
+    error: string | null;
+    attempts: number;
+    queued_at: string;
+    updated_at: string;
+    completed_at: string | null;
+    engine_status: string | null;
+    cache_hit: boolean;
+    page_count: number | null;
+    diagnostic_count: number | null;
+    structural_repair_available: boolean;
+    flat_text_fallback_available: true;
+  } | null;
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
