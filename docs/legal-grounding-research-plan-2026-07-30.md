@@ -203,6 +203,40 @@ C3. Stage 7 ablation (frozen before run): arms on the Stage 6 matrix +
     revision pass, no extra model calls; (iii) incumbent quote_first.
     Gates: no audited-pair regression, checker-call reduction or
     decision-quality gain, lint receipts never alter text.
+C4. Evidence-layer ensemble & redundancy protocol (added 2026-07-30,
+    per Eli's directive — binds C and D):
+    No witness is discarded for weak solo performance, and none is
+    adopted for strong solo performance. Signals currently at risk of
+    haphazard treatment either way: H13 alienness (strong alone),
+    H14 prompt gravitation (weak alone, AUC 0.602), citator thinness /
+    citer-count priors, court hierarchy, proposition diversity,
+    consensus-language-vs-citation-mass inversion, modality/absolutes/
+    superlative lexicons, temporal ordering. Any of these may be
+    subsumed by another in concert, or may carry unique marginal value
+    only in combination — that is an empirical question with a
+    protocol, not a judgment call:
+    - One feature matrix per labeled claim (misgrounding corpus +
+      receipt-derived labels kept separate), every deterministic
+      witness a column, citator-derived columns (citer count, court
+      level of citing/cited, profile tier, proposition diversity)
+      joined from local stores. Zero model calls; the matrix is a
+      derived artifact with a manifest hash.
+    - Solo report: per-feature AUC/ROC per source class and
+      jurisdiction (what we already do).
+    - In-concert report: frozen combination rules first (OR/AND of
+      calibrated flags, rank-sum) — fitted combiners only with nested
+      cross-validation, and any fitted model is a measuring
+      instrument for redundancy analysis, never a shipping artifact.
+    - Marginal value: ΔAUC (or Δrecall at fixed FP) of adding the
+      witness to the best subset without it. Redundancy: a witness
+      whose removal changes no subset's performance.
+    - Decision rule: ship a witness only on held-out marginal value;
+      retire a witness only on demonstrated redundancy in concert.
+    - Sample-size gate: at today's positive counts (n=7-8 expert
+      misgrounded; n≈51 checker-labeled) all combination verdicts are
+      EXPLORATORY and must be labeled so in the log; the protocol
+      binds once the positive class grows (Charlotin probes, corpus
+      breadth). Exploratory verdicts never retire a witness.
 
 ## Workstream D — the citation web as a framing prior (H9 + H11)
 
