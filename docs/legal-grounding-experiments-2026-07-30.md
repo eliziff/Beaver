@@ -1554,6 +1554,16 @@ share. Falsifier: corpus-phrase parroting that clears the checker
 with degraded F1 on advised cells (the tier cannot be cleared by
 parroting — the panel is not quotable evidence).
 
+AMENDED PRE-ANALYSIS (2026-07-30, per Eli, ~200/708 cells in): the
+live run carries ONLY policy C (flat_recency, "newest = better");
+policies A and B are postponed, not retired — their 22 completed
+cells (11 authority, 11 banded, all gpt-5.6-sol) stay in the receipts
+file and the H19 three-way comparison runs when those lanes are
+resumed. Stage 9's live questions are therefore H20 (cheap selection
+under flat recency), the temporal flag, and the alienness advisory;
+any flat-recency-vs-Stage-8b contrast confounds policy with the H20
+changes and must be labeled accordingly.
+
 ### Design (factored per the H17 standing rule)
 
 Roster: codex:gpt-5.6-sol, claude-p:claude-sonnet-4-6,
