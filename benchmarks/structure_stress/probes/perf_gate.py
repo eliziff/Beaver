@@ -146,7 +146,7 @@ def main() -> int:
     subset_mb = sum(len(j[2]) for j in subset) / 1e6
     print(f"\n== per-entry cost over {len(subset)} docs, {subset_mb:.1f} MB")
     rows = []
-    for eid, rx, gates in sweep._ENTRIES:
+    for eid, rx, gates, _anchors, _pad in sweep._ENTRIES:
         secs = 0.0
         gated_away = 0
         for _id, _kind, text, _o in subset:

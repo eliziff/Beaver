@@ -132,7 +132,9 @@ PAGE_MARK_TOA_RE = re.compile(
 )
 ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
 
-_ENTRIES: list[tuple[str, "re.Pattern[str]", list[str] | None]] = []
+_ENTRIES: list[
+    tuple[str, "re.Pattern[str]", list[str] | None, list[str] | None, int]
+] = []
 
 try:  # the private home since 3.11; sre_parse is the deprecated alias
     from re import _parser as _sre_parser  # type: ignore[attr-defined]
@@ -201,6 +203,210 @@ def _derive_gate(rx: "re.Pattern[str]") -> list[str] | None:
     return max(usable, key=lambda c: (min(len(lit) for lit in c), -len(c)))
 
 
+_ANCHOR_MAX_WIDTH = 4000
+_ANCHOR_MAX_ALTERNATIVES = 48
+_ANCHOR_MIN_LEN = 2
+# Entries whose windowed counts diverged from full scans in
+# shard_gate_check: full-scan only.
+_NO_ANCHOR: set[str] = set()
+# Unbounded repeats (\s+, \d+, ...) get an assumed span instead of a
+# refusal. This makes the window pad a HEURISTIC bound, not a proof —
+# exactly the epistemic class of the hand PREFILTERS, and covered the same
+# way: shard_gate_check asserts windowed counts == full-scan counts over
+# the reservoir sample before every launch, and _count_matches falls back
+# to a full scan whenever a window match touches its boundary (the
+# clipped-shorter-match case).
+_ASSUMED_REPEAT_SPAN = 64
+
+# Per-match-mandatory literal sets read off the pattern alternations by
+# hand where the AST walk bottoms out (heads hidden behind expanded
+# (?<!\w) lookbehinds). Same contract as derived anchors: every match's
+# text contains at least one literal; proven by the probe's windowed-vs-
+# full differential before every launch.
+_HAND_ANCHORS: dict[str, list[str]] = {
+    "pinpoint.para.splitter": ["para", "¶"],
+    "signal.aggressive": [
+        "citing", "cited", "quoting", "quoted", "discussing", "discussed",
+        "applying", "applied", "relying", "relied", "following",
+        "followed", "adopting", "adopted", "amended", "amending",
+        "adding", "rev", "aff", "penalty", "republished", "accord",
+        "contra", "compare", "cf", "see",
+    ],
+    "signal.citation.toa": [
+        "see", "cf", "compare", "contra", "citing", "cited", "quoting",
+        "quoted", "discussing", "discussed", "applying", "applied",
+        "relying", "relied", "following", "followed", "rev", "aff",
+    ],
+    # signal.source has TWO branches: the sentence-start signals AND an
+    # inline branch (citing/quoting/rev'd/aff'd/...). The anchor set must
+    # cover both — the first cut covered only the sentence branch and the
+    # reservoir differential flagged 131 undercounts.
+    "signal.source": [
+        "see", "cf", "compare", "contra", "citing", "cited", "quoting",
+        "quoted", "discussing", "discussed", "applying", "applied",
+        "relying", "relied", "following", "followed", "rev", "aff",
+    ],
+}
+
+
+def _node_max_width(nodes) -> int | None:
+    """Upper bound on characters a parsed sequence can consume, with
+    unbounded repeats assumed to span <= max(64, 4x unit). Lookaround
+    content counts as consuming (over-estimate keeps the window pad safe);
+    AT nodes count 1 because \\b consults one neighbouring char.
+    None = an op we refuse to reason about."""
+    total = 0
+    for op, av in nodes:
+        opname = str(op).rsplit(".", 1)[-1]
+        if opname in {"LITERAL", "NOT_LITERAL", "IN", "ANY", "AT"}:
+            total += 1
+        elif opname == "SUBPATTERN":
+            width = _node_max_width(av[3])
+            if width is None:
+                return None
+            total += width
+        elif opname == "ATOMIC_GROUP":
+            width = _node_max_width(av)
+            if width is None:
+                return None
+            total += width
+        elif opname in {"MAX_REPEAT", "MIN_REPEAT", "POSSESSIVE_REPEAT"}:
+            width = _node_max_width(av[2])
+            if width is None:
+                return None
+            if av[1] == _sre_parser.MAXREPEAT:
+                # Assumed span, capped: nested unbounded repeats otherwise
+                # compound (4x of 4x of ...) into widths that disqualify
+                # the whole pattern. A repeat's real-text span does not
+                # grow with its syntactic nesting depth.
+                total += min(
+                    max(_ASSUMED_REPEAT_SPAN, 4 * width),
+                    4 * _ASSUMED_REPEAT_SPAN,
+                )
+            else:
+                # Bounded repeats are exact arithmetic — never cap them.
+                # (A cap here clipped signal.source's {0,100} tail and the
+                # clipped regex failed entirely inside its window, which
+                # the edge clip-guard cannot see. 133 reservoir mismatches.)
+                total += av[1] * width
+        elif opname in {"ASSERT", "ASSERT_NOT"}:
+            width = _node_max_width(av[1])
+            if width is None:
+                return None
+            total += width
+        elif opname == "BRANCH":
+            widths = [_node_max_width(alt) for alt in av[1]]
+            if any(w is None for w in widths):
+                return None
+            total += max(widths)
+        else:  # GROUPREF etc.: typed refusal, not a guess
+            return None
+    return total
+
+
+def _derive_anchor(rx: "re.Pattern[str]") -> tuple[list[str], int] | None:
+    """(anchor OR-set, window pad) for windowed scanning, or None.
+
+    Every match contains at least one anchor literal (same soundness
+    argument as _derive_gate: mandatory nodes only, lowercased search over
+    lowered text over-finds and never under-finds), and the whole match
+    plus its lookaround context spans at most `pad` chars. So every match
+    lies inside [hit - pad, hit + pad + 1] of some anchor hit, and the
+    regex only needs to run inside those windows."""
+    try:
+        nodes = _sre_parser.parse(rx.pattern, rx.flags)
+    except Exception:
+        return None
+    width = _node_max_width(nodes)
+    if width is None or width > _ANCHOR_MAX_WIDTH:
+        return None
+    usable = [
+        sorted(set(candidate))
+        for candidate in _literal_candidates(nodes)
+        if len(set(candidate)) <= _ANCHOR_MAX_ALTERNATIVES
+        and all(len(literal) >= _ANCHOR_MIN_LEN for literal in candidate)
+    ]
+    if not usable:
+        return None
+    anchors = max(usable, key=lambda c: (min(len(lit) for lit in c), -len(c)))
+    return anchors, width
+
+
+def _entry_anchor(
+    eid: str, rx: "re.Pattern[str]"
+) -> tuple[list[str], int] | None:
+    """Anchor set for an entry: AST-derived when possible, else the hand
+    PREFILTER literals. Hand literals are per-DOC heuristics promoted to
+    per-MATCH anchors — covered by shard_gate_check's zero-tolerance
+    windowed-vs-full differential over the reservoir, and by the boundary
+    clip-guard in _count_matches. Entries in _NO_ANCHOR opted out after a
+    probe mismatch."""
+    if eid in _NO_ANCHOR:
+        return None
+    derived = _derive_anchor(rx)
+    if derived is not None:
+        return derived
+    hand = _HAND_ANCHORS.get(eid) or PREFILTERS.get(eid)
+    if not hand:
+        return None
+    try:
+        nodes = _sre_parser.parse(rx.pattern, rx.flags)
+    except Exception:
+        return None
+    width = _node_max_width(nodes)
+    if width is None or width > _ANCHOR_MAX_WIDTH:
+        return None
+    return list(hand), width
+
+
+def _count_matches(
+    rx: "re.Pattern[str]",
+    text: str,
+    lower: str,
+    anchors: list[str],
+    pad: int,
+) -> int:
+    """Count of rx matches in text, scanning only merged windows around
+    anchor hits. Equivalent to full finditer (probe-proven): windows are
+    disjoint, every match lies wholly inside one, and finditer's
+    pos/endpos keep \\b and lookbehind context (unlike slicing)."""
+    hits: list[int] = []
+    for lit in anchors:
+        i = lower.find(lit)
+        while i >= 0:
+            hits.append(i)
+            i = lower.find(lit, i + 1)
+    if not hits:
+        return 0
+    hits.sort()
+    # Merge into disjoint windows and measure REAL coverage — anchor hits
+    # cluster (citations sit in dense runs), so merged coverage is far
+    # below the naive 2*pad*len(hits) estimate.
+    windows: list[tuple[int, int]] = []
+    lo = hits[0] - pad
+    hi = hits[0] + pad + 1
+    for h in hits[1:]:
+        if h - pad <= hi:
+            hi = h + pad + 1
+        else:
+            windows.append((max(0, lo), hi))
+            lo, hi = h - pad, h + pad + 1
+    windows.append((max(0, lo), hi))
+    end = len(text)
+    if sum(w_hi - w_lo for w_lo, w_hi in windows) > 0.6 * end:
+        # Windows cover most of the doc; full scan is cheaper.
+        return sum(1 for _ in rx.finditer(text))
+    n = 0
+    for w_lo, w_hi in windows:
+        for m in rx.finditer(text, w_lo, min(w_hi, end)):
+            if m.end() >= w_hi - 1 and w_hi < end:
+                # Match touches the window edge: the pad (heuristic for
+                # unbounded repeats) may have clipped it. Full scan.
+                return sum(1 for _ in rx.finditer(text))
+            n += 1
+    return n
+
+
 def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
     sys.path.insert(0, str(ENGINE_SRC))
     from legalpdf.grammar_tables import compile_entry  # noqa: PLC0415
@@ -214,7 +420,8 @@ def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
                 continue
             rx = compile_entry(entry, defs)
             gate = PREFILTERS.get(entry["id"]) or _derive_gate(rx)
-            entries.append((entry["id"], rx, gate))
+            anchors, pad = _entry_anchor(entry["id"], rx) or (None, 0)
+            entries.append((entry["id"], rx, gate, anchors, pad))
     return entries
 
 
@@ -239,11 +446,18 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         oracle["truncated_from"] = len(text)
         text = text[:MAX_DOC_CHARS]
     lower = text.lower()
+    # .lower() can change length in unicode edge cases (e.g. 'İ' -> 2
+    # chars); anchor offsets would misalign, so windowing needs equal
+    # lengths — otherwise fall back to full scans for this doc.
+    windowable = len(lower) == len(text)
     matches: dict[str, int] = {}
-    for eid, rx, gates in _ENTRIES:
+    for eid, rx, gates, anchors, pad in _ENTRIES:
         if gates is not None and not any(g in lower for g in gates):
             continue
-        n = sum(1 for _ in rx.finditer(text))
+        if anchors is not None and windowable:
+            n = _count_matches(rx, text, lower, anchors, pad)
+        else:
+            n = sum(1 for _ in rx.finditer(text))
         if n:
             matches[eid] = n
 
@@ -565,66 +779,68 @@ def _corpus_shards(source: str, langs: list[str]):
     return shards
 
 
-def scan_shard(shard: tuple[str, str, str, str, int, int]) -> dict:
-    """Worker: decode own parquet rows (pyarrow), scan each doc, return a
-    partial aggregate + capped failure records instead of per-doc records."""
-    pq_path, name, kind, lang, start, stop = shard
-    import pyarrow.parquet as pq  # noqa: PLC0415
+_WORKER_CON = None
 
+
+def _worker_con():
+    """One single-threaded duckdb connection per worker. threads=1 keeps the
+    parquet scan in file order (offset/limit slices stay exact and disjoint)
+    and streams pages instead of decoding whole row groups — these corpora
+    are single-row-group files, so a pyarrow iter_batches reader held the
+    ENTIRE decoded column chunk (~2.5 GB for BCSC) per worker and six
+    workers OOMed the machine (MemoryError, first sharded launch)."""
+    global _WORKER_CON
+    if _WORKER_CON is None:
+        import duckdb  # noqa: PLC0415
+
+        _WORKER_CON = duckdb.connect()
+        _WORKER_CON.execute("set threads=1")
+    return _WORKER_CON
+
+
+def scan_shard(shard: tuple[str, str, str, str, int, int]) -> dict:
+    """Worker: read own parquet row slice (streaming duckdb), scan each doc,
+    return a partial aggregate + capped failures instead of per-doc records."""
+    pq_path, name, kind, lang, start, stop = shard
+    con = _worker_con()
     if kind == "case":
-        columns = [
-            f"citation_{lang}",
-            f"unofficial_text_{lang}",
-            f"cases_cited_{lang}",
-        ]
+        query = f"""
+            select citation_{lang}, unofficial_text_{lang},
+                   len(cases_cited_{lang}) as cited
+            from read_parquet('{pq_path}')
+            limit {stop - start} offset {start}
+        """
     else:
-        columns = [
-            f"citation_{lang}",
-            f"unofficial_text_{lang}",
-            f"unofficial_sections_{lang}",
-            f"num_sections_{lang}",
-        ]
+        query = f"""
+            select citation_{lang}, unofficial_text_{lang},
+                   unofficial_sections_{lang}, num_sections_{lang}
+            from read_parquet('{pq_path}')
+            limit {stop - start} offset {start}
+        """
     agg = _empty_agg(kind)
     failures: list[dict] = []
     recoveries: list[tuple[str, float]] = []
-    position = 0
-    for batch in pq.ParquetFile(pq_path).iter_batches(
-        batch_size=512, columns=columns
-    ):
-        if position >= stop:
+    rows = con.execute(query)
+    while True:
+        batch = rows.fetchmany(100)
+        if not batch:
             break
-        size = batch.num_rows
-        if position + size <= start:
-            position += size
-            continue
-        data = [batch.column(i).to_pylist() for i in range(batch.num_columns)]
-        for offset in range(size):
-            row_index = position + offset
-            if not start <= row_index < stop:
-                continue
-            cite, text = data[0][offset], data[1][offset]
+        for row in batch:
+            cite, text = row[0], row[1]
             if not text:
                 continue
             if kind == "case":
-                cited = data[2][offset]
-                oracle = {
-                    "self_cite": cite,
-                    "cited_count": len(cited) if cited else 0,
-                }
+                oracle = {"self_cite": cite, "cited_count": row[2] or 0}
             else:
                 try:
-                    labels = list(json.loads(data[2][offset] or "{}").keys())
+                    labels = list(json.loads(row[2] or "{}").keys())
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     labels = []
-                oracle = {
-                    "section_labels": labels,
-                    "num_sections": data[3][offset] or 0,
-                }
+                oracle = {"section_labels": labels, "num_sections": row[3] or 0}
             rec = scan_doc((f"{name}:{cite}:{lang}", kind, text, oracle))
             _fold_record(
                 agg, rec, failures, recoveries, failure_cap=SHARD_FAILURE_CAP
             )
-        position += size
     agg["failures"] = failures
     agg["recoveries"] = recoveries
     return agg
