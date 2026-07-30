@@ -1,5 +1,6 @@
 import { throwIfAborted } from "./abort";
 import { requireApiKey } from "./apiKeys";
+import { encodeToolV3, schemaEncodingVariant } from "./schemaEncoding";
 import type {
   LlmMessage,
   NormalizedLlmUsage,
@@ -94,6 +95,9 @@ function apiKey(override?: string | null): string {
 }
 
 function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
+  if (schemaEncodingVariant() === "v3") {
+    return tools.map((tool) => ({ type: "function", ...encodeToolV3(tool) }));
+  }
   return tools.map((tool) => ({
     type: "function",
     name: tool.function.name,
