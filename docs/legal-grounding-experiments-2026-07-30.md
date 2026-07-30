@@ -901,6 +901,37 @@ run at operating points that flag zero grounded max-pooled responses in
 the RegLab validation set, and the run measures flag rates, not
 accuracy claims from that calibration.
 
+### Threshold freeze (2026-07-30, pre-run)
+
+Executed by scripts/freeze-stage7-thresholds.ts over the archived
+US-index claim features (claim_features.jsonl; archive reproduces the
+recorded 0.781 max-pool AUC exactly). The strict zero-FP point is
+degenerate at raw claim level — the saturating "grounded" claims are
+citation fragments produced by sentence segmentation (case-name
+splits, "Not Reported in F.Supp.2d" furniture, 4–11 content words) —
+so the frozen operating point includes a minimum-applicability gate:
+thresholded features fire only on claims with >=12 content words by
+the lint's own definition (exported contentWordCount; the gate ships
+inside LintThresholds as minContentWords, so composition-time behavior
+is calibration behavior). At that gate, 336/537 claims are eligible
+across 106 responses (94 grounded / 7 misgrounded / 5 ungrounded with
+eligible claims), and the zero-grounded-flag maxima freeze at:
+
+    novel_content_fraction   > 0.666667
+    unattested_trigram_share > 0.823529   (index jurisdiction-matched)
+    prompt_only_share        > 0.333333
+
+Honest note: at these points the misgrounded/ungrounded RegLab
+responses also show zero flags — the freeze buys guaranteed
+conservatism on grounded material, not demonstrated sensitivity on
+this n=7 validation slice. Sensitivity is what the run measures, on
+composition-time claims (a different distribution from RAG-response
+sentences). Shipped as STAGE7_LINT_THRESHOLDS with the lint_gated
+mode: verbatim-tier claims skip lint; one typed revision bounce names
+the fired features; post-bounce, fired receipts enter the checker
+prompt (deterministic_lint_flags) and the receipt event (per-claim
+lint array). 27/27 + 8/8 unit vectors.
+
 ### Design, predictions, falsification
 
 The Stage 6 held-constant 41 items; arms tiered_check (control) and
