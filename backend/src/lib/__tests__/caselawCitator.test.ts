@@ -16,7 +16,8 @@ import { afterEach, describe, expect, it } from "vitest";
  * The rows are synthetic, but their column names and value shapes mirror the
  * real A2AJ cases parquet files (dataset, citation_en/_fr, citation2_en/_fr,
  * name_en/_fr, document_date_en/_fr, url_en/_fr, unofficial_text_en/_fr,
- * cases_cited_en), probed with duckdb over the local SCC/FC/ONCA families on
+ * cases_cited_en, cases_citing_en), probed with duckdb over the local
+ * SCC/FC/ONCA families on
  * 2026-07-28 - including the corpus habit of opening every text with a
  * header that repeats the decision's own citation. Carter v. Canada is real
  * ("2015 SCC 5", parallel report "[2015] 1 SCR 331"), which keeps the
@@ -37,6 +38,9 @@ const fixtureRows: Array<Record<string, unknown>> = [
     name_en: "Carter v. Canada (Attorney General)",
     document_date_en: "2015-02-06",
     url_en: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14637/index.do",
+    // Curated provider graph: cases the corpus records as citing Carter,
+    // including one outside every fixture family (2023 ABKB 999).
+    cases_citing_en: ["2020 FC 100", "2018 ONCA 50", "2023 ABKB 999"],
     unofficial_text_en:
       "Carter v. Canada (Attorney General)\nCollection\nSupreme Court " +
       "Judgments\nDate\n2015-02-06\nNeutral citation\n2015 SCC 5\nReport\n" +
@@ -145,6 +149,15 @@ describe("caselaw citator note-up graph", () => {
       expect(built.stdout).toMatch(/cases indexed:\s+4/u);
       expect(built.stdout).toMatch(/edges written:\s+7/u);
       expect(built.stdout).toMatch(/self-citations skipped:\s+5/u);
+      // Provider graph stored verbatim (2 cited on the FC row, 3 citing on
+      // Carter's row) and measured against the miner: both curated cited
+      // keys were also mined; the miner additionally found the S.C.R.
+      // parallel form and the American authority the list omits.
+      expect(built.stdout).toMatch(/provider cited edges:\s+2 \(1 docs\)/u);
+      expect(built.stdout).toMatch(/provider citing edges:\s+3/u);
+      expect(built.stdout).toMatch(
+        /miner vs provider:\s+2 confirmed, 0 provider-only, 2 mined-only/u,
+      );
       process.env.MIKE_CITATOR_DB = database;
       const citator = await import("../caselawCitator");
 
@@ -157,6 +170,7 @@ describe("caselaw citator note-up graph", () => {
         cases_indexed: 4,
         edges: 7,
         distinct_cited: 5,
+        provider_edges: 5,
       });
 
       const noteUp = citator.noteUpCitations({ citation: "2015 SCC 5" });
@@ -190,6 +204,25 @@ describe("caselaw citator note-up graph", () => {
         // The cited case itself never appears in its own note-up list.
         expect(entry.citation).not.toBe("2015 SCC 5");
       }
+      // Curated provider graph beside the text evidence: one in-corpus case
+      // lists Carter in its cited column, and Carter's own citing column
+      // reports three citations - one outside every fixture family.
+      expect(noteUp!.provider).toEqual({
+        citingInCorpus: 1,
+        citingReported: ["2018 ONCA 50", "2020 FC 100", "2023 ABKB 999"],
+      });
+      // The citing list hangs off the decision, so every one of the
+      // decision's own citation keys reaches it - the French twin included -
+      // while citingInCorpus stays keyed to the literal queried form.
+      expect(
+        citator.noteUpCitations({ citation: "2015 CSC 5" })!.provider,
+      ).toEqual({
+        citingInCorpus: 0,
+        citingReported: ["2018 ONCA 50", "2020 FC 100", "2023 ABKB 999"],
+      });
+      expect(
+        citator.noteUpCitations({ citation: "384 US 436" })!.provider,
+      ).toEqual({ citingInCorpus: 0, citingReported: [] });
 
       // Punctuation/whitespace variants of one form share a key...
       expect(citator.noteUpCitations({ citation: "2015 S.C.C. 5" })!.entries).toHaveLength(2);
@@ -261,6 +294,35 @@ describe("caselaw citator note-up graph", () => {
         expect(
           graph.prepare("SELECT COUNT(*) AS n FROM resolution").get(),
         ).toMatchObject({ n: 0 });
+        // Curated lists land verbatim, keyed into the shared key space, in
+        // row order (Carter's citing column, then the FC row's cited column).
+        expect(
+          graph
+            .prepare(
+              "SELECT case_id, direction, citation, citation_key FROM provider_edge ORDER BY id",
+            )
+            .all(),
+        ).toMatchObject([
+          { case_id: 1, direction: "citing", citation: "2020 FC 100", citation_key: "2020fc100" },
+          { case_id: 1, direction: "citing", citation: "2018 ONCA 50", citation_key: "2018onca50" },
+          { case_id: 1, direction: "citing", citation: "2023 ABKB 999", citation_key: "2023abkb999" },
+          { case_id: 2, direction: "cited", citation: "2015 SCC 5", citation_key: "2015scc5" },
+          { case_id: 2, direction: "cited", citation: "2019 SCC 5", citation_key: "2019scc5" },
+        ]);
+        // Every case's own citation keys are recorded - Carter carries all
+        // four forms (neutral, French twin, S.C.R., R.C.S.).
+        expect(
+          graph
+            .prepare(
+              "SELECT citation_key FROM case_key WHERE case_id = 1 ORDER BY citation_key",
+            )
+            .all(),
+        ).toMatchObject([
+          { citation_key: "20151rcs331" },
+          { citation_key: "20151scr331" },
+          { citation_key: "2015csc5" },
+          { citation_key: "2015scc5" },
+        ]);
         expect(
           graph.prepare("SELECT value FROM meta WHERE key = 'source'").get(),
         ).toMatchObject({ value: "jsonl" });
