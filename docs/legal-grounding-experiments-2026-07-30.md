@@ -1944,6 +1944,90 @@ Frozen predictions:
   stay under the 300s timeout without saturating the flat-rate lane.
 Falsified by: any false pass; transport attrition >20% on any lane.
 
+## Stage 12b — claude-p transport hardening (amendment to Stage 12,
+2026-07-30, commit `b7584a05`)
+
+The Stage 12 prerequisite is done. All 14 Stage 12 errors were one
+shape: `TOOL_CALLS` JSON breaking mid-string ("Expected ',' or '}'
+after property value" at position ~1000–2000) — unescaped double
+quotes/newlines where the tool input embeds legal text that itself
+contains quotation marks. Three layers shipped in
+`src/lib/llm/claudeP.ts` (+12 unit vectors incl. the observed
+shapes): the transport protocol now demands strict escaped JSON; the
+parser tolerates code fences / preamble / same-line markers and falls
+back to `jsonrepair` (soundness argument: the deterministic verbatim
+gate re-verifies every quoted span against source text, so a repair
+that mutated a quote fails typed — it cannot create a false pass);
+retries feed the parse error back as a corrective turn instead of
+resending an identical payload. Usage now accumulates on failed
+parses too.
+
+Probe (not a grounding stage): the exact 14 failed cells rerun,
+required_slot / authority / effort low / same-model checker, 300s
+timeout → `stage12b-transport-probe.jsonl`. **Attrition 14/14 → 0/14.**
+The repair layer fired 14 times and absorbed every failure on first
+attempt (no corrective round-trips needed). Outcomes are now
+grounding-shaped: sonnet-5 5/8 passed + 3 typed no-sub; opus-5 5/6
+passed + 1 checker rejection — opus-5 cleared five hard case cells,
+consistent with the Stage 12 clean-cell glimpse. Claude-5 lanes are
+unblocked; any future lane pre-registers as usual.
+
+## Stage 14 — real-world bed: LegalBench-RAG-mini over the grounding
+harness (pre-registered 2026-07-30, before any scored run; Eli:
+"proceed by pitting our best hypothesis forward against a real-world
+test")
+
+Bed: LegalBench-RAG mini (vendored, manifest-pinned; 776 tests over
+real contracts — CUAD/MAUD/ContractNLI/PrivacyQA — with HUMAN-annotated
+gold char spans). Gold is text spans and our claims are verbatim text
+spans, so scoring is fully deterministic (`charPrecisionRecall`,
+upstream formulas, scoring_version legalbench-rag-mini-charspan-1) —
+no stochastic checker in the score path. Prior product baseline
+(2026-07-28, FTS5 bm25 + snippet window): overall char P 0.0077 /
+R 0.0209 / doc recall 0.4987 at k=8.
+
+Adapter `scripts/legalbench-rag-grounding.ts`: per test, product
+retrieval (same searchLocalA2AJ configuration as the baseline) feeds
+top-k snippets as evidence receipts; the required_slot contract
+composes (contracts are non-case cells, so the citator machinery is
+a structural no-op and the operative modules are base + roles +
+quote_contract, held verbatim from the stage runner); final quotation
+claims are located back to original char coordinates and scored
+against gold. Each row also scores the raw top-k retrieval spans, so
+harness-vs-baseline is paired per test. Outcomes are typed: answered
+(≥1 located verbatim quote) / declined (honest quoteless
+insufficiency statement) / rejected / abstained / error.
+
+Smoke (4 tests, luna@medium, k=4, receipts in temp — not scored): 0
+errors, 0 unlocated quotes, 3 declined + 1 abstained; retrieval fed
+no gold-span chars on any of the four and the contract declined
+rather than fabricate. Retrieval quality, not composition, is the
+visible bottleneck — the registration below prices that in.
+
+Pilot: 32 tests (first 8 per source, deterministic file order),
+k=4, `codex:gpt-5.6-luna` @medium (declared baseline; the Stage 13
+winner may add a lane), required_slot, 300s timeout →
+`stage14-lbrag.jsonl`.
+
+Frozen predictions:
+- P1 (soundness, primary): zero unlocated quotes — every
+  deterministic-verbatim quote locates in its retrieved document —
+  and zero verbatim-tier false passes. Any unlocated quote is a
+  soundness alarm and halts scoring pending audit.
+- P2 (honesty under retrieval failure): answered cells concentrate
+  where retrieval found the gold document; answered ∩ gold-doc-miss
+  ≤ 1 cell of the 32.
+- P3 (precision): over answered cells, grounded char precision ≥
+  0.077 (≥10× the 0.0077 retrieval baseline).
+- P4 (volume): grounded chars per answered cell ≤ half the baseline's
+  retrieved chars/query (~800 → ≤400).
+- Reported, not predicted: answer rate (expected LOW — the honest
+  price of the contract under a weak retriever), per-source splits,
+  latency, tokens.
+Falsified by: any P1 violation; answered-rate 0/32 (bed uninformative
+at this retrieval level — the next lever is retrieval, not
+composition, and the run is recorded as such); error rate >20%.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -1972,6 +2056,8 @@ committed.
 | `stage10-h18.jsonl` (persist transport; first 36 cells banked from the pre-relaunch pass) | `2F62B5D140044AC8F4F7119186DB44181CD4D8D51E39575693F7214056D4E7DC` |
 | `stage11-smoke.jsonl` | `0301AFF421752C3FF36680124D1F53A2292D0167DC7F00089F2ABEFB09D578FE` |
 | `stage11-luna-baseline.jsonl` | `185FAE297F9895753A29EA0609915F70A387B94EDBD85C79B6E4D56F000FC71C` |
+| `stage12-claude5.jsonl` (cut mid-run per Eli; transport-falsified) | `951FAC9DBA05921520C2175DB77E55CD0F639FF3893789908AC9BF5C359B064E` |
+| `stage12b-transport-probe.jsonl` | `D84CC55053009ED6F6D0536F0543FA74C0079EDCBCB5FC1CBCCAA45C76BEDA3A` |
 
 ## Validation and final selection gate
 
