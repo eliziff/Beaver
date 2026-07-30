@@ -127,6 +127,9 @@ function main() {
       claim: claim.claim,
       spans,
       question: claim.question,
+      // Jurisdiction-matched re-test: point at trigrams-en-us.sqlite via
+      // env; default stays the Canadian index for comparability.
+      alienessIndexPath: process.env.ALIENNESS_INDEX_PATH || undefined,
     });
     const features: Record<string, number> = {};
     for (const receipt of lint.receipts) features[receipt.feature] = receipt.value;
