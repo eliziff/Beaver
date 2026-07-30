@@ -23,6 +23,7 @@ import {
   readSelectedModel,
   readSelectedReasoningEffort,
 } from "./useSelectedModel";
+import { jurisdictionPreferenceForChat } from "@/app/components/assistant/jurisdictionPreferences";
 interface UseAssistantChatOptions {
   initialMessages?: Message[];
   chatId?: string;
@@ -41,8 +42,18 @@ export type RejectedAssistantTurn = {
   options?: AssistantTurnOptions;
 };
 function readableStreamError(value: unknown): string {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return "Sorry, something went wrong.";
+  if (typeof value !== "string" || !value.trim()) {
+    return "Unable to get a response. Try again.";
+  }
+  const message = value.trim();
+  if (
+    /^(?:failed to fetch|fetch failed|network request failed|networkerror(?: when attempting to fetch resource\.?)?)$/iu.test(
+      message,
+    )
+  ) {
+    return "Unable to get a response. Check the local service or provider connection, then try again.";
+  }
+  return message;
 }
 export function useAssistantChat({
   initialMessages = [],
@@ -278,6 +289,7 @@ export function useAssistantChat({
         project_id: projectId,
         model,
         reasoning_effort: reasoningEffort,
+        jurisdiction_preference: jurisdictionPreferenceForChat(),
         displayed_doc: displayedDoc
           ? {
               filename: displayedDoc.filename,
@@ -406,8 +418,12 @@ export function useAssistantChat({
               setIsResponseLoading(false);
               continue;
             }
-            if (data.type === "content_final") {
+            if (
+              data.type === "content_snapshot" ||
+              data.type === "content_final"
+            ) {
               const text = typeof data.text === "string" ? data.text : "";
+              const isSnapshot = data.type === "content_snapshot";
               const current = eventsRef.current.filter(
                 (event) => !isStreamingPlaceholder(event),
               );
@@ -423,10 +439,17 @@ export function useAssistantChat({
                     ? next.length
                     : Math.min(firstContent, next.length),
                   0,
-                  { type: "content", text },
+                  {
+                    type: "content",
+                    text,
+                    ...(isSnapshot && { isStreaming: true }),
+                  },
                 );
               }
-              publishEvents(next, { content: text });
+              publishEvents(
+                next,
+                isSnapshot ? undefined : { content: text },
+              );
               continue;
             }
             if (data.type === "content_reset") {
@@ -541,10 +564,9 @@ export function useAssistantChat({
         }
       } else {
         setRejectedTurn({ message: { ...message }, options: turnOptions });
-        const errorMessage =
-          error instanceof Error && error.message
-            ? error.message
-            : "Sorry, something went wrong.";
+        const errorMessage = readableStreamError(
+          error instanceof Error ? error.message : error,
+        );
         const events = finishAssistantStreamEvents(eventsRef.current);
         flushPendingEventsSnapshot();
         eventsRef.current = events;

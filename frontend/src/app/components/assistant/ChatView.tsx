@@ -37,6 +37,7 @@ import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
 import type { RejectedAssistantTurn } from "@/app/hooks/useAssistantChat";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { legalSourceLocatorFromUrl } from "@/app/components/legal/LegalSourceViewer";
 interface Props {
     chatId?: string | null;
     messages: Message[];
@@ -98,6 +99,7 @@ function legalCitationTab(
             language: "en",
             citationRef: citation.ref,
             quotes,
+            initialLocator: legalSourceLocatorFromUrl(citation.url),
         };
     }
     if (citation.kind === "public_legal" && citation.provider === "journal") {
@@ -157,6 +159,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
         null,
     );
+    const [responseAnnouncement, setResponseAnnouncement] = useState("");
+    const wasResponseLoadingRef = useRef(false);
     const [editState, setEditState] = useState(() => ({
         docIds: new Set<string>(),
         editIds: new Set<string>(),
@@ -319,6 +323,25 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             }
         }
     }
+    useEffect(() => {
+        const wasLoading = wasResponseLoadingRef.current;
+        if (isResponseLoading) {
+            setResponseAnnouncement("Assistant is responding.");
+        } else if (wasLoading) {
+            const latestAssistant = messages[lastAssistantIndex];
+            const wasCancelled = latestAssistant?.events?.some(
+                (event) =>
+                    event.type === "content" &&
+                    event.text.trim() === "Cancelled by user.",
+            );
+            setResponseAnnouncement(
+                latestAssistant?.error || wasCancelled
+                    ? ""
+                    : "Response ready.",
+            );
+        }
+        wasResponseLoadingRef.current = isResponseLoading;
+    }, [isResponseLoading, lastAssistantIndex, messages]);
     const mergedAutomationRun = (
         run: Extract<AssistantEvent, { type: "automation_run" }>,
     ) => ({ ...run, ...automationRuns.get(automationRunKey(run)) });
@@ -500,6 +523,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     };
     return (
         <div className="h-full w-full flex relative">
+            <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="sr-only"
+            >
+                {responseAnnouncement}
+            </div>
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
                 {onProjectClick && (
                     <div className="flex h-9 shrink-0 items-center justify-center border-b border-gray-100 px-4">
@@ -635,6 +666,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                         <ChatInput
                             ref={chatInputRef}
                             onSubmit={submitMessage}
+                            promptHistory={messages.flatMap((message) =>
+                                message.role === "user" &&
+                                (message.content ?? "").trim()
+                                    ? [message.content ?? ""]
+                                    : [],
+                            )}
                             onCancel={() => {
                                 if (activeInput)
                                     setHiddenAskInputKey(activeInput.key);

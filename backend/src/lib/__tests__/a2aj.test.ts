@@ -17,6 +17,7 @@ let temporaryLegalDataHome: string | null = null;
 afterEach(async () => {
   clearA2AJCache();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   delete process.env.OPEN_LEGAL_DATA_HOME;
   if (temporaryLegalDataHome) {
     await rm(temporaryLegalDataHome, { recursive: true, force: true });
@@ -179,6 +180,10 @@ describe("A2AJ client", () => {
   });
 
   it("maps search metadata without exposing the raw API payload", async () => {
+    vi.stubEnv(
+      "MIKE_A2AJ_BULK_DB",
+      path.join(os.tmpdir(), `beaver-a2aj-missing-${process.pid}.sqlite`),
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -239,6 +244,13 @@ describe("A2AJ client", () => {
       locator: "para 3",
       contextBlocks: 1,
     });
+    const range = await lookupA2AJLocator({
+      citation: "2099 SCC 1",
+      kind: "paragraph",
+      locator: "2",
+      endLocator: "4",
+      contextBlocks: 1,
+    });
 
     expect(document?.structure.counts.paragraph).toBe(6);
     expect(lookup).toMatchObject({
@@ -249,6 +261,16 @@ describe("A2AJ client", () => {
       after: [{ label: "par4" }],
     });
     expect(lookup?.block?.text).toContain("Decision paragraph 3");
+    expect(range).toMatchObject({
+      status: "found",
+      requested: { locator: "2-4", label: "par2-par4" },
+      matches: ["par2", "par3", "par4"],
+      block: { label: "par2-par4" },
+      before: [{ label: "par1" }],
+      after: [{ label: "par5" }],
+    });
+    expect(range?.block?.text).toContain("Decision paragraph 2");
+    expect(range?.block?.text).toContain("Decision paragraph 4");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

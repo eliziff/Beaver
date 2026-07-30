@@ -252,6 +252,7 @@ export async function streamDeepSeek(
         tool_calls: nativeCalls,
       });
       const results = await runTools(toolCalls);
+      if (results.some((result) => result.terminal)) break;
       for (const result of results) {
         messages.push({
           role: "tool",

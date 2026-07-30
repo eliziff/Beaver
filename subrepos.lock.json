@@ -4,13 +4,13 @@
   "repositories": {
     "OpenLegalData": {
       "branch": "main",
-      "commit": "b53de5b1e90082651ebafc628de6fcc576c93264",
+      "commit": "adeb597c82a2dfe8c8ba58cc62d6a13e87200a4a",
       "bundle": "subrepos/OpenLegalData.bundle",
       "remote": null
     },
     "TableOfAuthoritiesMaker": {
       "branch": "master",
-      "commit": "80cac0e386ca678058a1d78cc59669e4d38ba126",
+      "commit": "3d765c5860400cad1c603346bc20ae8797c34206",
       "bundle": "subrepos/TableOfAuthoritiesMaker.bundle",
       "remote": null
     },

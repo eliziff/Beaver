@@ -42,7 +42,8 @@ export const SETTINGS_MODELS: ModelOption[] = [
 ];
 const configuredDefaultModel = process.env.NEXT_PUBLIC_DEFAULT_MODEL;
 const configuredDynamicModel =
-    configuredDefaultModel && /^(codex|ollama):.+/u.test(configuredDefaultModel)
+    configuredDefaultModel &&
+    /^(claude-p|codex|ollama):.+/u.test(configuredDefaultModel)
         ? configuredDefaultModel
         : null;
 export const DEFAULT_MODEL_ID =
@@ -73,15 +74,13 @@ function useModelCatalog(): ModelCatalog | null {
     );
 }
 function fallbackDynamicLabel(modelId: string): string | null {
-    const prefix = modelId.startsWith("codex:")
-        ? "codex:"
-        : modelId.startsWith("ollama:")
-          ? "ollama:"
-          : null;
+    const prefix = ["claude-p:", "codex:", "ollama:"].find((candidate) =>
+        modelId.startsWith(candidate),
+    );
     if (!prefix) return null;
     const slug = modelId.slice(prefix.length).trim();
     if (!slug) return null;
-    return slug
+    const label = slug
         .split("-")
         .map((part) =>
             part.toLowerCase() === "gpt"
@@ -89,6 +88,7 @@ function fallbackDynamicLabel(modelId: string): string | null {
                 : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`,
         )
         .join(" ");
+    return prefix === "claude-p:" ? `${label} · subscription` : label;
 }
 interface Props {
     value: string;
@@ -130,7 +130,20 @@ export function ModelToggle({
                       : model.label,
           }))
         : DESKTOP_MODELS;
-    const allModels = [...desktopModels, ...dynamicModels, ...models];
+    const subscriptionModels: ModelOption[] = models
+        .filter((model) => model.group === "Anthropic")
+        .map((model) => ({
+            ...model,
+            id: `claude-p:${model.id}`,
+            label: `${model.label} · subscription`,
+            group: "Anthropic subscription" as const,
+        }));
+    const allModels = [
+        ...desktopModels,
+        ...dynamicModels,
+        ...models,
+        ...subscriptionModels,
+    ];
     const selected = allModels.find((m) => m.id === value);
     const selectedLabel =
         selected?.label ?? fallbackDynamicLabel(value) ?? "Model";
@@ -140,6 +153,8 @@ export function ModelToggle({
             ? "Codex"
             : value.startsWith("ollama:")
               ? "Desktop"
+              : value.startsWith("claude-p:")
+                ? "Anthropic subscription"
               : models[0]?.group ?? "Codex");
     const visibleModels = allModels.some((model) => model.id === value)
         ? allModels
@@ -210,7 +225,12 @@ export function ReasoningEffortToggle({
                   : (selectedModel?.defaultReasoningLevel ??
                     efforts[0]?.effort));
     useLayoutEffect(() => {
-        if (supported && selectedEffort && value !== selectedEffort) {
+        if (
+            value !== undefined &&
+            supported &&
+            selectedEffort &&
+            value !== selectedEffort
+        ) {
             onChange(selectedEffort);
         }
     }, [onChange, selectedEffort, supported, value]);

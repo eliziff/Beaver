@@ -67,6 +67,32 @@ describe("SidebarChatItem inline actions", () => {
         );
     });
 
+    it("exposes modifier selection and a draggable selected state", () => {
+        const onSelect = vi.fn();
+        const onNavigate = vi.fn();
+        render(
+            <SidebarChatItem
+                chat={chat}
+                isActive={false}
+                isSelected
+                href="/assistant/chat/chat-1"
+                onNavigate={onNavigate}
+                onSelect={onSelect}
+            />,
+        );
+
+        const link = screen.getByRole("link", {
+            name: "Lease review, selected",
+        });
+        expect(link.closest("[draggable]")).toHaveAttribute(
+            "data-selected",
+            "true",
+        );
+        fireEvent.click(link, { ctrlKey: true });
+        expect(onSelect).toHaveBeenCalledOnce();
+        expect(onNavigate).not.toHaveBeenCalled();
+    });
+
     it("warns before moving a chat to the Recycling bin", async () => {
         render(
             <SidebarChatItem
@@ -88,6 +114,36 @@ describe("SidebarChatItem inline actions", () => {
         await waitFor(() =>
             expect(mocks.deleteChat).toHaveBeenCalledWith("chat-1"),
         );
+    });
+
+    it("offers to move the full current selection from its action owner", async () => {
+        const onDeleteSelection = vi.fn().mockResolvedValue(undefined);
+        render(
+            <SidebarChatItem
+                chat={chat}
+                isActive
+                isSelected
+                selectedCount={3}
+                isSelectionActionOwner
+                onDeleteSelection={onDeleteSelection}
+                href="/assistant/chat/chat-1"
+            />,
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Delete 3 selected chats",
+            }),
+        );
+        expect(screen.getByRole("alertdialog")).toHaveTextContent(
+            "Move 3 chats to Recycling bin?",
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Move" }));
+
+        await waitFor(() =>
+            expect(onDeleteSelection).toHaveBeenCalledOnce(),
+        );
+        expect(mocks.deleteChat).not.toHaveBeenCalled();
     });
 
     it("opens the shared project chooser from a stable inline action", () => {

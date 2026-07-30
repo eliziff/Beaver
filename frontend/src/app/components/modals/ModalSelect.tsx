@@ -45,6 +45,8 @@ export function ModalSelect({
                     onClick={() => setOpen(true)}
                     title={selected?.label ?? placeholder}
                     aria-label={ariaLabel}
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
                     className={cn(
                         "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 outline-none hover:border-gray-500 focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-60",
                         className,
@@ -173,7 +175,7 @@ export function SearchableChoiceModal({
                 />
             </label>
             <div
-                role="listbox"
+                role="group"
                 aria-label={title}
                 className="min-h-0 flex-1 overflow-y-auto py-1"
             >
@@ -187,8 +189,7 @@ export function SearchableChoiceModal({
                             )}
                         <button
                             type="button"
-                            role="option"
-                            aria-selected={option.value === value}
+                            aria-pressed={option.value === value}
                             onClick={() => choose(option.value)}
                             className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-100"
                         >

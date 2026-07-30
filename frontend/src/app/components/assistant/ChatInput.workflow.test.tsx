@@ -1,5 +1,5 @@
 import { Profiler, useRef } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "../shared/types";
@@ -101,8 +101,17 @@ describe("ChatInput workflow document selection", () => {
         );
 
         commits = 0;
-        const textbox = screen.getByRole("textbox");
-        expect(textbox.className).toContain("[field-sizing:content]");
+        const textbox = screen.getByRole("textbox", { name: "Message" });
+        expect(textbox).toHaveClass(
+            "[field-sizing:content]",
+            "placeholder:text-gray-600",
+        );
+        expect(
+            screen.getByRole("button", { name: "Add document" }),
+        ).toHaveClass("text-gray-600");
+        expect(
+            screen.getByRole("button", { name: "Open workflows" }),
+        ).toHaveClass("text-gray-600");
         await user.type(textbox, "test");
         expect(commits).toBe(1);
 
@@ -128,6 +137,34 @@ describe("ChatInput workflow document selection", () => {
         expect(onDraftRestored).toHaveBeenCalledOnce();
         await userEvent.click(screen.getByRole("button", { name: "Stop response" }));
         expect(onCancel).toHaveBeenCalledOnce();
+    });
+
+    it("navigates prompt history and restores the unsent draft", async () => {
+        const user = userEvent.setup();
+        render(
+            <ChatInput
+                onSubmit={vi.fn()}
+                onCancel={vi.fn()}
+                isLoading={false}
+                promptHistory={["first prompt", "second prompt"]}
+            />,
+        );
+        const textbox = screen.getByRole("textbox", {
+            name: "Message",
+        }) as HTMLTextAreaElement;
+        await user.type(textbox, "draft");
+
+        await user.keyboard("{ArrowUp}");
+        expect(textbox).toHaveValue("second prompt");
+        await user.keyboard("{ArrowUp}");
+        expect(textbox).toHaveValue("first prompt");
+        await user.keyboard("{ArrowDown}{ArrowDown}");
+        expect(textbox).toHaveValue("draft");
+
+        fireEvent.change(textbox, { target: { value: "line one\nline two" } });
+        textbox.setSelectionRange(10, 10);
+        fireEvent.keyDown(textbox, { key: "ArrowUp" });
+        expect(textbox).toHaveValue("line one\nline two");
     });
 
     it("attaches the selected document and offers one format-neutral action", async () => {

@@ -158,6 +158,7 @@ export type AssistantEvent =
   | Streamable<{
       type: "tool_call_start";
       name: string;
+      label?: string;
     }>
   | Streamable<{
       type: "mcp_tool_call";
@@ -323,6 +324,42 @@ export type AssistantEvent =
         }[];
       };
     }
+  | Streamable<{
+      type: "legal_evidence_receipt";
+      schema_version: 4 | 5;
+      mode:
+        | "citation_structure"
+        | "compose_check"
+        | "evidence_first"
+        | "holistic_check"
+        | "tiered_check";
+      status: "passed" | "failed";
+      verification: {
+        reference: "verified";
+        answerability: "sufficient" | "insufficient" | "not_run";
+        holistic:
+          | "supported"
+          | "partially_supported"
+          | "unsupported"
+          | "not_run";
+        semantic: "model_checked" | "failed" | "not_run";
+        coverage: "complete" | "incomplete" | "not_run";
+        authority: "not_run";
+      };
+      claims: {
+        text: string;
+        evidence_ids: string[];
+        text_sha256: string;
+        context_status: "preserved" | "changed" | "ambiguous" | "not_run";
+        evidence_status:
+          | "supported"
+          | "contradicted"
+          | "insufficient"
+          | "not_run";
+      }[];
+      evidence: unknown[];
+      failure: string | null;
+    }>
   | AutomationRunEvent
   | Streamable<{ type: "content"; text: string }>;
 export type CaseCitationQuote = {

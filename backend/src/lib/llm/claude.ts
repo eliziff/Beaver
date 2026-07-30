@@ -224,6 +224,7 @@ export async function streamClaude(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      if (results.some((result) => result.terminal)) break;
 
       // Record the assistant turn (preserving the original content blocks,
       // which Claude requires on the follow-up) and the user turn that

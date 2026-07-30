@@ -4,6 +4,7 @@ import {
     buildLegalSourceViewerSlices,
     legalSourceAnchorId,
     legalSourceKindLabel,
+    legalSourceLocatorFromUrl,
 } from "./LegalSourceViewer";
 
 function payload(
@@ -54,6 +55,19 @@ describe("legal source viewer slicing", () => {
         expect(legalSourceKindLabel("cases")).toBe("Decision");
         expect(legalSourceKindLabel("laws")).toBe("Legislation");
         expect(legalSourceKindLabel("articles")).toBe("Journal article");
+    });
+
+    it("recovers a deterministic internal pinpoint from an external source URL", () => {
+        expect(
+            legalSourceLocatorFromUrl(
+                "https://www.canlii.org/en/on/onca/doc/2024/2024onca468/2024onca468.html#par63:~:text=The%20threshold",
+            ),
+        ).toBe("par63");
+        expect(
+            legalSourceLocatorFromUrl(
+                "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/15035_01#section14",
+            ),
+        ).toBeNull();
     });
 
     it("keeps case text non-overlapping and preserves co-located anchors", () => {

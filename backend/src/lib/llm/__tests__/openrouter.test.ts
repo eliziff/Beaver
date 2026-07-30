@@ -18,6 +18,46 @@ afterEach(() => {
 });
 
 describe("Muse Spark through OpenRouter", () => {
+  it("keeps completed reasoning summaries as separate steps", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        stream(
+          {
+            type: "response.reasoning_summary_text.delta",
+            delta: "**Planning final research**",
+          },
+          { type: "response.reasoning_summary_text.done" },
+          {
+            type: "response.reasoning_summary_text.delta",
+            delta: "**Checking the authorities**",
+          },
+          { type: "response.reasoning_summary_text.done" },
+          { type: "response.output_text.delta", delta: "done" },
+        ),
+      ),
+    );
+    const reasoning: string[] = [];
+
+    await streamOpenRouter({
+      model: "meta/muse-spark-1.1",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "research" }],
+      apiKeys: { openrouter: "test-key" },
+      callbacks: {
+        onReasoningDelta: (text) => reasoning.push(text),
+        onReasoningBlockEnd: () => reasoning.push("end"),
+      },
+    });
+
+    expect(reasoning).toEqual([
+      "**Planning final research**",
+      "end",
+      "**Checking the authorities**",
+      "end",
+    ]);
+  });
+
   it("uses the Responses endpoint with images and selected effort", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       stream({
@@ -130,5 +170,101 @@ describe("Muse Spark through OpenRouter", () => {
         output: '{"count":2}',
       },
     ]);
+  });
+
+  it("announces a tool only after its complete arguments are available", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        stream(
+          {
+            type: "response.output_item.added",
+            item: {
+              type: "function_call",
+              call_id: "call-lookup",
+              name: "a2aj_lookup",
+              arguments: "",
+            },
+          },
+          {
+            type: "response.output_item.done",
+            item: {
+              type: "function_call",
+              call_id: "call-lookup",
+              name: "a2aj_lookup",
+              arguments:
+                '{"citation":"2010 BCCA 170","locator":"10","end_locator":"12"}',
+            },
+          },
+        ),
+      ),
+    );
+    const calls: Array<Record<string, unknown>> = [];
+
+    await streamOpenRouter({
+      model: "meta/muse-spark-1.1",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "lookup" }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "a2aj_lookup",
+          description: "Look up a passage",
+          parameters: { type: "object", properties: {} },
+        },
+      }],
+      apiKeys: { openrouter: "test-key" },
+      callbacks: {
+        onToolCallStart: (call) => calls.push(call.input),
+      },
+      runTools: async () => [{
+        tool_use_id: "call-lookup",
+        content: '{"ok":true}',
+        terminal: true,
+      }],
+    });
+
+    expect(calls).toEqual([{
+      citation: "2010 BCCA 170",
+      locator: "10",
+      end_locator: "12",
+    }]);
+  });
+
+  it("does not spend another model round after a terminal tool result", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      stream({
+        type: "response.output_item.done",
+        item: {
+          type: "function_call",
+          call_id: "call-final",
+          name: "submit_evidence_answer",
+          arguments: '{"parts":[]}',
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamOpenRouter({
+      model: "meta/muse-spark-1.1",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "answer" }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "submit_evidence_answer",
+          description: "Submit the final answer",
+          parameters: { type: "object", properties: {} },
+        },
+      }],
+      apiKeys: { openrouter: "test-key" },
+      runTools: async () => [{
+        tool_use_id: "call-final",
+        content: '{"ok":true}',
+        terminal: true,
+      }],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

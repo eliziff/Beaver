@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMessages } from "../chat/contextBuilders";
 import {
+  A2AJ_SYSTEM_PROMPT,
   buildSystemPrompt,
   SPREADSHEET_CITATION_PROMPT,
   SYSTEM_PROMPT,

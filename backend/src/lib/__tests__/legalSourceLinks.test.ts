@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
-  appendA2AJPinpointLinks,
+  addA2AJInlineCitations,
+  addA2AJInlineLinks,
+  a2ajInlineLinkSnapshot,
   buildA2AJPinpointUrl,
   buildCourtlistenerCitationPinpointUrl,
   buildLegalSourceMultiPassageUrl,
@@ -12,6 +14,7 @@ import { createCitation, parseCitations } from "../chat/citations";
 function lookupFixture({
   text,
   url = "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html",
+  citation = "2099 SCC 1",
   kind = "paragraph",
   locator = "para 42",
   label = "par42",
@@ -19,6 +22,7 @@ function lookupFixture({
 }: {
   text: string;
   url?: string;
+  citation?: string;
   kind?: A2AJLocatorLookup["requested"]["kind"];
   locator?: string;
   label?: string;
@@ -26,7 +30,7 @@ function lookupFixture({
 }): A2AJLocatorLookup {
   return {
     status: "found",
-    citation: "2099 SCC 1",
+    citation,
     alternateCitation: null,
     name: "Example v. Example",
     dataset,
@@ -252,6 +256,50 @@ describe("verified legal-source links", () => {
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
+  it("keeps CanLII citation links distinct from SCC quote-highlight links", () => {
+    const text =
+      "[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.";
+    const lookup = lookupFixture({
+      text,
+      citation: "2023 SCC 14",
+      locator: "para 81",
+      label: "par81",
+      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do",
+    });
+
+    expect(buildA2AJPinpointUrl(lookup, [], text)).toBe(
+      "https://www.canlii.org/en/ca/scc/doc/2023/2023scc14/2023scc14.html#par81",
+    );
+    expect(buildA2AJPinpointUrl({ ...lookup, url: null }, [], text)).toBe(
+      "https://www.canlii.org/en/ca/scc/doc/2023/2023scc14/2023scc14.html#par81",
+    );
+    expect(
+      buildA2AJPinpointUrl(
+        lookupFixture({
+          text: "[12] The Alberta court states the governing rule.",
+          citation: "2025 ABCA 12",
+          dataset: "ABCA",
+          locator: "para 12",
+          label: "par12",
+          url: "https://example.test/official-decision",
+        }),
+        [],
+        text,
+      ),
+    ).toBe(
+      "https://www.canlii.org/en/ab/abca/doc/2025/2025abca12/2025abca12.html#par12",
+    );
+    expect(
+      buildA2AJPinpointUrl(
+        lookup,
+        ["counter-speech remains a central consideration"],
+        text,
+      ),
+    ).toContain(
+      "decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81:~:text=",
+    );
+  });
+
   it("keeps CanLII PDF page links on the PDF", () => {
     const text = "The PDF page contains a distinctive reporter proposition.";
     const lookup = lookupFixture({
@@ -290,25 +338,302 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("does not fabricate paragraph anchors for BC-family decisions", () => {
+  it("uses CanLII anchors without fabricating them on BC court pages", () => {
     const text =
       "[42] The court stated a distinctive unanchored proposition in this passage.";
+    const url =
+      "https://www.bccourts.ca/jdb-txt/ca/26/03/2026BCCA0310.htm";
+    const quote = "distinctive unanchored proposition";
+    const official = buildLegalSourcePinpointUrl(
+      { url, blockText: text, documentText: text },
+      [quote],
+    )!;
+    expect(official).toContain("#:~:text=");
+    expect(official).not.toContain("#par42");
+
     const lookup = lookupFixture({
       text,
+      citation: "2026 BCCA 310",
       dataset: "BCCA",
-      url: "https://www.bccourts.ca/jdb-txt/ca/26/03/2026BCCA0310.htm",
+      url,
     });
-    const result = buildA2AJPinpointUrl(
-      lookup,
-      ["distinctive unanchored proposition"],
-      text,
-    )!;
+    const result = buildA2AJPinpointUrl(lookup, [quote], text)!;
 
-    expect(result).toContain("#:~:text=");
-    expect(result).not.toContain("#par42");
+    expect(result).toContain(
+      "https://www.canlii.org/en/bc/bcca/doc/2026/2026bcca310/2026bcca310.html#par42:~:text=",
+    );
   });
 
-  it("appends one automatic multi-text source link without copying source text", () => {
+  it("replaces the latest chat's model URLs with verified inline citations", () => {
+    const answer = [
+      "- Hansman 2023 SCC 14 para 81",
+      "  https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do#par81",
+      "- Pointes 2020 SCC 22 para 28",
+      "  https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18458/index.do#par28",
+      "- Rooney 2024 BCCA 8 para 118",
+      "  https://www.bccourts.ca/jdb-txt/ca/24/00/2024BCCA0008cor1.htm#para118",
+      "- Marcellin 2024 ONCA 468 para 63",
+      "  https://coadecisions.ontariocourts.ca/coa/coa/en/item/22455/index.do#:~:text=The%20threshold%20for%20qualified%20privilege%20is%20high",
+      '  quote: "The threshold for qualified privilege is high."',
+      "- 40 Days 2024 ONCA 599 para 74",
+      "  https://coadecisions.ontariocourts.ca/coa/coa/en/item/22581/index.do#:~:text=Instead%2C%20the%20purpose%20of%20the%20impugned%20videos",
+      '  quote: "Instead, the purpose of the impugned videos was to disrupt 40 Days’ operations."',
+      "- Burjoski 2024 ONCA 811 para 77",
+      "  https://coadecisions.ontariocourts.ca/coa/coa/en/item/22797/index.do#:~:text=Rather%2C%20the%20issue%20was%20whether%20the%20Board%20Chair",
+      '  quote: "Rather, the issue was whether the Board Chair had a right to respond to the respondent, in the way that he chose, without the threat of civil liability."',
+    ].join("\n");
+    const lookups = [
+      lookupFixture({
+        text: "[81] In section 2(b) jurisprudence, counter-speech remains central.",
+        citation: "2023 SCC 14",
+        locator: "para 81",
+        label: "par81",
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do",
+      }),
+      lookupFixture({
+        text: "[28] The analysis at this stage turns on the statutory language.",
+        citation: "2020 SCC 22",
+        locator: "para 28",
+        label: "par28",
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18458/index.do",
+      }),
+      lookupFixture({
+        text:
+          "[74] Instead, the purpose of the impugned videos was to disrupt 40 Days’ operations.",
+        citation: "2024 ONCA 599",
+        dataset: "ONCA",
+        locator: "para 74",
+        label: "par74",
+        url: "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22581/index.do",
+      }),
+      lookupFixture({
+        text:
+          "[77] Rather, the issue was whether the Board Chair had a right to respond to the respondent, in the way that he chose, without the threat of civil liability.",
+        citation: "2024 ONCA 811",
+        dataset: "ONCA",
+        locator: "para 77",
+        label: "par77",
+        url: "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22797/index.do",
+      }),
+    ];
+
+    const result = addA2AJInlineCitations(answer, lookups);
+    const urlFor = (citation: string) =>
+      (result.citations.find(
+        (item) =>
+          (item as { citation?: string }).citation === citation,
+      ) as { url?: string } | undefined)?.url;
+
+    expect(result.text).not.toContain("http");
+    expect(result.text).not.toContain("Sources:");
+    expect(result.text).toMatch(/2023 SCC 14 para 81\[\d+\]/u);
+    expect(result.text).toMatch(/2024 ONCA 468 para 63\[\d+\]/u);
+    expect(urlFor("2023 SCC 14")).toBe(
+      "https://www.canlii.org/en/ca/scc/doc/2023/2023scc14/2023scc14.html#par81",
+    );
+    expect(urlFor("2024 BCCA 8")).toBe(
+      "https://www.canlii.org/en/bc/bcca/doc/2024/2024bcca8/2024bcca8.html#par118",
+    );
+    expect(urlFor("2024 ONCA 468")).toBe(
+      "https://www.canlii.org/en/on/onca/doc/2024/2024onca468/2024onca468.html#par63",
+    );
+    expect(urlFor("2024 ONCA 599")).toContain("#par74:~:text=");
+    expect(urlFor("2024 ONCA 811")).toContain("#par77:~:text=");
+  });
+
+  it("uses exact external links instead of source footnotes by default", () => {
+    const quote = "The governing rule applies without qualification.";
+    const result = addA2AJInlineLinks(
+      `R v Example, 2099 SCC 1, at para. 42 — “${quote}”`,
+      [
+        lookupFixture({
+          text: `[42] ${quote}`,
+          url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
+        }),
+      ],
+    );
+
+    expect(result.text).toContain(
+      "[2099 SCC 1, at para. 42](https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do?iframe=true&site_preference=mobile#par42:~:text=The%20governing%20rule%20applies%20without%20qualification.)",
+    );
+    expect(result.text).toContain(`“${quote}”`);
+    expect(result.text).not.toContain(`“[${quote}]`);
+    expect(result.text).not.toMatch(/\[\d+\]/u);
+    expect(result.citations).toEqual([]);
+  });
+
+  it("puts same-paragraph quote omissions in one citation-pill URL", () => {
+    const first = "The first controlling proposition applies in every case.";
+    const second = "The second controlling proposition supplies the remedy.";
+    const lookup = lookupFixture({
+      text:
+        `[42] ${first} Intervening analysis addresses a separate point. ` +
+        second,
+    });
+    const result = addA2AJInlineLinks(
+      `> “${first}”\n>\n> “${second}”\n\n— Example, 2099 SCC 1 at para. 42.`,
+      [lookup],
+    );
+
+    expect(result.text.match(/\]\(https?:/gu)).toHaveLength(1);
+    expect(result.text.match(/text=/gu)).toHaveLength(2);
+    expect(result.text).toContain("&text=");
+    expect(result.text).toContain(`> “${first}”`);
+    expect(result.text).toContain(`> “${second}”`);
+  });
+
+  it("emits a linked streaming snapshot only when its pills change", () => {
+    const answer = "See 2024 SCC 6 at para. 12.\n";
+    const first = a2ajInlineLinkSnapshot(answer, [], [], "");
+
+    expect(first?.text).toContain(
+      "[2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12)",
+    );
+    expect(
+      a2ajInlineLinkSnapshot(answer, [], [], first?.signature ?? ""),
+    ).toBeNull();
+  });
+
+  it("links an ordinary case pinpoint directly to CanLII", () => {
+    const result = addA2AJInlineLinks(
+      "See 2024 SCC 6 at para. 12 [1]:\n\n> The governing test.",
+      [],
+    );
+
+    expect(result).toEqual({
+      text:
+        "See [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12):\n\n> The governing test.",
+      citations: [],
+    });
+  });
+
+  it("keeps a paragraph range on its start anchor when source text is unavailable", () => {
+    const result = addA2AJInlineLinks(
+      "The governing discussion is in 2024 SCC 6 at paras. 12\u201314, not the quoted text that follows.",
+      [],
+    );
+
+    expect(result.text).toBe(
+      "The governing discussion is in [2024 SCC 6 at paras. 12\u201314](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12), not the quoted text that follows.",
+    );
+    expect(result.text).not.toContain(
+      "[2024 SCC 6](https://www.canlii.org",
+    );
+    expect(result.text).not.toContain(
+      "[2024 SCC 6 at paras. 12](https://www.canlii.org",
+    );
+  });
+
+  it("spans a paragraph range with one verified text fragment", () => {
+    const text = [
+      "[1] The opening paragraph provides a unique procedural history for this fictional appeal.",
+      "[2] The range begins with a distinctive governing proposition that appears nowhere else in the judgment.",
+      "[3] The middle paragraph applies that proposition to the unusual facts found at trial.",
+      "[4] The range ends by stating a distinctive remedy and final consequence for the parties.",
+      "[5] The costs paragraph contains separate language about the allocation of appellate costs.",
+      "[6] The disposition paragraph gives the remaining formal directions required by the court.",
+    ].join("\n");
+    const document: A2AJDocument = {
+      dataset: "SCC",
+      citation: "2099 SCC 1",
+      alternateCitation: null,
+      name: "Example v. Example",
+      date: "2099-01-01",
+      url: "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html",
+      text,
+      language: "en",
+      upstreamLicense: null,
+      structure: {
+        status: "unavailable",
+        source: "flat_text",
+        counts: { paragraph: 0, page: 0, section: 0 },
+      },
+    };
+
+    const result = addA2AJInlineLinks(
+      "See 2099 SCC 1 at paras. 2–4.",
+      [],
+      [],
+      [document],
+    );
+
+    expect(result.text).toContain(
+      "[2099 SCC 1 at paras. 2–4](https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par2:~:text=",
+    );
+    expect(result.text.match(/text=/gu)).toHaveLength(1);
+    expect(result.text).toMatch(/#par2:~:text=[^)]+,[^)]+\)/u);
+  });
+
+  it("normalizes a case-level SCC docket link to CanLII", () => {
+    const result = addA2AJInlineLinks(
+      "*Auer v. Auer*, [2024 SCC 36](https://www.scc-csc.ca/case-dossier/info/dock-regi-eng.aspx?cas=40397)",
+      [],
+    );
+
+    expect(result).toEqual({
+      text:
+        "*Auer v. Auer*, [2024 SCC 36](https://www.canlii.org/en/ca/scc/doc/2024/2024scc36/2024scc36.html)",
+      citations: [],
+    });
+  });
+
+  it("replaces citation-shaped relative links instead of nesting Markdown", () => {
+    const result = addA2AJInlineLinks(
+      "[2024 SCC 36](2024 SCC 36); [2024 SCC 22](2024 SCC 22)",
+      [],
+    );
+
+    expect(result.text).toBe(
+      "[2024 SCC 36](https://www.canlii.org/en/ca/scc/doc/2024/2024scc36/2024scc36.html); " +
+        "[2024 SCC 22](https://www.canlii.org/en/ca/scc/doc/2024/2024scc22/2024scc22.html)",
+    );
+  });
+
+  it("turns a fetched case quote into one verified SCC highlight", () => {
+    const quote = "The governing rule applies without qualification.";
+    const text = [
+      "[1] This opening paragraph contains enough substantive judicial language to establish the factual and procedural setting.",
+      `[2] ${quote} The remainder of this paragraph explains the rule in sufficient detail for reliable structure detection.`,
+      "[3] This paragraph applies the governing rule to the material facts found by the trial judge in this proceeding.",
+      "[4] This paragraph addresses the competing submission and explains why it cannot alter the governing legal analysis.",
+      "[5] This paragraph states the resulting disposition and the consequences that follow for each party to the appeal.",
+      "[6] This concluding paragraph resolves costs and provides the remaining formal directions required by the judgment.",
+    ].join("\n");
+    const document: A2AJDocument = {
+      dataset: "SCC",
+      citation: "2099 SCC 1",
+      alternateCitation: null,
+      name: "R. v. Example",
+      date: "2099-01-01",
+      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
+      text,
+      language: "en",
+      upstreamLicense: null,
+      structure: {
+        status: "unavailable",
+        source: "flat_text",
+        counts: { paragraph: 0, page: 0, section: 0 },
+      },
+    };
+
+    const result = addA2AJInlineLinks(
+      `R. v. Example, 2099 SCC 1: “${quote}” (para. 2)`,
+      [],
+      [],
+      [document],
+    );
+
+    expect(result.text).toContain(
+      "[2099 SCC 1](https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do?iframe=true&site_preference=mobile#par2:~:text=The%20governing%20rule%20applies%20without%20qualification.)",
+    );
+    expect(result.text).toContain(`“${quote}”`);
+    expect(result.text).not.toContain(`“[${quote}]`);
+    expect(result.text).not.toContain("#par1");
+    expect(result.text).not.toMatch(/\[\d+\]/u);
+    expect(result.citations).toEqual([]);
+  });
+
+  it("adds one inline multi-text citation without copying source text", () => {
     const answer =
       "The court said “the duty is mandatory in these circumstances” and " +
       "later added “a distinct remedy is also available”.";
@@ -317,14 +642,66 @@ describe("verified legal-source links", () => {
       "It added that a distinct remedy is also available.";
     const lookup = lookupFixture({ text });
 
-    const result = appendA2AJPinpointLinks(answer, [lookup]);
+    const result = addA2AJInlineCitations(answer, [lookup]);
+    const url = (result.citations[0] as { url: string }).url;
 
-    expect(result.startsWith(answer)).toBe(true);
-    expect(result.match(/text=/gu)).toHaveLength(2);
-    expect(result).toContain("&text=");
-    expect(result).toContain("#par42:~:text=");
-    expect(result).toContain("Source: [2099 SCC 1, para. 42]");
-    expect(result.slice(answer.length)).not.toContain(text);
+    expect(result.text).toContain("circumstances”[1]");
+    expect(result.text).not.toContain("Source:");
+    expect(url.match(/text=/gu)).toHaveLength(2);
+    expect(url).toContain("&text=");
+    expect(url).toContain("#par42:~:text=");
+    expect(result.text).not.toContain(text);
+  });
+
+  it("attaches verified metadata to an adjacent marker emitted by the model", () => {
+    const quote = "The distinctive controlling proposition applies.";
+    const result = addA2AJInlineCitations(
+      `The court said "${quote}" [1]`,
+      [lookupFixture({ text: `[42] ${quote}` })],
+    );
+
+    expect(result.text.match(/\[1\]/gu)).toHaveLength(1);
+    expect(result.citations).toEqual([
+      expect.objectContaining({
+        type: "citation_data",
+        kind: "a2aj",
+        ref: 1,
+        citation: "2099 SCC 1",
+      }),
+    ]);
+  });
+
+  it("replaces a model citation for lookup evidence instead of duplicating it", () => {
+    const quote = "The distinctive controlling proposition applies.";
+    const lookup = lookupFixture({ text: `[42] ${quote}` });
+    const result = addA2AJInlineCitations(
+      `The court said "${quote}" [1]`,
+      [lookup],
+      [
+        {
+          type: "citation_data",
+          kind: "a2aj",
+          ref: 1,
+          citation: "2099 SCC 1",
+          name: null,
+          dataset: null,
+          url: "https://example.test/model-built-link",
+          quotes: [{ quote: lookup.block!.text }],
+        },
+      ],
+    );
+
+    expect(result.text.match(/\[\d+\]/gu)).toEqual(["[1]"]);
+    expect(result.citations).toEqual([
+      expect.objectContaining({
+        ref: 1,
+        citation: "2099 SCC 1",
+        quotes: [{ quote }],
+      }),
+    ]);
+    expect((result.citations[0] as { url: string }).url).toContain(
+      "#par42:~:text=The%20distinctive%20controlling%20proposition%20applies.",
+    );
   });
 
   it("points neighbor-context quotes at the block that actually contains them", () => {
@@ -348,14 +725,19 @@ describe("verified legal-source links", () => {
     );
 
     const authenticated = createCitation(parsed, {}, undefined, [lookup]).url;
-    const anonymous = appendA2AJPinpointLinks(`The court said "${quote}".`, [
-      lookup,
-    ]);
+    const anonymous = addA2AJInlineCitations(
+      `The court said "${quote}".`,
+      [lookup],
+    );
 
     expect(authenticated).toContain("#par41:~:text=");
-    expect(anonymous).toContain("Source: [2099 SCC 1, para. 41]");
-    expect(anonymous).toContain("#par41:~:text=");
-    expect(anonymous).not.toContain("#par42");
+    expect(anonymous.text).toContain(`"${quote}"[1]`);
+    expect((anonymous.citations[0] as { url: string }).url).toContain(
+      "#par41:~:text=",
+    );
+    expect((anonymous.citations[0] as { url: string }).url).not.toContain(
+      "#par42",
+    );
   });
 
   it("replaces a model URL with the server-built trusted pinpoint URL", () => {
@@ -396,7 +778,7 @@ describe("verified legal-source links", () => {
       },
     };
     const [parsed] = parseCitations(
-      '<CITATIONS>[{"ref":1,"source":"a2aj","citation":"2099 SCC 1",' +
+      '<CITATIONS>[{"ref":1,"source":"a2aj",' +
         '"url":"https://example.test/full-case","quote":"text from paragraph 99"}]' +
         "</CITATIONS>",
     );
@@ -404,7 +786,7 @@ describe("verified legal-source links", () => {
     expect(
       createCitation(parsed, {}, undefined, [lookup], [document]).url,
     ).toContain(
-      "https://example.test/full-case#:~:text=text%20from%20paragraph%2099",
+      "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#:~:text=text%20from%20paragraph%2099",
     );
     expect(createCitation(parsed, {}, undefined, [lookup]).url).toBeNull();
   });

@@ -423,7 +423,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(mocks.systemPrompts[1]).toContain(
       `reference_id=${JSON.stringify(PROVIDER_REFERENCE_TWO)}`,
     );
-    expect(mocks.systemPrompts[1]).toContain("provider_pdf_lookup");
+    expect(mocks.systemPrompts[1]).toContain("legal_pdf_lookup");
     expect(
       registryEvent(loaded.store.getAnonymousChat(USER_ID, created.body.id)!),
     ).toMatchObject({
@@ -1103,7 +1103,8 @@ describe("anonymous chat PDF evidence durability", () => {
                   kind: "choice",
                   question: "Which forum?",
                   options: [{ value: "Ontario" }, { value: "Alberta" }],
-                  allow_other: false,
+                  allow_other: true,
+                  other_label: "Write your own answer",
                 },
               ],
             },
@@ -1132,25 +1133,25 @@ describe("anonymous chat PDF evidence durability", () => {
       });
     expect(forgedQuestion.status).toBe(400);
 
-    const unavailableChoice = await request(loaded.app)
+    const emptyAnswer = await request(loaded.app)
       .post("/chat")
       .send({
         chat_id: created.body.id,
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Quebec",
+          content: "",
           responses: [
             {
               id: "forum",
               kind: "choice",
               question: "Which forum?",
-              answer: "Quebec",
+              answer: "",
             },
           ],
         },
       });
-    expect(unavailableChoice.status).toBe(400);
+    expect(emptyAnswer.status).toBe(400);
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(
       loaded.store.getAnonymousChat(USER_ID, created.body.id)
@@ -1170,7 +1171,7 @@ describe("anonymous chat PDF evidence durability", () => {
               id: "forum",
               kind: "choice",
               question: "Which forum?",
-              answer: "Ontario",
+              answer: "Quebec",
             },
           ],
         },
@@ -1179,7 +1180,7 @@ describe("anonymous chat PDF evidence durability", () => {
     expect(mocks.providerMessages[1].at(-1)).toEqual({
       role: "user",
       content:
-        "[User responses to requested inputs]\n- Which forum?: Ontario",
+        "[User responses to requested inputs]\n- Which forum?: Quebec",
     });
     const durable = loaded.store.getAnonymousChat(USER_ID, created.body.id)!;
     expect(durable.transcript_version).toBe(4);
@@ -1189,13 +1190,13 @@ describe("anonymous chat PDF evidence durability", () => {
       ),
     ).toMatchObject({
       type: "ask_inputs_response",
-      content: "Responses to Beaver's questions:\n1. Which forum?\nOntario",
+      content: "Responses to Beaver's questions:\n1. Which forum?\nQuebec",
       responses: [
         {
           id: "forum",
           kind: "choice",
           question: "Which forum?",
-          answer: "Ontario",
+          answer: "Quebec",
         },
       ],
     });

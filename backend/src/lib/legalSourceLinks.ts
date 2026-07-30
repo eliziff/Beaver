@@ -1,4 +1,5 @@
 import {
+  getA2AJDocumentSourceDoc,
   getA2AJLookupDocument,
   type A2AJDocument,
   type A2AJLocatorLookup,
@@ -9,6 +10,7 @@ import {
 } from "./courtlistener";
 import {
   createTextSourceDoc,
+  sourceDocBlockText,
   sourceDocContainsQuote,
   sourceDocPhraseSpans,
   sourceDocQuoteText,
@@ -17,6 +19,7 @@ import {
   type SourceDocQuoteSpan,
 } from "./sourceDoc";
 import { normalizeWhitespace } from "./text";
+import { buildCanliiCaseUrl } from "./canliiUrls";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
@@ -34,6 +37,17 @@ export type A2AJCitationIdentity = {
   name: string | null;
   dataset: string | null;
   url: string | null;
+  quotes: { quote: string }[];
+};
+
+type A2AJInlineCitation = {
+  type: "citation_data";
+  kind: "a2aj";
+  ref: number;
+  citation: string | null;
+  name: string | null;
+  dataset: string | null;
+  url: string;
   quotes: { quote: string }[];
 };
 
@@ -191,6 +205,10 @@ function textDirective(target: string, prefix = "", suffix = "") {
   return `text=${encodedPrefix}${encodedTarget}${encodedSuffix}`;
 }
 
+function textRangeDirective(start: string, end: string) {
+  return `text=${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
+}
+
 function locatorAnchor(
   lookup: A2AJLocatorLookup,
   block: A2AJLookupBlock | null = lookup.block,
@@ -223,6 +241,40 @@ function locatorAnchor(
   return topLevelSection && canlii && url.pathname.includes("/laws/")
     ? `sec${topLevelSection}`
     : undefined;
+}
+
+function preferredA2AJUrl(
+  source: Pick<
+    A2AJLocatorLookup | A2AJDocument,
+    "dataset" | "citation" | "alternateCitation" | "language" | "url"
+  >,
+  hasQuotes: boolean,
+  anchor?: string,
+) {
+  const canlii = buildCanliiCaseUrl({
+    dataset: source.dataset,
+    citations: [source.citation, source.alternateCitation],
+    language: source.language,
+  });
+  if (!canlii) return source.url;
+
+  // ALR keeps the ordinary citation link on CanLII, but SCC quote highlights
+  // use the official decision when a native paragraph target is known. The
+  // official source and the user-facing deep link are deliberately different
+  // roles; sourceUrl() adds the required inline/mobile Decisia parameters.
+  if (
+    hasQuotes &&
+    anchor?.startsWith("par") &&
+    source.dataset.toUpperCase() === "SCC" &&
+    source.url
+  ) {
+    try {
+      if (isDecisiaDocument(new URL(source.url))) return source.url;
+    } catch {
+      // Fall through to the identity-locked CanLII URL.
+    }
+  }
+  return canlii;
 }
 
 function sourceUrl(rawUrl: string, anchor?: string): string | null {
@@ -387,8 +439,14 @@ export function buildA2AJPinpointUrl(
   document: SourceDoc | null = getA2AJLookupDocument(lookup),
   block: A2AJLookupBlock | null = lookup.block,
 ) {
-  if (!lookup.url) return null;
-  const baseUrl = sourceUrl(lookup.url, locatorAnchor(lookup, block));
+  const sourceAnchor = locatorAnchor(lookup, block);
+  const preferredUrl =
+    lookup.requested.kind === "paragraph"
+      ? preferredA2AJUrl(lookup, quotes.length > 0, sourceAnchor)
+      : lookup.url;
+  if (!preferredUrl) return null;
+  const anchor = locatorAnchor({ ...lookup, url: preferredUrl }, block);
+  const baseUrl = sourceUrl(preferredUrl, anchor);
   if (!baseUrl) return null;
   return buildLegalSourcePinpointUrl(
     {
@@ -638,30 +696,57 @@ export function buildA2AJCitationPinpointUrl(
     return buildA2AJPinpointUrl(lookup, quotes, undefined, block);
   }
 
-  const fetched = documents.filter((document) => {
-    if (!document.url || !identityMatches(citation, document)) return false;
-    const compiled = createTextSourceDoc(document.text);
-    return citation.quotes.every(({ quote }) =>
-      sourceDocContainsQuote(compiled, quote),
+  const fetched = documents.flatMap((document) => {
+    if (!document.url || !identityMatches(citation, document)) return [];
+    const source = getA2AJDocumentSourceDoc(document);
+    const spans = citation.quotes.map(({ quote }) =>
+      chooseSourceSpan(source, quote),
     );
+    return spans.every((span) => span !== null)
+      ? [{ document, source, spans }]
+      : [];
   });
   const uniqueDocuments = new Map(
-    fetched.map((document) => [
+    fetched.map((candidate) => [
       [
-        normalizedIdentity(document.url),
-        normalizedIdentity(document.citation),
-        normalizedIdentity(document.dataset),
+        normalizedIdentity(candidate.document.url),
+        normalizedIdentity(candidate.document.citation),
+        normalizedIdentity(candidate.document.dataset),
       ].join("|"),
-      document,
+      candidate,
     ]),
   );
   if (uniqueDocuments.size !== 1) return null;
-  const document = uniqueDocuments.values().next().value as A2AJDocument;
+  const { document, source, spans } = uniqueDocuments.values().next().value as {
+    document: A2AJDocument;
+    source: SourceDoc;
+    spans: Array<SourceDocQuoteSpan | null>;
+  };
+  const paragraphMatches = source.blocks.filter(
+    (block) =>
+      block.kind === "paragraph" &&
+      spans.every(
+        (span) =>
+          span && block.start <= span.start && block.end >= span.end,
+      ),
+  );
+  const paragraph =
+    paragraphMatches.length === 1 ? paragraphMatches[0] : undefined;
+  const anchor = paragraph?.label.match(/^par\d+$/iu)?.[0];
+  const preferredUrl = preferredA2AJUrl(
+    document,
+    citation.quotes.length > 0,
+    anchor,
+  );
+  if (!preferredUrl) return null;
   return buildLegalSourcePinpointUrl(
     {
-      url: document.url!,
-      blockText: document.text,
-      documentText: document.text,
+      url: preferredUrl,
+      anchor,
+      blockText: paragraph
+        ? sourceDocBlockText(source, paragraph)
+        : source,
+      documentText: source,
     },
     citation.quotes.map(({ quote }) => quote),
   );
@@ -815,6 +900,304 @@ function answerQuoteCandidates(answer: string) {
   return [...unique.values()];
 }
 
+function isCanadianDecisionUrl(url: URL) {
+  return (
+    isDecisiaDocument(url) ||
+    ((url.hostname === "canlii.org" || url.hostname === "www.canlii.org") &&
+      url.pathname.includes("/doc/")) ||
+    ((url.hostname === "bccourts.ca" ||
+      url.hostname === "www.bccourts.ca") &&
+      url.pathname.toLowerCase().includes("/jdb-txt/")) ||
+    ((url.hostname === "scc-csc.ca" ||
+      url.hostname === "www.scc-csc.ca") &&
+      url.pathname.toLowerCase().includes("/case-dossier/"))
+  );
+}
+
+const ANSWER_CASE_CITATION =
+  /\b(((?:19|20)\d{2})\s+([A-Za-z][A-Za-z0-9-]{1,15})\s+(\d+))\b/giu;
+
+function answerCaseCitations(answer: string) {
+  return [...answer.matchAll(ANSWER_CASE_CITATION)].flatMap((match) => {
+    const citation = match[1].replace(/\s+/gu, " ");
+    const dataset = match[3].toUpperCase();
+    const url = buildCanliiCaseUrl({
+      dataset,
+      citations: [citation],
+      language: "en",
+    });
+    return url
+      ? [
+          {
+            start: match.index,
+            end: match.index + match[0].length,
+            label: match[0],
+            citation,
+            dataset,
+            url,
+          },
+        ]
+      : [];
+  });
+}
+
+const ANSWER_CASE_PARAGRAPH =
+  /\b(((?:19|20)\d{2})\s+([A-Za-z][A-Za-z0-9-]{1,15})\s+(\d+))\b\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*((\d{1,5})(?:\s*[-\u2013\u2014]\s*\d{1,5})?)\b/giu;
+
+function answerCaseParagraphs(answer: string) {
+  const found: Array<{
+    citation: string;
+    dataset: string;
+    locator: string;
+    endLocator: string;
+    url: string;
+    start: number;
+    end: number;
+    at: number;
+  }> = [];
+  for (const match of answer.matchAll(ANSWER_CASE_PARAGRAPH)) {
+    const citation = match[1].replace(/\s+/gu, " ");
+    const dataset = match[3].toUpperCase();
+    const locator = String(Number(match[6]));
+    const endLocator = String(
+      Number(match[5].match(/\d+/gu)?.at(-1) ?? locator),
+    );
+    const url = buildCanliiCaseUrl({
+      dataset,
+      citations: [citation],
+      language: "en",
+    });
+    if (!url) continue;
+    found.push({
+      citation,
+      dataset,
+      locator,
+      endLocator,
+      url: `${url}#par${locator}`,
+      start: match.index,
+      end: match.index + match[0].length,
+      at: match.index + match[0].length,
+    });
+  }
+  return found;
+}
+
+function paragraphLookupKey(
+  citation: string | null | undefined,
+  locator: string,
+) {
+  return `${normalizedIdentity(citation)}|${Number(locator.match(/\d+/u)?.[0])}`;
+}
+
+function stripModelCanadianDecisionUrls(answer: string) {
+  const strip = (rawUrl: string) => {
+    try {
+      return isCanadianDecisionUrl(new URL(rawUrl)) ? "" : rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  };
+  return answer
+    .replace(
+      /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
+      (full, label: string, url: string) =>
+        answerCaseCitations(label).length ? label : full,
+    )
+    .replace(
+      /\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/gu,
+      (full, label: string, url: string) => (strip(url) ? full : label),
+    )
+    .replace(/https?:\/\/[^\s<>"')\]]+/gu, (url) => {
+      const suffix = url.match(/[.,;:!?]+$/u)?.[0] ?? "";
+      const target = suffix ? url.slice(0, -suffix.length) : url;
+      return strip(target) ? url : suffix;
+    })
+    .replace(/^[\t ]+$/gmu, "")
+    .replace(/\n{3,}/gu, "\n\n");
+}
+
+function uniqueTextEnd(answer: string, text: string) {
+  const start = answer.indexOf(text);
+  if (start < 0 || answer.indexOf(text, start + 1) >= 0) return null;
+  let end = start + text.length;
+  if (answer[end] === '"' || answer[end] === "”") end += 1;
+  return end;
+}
+
+function uniqueTextRange(answer: string, text: string) {
+  const start = answer.indexOf(text);
+  if (start < 0 || answer.indexOf(text, start + 1) >= 0) return null;
+  return { start, end: start + text.length };
+}
+
+function quoteEvidence(
+  quote: string,
+  lookups: A2AJLocatorLookup[],
+  documents: A2AJDocument[],
+) {
+  const matchingLookups = new Map(
+    lookups.flatMap((lookup) =>
+      lookup.status === "found"
+        ? lookupBlocks(lookup).flatMap((block) =>
+            quoteMatchesBlock(createTextSourceDoc(block.text), quote)
+              ? [[lookupBlockKey(lookup, block), { lookup, block }] as const]
+              : [],
+          )
+        : [],
+    ),
+  );
+  if (matchingLookups.size === 1) {
+    const { lookup, block } = matchingLookups.values().next().value as {
+      lookup: A2AJLocatorLookup;
+      block: A2AJLookupBlock;
+    };
+    return {
+      key: lookupBlockKey(lookup, block),
+      citation: lookup.citation,
+      dataset: lookup.dataset,
+      locator:
+        block.kind === "paragraph"
+          ? block.label.match(/\d+/u)?.[0] ?? null
+          : null,
+    };
+  }
+
+  const matchingDocuments = new Map(
+    documents.flatMap((document) => {
+      if (!document.url) return [];
+      const source = getA2AJDocumentSourceDoc(document);
+      const span = chooseSourceSpan(source, quote);
+      if (!span) return [];
+      const paragraphs = source.blocks.filter(
+        (block) =>
+          block.kind === "paragraph" &&
+          block.start <= span.start &&
+          block.end >= span.end,
+      );
+      if (paragraphs.length !== 1) return [];
+      const paragraph = paragraphs[0];
+      const key = [
+        normalizedIdentity(document.url),
+        normalizedIdentity(document.citation),
+        paragraph.label,
+      ].join("|");
+      return [
+        [
+          key,
+          {
+            key,
+            citation: document.citation,
+            dataset: document.dataset,
+            locator: paragraph.label.match(/\d+/u)?.[0] ?? null,
+          },
+        ] as const,
+      ];
+    }),
+  );
+  return matchingDocuments.size === 1
+    ? matchingDocuments.values().next().value
+    : null;
+}
+
+function uniqueParagraphEdge(
+  text: string,
+  document: SourceDoc,
+  edge: "start" | "end",
+) {
+  const block = createTextSourceDoc(
+    text.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
+  );
+  for (const length of [12, 16, 8, 24, 32, 6, 4, 2]) {
+    if (block.tokens.length < length) continue;
+    const words =
+      edge === "start"
+        ? block.tokens.slice(0, length)
+        : block.tokens.slice(-length);
+    const target = normalizeWhitespace(
+      block.text.slice(words[0].start, words.at(-1)!.end),
+    );
+    if (directiveMatchCount(document, target) === 1) return target;
+  }
+  return null;
+}
+
+export function buildA2AJParagraphRangeUrl(
+  citation: string,
+  start: string,
+  end: string,
+  lookups: A2AJLocatorLookup[],
+  documents: A2AJDocument[],
+) {
+  const sources = new Map<
+    string,
+    {
+      source: SourceDoc;
+      metadata: A2AJLocatorLookup | A2AJDocument;
+    }
+  >();
+  for (const lookup of lookups) {
+    if (
+      lookup.status !== "found" ||
+      !identityMatches(
+        { citation, name: null, dataset: null, url: null, quotes: [] },
+        lookup,
+      )
+    ) {
+      continue;
+    }
+    const source = getA2AJLookupDocument(lookup);
+    if (source) sources.set(source.id, { source, metadata: lookup });
+  }
+  for (const document of documents) {
+    if (
+      document.url &&
+      identityMatches(
+        { citation, name: null, dataset: null, url: null, quotes: [] },
+        document,
+      )
+    ) {
+      const source = getA2AJDocumentSourceDoc(document);
+      sources.set(source.id, { source, metadata: document });
+    }
+  }
+  const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
+    const startBlock = source.blocks.find(
+      (block) =>
+        block.kind === "paragraph" &&
+        normalizedIdentity(block.label) === `par${Number(start)}`,
+    );
+    const endBlock = source.blocks.find(
+      (block) =>
+        block.kind === "paragraph" &&
+        normalizedIdentity(block.label) === `par${Number(end)}`,
+    );
+    return startBlock && endBlock && startBlock.start <= endBlock.start
+      ? [{ source, metadata, startBlock, endBlock }]
+      : [];
+  });
+  if (candidates.length !== 1) return null;
+  const { source, metadata, startBlock, endBlock } = candidates[0];
+  const startTarget = uniqueParagraphEdge(
+    sourceDocBlockText(source, startBlock),
+    source,
+    "start",
+  );
+  const endTarget = uniqueParagraphEdge(
+    sourceDocBlockText(source, endBlock),
+    source,
+    "end",
+  );
+  if (!startTarget || !endTarget) return null;
+  const anchor = `par${Number(start)}`;
+  const preferred = preferredA2AJUrl(metadata, false, anchor);
+  const baseUrl = preferred ? sourceUrl(preferred, anchor) : null;
+  return baseUrl
+    ? appendDirectives(baseUrl, [
+        textRangeDirective(startTarget, endTarget),
+      ])
+    : null;
+}
+
 export function hasLegalSourceQuoteCandidates(answer: string) {
   return answerQuoteCandidates(answer).length > 0;
 }
@@ -877,22 +1260,19 @@ export function appendLegalSourcePinpointLinks(
   return `${answer}${answer ? "\n\n" : ""}Source${links.length === 1 ? "" : "s"}: ${links.join("; ")}`;
 }
 
-function sourceLabel(
-  lookup: A2AJLocatorLookup,
-  block: A2AJLookupBlock | null = lookup.block,
-) {
-  const citation = lookup.citation || lookup.name || "A2AJ source";
-  const label = block?.label || lookup.requested.label;
-  return `${citation}, ${formatLegalLocator(lookup.requested.kind, label)}`.replace(
-    /[[\]]/gu,
-    "\\$&",
-  );
-}
-
-export function appendA2AJPinpointLinks(
+export function addA2AJInlineCitations(
   answer: string,
   lookups: A2AJLocatorLookup[],
+  existingCitations: unknown[] = [],
 ) {
+  const cleanAnswer = stripModelCanadianDecisionUrls(answer);
+  const answerParagraphs = answerCaseParagraphs(cleanAnswer);
+  const answerParagraphByKey = new Map(
+    answerParagraphs.map((source) => [
+      paragraphLookupKey(source.citation, source.locator),
+      source,
+    ]),
+  );
   const uniqueLookups = [
     ...new Map(
       lookups
@@ -900,7 +1280,7 @@ export function appendA2AJPinpointLinks(
         .map((lookup) => [lookupKey(lookup), lookup]),
     ).values(),
   ];
-  const candidates = answerQuoteCandidates(answer);
+  const candidates = answerQuoteCandidates(cleanAnswer);
   const blockSelections = new Map<
     string,
     {
@@ -946,11 +1326,407 @@ export function appendA2AJPinpointLinks(
         : [{ lookup, block: lookup.block, quotes: [] }],
     ),
   ];
-  const links = selections.flatMap(({ lookup, block, quotes }) => {
+  const builtLinks = selections.flatMap(({ lookup, block, quotes }) => {
     const url = buildA2AJPinpointUrl(lookup, quotes, undefined, block);
-    if (!url || answer.includes(url)) return [];
-    return [`[${sourceLabel(lookup, block)}](${url.replace(/\)/gu, "%29")})`];
+    return url ? [{ lookup, url, quotes }] : [];
   });
-  if (!links.length) return answer;
-  return `${answer}${answer ? "\n\n" : ""}Source${links.length === 1 ? "" : "s"}: ${links.join("; ")}`;
+  const existingByUrl = new Map(
+    existingCitations.flatMap((citation) => {
+      const row = citation as { ref?: unknown; url?: unknown } | null;
+      return typeof row?.ref === "number" && typeof row.url === "string"
+        ? [[row.url, row.ref] as const]
+        : [];
+    }),
+  );
+  const existingByRef = new Map(
+    existingCitations.flatMap((citation) => {
+      const row = citation as { ref?: unknown } | null;
+      return typeof row?.ref === "number"
+        ? [[row.ref, citation] as const]
+        : [];
+    }),
+  );
+  let nextRef =
+    Math.max(
+      0,
+      ...existingCitations.flatMap((citation) => {
+        const ref = (citation as { ref?: unknown } | null)?.ref;
+        return typeof ref === "number" ? [ref] : [];
+      }),
+    ) + 1;
+  const claimedRefs = new Set(
+    existingCitations.flatMap((citation) => {
+      const ref = (citation as { ref?: unknown } | null)?.ref;
+      return typeof ref === "number" ? [ref] : [];
+    }),
+  );
+  const modelMarkerRefs = new Set(
+    [...cleanAnswer.matchAll(/\[(\d+)\]/gu)].map((match) =>
+      Number(match[1]),
+    ),
+  );
+  const claimFreshRef = () => {
+    while (claimedRefs.has(nextRef) || modelMarkerRefs.has(nextRef)) {
+      nextRef += 1;
+    }
+    const ref = nextRef++;
+    claimedRefs.add(ref);
+    return ref;
+  };
+  const citationCounts = new Map<string, number>();
+  for (const { lookup } of builtLinks) {
+    const key = normalizedIdentity(lookup.citation);
+    citationCounts.set(key, (citationCounts.get(key) ?? 0) + 1);
+  }
+
+  const insertions: Array<{ at: number; marker: string }> = [];
+  const citations: A2AJInlineCitation[] = [];
+  const supersededRefs = new Set<number>();
+  const occupied = new Set<number>();
+  const representedParagraphs = new Set(
+    builtLinks.flatMap(({ lookup }) =>
+      lookup.requested.kind === "paragraph"
+        ? [
+            paragraphLookupKey(lookup.citation, lookup.requested.locator),
+            paragraphLookupKey(
+              lookup.alternateCitation,
+              lookup.requested.locator,
+            ),
+          ]
+        : [],
+    ),
+  );
+  for (const { lookup, url, quotes } of builtLinks) {
+    const paragraphMention =
+      lookup.requested.kind === "paragraph"
+        ? answerParagraphByKey.get(
+            paragraphLookupKey(lookup.citation, lookup.requested.locator),
+          )
+        : undefined;
+    const at =
+      (quotes[0] ? uniqueTextEnd(cleanAnswer, quotes[0]) : null) ??
+      paragraphMention?.at ??
+      ((citationCounts.get(normalizedIdentity(lookup.citation)) ?? 0) === 1
+        ? uniqueTextEnd(cleanAnswer, lookup.citation)
+        : null);
+    if (at === null || occupied.has(at)) continue;
+
+    const existingRef = existingByUrl.get(url);
+    const adjacentMarker = cleanAnswer
+      .slice(at)
+      .match(/^\s*\[(\d+)\]/u);
+    const adjacentRef = adjacentMarker
+      ? Number(adjacentMarker[1])
+      : undefined;
+    const adjacentCitation = existingByRef.get(adjacentRef!);
+    const adjacentRow = adjacentCitation as {
+      kind?: unknown;
+      citation?: unknown;
+    } | null;
+    const replaceableAdjacentRef =
+      existingRef === undefined &&
+      Number.isSafeInteger(adjacentRef) &&
+      adjacentRow?.kind === "a2aj" &&
+      typeof adjacentRow.citation === "string" &&
+      [lookup.citation, lookup.alternateCitation].some(
+        (citation) =>
+          citation &&
+          normalizedIdentity(citation) ===
+            normalizedIdentity(adjacentRow.citation as string),
+      )
+        ? adjacentRef
+        : undefined;
+    const reusableAdjacentRef =
+      existingRef === undefined &&
+      Number.isSafeInteger(adjacentRef) &&
+      (!claimedRefs.has(adjacentRef!) ||
+        replaceableAdjacentRef !== undefined)
+        ? adjacentRef
+        : undefined;
+    const ref = existingRef ?? reusableAdjacentRef ?? claimFreshRef();
+    const markerAlreadyAtTarget = adjacentRef === ref;
+    if (!markerAlreadyAtTarget) {
+      insertions.push({ at, marker: `[${ref}]` });
+    }
+    occupied.add(at);
+    if (existingRef === undefined) {
+      if (replaceableAdjacentRef !== undefined) {
+        supersededRefs.add(replaceableAdjacentRef);
+      }
+      claimedRefs.add(ref);
+      citations.push({
+        type: "citation_data",
+        kind: "a2aj",
+        ref,
+        citation: lookup.citation,
+        name: lookup.name,
+        dataset: lookup.dataset,
+        url,
+        quotes: quotes.map((quote) => ({ quote })),
+      });
+    }
+  }
+  for (const source of answerParagraphs) {
+    if (
+      representedParagraphs.has(
+        paragraphLookupKey(source.citation, source.locator),
+      ) ||
+      occupied.has(source.at)
+    ) {
+      continue;
+    }
+    const existingRef = existingByUrl.get(source.url);
+    const ref = existingRef ?? nextRef++;
+    if (cleanAnswer.includes(`[${ref}]`)) continue;
+    occupied.add(source.at);
+    insertions.push({ at: source.at, marker: `[${ref}]` });
+    if (existingRef === undefined) {
+      citations.push({
+        type: "citation_data",
+        kind: "a2aj",
+        ref,
+        citation: source.citation,
+        name: null,
+        dataset: source.dataset,
+        url: source.url,
+        quotes: [],
+      });
+    }
+  }
+
+  const text = insertions
+    .sort((left, right) => right.at - left.at)
+    .reduce(
+      (current, { at, marker }) =>
+        `${current.slice(0, at)}${marker}${current.slice(at)}`,
+      cleanAnswer,
+    );
+  return {
+    text,
+    citations: [
+      ...existingCitations.filter((citation) => {
+        const ref = (citation as { ref?: unknown } | null)?.ref;
+        return typeof ref !== "number" || !supersededRefs.has(ref);
+      }),
+      ...citations,
+    ],
+  };
+}
+
+function isA2AJInlineCitation(value: unknown): value is A2AJInlineCitation {
+  const row = value as Partial<A2AJInlineCitation> | null;
+  return (
+    row?.kind === "a2aj" &&
+    typeof row.ref === "number" &&
+    typeof row.url === "string"
+  );
+}
+
+function markdownLink(label: string, url: string) {
+  const escapedLabel = label.replace(/[\\[\]]/gu, "\\$&");
+  return `[${escapedLabel}](${url.replace(/\)/gu, "%29")})`;
+}
+
+/**
+ * Default chat presentation. Keep quotations readable and put each verified
+ * external pinpoint, including same-paragraph highlights, on its citation.
+ * The footnote conversion above remains an opt-in feature.
+ */
+export function addA2AJInlineLinks(
+  answer: string,
+  lookups: A2AJLocatorLookup[],
+  existingCitations: unknown[] = [],
+  documents: A2AJDocument[] = [],
+) {
+  const oldA2AJCitations = existingCitations.filter(isA2AJInlineCitation);
+  const backedRefs = new Set(
+    existingCitations.flatMap((citation) => {
+      const ref = (citation as { ref?: unknown } | null)?.ref;
+      return typeof ref === "number" ? [ref] : [];
+    }),
+  );
+  let text = oldA2AJCitations
+    .reduce(
+      (current, source) =>
+        current.replace(new RegExp(`\\[${source.ref}\\]`, "gu"), ""),
+      stripModelCanadianDecisionUrls(answer),
+    );
+  for (const paragraph of answerCaseParagraphs(text).reverse()) {
+    const marker = text
+      .slice(paragraph.end)
+      .match(/^[ \t]+\[(\d+)\](?=[ \t]*[:;,.!?]|[ \t]*$)/u);
+    if (marker && !backedRefs.has(Number(marker[1]))) {
+      text =
+        text.slice(0, paragraph.end) +
+        text.slice(paragraph.end + marker[0].length);
+    }
+  }
+  text = text
+    .replace(/[ \t]+(?=[,.;:!?])/gu, "")
+    .replace(/[ \t]+$/gmu, "");
+  const ranges: Array<{
+    start: number;
+    end: number;
+    label: string;
+    url: string;
+  }> = [];
+  const overlaps = (start: number, end: number) =>
+    ranges.some((range) => start < range.end && end > range.start);
+
+  type QuoteGroup = {
+    citation: string | null;
+    dataset: string | null;
+    locator: string | null;
+    quotes: string[];
+    start: number;
+    end: number;
+    url?: string;
+  };
+  const quoteGroups = new Map<string, QuoteGroup>();
+  for (const quote of answerQuoteCandidates(text)) {
+    const range = uniqueTextRange(text, quote);
+    if (!range) continue;
+    const evidence = quoteEvidence(quote, lookups, documents);
+    if (!evidence) continue;
+    const existing = quoteGroups.get(evidence.key);
+    if (existing) {
+      existing.quotes.push(quote);
+      existing.start = Math.min(existing.start, range.start);
+      existing.end = Math.max(existing.end, range.end);
+    } else {
+      quoteGroups.set(evidence.key, {
+        citation: evidence.citation,
+        dataset: evidence.dataset,
+        locator: evidence.locator,
+        quotes: [quote],
+        ...range,
+      });
+    }
+  }
+  for (const group of quoteGroups.values()) {
+    group.url =
+      buildA2AJCitationPinpointUrl(
+        {
+          citation: group.citation,
+          name: null,
+          dataset: group.dataset,
+          url: null,
+          quotes: group.quotes.map((quote) => ({ quote })),
+        },
+        lookups,
+        documents,
+      ) ?? undefined;
+  }
+  const claimedQuoteGroups = new Set<string>();
+  const nearestQuoteGroup = (
+    citation: string,
+    start: number,
+    end: number,
+    locator?: string,
+  ) => {
+    let nearest:
+      | {
+          key: string;
+          group: QuoteGroup;
+          distance: number;
+        }
+      | undefined;
+    for (const [key, group] of quoteGroups) {
+      if (
+        claimedQuoteGroups.has(key) ||
+        !group.url ||
+        normalizedIdentity(group.citation) !== normalizedIdentity(citation) ||
+        (locator !== undefined &&
+          Number(group.locator) !== Number(locator))
+      ) {
+        continue;
+      }
+      const distance =
+        group.end < start
+          ? start - group.end
+          : end < group.start
+            ? group.start - end
+            : 0;
+      if (!nearest || distance < nearest.distance) {
+        nearest = { key, group, distance };
+      }
+    }
+    if (nearest) claimedQuoteGroups.add(nearest.key);
+    return nearest?.group;
+  };
+
+  for (const paragraph of answerCaseParagraphs(text)) {
+    if (overlaps(paragraph.start, paragraph.end)) continue;
+    const rangeUrl =
+      Number(paragraph.endLocator) > Number(paragraph.locator)
+        ? buildA2AJParagraphRangeUrl(
+            paragraph.citation,
+            paragraph.locator,
+            paragraph.endLocator,
+            lookups,
+            documents,
+          )
+        : null;
+    const group = rangeUrl
+      ? undefined
+      : nearestQuoteGroup(
+          paragraph.citation,
+          paragraph.start,
+          paragraph.end,
+          paragraph.locator,
+        );
+    ranges.push({
+      start: paragraph.start,
+      end: paragraph.end,
+      label: text.slice(paragraph.start, paragraph.end),
+      url: rangeUrl ?? group?.url ?? paragraph.url,
+    });
+  }
+
+  for (const citation of answerCaseCitations(text)) {
+    if (overlaps(citation.start, citation.end)) continue;
+    const group = nearestQuoteGroup(
+      citation.citation,
+      citation.start,
+      citation.end,
+    );
+    ranges.push({
+      ...citation,
+      url: group?.url ?? citation.url,
+    });
+  }
+
+  return {
+    text: ranges
+      .sort((left, right) => right.start - left.start)
+      .reduce(
+        (current, range) =>
+          `${current.slice(0, range.start)}${markdownLink(
+            range.label,
+            range.url,
+          )}${current.slice(range.end)}`,
+        text,
+      ),
+    citations: existingCitations.filter(
+      (citation) => !isA2AJInlineCitation(citation),
+    ),
+  };
+}
+
+export function a2ajInlineLinkSnapshot(
+  answer: string,
+  lookups: A2AJLocatorLookup[],
+  documents: A2AJDocument[],
+  previousInputSignature: string,
+) {
+  const inputSignature = [
+    ...answerCaseCitations(answer).map(
+      (citation) => `${citation.start}:${citation.label}`,
+    ),
+    ...answerQuoteCandidates(answer).map((quote) => `quote:${quote}`),
+  ].join("\n");
+  if (!inputSignature || inputSignature === previousInputSignature) return null;
+  const linked = addA2AJInlineLinks(answer, lookups, [], documents).text;
+  if (linked === answer) return null;
+  return { text: linked, signature: inputSignature };
 }

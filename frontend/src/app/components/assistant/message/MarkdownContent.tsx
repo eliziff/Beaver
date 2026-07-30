@@ -1,4 +1,12 @@
-import { createElement, type ComponentProps, type ElementType, type RefObject } from "react";
+import {
+    Children,
+    createElement,
+    isValidElement,
+    type ComponentProps,
+    type ElementType,
+    type ReactNode,
+    type RefObject,
+} from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AssistantEvent, Citation } from "../../shared/types";
@@ -6,7 +14,125 @@ import { RESPONSE_GLASS_ANNOTATION, withoutMarkdownNode } from "./messageStyles"
 import { citationTooltip } from "./CitationSources";
 import { internalCaseHref } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
-    return <ReactMarkdown {...props} remarkPlugins={[remarkGfm]} />;
+    const { remarkPlugins, ...rest } = props;
+    return (
+        <ReactMarkdown
+            {...rest}
+            remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
+        />
+    );
+}
+const LEGAL_CITATION =
+    /(?:\b(?:19|20)\d{2}\s+[A-Z][A-Z0-9-]{1,15}\s+\d+\b|\b\d+\s+(?:U\.?S\.?C\.?|U\.?S\.?|S\.?\s*Ct\.?|F\.?\s*(?:2d|3d|4th|Supp\.?))\s+(?:\u00a7+\s*)?\d+\b|\b(?:RSC|SC|RSA|SA|RSBC|SBC|RSO|SO)\s+\d{4}\b|\u00a7\s*\d+)/iu;
+const LEGAL_CITATION_LINK =
+    /\[([^\]\r\n]{1,180})\]\(([^)\r\n]+)\)(\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*\d{1,5}(?:\s*[-\u2013\u2014]\s*\d{1,5})?)/giu;
+const LEGAL_CITATION_PILL =
+    "not-prose inline-flex min-w-0 max-w-full items-baseline whitespace-normal break-words rounded-full bg-red-50 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-700 no-underline ring-1 ring-inset ring-red-200 hover:bg-red-100 hover:text-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600";
+
+function nodeText(value: ReactNode): string {
+    return Children.toArray(value)
+        .map((child) =>
+            typeof child === "string" || typeof child === "number"
+                ? String(child)
+                : isValidElement<{ children?: ReactNode }>(child)
+                  ? nodeText(child.props.children)
+                  : "",
+        )
+        .join("");
+}
+
+type MarkdownNode = {
+    type: string;
+    value?: string;
+    url?: string;
+    children?: MarkdownNode[];
+};
+
+function markdownNodeText(node: MarkdownNode): string {
+    return node.value ?? node.children?.map(markdownNodeText).join("") ?? "";
+}
+
+function paragraphFragment(url: string) {
+    const marker = url.indexOf(":~:");
+    if (marker < 0) return null;
+    const base = url.slice(0, marker);
+    const anchor = base.match(/#par(\d+)$/iu)?.[1];
+    if (!anchor) return null;
+    try {
+        const host = new URL(base).hostname.toLowerCase();
+        if (
+            ![
+                "canlii.org",
+                "www.canlii.org",
+                "decisions.scc-csc.ca",
+                "coadecisions.ontariocourts.ca",
+                "www.bccourts.ca",
+                "bccourts.ca",
+            ].includes(host)
+        ) {
+            return null;
+        }
+    } catch {
+        return null;
+    }
+    return {
+        anchor,
+        base,
+        directives: url.slice(marker + 3).split("&").filter(Boolean),
+    };
+}
+
+function moveParagraphFragmentsToCitationPills() {
+    return (tree: MarkdownNode) => {
+        let pending: Array<ReturnType<typeof paragraphFragment>> = [];
+        const visit = (node: MarkdownNode) => {
+            if (node.type === "link" && node.url) {
+                const label = markdownNodeText(node);
+                const fragment = paragraphFragment(node.url);
+                if (fragment && !LEGAL_CITATION.test(label)) {
+                    pending.push(fragment);
+                } else if (LEGAL_CITATION.test(label)) {
+                    const locator = label.match(
+                        /\bpara(?:graph)?s?\.?\s*(\d+)/iu,
+                    )?.[1];
+                    const matching = pending.filter(
+                        (candidate) =>
+                            candidate?.anchor === String(Number(locator)),
+                    );
+                    const bases = new Set(
+                        matching.flatMap((candidate) =>
+                            candidate ? [candidate.base] : [],
+                        ),
+                    );
+                    if (bases.size === 1) {
+                        const base = [...bases][0];
+                        const directives = [
+                            ...new Set(
+                                matching.flatMap(
+                                    (candidate) =>
+                                        candidate?.directives ?? [],
+                                ),
+                            ),
+                        ];
+                        node.url = `${base}:~:${directives.join("&")}`;
+                    }
+                    pending = [];
+                }
+            }
+            node.children?.forEach(visit);
+        };
+        visit(tree);
+    };
+}
+
+export function normalizeLegalCitationLinks(text: string) {
+    return text.replace(
+        LEGAL_CITATION_LINK,
+        (full, label: string, href: string, pinpoint: string) =>
+            LEGAL_CITATION.test(label)
+                ? `[${label}${pinpoint}](${href})`
+                : full,
+    );
 }
 function styled<T extends ElementType>(tag: T, className: string) {
     return (props: ComponentProps<T> & { node?: unknown }) =>
@@ -42,12 +168,14 @@ export function MarkdownContent({
     function findCaseCitation(href: string) {
         return caseCitations.get(internalCaseHref(href) ?? "");
     }
+    const markdown = normalizeLegalCitationLinks(text);
     return (
         <div
             ref={divRef}
             className="text-gray-900 mb-4 text-base prose prose-sm max-w-none font-serif"
         >
             <GfmMarkdown
+                remarkPlugins={[moveParagraphFragmentsToCitationPills]}
                 urlTransform={(url) =>
                     /^us-case-\d+$/.test(url) ? url : defaultUrlTransform(url)
                 }
@@ -133,6 +261,18 @@ export function MarkdownContent({
                         if (href) {
                             const isInternalCaseHref = !!internalCaseHref(href);
                             const citation = findCaseCitation(href);
+                            const isLegalCitation =
+                                isInternalCaseHref ||
+                                LEGAL_CITATION.test(nodeText(children));
+                            if (
+                                paragraphFragment(href) &&
+                                !isLegalCitation
+                            ) {
+                                return <>{children}</>;
+                            }
+                            const className = isLegalCitation
+                                ? LEGAL_CITATION_PILL
+                                : "text-blue-600 hover:text-blue-700 underline";
                             if (citation && onCaseClick) {
                                 return (
                                     <button
@@ -148,7 +288,7 @@ export function MarkdownContent({
                                                         : undefined,
                                             })
                                         }
-                                        className="text-left text-blue-600 hover:text-blue-700 underline"
+                                        className={`${className} text-left`}
                                     >
                                         {children}
                                     </button>
@@ -158,7 +298,7 @@ export function MarkdownContent({
                                 return (
                                     <a
                                         href={citation.url}
-                                        className="text-blue-600 hover:text-blue-700 underline"
+                                        className={className}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                     >
@@ -177,7 +317,7 @@ export function MarkdownContent({
                             return (
                                 <a
                                     href={href}
-                                    className="text-blue-600 hover:text-blue-700 underline"
+                                    className={className}
                                     target={
                                         isBeaverAppHref ? undefined : "_blank"
                                     }
@@ -207,7 +347,7 @@ export function MarkdownContent({
                     hr: styled("hr", "my-6 border-gray-200"),
                 }}
             >
-                {text}
+                {markdown}
             </GfmMarkdown>
         </div>
     );

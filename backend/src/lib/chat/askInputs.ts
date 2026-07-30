@@ -59,8 +59,8 @@ export function normalizeAskInputsEvent(
         kind: "choice",
         question: question.slice(0, 500),
         options: options.length ? options : [{ value: "Continue" }],
-        allow_other: row.allow_other !== false,
-        other_label: clean(row.other_label, "Other").slice(0, 80),
+        allow_other: true,
+        other_label: "Write your own answer",
         ...(responsePrefix
           ? { response_prefix: responsePrefix.slice(0, 200) }
           : {}),

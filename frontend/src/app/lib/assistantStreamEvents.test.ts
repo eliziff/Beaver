@@ -61,6 +61,34 @@ describe("reduceAssistantStreamEvent", () => {
     ]);
   });
 
+  it("keeps completed generic tool calls as an activity trail", () => {
+    let events: AssistantEvent[] = [];
+    events = reduce(events, {
+      type: "tool_call_start",
+      name: "a2aj_search",
+      label: "Searching BCCA cases for “support”",
+    });
+    events = reduce(events, {
+      type: "tool_call_start",
+      name: "a2aj_search",
+      label: "Searching SCC cases for “support”",
+    });
+
+    expect(finishAssistantStreamEvents(events)).toEqual([
+      {
+        type: "tool_call_start",
+        name: "a2aj_search",
+        label: "Searching BCCA cases for “support”",
+        isStreaming: false,
+      },
+      {
+        type: "tool_call_start",
+        name: "a2aj_search",
+        label: "Searching SCC cases for “support”",
+      },
+    ]);
+  });
+
   it("preserves document identity while completing a read", () => {
     let events: AssistantEvent[] = [];
     events = reduce(events, {

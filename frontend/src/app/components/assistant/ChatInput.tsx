@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { ArrowRight, Check, Library, Loader2, Plus, Square, Waypoints, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -63,10 +63,12 @@ interface Props {
     projectCmNumber?: string | null;
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
+    promptHistory?: string[];
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, showContextTools = true, rows = 1,
-        projectName, projectCmNumber, restoreDraft, onDraftRestored }: Props,
+        projectName, projectCmNumber, restoreDraft, onDraftRestored,
+        promptHistory = [] }: Props,
     ref,
 ) {
     const [hasValue, setHasValue] = useState(false);
@@ -77,12 +79,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
+    const textareaId = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [picker, setPicker] = useState<DirectoryTab | "workflows" | null>(null);
     const [apiKeyModalProvider, setApiKeyModalProvider] = useState<ModelProvider | null>(null);
     const [uploadingFilenames, setUploadingFilenames] = useState<string[]>([]);
     const [uploadWarning, setUploadWarning] = useState<string | null>(null);
     const lastSubmittedDocsRef = useRef<Document[]>([]);
+    const historyIndexRef = useRef<number | null>(null);
+    const historyDraftRef = useRef("");
 
     function attachDocuments(documents: Document[], dropped = false) {
         setAttachedDocs((current) => mergeDocuments(current, documents));
@@ -96,9 +101,42 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         if (focus) textareaRef.current.focus();
     }
 
+    function navigatePromptHistory(
+        direction: "older" | "newer",
+        target: HTMLTextAreaElement,
+    ) {
+        const history = promptHistory.filter((prompt) => prompt.trim());
+        if (!history.length) return false;
+        let index = historyIndexRef.current;
+        if (direction === "older") {
+            if (index === null) {
+                historyDraftRef.current = target.value;
+                index = history.length - 1;
+            } else {
+                index = Math.max(0, Math.min(index, history.length - 1) - 1);
+            }
+        } else {
+            if (index === null) return false;
+            if (index < history.length - 1) {
+                index += 1;
+            } else {
+                historyIndexRef.current = null;
+                setInputValue(historyDraftRef.current);
+                target.setSelectionRange(target.value.length, target.value.length);
+                return true;
+            }
+        }
+        historyIndexRef.current = index;
+        setInputValue(history[index]);
+        target.setSelectionRange(target.value.length, target.value.length);
+        return true;
+    }
+
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => attachDocuments([doc]),
         clearDraft: () => {
+            historyIndexRef.current = null;
+            historyDraftRef.current = "";
             setInputValue("");
             setAttachedDocs([]);
             setSelectedWorkflow(null);
@@ -176,6 +214,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             return;
         }
         setInputValue("");
+        historyIndexRef.current = null;
+        historyDraftRef.current = "";
         lastSubmittedDocsRef.current = attachedDocs;
         setAttachedDocs([]);
         setSelectedWorkflow(null);
@@ -244,21 +284,56 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                         </div>
                     )}
                     <div className="px-4 pt-4">
+                        <label className="sr-only" htmlFor={textareaId}>
+                            Message
+                        </label>
                         <textarea
+                            id={textareaId}
                             ref={textareaRef}
                             rows={rows}
                             placeholder="How can I help?"
                             onChange={(event) => {
+                                historyIndexRef.current = null;
                                 const next = !!event.currentTarget.value.trim();
                                 if (next !== hasValue) setHasValue(next);
                             }}
                             onKeyDown={(event) => {
+                                if (
+                                    (event.key === "ArrowUp" ||
+                                        event.key === "ArrowDown") &&
+                                    !event.altKey &&
+                                    !event.ctrlKey &&
+                                    !event.metaKey &&
+                                    !event.shiftKey &&
+                                    !event.nativeEvent.isComposing &&
+                                    event.currentTarget.selectionStart ===
+                                        event.currentTarget.selectionEnd
+                                ) {
+                                    const browsing =
+                                        historyIndexRef.current !== null;
+                                    const canStart =
+                                        event.key === "ArrowUp" &&
+                                        (!event.currentTarget.value.includes("\n") ||
+                                            event.currentTarget.selectionStart === 0);
+                                    if (
+                                        (browsing || canStart) &&
+                                        navigatePromptHistory(
+                                            event.key === "ArrowUp"
+                                                ? "older"
+                                                : "newer",
+                                            event.currentTarget,
+                                        )
+                                    ) {
+                                        event.preventDefault();
+                                        return;
+                                    }
+                                }
                                 if (event.key === "Enter" && !event.shiftKey) {
                                     event.preventDefault();
                                     handleSubmit();
                                 }
                             }}
-                            className="w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-400"
+                            className="w-full max-h-48 resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-6 outline-none [field-sizing:content] placeholder:text-gray-600"
                         />
                     </div>
                     <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
@@ -271,7 +346,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                         "flex h-8 items-center gap-1 rounded-lg px-2 text-sm",
                                         attachedDocs.length
                                             ? "text-gray-700 hover:text-gray-900"
-                                            : "text-gray-400 hover:text-gray-700",
+                                            : "text-gray-600 hover:text-gray-900",
                                     )}
                                     title={documentButtonLabel}
                                     aria-label={documentButtonLabel}
@@ -295,7 +370,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                         "flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
                                         selectedWorkflow
                                             ? "text-red-700 hover:text-red-800"
-                                            : "text-gray-400 hover:text-gray-700",
+                                            : "text-gray-600 hover:text-gray-900",
                                     )}
                                 >
                                     {selectedWorkflow

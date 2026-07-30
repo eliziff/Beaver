@@ -78,6 +78,91 @@ describe("AssistantMessage activity", () => {
         ).toBeNull();
     });
 
+    it("keeps prior repeated steps while the expanded trail updates", async () => {
+        const firstEvents: AssistantEvent[] = [
+            {
+                type: "tool_call_start",
+                name: "a2aj_search",
+                label: "Searching BCCA cases for “retroactive support”",
+                isStreaming: false,
+            },
+            {
+                type: "tool_call_start",
+                name: "a2aj_search",
+                label: "Searching SCC cases for “retroactive support”",
+                isStreaming: true,
+            },
+        ];
+        const { rerender } = render(
+            <AssistantMessage events={firstEvents} isStreaming />,
+        );
+
+        const disclosure = screen.getByRole("button", {
+            name: /Activity .* Searching SCC cases for “retroactive support”/u,
+        });
+        await userEvent.click(disclosure);
+
+        const updatedEvents: AssistantEvent[] = [
+            firstEvents[0],
+            {
+                ...firstEvents[1],
+                isStreaming: false,
+            },
+            {
+                type: "reasoning",
+                text: "Checking the retrieved authorities.",
+                isStreaming: true,
+            },
+        ];
+        rerender(<AssistantMessage events={updatedEvents} isStreaming />);
+
+        expect(disclosure.closest("details")).toHaveAttribute("open");
+        expect(
+            Array.from(screen.getByRole("list").children).map((node) =>
+                node.textContent?.replace(/\s+/g, " ").trim(),
+            ),
+        ).toEqual([
+            "Searching BCCA cases for “retroactive support”",
+            "Searching SCC cases for “retroactive support”",
+            "Checking the retrieved authorities.",
+        ]);
+    });
+
+    it("drops generic legal-search narration but keeps the real search", async () => {
+        render(
+            <AssistantMessage
+                events={[
+                    {
+                        type: "reasoning",
+                        text: "Searching Canadian cases",
+                    },
+                    {
+                        type: "tool_call_start",
+                        name: "a2aj_search",
+                        label: "Searching BCCA cases for “retroactive support”",
+                        isStreaming: false,
+                    },
+                    {
+                        type: "reasoning",
+                        text: "Checking the retrieved authorities.",
+                    },
+                ]}
+            />,
+        );
+
+        const disclosure = screen.getByRole("button", {
+            name: /Activity .* Checking the retrieved authorities/u,
+        });
+        await userEvent.click(disclosure);
+        const activityList = screen.getAllByRole("list")[0];
+        expect(activityList).toHaveTextContent(
+            "Searching BCCA cases for “retroactive support”",
+        );
+        expect(activityList).not.toHaveTextContent(
+            "Searching Canadian cases",
+        );
+    });
+
     it("describes local Word revisions without exposing the tool name", async () => {
         render(
             <AssistantMessage
@@ -166,6 +251,46 @@ describe("AssistantMessage activity", () => {
             screen.getAllByRole("status", { name: "Activity — Thinking" }),
         ).toHaveLength(1);
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("names the copy action and exposes its completed state", async () => {
+        const write = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { write },
+        });
+        vi.stubGlobal(
+            "ClipboardItem",
+            class {
+                constructor(_items: Record<string, Blob>) {}
+            },
+        );
+        render(
+            <AssistantMessage
+                events={[{ type: "content", text: "Answer text." }]}
+            />,
+        );
+
+        await userEvent.click(
+            screen.getByRole("button", { name: "Copy response" }),
+        );
+        expect(write).toHaveBeenCalledOnce();
+        expect(
+            screen.getByRole("button", { name: "Response copied" }),
+        ).toBeVisible();
+    });
+
+    it("announces response errors", () => {
+        render(
+            <AssistantMessage
+                isError
+                errorMessage="Unable to get a response. Try again."
+            />,
+        );
+
+        expect(screen.getByRole("alert")).toHaveTextContent(
+            "Unable to get a response. Try again.",
+        );
     });
 
     it("humanizes unknown tool IDs in collapsed and expanded activity", async () => {

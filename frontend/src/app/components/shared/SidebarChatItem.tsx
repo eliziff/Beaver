@@ -1,4 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import {
+    useState,
+    useRef,
+    useEffect,
+    type DragEvent,
+    type MouseEvent,
+} from "react";
 import Link from "next/link";
 import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -15,18 +21,34 @@ import {
 interface Props {
     chat: Chat;
     isActive: boolean;
+    isSelected?: boolean;
+    selectedCount?: number;
+    isSelectionActionOwner?: boolean;
     href: string;
     onNavigate?: () => void;
+    onClearSelection?: () => void;
+    onSelect?: (
+        modifiers: Pick<MouseEvent, "shiftKey" | "ctrlKey" | "metaKey">,
+    ) => void;
+    onDragChat?: (event: DragEvent<HTMLDivElement>) => void;
     projectName?: string;
     onMoveToProject?: () => void;
+    onDeleteSelection?: () => Promise<void>;
 }
 export function SidebarChatItem({
     chat,
     isActive,
+    isSelected = false,
+    selectedCount = 0,
+    isSelectionActionOwner = false,
     href,
     onNavigate,
+    onClearSelection,
+    onSelect,
+    onDragChat,
     projectName,
     onMoveToProject,
+    onDeleteSelection,
 }: Props) {
     const { renameChat, deleteChat } = useChatHistoryContext();
     const { user } = useAuth();
@@ -51,9 +73,15 @@ export function SidebarChatItem({
     };
     return (
         <div
+            data-chat-id={chat.id}
+            draggable={!isRenaming && isChatOwner}
+            onDragStart={onDragChat}
+            data-selected={isSelected || undefined}
             className={cn(
                 "group relative flex h-8 w-full items-center rounded-md pr-1 [content-visibility:auto] [contain-intrinsic-size:32px]",
-                isActive
+                isSelected
+                    ? "bg-red-50 text-red-900 ring-1 ring-inset ring-red-200"
+                    : isActive
                     ? APP_SURFACE_ACTIVE_CLASS
                     : APP_SURFACE_HOVER_CLASS,
             )}
@@ -93,8 +121,37 @@ export function SidebarChatItem({
                     <ChatSkeuoIcon className="ml-2.5 h-3.5 w-3.5 shrink-0" />
                     <Link
                         href={href}
-                        onClick={onNavigate}
+                        onClick={(event) => {
+                            if (
+                                isChatOwner &&
+                                onSelect &&
+                                (event.shiftKey ||
+                                    event.ctrlKey ||
+                                    event.metaKey)
+                            ) {
+                                event.preventDefault();
+                                onSelect(event);
+                                return;
+                            }
+                            onClearSelection?.();
+                            onNavigate?.();
+                        }}
+                        onKeyDown={(event) => {
+                            if (
+                                isChatOwner &&
+                                onSelect &&
+                                event.key === " " &&
+                                (event.shiftKey ||
+                                    event.ctrlKey ||
+                                    event.metaKey)
+                            ) {
+                                event.preventDefault();
+                                onSelect(event);
+                            }
+                        }}
                         aria-current={isActive ? "page" : undefined}
+                        aria-label={`${projectName ? `${projectName}: ` : ""}${chat.title ?? "Untitled chat"}${isSelected ? ", selected" : ""}`}
+                        aria-keyshortcuts="Control+Space Meta+Space Shift+Space"
                         className={cn(
                             "min-w-0 flex-1 truncate py-1 pl-2 pr-1 text-left text-xs",
                             isActive
@@ -110,7 +167,11 @@ export function SidebarChatItem({
                     </Link>
                     <div
                         className={`flex shrink-0 items-center ${onMoveToProject ? "w-[72px]" : "w-12"} ${
-                            isActive
+                            selectedCount
+                                ? isSelectionActionOwner
+                                    ? "opacity-100"
+                                    : "pointer-events-none opacity-0"
+                                : isActive
                                 ? "opacity-100"
                                 : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
                         }`}
@@ -150,8 +211,16 @@ export function SidebarChatItem({
                         </button>
                         <button
                             type="button"
-                            aria-label={`Delete ${chat.title ?? "chat"}`}
-                            title="Delete"
+                            aria-label={
+                                isSelectionActionOwner && selectedCount > 1
+                                    ? `Delete ${selectedCount} selected chats`
+                                    : `Delete ${chat.title ?? "chat"}`
+                            }
+                            title={
+                                isSelectionActionOwner && selectedCount > 1
+                                    ? "Delete selected chats"
+                                    : "Delete"
+                            }
                             onClick={() => {
                                 if (!isChatOwner) {
                                     setOwnerOnlyAction("delete this chat");
@@ -173,11 +242,20 @@ export function SidebarChatItem({
             />
             <ChatDeleteWarning
                 open={confirmDeleteOpen}
+                count={
+                    isSelectionActionOwner && selectedCount
+                        ? selectedCount
+                        : 1
+                }
                 busy={isDeleting}
                 onCancel={() => setConfirmDeleteOpen(false)}
                 onConfirm={() => {
                     setIsDeleting(true);
-                    void deleteChat(chat.id).finally(() => {
+                    const remove =
+                        isSelectionActionOwner && onDeleteSelection
+                            ? onDeleteSelection()
+                            : deleteChat(chat.id);
+                    void remove.finally(() => {
                         setIsDeleting(false);
                         setConfirmDeleteOpen(false);
                     });

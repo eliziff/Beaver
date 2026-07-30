@@ -41,11 +41,11 @@ async function ensureSidebarOpen(page: Page) {
 const CLAUDE_MODEL_LABEL = "Claude Sonnet 4.6";
 
 async function selectClaudeModel(page: Page) {
-    const model = page.getByRole("combobox", { name: /^Model:/ }).first();
+    const model = page.getByRole("button", { name: /^Model:/ }).first();
     await expect(model).toBeVisible({ timeout: 10_000 });
     await model.click();
     await page
-        .getByRole("option", { name: CLAUDE_MODEL_LABEL, exact: true })
+        .getByRole("button", { name: CLAUDE_MODEL_LABEL, exact: true })
         .click();
     await expect(model).toHaveAccessibleName(`Model: ${CLAUDE_MODEL_LABEL}`);
 }

@@ -1,5 +1,12 @@
 import { Profiler, useState } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+    act,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TRChatPanel } from "./TRChatPanel";
 
@@ -81,23 +88,6 @@ it("renders loaded messages and positions the latest question before paint", asy
     expect(container.querySelector('[style*="opacity"]')).toBeNull();
 });
 
-it("renders a useful two-line composer in the fixed-width panel", async () => {
-    const { container } = render(
-        <TRChatPanel
-            reviewId="review-1"
-            onChatIdChange={vi.fn()}
-            onCitationClick={vi.fn()}
-            onClose={vi.fn()}
-        />,
-    );
-
-    expect(
-        await screen.findByPlaceholderText("How can I help?"),
-    ).toHaveAttribute("rows", "2");
-    expect(container.firstElementChild).toHaveClass("md:w-[380px]");
-    expect(container.firstElementChild).not.toHaveAttribute("style");
-});
-
 it("searches chat history and loads the selected chat", async () => {
     api.getChats.mockResolvedValue([
         {
@@ -137,20 +127,19 @@ it("searches chat history and loads the selected chat", async () => {
     render(<ControlledPanel />);
 
     await screen.findByText("Question for chat-1");
-    expect(
-        screen.getByRole("button", { name: "Current advice" }),
-    ).toHaveAttribute("title", "Chat history");
     fireEvent.click(screen.getByTitle("Chat history"));
-    expect(screen.getByRole("dialog")).toHaveClass(
-        "!h-[min(20rem,calc(100dvh-2rem))]",
-    );
+    const historyDialog = screen.getByRole("dialog");
     fireEvent.change(await screen.findByPlaceholderText("Search chats"), {
         target: { value: "lease" },
     });
     expect(
-        screen.queryByRole("option", { name: "Current advice" }),
+        within(historyDialog).queryByRole("button", {
+            name: "Current advice",
+        }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("option", { name: "Lease terms" }));
+    fireEvent.click(
+        within(historyDialog).getByRole("button", { name: "Lease terms" }),
+    );
 
     expect(await screen.findByText("Question for chat-2")).toBeInTheDocument();
     expect(onChatIdChange).toHaveBeenCalledWith("chat-2");

@@ -7,8 +7,12 @@ import {
   parseAskInputsResponsePayload,
 } from "../lib/chat/messageFormatting";
 import {
+  A2AJ_SYSTEM_PROMPT,
   CLIENT_WORK_PRODUCT_PRESUMPTION,
   buildLeanLibraryBlock,
+  jurisdictionPreferencePrompt,
+  parseJurisdictionPreference,
+  type JurisdictionPreference,
 } from "../lib/chat/prompts";
 import {
   devLog,
@@ -47,7 +51,10 @@ import {
   appendLocalPdfPinpointLinks,
   providerPdfReferencesForTurn,
 } from "../lib/chat/localPdfEvidenceState";
-import { appendA2AJPinpointLinks } from "../lib/legalSourceLinks";
+import {
+  addA2AJInlineLinks,
+  a2ajInlineLinkSnapshot,
+} from "../lib/legalSourceLinks";
 import type { A2AJDocument, A2AJLocatorLookup } from "../lib/a2aj";
 import {
   citationUrls,
@@ -56,12 +63,19 @@ import {
 } from "../lib/chat/citations";
 import { createVisibleStreamSplitter } from "../lib/chat/visibleStream";
 import { COURTLISTENER_SYSTEM_PROMPT } from "../lib/chat/tools/courtlistenerTools";
+import { a2ajActivityLabel } from "../lib/chat/tools/a2ajTools";
 import { PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT } from "../lib/chat/tools/publicLegalSourceTools";
 import type { CourtlistenerToolState } from "../lib/chat/courtlistenerToolRunner";
 import {
   appendPublicLegalPinpointLinks,
   createPublicLegalSourceState,
 } from "../lib/chat/publicLegalSourceState";
+import {
+  createLegalEvidenceTurnState,
+  finalizeLegalEvidenceExperiment,
+  legalEvidenceReceiptEvent,
+  renderLegalEvidenceAnswer,
+} from "../lib/chat/legalEvidenceExperiment";
 import { getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
@@ -378,7 +392,7 @@ function localPdfEvidenceRegistryPrompt(
   return (
     "DURABLE LOCAL PDF EVIDENCE FROM PRIOR TURNS:\n" +
     `${handles}\n` +
-    "For a library entry, call library_evidence with its handle. For a provider entry, call provider_pdf_lookup with both its reference_id and handle. Rehydrate only when the current request needs that exact prior material, and do not expose opaque handles or references to the user.\n\n"
+    "For a library entry, call library_evidence with its handle. For a legal-source entry, call legal_pdf_lookup with both its reference_id and handle. Rehydrate only when the current request needs that exact prior material, and do not expose opaque handles or references to the user.\n\n"
   );
 }
 
@@ -602,11 +616,8 @@ function canonicalAnonymousAskInputsResponse(
         continue;
       }
       const answer = submitted.answer?.trim() ?? "";
-      const knownAnswer = item.options.some(
-        (option) => option.value === answer,
-      );
-      if (!answer || (!knownAnswer && !item.allow_other)) {
-        return fail("Response choice is not available for this question");
+      if (!answer) {
+        return fail("Response is empty for this question");
       }
       canonical.push({
         id: item.id,
@@ -751,6 +762,7 @@ export async function streamAnonymousChat(params: {
   projectIdProvided?: boolean;
   displayedDocument?: { filename: string; document_id: string };
   attachedDocuments?: { filename: string; document_id: string }[];
+  jurisdictionPreference?: JurisdictionPreference | null;
 }) {
   const { res, userId } = params;
   const fail = (status: number, detail: string) => {
@@ -919,13 +931,15 @@ export async function streamAnonymousChat(params: {
     ? "The current Beaver matter is connected through its attached Library documents"
     : "The user's local Beaver Library is connected";
   const leanPromptVariant = process.env.MIKE_PROMPT_VARIANT === "lean";
+  const standingJurisdictionPrompt = jurisdictionPreferencePrompt(
+    params.jurisdictionPreference ?? null,
+  );
   const libraryBlock = leanPromptVariant
     ? buildLeanLibraryBlock({
         connectedIntro,
         codingShape,
         readToolName,
         editToolName,
-        researchDisabled: RESEARCH_TOOLS_DISABLED,
       })
     : `${connectedIntro} through the library tools. Use ${codingShape ? "Glob" : "library_list"} before claiming a Library document is unavailable. Create requested Word drafts with library_create_docx. An edit, revision, redline, request to apply changes, or request for a corrected DOCX is an action request: read the selected Library DOCX with ${readToolName}, then ${
       codingShape
@@ -939,20 +953,23 @@ export async function streamAnonymousChat(params: {
       codingShape
         ? "For long or structured Library documents, search with Grep first and read only what you need: Grep match lines end with the enclosing [section handle], which Read and Edit accept as section= to scope to that section."
         : "For long or structured Library documents, call library_outline first and read only the needed span with library_read section= rather than the whole document."
-    } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.${
-      RESEARCH_TOOLS_DISABLED
-        ? ""
-        : " Use A2AJ tools for Canadian case law and legislation; Beaver attaches verified pinpoint links automatically. Pass any returned mike-provider-pdf reference unchanged to provider_pdf_lookup."
-    }`;
+    } Before delivering extraction or comparison work, call library_anchor_coverage and verify the source anchors it reports missing from your draft. Prefer the deterministic organs over reasoning from memory — citation linking, supra fixes, structural lint, term drift, drafting lint, bilingual concordance, amendment application, deadline computation — and report their findings as verified rather than recomputing them yourself.`;
   let systemPrompt =
     `${CLIENT_WORK_PRODUCT_PRESUMPTION}\n\n${libraryBlock}\n\n` +
     "If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow it.\n\n" +
     "Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity on the most reasonable reading and state the assumption instead. Never seek confirmation of an instruction already given.\n\n" +
+    (standingJurisdictionPrompt
+      ? standingJurisdictionPrompt + "\n\n"
+      : "") +
     focusPrompt +
     priorEvidencePrompt +
     (RESEARCH_TOOLS_DISABLED
       ? ""
-      : COURTLISTENER_SYSTEM_PROMPT + "\n\n" + PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
+      : COURTLISTENER_SYSTEM_PROMPT +
+        "\n\n" +
+        A2AJ_SYSTEM_PROMPT +
+        "\n\n" +
+        PUBLIC_LEGAL_SOURCE_SYSTEM_PROMPT);
   // Name the documents the user already has. Telling the model the tools
   // exist is not the same as telling it the matter exists.
   systemPrompt += await libraryInventoryPrompt(
@@ -1167,14 +1184,28 @@ export async function streamAnonymousChat(params: {
   let rawText = "";
   let visibleText = "";
   let contentBoundaryPending = false;
+  let inlineLinkSnapshotSignature = "";
+  const a2ajLookups: A2AJLocatorLookup[] = [];
+  const a2ajDocuments: A2AJDocument[] = [];
+  const emitInlineLinkSnapshot = () => {
+    const snapshot = a2ajInlineLinkSnapshot(
+      visibleText,
+      a2ajLookups,
+      a2ajDocuments,
+      inlineLinkSnapshotSignature,
+    );
+    if (!snapshot) return;
+    inlineLinkSnapshotSignature = snapshot.signature;
+    sseWrite(res, { type: "content_snapshot", text: snapshot.text });
+  };
   const splitter = createVisibleStreamSplitter({
     onVisible: (visible) => {
       visibleText += visible;
       sseWrite(res, { type: "content_delta", text: visible });
+      if (visible.includes("\n")) emitInlineLinkSnapshot();
     },
   });
-  const a2ajLookups: A2AJLocatorLookup[] = [];
-  const a2ajDocuments: A2AJDocument[] = [];
+  const legalEvidenceState = createLegalEvidenceTurnState();
   const courtlistenerState: CourtlistenerToolState = {
     casesByClusterId: new Map(),
   };
@@ -1190,7 +1221,10 @@ export async function streamAnonymousChat(params: {
     const tail = splitter.takeTail();
     if (!tail) return;
     visibleText += tail;
-    if (emit) sseWrite(res, { type: "content_delta", text: tail });
+    if (emit) {
+      sseWrite(res, { type: "content_delta", text: tail });
+      emitInlineLinkSnapshot();
+    }
   };
   const queueContentBoundary = () => {
     flushTail();
@@ -1286,6 +1320,7 @@ export async function streamAnonymousChat(params: {
       allowedDocumentIds,
       localPdfEvidenceHandles,
       projectId,
+      legalEvidenceState,
     );
     for (const call of calls) {
       const toolResult = results.find(
@@ -1477,9 +1512,11 @@ export async function streamAnonymousChat(params: {
         onToolCallStart: (call) => {
           providerActivity = true;
           if (!isCodex && !pendingAskInputs) queueContentBoundary();
+          const label = a2ajActivityLabel(call.name, call.input);
           sseWrite(res, {
             type: "tool_call_start",
             name: call.name,
+            ...(label && { label }),
           });
         },
       },
@@ -1502,6 +1539,21 @@ export async function streamAnonymousChat(params: {
     }
 
     flushTail();
+    await finalizeLegalEvidenceExperiment({
+      state: legalEvidenceState,
+      model: selectedModel,
+      draft: visibleText,
+      requestContext: lastUser?.content ?? undefined,
+      reasoningEffort: params.reasoningEffort,
+      abortSignal: streamAbort.signal,
+    });
+    const submittedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
+    if (submittedAnswer !== null) {
+      rawText = submittedAnswer;
+      visibleText = submittedAnswer;
+      contentBoundaryPending = false;
+      splitter.reset();
+    }
     if (await finalizePendingAskInputs()) return;
     // SLA Audit→Grounding: deterministic anchor coverage of the draft, one
     // typed-findings revision pass, and machine receipts for both stages.
@@ -1524,6 +1576,8 @@ export async function streamAnonymousChat(params: {
       });
       if (draftAudit.repairPrompt) {
         const draft = visibleText;
+        const submittedDraft = legalEvidenceState.answer;
+        legalEvidenceState.answer = null;
         rawText = "";
         visibleText = "";
         await runProvider(undefined, {
@@ -1531,11 +1585,19 @@ export async function streamAnonymousChat(params: {
           findings: draftAudit.repairPrompt,
         });
         flushTail();
+        const revisedAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
+        if (revisedAnswer !== null) {
+          rawText = revisedAnswer;
+          visibleText = revisedAnswer;
+          contentBoundaryPending = false;
+          splitter.reset();
+        }
         if (await finalizePendingAskInputs()) return;
         if (!visibleText.trim()) {
           // The revision pass produced nothing usable — keep the draft.
           rawText = draft;
           visibleText = draft;
+          legalEvidenceState.answer = submittedDraft;
         }
         const revised = await collectSlaDeliverable(
           userId,
@@ -1549,7 +1611,7 @@ export async function streamAnonymousChat(params: {
         });
       }
     }
-    const citations = parseCitations(rawText).map((citation) =>
+    const parsedCitations = parseCitations(rawText).map((citation) =>
       createCitation(
         citation,
         {},
@@ -1559,10 +1621,21 @@ export async function streamAnonymousChat(params: {
         publicLegalState,
       ),
     );
+    const finalEvidenceAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
+    const a2ajLinked =
+      finalEvidenceAnswer === null
+        ? addA2AJInlineLinks(
+            visibleText.trimEnd(),
+            a2ajLookups,
+            parsedCitations,
+            a2ajDocuments,
+          )
+        : { text: finalEvidenceAnswer, citations: parsedCitations };
+    const citations = a2ajLinked.citations;
     const urls = citationUrls(citations);
     const linkedText = await appendLocalPdfPinpointLinks(
       appendPublicLegalPinpointLinks(
-        appendA2AJPinpointLinks(visibleText.trimEnd(), a2ajLookups),
+        a2ajLinked.text,
         publicLegalState,
         urls,
       ),
@@ -1571,13 +1644,19 @@ export async function streamAnonymousChat(params: {
       allowedDocumentIds,
       urls,
     );
-    const linkDelta = linkedText.slice(visibleText.trimEnd().length);
-    if (linkDelta) sseWrite(res, { type: "content_delta", text: linkDelta });
+    const appendedLinkDelta = linkedText.startsWith(a2ajLinked.text)
+      ? linkedText.slice(a2ajLinked.text.length)
+      : "";
+    if (appendedLinkDelta) {
+      sseWrite(res, { type: "content_delta", text: appendedLinkDelta });
+    }
     visibleText = linkedText;
     sseWrite(res, { type: "content_final", text: visibleText });
 
+    const legalReceipt = legalEvidenceReceiptEvent(legalEvidenceState);
     const assistantEvents = await withEvidenceRegistry([
       ...turnDocumentEvents,
+      ...(legalReceipt ? [legalReceipt] : []),
       visibleText
         ? { type: "content", text: visibleText }
         : {
@@ -2293,6 +2372,9 @@ chatRouter.post("/", async (req, res) => {
   const model = typeof body.model === "string" ? body.model.trim() : undefined;
   const reasoningEffort =
     trimmedString(body.reasoning_effort).slice(0, 32) || undefined;
+  const jurisdictionPreference = parseJurisdictionPreference(
+    body.jurisdiction_preference,
+  );
   const displayedRow = asRecord(body.displayed_doc);
   const displayedDocument =
     displayedRow &&
@@ -2356,6 +2438,7 @@ chatRouter.post("/", async (req, res) => {
         projectIdProvided: parsedProjectId.provided,
         displayedDocument,
         attachedDocuments,
+        jurisdictionPreference,
       });
     } catch (error) {
       console.error("[chat/anonymous] preflight", safeErrorLog(error));
@@ -2562,6 +2645,12 @@ chatRouter.post("/", async (req, res) => {
     });
     systemPromptExtra += `\n\nUSER-ATTACHED DOCUMENTS FOR THIS TURN:\nThe user has attached the following document(s) directly to their latest message. Treat these as the primary focus of the request unless their message clearly says otherwise.\n${lines.join("\n")}`;
   }
+  const cloudJurisdictionPrompt = jurisdictionPreferencePrompt(
+    jurisdictionPreference,
+  );
+  systemPromptExtra =
+    [systemPromptExtra, cloudJurisdictionPrompt].filter(Boolean).join("\n\n") ||
+    undefined;
   const { api_keys: apiKeys, legal_research_us: legalResearchUs } =
     await getUserModelSettings(userId, db);
   const apiMessages = buildMessages(

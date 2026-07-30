@@ -157,7 +157,7 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-queued",
-          name: "provider_pdf_lookup",
+          name: "legal_pdf_lookup",
           input: {
             reference_id: requestReference,
             locator_kind: "page",
@@ -183,7 +183,7 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-ready",
-          name: "provider_pdf_lookup",
+          name: "legal_pdf_lookup",
           input: {
             reference_id: requestReference,
             locator_kind: "page",
@@ -228,7 +228,7 @@ describe("provider PDF consumers", () => {
       [
         {
           id: "provider-rehydrate",
-          name: "provider_pdf_lookup",
+          name: "legal_pdf_lookup",
           input: { reference_id: sourceReference, handle },
         },
       ],
@@ -414,7 +414,7 @@ describe("provider PDF consumers", () => {
     );
   });
 
-  it("uses a same-host Decisia PDF candidate for flat A2AJ text", async () => {
+  it("keeps A2AJ links server-side without queuing PDF work", async () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
@@ -438,12 +438,6 @@ describe("provider PDF consumers", () => {
         }),
       }),
     );
-    queueProviderPdfAttachment.mockResolvedValue({
-      ...fallback,
-      provider: "a2aj",
-      identity: "SCC:2099 SCC 1",
-    });
-
     const [response] = await runLocalAssistantTools("local-user", [
       {
         id: "call-a2aj",
@@ -452,22 +446,11 @@ describe("provider PDF consumers", () => {
       },
     ]);
 
-    expect(queueProviderPdfAttachment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "a2aj",
-        identity: "SCC:2099 SCC 1",
-        structureSource: "flat_text",
-        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/99999/1/document.do",
-        canonicalUrl:
-          "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
-      }),
-    );
-    expect(JSON.parse(response.content).pdf_fallback).toMatchObject({
-      provider: "a2aj",
-      reference_id: "reference-1",
-    });
+    const fetchPayload = JSON.parse(response.content);
+    expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
+    expect(fetchPayload.url).toBeUndefined();
+    expect(fetchPayload.pdf_fallback).toBeUndefined();
 
-    queueProviderPdfAttachment.mockClear();
     const [lookupResponse] = await runLocalAssistantTools("local-user", [
       {
         id: "lookup-a2aj",
@@ -479,16 +462,9 @@ describe("provider PDF consumers", () => {
         },
       },
     ]);
-    expect(queueProviderPdfAttachment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "a2aj",
-        identity: "SCC:2099 SCC 1",
-        structureSource: "flat_text",
-      }),
-    );
-    expect(JSON.parse(lookupResponse.content).pdf_fallback).toMatchObject({
-      provider: "a2aj",
-      reference_id: "reference-1",
-    });
+    const lookupPayload = JSON.parse(lookupResponse.content);
+    expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
+    expect(lookupPayload.url).toBeUndefined();
+    expect(lookupPayload.pdf_fallback).toBeUndefined();
   });
 });

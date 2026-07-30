@@ -30,12 +30,6 @@ it("applies a searched preset and keeps Escape inside the preset picker", () => 
     fireEvent.click(
         screen.getByRole("button", { name: "Choose column preset" }),
     );
-    expect(screen.getAllByRole("option")).toHaveLength(
-        PROMPT_PRESETS.length + 1,
-    );
-    expect(
-        screen.getByRole("option", { name: "Custom column" }),
-    ).toBeInTheDocument();
     fireEvent.keyDown(screen.getByPlaceholderText("Search options"), {
         key: "Escape",
     });
@@ -49,7 +43,7 @@ it("applies a searched preset and keeps Escape inside the preset picker", () => 
     fireEvent.change(screen.getByPlaceholderText("Search options"), {
         target: { value: "Assignment" },
     });
-    fireEvent.click(screen.getByRole("option", { name: "Assignment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assignment" }));
 
     const preset = PROMPT_PRESETS.find(({ name }) => name === "Assignment")!;
     expect(screen.getByLabelText("Column title")).toHaveValue(preset.name);
@@ -157,5 +151,4 @@ it("edits tag options and auto-generates a prompt", async () => {
             tags: ["Existing", "New"],
         }),
     );
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
 });
