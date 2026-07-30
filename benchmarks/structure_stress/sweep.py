@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import multiprocessing as mp
+import random
 import re
 import sqlite3
 import sys
@@ -126,6 +127,14 @@ from structure_ref import law_section_labels, structure_cascade  # noqa: E402
 
 PILCROW_RE = re.compile(r"¶\s?\d")
 ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
+# Provider catalog cards whose Decision Content section states the text is
+# absent (CHRT/CITT; en 185 + fr 186 docs probed 2026-07-30). Matched only
+# in the document tail, where the provider layout puts it — a decision
+# QUOTING the phrase mid-text stays a real document.
+STUB_SENTINEL_RE = re.compile(
+    r"There is no document available for this decision\."
+    r"|Il n[’']y a pas de document disponible pour cette décision\."
+)
 
 # The anchored-scan machinery (derived gates, anchor windows with the
 # clip-guard and coverage bailout) lives in the engine now — the private
@@ -241,6 +250,12 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             for k in ("cite.neutral", "cite.neutral.tribunal", "cite.canlii",
                       "cite.reporter.splitter")
         )
+        if STUB_SENTINEL_RE.search(text[-300:]):
+            # No decision text exists to detect structure or citations in;
+            # a provider inventory fact, not an instrument failure.
+            record["structure"] = {"kind": "stub_sentinel"}
+            record["wall"] = round(time.perf_counter() - t0, 4)
+            return record
         if record["cited_count"] > 0 and cite_hits == 0:
             record["fail"].append("cites_expected_none_found")
         # No structure detected is never a verdict: paragraphs, then
@@ -468,8 +483,16 @@ def _fold_record(
             agg["fail_reasons"][reason.split("_0")[0]] += 1
         if "slow_doc" in rec["fail"]:
             agg["slow_docs"] += 1
+        # Reservoir sample (Vitter's R) over this aggregate's failure
+        # stream: the failures file is a uniform sample of ALL failures.
+        # The old head-cap froze the first `failure_cap` in scan order,
+        # so the vet queue only ever showed the earliest courts.
         if len(failures) < failure_cap:
             failures.append(rec)
+        else:
+            slot = _FAILURE_RNG.randrange(agg["fail_docs"])
+            if slot < failure_cap:
+                failures[slot] = rec
 
 
 def _summarize(
@@ -526,6 +549,9 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
 
 SLICE_ROWS = 4000
 SHARD_FAILURE_CAP = 2000
+# Seeded once per process: parent-fed aggregates sample with it directly;
+# each pool worker re-seeds at spawn and samples its own shards' streams.
+_FAILURE_RNG = random.Random(47)
 
 
 def _corpus_shards(source: str, langs: list[str]):
@@ -626,7 +652,7 @@ def run_source_sharded(
     t0 = time.time()
     agg = _empty_agg(name)
     recoveries: list[tuple[str, float]] = []
-    failures: list[dict] = []
+    shard_failures: list[tuple[int, list[dict]]] = []
     done = 0
     with mp.Pool(workers, initializer=_init_worker) as pool:
         for partial in pool.imap_unordered(scan_shard, shards, chunksize=1):
@@ -636,14 +662,36 @@ def run_source_sharded(
                         "structure_kinds"):
                 agg[key].update(partial[key])
             recoveries.extend(partial["recoveries"])
-            if len(failures) < 2000:
-                failures.extend(partial["failures"][: 2000 - len(failures)])
+            shard_failures.append((partial["fail_docs"], partial["failures"]))
             done += 1
             print(
                 f"[{name}] shard {done}/{len(shards)} "
                 f"docs={agg['docs']} mb={agg['chars'] / 1e6:.0f}",
                 flush=True,
             )
+    # Each shard reservoir is uniform WITHIN its shard, so drawing
+    # floor(cap * n_i / N) from each (largest remainders fill the slack)
+    # yields a uniform sample over all N failures. The old merge kept
+    # whatever the first shards to FINISH had head-capped.
+    total_fail = sum(n for n, _ in shard_failures)
+    if total_fail <= SHARD_FAILURE_CAP:
+        failures = [rec for _, sample in shard_failures for rec in sample]
+    else:
+        rng = random.Random(47)
+        quotas = [
+            SHARD_FAILURE_CAP * n / total_fail for n, _ in shard_failures
+        ]
+        take = [int(q) for q in quotas]
+        by_remainder = sorted(
+            range(len(quotas)), key=lambda i: quotas[i] - take[i], reverse=True
+        )
+        for index in by_remainder:
+            if sum(take) >= SHARD_FAILURE_CAP:
+                break
+            take[index] += 1
+        failures = []
+        for (_, sample), quota in zip(shard_failures, take):
+            failures.extend(rng.sample(sample, min(quota, len(sample))))
     with open(out_dir / f"{name}.failures.jsonl", "w", encoding="utf-8") as out:
         for rec in failures:
             out.write(json.dumps(rec, ensure_ascii=False) + "\n")
