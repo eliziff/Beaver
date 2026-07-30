@@ -234,6 +234,14 @@ export function noteUpCitations(args: {
 }
 
 export type StandsForCandidate = {
+  /**
+   * case = another court's citing prose (edge graph); commentary = a
+   * journal author's proposition sentence whose footnote cites the case
+   * (journal_commentary.sqlite, built by scripts/pair_journal_footnotes.py)
+   */
+  sourceKind: "case" | "commentary";
+  /** journal name for commentary candidates; null for case candidates */
+  journalName: string | null;
   /** the attested characterization text (the excerpt's prose window) */
   text: string;
   /** prose = clean citing prose; mixed = prose window extracted from around citations */
@@ -258,9 +266,84 @@ export type StandsForProfile = {
   tier: "rich" | "thin" | "none";
   excerptsConsidered: number;
   excerptsRejected: { authorityList: number; insufficient: number };
+  /** journal-commentary source counts; null when no commentary DB is installed */
+  commentary: { considered: number; rejected: number } | null;
 };
 
 const STANDS_FOR_CONSIDERED = 300;
+
+function journalCommentaryPath() {
+  const configured = process.env.MIKE_JOURNAL_COMMENTARY_DB?.trim();
+  if (configured) return path.resolve(configured);
+  return path.join(path.dirname(citatorDatabasePath()), "journal_commentary.sqlite");
+}
+
+/**
+ * Commentary candidates for a set of citation keys: rank-1 (primary
+ * authority) citations of PAIRED notes whose proposition sentence
+ * survived extraction — the journal author's own characterization of
+ * what the cited case supports, verified by their footnote. The same
+ * prose-vs-authority-list classifier gates the proposition, so TOC
+ * fragments and citation strings never become characterizations.
+ */
+function commentaryCandidates(keys: string[]): {
+  considered: number;
+  rejected: number;
+  usable: Array<StandsForCandidate & { occurrences: number }>;
+} | null {
+  const placeholders = keys.map(() => "?").join(", ");
+  return withReadonlySqlite(journalCommentaryPath(), (database) => {
+    const rows = database
+      .prepare(
+        `SELECT note.proposition, article.citation, article.name,
+                article.date, article.journal_name
+         FROM note_citation
+         JOIN note ON note.id = note_citation.note_id
+         JOIN article ON article.article_id = note.article_id
+         WHERE note_citation.cited_key IN (${placeholders})
+           AND note_citation.rank = 1
+           AND note.pair_status = 'paired'
+           AND note.proposition IS NOT NULL
+         ORDER BY (article.date IS NULL), article.date DESC, note.id
+         LIMIT ?`,
+      )
+      .all(...keys, STANDS_FOR_CONSIDERED) as Row[];
+    let rejected = 0;
+    const usable: Array<StandsForCandidate & { occurrences: number }> = [];
+    for (const row of rows) {
+      // The classifier GATES commentary but never rewrites it: its prose
+      // window trims a word off both ends because citator excerpts
+      // truncate mid-word, while a paired proposition is sentence-exact
+      // already - the verbatim text the widened tier will hash against.
+      const proposition = String(row.proposition).trim();
+      const verdict = classifyCitatorExcerpt(proposition);
+      if (
+        (verdict.kind !== "prose" && verdict.kind !== "mixed") ||
+        !verdict.proseWindow
+      ) {
+        rejected += 1;
+        continue;
+      }
+      usable.push({
+        sourceKind: "commentary",
+        journalName: (row.journal_name as string | null) ?? null,
+        text: proposition,
+        excerptKind: verdict.kind,
+        citingCitation: (row.citation as string | null) ?? null,
+        citingName: (row.name as string | null) ?? null,
+        citingCourt: null,
+        citingLevel: null,
+        citingDate: (row.date as string | null) ?? null,
+        paragraph: null,
+        spanSha256: createHash("sha256")
+          .update(proposition, "utf8")
+          .digest("hex"),
+        occurrences: 1,
+      });
+    }
+    return { considered: rows.length, rejected, usable };
+  });
+}
 
 /**
  * Ranked attested characterizations of a cited case, drawn from what
@@ -324,6 +407,8 @@ export function standsForProfile(args: {
         continue;
       }
       usable.push({
+        sourceKind: "case",
+        journalName: null,
         text: verdict.proseWindow,
         excerptKind: verdict.kind,
         citingCitation: (group.citation as string | null) ?? null,
@@ -338,6 +423,8 @@ export function standsForProfile(args: {
         occurrences: Number(group.occurrences),
       });
     }
+    const commentary = commentaryCandidates(keys);
+    if (commentary) usable.push(...commentary.usable);
     usable.sort(
       (a, b) =>
         (b.citingLevel ?? 0) - (a.citingLevel ?? 0) ||
@@ -354,6 +441,9 @@ export function standsForProfile(args: {
       tier: usable.length >= 3 ? "rich" : usable.length ? "thin" : "none",
       excerptsConsidered: groups.length,
       excerptsRejected: { authorityList, insufficient },
+      commentary: commentary
+        ? { considered: commentary.considered, rejected: commentary.rejected }
+        : null,
     };
   });
 }
