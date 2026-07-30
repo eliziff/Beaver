@@ -35,6 +35,7 @@ REFERENCE = (
     r"C:\Users\elias\Desktop\Martys Qote Verifier"
     r"\ALR-Quote-Verifier\verifier_core"
 )
+FIDELITY_ENGINE_SRC = r"..\..\universal-legal-pdf-engine\src"
 
 # --- faithful transcription: a2aj_structure.py ------------------------
 
@@ -223,10 +224,20 @@ _RANGE_RE = re.compile(
 _NAMED_HEAD_RE = re.compile(
     r"^#{1,4}[ \t]+[\"“«]?[ \t]*"
     r"(Schedule|Annexe|Form|Formule|Appendix|Appendice|Table|Tableau|"
-    r"Preamble|Préambule|Order|Ordonnance)"
-    r"[ \t]*[\"”»]?[ \t]*([A-Za-z0-9IVXLC\"“”]{0,12})",
+    r"Preamble|Préambule|Order|Ordonnance)(?![A-Za-zÀ-ÿ])"
+    r"[ \t]*[\"”»]?[ \t]*([A-Za-z0-9IVXLC.\"“”]{0,12})",
     re.MULTILINE | re.IGNORECASE,
 )
+
+# Oracle-measured tail discipline (fp_scan 2026-07-29: 'Form s',
+# 'Order to' drove named precision to 0.293): identifiers are digits,
+# romans, or a single capital — case-sensitive on purpose, re.I on the
+# heading regex would let 'of'/'to' through the roman branch. Bare
+# labels only for units that appear bare in oracle keys.
+_NAMED_TAIL_OK = re.compile(
+    r"(?:No\.?[ \t]*)?(?:\d{1,4}(?:\.\d{1,3})?[A-Za-z]?|[IVXLC]{1,7}|[A-Z])$"
+)
+_NAMED_BARE_OK = frozenset({"Schedule", "Appendix", "Preamble"})
 
 _NAMED_CANON = {
     "annexe": "Schedule", "formule": "Form", "appendice": "Appendix",
@@ -262,7 +273,12 @@ def named_heading_labels(text: str) -> set[str]:
     for match in _NAMED_HEAD_RE.finditer(text):
         kind_raw = match.group(1).lower()
         kind = _NAMED_CANON.get(kind_raw, kind_raw.capitalize())
-        tail = match.group(2).strip(' "“”').strip()
+        tail = match.group(2).strip(' "“”').rstrip(".").strip()
+        if tail:
+            if not _NAMED_TAIL_OK.fullmatch(tail):
+                continue
+        elif kind not in _NAMED_BARE_OK:
+            continue
         label = f"{kind} {tail}".strip()
         count = seen.get(label, 0) + 1
         seen[label] = count
@@ -281,41 +297,75 @@ def law_section_labels(text: str) -> dict[str, set[str]]:
     }
 
 
+# --- copied from the text-fidelity engine (reference etiquette:
+# copy + provenance + --parity drift check, never a runtime import) --
+
+# shared/grammar-tables/footnote-labels.json entry label.line-start
+# (engine binding core.py:36 _LABEL_RE), verbatim as expanded and
+# compiled by legalpdf.grammar_tables: re.ASCII, portable \s expanded
+# to the source-whitespace class.
+NOTE_LABEL_RE = re.compile(
+    r"^[ \t\n\r\f\v\x1c-\x1f\x85\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*"
+    r"(?P<label>\d{1,4}|[*†‡§¶#])"
+    r"(?:[ \t\n\r\f\v\x1c-\x1f\x85\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]|[.)\],:;-])",
+    re.ASCII,
+)
+# engine core.py:1764 — the heading line that opens a note region.
+NOTES_HEADING_RE = re.compile(r"(?:end)?notes?", re.IGNORECASE)
+
 _ENDNOTE_MAX_MEDIAN_WORDS = 25
 _ENDNOTE_MIN_START_RATIO = 0.70
 
 
 def endnote_index(text: str) -> list[Paragraph]:
-    """Tail note/authority ladders — the scopes paragraph_index REJECTS.
+    """Tail note ladders, anchored the way the engine's fidelity pass anchors them.
 
-    Beaver extension built from the measured separation in the failure
-    taxonomy: endnote ladders sit in the tail (start_ratio ~0.98) with
-    short entries (median 21-25 words) where real paragraph scopes span
-    the document (0.909) with 300-word medians. 10% of a 1,127-doc
-    cross-court sample carries one; near-total for pre-1970 SCC.
+    The label grammar and the region-opening rules are the engine's,
+    not ours: labels are shared-table entry label.line-start (the
+    engine's _LABEL_RE, matched per line exactly as core.py does), and
+    a ladder is credited only where core._infer_note_region_modes
+    would open a note region — at expected number 1, or under a
+    Notes/Endnotes heading line. Marker↔note pairing stays geometric
+    and engine-only; the text plane reports its anchor type instead of
+    imitating pairing it cannot see. Tail-position and short-entry
+    guards remain Beaver-measured text-plane constraints (taxonomy
+    2026-07-29: tail ladders at start_ratio ~0.98 with 21-25-word
+    medians vs document-spanning 300-word decision scopes). FP modes
+    this closed: room lists (405..), year tables (1985..), appendix
+    [55]+ bracket labels.
     """
     if not text:
         return []
-    markers: list[tuple[int, int, str]] = []
-    for match in PARAGRAPH_MARK_RE.finditer(text):
-        bracket, dot, bare = match.groups()
-        markers.append((match.start(), int(bracket or dot or bare),
-                        "bracket" if bracket else "dot" if dot else "bare"))
+    numbered: list[tuple[int, int]] = []
+    heading_ends: list[int] = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if NOTES_HEADING_RE.fullmatch(stripped.rstrip(":").strip()):
+            heading_ends.append(offset + len(line))
+        match = NOTE_LABEL_RE.match(line)
+        if match and match.group("label").isdigit():
+            numbered.append((offset + match.start("label"),
+                             int(match.group("label"))))
+        offset += len(line)
+    all_offsets = [marker_offset for marker_offset, _n in numbered]
     best: list[Paragraph] = []
-    for style in ("bracket", "dot", "bare"):
-        styled = [(offset, number) for offset, number, marker_style in markers
-                  if marker_style == style]
-        offsets = [offset for offset, _n in styled]
-        for scope in monotone_scopes(styled):
-            if len(scope) < 3 or len(scope) <= len(best):
-                continue
-            out = _numbered_index(text, scope, offsets)
-            if out[0][1] / max(1, len(text)) < _ENDNOTE_MIN_START_RATIO:
-                continue
-            bounded = out[:-1] or out
-            if statistics.median(_word_count(i[3]) for i in bounded) > _ENDNOTE_MAX_MEDIAN_WORDS:
-                continue
-            best = out
+    for scope in monotone_scopes(numbered):
+        if len(scope) < 3 or len(scope) <= len(best):
+            continue
+        opens_at_one = scope[0][1] == 1
+        heading_anchored = any(
+            scope[0][0] - 400 <= end <= scope[0][0] for end in heading_ends
+        )
+        if not (opens_at_one or heading_anchored):
+            continue
+        out = _numbered_index(text, scope, all_offsets)
+        if out[0][1] / max(1, len(text)) < _ENDNOTE_MIN_START_RATIO:
+            continue
+        bounded = out[:-1] or out
+        if statistics.median(_word_count(i[3]) for i in bounded) > _ENDNOTE_MAX_MEDIAN_WORDS:
+            continue
+        best = out
     return best
 
 
@@ -340,7 +390,9 @@ def structure_cascade(text: str, *citations: str) -> dict:
     notes = endnote_index(text)
     if notes:
         return {"kind": "endnotes", "count": len(notes),
-                "first": notes[0][0], "last": notes[-1][0]}
+                "first": notes[0][0], "last": notes[-1][0],
+                "anchor": "sequence_start" if notes[0][0] == 1
+                else "notes_heading"}
     lines = text.splitlines()
     headingish = sum(
         1 for line in lines
@@ -372,7 +424,20 @@ def _parity(sample: int) -> int:
         if ref.paragraph_index(text) != paragraph_index(text):
             mismatches += 1
     print(f"parity: {len(rows)} docs, {mismatches} mismatches")
-    return 1 if mismatches else 0
+
+    # The engine is a reference too: the note-label copy must stay
+    # byte-equal to the table entry the engine actually compiles.
+    from pathlib import Path  # noqa: PLC0415
+
+    engine_src = (Path(__file__).resolve().parent / FIDELITY_ENGINE_SRC).resolve()
+    sys.path.insert(0, str(engine_src))
+    from legalpdf.grammar_tables import compile_table_entry  # noqa: PLC0415
+
+    fidelity = compile_table_entry("label.line-start")
+    drift = (fidelity.pattern != NOTE_LABEL_RE.pattern
+             or fidelity.flags != NOTE_LABEL_RE.flags)
+    print(f"label.line-start copy: {'DRIFT' if drift else 'byte-equal'}")
+    return 1 if mismatches or drift else 0
 
 
 if __name__ == "__main__":
