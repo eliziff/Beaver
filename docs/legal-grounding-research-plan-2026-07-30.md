@@ -250,6 +250,19 @@ D2. Stands-for profiles: per cited case, the prose citing contexts
     annotations (journals.db final contracts) become the preferred
     source for those articles once fully registered; the plaintext
     lane is the breadth pass and states its own quality.
+    UPSTREAM-PAIRS SURVEY (2026-07-30): oajd/journals.db
+    article_final_contracts registers 6,937 packages, ALL resolving
+    locally (zero missing) to data/final_contracts/<DATASET>/<vol>/
+    <issue>/<article_id>/pages.jsonl with per-page annotations[]
+    (taxonomy_name fn_label/fn_ref carrying pair_id/note_id/offsets
+    from footnote_pairing_v2, plus fn_crossref); 78/80 sampled
+    packages carry pairs. Same article_id space as public_endpoint.db
+    (6,710 overlap; 227 absent are MCGILL-LJ-BACKCAT/elias). Includes
+    MCGILL-LJ-ERUDIT (454) — the bare-label French lane the plaintext
+    adapter deliberately does not handle (a fourth bare-N dialect was
+    tried and reverted: page-number furniture shares its shape and
+    regressed paired notes 237k->178k). Wiring the upstream lane
+    supersedes further plaintext dialect work.
 D3. Stage 8 ablations (each frozen separately):
     - feed-forward: "other courts cite this case for: …" (top prose
       contexts / parentheticals) in the composition prompt; measure
