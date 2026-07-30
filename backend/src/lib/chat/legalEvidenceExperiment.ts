@@ -22,6 +22,7 @@ import {
   type OpenAIToolSchema,
   type UserApiKeys,
 } from "../llm";
+import { quoteRepairSuggestion } from "./quoteRepair";
 import { normalizeWhitespace } from "../text";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
@@ -37,6 +38,7 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "tiered_check",
   "quote_first",
   "attested_framing",
+  "required_slot",
   "lint_gated",
 ] as const;
 
@@ -117,9 +119,23 @@ type RegisteredEvidence = {
   lookup?: A2AJLocatorLookup;
 };
 
+/**
+ * Stage 8b typed claim roles. `premise_correction` is the schema-level
+ * premise distinction: the contested premise travels as `premise_text`,
+ * a verbatim substring of the named source (the user's question, or the
+ * assistant's own prior answer in multi-turn settings), so the anchor is
+ * deterministically checkable and the correction body is never mistaken
+ * for overreach by novelty lints. Absent `kind` is the legacy untyped
+ * claim and keeps pre-8b behavior exactly.
+ */
+export type LegalClaimKind = "quotation" | "conclusion" | "premise_correction";
+
 export type GroundedLegalClaim = {
   text: string;
   evidence_ids: string[];
+  kind?: LegalClaimKind;
+  premise_source?: "question" | "prior_answer";
+  premise_text?: string;
 };
 
 export type LegalClaimVerification = {
@@ -162,6 +178,25 @@ export type LegalEvidenceTurnState = {
   /** lint_gated only: the one pre-registered revision bounce was spent. */
   lintBounced: boolean;
   /**
+   * Premise anchoring sources for typed premise_correction claims. Null
+   * means the harness supplied no anchor texts: premise typing is then
+   * ignored (legacy callers), never rejected. A null field inside means
+   * that source does not exist this turn and naming it is a typed error.
+   */
+  premiseContext: { question: string | null; priorAnswer: string | null } | null;
+  /**
+   * required_slot only: cited case citations whose characterization slot
+   * must be filled — by a verbatim quote of an attested characterization
+   * (citator receipt) or by the exact typed no-attestation statement.
+   */
+  requiredCharacterizations: string[] | null;
+  /**
+   * Stage 8b instrumentation: every typed submission rejection, with the
+   * claims as submitted (pre-bounce text) and the rejection strings —
+   * closes the Stage 7 gap where only surviving revisions were archived.
+   */
+  bounces: Array<{ claims: GroundedLegalClaim[]; errors: string[] }>;
+  /**
    * lint_gated only: full lint receipts per accepted claim (aligned with
    * `answer`; empty array for claims the verbatim tier cleared). Fired
    * receipts enter the checker prompt; all of them enter the receipt
@@ -188,6 +223,9 @@ export function createLegalEvidenceTurnState(
     deterministicSupport: null,
     lintContext: null,
     lintBounced: false,
+    premiseContext: null,
+    requiredCharacterizations: null,
+    bounces: [],
     lintReceipts: null,
     attempted: false,
     failure: null,
@@ -500,6 +538,12 @@ export function planLegalEvidence(
   return { ok: true };
 }
 
+const CLAIM_KINDS: LegalClaimKind[] = [
+  "quotation",
+  "conclusion",
+  "premise_correction",
+];
+
 function parseClaims(value: unknown):
   | { ok: true; claims: GroundedLegalClaim[] }
   | { ok: false; errors: string[] } {
@@ -509,10 +553,14 @@ function parseClaims(value: unknown):
   const claims: GroundedLegalClaim[] = [];
   for (const [index, raw] of value.entries()) {
     const row = object(raw);
-    if (
-      row &&
-      Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key))
-    ) {
+    const knownKeys = [
+      "text",
+      "evidence_ids",
+      "kind",
+      "premise_source",
+      "premise_text",
+    ];
+    if (row && Object.keys(row).some((key) => !knownKeys.includes(key))) {
       errors.push(`claims[${index}] has unknown fields`);
     }
     const text = typeof row?.text === "string" ? row.text.trim() : "";
@@ -521,9 +569,84 @@ function parseClaims(value: unknown):
       errors.push(`claims[${index}].text must contain 1 to 4000 characters`);
     if (!evidenceIds)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 16 handles`);
-    if (text && evidenceIds) claims.push({ text, evidence_ids: evidenceIds });
+    // Typed claim roles (Stage 8b). Strict-schema models emit null for
+    // inapplicable fields; null and absent both mean "not supplied".
+    const kind =
+      row?.kind == null
+        ? undefined
+        : CLAIM_KINDS.includes(row.kind as LegalClaimKind)
+          ? (row.kind as LegalClaimKind)
+          : null;
+    if (kind === null)
+      errors.push(
+        `claims[${index}].kind must be quotation, conclusion, or premise_correction`,
+      );
+    const premiseSource =
+      row?.premise_source == null
+        ? undefined
+        : row.premise_source === "question" ||
+            row.premise_source === "prior_answer"
+          ? row.premise_source
+          : null;
+    if (premiseSource === null)
+      errors.push(
+        `claims[${index}].premise_source must be question or prior_answer`,
+      );
+    const premiseText =
+      row?.premise_text == null
+        ? undefined
+        : typeof row.premise_text === "string" &&
+            row.premise_text.trim().length >= 1 &&
+            row.premise_text.length <= 2_000
+          ? row.premise_text
+          : null;
+    if (premiseText === null)
+      errors.push(
+        `claims[${index}].premise_text must contain 1 to 2000 characters`,
+      );
+    if (kind === "premise_correction" && (!premiseSource || !premiseText))
+      errors.push(
+        `claims[${index}] is a premise_correction and must carry premise_source and premise_text (the contested words copied verbatim from that source)`,
+      );
+    if (kind !== "premise_correction" && (premiseSource || premiseText))
+      errors.push(
+        `claims[${index}] carries premise fields but is not kind premise_correction`,
+      );
+    if (text && evidenceIds)
+      claims.push({
+        text,
+        evidence_ids: evidenceIds,
+        ...(kind ? { kind } : {}),
+        ...(premiseSource ? { premise_source: premiseSource } : {}),
+        ...(premiseText ? { premise_text: premiseText } : {}),
+      });
   }
   return errors.length ? { ok: false, errors } : { ok: true, claims };
+}
+
+/**
+ * Deterministic premise anchoring for premise_correction claims: the
+ * contested premise must be a contiguous verbatim substring (normalized
+ * whitespace/quotes, >= 10 characters) of the named source text. Returns
+ * null when the claim is not a typed premise correction or the harness
+ * supplied no premiseContext (legacy callers) — meaning "no verdict";
+ * boolean otherwise. A named-but-absent source is a definite false.
+ */
+export function premiseAnchorSupport(
+  claim: GroundedLegalClaim,
+  state: LegalEvidenceTurnState,
+): boolean | null {
+  if (claim.kind !== "premise_correction") return null;
+  if (!state.premiseContext) return null;
+  const source =
+    claim.premise_source === "question"
+      ? state.premiseContext.question
+      : claim.premise_source === "prior_answer"
+        ? state.premiseContext.priorAnswer
+        : null;
+  if (!source || !claim.premise_text) return false;
+  const anchor = normalizeQuote(claim.premise_text);
+  return anchor.length >= 10 && normalizeQuote(source).includes(anchor);
 }
 
 export function submitLegalEvidenceAnswer(
@@ -531,18 +654,25 @@ export function submitLegalEvidenceAnswer(
   state: LegalEvidenceTurnState,
 ): { ok: boolean; terminal?: true; errors?: string[] } {
   state.attempted = true;
+  // Stage 8b instrumentation: every typed rejection archives the claims
+  // as submitted plus the rejection text, so bounce-shaped audits see the
+  // pre-revision answer, not only the survivor.
+  const reject = (
+    errors: string[],
+    claims: GroundedLegalClaim[] = [],
+  ): { ok: false; errors: string[] } => {
+    state.bounces.push({ claims, errors });
+    return { ok: false, errors };
+  };
   if (Object.keys(args).some((key) => key !== "claims"))
-    return { ok: false, errors: ["answer has unknown fields"] };
+    return reject(["answer has unknown fields"]);
   if (
     state.mode === "evidence_first" &&
     state.answerability !== "sufficient"
   )
-    return {
-      ok: false,
-      errors: ["a sufficient evidence plan is required before composing"],
-    };
+    return reject(["a sufficient evidence plan is required before composing"]);
   const parsed = parseClaims(args.claims);
-  if (!parsed.ok) return parsed;
+  if (!parsed.ok) return reject(parsed.errors);
   const errors = parsed.claims.flatMap((claim, index) => {
     const claimErrors = passageErrors(
       claim.evidence_ids,
@@ -558,6 +688,33 @@ export function submitLegalEvidenceAnswer(
     }
     return claimErrors;
   });
+  if (errors.length) return reject(errors.slice(0, 12), parsed.claims);
+  // Typed premise anchoring (Stage 8b, every mode the harness arms with
+  // premiseContext): a premise_correction claim whose premise_text is
+  // not a verbatim substring of its named source is rejected with the
+  // compliant recipe restated — never silently accepted.
+  const premiseSupport = parsed.claims.map((claim) =>
+    premiseAnchorSupport(claim, state),
+  );
+  const premiseFailures = premiseSupport.flatMap((ok, index) =>
+    ok === false ? [index] : [],
+  );
+  if (premiseFailures.length)
+    return reject(
+      premiseFailures.slice(0, 12).map((index) => {
+        const source =
+          parsed.claims[index].premise_source === "prior_answer"
+            ? "the assistant's prior answer"
+            : "the user's question";
+        return `claims[${index}].premise_text is not a verbatim substring of ${source}${
+          parsed.claims[index].premise_source === "prior_answer" &&
+          !state.premiseContext?.priorAnswer
+            ? " (no prior assistant answer exists this turn)"
+            : ""
+        }: copy at least 10 contiguous characters of the contested premise exactly as they appear there, or drop the premise_correction typing`;
+      }),
+      parsed.claims,
+    );
   // quote_first enforces its composition contract DETERMINISTICALLY at
   // submission, not by prompt hope: every claim except at most one
   // conclusion claim must be a verbatim quotation of its cited passage
@@ -568,14 +725,49 @@ export function submitLegalEvidenceAnswer(
   // language about a case — such claims must clear the WIDENED tier
   // (verbatim in the cited passage or an attested characterization
   // named in their evidence_ids), or be replaced by a typed statement.
+  // required_slot (Stage 8b / H15) inherits attested_framing and adds
+  // the mandatory characterization slot below. Typed roles key the
+  // contract: kind "quotation" must clear the tier; a VERIFIED premise
+  // correction does not consume the conclusion allowance (its novelty is
+  // by design), but the stands-for bar still applies to it unchanged —
+  // premise typing never launders a case characterization.
   if (
-    (state.mode === "quote_first" || state.mode === "attested_framing") &&
-    !errors.length
+    state.mode === "quote_first" ||
+    state.mode === "attested_framing" ||
+    state.mode === "required_slot"
   ) {
     const support = parsed.claims.map((claim) =>
       deterministicClaimSupport(claim, state),
     );
-    if (state.mode === "attested_framing") {
+    // H16′ diff-carrying rejections (ALR-Quote-Verifier port): when a
+    // failed quotation overlaps a cited span enough, the bounce carries
+    // the span's own closest contiguous excerpt — deterministic, and
+    // verbatim by construction, so requoting it always clears the tier.
+    const repairHint = (claim: GroundedLegalClaim): string | null =>
+      quoteRepairSuggestion(
+        stripCitationTails(claim.text).replace(/^["'“‘]+|["'”’]+$/gu, ""),
+        claim.evidence_ids.flatMap((id) => {
+          const span = state.evidence.get(id)?.receipt.span_text;
+          return span ? [span] : [];
+        }),
+      );
+    const brokenQuotes = parsed.claims.flatMap((claim, index) =>
+      claim.kind === "quotation" && !support[index] ? [index] : [],
+    );
+    if (brokenQuotes.length)
+      return reject(
+        brokenQuotes.slice(0, 12).map((index) => {
+          const hint = repairHint(parsed.claims[index]);
+          return `claims[${index}] is typed kind "quotation" but is not verbatim: copy at least 25 contiguous characters of one cited span exactly — no edits, elisions, or added framing — or retype it as the conclusion${
+            hint ? `. Its ${hint}` : ""
+          }`;
+        }),
+        parsed.claims,
+      );
+    if (
+      state.mode === "attested_framing" ||
+      state.mode === "required_slot"
+    ) {
       const standsFor = parsed.claims.flatMap((claim, index) =>
         !support[index] &&
         STANDS_FOR_LANGUAGE_RE.test(claim.text) &&
@@ -586,22 +778,75 @@ export function submitLegalEvidenceAnswer(
           : [],
       );
       if (standsFor.length) {
-        return {
-          ok: false,
-          errors: [
-            `claims ${standsFor.join(", ")} characterize case law (stands-for language) without verbatim support: quote the cited passage or an attested characterization named in evidence_ids exactly, or state that no attested characterization is available`,
-          ],
-        };
+        return reject(
+          standsFor.slice(0, 12).map((index) => {
+            const hint = repairHint(parsed.claims[index]);
+            return `claims[${index}] characterizes case law (stands-for language) without verbatim support. Compliant paths, choose one: (1) quote the cited passage exactly; (2) quote one supplied attested characterization exactly, citing its evidence id; (3) write the claim exactly as: No attested characterization of [neutral citation] is available.${
+              hint ? ` Its ${hint}` : ""
+            }`;
+          }),
+          parsed.claims,
+        );
+      }
+      // H15 required characterization slot: every cited case must have
+      // its slot filled by an attested-verbatim quote (citator receipt)
+      // or the exact typed refusal — free paraphrase is not a slot value.
+      if (
+        state.mode === "required_slot" &&
+        state.requiredCharacterizations?.length
+      ) {
+        const unfilled = state.requiredCharacterizations.filter(
+          (citation) => {
+            const refusal = normalizeQuote(
+              `No attested characterization of ${citation} is available.`,
+            );
+            return !parsed.claims.some((claim, index) => {
+              if (normalizeQuote(claim.text).includes(refusal)) return true;
+              if (!support[index]) return false;
+              const body = claimQuoteBody(claim);
+              return (
+                body !== null &&
+                claim.evidence_ids.some((id) => {
+                  const receipt = state.evidence.get(id)?.receipt;
+                  return (
+                    receipt?.resolver_version === "citator-standsfor-v1" &&
+                    receipt.citation === citation &&
+                    receipt.span_text !== null &&
+                    normalizeQuote(receipt.span_text).includes(body)
+                  );
+                })
+              );
+            });
+          },
+        );
+        if (unfilled.length)
+          return reject(
+            unfilled.slice(0, 12).map(
+              (citation) =>
+                `the characterization slot for ${citation} is unfilled: either quote one of its supplied attested characterizations exactly (kind "quotation", citing that evidence id), or include a claim reading exactly: No attested characterization of ${citation} is available.`,
+            ),
+            parsed.claims,
+          );
       }
     }
-    const nonVerbatim = support.flatMap((ok, index) => (ok ? [] : [index]));
+    const nonVerbatim = support.flatMap((ok, index) =>
+      ok || premiseSupport[index] === true ? [] : [index],
+    );
     if (nonVerbatim.length > 1) {
-      return {
-        ok: false,
-        errors: [
-          `claims ${nonVerbatim.join(", ")} are not verbatim quotations of their cited passages; at most ONE conclusion claim may paraphrase — every other claim must quote the passage exactly`,
+      return reject(
+        [
+          `claims ${nonVerbatim.join(", ")} are not verbatim quotations of their cited passages and exceed the single conclusion allowance. To comply: (1) retype each supporting claim as kind "quotation" copying at least 25 contiguous characters of one cited span exactly; (2) keep exactly ONE kind "conclusion" claim stating the direct answer${
+            state.mode === "quote_first"
+              ? ""
+              : `; (3) to speak to a case with no usable attested characterization, make a claim read exactly: No attested characterization of [neutral citation] is available.`
+          } A premise_correction claim with verified premise_text does not count against the conclusion allowance.`,
+          ...nonVerbatim.slice(0, 3).flatMap((index) => {
+            const hint = repairHint(parsed.claims[index]);
+            return hint ? [`claims[${index}]: ${hint}`] : [];
+          }),
         ],
-      };
+        parsed.claims,
+      );
     }
   }
   // lint_gated (Stage 7 / H7+H13+H14): the soft pre-checker gate. Claims
@@ -610,7 +855,10 @@ export function submitLegalEvidenceAnswer(
   // claim costs exactly ONE typed revision bounce naming the features;
   // after the bounce the answer proceeds and the fired receipts ride
   // into the checker prompt instead. The gate never approves anything.
-  if (state.mode === "lint_gated" && !errors.length) {
+  // Stage 8b keys the bounce on kind: a VERIFIED premise correction is
+  // novel by design and never bounces, but its receipts are still
+  // computed and recorded for calibration.
+  if (state.mode === "lint_gated") {
     const lint = parsed.claims.map((claim) =>
       deterministicClaimSupport(claim, state)
         ? null
@@ -628,13 +876,12 @@ export function submitLegalEvidenceAnswer(
           ),
     );
     const flagged = lint.flatMap((result, index) =>
-      result?.flagged ? [index] : [],
+      result?.flagged && premiseSupport[index] !== true ? [index] : [],
     );
     if (flagged.length && !state.lintBounced) {
       state.lintBounced = true;
-      return {
-        ok: false,
-        errors: flagged.slice(0, 12).map((index) => {
+      return reject(
+        flagged.slice(0, 12).map((index) => {
           const fired = lint[index]!.receipts.filter(
             (receipt) => receipt.fired === true,
           );
@@ -645,13 +892,13 @@ export function submitLegalEvidenceAnswer(
             )
             .join(
               ", ",
-            )}): revise it to track the cited passage's own words, or quote the passage verbatim`;
+            )}): revise it to track the cited passage's own words, quote the passage verbatim, or — if it corrects a false premise — retype it as kind "premise_correction" with the contested words copied verbatim into premise_text`;
         }),
-      };
+        parsed.claims,
+      );
     }
     state.lintReceipts = lint.map((result) => result?.receipts ?? []);
   }
-  if (errors.length) return { ok: false, errors: errors.slice(0, 12) };
   state.answer = parsed.claims;
   state.rejectedAnswer = null;
   state.verification = null;
@@ -759,8 +1006,26 @@ const claimItems = {
       description:
         "Turn-local evidence_id values whose exact passages jointly support the whole claim.",
     },
+    kind: {
+      type: "string",
+      enum: ["quotation", "conclusion", "premise_correction"],
+      description:
+        "Role of this unit. 'quotation': a supplied span's words copied exactly. 'conclusion': the direct answer in your own words (at most one). 'premise_correction': the question (or a prior assistant answer) asserts something the passages contradict, and this unit corrects it.",
+    },
+    premise_source: {
+      type: ["string", "null"],
+      enum: ["question", "prior_answer", null],
+      description:
+        "premise_correction only: where the contested premise appears — the user's question or the assistant's prior answer. Null for other kinds.",
+    },
+    premise_text: {
+      type: ["string", "null"],
+      maxLength: 2_000,
+      description:
+        "premise_correction only: the contested premise copied verbatim from the named source (at least 10 contiguous characters, exactly as written there). Null for other kinds.",
+    },
   },
-  required: ["text", "evidence_ids"],
+  required: ["text", "evidence_ids", "kind", "premise_source", "premise_text"],
 } as const;
 
 export const LEGAL_EVIDENCE_SUBMIT_TOOL: OpenAIToolSchema = {
@@ -896,6 +1161,7 @@ export function legalEvidenceExperimentTools(
     mode === "tiered_check" ||
     mode === "quote_first" ||
     mode === "attested_framing" ||
+    mode === "required_slot" ||
     mode === "lint_gated"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
@@ -1030,14 +1296,21 @@ export function deterministicClaimSupport(
   claim: GroundedLegalClaim,
   state: LegalEvidenceTurnState,
 ): boolean {
-  const body = normalizeQuote(
-    stripCitationTails(claim.text).replace(/^["'“‘]+|["'”’]+$/gu, ""),
-  );
-  if (body.length < 25) return false;
+  const body = claimQuoteBody(claim);
+  if (body === null) return false;
   return claim.evidence_ids.some((id) => {
     const span = state.evidence.get(id)?.receipt.span_text;
     return Boolean(span) && normalizeQuote(span as string).includes(body);
   });
+}
+
+/** The normalized quoted body the deterministic tier matches, or null
+ * when the claim is too short to count as a quotation (< 25 chars). */
+function claimQuoteBody(claim: GroundedLegalClaim): string | null {
+  const body = normalizeQuote(
+    stripCitationTails(claim.text).replace(/^["'“‘]+|["'”’]+$/gu, ""),
+  );
+  return body.length < 25 ? null : body;
 }
 
 function allClaimsSupported(state: LegalEvidenceTurnState) {
@@ -1046,6 +1319,7 @@ function allClaimsSupported(state: LegalEvidenceTurnState) {
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
     state.mode === "attested_framing" ||
+    state.mode === "required_slot" ||
     state.mode === "lint_gated"
   )
     return (
@@ -1301,6 +1575,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     state.mode === "tiered_check" ||
     state.mode === "quote_first" ||
     state.mode === "attested_framing" ||
+    state.mode === "required_slot" ||
     state.mode === "lint_gated"
   ) {
     state.deterministicSupport = state.answer.map((claim) =>
@@ -1540,7 +1815,7 @@ export function renderLegalEvidenceAnswer(
 
 export type LegalEvidenceReceiptEvent = {
   type: "legal_evidence_receipt";
-  schema_version: 5;
+  schema_version: 6;
   mode: LegalEvidenceMode;
   status: "passed" | "failed";
   verification: {
@@ -1562,11 +1837,20 @@ export type LegalEvidenceReceiptEvent = {
       evidence_status: LegalClaimVerification["evidence_status"] | "not_run";
       /** tiered_check only: this claim cleared the verbatim-quote tier. */
       deterministic_support?: boolean;
+      /** premise_correction only: premise_text anchored verbatim in its
+       * named source (null = harness supplied no premiseContext). */
+      premise_support?: boolean | null;
       /** lint_gated only: full lint receipts (fired and clean alike). */
       lint?: LintFeatureReceipt[];
     }
   >;
   evidence: LegalEvidenceReceipt[];
+  /** Stage 8b: every typed submission rejection this turn — the claims
+   * as submitted (pre-bounce) and the rejection strings. */
+  bounces: Array<{
+    claims: Array<GroundedLegalClaim & { text_sha256: string }>;
+    errors: string[];
+  }>;
   failure: string | null;
 };
 
@@ -1581,7 +1865,7 @@ export function legalEvidenceReceiptEvent(
     allClaimsSupported(state);
   return {
     type: "legal_evidence_receipt",
-    schema_version: 5,
+    schema_version: 6,
     mode: state.mode,
     status: passed ? "passed" : "failed",
     verification: {
@@ -1606,6 +1890,9 @@ export function legalEvidenceReceiptEvent(
       ...(state.deterministicSupport
         ? { deterministic_support: state.deterministicSupport[index] ?? false }
         : {}),
+      ...(claim.kind === "premise_correction"
+        ? { premise_support: premiseAnchorSupport(claim, state) }
+        : {}),
       ...(state.lintReceipts?.[index]?.length
         ? { lint: state.lintReceipts[index] }
         : {}),
@@ -1614,6 +1901,13 @@ export function legalEvidenceReceiptEvent(
       const entry = state.evidence.get(id);
       return entry ? [entry.receipt] : [];
     }),
+    bounces: state.bounces.map((bounce) => ({
+      claims: bounce.claims.map((claim) => ({
+        ...claim,
+        text_sha256: sha256(claim.text),
+      })),
+      errors: bounce.errors,
+    })),
     failure: state.failure,
   };
 }

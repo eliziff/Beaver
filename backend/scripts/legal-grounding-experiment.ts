@@ -93,7 +93,7 @@ type BenchmarkCase = {
 };
 
 type RunReceipt = {
-  schema_version: 1;
+  schema_version: 2;
   case_id: string;
   suite: Suite;
   jurisdiction: "CA" | "US";
@@ -107,6 +107,9 @@ type RunReceipt = {
   effort: string;
   arm: Arm;
   status: "completed" | "error";
+  /** H17: named prompt modules assembled for this cell (empty = control's
+   * legacy prose prompt). Identical lists mean identical system prompts. */
+  prompt_modules: string[];
   latency_ms: number;
   primary_tool_calls: string[];
   finalizer_model_calls: number;
@@ -479,6 +482,11 @@ async function runCase(
   const state = createLegalEvidenceTurnState(
     arm === "control" ? null : arm,
   );
+  // Stage 8b: premise anchoring source for typed premise_correction
+  // claims, every structured arm (shared contract infrastructure). The
+  // benchmarks are single-turn, so prior_answer never exists here.
+  if (arm !== "control")
+    state.premiseContext = { question: item.prompt, priorAnswer: null };
   if (arm === "lint_gated") {
     // Stage 7: the lint needs the question (H14) and the
     // jurisdiction-matched alienness index (H13). US cells use the
@@ -512,7 +520,8 @@ async function runCase(
   // contract then forces passage quotes or the typed statement.
   const attested: LegalEvidenceReceipt[] = [];
   const attestedByCitation: Record<string, number> = {};
-  if (arm === "attested_framing" && item.sourceClass === "case") {
+  const attestedArm = arm === "attested_framing" || arm === "required_slot";
+  if (attestedArm && item.sourceClass === "case") {
     // Benchmark citations carry style-of-cause and pinpoints
     // ("Daignault v. Gueldner, 2007 BCCA 40, para. 14"), but the citator
     // keys decisions by neutral citation. Extract them with the citator
@@ -536,6 +545,11 @@ async function runCase(
         attestedByCitation[citation] += 1;
       }
     }
+    // H15: every cited case needs its characterization slot filled — by
+    // an attested-verbatim quote or the exact typed refusal — including
+    // zero-candidate citations (where only the refusal can fill it).
+    if (arm === "required_slot")
+      state.requiredCharacterizations = Object.keys(attestedByCitation);
   }
   const primaryToolCalls: string[] = [];
   let usage = emptyUsage();
@@ -543,33 +557,68 @@ async function runCase(
   let finalizerDiagnostic: string | null = null;
   let answer = "";
   const abortSignal = AbortSignal.timeout(timeoutMs);
+  // H17 (Stage 8b): ONE base composition prompt shared verbatim by every
+  // structured arm; each mechanism travels as a named module appended
+  // only where that mechanism can act on the cell. Arms therefore differ
+  // on mechanism-no-op cells (e.g. attested arms on legislation) by
+  // NOTHING, so cross-arm drift there falls to checker stochasticity.
+  // Module names ride into the run receipt as prompt_modules.
+  const promptModules: Array<[name: string, text: string]> = [
+    [
+      "base",
+      "Answer only from the supplied exact passages. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts.",
+    ],
+    [
+      "roles",
+      'Type every claim with its kind. "quotation": a supplied span\'s words copied EXACTLY — no edits, no elisions, no framing around them. "conclusion": the direct answer to the question in your own words. "premise_correction": the question (or a prior assistant answer) asserts something the passages contradict — set premise_source, copy the contested words verbatim into premise_text, and state the correction from the passages. Set premise_source and premise_text to null on every other kind.',
+    ],
+  ];
+  if (arm === "evidence_first")
+    promptModules.push([
+      "plan",
+      "Before composing, call plan_grounded_evidence to decide whether the passages are sufficient. If insufficient, commit no evidence IDs and stop. If sufficient, commit the minimal evidence IDs before composing.",
+    ]);
+  if (arm === "quote_first" || attestedArm)
+    promptModules.push([
+      "quote_contract",
+      "Prefer quotation claims. At most ONE conclusion claim, stating only what the quoted text establishes; never characterize the law beyond the quoted words (never assert a statute 'regulates', 'has a framework', or 'governs' unless those words are quoted). If the passages cannot support a direct answer, say exactly that in the conclusion claim. The submission tool rejects violations with the compliant path restated; follow it and resubmit.",
+    ]);
+  if (attestedArm && item.sourceClass === "case")
+    promptModules.push([
+      "attested",
+      "Attested characterizations of the cited cases may be supplied as additional quotable evidence. Any claim saying what a case stands for, held, establishes, or governs must be a verbatim quote of the cited passage or of an attested characterization named in its evidence ids; if none is supplied for that case, either quote the passage itself or write exactly: No attested characterization of [neutral citation] is available. Never compose your own characterization; Beaver renders attribution from the evidence receipts.",
+    ]);
+  if (arm === "required_slot" && item.sourceClass === "case")
+    promptModules.push([
+      "slot",
+      'For EACH cited case, your answer MUST fill its characterization slot: either a kind "quotation" claim copying one supplied attested characterization exactly (citing its evidence id), or a claim reading exactly: No attested characterization of [that case\'s neutral citation] is available.',
+    ]);
+  if (arm === "tiered_check" || arm === "lint_gated")
+    promptModules.push([
+      "verbatim_preference",
+      "Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer.",
+    ]);
+  if (arm === "lint_gated")
+    promptModules.push([
+      "lint",
+      "The submission tool may return deterministic lint warnings naming a claim's feature values; revise that claim once to track the cited passage's own words, or replace it with a verbatim quotation.",
+    ]);
   try {
     const structured = arm !== "control" && arm !== "posthoc";
     const primary = await streamChatWithTools({
       model,
       reasoningEffort: effort,
       enableThinking: false,
-      systemPrompt:
-        arm === "evidence_first"
-          ? "Answer only from the supplied exact passages. Before composing, call plan_grounded_evidence to decide whether those passages are sufficient. If insufficient, commit no evidence IDs and stop. If sufficient, commit the minimal evidence IDs, correct conflicting premises, and finish through submit_grounded_answer without a prose copy or citation text; Beaver places citations from the evidence receipts."
-          : arm === "quote_first"
-            ? "Answer only from the supplied exact passages, as two kinds of claims. Quotation claims: the passage's words copied EXACTLY — no edits, no elisions, no framing around them. At most ONE conclusion claim: the direct answer to the question, stating only what the quoted text establishes; never characterize the law beyond the quoted words (never assert a statute 'regulates', 'has a framework', or 'governs' unless those words are quoted). If the passages cannot support a direct answer, say exactly that in the conclusion claim. The submission tool rejects answers with more than one non-verbatim claim; requote and resubmit if rejected. Finish through the grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
-            : arm === "attested_framing"
-              ? "Answer only from the supplied exact passages and attested characterizations, as two kinds of claims. Quotation claims: the words of a passage OR of an attested characterization copied EXACTLY, citing that evidence id. At most ONE conclusion claim: the direct answer to the question, stating only what the quoted text establishes. Any claim saying what a case stands for, held, establishes, or governs must be a verbatim quote of the cited passage or of an attested characterization named in its evidence ids; if none is supplied for that case, either quote the passage itself or state exactly that no attested characterization is available — never compose your own characterization. The submission tool rejects violations; requote and resubmit if rejected. Finish through the grounded-answer tool without a prose copy or citation text; Beaver places citations and attributions from the evidence receipts."
-            : arm === "lint_gated"
-              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer. The submission tool may return deterministic lint warnings naming a claim's feature values; revise that claim once to track the cited passage's own words, or replace it with a verbatim quotation. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
-            : arm === "tiered_check"
-            ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation; paraphrase only where quotation cannot answer. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
-            : structured
-              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Finish through the available grounded-answer tool without a prose copy or citation text; Beaver places citations from the evidence receipts."
-              : "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline.",
+      systemPrompt: structured
+        ? promptModules.map(([, text]) => text).join(" ")
+        : "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline.",
       messages: [
         {
           role: "user",
           content: JSON.stringify({
             question: item.prompt,
             evidence: evidencePrompt(receipts),
-            ...(arm === "attested_framing"
+            ...(attestedArm
               ? { attested_characterizations: evidencePrompt(attested) }
               : {}),
           }),
@@ -579,7 +628,7 @@ async function runCase(
       maxIterations:
         arm === "evidence_first" ||
         arm === "quote_first" ||
-        arm === "attested_framing" ||
+        attestedArm ||
         arm === "lint_gated"
           ? 3
           : structured
@@ -614,7 +663,7 @@ async function runCase(
     const legalReceipt =
       arm === "control" ? null : legalEvidenceReceiptEvent(state);
     return {
-      schema_version: 1,
+      schema_version: 2,
       case_id: item.id,
       suite: item.suite,
       jurisdiction: item.jurisdiction,
@@ -627,6 +676,8 @@ async function runCase(
       effort,
       arm,
       status: "completed",
+      prompt_modules:
+        arm === "control" ? [] : promptModules.map(([name]) => name),
       latency_ms: Date.now() - started,
       primary_tool_calls: primaryToolCalls,
       finalizer_model_calls: finalizerModelCalls,
@@ -654,7 +705,7 @@ async function runCase(
     };
   } catch (error) {
     return {
-      schema_version: 1,
+      schema_version: 2,
       case_id: item.id,
       suite: item.suite,
       jurisdiction: item.jurisdiction,
@@ -667,6 +718,8 @@ async function runCase(
       effort,
       arm,
       status: "error",
+      prompt_modules:
+        arm === "control" ? [] : promptModules.map(([name]) => name),
       latency_ms: Date.now() - started,
       primary_tool_calls: primaryToolCalls,
       finalizer_model_calls: finalizerModelCalls,
