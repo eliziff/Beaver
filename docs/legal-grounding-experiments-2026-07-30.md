@@ -965,6 +965,21 @@ thin-profile refusals (attested candidates exist but composition fails
 to use them); no reduction in composed overreach on case-law cells; or
 Charlotin probes expressible under the contract.
 
+### Coverage gate measurement (2026-07-30, pre-run)
+
+standsForProfile over the ten Stage 6 CSLB case cells' cited cases:
+4 rich (2012 SCC 57: 33 citers/8 candidates + commentary; 2010 NSSC
+315; 2005 TCC 200; 2007 BCCA 40), 1 thin (2005 BCCA 293), 5 none (the
+NSSM/NSFC small-claims rows nobody cites — the few-citers prior made
+computable). Half the case cells exercise attested feed-forward, half
+exercise the typed-refusal path; both are pre-registered behaviors, so
+the matrix stands. CLERC cells are US-jurisdiction and profile none by
+construction (the citator is A2AJ-Canadian); they join HousingQA as
+H12 no-op cells until the US lane (CourtListener Parentheticals)
+exists. Charlotin probe feasibility: 1,426 court-described
+Misrepresented rows in the misgrounding corpus, of which 121 are
+Canadian and can be probed against the live citator.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
