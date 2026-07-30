@@ -319,42 +319,72 @@ async function main() {
       "stage3-verifier-probes.jsonl",
     ),
   );
+  const concurrency = Number(flag("concurrency", "4"));
+  const perModel = Number(flag("per-model-concurrency", "2"));
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, "", "utf8");
   const rows: Awaited<ReturnType<typeof runProbe>>[] = [];
-  for (const model of models) {
-    for (const probe of probes) {
-      const started = Date.now();
-      try {
-        const row = await runProbe(probe, model, effort, timeoutMs);
-        rows.push(row);
-        appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
-        console.log(
-          `${model} | ${probe.id} | ${row.verdict} | ${row.matches ? "match" : "FAIL"} | ${(row.latency_ms / 1_000).toFixed(1)}s`,
-        );
-      } catch (error) {
-        const row = {
-          schema_version: 1,
-          probe_id: probe.id,
-          mode: probe.mode ?? "holistic_check",
-          model,
-          effort,
-          expected: probe.expected,
-          verdict: null,
-          passed: false,
-          matches: false,
-          latency_ms: Date.now() - started,
-          model_calls: 0,
-          usage: null,
-          diagnostic: null,
-          receipt: null,
-          error: error instanceof Error ? error.message : String(error),
-        };
-        appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
-        console.log(`${model} | ${probe.id} | ERROR | ${row.error}`);
+  const cells = models.flatMap((model) =>
+    probes.map((probe) => ({ model, probe })),
+  );
+  // Bounded pool, per-model lane cap: cells are independent; concurrency
+  // changes wall-clock only, and the overload-prone provider stays at a
+  // low cap so parallelism does not manufacture transport errors.
+  const pending = [...cells];
+  const active = new Map<string, number>();
+  let running = 0;
+  await new Promise<void>((resolve) => {
+    const pump = () => {
+      if (!pending.length && running === 0) return resolve();
+      for (let index = 0; index < pending.length && running < concurrency; ) {
+        const cell = pending[index];
+        if ((active.get(cell.model) ?? 0) >= perModel) {
+          index += 1;
+          continue;
+        }
+        pending.splice(index, 1);
+        active.set(cell.model, (active.get(cell.model) ?? 0) + 1);
+        running += 1;
+        void (async () => {
+          const { model, probe } = cell;
+          const started = Date.now();
+          try {
+            const row = await runProbe(probe, model, effort, timeoutMs);
+            rows.push(row);
+            appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
+            console.log(
+              `${model} | ${probe.id} | ${row.verdict} | ${row.matches ? "match" : "FAIL"} | ${(row.latency_ms / 1_000).toFixed(1)}s`,
+            );
+          } catch (error) {
+            const row = {
+              schema_version: 1,
+              probe_id: probe.id,
+              mode: probe.mode ?? "holistic_check",
+              model,
+              effort,
+              expected: probe.expected,
+              verdict: null,
+              passed: false,
+              matches: false,
+              latency_ms: Date.now() - started,
+              model_calls: 0,
+              usage: null,
+              diagnostic: null,
+              receipt: null,
+              error: error instanceof Error ? error.message : String(error),
+            };
+            appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
+            console.log(`${model} | ${probe.id} | ERROR | ${row.error}`);
+          } finally {
+            active.set(cell.model, active.get(cell.model)! - 1);
+            running -= 1;
+            pump();
+          }
+        })();
       }
-    }
-  }
+    };
+    pump();
+  });
 
   for (const model of models) {
     const byId = new Map(
