@@ -17,7 +17,7 @@ const tool = (
 export const CITATOR_TOOLS: OpenAIToolSchema[] = [
   tool(
     "caselaw_note_up",
-    "Note up a Canadian case citation against the locally built citator graph: corpus decisions citing it, newest first, each with the citing case's citation/name/court/date, first-occurrence paragraph, the form cited, cited-side pinpoints, and a bounded excerpt. Citation occurrences only — no treatment labels (followed/overruled). Reports citator_not_installed when no graph exists.",
+    "Note up a Canadian case citation against the locally built citator graph: corpus decisions citing it, newest first, each with the citing case's citation/name/court/date, first-occurrence paragraph, the form cited, cited-side pinpoints, and a bounded excerpt. `provider` carries the corpus's own curated citation graph: citing_in_corpus (cases whose curated cited-list names this citation) and citing_reported (citations the corpus records as citing it, possibly outside the corpus). Citation occurrences only — no treatment labels (followed/overruled). Reports citator_not_installed when no graph exists.",
     {
       type: "object",
       properties: {
@@ -64,6 +64,12 @@ export function executeCitatorTool(
       citing_cases_total: result.total,
       returned: result.entries.length,
       truncated: result.total > result.entries.length,
+      provider: result.provider
+        ? {
+            citing_in_corpus: result.provider.citingInCorpus,
+            citing_reported: result.provider.citingReported,
+          }
+        : null,
       graph: graphStats(),
       entries: result.entries,
     };
