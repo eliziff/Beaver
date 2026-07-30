@@ -31,9 +31,20 @@ FORK = HERE.parent.parent
 ENGINE_SRC = FORK / "universal-legal-pdf-engine" / "src"
 TABLES_DIR = FORK / "shared" / "grammar-tables"
 A2AJ = Path(os.environ.get('A2AJ_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'a2aj')))
-PUBLIC_ENDPOINT_DB = Path(
-    os.environ.get('PUBLIC_ENDPOINT_DB', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'public_endpoint_db.db'))
-)
+
+
+def _public_endpoint_db() -> Path:
+    """Resolve the overlay-extracted journals DB by glob, never by its
+    content-hash filename: overlay_store.db_path() re-derives the hash on
+    every reference rebuild and sweeps stale copies, so the newest
+    public_endpoint-*.db is the live one and a pinned name breaks silently
+    (reinvention-ledger item 5)."""
+    root = Path(os.environ.get('BENCHMARK_root', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'root')))
+    candidates = sorted(root.glob("public_endpoint*.db"),
+                        key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        raise FileNotFoundError(f"no public_endpoint*.db under {root}")
+    return candidates[0]
 
 # Literal gates: a doc whose lowercased text contains none of the entry's
 # literals skips that entry. Harness-side only — tables stay pure. Keyed
@@ -326,7 +337,7 @@ def _laws_jobs(con, tier: str, langs: list[str]):
 
 def _journal_jobs(tier: str):
     cap = {"smoke": 100, "dev": 10**9, "full": 10**9}[tier]
-    con = sqlite3.connect(PUBLIC_ENDPOINT_DB)
+    con = sqlite3.connect(_public_endpoint_db())
     rows = con.execute(
         """
         select a.article_id, a.text,
