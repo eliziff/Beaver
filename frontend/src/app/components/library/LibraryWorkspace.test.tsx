@@ -21,6 +21,7 @@ vi.mock("@/app/lib/beaverApi", () => ({
     moveLibraryFolder: vi.fn(),
     renameLibraryDocument: vi.fn(),
     renameLibraryFolder: vi.fn(),
+    retryLibraryPdfParse: vi.fn(),
     uploadLibraryDocument: vi.fn(),
 }));
 vi.mock("@/app/components/documents/DocTable", () => ({

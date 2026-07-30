@@ -15,6 +15,7 @@ import {
 import { mikeLocalDataHome } from "./legalDataPath";
 import { isImageDocumentType, validateImageBytes } from "./llm/images";
 import {
+  peekLocalPdfParseState,
   queueLocalPdfParse,
   removeLocalPdfParseArtifacts,
 } from "./localPdfIngestion";
@@ -339,10 +340,21 @@ async function queueVersionPdf<T extends Record<string, unknown>>(
   return { ...response, pdf_parse: pdfParse };
 }
 
-function localDocumentResponse(document: LocalDocument) {
+async function localDocumentResponse(document: LocalDocument) {
   const version = activeVersion(document);
+  // The durable parse job's state, denormalized onto every document
+  // response so the Library can render parse lifecycle without a
+  // per-document round trip. `status` stays the storage-readiness field
+  // it always was; parse_state is the structural-parse lifecycle
+  // (queued/parsing/ready/degraded/failed), null for non-PDF versions
+  // (the flat-text lane has no parse job).
+  const parseState =
+    version.fileType === "pdf"
+      ? await peekLocalPdfParseState(absoluteDataPath(version.storagePath))
+      : null;
   return {
     id: document.id,
+    parse_state: parseState,
     user_id: document.userId,
     project_id: null,
     library_kind: document.kind,
@@ -414,9 +426,13 @@ function localVersionResponse(version: LocalVersion) {
 export async function listLocalLibrary(userId: string, kind: LocalLibraryKind) {
   const store = await currentStore();
   return {
-    documents: store.documents
-      .filter((document) => document.userId === userId && document.kind === kind)
-      .map(localDocumentResponse),
+    documents: await Promise.all(
+      store.documents
+        .filter(
+          (document) => document.userId === userId && document.kind === kind,
+        )
+        .map(localDocumentResponse),
+    ),
     folders: store.folders
       .filter((folder) => folder.userId === userId && folder.kind === kind)
       .map(localFolderResponse),
@@ -434,10 +450,12 @@ export async function listLocalDocumentsById(
       .filter((document) => document.userId === userId)
       .map((document) => [document.id, document] as const),
   );
-  return wanted.flatMap((documentId) => {
-    const document = byId.get(documentId);
-    return document ? [localDocumentResponse(document)] : [];
-  });
+  return Promise.all(
+    wanted.flatMap((documentId) => {
+      const document = byId.get(documentId);
+      return document ? [localDocumentResponse(document)] : [];
+    }),
+  );
 }
 
 export async function createLocalDocument(params: {
@@ -489,7 +507,7 @@ export async function createLocalDocument(params: {
   return queueVersionPdf(
     saved.document.id,
     saved.version,
-    localDocumentResponse(saved.document),
+    await localDocumentResponse(saved.document),
   );
 }
 
@@ -537,7 +555,7 @@ export async function getLocalVersionFile(
     ? version.pdfStoragePath
     : version.storagePath;
   return {
-    document: localDocumentResponse(document),
+    document: await localDocumentResponse(document),
     version: localVersionResponse(version),
     path: absoluteDataPath(relativePath),
     fileType:
@@ -792,7 +810,7 @@ export async function resolveLocalTrackedEdit(params: {
   return {
     status: saved.status,
     edit: saved.edit,
-    document: localDocumentResponse(saved.document),
+    document: await localDocumentResponse(saved.document),
     version: localVersionResponse(saved.version),
   };
 }

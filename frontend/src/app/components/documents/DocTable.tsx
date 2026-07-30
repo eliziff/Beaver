@@ -102,6 +102,37 @@ function InlineNameInput({ kind, value, onCommit, onCancel }: InlineNameInputPro
         }}
         onBlur={(event) => onCommit(event.currentTarget.value)} />;
 }
+/**
+ * Structural-parse lifecycle chip beside the filename. Nothing for docs
+ * without a parse lane (non-PDF, cloud) or a clean ready parse; flat text
+ * always remains readable, so the chip reports the STRUCTURAL lane only.
+ */
+function ParseStateChip({ doc, onRetry }: { doc: Document; onRetry?: () => void }) {
+    const state = doc.parse_state;
+    if (!state) return null;
+    if (state.status === "queued" || state.status === "parsing") {
+        return <span title="Structural PDF parse in progress"
+            className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+            <Loader2 className="h-3 w-3 animate-spin" />Parsing</span>;
+    }
+    if (state.status === "degraded") {
+        return <span
+            title={`Parsed with reduced structure${state.diagnostic_count ? ` — ${state.diagnostic_count} diagnostics` : ""}; flat text remains available`}
+            className="ml-2 inline-flex shrink-0 items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+            Degraded</span>;
+    }
+    if (state.status === "failed") {
+        return <span
+            title={state.error ?? "Structural PDF parse failed; flat text remains available"}
+            className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">
+            Parse failed
+            {onRetry && <button type="button" className="underline"
+                aria-label={`Retry structural parse for ${doc.filename}`}
+                onClick={(event) => { event.stopPropagation(); onRetry(); }}>
+                Retry</button>}</span>;
+    }
+    return null;
+}
 function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => void }) {
     const version = doc.active_version_number ?? null;
     const values: Record<(typeof DOCUMENT_METADATA_COLUMNS)[number]["label"], ReactNode> = {
@@ -130,6 +161,8 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
 interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>; uploadDocument: (file: File) => Promise<Document>;
     refreshCollection: () => Promise<void>;
+    /** Requeue a failed structural PDF parse (library lanes only). */
+    retryPdfParse?: (documentId: string) => Promise<unknown>;
     createFolder: (name: string, parentFolderId?: string | null) => Promise<DocTableFolder>;
     renameFolder: (folderId: string, name: string) => Promise<DocTableFolder>;
     deleteFolder: (folderId: string) => Promise<void>;
@@ -508,6 +541,21 @@ export function DocTable({
     async function handleRemoveDocFromFolder(docId: string) {
         patchDocument(docId, { folder_id: null });
         await operations.moveDocument(docId, null);
+    }
+    async function retryParse(docId: string) {
+        if (!operations.retryPdfParse) return;
+        patchDocument(docId, {
+            parse_state: {
+                ...(docsById.get(docId)?.parse_state ?? null),
+                status: "queued",
+                error: null,
+            } as Document["parse_state"],
+        });
+        try {
+            await operations.retryPdfParse(docId);
+        } finally {
+            await operations.refreshCollection();
+        }
     }
     async function submitDocumentRename(docId: string, value: string) {
         const trimmed = value.trim();
@@ -953,6 +1001,10 @@ export function DocTable({
                                         <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
                                             {docName}</span>
                                     )}
+                                    <ParseStateChip doc={doc}
+                                        onRetry={operations.retryPdfParse
+                                            ? () => void retryParse(doc.id)
+                                            : undefined} />
                                     {selectionFirst && (
                                         <button type="button"
                                             aria-label={`View ${docName}`}

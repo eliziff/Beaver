@@ -30,6 +30,7 @@ import {
     moveLibraryFolder,
     renameLibraryDocument,
     renameLibraryFolder,
+    retryLibraryPdfParse,
     uploadLibraryDocument,
     type LibraryKind,
 } from "@/app/lib/beaverApi";
@@ -180,6 +181,7 @@ export function LibraryCollectionPage({ kind }: { kind: LibraryKind }) {
             moveFolder: moveLibraryFolder.bind(null, kind),
             moveDocument: moveLibraryDocument.bind(null, kind),
             renameDocument: renameLibraryDocument.bind(null, kind),
+            retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
         [kind, loadLibrary],
     );
