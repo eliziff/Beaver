@@ -183,6 +183,42 @@ export function corpusAlienness(
   });
 }
 
+/**
+ * Maximal contiguous runs of corpus-unattested trigrams, as the claim's
+ * own words (Stage 9 H13-advisory: named in bounce text so the composer
+ * knows WHICH phrasing the corpus never uses). Advisory-only by
+ * registration: callers may render these but never gate on them. Null
+ * when no index is installed; [] when every trigram is attested.
+ */
+export function alienPhrases(
+  text: string,
+  options?: { language?: "en" | "fr"; indexPath?: string; cap?: number },
+): string[] | null {
+  const language = options?.language ?? "en";
+  const cap = options?.cap ?? 3;
+  const file = options?.indexPath ?? defaultIndexPath(language);
+  return withReadonlySqlite(file, (database: DatabaseSync) => {
+    const tokens = words(text);
+    if (tokens.length < 3) return [];
+    const lookup = database.prepare("select n from trigram where hash = ?");
+    const phrases: string[] = [];
+    let start: number | null = null;
+    for (let index = 0; index + 2 < tokens.length + 1; index += 1) {
+      const inRange = index + 2 < tokens.length;
+      const unattested =
+        inRange &&
+        !lookup.get(fnv1a64(tokens.slice(index, index + 3).join(" ")));
+      if (unattested && start === null) start = index;
+      if (!unattested && start !== null) {
+        phrases.push(tokens.slice(start, index + 2).join(" "));
+        start = null;
+      }
+    }
+    phrases.sort((a, b) => b.length - a.length);
+    return phrases.slice(0, cap);
+  });
+}
+
 export type LintInput = {
   claim: string;
   /** exact cited span texts (already resolved from evidence receipts) */
