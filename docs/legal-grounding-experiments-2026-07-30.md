@@ -1126,17 +1126,25 @@ candidate quoted to satisfy the slot — audited + checker-visible),
 coverage collapse on rich cells, or slot compliance below the
 tiered_check pass rate on the same cells.
 
-### Frozen Hypothesis 16 — explicit fallback rung removes composer collapse
+### Frozen Hypothesis 16 — bounce-time guidance removes composer collapse
 
-claude-p failed to submit on 9/9 none-profile case cells; the compliant
-path (passage-quote-only) existed but was not stated. H16: one added
-instruction line stating the fallback ladder ("if no attested
-characterization is provided, answer using only verbatim quotes of the
-cited passage, or state that none exists") restores coverage.
-Prediction: claude-p none-profile non-submission 9/9 → ≤1/9, zero new
-false accepts, no change on rich cells. Falsified by persistent
-collapse (then the defect is capacity, not instruction) or any new
-false accept.
+CORRECTED PRE-RUN (2026-07-30): the first registration of this
+hypothesis claimed the fallback path "was not stated." Rereading the
+Stage 8 arm prompt shows it WAS stated, once, in the system prompt
+("if none is supplied for that case, either quote the passage itself
+or state exactly that no attested characterization is available").
+claude-p collapsed anyway, 9/9. The revised hypothesis is therefore
+about guidance PLACEMENT, not existence: system-prompt instructions
+issued before composition are not retrieved at rejection time. H16′:
+restating the compliant path inside the typed rejection text itself
+("this claim characterizes the case; quote the passage verbatim or
+state that no attested characterization is available") restores
+coverage — the minimal form of H18's transparency principle applied
+to error messages. Prediction: claude-p none-profile non-submission
+9/9 → ≤1/9, zero new false accepts, no change on rich cells.
+Falsified by persistent collapse under bounce-time guidance (which
+would implicate iteration budget or capacity, tested next by raising
+maxIterations alone) or any new false accept.
 
 ### Frozen Hypothesis 17 — prompt factorization validates controls
 
@@ -1186,6 +1194,28 @@ showed sagging under feed-forward (0.57 → 0.38 codex), attributable to
 candidate volume/placement; recorded per-cell to inform, not to tune
 mid-run. Runs only after Stage 7's lanes drain; Charlotin probes queue
 after Stage 8b to grow the positive class per protocol C4.
+
+### Model-diversity axis (added 2026-07-30, per Eli's directive)
+
+Every conclusion since Stage 6 rests on two composer families and ONE
+checker family (Claude). Two diversity extensions, both flat-rate or
+local-hardware only:
+- Composer tier/family spread: add claude-p:claude-haiku-4-5
+  (same family, small tier) and ollama:qwen3.5:9b + 2b-q4_K_M (open
+  weights, different family, tiny tiers — the Beaver product's own
+  local lane, so "the contract makes a small local model trustworthy"
+  is the product thesis stated as a hypothesis). The runner already
+  dispatches ollama:<id> through streamChatWithTools unchanged.
+  STATUS: the tailnet Ollama host (desktop-47kgka2, qwen3.5 2b/4b/9b
+  configured in backend/.env) currently answers 502 — daemon down on
+  the remote box; the qwen arms queue until it returns. Prediction to
+  freeze with the run: the contract's typed-rejection discipline holds
+  for small models (fail-closed, coverage may drop, false accepts must
+  not rise) — capability should trade coverage, never soundness.
+- Checker-family crossing: on a Stage 8b subset, codex as checker vs
+  the pinned Claude checker over identical composed answers, measuring
+  verdict agreement. Controls for single-checker-family bias in every
+  stage verdict to date; disagreement cells get audited by hand.
 
 ## Durable receipts
 
