@@ -1,0 +1,189 @@
+{
+  "source": "a2aj_laws",
+  "docs": 36927,
+  "chars": 939542395,
+  "fail_docs": 558,
+  "slow_docs": 50,
+  "fail_reasons": {
+    "section_recovery": 512,
+    "slow_doc": 50
+  },
+  "entry_docs": {
+    "pinpoint.section.splitter": 31754,
+    "pinpoint.section.toa": 30950,
+    "title.legal.splitter": 24420,
+    "title.legal.toa": 24361,
+    "boundary.sentence.splitter": 23402,
+    "cite.reporter.splitter": 18879,
+    "signal.aggressive": 17631,
+    "signal.citation.toa": 14712,
+    "signal.source": 14405,
+    "cite.statute.toa": 10271,
+    "cite.reporter.toa": 6861,
+    "cite.statute.judgment": 6736,
+    "pinpoint.para.splitter": 6006,
+    "pinpoint.para.toa": 6006,
+    "cite.statute.splitter": 4566,
+    "cite.quoted": 3698,
+    "title.named-code": 3250,
+    "cite.statute.judgment.fr": 2488,
+    "ref.quoted-work-author": 1997,
+    "ref.history.toa": 1800,
+    "cite.secondary": 1245,
+    "pinpoint.page.splitter": 1000,
+    "pinpoint.page.toa": 1000,
+    "cite.neutral": 846,
+    "cite.journal.splitter": 198,
+    "cite.journal.toa": 192,
+    "cite.url": 171,
+    "cite.url.prefix": 170,
+    "label.superscript": 102,
+    "ref.cross-reference": 100,
+    "ref.note-reference": 85,
+    "ref.supra-note.linking": 47,
+    "ref.token": 6,
+    "ref.inline.toa": 6,
+    "frame.book": 3
+  },
+  "entry_matches": {
+    "pinpoint.section.splitter": 909817,
+    "pinpoint.section.toa": 752951,
+    "boundary.sentence.splitter": 537308,
+    "title.legal.splitter": 432871,
+    "title.legal.toa": 431471,
+    "signal.aggressive": 201445,
+    "cite.reporter.splitter": 168028,
+    "signal.citation.toa": 160531,
+    "signal.source": 153128,
+    "pinpoint.para.splitter": 68333,
+    "pinpoint.para.toa": 68333,
+    "cite.reporter.toa": 50674,
+    "cite.statute.toa": 31615,
+    "cite.statute.judgment": 14690,
+    "title.named-code": 12473,
+    "cite.quoted": 10921,
+    "ref.quoted-work-author": 8481,
+    "cite.statute.judgment.fr": 7388,
+    "cite.statute.splitter": 6962,
+    "ref.history.toa": 4972,
+    "pinpoint.page.toa": 3799,
+    "pinpoint.page.splitter": 3798,
+    "cite.secondary": 3085,
+    "cite.neutral": 2942,
+    "label.superscript": 1835,
+    "ref.cross-reference": 978,
+    "ref.note-reference": 677,
+    "cite.url.prefix": 533,
+    "cite.url": 487,
+    "cite.journal.splitter": 436,
+    "cite.journal.toa": 425,
+    "ref.supra-note.linking": 96,
+    "frame.book": 23,
+    "ref.token": 11,
+    "ref.inline.toa": 11
+  },
+  "structure_kinds": {},
+  "mb": 939.5,
+  "wall_s": 367.3,
+  "mb_per_s": 2.56,
+  "recovery_mean": 0.9613,
+  "recovery_n": 34107,
+  "recovery_by_set": {
+    "LEGISLATION-AB": {
+      "mean": 0.9872,
+      "n": 443
+    },
+    "LEGISLATION-BC": {
+      "mean": 0.8651,
+      "n": 568
+    },
+    "LEGISLATION-FED": {
+      "mean": 0.9049,
+      "n": 1888
+    },
+    "LEGISLATION-MB": {
+      "mean": 0.9953,
+      "n": 1030
+    },
+    "LEGISLATION-NB": {
+      "mean": 0.9998,
+      "n": 842
+    },
+    "LEGISLATION-NL": {
+      "mean": 0.9999,
+      "n": 403
+    },
+    "LEGISLATION-NS": {
+      "mean": 0.9958,
+      "n": 625
+    },
+    "LEGISLATION-NT": {
+      "mean": 0.9848,
+      "n": 478
+    },
+    "LEGISLATION-ON": {
+      "mean": 0.9645,
+      "n": 1710
+    },
+    "LEGISLATION-PE": {
+      "mean": 0.9864,
+      "n": 343
+    },
+    "LEGISLATION-SK": {
+      "mean": 0.9973,
+      "n": 558
+    },
+    "LEGISLATION-YT": {
+      "mean": 0.9948,
+      "n": 556
+    },
+    "REGULATIONS-AB": {
+      "mean": 0.9775,
+      "n": 910
+    },
+    "REGULATIONS-BC": {
+      "mean": 0.9792,
+      "n": 1466
+    },
+    "REGULATIONS-FED": {
+      "mean": 0.9242,
+      "n": 7684
+    },
+    "REGULATIONS-MB": {
+      "mean": 0.9969,
+      "n": 2089
+    },
+    "REGULATIONS-NB": {
+      "mean": 0.9941,
+      "n": 1350
+    },
+    "REGULATIONS-NL": {
+      "mean": 0.9837,
+      "n": 1080
+    },
+    "REGULATIONS-NS": {
+      "mean": 0.8535,
+      "n": 1394
+    },
+    "REGULATIONS-NT": {
+      "mean": 0.9959,
+      "n": 1121
+    },
+    "REGULATIONS-ON": {
+      "mean": 0.9844,
+      "n": 3774
+    },
+    "REGULATIONS-PE": {
+      "mean": 0.9914,
+      "n": 395
+    },
+    "REGULATIONS-SK": {
+      "mean": 0.9933,
+      "n": 709
+    },
+    "REGULATIONS-YT": {
+      "mean": 0.9876,
+      "n": 2691
+    }
+  }
+}

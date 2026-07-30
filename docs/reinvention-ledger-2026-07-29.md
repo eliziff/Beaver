@@ -65,7 +65,7 @@ path silently.
 | Source-neutral parsed-document IR (paragraphs + footnotes + explicit `footnote_order` + author-inserted hyperlinks + `source_kind`) | `verifier_core/document_input.py:11-20` `ParsedDocument` | No dedicated test; shape asserted by every round-trip in `tests/test_pdf_adapter.py:8,42` (**30** tests) | Three fork IRs: (a) `backend/src/lib/docx/stories.ts:67-79` `DocxStories` (body/footnotes/endnotes/headers/footers/textBoxes, each run carrying redline state); (b) `universal-legal-pdf-engine/src/legalpdf/model.py:126` `LegalDocument` (`SCHEMA_VERSION="legalpdf.document.v1"`, `:10`); (c) `universal-legal-pdf-engine/src/legalpdf/adapters.py:36-87` `to_alr_payload` — the explicit compatibility shim, which **does** materialize `footnote_order` (`:79`) and rewrite `⟦FN:n⟧` anchors (`:52-61`) | **PARTIAL** | The PDF lane keeps the contract (via `to_alr_payload`, tested `tests/test_engine.py:1109`). The DOCX lane drops two fields the reference IR has: `footnotes` is a `Map` keyed by `w:id` with **no `footnote_order`** anywhere in `backend/src/lib/docx/`, and there is **no `author_links`** concept (nearest is `StoryRun.hyperlink:57`, a bare URL string). Remediation: add `footnoteOrder: string[]` and author-link capture to `DocxStories`, then assert `to_alr_payload`-shaped equivalence across both lanes in one test. |
 | Direct-PDF intake: geometric body/footnote/footer region classification, separator-line detection, footnote-label↔in-body-marker pairing, superscript inference by span metrics, detached-marker reattachment, cross-page paragraph continuation, license-footer stripping, **fail-closed refusals** | `verifier_core/pdf_adapter.py:1234` `inspect_pdf`, `:1272` `load_pdf_document`; stages `:222,403,531,596,670,734,879,948,1104`; refusals `:1254-1261`; schema `"alr.pdf_intake.deterministic_pairing.v2"` `:870` | `tests/test_pdf_adapter.py` **30** tests (1058 lines); fixtures are PyMuPDF-synthesized at test time (`:14-21`), skipped without PyMuPDF (`:11`) | `universal-legal-pdf-engine/src/legalpdf/core.py:2108` `parse_pdf` + `:537,1472,1647,1727,1906`; `model.py`; `ocr.py`; `codex_repair.py` | **PORTED-WITH-ORACLE** (weak gate) | Provenance is **explicit and dated**: `universal-legal-pdf-engine/docs/alr-compatibility-notes.md:6-13` names `verifier_core/pdf_adapter.py` and three upstream revisions, and `:3-4` states no import/no runtime invocation. The gate is `tests/test_engine.py` (**29** tests, synthetic fixtures) plus the DOCX-projected benchmark (`docs/real-model-benchmark-2026-07-26.md`, `benchmark.py:468` `score_docx_gold`) — but **there is no ALR-vs-engine differential** on a shared PDF, only shared-lineage-by-documentation. Remediation: add a `to_alr_payload`-vs-`load_pdf_document` differential over `ALR-Quote-Verifier/data/inputs/*` PDF renditions; `alr-compatibility-notes.md:28` already says later ALR changes must be reviewed, with no mechanism to enforce it. |
 | Per-user OS-native secret storage: Windows DPAPI, macOS Keychain, Linux `secret-tool`, 0600-file fallback; corrupt blob degrades to "no key"; `last4()` display only | `verifier_core/api_key_store.py:233,243,257,267,271,285`; DPAPI `:95-117`; policy `:1-19` | `tests/test_api_key_store.py` **5** tests, Windows-only (`:8`) | `backend/src/lib/userApiKeys.ts:101-114` — AES-256-GCM with a `scryptSync` key from a server secret, rows in the app DB (`encrypted_key`) | **PARTIAL** | Different threat model (server-side multi-tenant vs local desktop), so the algorithm choice is defensible. What was **not** taken: the never-log/`last4`-only display discipline, and the fail-soft "corrupt blob reads as missing" behavior. Remediation: adopt `last4()` for all UI surfacing and make decrypt failure a typed "no key" rather than a throw, then port the 5 test cases. |
-| CanLII court/tribunal slug table: ~280 abbreviations → URL path segments, offline, ships in every build | `verifier_core/canlii_urls.py:10-422` `COURT_MAP` (~280 entries; `:48` documents the ONHRT/HRTO mismatch) | No direct unit test; exercised through 60 literal `canlii.org/en/` URLs in `tests/test_quote_fragments.py` (**121** tests), e.g. `:1912-1955` | **None.** Repo grep confirms no court-slug map anywhere in `backend/src/lib`; the only "slug" is CourtListener's own DB column (`courtlistener.ts:496-497,525-526`). CanLII URLs pass through verbatim from provider records (`a2aj.ts:239-246`); `legalSourceLinks.ts:206,210,223,247-252` only pattern-matches an existing `canlii.org` host to choose anchor style | **REFERENCE-ONLY** | Port `COURT_MAP` verbatim (it is a data table, zero risk) the first time the fork must construct a CanLII link from a citation with no provider URL. Do not derive slugs — `canlii_slug_repair.py:1-6` documents that CanLII 404s a near-miss slug and never redirects. |
+| CanLII court/tribunal slug table: ~280 abbreviations → URL path segments, offline, ships in every build | `verifier_core/canlii_urls.py:10-422` `COURT_MAP` (410 entries; `:48` documents the ONHRT/HRTO mismatch) | No direct unit test; exercised through 60 literal `canlii.org/en/` URLs in `tests/test_quote_fragments.py` (**121** tests), e.g. `:1912-1955` | `backend/src/lib/canliiUrls.ts` ports all 410 `COURT_MAP` entries plus `_a2aj_case_link`; a direct map comparison on 2026-07-29 reported 410/410 entries and zero differences. `legalSourceLinks.ts:preferredA2AJUrl` keeps source identity separate from the user-facing CanLII link and preserves ALR's SCC quote-link exception. | **PARTIAL** | Runtime behaviour is ported and unknown datasets fail closed. The remaining gap is an automated differential gate for future table edits; do not derive near-miss routes. |
 | Provider-agnostic DI seams: `LinkResolver` (live URL resolution + cached HTML) and `CitationDatabase` (offline citation→URL) protocols, plus a no-op resolver so the open core runs with zero adapter | `verifier_core/protocols.py:18-30`, `NoopHtmlResolver:44-57` | No dedicated test; used as the default at `alr_quote_verifier.py:2476`; indirect via `tests/test_case_url_provider_integration.py:465,561,567` (**27** tests) | None with this shape. The fork's provider surfaces (`publicLegalSources.ts`, `courtlistener.ts`, `a2aj.ts`) are directly-imported concrete modules; `mcpConnectors.ts` is a different abstraction (external tool servers) | **REFERENCE-ONLY** | Matters the moment a second citation-resolution backend appears (a licensed CanLII adapter, a firm's internal DB). Port the two Protocols before adding backend #2, not after. |
 | Generic adapter bootstrap registry: import an optional plugin module by name, silently accept its absence, let it register resolver/DB/CLI args/GUI extension/export provider | `verifier_core/registry.py:35-128`; bootstrap constant `:24`; the internal-only bootstrap itself `verifier_plugins.py:11-30` | `tests/test_a2aj_ceiling_replay.py:16-17` guards the bootstrap name; indirect via `test_case_url_provider_integration.py`, `test_deterministic_app_modes.py` (**26**), `test_case_url_provider_gui_setting.py:44` | None | **REFERENCE-ONLY** | Pairs with the row above. The load-bearing design point worth copying: a **missing** adapter is a normal supported configuration (`registry.py:36-47` swallows `ImportError`), not an error — which is how ALR ships one codebase as both an open build and an internal build. |
 | Live rate-limit self-pacing from `x-ratelimit-*` response headers: derive safe parallelism once (never raise it later), hold new requests near the ceiling until the API-reported reset, sleep in ≤0.5 s slices so a pause gate lands promptly | `verifier_core/rate_governor.py:58` `RateLimitGovernor`, `:73` `before_request`, `:88` `observe`; set-once comment `:66`; hold cap `:26-28` | `tests/test_rate_governor.py` **6** tests, real `time.monotonic()` sleeps, incl. "later roomier headers must not bump the decision" (`:29-34`) | **None.** `backend/src/app.ts:5,60` is `express-rate-limit` — *inbound* request limiting, the opposite direction. Repo grep for `Retry-After\|backoff` over `backend/src/lib/**/*.ts` returns only `courtlistener.ts:65` (a bare `status === 429` check) and a prompt string telling the model to stop calling (`chat/tools/courtlistenerTools.ts:89`) | **REFERENCE-ONLY** | The fork currently delegates rate-limit survival to *the model's judgment* in a prompt. Port `RateLimitGovernor` for the outbound provider lane (CourtListener, A2AJ live, GovInfo) and drop the prompt instruction. Low effort, 5 KB module, 6 tests. |
@@ -199,3 +199,54 @@ Ordered by correctness risk first, duplicated maintenance second.
     engine's contract with the label regex copied byte-equal (provenance
     comment + `--parity` drift assertion; runtime import removed on Eli's
     instruction — reference repos are copied, never imported).
+
+11. **(2026-07-30) Full-corpus sweep, run twice: baseline, vet, fix,
+    rerun.** The first full sweep (detectors as of 742d940b) covered the
+    whole local A2AJ corpus — 330,473 cases (8.66 GB), 36,927 laws
+    (0.94 GB), 2,494 journal articles (0.17 GB) — in ~74 min at
+    2.19–2.56 MB/s aggregate, after duckdb worker-slice reads fixed
+    feeder starvation and anchor-windowed scanning (distilled into engine
+    `anchored_scan.py`, commit 2821387, fork pin ae68a969; zero-tolerance
+    windowed-vs-full differential over the 1,862-doc reservoir) bought
+    1.98x on the regex pass. A subagent vet of the baseline output drove
+    two fix commits, each verified on the vet docs plus an old-vs-new
+    reservoir differential before relaunch:
+
+    - dbb7b355 — short complete `[1]..[N]` bracket ladders are real
+      structure (short orders / oral reasons / costs rulings); substance
+      guard widened; short hypotheses barred from the primary scope
+      competition; narrow-flag rule tightened for sub-4KB docs; journal
+      page "recovery" **deleted** — the `[page N]` markers are rendered by
+      us from the journals database, so scoring them was testing our own
+      output against our own input.
+    - 6ae6d330 — laws: NT/PE dot-form section labels, NB markdown-decimal
+      headings, fr surface-language named headings (+ `Formulaire`),
+      Order/Ordonnance/Proclamation single-pseudo-label oracles
+      reclassified as `single_instrument` (a provider naming convention,
+      not a recovery target).
+
+    Rerun (same corpus, ~68 min, 2.37 MB/s on cases — the fixes cost no
+    throughput), before → after:
+
+    | | baseline | rerun |
+    |---|---|---|
+    | cases fail rate | 14.13% | **10.35%** (34,193 docs) |
+    | cases `none` | 10.74% (35,478) | **8.46%** (27,948) — 7,530 docs converted to paragraphs, −21% of the none queue |
+    | cases `paragraphs` | 87.58% | **89.87%** (296,985) |
+    | `paragraph_scope_narrow` | 3.38% | **1.88%** (6,216) |
+    | laws fail rate | 14.0% | **1.51%** (558 docs) |
+    | laws recovery_mean | 0.8254 | **0.9613** (n=34,107; pseudo-label singles excluded) |
+    | journals | 0.9999 "recovery" (circular) | `provider_metadata` kind, grammar rates only |
+
+    Laws per-set: LEGISLATION-NT 0.029→0.985, LEGISLATION-PE 0.037→0.986,
+    REGULATIONS-NT 0.102→0.996, REGULATIONS-PE 0.109→0.991,
+    REGULATIONS-NB 0.837→0.994. Weakest remaining sets are now
+    REGULATIONS-NS (0.854) and LEGISLATION-BC (0.865). An independent
+    observer agent's 8-doc audit of newly-captured short ladders scored
+    8/8 real judicial paragraphs, zero false ladders, French included.
+    `endnotes` (1.60%) and `pages` (0.08%) shares are unchanged, as the
+    fixes intended. Remaining cases-fail mass: 27,948 truly-none docs
+    (letters, stubs, CHRT/CITT "no document available" sentinels among
+    them), 6,216 narrow flags, 1,072 line-collapsed, 33 slow. Commit
+    trail: 742d940b (windowed sweep), c35d45e3 (provider survey),
+    ae68a969 (engine pin 2821387), dbb7b355, 6ae6d330.
