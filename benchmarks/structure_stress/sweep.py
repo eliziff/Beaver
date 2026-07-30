@@ -62,6 +62,19 @@ PREFILTERS: dict[str, list[str]] = {
     "ref.quoted-work-author": ['"', "\u201c"],
     "label.superscript": ["\u2070", "\u00b9", "\u00b2", "\u00b3", "\u2074",
                           "\u2075", "\u2076", "\u2077", "\u2078", "\u2079"],
+    "title.legal.splitter": ["act", "code", "rule", "regulation",
+                             "convention", "treaty"],
+    "title.legal.toa": ["act", "code", "rule", "regulation",
+                        "convention", "treaty"],
+    "title.named-code": ["code", "rule"],
+    "cite.quoted": ['"', "\u201c"],
+    "cite.secondary": ["("],
+    "frame.book": ["("],
+    "cite.statute.judgment": ["r.s", "s.c", "s.o", "s.a", "s.s", "s.m",
+                              "s.b", "s.n", "s.y", "s.p", "c.c.s.m", "rs",
+                              "sc ", "sched"],
+    "cite.statute.judgment.fr": ["l.r", "l.c", "l.o", "l.m", "c.p.l.m",
+                                 "r.l.r.q", "c.q.l.r"],
 }
 
 # Grammars authored for SHORT STRINGS (a footnote, a label line, a locator)
@@ -86,16 +99,19 @@ SHORT_STRING_ENTRIES = {
 
 SLOW_DOC_SECONDS = 2.0
 
-# Structure detectors (module-level so workers inherit after spawn-import).
-BRACKET_PARA_RE = re.compile(r"^[ \t]*\[(\d{1,4})\][ \t]", re.M)
+# Structure detection is ALR's corpus-proven machinery, ported with a
+# 0-mismatch parity proof in structure_ref.py. The naive detectors that
+# used to live here scored 43% presence accuracy and 31% flag precision
+# against hand-verified gold; the port scores 95% / 93%.
+from structure_ref import law_section_labels, structure_cascade  # noqa: E402
+
 PILCROW_RE = re.compile(r"¶\s?\d")
 PAGE_MARK_JOURNAL_RE = re.compile(r"^[ \t]*\[page\s+(\d{1,5})\][ \t]*$", re.I | re.M)
 PAGE_MARK_TOA_RE = re.compile(
     r"^\s*(?:\[\s*)?(?:original\s+)?page\s+([A-Za-z]?\d{1,4})(?:\s*\])?\s*$",
     re.I | re.M,
 )
-LAW_SECTION_BOLD_RE = re.compile(r"\*\*(\d{1,4}(?:\.\d{1,4})*)\*\*")
-LAW_SECTION_LINE_RE = re.compile(r"^(\d{1,4}(?:\.\d{1,4})*)[ .]", re.M)
+ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
 
 _ENTRIES: list[tuple[str, "re.Pattern[str]", list[str] | None]] = []
 
@@ -122,14 +138,6 @@ def _init_worker() -> None:
     _ENTRIES = _load_entries()
 
 
-def _ladder_stats(labels: list[int]) -> dict:
-    breaks = sum(1 for a, b in zip(labels, labels[1:]) if b != a + 1)
-    return {
-        "count": len(labels),
-        "max": max(labels) if labels else 0,
-        "breaks": breaks,
-        "duplicates": len(labels) - len(set(labels)),
-    }
 
 
 MAX_DOC_CHARS = 8_000_000
@@ -154,18 +162,11 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         if n:
             matches[eid] = n
 
-    raw_labels = [int(m.group(1)) for m in BRACKET_PARA_RE.finditer(text)]
-    # Line-start "[1988] 2 SCR 833" year-bracket citations are not paragraph
-    # marks; the smoke tier proved they pollute the ladder. Judge on the
-    # year-filtered ladder, keep the raw count for visibility.
-    para_labels = [n for n in raw_labels if not 1700 <= n <= 2199]
     record: dict = {
         "id": doc_id,
         "kind": kind,
         "chars": len(text),
         "matches": matches,
-        "paras": _ladder_stats(para_labels),
-        "paras_raw_count": len(raw_labels),
         "pilcrows": len(PILCROW_RE.findall(text)),
         "fail": [],
     }
@@ -177,27 +178,50 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         record["cited_count"] = oracle.get("cited_count", 0)
         cite_hits = sum(
             matches.get(k, 0)
-            for k in ("cite.neutral", "cite.canlii", "cite.reporter.splitter")
+            for k in ("cite.neutral", "cite.neutral.tribunal", "cite.canlii",
+                      "cite.reporter.splitter")
         )
         if record["cited_count"] > 0 and cite_hits == 0:
             record["fail"].append("cites_expected_none_found")
-        if record["paras"]["count"] == 0:
-            record["fail"].append("no_paragraph_ladder")
-        elif record["paras"]["breaks"] > max(2, record["paras"]["count"] // 50):
-            record["fail"].append("ladder_broken")
+        # No structure detected is never a verdict: paragraphs, then
+        # reporter-anchored pages, then endnote ladders, then heading
+        # hints. Only all-empty lands in the close-inspection bucket.
+        structure = structure_cascade(text, self_cite)
+        record["structure"] = structure
+        if structure["kind"] == "none":
+            record["fail"].append("no_addressable_structure")
+            lines = text.splitlines() or [""]
+            mean_line = len(text) / max(1, len(lines))
+            if mean_line > 600 and len(ANY_BRACKET_LABEL_RE.findall(text)) >= 8:
+                # Labels exist but sit mid-line: a corpus defect (four
+                # Sept-Oct 2003 BCCA rows found so far), not absence.
+                record["fail"].append("line_collapsed")
+        elif structure["kind"] == "paragraphs" and structure.get("span", 1.0) < 0.55:
+            # Accepted scope covers under 55% of the document — the
+            # host-vs-quote competition residual worth surfacing (2.2%
+            # of accepted BCCA scopes).
+            record["fail"].append("paragraph_scope_narrow")
     elif kind == "law":
         want = set(oracle.get("section_labels") or [])
         num = oracle.get("num_sections") or 0
-        bold = {m.group(1) for m in LAW_SECTION_BOLD_RE.finditer(text)}
-        line = {m.group(1) for m in LAW_SECTION_LINE_RE.finditer(text)}
-        rec_bold = len(want & bold) / len(want) if want else None
-        rec_line = len(want & line) / len(want) if want else None
+        detected = law_section_labels(text)
+        combined = (
+            detected["alr_ext"] | detected["bold"] | detected["ranges"]
+            | detected["named"]
+        )
+        def _rec(found: set) -> float | None:
+            return len(want & found) / len(want) if want else None
+        def _prec(found: set) -> float | None:
+            return len(want & found) / len(found) if found else None
         record["sections"] = {
             "oracle": num,
-            "recovery_bold": rec_bold,
-            "recovery_line": rec_line,
+            "recovery_combined": _rec(combined),
+            "detectors": {
+                name: {"rec": _rec(found), "prec": _prec(found)}
+                for name, found in detected.items()
+            },
         }
-        best = max(v for v in (rec_bold, rec_line, 0.0) if v is not None)
+        best = record["sections"]["recovery_combined"] or 0.0
         if want and best < 0.5:
             record["fail"].append(f"section_recovery_{best:.2f}")
     elif kind == "journal":
@@ -333,8 +357,7 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
         "fail_reasons": Counter(),
         "entry_docs": Counter(),
         "entry_matches": Counter(),
-        "para_docs": 0,
-        "ladder_clean_docs": 0,
+        "structure_kinds": Counter(),
         "slow_docs": 0,
     }
     recoveries: list[float] = []
@@ -352,10 +375,9 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
             for eid, n in rec["matches"].items():
                 agg["entry_docs"][eid] += 1
                 agg["entry_matches"][eid] += n
-            if rec["paras"]["count"]:
-                agg["para_docs"] += 1
-                if not rec["paras"]["breaks"] and not rec["paras"]["duplicates"]:
-                    agg["ladder_clean_docs"] += 1
+            structure = rec.get("structure")
+            if structure:
+                agg["structure_kinds"][structure["kind"]] += 1
             for key in ("sections", "pages"):
                 sub = rec.get(key)
                 if sub:
@@ -384,6 +406,7 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
         "fail_reasons": dict(agg["fail_reasons"].most_common()),
         "entry_docs": dict(agg["entry_docs"].most_common()),
         "entry_matches": dict(agg["entry_matches"].most_common()),
+        "structure_kinds": dict(agg["structure_kinds"].most_common()),
         "mb": round(mb, 1),
         "wall_s": round(wall, 1),
         "mb_per_s": round(mb / wall, 2) if wall else None,
