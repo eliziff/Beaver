@@ -376,12 +376,20 @@ export function lookupLegalSourceDoc(
   contextBlocks = 0,
 ): SourceDocLookup {
   const exact = locator.trim();
-  const requestedLabel = doc.blocks.some(
-    (block) =>
-      block.kind === kind &&
-      block.label.toLowerCase() === exact.toLowerCase(),
-  )
+  const matchesBlock = (labels: (block: SourceDocBlock) => string[]) =>
+    doc.blocks.some(
+      (block) =>
+        block.kind === kind &&
+        labels(block).some(
+          (label) => label.toLowerCase() === exact.toLowerCase(),
+        ),
+    );
+  const requestedLabel = matchesBlock((block) => [block.label])
     ? exact
-    : normalizeLegalLocator(kind, locator);
+    : normalizeLegalLocator(kind, locator) ||
+      // Provider-native aliases outside every locator grammar (journal page
+      // labels like "PDF 1"): pass the locator through only when no grammar
+      // recognized it, so normalized labels keep their receipt bytes.
+      (matchesBlock((block) => block.aliases ?? []) ? exact : "");
   return lookupSourceDocLabel(doc, kind, requestedLabel, contextBlocks);
 }
