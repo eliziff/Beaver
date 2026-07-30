@@ -82,6 +82,24 @@ and Data Portraits (Bloom membership, the base under QUIP-Score); the
 sqlite trigram index ships only as an explicitly-marked interim behind
 the corpusAlienness() seam.
 
+EXTERNAL VALIDATION — NEGATIVE RESULT (2026-07-30, RegLab slice of the
+misgrounding corpus, 174 grounded vs 32 misgrounded/ungrounded
+expert-labeled responses): the word-trigram alienness signal INVERTED
+(AUC 0.372) and prompt-share was chance (0.550). Diagnosis, recorded
+before any threshold ships: (1) reference mismatch — grounded US
+responses quote US statutes verbatim, which is maximally alien to the
+Canadian reference, so faithful quoting scores alien; jurisdiction-
+matched references are REQUIRED (a US reference from CourtListener
+bulk / CLERC is the fix); (2) unit mismatch — the signal is calibrated
+on claims, these are full responses; segment before scoring; (3) scope
+boundary — RegLab misgrounding is largely RELATIONAL (real citation,
+plausible register, wrong support), which lexical lint cannot see and
+the H12 stands-for machinery targets. H13's validated scope is
+claim-level, same-jurisdiction composed-overreach screening; it is NOT
+a general misgrounding detector, and no threshold generalizes past
+that scope until the jurisdiction-matched, claim-segmented re-test
+passes.
+
 C2 CONFIGURATION DECISION (2026-07-30, three-way calibration over 553
 labeled claims, pre-stated rule: best AUC at matched operating points,
 ties to boundary robustness then base preference): WORD-TRIGRAMS WIN.
