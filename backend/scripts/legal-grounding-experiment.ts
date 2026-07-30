@@ -123,6 +123,9 @@ type RunReceipt = {
   expected_answer_match: boolean | null;
   inline_citation_rate: number | null;
   support_expectation_match: boolean | null;
+  /** Stage 8 coverage audit: attested characterizations registered per
+   * cited neutral citation (empty object outside attested_framing). */
+  attested_characterizations: Record<string, number>;
   legal_evidence_receipt: ReturnType<typeof legalEvidenceReceiptEvent>;
   error: string | null;
 };
@@ -490,10 +493,19 @@ async function runCase(
   // local citator) or tier "none" registers nothing — the composition
   // contract then forces passage quotes or the typed statement.
   const attested: LegalEvidenceReceipt[] = [];
+  const attestedByCitation: Record<string, number> = {};
   if (arm === "attested_framing" && item.sourceClass === "case") {
+    // Benchmark citations carry style-of-cause and pinpoints
+    // ("Daignault v. Gueldner, 2007 BCCA 40, para. 14"), but the citator
+    // keys decisions by neutral citation. Extract them with the citator
+    // builder's own NEUTRAL_RE (build_citator_graph.py).
+    const neutralRe = /\b(?:17|18|19|20)\d{2}\s+[A-Z][A-Z0-9-]{1,15}\s+\d+\b/gu;
     for (const citation of new Set(
-      item.evidence.map((source) => source.citation),
+      item.evidence.flatMap(
+        (source) => source.citation.match(neutralRe) ?? [source.citation],
+      ),
     )) {
+      attestedByCitation[citation] = 0;
       for (const candidate of standsForProfile({ citation })?.candidates ??
         []) {
         const receipt = attestedCharacterizationReceipt({
@@ -503,6 +515,7 @@ async function runCase(
         });
         registerLegalEvidence(state, receipt);
         attested.push(receipt);
+        attestedByCitation[citation] += 1;
       }
     }
   }
@@ -614,6 +627,7 @@ async function runCase(
                 legalReceipt?.status === "passed"
             : (legalReceipt?.status === "passed") ===
               (item.referenceExpectation === "sufficient"),
+      attested_characterizations: attestedByCitation,
       legal_evidence_receipt: legalReceipt,
       error: null,
     };
@@ -644,6 +658,7 @@ async function runCase(
       expected_answer_match: expectedAnswerMatch(item.expectedAnswer, answer),
       inline_citation_rate: null,
       support_expectation_match: null,
+      attested_characterizations: attestedByCitation,
       legal_evidence_receipt:
         arm === "control" ? null : legalEvidenceReceiptEvent(state),
       error: error instanceof Error ? error.message : String(error),
@@ -826,6 +841,18 @@ async function main() {
     if (!existsSync(housingFile))
       throw new Error(`HousingQA file not found: ${housingFile}`);
     cases.push(...(await housingCases(housingFile, housingIds)));
+  }
+  const onlyCases = flag("cases", "");
+  if (onlyCases) {
+    const wanted = new Set(onlyCases.split(",").map((value) => value.trim()));
+    const kept = cases.filter((item) => wanted.has(item.id));
+    const missing = [...wanted].filter(
+      (id) => !cases.some((item) => item.id === id),
+    );
+    if (missing.length)
+      throw new Error(`--cases ids not in selection: ${missing.join(",")}`);
+    cases.length = 0;
+    cases.push(...kept);
   }
   if (!cases.length) throw new Error("no benchmark cases selected");
 
