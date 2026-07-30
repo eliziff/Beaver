@@ -53,20 +53,30 @@ def check_gates(jobs) -> None:
     entries = sweep._ENTRIES
     derived = [
         (eid, gate)
-        for eid, _, gate in entries
+        for eid, _, gate, _, _ in entries
         if gate is not None and eid not in sweep.PREFILTERS
     ]
-    print(f"entries={len(entries)} hand-gated={sum(1 for e in entries if e[0] in sweep.PREFILTERS and e[2])} derived-gated={len(derived)}")
+    anchored = sum(1 for e in entries if e[3] is not None)
+    print(
+        f"entries={len(entries)} "
+        f"hand-gated={sum(1 for e in entries if e[0] in sweep.PREFILTERS and e[2])} "
+        f"derived-gated={len(derived)} anchored={anchored}"
+    )
     for eid, gate in derived:
         print(f"  derived {eid:32s} {gate}")
+    for eid, _, _, anchors, pad in entries:
+        if anchors is not None:
+            print(f"  anchor  {eid:32s} pad={pad:4d} {anchors}")
 
     misses = 0
+    window_mismatches = 0
     gated_away: Counter = Counter()
-    t_gated = t_ungated = 0.0
+    t_new = t_ungated = 0.0
     for _id, _kind, text, _o in jobs:
         text = text[: sweep.MAX_DOC_CHARS]
         lower = text.lower()
-        for eid, rx, gate in entries:
+        windowable = len(lower) == len(text)
+        for eid, rx, gate, anchors, pad in entries:
             t0 = time.perf_counter()
             n = sum(1 for _ in rx.finditer(text))
             t_ungated += time.perf_counter() - t0
@@ -76,23 +86,35 @@ def check_gates(jobs) -> None:
                 if n:
                     misses += 1
                     print(f"  GATE MISS: {eid} on {_id} (matches={n}, gate={gate})")
+            # Time the REAL production path: gate check + windowed count.
             t0 = time.perf_counter()
             if passes:
-                for _ in rx.finditer(text):
-                    pass
-            t_gated += time.perf_counter() - t0
+                if anchors is not None and windowable:
+                    n_new = sweep._count_matches(rx, text, lower, anchors, pad)
+                else:
+                    n_new = sum(1 for _ in rx.finditer(text))
+            else:
+                n_new = 0
+            t_new += time.perf_counter() - t0
+            if passes and n_new != n:
+                window_mismatches += 1
+                print(
+                    f"  WINDOW MISMATCH: {eid} on {_id} "
+                    f"(full={n}, windowed={n_new}, pad={pad}, anchors={anchors})"
+                )
     mb = sum(len(j[2]) for j in jobs) / 1e6
     print(
-        f"\nsoundness: {misses} gate misses over {len(jobs)} docs x {len(entries)} entries"
+        f"\nsoundness: {misses} gate misses, {window_mismatches} window "
+        f"mismatches over {len(jobs)} docs x {len(entries)} entries"
     )
     print(
-        f"scan cost: ungated {t_ungated:.1f}s vs gated {t_gated:.1f}s "
-        f"({t_ungated / max(t_gated, 1e-9):.2f}x) over {mb:.0f} MB"
+        f"scan cost: full {t_ungated:.1f}s vs gated+windowed {t_new:.1f}s "
+        f"({t_ungated / max(t_new, 1e-9):.2f}x) over {mb:.0f} MB"
     )
     top = gated_away.most_common(8)
     print("top gated-away:", {k: f"{v}/{len(jobs)}" for k, v in top})
-    if misses:
-        raise SystemExit("GATE MISSES — do not launch")
+    if misses or window_mismatches:
+        raise SystemExit("GATE MISSES / WINDOW MISMATCHES — do not launch")
 
 
 def legacy_court_agg(con, court: str) -> tuple[dict, list]:
@@ -132,11 +154,18 @@ def shard_court_agg(court: str) -> tuple[dict, list]:
     agg = sweep._empty_agg("shard")
     recoveries: list[tuple[str, float]] = []
     all_failures: list[dict] = []
-    shards = [
-        s
-        for s in sweep._corpus_shards("a2aj_cases", ["en", "fr"])
-        if s[1] == court
-    ]
+    original_slice = sweep.SLICE_ROWS
+    sweep.SLICE_ROWS = 1000  # force multi-slice coverage on small courts so
+    # offset/limit disjointness is exercised, not just whole-file reads
+    try:
+        shards = [
+            s
+            for s in sweep._corpus_shards("a2aj_cases", ["en", "fr"])
+            if s[1] == court
+        ]
+    finally:
+        sweep.SLICE_ROWS = original_slice
+    print(f"  {court}: {len(shards)} shards at SLICE_ROWS=1000")
     for shard in shards:
         partial = sweep.scan_shard(shard)
         for key in ("docs", "chars", "fail_docs", "slow_docs"):
