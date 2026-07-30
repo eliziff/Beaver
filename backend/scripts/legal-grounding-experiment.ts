@@ -628,6 +628,52 @@ function average(values: number[]) {
     : 0;
 }
 
+/**
+ * Bounded pool over independent cells with a per-model lane cap: parallel
+ * Claude lanes are free throughput, while the overload-prone provider is
+ * kept at a low cap so concurrency does not manufacture transport errors.
+ * Cells stay independent — the pool changes wall-clock, never inputs.
+ */
+async function runPool<T extends { model: string }>(
+  cells: T[],
+  limit: number,
+  perModel: number,
+  worker: (cell: T) => Promise<void>,
+): Promise<void> {
+  const pending = [...cells];
+  const active = new Map<string, number>();
+  let running = 0;
+  await new Promise<void>((resolve, reject) => {
+    let failed = false;
+    const pump = () => {
+      if (failed) return;
+      if (!pending.length && running === 0) return resolve();
+      for (let index = 0; index < pending.length && running < limit; ) {
+        const cell = pending[index];
+        if ((active.get(cell.model) ?? 0) >= perModel) {
+          index += 1;
+          continue;
+        }
+        pending.splice(index, 1);
+        active.set(cell.model, (active.get(cell.model) ?? 0) + 1);
+        running += 1;
+        worker(cell).then(
+          () => {
+            active.set(cell.model, active.get(cell.model)! - 1);
+            running -= 1;
+            pump();
+          },
+          (error) => {
+            failed = true;
+            reject(error);
+          },
+        );
+      }
+    };
+    pump();
+  });
+}
+
 function printSummary(rows: RunReceipt[]) {
   const groups = new Map<string, RunReceipt[]>();
   rows.forEach((row) => {
@@ -756,24 +802,37 @@ async function main() {
   );
   if (process.argv.includes("--dry-run")) return;
 
+  const concurrency = Number(flag("concurrency", "4"));
+  const perModel = Number(flag("per-model-concurrency", "2"));
+  if (!Number.isInteger(concurrency) || concurrency < 1)
+    throw new Error("--concurrency must be a positive integer");
+  if (!Number.isInteger(perModel) || perModel < 1)
+    throw new Error("--per-model-concurrency must be a positive integer");
+
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, "", "utf8");
   const rows: RunReceipt[] = [];
-  for (const model of models) {
-    for (const arm of arms) {
-      for (const item of cases) {
-        console.log(`${model} | ${arm} | ${item.id}`);
-        const row = await runCase(item, model, effort, arm, timeoutMs);
-        rows.push(row);
-        appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
-        console.log(
-          `  ${row.status} ${(row.latency_ms / 1_000).toFixed(1)}s ` +
-            `F1=${row.target_token_f1.toFixed(2)} ` +
-            `${row.error ?? row.legal_evidence_receipt?.status ?? ""}`,
-        );
-      }
-    }
-  }
+  const cells = models.flatMap((model) =>
+    arms.flatMap((arm) => cases.map((item) => ({ model, arm, item }))),
+  );
+  await runPool(cells, concurrency, perModel, async (cell) => {
+    console.log(`start | ${cell.model} | ${cell.arm} | ${cell.item.id}`);
+    const row = await runCase(
+      cell.item,
+      cell.model,
+      effort,
+      cell.arm,
+      timeoutMs,
+    );
+    rows.push(row);
+    appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
+    console.log(
+      `done  | ${cell.model} | ${cell.arm} | ${cell.item.id} | ` +
+        `${row.status} ${(row.latency_ms / 1_000).toFixed(1)}s ` +
+        `F1=${row.target_token_f1.toFixed(2)} ` +
+        `${row.error ?? row.legal_evidence_receipt?.status ?? ""}`,
+    );
+  });
   printSummary(rows);
   console.log(`\nprivate receipts: ${output}`);
 }
