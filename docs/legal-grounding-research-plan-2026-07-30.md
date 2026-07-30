@@ -82,6 +82,22 @@ and Data Portraits (Bloom membership, the base under QUIP-Score); the
 sqlite trigram index ships only as an explicitly-marked interim behind
 the corpusAlienness() seam.
 
+US-MATERIALS DIRECTIVE (2026-07-30, Eli): build and validate every
+idea, to some scale, against US materials as well as Canadian —
+benchmarks, labeled corpora, and the research literature centre on US
+law, so US validation is where external evidence lives. Canadian law
+remains the main goal; US validation is a requirement, not a pivot.
+First concrete act: set up the RegLab expert labels PROPERLY —
+retrieve the sources their responses actually cite so the
+source-anchored features (claim vs its own purported source) can run
+on expert labels instead of only the source-free screens.
+`fetch_reglab_sources.py`: eyecite extraction (CourtListener's own
+parser; base-repos rule) over the 208 labeled responses → 711 case
+mentions / 442 distinct citations (57 responses cite no cases —
+statute-only, coverage reported honestly) → CourtListener
+citation-lookup + opinion fetch, cached with hashes under
+`misgrounding-corpus/us_sources/`.
+
 EXTERNAL VALIDATION — NEGATIVE RESULT (2026-07-30, RegLab slice of the
 misgrounding corpus, 174 grounded vs 32 misgrounded/ungrounded
 expert-labeled responses): the word-trigram alienness signal INVERTED
