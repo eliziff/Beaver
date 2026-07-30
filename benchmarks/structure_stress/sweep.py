@@ -127,91 +127,15 @@ from structure_ref import law_section_labels, structure_cascade  # noqa: E402
 PILCROW_RE = re.compile(r"¶\s?\d")
 ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
 
-_ENTRIES: list[
-    tuple[str, "re.Pattern[str]", list[str] | None, list[str] | None, int]
-] = []
-
-try:  # the private home since 3.11; sre_parse is the deprecated alias
-    from re import _parser as _sre_parser  # type: ignore[attr-defined]
-except ImportError:  # pragma: no cover
-    import sre_parse as _sre_parser  # type: ignore[no-redef]
-
-_GATE_MIN_LEN = 3
-_GATE_MAX_ALTERNATIVES = 12
-
-
-def _literal_candidates(nodes) -> list[list[str]]:
-    """Candidate OR-sets of mandatory lowercase literals for a parsed regex
-    sequence: every match of the sequence must contain at least one literal
-    from each returned set. Sound by construction — only nodes that appear
-    in every match contribute; optional/lookaround/class nodes just break
-    the current literal run."""
-    candidates: list[list[str]] = []
-    run: list[str] = []
-
-    def flush() -> None:
-        if len("".join(run)) >= _GATE_MIN_LEN:
-            candidates.append(["".join(run)])
-        run.clear()
-
-    for op, av in nodes:
-        opname = str(op).rsplit(".", 1)[-1]
-        if opname == "LITERAL":
-            run.append(chr(av).lower())
-            continue
-        flush()
-        if opname == "SUBPATTERN":
-            candidates.extend(_literal_candidates(av[3]))
-        elif opname in {"MAX_REPEAT", "MIN_REPEAT", "POSSESSIVE_REPEAT"}:
-            if av[0] >= 1:
-                candidates.extend(_literal_candidates(av[2]))
-        elif opname == "BRANCH":
-            union: list[str] = []
-            for alternative in av[1]:
-                alt_sets = _literal_candidates(alternative)
-                if not alt_sets:
-                    union = []
-                    break
-                union.extend(
-                    max(alt_sets, key=lambda s: min(len(lit) for lit in s))
-                )
-            if union:
-                candidates.append(union)
-    flush()
-    return candidates
-
-
-def _derive_gate(rx: "re.Pattern[str]") -> list[str] | None:
-    """Best mandatory-literal OR-set for a compiled pattern, or None."""
-    try:
-        nodes = _sre_parser.parse(rx.pattern, rx.flags)
-    except Exception:
-        return None
-    usable = [
-        sorted(set(candidate))
-        for candidate in _literal_candidates(nodes)
-        if len(set(candidate)) <= _GATE_MAX_ALTERNATIVES
-        and all(len(literal) >= _GATE_MIN_LEN for literal in candidate)
-    ]
-    if not usable:
-        return None
-    return max(usable, key=lambda c: (min(len(lit) for lit in c), -len(c)))
-
-
-_ANCHOR_MAX_WIDTH = 4000
-_ANCHOR_MAX_ALTERNATIVES = 48
-_ANCHOR_MIN_LEN = 2
-# Entries whose windowed counts diverged from full scans in
-# shard_gate_check: full-scan only.
-_NO_ANCHOR: set[str] = set()
-# Unbounded repeats (\s+, \d+, ...) get an assumed span instead of a
-# refusal. This makes the window pad a HEURISTIC bound, not a proof —
-# exactly the epistemic class of the hand PREFILTERS, and covered the same
-# way: shard_gate_check asserts windowed counts == full-scan counts over
-# the reservoir sample before every launch, and _count_matches falls back
-# to a full scan whenever a window match touches its boundary (the
-# clipped-shorter-match case).
-_ASSUMED_REPEAT_SPAN = 64
+# The anchored-scan machinery (derived gates, anchor windows with the
+# clip-guard and coverage bailout) lives in the engine now — the private
+# copy that used to sit here was extracted to legalpdf/anchored_scan.py
+# (engine 2821387) and its consumers adopted it (engine 9e72346). The
+# sweep keeps only its consumer obligations: the hand anchor sets below,
+# PREFILTER gate precedence, and probes/shard_gate_check.py's zero-
+# tolerance windowed-vs-full reservoir differential before every launch.
+# Entries are (id, AnchoredPattern, gate).
+_ENTRIES: list[tuple[str, object, list[str] | None]] = []
 
 # Per-match-mandatory literal sets read off the pattern alternations by
 # hand where the AST walk bottoms out (heads hidden behind expanded
@@ -244,166 +168,9 @@ _HAND_ANCHORS: dict[str, list[str]] = {
 }
 
 
-def _node_max_width(nodes) -> int | None:
-    """Upper bound on characters a parsed sequence can consume, with
-    unbounded repeats assumed to span <= max(64, 4x unit). Lookaround
-    content counts as consuming (over-estimate keeps the window pad safe);
-    AT nodes count 1 because \\b consults one neighbouring char.
-    None = an op we refuse to reason about."""
-    total = 0
-    for op, av in nodes:
-        opname = str(op).rsplit(".", 1)[-1]
-        if opname in {"LITERAL", "NOT_LITERAL", "IN", "ANY", "AT"}:
-            total += 1
-        elif opname == "SUBPATTERN":
-            width = _node_max_width(av[3])
-            if width is None:
-                return None
-            total += width
-        elif opname == "ATOMIC_GROUP":
-            width = _node_max_width(av)
-            if width is None:
-                return None
-            total += width
-        elif opname in {"MAX_REPEAT", "MIN_REPEAT", "POSSESSIVE_REPEAT"}:
-            width = _node_max_width(av[2])
-            if width is None:
-                return None
-            if av[1] == _sre_parser.MAXREPEAT:
-                # Assumed span, capped: nested unbounded repeats otherwise
-                # compound (4x of 4x of ...) into widths that disqualify
-                # the whole pattern. A repeat's real-text span does not
-                # grow with its syntactic nesting depth.
-                total += min(
-                    max(_ASSUMED_REPEAT_SPAN, 4 * width),
-                    4 * _ASSUMED_REPEAT_SPAN,
-                )
-            else:
-                # Bounded repeats are exact arithmetic — never cap them.
-                # (A cap here clipped signal.source's {0,100} tail and the
-                # clipped regex failed entirely inside its window, which
-                # the edge clip-guard cannot see. 133 reservoir mismatches.)
-                total += av[1] * width
-        elif opname in {"ASSERT", "ASSERT_NOT"}:
-            width = _node_max_width(av[1])
-            if width is None:
-                return None
-            total += width
-        elif opname == "BRANCH":
-            widths = [_node_max_width(alt) for alt in av[1]]
-            if any(w is None for w in widths):
-                return None
-            total += max(widths)
-        else:  # GROUPREF etc.: typed refusal, not a guess
-            return None
-    return total
-
-
-def _derive_anchor(rx: "re.Pattern[str]") -> tuple[list[str], int] | None:
-    """(anchor OR-set, window pad) for windowed scanning, or None.
-
-    Every match contains at least one anchor literal (same soundness
-    argument as _derive_gate: mandatory nodes only, lowercased search over
-    lowered text over-finds and never under-finds), and the whole match
-    plus its lookaround context spans at most `pad` chars. So every match
-    lies inside [hit - pad, hit + pad + 1] of some anchor hit, and the
-    regex only needs to run inside those windows."""
-    try:
-        nodes = _sre_parser.parse(rx.pattern, rx.flags)
-    except Exception:
-        return None
-    width = _node_max_width(nodes)
-    if width is None or width > _ANCHOR_MAX_WIDTH:
-        return None
-    usable = [
-        sorted(set(candidate))
-        for candidate in _literal_candidates(nodes)
-        if len(set(candidate)) <= _ANCHOR_MAX_ALTERNATIVES
-        and all(len(literal) >= _ANCHOR_MIN_LEN for literal in candidate)
-    ]
-    if not usable:
-        return None
-    anchors = max(usable, key=lambda c: (min(len(lit) for lit in c), -len(c)))
-    return anchors, width
-
-
-def _entry_anchor(
-    eid: str, rx: "re.Pattern[str]"
-) -> tuple[list[str], int] | None:
-    """Anchor set for an entry: AST-derived when possible, else the hand
-    PREFILTER literals. Hand literals are per-DOC heuristics promoted to
-    per-MATCH anchors — covered by shard_gate_check's zero-tolerance
-    windowed-vs-full differential over the reservoir, and by the boundary
-    clip-guard in _count_matches. Entries in _NO_ANCHOR opted out after a
-    probe mismatch."""
-    if eid in _NO_ANCHOR:
-        return None
-    derived = _derive_anchor(rx)
-    if derived is not None:
-        return derived
-    hand = _HAND_ANCHORS.get(eid) or PREFILTERS.get(eid)
-    if not hand:
-        return None
-    try:
-        nodes = _sre_parser.parse(rx.pattern, rx.flags)
-    except Exception:
-        return None
-    width = _node_max_width(nodes)
-    if width is None or width > _ANCHOR_MAX_WIDTH:
-        return None
-    return list(hand), width
-
-
-def _count_matches(
-    rx: "re.Pattern[str]",
-    text: str,
-    lower: str,
-    anchors: list[str],
-    pad: int,
-) -> int:
-    """Count of rx matches in text, scanning only merged windows around
-    anchor hits. Equivalent to full finditer (probe-proven): windows are
-    disjoint, every match lies wholly inside one, and finditer's
-    pos/endpos keep \\b and lookbehind context (unlike slicing)."""
-    hits: list[int] = []
-    for lit in anchors:
-        i = lower.find(lit)
-        while i >= 0:
-            hits.append(i)
-            i = lower.find(lit, i + 1)
-    if not hits:
-        return 0
-    hits.sort()
-    # Merge into disjoint windows and measure REAL coverage — anchor hits
-    # cluster (citations sit in dense runs), so merged coverage is far
-    # below the naive 2*pad*len(hits) estimate.
-    windows: list[tuple[int, int]] = []
-    lo = hits[0] - pad
-    hi = hits[0] + pad + 1
-    for h in hits[1:]:
-        if h - pad <= hi:
-            hi = h + pad + 1
-        else:
-            windows.append((max(0, lo), hi))
-            lo, hi = h - pad, h + pad + 1
-    windows.append((max(0, lo), hi))
-    end = len(text)
-    if sum(w_hi - w_lo for w_lo, w_hi in windows) > 0.6 * end:
-        # Windows cover most of the doc; full scan is cheaper.
-        return sum(1 for _ in rx.finditer(text))
-    n = 0
-    for w_lo, w_hi in windows:
-        for m in rx.finditer(text, w_lo, min(w_hi, end)):
-            if m.end() >= w_hi - 1 and w_hi < end:
-                # Match touches the window edge: the pad (heuristic for
-                # unbounded repeats) may have clipped it. Full scan.
-                return sum(1 for _ in rx.finditer(text))
-            n += 1
-    return n
-
-
-def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
+def _load_entries() -> list[tuple[str, object, list[str] | None]]:
     sys.path.insert(0, str(ENGINE_SRC))
+    from legalpdf.anchored_scan import AnchoredPattern  # noqa: PLC0415
     from legalpdf.grammar_tables import compile_entry  # noqa: PLC0415
 
     entries = []
@@ -414,9 +181,12 @@ def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
             if entry["id"] in SHORT_STRING_ENTRIES:
                 continue
             rx = compile_entry(entry, defs)
-            gate = PREFILTERS.get(entry["id"]) or _derive_gate(rx)
-            anchors, pad = _entry_anchor(entry["id"], rx) or (None, 0)
-            entries.append((entry["id"], rx, gate, anchors, pad))
+            hand = _HAND_ANCHORS.get(entry["id"]) or PREFILTERS.get(entry["id"])
+            pattern = AnchoredPattern(rx, hand)
+            # Hand gates keep precedence over derived ones: PREFILTER
+            # literals were tuned per-DOC and gate more away.
+            gate = PREFILTERS.get(entry["id"]) or pattern.gate
+            entries.append((entry["id"], pattern, gate))
     return entries
 
 
@@ -441,18 +211,14 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         oracle["truncated_from"] = len(text)
         text = text[:MAX_DOC_CHARS]
     lower = text.lower()
-    # .lower() can change length in unicode edge cases (e.g. 'İ' -> 2
-    # chars); anchor offsets would misalign, so windowing needs equal
-    # lengths — otherwise fall back to full scans for this doc.
-    windowable = len(lower) == len(text)
     matches: dict[str, int] = {}
-    for eid, rx, gates, anchors, pad in _ENTRIES:
+    for eid, pattern, gates in _ENTRIES:
         if gates is not None and not any(g in lower for g in gates):
             continue
-        if anchors is not None and windowable:
-            n = _count_matches(rx, text, lower, anchors, pad)
-        else:
-            n = sum(1 for _ in rx.finditer(text))
+        # The engine handle windows around anchor hits and falls back to
+        # a full scan itself (small text, .lower() length drift, dense
+        # anchors, window-edge clip) — same counts as a bare finditer.
+        n = sum(1 for _ in pattern.finditer(text, lower))
         if n:
             matches[eid] = n
 

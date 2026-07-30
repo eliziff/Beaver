@@ -53,10 +53,10 @@ def check_gates(jobs) -> None:
     entries = sweep._ENTRIES
     derived = [
         (eid, gate)
-        for eid, _, gate, _, _ in entries
+        for eid, _, gate in entries
         if gate is not None and eid not in sweep.PREFILTERS
     ]
-    anchored = sum(1 for e in entries if e[3] is not None)
+    anchored = sum(1 for _eid, p, _g in entries if p.anchors is not None)
     print(
         f"entries={len(entries)} "
         f"hand-gated={sum(1 for e in entries if e[0] in sweep.PREFILTERS and e[2])} "
@@ -64,9 +64,9 @@ def check_gates(jobs) -> None:
     )
     for eid, gate in derived:
         print(f"  derived {eid:32s} {gate}")
-    for eid, _, _, anchors, pad in entries:
-        if anchors is not None:
-            print(f"  anchor  {eid:32s} pad={pad:4d} {anchors}")
+    for eid, pattern, _gate in entries:
+        if pattern.anchors is not None:
+            print(f"  anchor  {eid:32s} pad={pattern.pad:4d} {pattern.anchors}")
 
     misses = 0
     window_mismatches = 0
@@ -75,10 +75,9 @@ def check_gates(jobs) -> None:
     for _id, _kind, text, _o in jobs:
         text = text[: sweep.MAX_DOC_CHARS]
         lower = text.lower()
-        windowable = len(lower) == len(text)
-        for eid, rx, gate, anchors, pad in entries:
+        for eid, pattern, gate in entries:
             t0 = time.perf_counter()
-            n = sum(1 for _ in rx.finditer(text))
+            n = sum(1 for _ in pattern.rx.finditer(text))
             t_ungated += time.perf_counter() - t0
             passes = gate is None or any(g in lower for g in gate)
             if not passes:
@@ -89,10 +88,7 @@ def check_gates(jobs) -> None:
             # Time the REAL production path: gate check + windowed count.
             t0 = time.perf_counter()
             if passes:
-                if anchors is not None and windowable:
-                    n_new = sweep._count_matches(rx, text, lower, anchors, pad)
-                else:
-                    n_new = sum(1 for _ in rx.finditer(text))
+                n_new = sum(1 for _ in pattern.finditer(text, lower))
             else:
                 n_new = 0
             t_new += time.perf_counter() - t0
@@ -100,7 +96,8 @@ def check_gates(jobs) -> None:
                 window_mismatches += 1
                 print(
                     f"  WINDOW MISMATCH: {eid} on {_id} "
-                    f"(full={n}, windowed={n_new}, pad={pad}, anchors={anchors})"
+                    f"(full={n}, windowed={n_new}, pad={pattern.pad}, "
+                    f"anchors={pattern.anchors})"
                 )
     mb = sum(len(j[2]) for j in jobs) / 1e6
     print(
