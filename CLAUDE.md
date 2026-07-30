@@ -13,7 +13,10 @@ The five rules that prevent the most damage:
    headless `claude -p`); the `backend/.env` Anthropic key is a stub.
 4. Check local data before the network: A2AJ bulk corpus at
    `%LOCALAPPDATA%\ALR Quote Verifier\a2aj_corpus`, gold under
-   `Desktop/legal-generalization-corpus`.
+   `Desktop/legal-generalization-corpus`. US case law is local too:
+   CourtListener bulk sqlite (5.5 GB) under
+   `%LOCALAPPDATA%\OpenLegalProducts\LegalData\providers\courtlistener\`
+   via `courtlistenerLocalBulk.ts`.
 5. Prefer typed refusals over best-effort guesses in deterministic
    tools; the model handles residual semantics over bounded excerpts,
    never whole documents.
