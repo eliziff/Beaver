@@ -76,13 +76,25 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument("--corpus-root", default=str(default_corpus_root()))
     parser.add_argument("--output-dir", default=str(default_output_dir()))
+    parser.add_argument(
+        "--jsonl",
+        default=None,
+        help="build from a jsonl of {'text', ...} rows (e.g. the US "
+        "reference from build_us_reference.py) instead of the A2AJ corpus",
+    )
+    parser.add_argument(
+        "--suffix",
+        default="",
+        help="output name suffix: trigrams-<language><suffix>.sqlite "
+        "(e.g. '-us' for the jurisdiction-matched US reference)",
+    )
     args = parser.parse_args()
 
     root = Path(args.corpus_root)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"trigrams-{args.language}.sqlite"
-    temporary = out_dir / f"trigrams-{args.language}.building.sqlite"
+    out_path = out_dir / f"trigrams-{args.language}{args.suffix}.sqlite"
+    temporary = out_dir / f"trigrams-{args.language}{args.suffix}.building.sqlite"
     if temporary.exists():
         temporary.unlink()
 
@@ -116,12 +128,27 @@ def main() -> int:
         manifest[source] = taken
         print(f"[{source}] docs={taken} distinct={len(counts)}", flush=True)
 
-    for pq in sorted(root.glob("cases/*/train.parquet")):
-        ingest(pq, f"cases/{pq.parent.name}", args.per_court,
-               f"unofficial_text_{args.language}")
-    for pq in sorted(root.glob("laws/*/train.parquet")):
-        ingest(pq, f"laws/{pq.parent.name}", args.per_set,
-               f"unofficial_text_{args.language}")
+    if args.jsonl:
+        for line in open(args.jsonl, encoding="utf-8"):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            text = row.get("text") or ""
+            if not text:
+                continue
+            counts.update(trigram_hashes(text))
+            docs += 1
+            chars += len(text)
+            source = f"jsonl/{row.get('reporter') or 'unknown'}"
+            manifest[source] = manifest.get(source, 0) + 1
+        print(f"[jsonl] docs={docs} distinct={len(counts)}", flush=True)
+    else:
+        for pq in sorted(root.glob("cases/*/train.parquet")):
+            ingest(pq, f"cases/{pq.parent.name}", args.per_court,
+                   f"unofficial_text_{args.language}")
+        for pq in sorted(root.glob("laws/*/train.parquet")):
+            ingest(pq, f"laws/{pq.parent.name}", args.per_set,
+                   f"unofficial_text_{args.language}")
 
     db = sqlite3.connect(temporary)
     db.execute("pragma journal_mode=off")
@@ -136,6 +163,7 @@ def main() -> int:
     )
     meta = {
         "schema_version": SCHEMA_VERSION,
+        "input": args.jsonl or "a2aj_corpus",
         "language": args.language,
         "seed": str(args.seed),
         "per_court": str(args.per_court),
