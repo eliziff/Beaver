@@ -31,6 +31,7 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "holistic_check",
   "tiered_check",
   "quote_first",
+  "attested_framing",
 ] as const;
 
 export type LegalEvidenceExperimentMode =
@@ -183,7 +184,7 @@ export function createA2AJDocumentEvidence(
     source_sha256: sha256(sourceText),
     scope: "document",
     block_id: "document",
-    span_sha256: sha256(normalizeWhitespace(document.text)),
+    span_sha256: sha256(normalizeWhitespace(sourceText)),
     span_text: null,
     citation: document.citation,
     name: document.name,
@@ -292,14 +293,20 @@ export function attestedCharacterizationReceipt(args: {
     citingCourt: string | null;
     citingDate: string | null;
     spanSha256: string;
+    /** "case" (default; a citing court's prose) or "commentary" (a
+     * journal footnote's editor-verified proposition). */
+    sourceKind?: "case" | "commentary";
+    journalName?: string | null;
   };
   jurisdiction?: string;
   language?: "en" | "fr";
 }): LegalEvidenceReceipt {
-  const citing =
-    args.characterization.citingCitation ??
-    args.characterization.citingName ??
-    "unknown citing case";
+  const commentary = args.characterization.sourceKind === "commentary";
+  const citing = commentary
+    ? (args.characterization.journalName ?? "journal commentary")
+    : (args.characterization.citingCitation ??
+      args.characterization.citingName ??
+      "unknown citing case");
   return {
     evidence_id: evidenceId(),
     provider: "citator",
@@ -313,21 +320,34 @@ export function attestedCharacterizationReceipt(args: {
     span_text: args.characterization.text,
     citation: args.citedCitation,
     name: args.characterization.citingName,
-    dataset: "citator",
+    dataset: commentary ? "journal-commentary" : "citator",
     language: args.language ?? "en",
     version: args.characterization.citingDate,
     external_url: null,
     locator: {
       kind: "document",
-      label: `as characterized by ${citing}${
-        args.characterization.citingCourt
-          ? ` (${args.characterization.citingCourt})`
-          : ""
-      }`,
+      label: commentary
+        ? `as characterized in ${citing}`
+        : `as characterized by ${citing}${
+            args.characterization.citingCourt
+              ? ` (${args.characterization.citingCourt})`
+              : ""
+          }`,
     },
     resolver_version: "citator-standsfor-v1",
   };
 }
+
+/**
+ * Deterministic stands-for lexicon (Stage 8, frozen): language that
+ * characterizes what an authority stands for rather than reporting its
+ * words. A claim matching this while citing case evidence must clear
+ * the widened verbatim tier under attested_framing — the lexicon reuses
+ * the abstraction vocabulary the overreach stages measured plus the
+ * characterization verb frames.
+ */
+export const STANDS_FOR_LANGUAGE_RE =
+  /\b(?:stands?\s+for|is\s+authority\s+for|(?:held|holds?|holding)\s+that|establish(?:es|ed|ing)?\b|recogni[sz](?:es|ed|ing)\s+that|confirm(?:s|ed|ing)\s+that|represents?\s+the\s+(?:proposition|principle)|settl(?:es|ed|ing)\s+the\s+law|leading\s+(?:case|authority)|landmark\s+(?:case|decision)|doctrine|framework|regime|governs?\b|regulat(?:es|ed|ing)|codif(?:ies|ied|ying))\b/iu;
 
 export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
@@ -498,10 +518,37 @@ export function submitLegalEvidenceAnswer(
   // conclusion claim must be a verbatim quotation of its cited passage
   // (the same tier that later renders them checker-free). The rejection
   // names the offending claims so the model can requote and retry.
-  if (state.mode === "quote_first" && !errors.length) {
+  // attested_framing (Stage 8 / H12) inherits that contract and closes
+  // its residual: the one paraphrase allowance never covers stands-for
+  // language about a case — such claims must clear the WIDENED tier
+  // (verbatim in the cited passage or an attested characterization
+  // named in their evidence_ids), or be replaced by a typed statement.
+  if (
+    (state.mode === "quote_first" || state.mode === "attested_framing") &&
+    !errors.length
+  ) {
     const support = parsed.claims.map((claim) =>
       deterministicClaimSupport(claim, state),
     );
+    if (state.mode === "attested_framing") {
+      const standsFor = parsed.claims.flatMap((claim, index) =>
+        !support[index] &&
+        STANDS_FOR_LANGUAGE_RE.test(claim.text) &&
+        claim.evidence_ids.some(
+          (id) => state.evidence.get(id)?.receipt.source_class === "case",
+        )
+          ? [index]
+          : [],
+      );
+      if (standsFor.length) {
+        return {
+          ok: false,
+          errors: [
+            `claims ${standsFor.join(", ")} characterize case law (stands-for language) without verbatim support: quote the cited passage or an attested characterization named in evidence_ids exactly, or state that no attested characterization is available`,
+          ],
+        };
+      }
+    }
     const nonVerbatim = support.flatMap((ok, index) => (ok ? [] : [index]));
     if (nonVerbatim.length > 1) {
       return {
@@ -755,7 +802,8 @@ export function legalEvidenceExperimentTools(
     mode === "compose_check" ||
     mode === "holistic_check" ||
     mode === "tiered_check" ||
-    mode === "quote_first"
+    mode === "quote_first" ||
+    mode === "attested_framing"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (mode === "evidence_first")
@@ -901,7 +949,11 @@ export function deterministicClaimSupport(
 
 function allClaimsSupported(state: LegalEvidenceTurnState) {
   if (state.mode === "citation_structure") return Boolean(state.answer);
-  if (state.mode === "tiered_check" || state.mode === "quote_first")
+  if (
+    state.mode === "tiered_check" ||
+    state.mode === "quote_first" ||
+    state.mode === "attested_framing"
+  )
     return (
       Boolean(state.answer) &&
       (state.deterministicSupport?.every(Boolean) === true ||
@@ -1134,7 +1186,11 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   if (state.mode === "citation_structure")
     return { passed: true, modelCalls, usage, diagnostic: null };
 
-  if (state.mode === "tiered_check" || state.mode === "quote_first") {
+  if (
+    state.mode === "tiered_check" ||
+    state.mode === "quote_first" ||
+    state.mode === "attested_framing"
+  ) {
     state.deterministicSupport = state.answer.map((claim) =>
       deterministicClaimSupport(claim, state),
     );
