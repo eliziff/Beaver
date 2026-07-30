@@ -74,6 +74,16 @@ decision's own citation ("Neutral citation\n2019 SCC 67"), which would give
 nearly every case a spurious edge to itself. A case's own keys are the
 citation_lookup_key of its citation_en/citation2_en/citation_fr/citation2_fr.
 
+PROVIDER GRAPH, MINER AS DIFFERENTIAL: the corpus rows carry a curated
+citation graph (cases_cited_en/_fr, cases_citing_en/_fr - lists of neutral
+citations; 64% of case rows have a non-empty cited list, ~1.0M cited edges
+corpus-wide, probed 2026-07-30). Those columns are stored verbatim in
+provider_edge as the node-level authority; the regex miner keeps supplying
+what the lists cannot (paragraph anchors, offsets, pinpoints, excerpts),
+and the build measures the two against each other per doc
+(provider_keys_mined_confirmed / provider_keys_unmined /
+mined_keys_unlisted in meta) instead of reconciling them.
+
 Output SQLite schema (read by backend/src/lib/caselawCitator.ts; the build
 writes <output>.new then os.replace's it, mirroring import_a2aj_hansard.py):
   meta(key, value)
@@ -82,6 +92,9 @@ writes <output>.new then os.replace's it, mirroring import_a2aj_hansard.py):
   edge(id, cited_key, cited_citation, cited_short, case_id, paragraph,
        text_offset, pinpoints, excerpt)            -- one row per occurrence
   resolution(cited_key, path, file_row_number, exact_value)
+  case_key(case_id, citation_key)                  -- each case's own keys
+  provider_edge(id, case_id, direction, citation, citation_key)
+                                                   -- curated lists, verbatim
 """
 from __future__ import annotations
 
@@ -360,6 +373,7 @@ CORPUS_COLUMNS = (
     "dataset", "citation_en", "citation_fr", "citation2_en", "citation2_fr",
     "name_en", "name_fr", "document_date_en", "document_date_fr",
     "url_en", "url_fr", "unofficial_text_en", "unofficial_text_fr",
+    "cases_cited_en", "cases_cited_fr", "cases_citing_en", "cases_citing_fr",
 )
 
 
@@ -487,11 +501,23 @@ def iso_date(value: Any) -> str | None:
     return None
 
 
+def provider_list(row: dict[str, Any], base: str, language: str) -> list[str]:
+    """The provider-curated citation list, preferring the language whose text
+    was scanned; the other language only when that column is absent (None).
+    An empty list is provider data ("no citations"), not absence."""
+    for candidate in (language, "fr" if language == "en" else "en"):
+        value = row.get(f"{base}_{candidate}")
+        if value is not None:
+            return [text for item in value if (text := clean(item))]
+    return []
+
+
 def mapped_case(row: dict[str, Any]) -> dict[str, Any] | None:
     english = clean(row.get("unofficial_text_en"))
     text = english or clean(row.get("unofficial_text_fr"))
     if not text:
         return None
+    language = "en" if english else "fr"
     own_keys = {
         key
         for field in ("citation_en", "citation2_en", "citation_fr", "citation2_fr")
@@ -506,9 +532,11 @@ def mapped_case(row: dict[str, Any]) -> dict[str, Any] | None:
         "name": clean(row.get("name_en")) or clean(row.get("name_fr")),
         "date": iso_date(row.get("document_date_en")) or iso_date(row.get("document_date_fr")),
         "url": clean(row.get("url_en")) or clean(row.get("url_fr")),
-        "language": "en" if english else "fr",
+        "language": language,
         "text": text,
         "own_keys": own_keys,
+        "provider_cited": provider_list(row, "cases_cited", language),
+        "provider_citing": provider_list(row, "cases_citing", language),
     }
 
 
@@ -603,6 +631,18 @@ CREATE TABLE resolution (
     file_row_number INTEGER NOT NULL,
     exact_value TEXT NOT NULL
 );
+CREATE TABLE case_key (
+    case_id INTEGER NOT NULL REFERENCES case_doc(id),
+    citation_key TEXT NOT NULL,
+    PRIMARY KEY (case_id, citation_key)
+) WITHOUT ROWID;
+CREATE TABLE provider_edge (
+    id INTEGER PRIMARY KEY,
+    case_id INTEGER NOT NULL REFERENCES case_doc(id),
+    direction TEXT NOT NULL CHECK (direction IN ('cited', 'citing')),
+    citation TEXT NOT NULL,
+    citation_key TEXT NOT NULL
+);
 """
 
 INDEXES = """
@@ -611,6 +651,9 @@ CREATE INDEX edge_case_idx ON edge(case_id);
 CREATE INDEX case_doc_citation_idx ON case_doc(citation);
 CREATE INDEX resolution_key_idx ON resolution(cited_key);
 CREATE INDEX resolution_target_idx ON resolution(path, file_row_number);
+CREATE INDEX case_key_key_idx ON case_key(citation_key);
+CREATE INDEX provider_edge_key_idx ON provider_edge(citation_key, direction);
+CREATE INDEX provider_edge_case_idx ON provider_edge(case_id);
 """
 
 
@@ -648,10 +691,21 @@ def build(args: argparse.Namespace) -> None:
         "case_citation_occurrences": 0,
         "self_citations_skipped": 0,
         "edges": 0,
+        "provider_cited_docs": 0,
+        "provider_cited_edges": 0,
+        "provider_citing_edges": 0,
+        # Miner-vs-provider differential over docs with a curated cited list:
+        # the provider column is the node-level authority; the mined edges
+        # carry the occurrence evidence. Divergence is measured, never patched.
+        "provider_keys_mined_confirmed": 0,
+        "provider_keys_unmined": 0,
+        "mined_keys_unlisted": 0,
     }
     kind_totals: dict[str, int] = {}
     seen_identities: set[str] = set()
     edge_batch: list[tuple[Any, ...]] = []
+    provider_batch: list[tuple[Any, ...]] = []
+    case_key_batch: list[tuple[int, str]] = []
 
     def flush_edges() -> None:
         if edge_batch:
@@ -662,6 +716,18 @@ def build(args: argparse.Namespace) -> None:
                 edge_batch,
             )
             edge_batch.clear()
+        if provider_batch:
+            connection.executemany(
+                "INSERT INTO provider_edge (case_id, direction, citation,"
+                " citation_key) VALUES (?, ?, ?, ?)",
+                provider_batch,
+            )
+            provider_batch.clear()
+        if case_key_batch:
+            connection.executemany(
+                "INSERT OR IGNORE INTO case_key VALUES (?, ?)", case_key_batch
+            )
+            case_key_batch.clear()
 
     try:
         connection.executescript(
@@ -690,11 +756,13 @@ def build(args: argparse.Namespace) -> None:
             paragraphs = paragraph_index(text)
             case_id = counters["cases_indexed"] + 1
             case_edges = 0
+            mined_keys: set[str] = set()
             for occurrence in occurrences:
                 counters["case_citation_occurrences"] += 1
                 if occurrence["key"] in case["own_keys"]:
                     counters["self_citations_skipped"] += 1
                     continue
+                mined_keys.add(occurrence["key"])
                 edge_batch.append((
                     occurrence["key"],
                     occurrence["citation"],
@@ -708,6 +776,29 @@ def build(args: argparse.Namespace) -> None:
                 case_edges += 1
                 if len(edge_batch) >= 1_000:
                     flush_edges()
+            case_key_batch.extend((case_id, key) for key in case["own_keys"])
+            for direction in ("cited", "citing"):
+                for citation in case[f"provider_{direction}"]:
+                    key = citation_lookup_key(citation)
+                    if not key:
+                        continue
+                    provider_batch.append((case_id, direction, citation, key))
+                    counters[f"provider_{direction}_edges"] += 1
+            if case["provider_cited"]:
+                counters["provider_cited_docs"] += 1
+                provider_keys = {
+                    key for citation in case["provider_cited"]
+                    if (key := citation_lookup_key(citation))
+                }
+                counters["provider_keys_mined_confirmed"] += len(
+                    provider_keys & mined_keys
+                )
+                counters["provider_keys_unmined"] += len(
+                    provider_keys - mined_keys
+                )
+                counters["mined_keys_unlisted"] += len(
+                    mined_keys - provider_keys
+                )
             connection.execute(
                 "INSERT INTO case_doc (id, path, file_row_number, citation, citation2,"
                 " name, court, date, url, language, occurrence_count)"
@@ -746,7 +837,7 @@ def build(args: argparse.Namespace) -> None:
         connection.executescript(INDEXES)
         resolution_keys = len({row[0] for row in resolution_rows})
         metadata = {
-            "schema_version": "1",
+            "schema_version": "2",
             "built_at": datetime.now(timezone.utc).isoformat(),
             "source": source,
             "inputs": ", ".join(inputs),
@@ -787,6 +878,13 @@ def build(args: argparse.Namespace) -> None:
             f"  self-citations skipped:  {counters['self_citations_skipped']:,}\n"
             f"  edges written:           {counters['edges']:,}\n"
             f"  distinct cited keys:     {distinct_cited:,}\n"
+            f"  provider cited edges:    {counters['provider_cited_edges']:,} "
+            f"({counters['provider_cited_docs']:,} docs)\n"
+            f"  provider citing edges:   {counters['provider_citing_edges']:,}\n"
+            f"  miner vs provider:       "
+            f"{counters['provider_keys_mined_confirmed']:,} confirmed, "
+            f"{counters['provider_keys_unmined']:,} provider-only, "
+            f"{counters['mined_keys_unlisted']:,} mined-only\n"
             f"  resolution:              {resolution_note} "
             f"({resolved_edge_keys:,} edge keys resolved, "
             f"{resolution_keys:,} alias-closure keys, "

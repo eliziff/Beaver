@@ -40,6 +40,11 @@ CREATE TABLE document (
     unofficial_text_fr TEXT,
     unofficial_sections_en TEXT,
     unofficial_sections_fr TEXT,
+    cases_cited_en TEXT,
+    cases_cited_fr TEXT,
+    cases_citing_en TEXT,
+    cases_citing_fr TEXT,
+    citing_cases_count INTEGER,
     upstream_license TEXT
 );
 CREATE TABLE citation_lookup (
@@ -228,6 +233,13 @@ def document_values(
         field(row, "unofficial_text", "fr"),
         field(row, "unofficial_sections", "en"),
         field(row, "unofficial_sections", "fr"),
+        # Provider-curated citation graph (JSON citation lists) — carried
+        # through so no consumer has to re-mine what the corpus states.
+        field(row, "cases_cited", "en"),
+        field(row, "cases_cited", "fr"),
+        field(row, "cases_citing", "en"),
+        field(row, "cases_citing", "fr"),
+        row.get("citing_cases_count"),
         field(row, "upstream_license"),
     )
     return values, keys
@@ -248,7 +260,7 @@ def import_database(args: argparse.Namespace) -> None:
         if not document_batch:
             return
         connection.executemany(
-            f"INSERT INTO document VALUES ({','.join('?' for _ in range(18))})",
+            f"INSERT INTO document VALUES ({','.join('?' for _ in range(23))})",
             document_batch,
         )
         connection.executemany(
@@ -307,7 +319,7 @@ def import_database(args: argparse.Namespace) -> None:
                 """
             )
         metadata = {
-            "schema_version": "1",
+            "schema_version": "2",
             "imported_at": datetime.now(timezone.utc).isoformat(),
             "fts": "true" if args.fts else "false",
             "file_count": str(len(inputs)),

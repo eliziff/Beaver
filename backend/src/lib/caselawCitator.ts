@@ -50,12 +50,25 @@ export type NoteUpResult = {
   /** every citing case in the graph, not just the page returned */
   total: number;
   entries: NoteUpEntry[];
+  /**
+   * The corpus's own curated citation graph (cases_cited/cases_citing
+   * columns), stored verbatim at build time; null when the graph on disk
+   * predates provider edges (schema 1).
+   */
+  provider: {
+    /** distinct in-corpus cases whose curated cited-list names this citation */
+    citingInCorpus: number;
+    /** citations the corpus records as citing this case - may lie outside the corpus */
+    citingReported: string[];
+  } | null;
 };
 
 export type CitatorGraphStats = {
   cases_indexed: number;
   edges: number;
   distinct_cited: number;
+  /** curated provider_edge rows; null when the graph predates them */
+  provider_edges: number | null;
 };
 
 function citatorDatabasePath() {
@@ -92,6 +105,16 @@ export function citationLookupKey(value: string): string {
  * citation, and so on). Zero or multiple candidate decisions leave the query
  * on the literal key alone.
  */
+function hasProviderEdges(database: DatabaseSync) {
+  return Boolean(
+    database
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'provider_edge'",
+      )
+      .get(),
+  );
+}
+
 function keysForQuery(database: DatabaseSync, key: string): string[] {
   const targets = database
     .prepare(
@@ -176,7 +199,34 @@ export function noteUpCitations(args: {
         excerpt: String(first.excerpt),
       };
     });
-    return { total, entries };
+    let provider: NoteUpResult["provider"] = null;
+    if (hasProviderEdges(database)) {
+      const citingInCorpus = Number(
+        (
+          database
+            .prepare(
+              `SELECT COUNT(DISTINCT case_id) AS n FROM provider_edge
+               WHERE direction = 'cited' AND citation_key IN (${placeholders})`,
+            )
+            .get(...keys) as Row
+        ).n,
+      );
+      const reported = database
+        .prepare(
+          `SELECT DISTINCT provider_edge.citation
+           FROM provider_edge
+           JOIN case_key ON case_key.case_id = provider_edge.case_id
+           WHERE provider_edge.direction = 'citing'
+             AND case_key.citation_key IN (${placeholders})
+           ORDER BY provider_edge.citation LIMIT 50`,
+        )
+        .all(...keys) as Row[];
+      provider = {
+        citingInCorpus,
+        citingReported: reported.map((row) => String(row.citation)),
+      };
+    }
+    return { total, entries, provider };
   });
 }
 
@@ -194,6 +244,12 @@ export function graphStats(): CitatorGraphStats | null {
       cases_indexed: Number(row.cases_indexed),
       edges: Number(row.edges),
       distinct_cited: Number(row.distinct_cited),
+      provider_edges: hasProviderEdges(database)
+        ? Number(
+            (database.prepare("SELECT COUNT(*) AS n FROM provider_edge").get() as Row)
+              .n,
+          )
+        : null,
     };
   });
 }
