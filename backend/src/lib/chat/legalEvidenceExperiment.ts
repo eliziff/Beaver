@@ -901,6 +901,8 @@ async function structuredAnswerPass(args: {
 async function verificationPass(args: {
   state: LegalEvidenceTurnState;
   model: string;
+  /** Run the checker on a different model than the composer (crossed). */
+  checkerModel?: string;
   requestContext?: string;
   originText: string;
   apiKeys?: UserApiKeys;
@@ -908,7 +910,7 @@ async function verificationPass(args: {
   abortSignal?: AbortSignal;
 }) {
   return streamChatWithTools({
-    model: args.model,
+    model: args.checkerModel ?? args.model,
     systemPrompt:
       "Act as a strict contextual grounding checker. First determine each support unit's intended meaning from the request and answer context; context may resolve meaning but is never evidence. Mark changed when a unit asserts more or something different than the originating answer, and ambiguous when its intended meaning cannot be resolved confidently. Then use only the cited passages to classify its entire contextualized meaning as supported, contradicted, or insufficient. Coverage is complete only if the submitted units retain every verifiable proposition in the originating answer. Return no prose and call verify_grounded_claims once.",
     messages: [
@@ -941,13 +943,15 @@ async function verificationPass(args: {
 async function holisticVerificationPass(args: {
   state: LegalEvidenceTurnState;
   model: string;
+  /** Run the checker on a different model than the composer (crossed). */
+  checkerModel?: string;
   requestContext?: string;
   apiKeys?: UserApiKeys;
   reasoningEffort?: string;
   abortSignal?: AbortSignal;
 }) {
   return streamChatWithTools({
-    model: args.model,
+    model: args.checkerModel ?? args.model,
     systemPrompt:
       "Judge the candidate answer holistically against the exact passages. Do not decompose it into claims. Treat all outside knowledge as unavailable. Return supported only when every material assertion is attributable to the passages and the answer covers the substance those passages can answer. Return partially_supported when it mixes supported and unsupported material or materially omits answerable substance. Return unsupported when the passages do not establish the core answer. Ignore style and verbosity. Return no prose and call verify_grounded_answer once.",
     messages: [
@@ -990,6 +994,12 @@ export type LegalEvidenceFinalizationResult = {
 async function finalizeLegalEvidenceExperimentUnsafe(args: {
   state: LegalEvidenceTurnState;
   model: string;
+  /**
+   * Crossed-checker control: verification passes run on this model while
+   * composition (including the compose_check repair pass) stays on the
+   * composer model. Absent means same-model checking.
+   */
+  checkerModel?: string;
   draft: string;
   requestContext?: string;
   apiKeys?: UserApiKeys;
