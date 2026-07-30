@@ -436,6 +436,19 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
     return summary
 
 
+def _below_normal_priority() -> None:
+    """Throttle rule: corpus-scale runs must not fight the foreground.
+    Workers inherit the parent's priority class at spawn."""
+    if sys.platform == "win32":
+        import ctypes  # noqa: PLC0415
+        from ctypes import wintypes  # noqa: PLC0415
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00004000)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tier", choices=["smoke", "dev", "full"], default="smoke")
@@ -449,6 +462,7 @@ def main() -> int:
     parser.add_argument("--langs", default="en,fr")
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
+    _below_normal_priority()
 
     import duckdb  # noqa: PLC0415
 
