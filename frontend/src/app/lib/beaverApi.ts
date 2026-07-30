@@ -350,6 +350,11 @@ export interface LegalSourceViewerPayload {
 }
 export const getLibrary = (kind: LibraryKind) =>
   apiRequest<LibraryCollection>(`/library/${kind}`);
+export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
+  post<{ status: string }>(
+    `/library/${kind}/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
+    {},
+  );
 export const listLegalLibrary = async () =>
   (await apiRequest<{ references: LegalSourceReference[] }>("/library/legal")).references;
 export const getLegalSourceCoverage = async () =>

@@ -1225,6 +1225,32 @@ export async function queueLocalPdfParse(params: {
   return candidate;
 }
 
+/**
+ * Light parse-state summary for library listings: reads the state file
+ * only — no artifact validation, no diagnostics load, no writes — so a
+ * list of N documents costs N stat-reads, not N artifact walks. The full
+ * readLocalPdfParseState stays the source of truth for the per-document
+ * inspector.
+ */
+export async function peekLocalPdfParseState(sourcePath: string) {
+  const state = await readState(sourcePath);
+  if (!state) return null;
+  return {
+    status: state.status,
+    error: state.error ?? null,
+    attempts: state.attempts,
+    queued_at: state.queued_at,
+    updated_at: state.updated_at,
+    completed_at: state.completed_at ?? null,
+    engine_status: state.engine_status ?? null,
+    cache_hit: state.cache_hit ?? false,
+    page_count: state.page_count ?? null,
+    diagnostic_count: state.diagnostic_count ?? null,
+    structural_repair_available: state.structural_repair_available ?? false,
+    flat_text_fallback_available: true as const,
+  };
+}
+
 export async function readLocalPdfParseState(
   sourcePath: string,
   options?: { validatePublication?: boolean },
