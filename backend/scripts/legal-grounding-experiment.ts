@@ -552,7 +552,14 @@ async function runCase(
   const attestedOffer: Record<string, string[]> = {};
   const offeredRankByEvidenceId = new Map<string, number>();
   const newestByCitation: Record<string, string | null> = {};
-  const attestedArm = arm === "attested_framing" || arm === "required_slot";
+  const attestedArm =
+    arm === "attested_framing" ||
+    arm === "required_slot" ||
+    arm === "witness_panel";
+  const slotArm = arm === "required_slot" || arm === "witness_panel";
+  // Stage 10 H18: per-citation profile facts for the witness panel,
+  // built from the SAME standsForProfile call that supplies the offer.
+  const panelFacts: string[] = [];
   if (attestedArm && item.sourceClass === "case") {
     // Benchmark citations carry style-of-cause and pinpoints
     // ("Daignault v. Gueldner, 2007 BCCA 40, para. 14"), but the citator
@@ -569,11 +576,37 @@ async function runCase(
       newestByCitation[citation] = null;
       // H20 cheap selection: the offer is the TOP 3 ranked candidates
       // (Stage 8b offered up to 8 and models bailed on selection).
-      for (const candidate of standsForProfile({
+      const profile = standsForProfile({
         citation,
         size: 3,
         rankPolicy: rankPolicy ?? undefined,
-      })?.candidates ?? []) {
+      });
+      if (arm === "witness_panel")
+        panelFacts.push(
+          profile
+            ? `${citation}: profile ${profile.tier}, ${
+                profile.totalCiters
+              } citing case${
+                profile.totalCiters === 1 ? "" : "s"
+              } in the local graph${
+                profile.candidates.length
+                  ? `; supplied candidates ${profile.candidates
+                      .map(
+                        (candidate, index) =>
+                          `#${index + 1} ${candidate.citingDate ?? "undated"} ${
+                            candidate.sourceKind === "commentary"
+                              ? (candidate.journalName ?? "journal commentary")
+                              : (candidate.citingCourt ??
+                                candidate.citingCitation ??
+                                "citing case")
+                          } (${candidate.sourceKind})`,
+                      )
+                      .join(", ")}`
+                  : ""
+              }`
+            : `${citation}: no local citator profile`,
+        );
+      for (const candidate of profile?.candidates ?? []) {
         const receipt = attestedCharacterizationReceipt({
           citedCitation: citation,
           characterization: candidate,
@@ -598,7 +631,7 @@ async function runCase(
     // H15: every cited case needs its characterization slot filled — by
     // an attested-verbatim quote or the exact typed refusal — including
     // zero-candidate citations (where only the refusal can fill it).
-    if (arm === "required_slot")
+    if (slotArm)
       state.requiredCharacterizations = Object.keys(attestedByCitation);
   }
   const primaryToolCalls: string[] = [];
@@ -657,10 +690,21 @@ async function runCase(
         )
         .join("; ")}.`,
     ]);
-  if (arm === "required_slot" && item.sourceClass === "case")
+  if (slotArm && item.sourceClass === "case")
     promptModules.push([
       "slot",
       'For EACH cited case, your answer MUST fill its characterization slot: either a kind "quotation" claim copying one supplied attested characterization exactly (citing its evidence id), or a claim reading exactly: No attested characterization of [that case\'s neutral citation] is available.',
+    ]);
+  if (arm === "witness_panel" && item.sourceClass === "case")
+    // Stage 10 H18: the same deterministic facts the gates compute,
+    // surfaced BEFORE composition. Context only — the panel is never
+    // registered as evidence, so quoting it cannot clear the verbatim
+    // tier (attempted parroting surfaces as quotation rejections).
+    promptModules.push([
+      "panel",
+      `Witness panel, deterministic facts about this question's evidence (context only — the panel is not quotable evidence): ${panelFacts.join(
+        "; ",
+      )}. Checks your submission faces: quotation claims must match a supplied span or attested characterization verbatim; each cited case's characterization slot must be filled by an attested quote or the exact unavailability sentence; a decision cannot be said to follow or apply a decision that postdates it; conclusion phrasing unattested in the legal corpus draws a style advisory. A first submission meeting these is accepted without bounces.`,
     ]);
   if (arm === "tiered_check" || arm === "lint_gated")
     promptModules.push([
@@ -1100,7 +1144,9 @@ async function main() {
         if (spec === "cross" && !checker) return [];
         return cases.flatMap((item) => {
           const policyCell =
-            (arm === "attested_framing" || arm === "required_slot") &&
+            (arm === "attested_framing" ||
+              arm === "required_slot" ||
+              arm === "witness_panel") &&
             item.sourceClass === "case";
           return (policyCell ? rankPolicies : [null]).map((policy) => ({
             model,
