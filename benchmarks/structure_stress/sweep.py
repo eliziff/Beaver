@@ -3,8 +3,12 @@
 For each document: run every grammar-table entry (prefilter-gated) and
 the structure detectors (paragraph ladder, page marks, law sections),
 score against the corpus's own oracle where one exists, and aggregate.
-Regex is the measured bottleneck, so the main process streams rows from
-duckdb/sqlite and a worker pool does the pattern work.
+Regex is the measured bottleneck. On the full tier, workers read their
+own parquet row slices (pyarrow decodes ~500 MB/s) and return per-shard
+aggregates, so the parent never touches document text — the first full
+run fed whole documents from a single-threaded duckdb loop through IPC
+and starved 4 workers down to a 4.6% duty cycle (~26 h projected).
+Sampled tiers keep the legacy parent-fed path (deterministic order).
 
   python -X utf8 sweep.py --tier smoke
   python -X utf8 sweep.py --tier full --source a2aj_laws --workers 10
@@ -84,8 +88,12 @@ PREFILTERS: dict[str, list[str]] = {
     "cite.statute.judgment": ["r.s", "s.c", "s.o", "s.a", "s.s", "s.m",
                               "s.b", "s.n", "s.y", "s.p", "c.c.s.m", "rs",
                               "sc ", "sched"],
+    # Dotless heads (LRC/LC/CQLR/LRTFP...) shipped real matches the dotted
+    # list missed — probes/shard_gate_check.py caught three in sample; the
+    # 2-char members are deliberately broad, a gate may only over-pass.
     "cite.statute.judgment.fr": ["l.r", "l.c", "l.o", "l.m", "c.p.l.m",
-                                 "r.l.r.q", "c.q.l.r"],
+                                 "r.l.r.q", "c.q.l.r", "lr", "lc ", "lo ",
+                                 "lm ", "cqlr", "rlrq", "cplm"],
 }
 
 # Grammars authored for SHORT STRINGS (a footnote, a label line, a locator)
@@ -126,6 +134,72 @@ ANY_BRACKET_LABEL_RE = re.compile(r"\[(\d{1,4})\]")
 
 _ENTRIES: list[tuple[str, "re.Pattern[str]", list[str] | None]] = []
 
+try:  # the private home since 3.11; sre_parse is the deprecated alias
+    from re import _parser as _sre_parser  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover
+    import sre_parse as _sre_parser  # type: ignore[no-redef]
+
+_GATE_MIN_LEN = 3
+_GATE_MAX_ALTERNATIVES = 12
+
+
+def _literal_candidates(nodes) -> list[list[str]]:
+    """Candidate OR-sets of mandatory lowercase literals for a parsed regex
+    sequence: every match of the sequence must contain at least one literal
+    from each returned set. Sound by construction — only nodes that appear
+    in every match contribute; optional/lookaround/class nodes just break
+    the current literal run."""
+    candidates: list[list[str]] = []
+    run: list[str] = []
+
+    def flush() -> None:
+        if len("".join(run)) >= _GATE_MIN_LEN:
+            candidates.append(["".join(run)])
+        run.clear()
+
+    for op, av in nodes:
+        opname = str(op).rsplit(".", 1)[-1]
+        if opname == "LITERAL":
+            run.append(chr(av).lower())
+            continue
+        flush()
+        if opname == "SUBPATTERN":
+            candidates.extend(_literal_candidates(av[3]))
+        elif opname in {"MAX_REPEAT", "MIN_REPEAT", "POSSESSIVE_REPEAT"}:
+            if av[0] >= 1:
+                candidates.extend(_literal_candidates(av[2]))
+        elif opname == "BRANCH":
+            union: list[str] = []
+            for alternative in av[1]:
+                alt_sets = _literal_candidates(alternative)
+                if not alt_sets:
+                    union = []
+                    break
+                union.extend(
+                    max(alt_sets, key=lambda s: min(len(lit) for lit in s))
+                )
+            if union:
+                candidates.append(union)
+    flush()
+    return candidates
+
+
+def _derive_gate(rx: "re.Pattern[str]") -> list[str] | None:
+    """Best mandatory-literal OR-set for a compiled pattern, or None."""
+    try:
+        nodes = _sre_parser.parse(rx.pattern, rx.flags)
+    except Exception:
+        return None
+    usable = [
+        sorted(set(candidate))
+        for candidate in _literal_candidates(nodes)
+        if len(set(candidate)) <= _GATE_MAX_ALTERNATIVES
+        and all(len(literal) >= _GATE_MIN_LEN for literal in candidate)
+    ]
+    if not usable:
+        return None
+    return max(usable, key=lambda c: (min(len(lit) for lit in c), -len(c)))
+
 
 def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
     sys.path.insert(0, str(ENGINE_SRC))
@@ -138,9 +212,9 @@ def _load_entries() -> list[tuple[str, "re.Pattern[str]", list[str] | None]]:
         for entry in table.get("entries", []):
             if entry["id"] in SHORT_STRING_ENTRIES:
                 continue
-            entries.append(
-                (entry["id"], compile_entry(entry, defs), PREFILTERS.get(entry["id"]))
-            )
+            rx = compile_entry(entry, defs)
+            gate = PREFILTERS.get(entry["id"]) or _derive_gate(rx)
+            entries.append((entry["id"], rx, gate))
     return entries
 
 
@@ -358,9 +432,8 @@ def _journal_jobs(tier: str):
 # ── driver ───────────────────────────────────────────────────────────
 
 
-def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
-    t0 = time.time()
-    agg: dict = {
+def _empty_agg(name: str) -> dict:
+    return {
         "source": name,
         "docs": 0,
         "chars": 0,
@@ -371,47 +444,58 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
         "structure_kinds": Counter(),
         "slow_docs": 0,
     }
-    recoveries: list[float] = []
-    recovery_by_set: dict[str, list[float]] = {}
-    failures_path = out_dir / f"{name}.failures.jsonl"
-    failures_written = 0
-    with mp.Pool(
-        workers, initializer=_init_worker, maxtasksperchild=200
-    ) as pool, open(
-        failures_path, "w", encoding="utf-8"
-    ) as fail_out:
-        for rec in pool.imap_unordered(scan_doc, jobs, chunksize=16):
-            agg["docs"] += 1
-            agg["chars"] += rec["chars"]
-            for eid, n in rec["matches"].items():
-                agg["entry_docs"][eid] += 1
-                agg["entry_matches"][eid] += n
-            structure = rec.get("structure")
-            if structure:
-                agg["structure_kinds"][structure["kind"]] += 1
-            for key in ("sections", "pages"):
-                sub = rec.get(key)
-                if sub:
-                    vals = [
-                        v
-                        for k, v in sub.items()
-                        if k.startswith("recovery") and v is not None
-                    ]
-                    if vals:
-                        recoveries.append(max(vals))
-                        prefix = rec["id"].split(":", 1)[0]
-                        recovery_by_set.setdefault(prefix, []).append(max(vals))
-            if rec["fail"]:
-                agg["fail_docs"] += 1
-                for reason in rec["fail"]:
-                    agg["fail_reasons"][reason.split("_0")[0]] += 1
-                if "slow_doc" in rec["fail"]:
-                    agg["slow_docs"] += 1
-                if failures_written < 2000:
-                    fail_out.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                    failures_written += 1
-    wall = time.time() - t0
+
+
+def _fold_record(
+    agg: dict,
+    rec: dict,
+    failures: list[dict],
+    recoveries: list[tuple[str, float]],
+    *,
+    failure_cap: int,
+) -> None:
+    """One doc record into an aggregate — shared by both pool shapes so the
+    parent-fed and shard-fed paths cannot drift."""
+    agg["docs"] += 1
+    agg["chars"] += rec["chars"]
+    for eid, n in rec["matches"].items():
+        agg["entry_docs"][eid] += 1
+        agg["entry_matches"][eid] += n
+    structure = rec.get("structure")
+    if structure:
+        agg["structure_kinds"][structure["kind"]] += 1
+    for key in ("sections", "pages"):
+        sub = rec.get(key)
+        if sub:
+            vals = [
+                v
+                for k, v in sub.items()
+                if k.startswith("recovery") and v is not None
+            ]
+            if vals:
+                recoveries.append((rec["id"].split(":", 1)[0], max(vals)))
+    if rec["fail"]:
+        agg["fail_docs"] += 1
+        for reason in rec["fail"]:
+            agg["fail_reasons"][reason.split("_0")[0]] += 1
+        if "slow_doc" in rec["fail"]:
+            agg["slow_docs"] += 1
+        if len(failures) < failure_cap:
+            failures.append(rec)
+
+
+def _summarize(
+    agg: dict,
+    recoveries: list[tuple[str, float]],
+    wall: float,
+    out_dir: Path,
+    name: str,
+) -> dict:
     mb = agg["chars"] / 1e6
+    values = [value for _, value in recoveries]
+    recovery_by_set: dict[str, list[float]] = {}
+    for prefix, value in recoveries:
+        recovery_by_set.setdefault(prefix, []).append(value)
     summary = {
         **{k: v for k, v in agg.items() if not isinstance(v, Counter)},
         "fail_reasons": dict(agg["fail_reasons"].most_common()),
@@ -421,10 +505,8 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
         "mb": round(mb, 1),
         "wall_s": round(wall, 1),
         "mb_per_s": round(mb / wall, 2) if wall else None,
-        "recovery_mean": round(sum(recoveries) / len(recoveries), 4)
-        if recoveries
-        else None,
-        "recovery_n": len(recoveries),
+        "recovery_mean": round(sum(values) / len(values), 4) if values else None,
+        "recovery_n": len(values),
         "recovery_by_set": {
             k: {"mean": round(sum(v) / len(v), 4), "n": len(v)}
             for k, v in sorted(recovery_by_set.items())
@@ -434,6 +516,148 @@ def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     return summary
+
+
+def run_source(name: str, jobs, workers: int, out_dir: Path) -> dict:
+    t0 = time.time()
+    agg = _empty_agg(name)
+    recoveries: list[tuple[str, float]] = []
+    failures: list[dict] = []
+    with mp.Pool(
+        workers, initializer=_init_worker, maxtasksperchild=200
+    ) as pool:
+        for rec in pool.imap_unordered(scan_doc, jobs, chunksize=16):
+            _fold_record(agg, rec, failures, recoveries, failure_cap=2000)
+    with open(out_dir / f"{name}.failures.jsonl", "w", encoding="utf-8") as out:
+        for rec in failures:
+            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return _summarize(agg, recoveries, time.time() - t0, out_dir, name)
+
+
+# ── sharded full tier ────────────────────────────────────────────────
+
+SLICE_ROWS = 4000
+SHARD_FAILURE_CAP = 2000
+
+
+def _corpus_shards(source: str, langs: list[str]):
+    """Tiny (path, set, kind, lang, row range) jobs; each worker reads its
+    own rows so the parent never holds document text."""
+    import pyarrow.parquet as pq  # noqa: PLC0415
+
+    base = A2AJ / ("cases" if source == "a2aj_cases" else "laws")
+    kind = "case" if source == "a2aj_cases" else "law"
+    shards = []
+    for path in sorted(base.glob("*/train.parquet")):
+        rows = pq.ParquetFile(path).metadata.num_rows
+        for lang in langs:
+            for start in range(0, rows, SLICE_ROWS):
+                shards.append(
+                    (
+                        path.as_posix(),
+                        path.parent.name,
+                        kind,
+                        lang,
+                        start,
+                        min(start + SLICE_ROWS, rows),
+                    )
+                )
+    return shards
+
+
+def scan_shard(shard: tuple[str, str, str, str, int, int]) -> dict:
+    """Worker: decode own parquet rows (pyarrow), scan each doc, return a
+    partial aggregate + capped failure records instead of per-doc records."""
+    pq_path, name, kind, lang, start, stop = shard
+    import pyarrow.parquet as pq  # noqa: PLC0415
+
+    if kind == "case":
+        columns = [
+            f"citation_{lang}",
+            f"unofficial_text_{lang}",
+            f"cases_cited_{lang}",
+        ]
+    else:
+        columns = [
+            f"citation_{lang}",
+            f"unofficial_text_{lang}",
+            f"unofficial_sections_{lang}",
+            f"num_sections_{lang}",
+        ]
+    agg = _empty_agg(kind)
+    failures: list[dict] = []
+    recoveries: list[tuple[str, float]] = []
+    position = 0
+    for batch in pq.ParquetFile(pq_path).iter_batches(
+        batch_size=512, columns=columns
+    ):
+        if position >= stop:
+            break
+        size = batch.num_rows
+        if position + size <= start:
+            position += size
+            continue
+        data = [batch.column(i).to_pylist() for i in range(batch.num_columns)]
+        for offset in range(size):
+            row_index = position + offset
+            if not start <= row_index < stop:
+                continue
+            cite, text = data[0][offset], data[1][offset]
+            if not text:
+                continue
+            if kind == "case":
+                cited = data[2][offset]
+                oracle = {
+                    "self_cite": cite,
+                    "cited_count": len(cited) if cited else 0,
+                }
+            else:
+                try:
+                    labels = list(json.loads(data[2][offset] or "{}").keys())
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    labels = []
+                oracle = {
+                    "section_labels": labels,
+                    "num_sections": data[3][offset] or 0,
+                }
+            rec = scan_doc((f"{name}:{cite}:{lang}", kind, text, oracle))
+            _fold_record(
+                agg, rec, failures, recoveries, failure_cap=SHARD_FAILURE_CAP
+            )
+        position += size
+    agg["failures"] = failures
+    agg["recoveries"] = recoveries
+    return agg
+
+
+def run_source_sharded(
+    name: str, shards: list, workers: int, out_dir: Path
+) -> dict:
+    t0 = time.time()
+    agg = _empty_agg(name)
+    recoveries: list[tuple[str, float]] = []
+    failures: list[dict] = []
+    done = 0
+    with mp.Pool(workers, initializer=_init_worker) as pool:
+        for partial in pool.imap_unordered(scan_shard, shards, chunksize=1):
+            for key in ("docs", "chars", "fail_docs", "slow_docs"):
+                agg[key] += partial[key]
+            for key in ("fail_reasons", "entry_docs", "entry_matches",
+                        "structure_kinds"):
+                agg[key].update(partial[key])
+            recoveries.extend(partial["recoveries"])
+            if len(failures) < 2000:
+                failures.extend(partial["failures"][: 2000 - len(failures)])
+            done += 1
+            print(
+                f"[{name}] shard {done}/{len(shards)} "
+                f"docs={agg['docs']} mb={agg['chars'] / 1e6:.0f}",
+                flush=True,
+            )
+    with open(out_dir / f"{name}.failures.jsonl", "w", encoding="utf-8") as out:
+        for rec in failures:
+            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return _summarize(agg, recoveries, time.time() - t0, out_dir, name)
 
 
 def _below_normal_priority() -> None:
@@ -473,6 +697,16 @@ def main() -> int:
     con = duckdb.connect()
 
     for name in sources:
+        if args.tier == "full" and name in {"a2aj_cases", "a2aj_laws"}:
+            shards = _corpus_shards(name, langs)
+            summary = run_source_sharded(name, shards, args.workers, out_dir)
+            print(
+                f"{name}: {summary['docs']} docs, {summary['mb']} MB, "
+                f"{summary['wall_s']}s ({summary['mb_per_s']} MB/s), "
+                f"{summary['fail_docs']} fail docs; "
+                f"recovery_mean={summary['recovery_mean']}"
+            )
+            continue
         if name == "a2aj_cases":
             jobs = _cases_jobs(con, args.tier, langs)
         elif name == "a2aj_laws":
