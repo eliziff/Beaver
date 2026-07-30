@@ -9,13 +9,18 @@ on expert labels:
 
   extract  eyecite over every labeled Response -> distinct case
            citations with volume/reporter/page (offline).
-  resolve  Caselaw Access Project static files (static.case.law —
-           anonymous, CDN): reporter short-name -> slug via
-           ReportersMetadata.json, then per-volume CasesMetadata.json
-           matched on first_page. (CourtListener's citation-lookup API
-           now requires an account token — probed 401 on 2026-07-30 —
-           so CAP static is the base; database citations such as
-           "U.S. Dist. LEXIS" are recorded as out-of-corpus.)
+  resolve  TIER 1 (local first): the 5.5 GB CourtListener bulk sqlite
+           (`courtlistenerLocalBulk.ts`'s database; 18.1M citations /
+           10.1M clusters, 2026-06-30 dump) resolves citation ->
+           cluster + case name + date_filed offline, INCLUDING LEXIS
+           and post-2020 cites (78% of this set vs CAP's 65%). Its
+           opinion table is only a head sample (no text overlap), so:
+           TIER 2 (text): Caselaw Access Project static files
+           (static.case.law — anonymous CDN): reporter short-name ->
+           slug via ReportersMetadata.json, per-volume
+           CasesMetadata.json matched on first_page.
+           (CourtListener's citation-lookup API now requires an
+           account token — probed 401 on 2026-07-30.)
   fetch    full casebody JSON per resolved case, cached one file per
            CAP case id with decision date and court.
   report   coverage: citations found / resolved / fetched, per-response
@@ -117,6 +122,47 @@ def extract() -> dict[str, dict]:
         f"{bare} responses with zero case citations"
     )
     return distinct
+
+
+def local_bulk_path() -> Path:
+    configured = os.environ.get("MIKE_COURTLISTENER_BULK_DB", "").strip()
+    if configured:
+        return Path(configured)
+    return local(
+        "OpenLegalProducts", "LegalData", "providers", "courtlistener",
+        "courtlistener.sqlite",
+    )
+
+
+def local_resolve() -> None:
+    """Tier-1 resolution: annotate citations.jsonl rows with cl_clusters
+    from the local CourtListener bulk (offline; covers LEXIS/new cites)."""
+    import sqlite3
+
+    bulk = local_bulk_path()
+    if not bulk.exists():
+        print(f"[skip] local bulk missing at {bulk}", file=sys.stderr)
+        return
+    rows = [json.loads(line) for line in open(CITATIONS, encoding="utf-8")]
+    database = sqlite3.connect(f"file:{bulk}?mode=ro", uri=True)
+    hits = 0
+    for row in rows:
+        found = database.execute(
+            "select ct.cluster_id, cl.case_name_short, cl.date_filed "
+            "from citation ct join cluster cl on cl.id = ct.cluster_id "
+            "where ct.volume = ? and (ct.reporter = ? or ct.reporter_key = ?) "
+            "and ct.page = ?",
+            (row["volume"], row["reporter"], row["reporter"], row["page"]),
+        ).fetchall()
+        row["cl_clusters"] = [
+            {"cluster_id": f[0], "name": f[1], "date_filed": f[2]} for f in found
+        ]
+        if found:
+            hits += 1
+    with open(CITATIONS, "w", encoding="utf-8") as out:
+        for row in rows:
+            out.write(json.dumps(row, ensure_ascii=False) + "\n")
+    print(f"local_resolve: {hits}/{len(rows)} resolved against local CL bulk")
 
 
 def slugify(reporter: str) -> str:
@@ -242,6 +288,13 @@ def fetch() -> None:
 def report() -> None:
     rows = [json.loads(line) for line in open(CITATIONS, encoding="utf-8")]
     resolved = [r for r in rows if r.get("resolved")]
+    cl_resolved = [r for r in rows if r.get("cl_clusters")]
+    either = [r for r in rows if r.get("resolved") or r.get("cl_clusters")]
+    print(
+        f"report: resolution tiers — local CL bulk {len(cl_resolved)}, "
+        f"CAP text {len(resolved)}, either {len(either)} "
+        f"({len(either) / max(1, len(rows)):.0%})"
+    )
     fetched = {int(p.stem) for p in OPINIONS.glob("*.json")}
     nonempty = 0
     for path in OPINIONS.glob("*.json"):
@@ -281,6 +334,8 @@ def report() -> None:
     manifest = {
         "distinct_citations": len(rows),
         "resolved": len(resolved),
+        "cl_bulk_resolved": len(cl_resolved),
+        "resolved_either_tier": len(either),
         "casebodies_fetched": len(fetched),
         "casebodies_with_text": nonempty,
         "database_citations": database_cites,
@@ -299,6 +354,9 @@ def main() -> int:
         distinct = extract()
         if stage != "extract":
             resolve(distinct)
+            local_resolve()
+    if stage == "localresolve":
+        local_resolve()
     if stage in ("fetch", "all"):
         fetch()
     if stage in ("report", "all"):
