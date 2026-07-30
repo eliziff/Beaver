@@ -714,8 +714,69 @@ sufficiency is unknown by design; only the audited pair gates.
 
 ### Stage 5 result
 
-Result: **pending — frozen before the run; recorded below after the
-matrix completes.**
+Result: **H5 substantially supported; no falsification clause tripped.
+The grounding decisions are harness-caused, not model-trust-caused.**
+144 cells, 3 errors (2.1%). Pre-registration is commit `29bc7e6f`.
+
+Audited housing pair (163 sufficient / 0 insufficient), by lane:
+
+| Composer | Checker | housing:163 | housing:0 | Pair |
+| --- | --- | --- | --- | ---: |
+| Claude | Claude (same) | rendered | rejected | 2/2 |
+| Claude | Codex (crossed) | rendered | rejected | 2/2 |
+| Codex | Claude (crossed) | rendered | rejected | 2/2 |
+| Codex | Codex (same) | falsely rejected | **falsely accepted** | 0/2 |
+
+The decisive pattern for the model-trust question: quote-anchored Claude
+compositions were judged correctly by BOTH checker families — even the
+checker family that fails the pair on its own compositions — and Claude
+checking rescues Codex compositions completely. The run's only false
+accept required Codex in BOTH roles. Crossing the checker never
+introduced a false accept anywhere (frozen prediction held), so the
+checker's model family is not load-bearing once composition is
+quote-anchored; the harness carries the decision. Codex is also not
+simply "worse at legal" — its control target-F1 (0.40) beats Claude's
+(0.29) — the crossing isolates grounding-decision reliability from raw
+capability.
+
+Same-vs-crossed pass/fail agreement on tiered cells: 35/47 pairs agree;
+11 of the 12 disagreements are fail-closed (crossed checker rejecting
+what same-model accepted) and the twelfth is the crossed Claude checker
+FIXING Codex's false rejection of the sufficient row. No disagreement
+produced a false accept.
+
+Deterministic tier at scale: 17 claims cleared across the matrix; all
+17 re-audited against the lib's actual tier logic as genuine verbatim
+quotes — zero false passes (an initial 2-failure count came from the
+analysis script's cruder normalization and did not survive the lib
+re-audit). The zero-checker-call path fired on three REAL cells for the
+first time — all Codex compositions, which quote more fully than
+Claude's; Claude compositions still never clear a whole answer, so its
+checker-call saving remains unrealized.
+
+Coverage per composer: Codex-composed tiered with same-model checking
+rendered 23/24 against a 22/24 control (but that includes the false
+accept); with the Claude checker, 20/24 plus correct rejections. Claude
+same-checker tiered rendered 19/24 plus the audited-correct weak
+rejection; the four remaining rejections are all fail-closed
+`partially_supported` verdicts on unaudited cells, and inspection shows
+two of them (housing:1, housing:57) repeat the exact audited
+weak-reference overreach shape — a broad "the state has a statutory
+eviction framework" claim resting on one narrow provision. They are
+recorded as fail-closed conservatism pending human audit, not as proven
+coverage loss and not as confirmed wins; gate (a) is met under that
+classification and is the one conditional element of this result.
+
+Lane economics (completed cells, medians): control 5.7–9.4 s; tiered
+12.7–15.3 s with exactly ≤1 checker call per cell throughout.
+
+Standing conclusions after five stages: promote nothing to default-on
+yet, but the recommended experimental lane is now **quote-anchored
+tiered composition with a Claude-family checker, composer either
+family**. The two open levers are unchanged: firmer quote-anchoring for
+Claude compositions so the zero-call path fires (Codex compositions
+prove it fires on real answers), and authority/current-law validation,
+which no stage has touched.
 
 ## Durable receipts
 
@@ -734,6 +795,7 @@ committed.
 | `stage3-verifier-probes.jsonl` | `2D7128D41424AC93ED02B01A7D7F473EB7A95D97BC81AAA95F76CA7B2C5823FA` |
 | `stage4-verifier-probes.jsonl` | `C5B2A0CF16051CF6579C5C06CA9B1CE7EA13E06B85EC3B5234436EFF36C5DFFA` |
 | `stage4-h4.jsonl` | `13C6859455021AFC2B6E9E94AFCF1EB76A0901386E49E26BD18C6B9343D0C69E` |
+| `stage5-h5.jsonl` | `1690AD59C6660EB11D25D19EBA242E00F522CB0DCF010278D34DD09145D6951B` |
 
 ## Validation and final selection gate
 
