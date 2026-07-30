@@ -116,6 +116,7 @@ let temporaryDirectory: string | null = null;
 
 afterEach(async () => {
   delete process.env.MIKE_CITATOR_DB;
+  delete process.env.MIKE_JOURNAL_COMMENTARY_DB;
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
     temporaryDirectory = null;
@@ -283,6 +284,9 @@ describe("caselaw citator note-up graph", () => {
         citingCitation: "2020 FC 100",
         citingLevel: 3,
       });
+      // No journal commentary DB installed -> the source reports null,
+      // never an empty count that would read as "looked and found nothing".
+      expect(profile.commentary).toBeNull();
       // The French twin profiles only French-keyed citing prose.
       const frenchProfile = citator.standsForProfile({ citation: "2015 CSC 5" })!;
       expect(frenchProfile.totalCiters).toBe(1);
@@ -290,6 +294,74 @@ describe("caselaw citator note-up graph", () => {
       expect(frenchProfile.candidates[0].text).toContain(
         "norme constitutionnelle",
       );
+
+      // Journal commentary source (pair_journal_footnotes.py schema): a
+      // paired note's proposition sentence joins the profile as an
+      // attested characterization; junk propositions are classifier-
+      // rejected; rank>1 string-cite members never attribute.
+      const commentaryDb = path.join(
+        temporaryDirectory,
+        "journal_commentary.sqlite",
+      );
+      const commentary = new DatabaseSync(commentaryDb);
+      commentary.exec(`
+        CREATE TABLE article (
+          article_id INTEGER PRIMARY KEY, dataset TEXT, citation TEXT,
+          name TEXT, date TEXT, journal_name TEXT, authors TEXT, url TEXT,
+          pages INTEGER, labels_candidates INTEGER, labels_selected INTEGER,
+          refs_assigned INTEGER, ambiguous_sites INTEGER, footnote_mode INTEGER,
+          crossrefs INTEGER, crossrefs_unresolved INTEGER);
+        CREATE TABLE note (
+          id INTEGER PRIMARY KEY, article_id INTEGER, label TEXT,
+          restart_sequence INTEGER, pair_status TEXT, note_page_label TEXT,
+          ref_page_label TEXT, body TEXT, body_sha256 TEXT,
+          truncated_at_page_end INTEGER, proposition TEXT,
+          proposition_sha256 TEXT, passage TEXT);
+        CREATE TABLE note_citation (
+          note_id INTEGER, rank INTEGER, kind TEXT, citation TEXT,
+          cited_key TEXT, case_short TEXT, pinpoints TEXT);
+        INSERT INTO article VALUES (1, 'MCGILL-LJ', '(2020) 65:1 McGill LJ 1',
+          'Carter at Five', '2020', 'McGill Law Journal', 'A Scholar', NULL,
+          10, 5, 5, 5, 0, 1, 0, 0);
+        INSERT INTO note VALUES
+          (1, 1, '1', 1, 'paired', '2', '2', 'Carter, supra note 1.', 'x', 0,
+           'The Court recognized that the prohibition deprived competent adults of security of the person.',
+           'y', NULL),
+          (2, 1, '2', 1, 'paired', '3', '3', 'See Carter.', 'x', 0,
+           'Implications for Medical Practice 245 Conclusion 249', 'y', NULL);
+        INSERT INTO note_citation VALUES
+          (1, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, NULL),
+          (2, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, NULL),
+          (1, 2, 'neutral', '2019 SCC 5', '2019scc5', NULL, NULL);
+      `);
+      commentary.close();
+      process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
+      const withCommentary = citator.standsForProfile({
+        citation: "2015 SCC 5",
+      })!;
+      expect(withCommentary.commentary).toEqual({ considered: 2, rejected: 1 });
+      expect(withCommentary.tier).toBe("rich");
+      expect(withCommentary.candidates).toHaveLength(3);
+      const commentaryCandidate = withCommentary.candidates[2];
+      expect(commentaryCandidate).toMatchObject({
+        sourceKind: "commentary",
+        journalName: "McGill Law Journal",
+        citingCitation: "(2020) 65:1 McGill LJ 1",
+        citingName: "Carter at Five",
+        citingCourt: null,
+        citingLevel: null,
+        citingDate: "2020",
+      });
+      expect(commentaryCandidate.text).toContain("security of the person");
+      // Court prose still outranks commentary.
+      expect(withCommentary.candidates[0].sourceKind).toBe("case");
+      // The rank-2 string-cite member does not attribute to 2019 SCC 5.
+      const rank2Profile = citator.standsForProfile({ citation: "2019 SCC 5" })!;
+      expect(
+        rank2Profile.candidates.filter(
+          (candidate) => candidate.sourceKind === "commentary",
+        ),
+      ).toHaveLength(0);
 
       // Typed refusals when nothing survives normalization.
       expect(() => citator.noteUpCitations({ citation: "" })).toThrow(
