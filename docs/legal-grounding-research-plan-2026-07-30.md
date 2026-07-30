@@ -75,6 +75,27 @@ B3. Gap-fill generation ONLY if external breadth is thin: elicit
     the Stage 5-validated checker AND flagged as judge-labeled, with a
     human-audited subsample.
 
+B4 (recon finding, 2026-07-30): the Charlotin probe plan as first
+    registered ("121 Canadian Misrepresented rows become adversarial
+    probes") does not survive contact with the data. Every
+    Charlotin-origin row in corpus-v1.jsonl — all 1,426 misrepresented,
+    875 false_quotes, 2,964 fabricated — is a PARAPHRASED episode
+    description (text_is_paraphrase=true, no spans, no question): they
+    identify sanction incidents, not replayable claims, so they cannot
+    grow the claim-level positive class directly. The only claim-level
+    span-bearing rows today are beaver_receipts (494 grounded / 63
+    misgrounded, checker-labeled) and RegLab (176/14, expert-labeled).
+    Revised plan: mine the SANCTIONING JUDGMENTS — courts describing a
+    fake or misrepresented authority usually quote the offending
+    proposition verbatim in the reasons; the Canadian judgments are
+    A2AJ-fetchable by origin_id/citation. Extracting those quoted
+    propositions yields claim-level positives with judicial (not
+    checker) provenance, plus the real authority the filing purported
+    to rely on where the court names it. This is local-data-first
+    (A2AJ bulk) and needs a small extraction pass, not generation;
+    episodes whose reasons do not quote the offending text stay
+    incident-level rows and are used only for counts.
+
 Standing directive (2026-07-30): build on existing repos/bases over
 hand-rolling, everywhere possible. For the H13 attestation index the
 candidates under evaluation are infini-gram (suffix-array exact counts)
