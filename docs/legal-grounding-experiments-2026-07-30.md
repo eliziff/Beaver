@@ -842,7 +842,41 @@ non-submission/over-refusal materially above tiered_check's.
 
 ### Stage 6 result
 
-Result: **pending — frozen before the run.**
+Result: **H6 falsified on its coverage gates while decisively proving
+its mechanism.** 246 cells, 1 transport error. Pre-registration
+`25c4b6b5`.
+
+What the hard contract proved: composition CAN quote — deterministic-
+clear rates jumped from 0% (tiered, Claude) to 57% of Claude claims and
+62% of Codex claims; Codex produced the first three real zero-call
+cells; and all 110 deterministic clears re-audit verbatim under the lib
+logic (the tier's cumulative soundness record: 127/127 across Stages
+4–6, zero false passes).
+
+What it broke, decoded per cell: both quote_first lanes lost the
+sufficient housing:163 — Codex's single conclusion claim WRONGLY
+refused ("The passages cannot support a direct answer") beside a
+correct verbatim quote, and Claude's correct "Yes" conclusion drew a
+stochastic partially_supported from the checker judging a minimal
+quote+conclusion answer as incomplete. Claude's eight non-submission
+cells cluster on adversarial CSLB and CLERC continuation items, where
+premise corrections and multi-step analysis cannot be expressed as
+quotes plus ONE conclusion claim within three iterations; its
+housing:0 non-submission is the contract working (nothing quotable
+supports an answer). Rendering: quote_first 23/41 (Claude) and 32/41
+(Codex) vs tiered_check's 33/41 and 35/41, with tiered 4/4 on the
+audited pair under the Claude checker — reconfirming Stage 5's
+recommended lane at 4× the n.
+
+Refined conclusion carried forward: hard deterministic enforcement
+belongs at the CLAIM level (quotes must be real quotes — proven sound)
+but not as an answer-level one-conclusion cap; the checker needs a
+rubric for minimal quote-anchored answers whose "coverage" currently
+reads as incomplete; and the freely-composed conclusion claim remains
+the residual that H12's attested characterizations target. Stage 7
+therefore ablates the SOFT contract plus deterministic lint (H13
+corpus-alienness, H14 prompt-gravitation, H7 features) rather than
+hard caps.
 
 ## Durable receipts
 
@@ -862,6 +896,7 @@ committed.
 | `stage4-verifier-probes.jsonl` | `C5B2A0CF16051CF6579C5C06CA9B1CE7EA13E06B85EC3B5234436EFF36C5DFFA` |
 | `stage4-h4.jsonl` | `13C6859455021AFC2B6E9E94AFCF1EB76A0901386E49E26BD18C6B9343D0C69E` |
 | `stage5-h5.jsonl` | `1690AD59C6660EB11D25D19EBA242E00F522CB0DCF010278D34DD09145D6951B` |
+| `stage6-h6.jsonl` | `F79FDEB8C530281AB3DD247BA7CAF50D6FE2E5B5D0837DECEBD35B506C774615` |
 
 ## Validation and final selection gate
 
