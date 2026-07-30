@@ -37,7 +37,7 @@ describe("local assistant tools", () => {
         (tool) => tool.function.name === "library_lint_docx_structure",
       )?.function.description,
     ).toContain("receipt of what was checked");
-    expect(names).toContain("provider_pdf_lookup");
+    expect(names).toContain("legal_pdf_lookup");
     expect(names).toContain("library_create_docx");
     expect(names).toContain("library_revise_docx");
     expect(

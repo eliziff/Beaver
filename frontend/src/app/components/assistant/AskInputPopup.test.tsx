@@ -89,7 +89,7 @@ it("keeps a multi-question prompt in one fixed panel", async () => {
     expect(screen.getByText("First question")).toBeInTheDocument();
     expect(screen.getByText("Second question")).not.toBeVisible();
     expect(document.querySelector("[data-ask-input-panel]")).toHaveClass(
-        "open:h-[min(16rem,45dvh)]",
+        "open:h-[min(28rem,70dvh)]",
     );
     expect(document.querySelector("[data-ask-input-options]")).toHaveClass(
         "min-h-0",
@@ -136,15 +136,15 @@ it("keeps skipped questions navigable and submits them", async () => {
     };
 
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await userEvent.click(screen.getByRole("button", { name: "Decline to answer" }));
     await userEvent.click(
         screen.getByRole("button", { name: "Previous question" }),
     );
-    expect(screen.getByRole("button", { name: "Unskip" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Answer instead" })).toBeInTheDocument();
     await userEvent.click(
         screen.getByRole("button", { name: "Next question" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await userEvent.click(screen.getByRole("button", { name: "Decline to answer" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -217,6 +217,40 @@ it("submits a native Other answer", async () => {
             responses: [expect.objectContaining({ answer: "Tribunal" })],
         }),
         expect.stringContaining("Tribunal"),
+        [],
+    );
+});
+
+it("accepts a write-in answer even when the model omitted that option", async () => {
+    const onSubmit = vi.fn();
+    const question =
+        "Which jurisdiction should govern this analysis, including any province, state, or federal jurisdiction that should be considered?".repeat(3);
+    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
+        type: "ask_inputs",
+        items: [{
+            id: "jurisdiction",
+            kind: "choice",
+            question,
+            options: [{ value: "Ontario" }],
+            allow_other: false,
+            other_label: "",
+        }],
+    };
+    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
+
+    await userEvent.type(
+        screen.getByRole("textbox", { name: "Write your own answer" }),
+        "British Columbia",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            responses: [
+                expect.objectContaining({ answer: "British Columbia" }),
+            ],
+        }),
+        expect.stringContaining("British Columbia"),
         [],
     );
 });

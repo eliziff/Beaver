@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
     saved: vi.fn(),
     opinions: vi.fn(),
 }));
+const scrollIntoView = vi.fn();
 
 vi.mock("@/app/lib/beaverApi", async (importOriginal) => {
     const original =
@@ -183,6 +184,11 @@ describe("legal source reader", () => {
         api.direct.mockReset();
         api.saved.mockReset();
         api.opinions.mockReset();
+        scrollIntoView.mockReset();
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+            configurable: true,
+            value: scrollIntoView,
+        });
     });
 
     it("renders continuous semantic content without paragraph navigation", async () => {
@@ -214,7 +220,7 @@ describe("legal source reader", () => {
             "https://decisions.example.test/item/1",
         );
         expect(
-            screen.getByRole("link", { name: /View authoritative PDF/iu }),
+            screen.getByRole("link", { name: /View PDF/iu }),
         ).toHaveAttribute(
             "href",
             "https://decisions.example.test/item/1/document.pdf",
@@ -250,6 +256,22 @@ describe("legal source reader", () => {
         expect(
             container.querySelector("article")?.querySelectorAll("*"),
         ).toHaveLength(16);
+    });
+
+    it("opens an internal source at the cited paragraph", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const { container } = render(
+            <LegalSourceViewer
+                citation="2099 SCC 1"
+                docType="cases"
+                initialLocator="par2"
+            />,
+        );
+
+        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+        expect(container.querySelector("#legal-par2")).toHaveClass(
+            "bg-amber-100/70",
+        );
     });
 
     it("renders only safe inline links and no literal Markdown markers", () => {
@@ -336,7 +358,7 @@ describe("legal source reader", () => {
         expect(container.querySelector("em")?.textContent).toBe("ratio");
         expect(container.querySelector("script")).not.toBeInTheDocument();
         screen.getByRole("link", { name: "View original source" });
-        screen.getByRole("link", { name: "View authoritative PDF" });
+        screen.getByRole("link", { name: "View PDF" });
         fireEvent.click(
             screen.getByRole("button", {
                 name: "Dissent by Justice Two",
@@ -405,7 +427,7 @@ describe("legal source reader", () => {
         ).toEqual([
             {
                 kind: "pdf",
-                label: "View authoritative PDF",
+                label: "View PDF",
                 href: metadata.pdfUrl,
             },
         ]);

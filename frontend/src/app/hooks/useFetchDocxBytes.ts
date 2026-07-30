@@ -48,24 +48,24 @@ export function useFetchDocxBytes(
         const pending =
             inFlight.get(key) ??
             (async () => {
+                const fetchDocx = () => apiFetch(path, {
+                    headers: { Accept: "*/*" },
+                }).then((response) => {
+                    if (!response.ok)
+                        throw new Error(`HTTP ${response.status}`);
+                    return response.arrayBuffer();
+                });
                 const buf = isAnonymousMode
                     ? await preloadSingleDoc(
                           documentId,
                           versionId,
                           refetchKey,
-                      ).then((result) => {
-                          if (result.type !== "docx") {
-                              throw new Error("DOCX bytes are unavailable");
-                          }
-                          return result.buffer;
-                      })
-                    : await apiFetch(path, {
-                          headers: { Accept: "*/*" },
-                      }).then((response) => {
-                          if (!response.ok)
-                              throw new Error(`HTTP ${response.status}`);
-                          return response.arrayBuffer();
-                      });
+                      ).then((result) =>
+                          result.type === "docx"
+                              ? result.buffer
+                              : fetchDocx(),
+                      )
+                    : await fetchDocx();
                 bytesCache.set(key, buf);
                 return buf;
             })();

@@ -5,6 +5,12 @@ import {
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "../../a2aj";
+import {
+  createA2AJDocumentEvidence,
+  createA2AJLookupEvidence,
+  legalEvidenceExperimentTools,
+  type LegalEvidenceReceipt,
+} from "../legalEvidenceExperiment";
 
 export const A2AJ_TOOL_NAMES = {
   search: "a2aj_search",
@@ -16,10 +22,64 @@ export type A2AJToolExecution = {
   payload: Record<string, unknown>;
   document?: A2AJDocument;
   lookup?: A2AJLocatorLookup;
+  evidence?: LegalEvidenceReceipt;
 };
 
 function optionalString(value: unknown) {
   return typeof value === "string" ? value : undefined;
+}
+
+function activityText(value: unknown, maxLength: number) {
+  const text = optionalString(value)?.replace(/\s+/gu, " ").trim();
+  if (!text) return undefined;
+  return text.length <= maxLength
+    ? text
+    : `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+export function a2ajActivityLabel(
+  name: string,
+  args: Record<string, unknown>,
+) {
+  const isLaw = args.doc_type === "laws";
+  if (name === A2AJ_TOOL_NAMES.search) {
+    const scope = activityText(args.dataset, 24) ?? "Canadian";
+    const query = activityText(args.query, 64);
+    const sources = isLaw ? "legislation" : "cases";
+    return query
+      ? `Searching ${scope} ${sources} for “${query}”`
+      : `Searching ${scope} ${sources}`;
+  }
+
+  const citation = activityText(args.citation, 80);
+  if (name === A2AJ_TOOL_NAMES.fetch) {
+    const section = activityText(args.section, 32);
+    if (citation) {
+      return section
+        ? `Reading ${citation}, s. ${section}`
+        : `Reading ${citation}`;
+    }
+    return isLaw ? "Reading Canadian legislation" : "Reading Canadian case";
+  }
+
+  if (name === A2AJ_TOOL_NAMES.lookup) {
+    const locator = activityText(args.locator, 32);
+    const endLocator = activityText(args.end_locator, 32);
+    const locatorLabel =
+      args.locator_type === "page"
+        ? "p."
+        : args.locator_type === "section"
+          ? "s."
+          : "para.";
+    if (citation && locator)
+      return `Looking up ${citation}, ${locatorLabel} ${locator}${
+        endLocator ? `\u2013${endLocator}` : ""
+      }`;
+    if (citation) return `Looking up ${citation}`;
+    return "Looking up Canadian legal passage";
+  }
+
+  return undefined;
 }
 
 function optionalNumber(value: unknown) {
@@ -54,7 +114,7 @@ export async function executeA2AJTool(
           ok: true,
           source: "A2AJ",
           result_count: results.length,
-          results,
+          results: results.map((result) => ({ ...result, url: undefined })),
         },
       };
     }
@@ -66,13 +126,23 @@ export async function executeA2AJTool(
         language: args.output_language === "fr" ? "fr" : "en",
         section: optionalString(args.section),
       });
+      const evidence = document
+        ? createA2AJDocumentEvidence(
+            document,
+            args.doc_type === "laws" ? "legislation" : "case",
+          )
+        : undefined;
       return {
         document: document ?? undefined,
+        evidence,
         payload: document
           ? {
               ok: true,
               source: "A2AJ",
+              evidence_id: evidence?.evidence_id,
               ...document,
+              url: undefined,
+              upstreamLicense: undefined,
               ...(document.truncated
                 ? {
                     next_required_action: `Truncated: ${document.text.length} of ${document.total_chars} characters shown.`,
@@ -98,16 +168,31 @@ export async function executeA2AJTool(
             ? "section"
             : "paragraph",
       locator: optionalString(args.locator) ?? "",
+      endLocator: optionalString(args.end_locator),
       contextBlocks: optionalNumber(args.context_blocks),
     });
+    const evidence = lookup
+      ? createA2AJLookupEvidence(
+          lookup,
+          args.doc_type === "laws" ? "legislation" : "case",
+        )
+      : null;
     return {
       lookup: lookup ?? undefined,
+      evidence: evidence ?? undefined,
       payload: lookup
         ? {
             ok: lookup.status === "found",
             source: "A2AJ",
+            ...(evidence ? { evidence_id: evidence.evidence_id } : {}),
             ...lookup,
             url: undefined,
+            ...(evidence
+              ? {
+                  next_required_action:
+                    "Call submit_grounded_answer now with prose-only support units and this evidence_id; do not answer separately.",
+                }
+              : {}),
           }
         : {
             ok: false,
@@ -254,6 +339,11 @@ export const A2AJ_TOOLS = [
             description:
               "Exact locator such as 42, page 763, 34(1)(a)(i), or sec11.10(2).",
           },
+          end_locator: {
+            type: "string",
+            description:
+              "Optional ending paragraph for an inclusive paragraph range.",
+          },
           output_language: {
             type: "string",
             enum: ["en", "fr"],
@@ -271,4 +361,5 @@ export const A2AJ_TOOLS = [
       },
     },
   },
+  ...legalEvidenceExperimentTools(),
 ];

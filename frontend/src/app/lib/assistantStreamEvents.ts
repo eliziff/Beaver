@@ -74,6 +74,20 @@ const START_EVENTS = new Set([
   "courtlistener_read_case",
   "courtlistener_verify_citations",
 ]);
+const TOOL_ACTIVITY_FAMILIES: Record<string, string> = {
+  ask_inputs: "ask_inputs",
+  generate_docx: "doc_created",
+  library_create_docx: "doc_created",
+  edit_document: "doc_edited",
+  library_revise_docx: "doc_edited",
+  read_document: "doc_read",
+  fetch_documents: "doc_read",
+  find_in_document: "doc_find",
+  toa_submit_library_document: "automation_run",
+  toa_job_status: "automation_run",
+  library_link_docx_citations: "automation_run",
+  library_fix_docx_supras: "automation_run",
+};
 
 function parseAutomationRunEvent(
   data: Record<string, unknown>,
@@ -130,8 +144,8 @@ function parseAskInputs(data: Record<string, unknown>): EventOf<"ask_inputs"> | 
         kind: "choice",
         question: clean(row.question) ?? "Please choose an option.",
         options,
-        allow_other: row.allow_other !== false,
-        other_label: clean(row.other_label) ?? "Other",
+        allow_other: true,
+        other_label: "Write your own answer",
         ...(responsePrefix && { response_prefix: responsePrefix }),
       }];
     }
@@ -149,8 +163,7 @@ function parseAskInputs(data: Record<string, unknown>): EventOf<"ask_inputs"> | 
 }
 
 export const isStreamingPlaceholder = (event: AssistantEvent) =>
-  (event.type === "thinking" || event.type === "tool_call_start") &&
-  !!event.isStreaming;
+  event.type === "thinking" && !!event.isStreaming;
 
 export function finishAssistantStreamEvents(events: AssistantEvent[]) {
   let next: AssistantEvent[] | null = null;
@@ -169,7 +182,13 @@ export function finishAssistantStreamEvents(events: AssistantEvent[]) {
 }
 
 const withoutPlaceholders = (events: AssistantEvent[]) =>
-  events.filter((event) => !isStreamingPlaceholder(event));
+  events
+    .filter((event) => !isStreamingPlaceholder(event))
+    .map((event) =>
+      event.type === "tool_call_start" && event.isStreaming
+        ? { ...event, isStreaming: false }
+        : event,
+    );
 const finalizeReasoning = (events: AssistantEvent[]) => {
   const last = events.at(-1);
   return last?.type === "reasoning" && last.isStreaming
@@ -177,7 +196,12 @@ const finalizeReasoning = (events: AssistantEvent[]) => {
     : events;
 };
 const append = (events: AssistantEvent[], event: AssistantEvent) => [
-  ...finalizeReasoning(withoutPlaceholders(events)),
+  ...finalizeReasoning(withoutPlaceholders(events)).filter(
+    (candidate) =>
+      event.type === "tool_call_start" ||
+      candidate.type !== "tool_call_start" ||
+      assistantActivityFamily(candidate) !== assistantActivityFamily(event),
+  ),
   event,
 ];
 const thinking = (events: AssistantEvent[]) => [
@@ -197,7 +221,8 @@ export function assistantEventKey(event: AssistantEvent) {
     return `ask:${event.items.map((item) => item.id).join(",")}`;
   if (event.type === "mcp_tool_call")
     return `mcp:${event.openai_tool_name}`;
-  if (event.type === "tool_call_start") return `tool:${event.name}`;
+  if (event.type === "tool_call_start")
+    return `tool:${event.name}:${event.label ?? ""}`;
   if (event.type === "automation_run")
     return `automation:${event.job_id ?? event.id}`;
   if (event.type === "courtlistener_search_case_law")
@@ -212,6 +237,11 @@ export function assistantEventKey(event: AssistantEvent) {
     return `case-read:${event.cluster_id}`;
   if (event.type === "courtlistener_verify_citations") return "case-verify";
   return event.type;
+}
+export function assistantActivityFamily(event: AssistantEvent) {
+  return event.type === "tool_call_start"
+    ? TOOL_ACTIVITY_FAMILIES[event.name] ?? event.name
+    : event.type;
 }
 function track(
   events: AssistantEvent[],
@@ -291,6 +321,7 @@ export function reduceAssistantStreamEvent(
     return reduceEvent(events, {
       type: "tool_call_start",
       name: text(data.name),
+      ...(clean(data.label) && { label: clean(data.label) }),
       isStreaming: true,
     });
   if (rawType === "mcp_tool_start") {

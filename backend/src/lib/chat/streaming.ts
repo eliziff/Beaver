@@ -14,7 +14,7 @@ import {
   type CaseCitationEvent,
   type CourtlistenerToolEvent,
 } from "./tools/courtlistenerTools";
-import { A2AJ_TOOLS } from "./tools/a2ajTools";
+import { A2AJ_TOOLS, a2ajActivityLabel } from "./tools/a2ajTools";
 import { PUBLIC_LEGAL_SOURCE_TOOLS } from "./tools/publicLegalSourceTools";
 import {
   type DocStore,
@@ -41,10 +41,21 @@ import {
 import { type TurnEditState, type TurnReadState } from "./tools/documentOps";
 import type { A2AJDocument, A2AJLocatorLookup } from "../a2aj";
 import {
+  addA2AJInlineLinks,
+  a2ajInlineLinkSnapshot,
+} from "../legalSourceLinks";
+import {
   appendPublicLegalPinpointLinks,
   createPublicLegalSourceState,
   type PublicLegalSourceState,
 } from "./publicLegalSourceState";
+import {
+  createLegalEvidenceTurnState,
+  finalizeLegalEvidenceExperiment,
+  legalEvidenceReceiptEvent,
+  renderLegalEvidenceAnswer,
+  type LegalEvidenceReceiptEvent,
+} from "./legalEvidenceExperiment";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string }
@@ -85,6 +96,7 @@ export type AssistantEvent =
   | CaseCitationEvent
   | CourtlistenerToolEvent
   | McpToolEvent
+  | LegalEvidenceReceiptEvent
   | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
   | { type: "error"; message: string };
@@ -212,6 +224,7 @@ export async function runLLMStream({
   };
   const a2ajLookups: A2AJLocatorLookup[] = [];
   const a2ajDocuments: A2AJDocument[] = [];
+  const legalEvidenceState = createLegalEvidenceTurnState();
   const publicLegalState: PublicLegalSourceState =
     createPublicLegalSourceState();
   let fullText = "";
@@ -220,9 +233,29 @@ export async function runLLMStream({
   let iterReasoning = "";
   let streamingCitationsBuffer = "";
   let streamedCitationCount = 0;
+  let inlineLinkSnapshotSignature = "";
 
   const emit = (payload: unknown) =>
     write(`data: ${JSON.stringify(payload)}\n\n`);
+  const emitInlineLinkSnapshot = () => {
+    const draft = [
+      ...events.flatMap((event) =>
+        event.type === "content" ? [event.text] : [],
+      ),
+      iterVisibleText,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const snapshot = a2ajInlineLinkSnapshot(
+      draft,
+      a2ajLookups,
+      a2ajDocuments,
+      inlineLinkSnapshotSignature,
+    );
+    if (!snapshot) return;
+    inlineLinkSnapshotSignature = snapshot.signature;
+    emit({ type: "content_snapshot", text: snapshot.text });
+  };
   const emitCitationStreamSnapshot = (
     status: "started" | "partial",
     citations: unknown[],
@@ -253,6 +286,7 @@ export async function runLLMStream({
     onVisible: (visible) => {
       iterVisibleText += visible;
       emit({ type: "content_delta", text: visible });
+      if (visible.includes("\n")) emitInlineLinkSnapshot();
     },
     onOpen: () => {
       streamingCitationsBuffer = "";
@@ -268,7 +302,10 @@ export async function runLLMStream({
     const tail = splitter.takeTail();
     if (tail) {
       iterVisibleText += tail;
-      if (opts.emit ?? true) emit({ type: "content_delta", text: tail });
+      if (opts.emit ?? true) {
+        emit({ type: "content_delta", text: tail });
+        emitInlineLinkSnapshot();
+      }
     }
     if (iterVisibleText) {
       events.push({ type: "content", text: iterVisibleText });
@@ -326,7 +363,12 @@ export async function runLLMStream({
         // and the first tool-specific event.
         onToolCallStart: (call) => {
           flushText();
-          emit({ type: "tool_call_start", name: call.name });
+          const label = a2ajActivityLabel(call.name, call.input);
+          emit({
+            type: "tool_call_start",
+            name: call.name,
+            ...(label && { label }),
+          });
         },
       },
       runTools: async (calls) => {
@@ -370,6 +412,7 @@ export async function runLLMStream({
           courtlistenerTurnState,
           apiKeys,
           publicLegalState,
+          legalEvidenceState,
         );
         a2ajLookups.push(...batchA2AJLookups);
         a2ajDocuments.push(...batchA2AJDocuments);
@@ -427,7 +470,11 @@ export async function runLLMStream({
         // has a tool_result for every tool_use it sent.
         const resultByCallId = new Map<string, string>();
         for (const r of toolResults) {
-          const row = r as { tool_call_id: string; content?: unknown };
+          const row = r as {
+            tool_call_id: string;
+            content?: unknown;
+            terminal?: unknown;
+          };
           resultByCallId.set(row.tool_call_id, String(row.content ?? ""));
         }
         return toolCalls.map((c) => ({
@@ -437,6 +484,12 @@ export async function runLLMStream({
             JSON.stringify({
               error: `Tool '${c.function.name}' is not available.`,
             }),
+          terminal: toolResults.some(
+            (result) =>
+              (result as { tool_call_id?: unknown; terminal?: unknown })
+                .tool_call_id === c.id &&
+              (result as { terminal?: unknown }).terminal === true,
+          ),
         }));
       },
     });
@@ -457,11 +510,30 @@ export async function runLLMStream({
   }
 
   flushText();
+  await finalizeLegalEvidenceExperiment({
+    state: legalEvidenceState,
+    model: selectedModel,
+    draft: fullText,
+    requestContext:
+      [...chatMessages].reverse().find((message) => message.role === "user")
+        ?.content ?? undefined,
+    apiKeys,
+    reasoningEffort,
+    abortSignal: signal,
+  });
+
+  const evidenceAnswer = renderLegalEvidenceAnswer(legalEvidenceState);
+  if (evidenceAnswer !== null) fullText = evidenceAnswer;
 
   // Parse and emit citations from <CITATIONS> block
   const { citations: parsedCitations, diagnostics: citationDiagnostics } =
     parseCitationsWithDiagnostics(fullText);
-  const citations = buildCitations
+  const visibleText =
+    evidenceAnswer ??
+    events
+      .flatMap((event) => (event.type === "content" ? [event.text] : []))
+      .join("\n\n");
+  const parsedCitationData = buildCitations
     ? buildCitations(fullText)
     : parsedCitations.map((c) =>
         createCitation(
@@ -473,19 +545,41 @@ export async function runLLMStream({
           publicLegalState,
         ),
       );
-  const visibleText = events.flatMap((event) =>
-    event.type === "content" ? [event.text] : [],
-  ).join("\n\n");
+  const a2ajLinked =
+    evidenceAnswer === null
+      ? addA2AJInlineLinks(
+          visibleText,
+          a2ajLookups,
+          parsedCitationData,
+          a2ajDocuments,
+        )
+      : { text: visibleText, citations: parsedCitationData };
+  const citations = a2ajLinked.citations;
   const linkedText = appendPublicLegalPinpointLinks(
-    visibleText,
+    a2ajLinked.text,
     publicLegalState,
     citationUrls(citations),
   );
-  const linkDelta = linkedText.slice(visibleText.length);
-  if (linkDelta) {
-    events.push({ type: "content", text: linkDelta });
-    emit({ type: "content_delta", text: linkDelta });
+  const appendedLinkDelta = linkedText.startsWith(a2ajLinked.text)
+    ? linkedText.slice(a2ajLinked.text.length)
+    : "";
+  if (appendedLinkDelta) {
+    emit({ type: "content_delta", text: appendedLinkDelta });
   }
+  const contentIndexes = events.flatMap((event, index) =>
+    event.type === "content" ? [index] : [],
+  );
+  const finalContentIndex = contentIndexes.at(-1);
+  if (finalContentIndex === undefined) {
+    if (linkedText) events.push({ type: "content", text: linkedText });
+  } else {
+    for (const index of contentIndexes) {
+      events[index] = { type: "content", text: "" };
+    }
+    events[finalContentIndex] = { type: "content", text: linkedText };
+  }
+  const evidenceReceipt = legalEvidenceReceiptEvent(legalEvidenceState);
+  if (evidenceReceipt) events.push(evidenceReceipt);
   emit({ type: "content_final", text: linkedText });
   devLog("[chat/stream] final citations", {
     hasCitationsBlock: citationDiagnostics.hasBlock,

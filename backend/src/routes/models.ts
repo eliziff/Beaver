@@ -1,20 +1,14 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { getCodexModelCatalog } from "../lib/codexCatalog";
-import {
-  configuredOllamaModelCatalog,
-  getOllamaModelCatalog,
-} from "../lib/llm/ollamaApi";
+import { getOllamaModelCatalog } from "../lib/llm/ollamaApi";
 
 export const modelRouter = Router();
 
 modelRouter.get("/", requireAuth, async (_req, res) => {
-  const ollama = configuredOllamaModelCatalog();
-  const ollamaRequest = getOllamaModelCatalog();
-  const [codex, resolvedOllama] = await Promise.all([
+  const [codex, ollama] = await Promise.all([
     getCodexModelCatalog(),
-    ollama ? Promise.resolve(ollama) : ollamaRequest,
+    getOllamaModelCatalog(),
   ]);
-  void ollamaRequest.catch(() => undefined);
-  res.json({ ...codex, ollama: resolvedOllama });
+  res.json({ ...codex, ollama });
 });

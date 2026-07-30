@@ -60,7 +60,7 @@ it("uses native form values without rerendering for ordinary typing", async () =
     expect(commits).toBe(initialCommits);
 
     fireEvent.click(screen.getByRole("button", { name: "Practice" }));
-    fireEvent.click(screen.getByRole("option", { name: "Litigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Litigation" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Document picker")).toBeVisible();
     fireEvent.click(

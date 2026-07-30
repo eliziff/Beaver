@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "./useAssistantChat";
+import { setJurisdictionPreference } from "@/app/components/assistant/jurisdictionPreferences";
 
 const mocks = vi.hoisted(() => ({
   getChat: vi.fn(),
@@ -107,6 +108,84 @@ describe("useAssistantChat local transcript boundary", () => {
     });
 
     expect(mocks.stagePendingChatMessage).not.toHaveBeenCalled();
+  });
+
+  it("sends the standing jurisdiction preference with the turn", async () => {
+    setJurisdictionPreference({
+      mode: "presume",
+      jurisdictions: ["ca-ab", "us-ny"],
+      showAssistantPanel: false,
+    });
+    mocks.streamChat.mockResolvedValueOnce(
+      streamResponse([
+        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Research this issue",
+      });
+    });
+
+    expect(mocks.streamChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jurisdiction_preference: {
+          mode: "presume",
+          jurisdictions: [
+            "Alberta, Canada",
+            "New York, United States",
+          ],
+        },
+      }),
+    );
+  });
+
+  it("replaces browser fetch errors with recovery guidance", async () => {
+    mocks.streamChat.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Draft this",
+      });
+    });
+
+    expect(result.current.messages.at(-1)?.error).toBe(
+      "Unable to get a response. Check the local service or provider connection, then try again.",
+    );
+  });
+
+  it("uses a concise fallback for an empty stream error", async () => {
+    mocks.streamChat.mockResolvedValueOnce(
+      streamResponse([
+        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+        { type: "error", message: "", retryable: false },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Draft this",
+      });
+    });
+
+    expect(result.current.messages.at(-1)?.error).toBe(
+      "Unable to get a response. Try again.",
+    );
   });
 
   it("claims and submits a staged route handoff once", async () => {
@@ -1025,6 +1104,48 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(contentEvents).toEqual([{ type: "content", text: expected }]);
     expect(contentEvents?.[0].text).not.toContain("typographic\n\nal");
     expect(contentEvents?.[0].text).not.toContain("errors.I");
+  });
+
+  it("continues one live response after a linked content snapshot", async () => {
+    const linked =
+      "See [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).\n";
+    mocks.streamChat.mockResolvedValue(
+      streamResponse([
+        {
+          type: "chat_id",
+          chatId: "chat-1",
+          transcriptVersion: 1,
+        },
+        {
+          type: "content_delta",
+          text: "See 2024 SCC 6 at para. 12.\n",
+        },
+        { type: "content_snapshot", text: linked },
+        { type: "content_delta", text: "The analysis continues." },
+        { type: "transcript_version", transcriptVersion: 2 },
+      ]),
+    );
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1" }),
+    );
+
+    await act(async () => {
+      await result.current.handleChat({
+        role: "user",
+        content: "Research this",
+      });
+    });
+
+    expect(
+      result.current.messages
+        .at(-1)
+        ?.events?.filter((event) => event.type === "content"),
+    ).toEqual([
+      {
+        type: "content",
+        text: `${linked}The analysis continues.`,
+      },
+    ]);
   });
 
   it("keeps streamed Automation receipts intact", async () => {

@@ -31,7 +31,6 @@ import {
   type LocalTrackedEdit,
 } from "../localDocumentStore";
 import { legalKnowledgeGraphStore } from "../legalKnowledgeGraphStore";
-import { deriveOriginalPdfCandidates } from "../legalSourcePresentation";
 import {
   LOCAL_PDF_LOCATOR_KINDS,
   lookupLocalPdfStructure,
@@ -42,7 +41,6 @@ import {
 } from "../localPdfLookup";
 import {
   lookupProviderPdfReference,
-  queueProviderPdfAttachment,
   rehydrateProviderPdfReference,
   type ProviderPdfAttachment,
   type ProviderPdfAttachmentState,
@@ -65,6 +63,14 @@ import {
   A2AJ_TOOLS,
   executeA2AJTool,
 } from "./tools/a2ajTools";
+import {
+  LEGAL_EVIDENCE_PLAN_TOOL_NAME,
+  LEGAL_EVIDENCE_TOOL_NAME,
+  planLegalEvidence,
+  registerLegalEvidence,
+  submitLegalEvidenceAnswer,
+  type LegalEvidenceTurnState,
+} from "./legalEvidenceExperiment";
 import { COURTLISTENER_TOOLS } from "./tools/courtlistenerTools";
 import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
 import {
@@ -299,15 +305,14 @@ const LOCAL_LIBRARY_TOOLS: OpenAIToolSchema[] = [
     },
   ),
   tool(
-    "provider_pdf_lookup",
-    "Resolve a provider PDF reference returned by a legal-source tool into one exact parsed structural unit; reports a queued state rather than reading the whole PDF. To rehydrate prior evidence, pass its handle with the same reference_id instead of a locator.",
+    "legal_pdf_lookup",
+    "Resolve a PDF reference returned by a legal-source tool into one exact parsed structural unit; reports a queued state rather than reading the whole PDF. To rehydrate prior evidence, pass its handle with the same reference_id instead of a locator.",
     {
       type: "object",
       properties: {
         reference_id: {
           type: "string",
-          description:
-            "mike-provider-pdf:v1 reference returned by a source tool.",
+          description: "Opaque PDF reference returned by a legal-source tool.",
         },
         handle: {
           type: "string",
@@ -1652,31 +1657,6 @@ function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
   };
 }
 
-async function queueA2ajPdfFallback(
-  source: Pick<
-    A2AJDocument,
-    "url" | "dataset" | "citation" | "name" | "structure"
-  >,
-) {
-  if (!source.url || source.structure.source !== "flat_text") return null;
-  const candidate = deriveOriginalPdfCandidates({
-    canonicalUrl: source.url,
-  })[0];
-  if (!candidate) return null;
-  try {
-    return await queueProviderPdfAttachment({
-      provider: "a2aj",
-      identity: `${source.dataset}:${source.citation}`,
-      structureSource: "flat_text",
-      url: candidate.url,
-      canonicalUrl: source.url,
-      title: source.name || source.citation,
-    });
-  } catch {
-    return null;
-  }
-}
-
 const REVISE_EDIT_KEYS = [
   "find",
   "replace",
@@ -1804,11 +1784,27 @@ export async function runLocalAssistantTools(
   allowedDocumentIds?: Set<string>,
   localPdfEvidenceHandles?: Set<string>,
   matterId?: string | null,
+  legalEvidenceState?: LegalEvidenceTurnState,
 ): Promise<NormalizedToolResult[]> {
   const publicState = publicLegalState ?? createPublicLegalSourceState();
   return Promise.all(
     calls.map(async (call) => {
       const args = call.input;
+      if (call.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME) {
+        const planned = legalEvidenceState
+          ? planLegalEvidence(args, legalEvidenceState)
+          : { ok: false, errors: ["Legal evidence state is unavailable"] };
+        return result(call, planned);
+      }
+      if (call.name === LEGAL_EVIDENCE_TOOL_NAME) {
+        const submitted = legalEvidenceState
+          ? submitLegalEvidenceAnswer(args, legalEvidenceState)
+          : { ok: false, errors: ["Legal evidence state is unavailable"] };
+        return {
+          ...result(call, submitted),
+          terminal: submitted.terminal === true,
+        };
+      }
       if (
         CODING_TOOL_SHAPE &&
         (call.name === "Glob" ||
@@ -1875,7 +1871,7 @@ export async function runLocalAssistantTools(
       ) {
         return fail(call, "Document is not attached to this matter");
       }
-      if (call.name === "provider_pdf_lookup") {
+  if (call.name === "legal_pdf_lookup") {
         const reference = trimmed(args.reference_id);
         const handle = trimmed(args.handle);
         if (!reference) {
@@ -2781,15 +2777,13 @@ export async function runLocalAssistantTools(
         if (a2aj.lookup?.status === "found" && a2aj.lookup.block) {
           a2ajLookups?.push(a2aj.lookup);
         }
-        const pdfFallback = a2aj.document
-          ? await queueA2ajPdfFallback(a2aj.document)
-          : a2aj.lookup
-            ? await queueA2ajPdfFallback(a2aj.lookup)
-            : null;
-        return result(call, {
-          ...a2aj.payload,
-          ...(pdfFallback ? { pdf_fallback: pdfFallback } : {}),
-        });
+        if (legalEvidenceState) {
+          registerLegalEvidence(legalEvidenceState, a2aj.evidence, {
+            document: a2aj.document,
+            lookup: a2aj.lookup,
+          });
+        }
+        return result(call, a2aj.payload);
       }
 
       return result(call, { ok: false, error: `Unknown tool: ${call.name}` });

@@ -43,6 +43,7 @@ type ResponseFunctionTool = {
   name: string;
   description?: string;
   parameters: Record<string, unknown>;
+  strict?: boolean;
 };
 
 type ResponseFunctionCallItem = {
@@ -103,6 +104,9 @@ function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
     name: tool.function.name,
     description: tool.function.description,
     parameters: tool.function.parameters,
+    ...(tool.function.strict === undefined
+      ? {}
+      : { strict: tool.function.strict }),
   }));
 }
 
@@ -295,12 +299,12 @@ export async function streamResponsesApi(
       throwIfAborted(params.abortSignal);
       let toolCalls: NormalizedToolCall[] = [];
       let outputItems: ResponseInputItem[] = [];
-      let sawReasoning = false;
+      let reasoningBlockOpen = false;
       let emitted = false;
       const runAttempt = async () => {
         toolCalls = [];
         outputItems = [];
-        sawReasoning = false;
+        reasoningBlockOpen = false;
         emitted = false;
         const response = await createResponse({
           endpoint: config.endpoint,
@@ -334,7 +338,6 @@ export async function streamResponsesApi(
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        const startedToolCallIds = new Set<string>();
         let buffer = "";
 
         while (true) {
@@ -371,9 +374,18 @@ export async function streamResponsesApi(
                 event.type === "response.reasoning_text.delta") &&
               typeof event.delta === "string"
             ) {
-              sawReasoning = true;
+              reasoningBlockOpen = true;
               emitted = true;
               callbacks.onReasoningDelta?.(event.delta);
+            }
+
+            if (
+              (event.type === "response.reasoning_summary_text.done" ||
+                event.type === "response.reasoning_text.done") &&
+              reasoningBlockOpen
+            ) {
+              reasoningBlockOpen = false;
+              callbacks.onReasoningBlockEnd?.();
             }
 
             if (
@@ -386,26 +398,14 @@ export async function streamResponsesApi(
             }
 
             if (
-              event.type === "response.output_item.added" &&
-              event.item?.type === "function_call"
-            ) {
-              const call = parseFunctionCall(event.item);
-              startedToolCallIds.add(call.id);
-              emitted = true;
-              callbacks.onToolCallStart?.(call);
-            }
-
-            if (
               event.type === "response.output_item.done" &&
               event.item
             ) {
               outputItems.push(event.item);
               if (event.item.type === "function_call") {
                 const call = parseFunctionCall(event.item);
-                if (!startedToolCallIds.has(call.id)) {
-                  emitted = true;
-                  callbacks.onToolCallStart?.(call);
-                }
+                emitted = true;
+                callbacks.onToolCallStart?.(call);
                 toolCalls.push(call);
               }
             }
@@ -442,7 +442,7 @@ export async function streamResponsesApi(
         }
       }
 
-      if (sawReasoning) callbacks.onReasoningBlockEnd?.();
+      if (reasoningBlockOpen) callbacks.onReasoningBlockEnd?.();
       throwIfAborted(params.abortSignal);
 
       if (!toolCalls.length || !runTools) {
@@ -455,6 +455,7 @@ export async function streamResponsesApi(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      if (results.some((result) => result.terminal)) break;
       // The round budget is enforced silently by this loop; at halfway the
       // model gets told, so the remaining rounds are planned, not spent.
       if (results.length && iter + 1 === Math.floor(maxIter / 2)) {

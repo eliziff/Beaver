@@ -273,6 +273,7 @@ export async function streamGemini(
 
       const results = await runTools(toolCalls);
       throwIfAborted(params.abortSignal);
+      if (results.some((result) => result.terminal)) break;
 
       // Append the model's turn (text + functionCall parts, in that order)
       // and the matching functionResponse turn.

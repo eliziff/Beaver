@@ -1,10 +1,9 @@
-// claude-p:<model> — Anthropic models over headless Claude Code
-// (`claude -p`, subscription flat rate; no metered API). Transport-only:
+// claude-p:<model> — Anthropic models over the subscription `claude -p`
+// transport (flat rate; no metered API). This is not the Claude Code agent
+// harness:
 // the Beaver harness keeps its own loop and tools, and each iteration is
 // one `claude -p` call whose stdin JSON carries the transport protocol,
-// harness system prompt, conversation, and tool schemas. The model replies
-// with one JSON object shaped like an Anthropic assistant message
-// (tool calls as JSON-in-text; no schema enforcement, so parses retry).
+// harness system prompt, conversation, and tool schemas.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -22,17 +21,22 @@ import type {
 const SYSTEM_ARG =
   "You are the model inside an automated agent harness. The user message " +
   "is a JSON object; follow its transport_protocol field exactly and " +
-  "reply with only the JSON object it specifies.";
+  "reply only in the format it specifies.";
 
 const TRANSPORT_PROTOCOL = `The fields of this JSON object:
 - "system": the harness system prompt — treat it as your system prompt and obey it
 - "messages": the conversation so far, in Anthropic Messages format ("tool_result" blocks are the outputs of your earlier "tool_use" calls)
 - "tools": the tools you may call, with JSON Schema parameters
 
-Reply with ONLY one JSON object — no prose, no code fences:
-{"content": [{"type": "text", "text": "..."} and/or {"type": "tool_use", "id": "toolu_<unique>", "name": "<tool name>", "input": {...}}]}
+Reply in exactly one of these forms:
+TOOL_CALLS
+{"calls":[{"id":"toolu_<unique>","name":"<tool name>","input":{...}}]}
 
-Rules: to act, emit tool_use blocks (one or several); tool input must satisfy that tool's schema; ids must be unique. When the task is fully complete, reply with text blocks only and no tool_use.`;
+FINAL
+<answer in ordinary Markdown>
+
+Do not invoke tools yourself. To act, return TOOL_CALLS with one or more calls
+whose inputs satisfy the named tools' schemas. When complete, return FINAL.`;
 
 // A healthy generation streams partial chunks continuously (we pass
 // --include-partial-messages); silence means a wedged call. Whole-document
@@ -89,6 +93,14 @@ function runClaudeP(
     "--output-format",
     "stream-json",
     "--verbose",
+    // `claude -p` is transport only here. Beaver owns the agent loop and
+    // tools, so do not expose Claude Code's tools, MCP servers, or skills.
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--setting-sources",
+    "",
     "--include-partial-messages",
     "--system-prompt",
     shell ? `"${SYSTEM_ARG}"` : SYSTEM_ARG,
@@ -161,19 +173,39 @@ function resultEnvelope(stdout: string): Envelope {
   throw new Error("stream ended without a result envelope");
 }
 
-function extractJson(text: string): { content?: unknown } {
-  let stripped = text.trim();
-  if (stripped.startsWith("```")) {
-    stripped = stripped.replace(/^```(?:json)?/u, "").replace(/```$/u, "").trim();
+function parseReply(text: string, iteration: number): AnthropicBlock[] {
+  const reply = text.trim();
+  if (reply.startsWith("FINAL\n")) {
+    const finalText = reply.slice("FINAL\n".length).trim();
+    if (!finalText) throw new Error("FINAL reply is empty");
+    return [{ type: "text", text: finalText }];
   }
-  try {
-    return JSON.parse(stripped) as { content?: unknown };
-  } catch {
-    const start = stripped.indexOf("{");
-    const end = stripped.lastIndexOf("}");
-    if (start === -1 || end <= start) throw new Error("no JSON object in reply");
-    return JSON.parse(stripped.slice(start, end + 1)) as { content?: unknown };
-  }
+  if (!reply.startsWith("TOOL_CALLS\n"))
+    throw new Error("reply did not start with FINAL or TOOL_CALLS");
+  const parsed = JSON.parse(reply.slice("TOOL_CALLS\n".length)) as {
+    calls?: unknown;
+  };
+  if (!Array.isArray(parsed.calls) || !parsed.calls.length)
+    throw new Error("TOOL_CALLS reply has no calls");
+  return parsed.calls.map((rawCall, index) => {
+    const call = rawCall as Record<string, unknown>;
+    if (
+      typeof call.name !== "string" ||
+      !call.input ||
+      typeof call.input !== "object" ||
+      Array.isArray(call.input)
+    )
+      throw new Error("malformed tool call");
+    return {
+      type: "tool_use" as const,
+      id:
+        typeof call.id === "string" && call.id
+          ? call.id
+          : `toolu_${iteration}_${index}_${Date.now().toString(36)}`,
+      name: call.name,
+      input: call.input as Record<string, unknown>,
+    };
+  });
 }
 
 export async function streamClaudeP(
@@ -233,31 +265,7 @@ export async function streamClaudeP(
         const envelope = resultEnvelope(run.stdout);
         if (envelope.is_error)
           throw new Error(`claude -p error result: ${String(envelope.result).slice(0, 300)}`);
-        const reply = extractJson(String(envelope.result ?? ""));
-        if (!Array.isArray(reply.content) || reply.content.length === 0)
-          throw new Error("reply JSON has no content blocks");
-        const parsed: AnthropicBlock[] = [];
-        for (const block of reply.content as Array<Record<string, unknown>>) {
-          if (block.type === "text" && typeof block.text === "string") {
-            parsed.push({ type: "text", text: block.text });
-          } else if (
-            block.type === "tool_use" &&
-            typeof block.name === "string" &&
-            block.input !== null &&
-            typeof block.input === "object"
-          ) {
-            parsed.push({
-              type: "tool_use",
-              id:
-                typeof block.id === "string" && block.id
-                  ? block.id
-                  : `toolu_${iter}_${parsed.length}_${Date.now().toString(36)}`,
-              name: block.name,
-              input: block.input as Record<string, unknown>,
-            });
-          }
-        }
-        if (!parsed.length) throw new Error("no usable content blocks in reply");
+        const parsed = parseReply(String(envelope.result ?? ""), iter);
         const e = envelope.usage ?? {};
         usage.inputTokens =
           (usage.inputTokens ?? 0) + (e.input_tokens ?? 0);
@@ -294,6 +302,7 @@ export async function streamClaudeP(
     if (!toolCalls.length || !runTools) break;
     const results = await runTools(toolCalls);
     throwIfAborted(params.abortSignal);
+    if (results.some((result) => result.terminal)) break;
     // Halfway budget meter — same contract as the Responses adapter.
     if (results.length && iter + 1 === Math.floor(maxIter / 2)) {
       const last = results[results.length - 1];

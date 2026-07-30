@@ -5,7 +5,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { isAnonymousMode, requiresAccount } from "@/app/lib/authMode";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
-import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
+import { AppSidebar } from "@/app/components/shared/AppSidebar";import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";import { JurisdictionDock } from "@/app/components/assistant/JurisdictionDock";const TableOfAuthoritiesHost = lazy(() =>    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({        default: module.TableOfAuthoritiesHost,    })),);export default function BeaverLayout({
     children,
 }: {
     children: React.ReactNode;
@@ -71,15 +71,22 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                             onToggle={handleSidebarToggle}
                             onAuthoritiesNavigate={handleAuthoritiesNavigate}
                         />
-                        <div className="flex-1 flex flex-col h-dvh lg:overflow-hidden relative w-full">
+                        <div
+                            inert={mobileSidebarOpen}
+                            className="flex-1 flex flex-col h-dvh lg:overflow-hidden relative w-full"
+                        >
                             <div className="relative z-20 flex shrink-0 items-center px-4 pb-2 pt-3 lg:hidden">
                                 <button
+                                    type="button"
                                     onClick={handleSidebarToggle}
                                     className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating"
                                     title="Open sidebar"
                                     aria-label="Open sidebar"
                                 >
-                                    <PanelLeft className="h-4 w-4" />
+                                    <PanelLeft
+                                        aria-hidden="true"
+                                        className="h-4 w-4"
+                                    />
                                 </button>
                             </div>
                             <div className="relative flex min-h-0 w-full flex-1">
@@ -107,6 +114,6 @@ import { AppSidebar } from "@/app/components/shared/AppSidebar";import { Keyboar
                                     )}
                                 </main>
                                 {authoritiesVisible && (                                    <Suspense                                        fallback={                                            <div                                                aria-hidden="true"                                                className="absolute inset-0 bg-[#f3f4f6]"                                            />                                        }                                    >                                        <TableOfAuthoritiesHost                                            active={                                                authoritiesActive &&                                                !authLoading &&                                                isAuthenticated                                            }                                            pending={authoritiesIntent}                                            enabled={                                                !authLoading &&                                                isAuthenticated &&                                                (isAnonymousMode ||                                                    authoritiesActive ||                                                    authoritiesIntent)                                            }                                        />                                    </Suspense>                                )}                            </div>                        </div>                    </div>
-                </div>                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
+                </div>                <JurisdictionDock />                <AssistantAutomationActivity />            </SidebarContext.Provider>        </ChatHistoryProvider>
     );
 }

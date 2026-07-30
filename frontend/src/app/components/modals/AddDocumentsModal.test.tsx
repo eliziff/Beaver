@@ -122,4 +122,104 @@ describe("AddDocumentsModal project mode", () => {
         fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
         expect(onClose).toHaveBeenCalledOnce();
     });
+
+    it("keeps successful uploads and reports failed files without closing", async () => {
+        const onClose = vi.fn();
+        const onSelect = vi.fn();
+        const uploaded = makeDocument("uploaded", "Uploaded.pdf");
+        api.uploadProjectDocument
+            .mockResolvedValueOnce(uploaded)
+            .mockRejectedValueOnce(new Error("fetch failed"));
+
+        render(
+            <AddDocumentsModal
+                open
+                onClose={onClose}
+                onSelect={onSelect}
+                breadcrumb={["Project", "Add Documents"]}
+                projectId="project-1"
+                documents={[]}
+                showTabs={false}
+            />,
+        );
+
+        const uploadedFile = new File(["pdf"], "Uploaded.pdf", {
+            type: "application/pdf",
+        });
+        const failedFile = new File(["pdf"], "Failed.pdf", {
+            type: "application/pdf",
+        });
+        fireEvent.change(
+            document.querySelector('input[type="file"]') as HTMLInputElement,
+            { target: { files: [uploadedFile, failedFile] } },
+        );
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "Unable to upload Failed.pdf. Check the file and your connection, then try again.",
+        );
+        expect(onClose).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() =>
+            expect(onSelect).toHaveBeenCalledWith(
+                [uploaded],
+                "project-1",
+            ),
+        );
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it("keeps partial project assignments open and retries only failures", async () => {
+        const onClose = vi.fn();
+        const onSelect = vi.fn();
+        const first = makeDocument("first", "First.pdf", "project-2");
+        const second = makeDocument("second", "Second.pdf", "project-2");
+        const assignedFirst = { ...first, project_id: "project-1" };
+        const assignedSecond = { ...second, project_id: "project-1" };
+        api.addDocumentToProject
+            .mockResolvedValueOnce(assignedFirst)
+            .mockRejectedValueOnce(new Error("fetch failed"))
+            .mockResolvedValueOnce(assignedSecond);
+
+        render(
+            <AddDocumentsModal
+                open
+                onClose={onClose}
+                onSelect={onSelect}
+                breadcrumb={["Project", "Add Documents"]}
+                projectId="project-1"
+                documents={[first, second]}
+                showTabs={false}
+            />,
+        );
+
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Select First.pdf" }),
+        );
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Select Second.pdf" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "Unable to add Second.pdf to this project. Check your connection and try again.",
+        );
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() =>
+            expect(api.addDocumentToProject).toHaveBeenCalledTimes(3),
+        );
+        expect(api.addDocumentToProject.mock.calls).toEqual([
+            ["project-1", "first"],
+            ["project-1", "second"],
+            ["project-1", "second"],
+        ]);
+        expect(onSelect).toHaveBeenCalledWith(
+            [assignedFirst, assignedSecond],
+            "project-1",
+        );
+        expect(onClose).toHaveBeenCalledOnce();
+    });
 });

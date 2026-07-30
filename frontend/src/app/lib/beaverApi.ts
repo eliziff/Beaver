@@ -710,6 +710,10 @@ export const streamChat = (payload: {
   project_id?: string;
   model?: string;
   reasoning_effort?: string;
+  jurisdiction_preference?: {
+    mode: "ask" | "presume";
+    jurisdictions: string[];
+  };
   displayed_doc?: { filename: string; document_id: string };
   attached_documents?: { filename: string; document_id: string }[];
   ask_inputs_response?: Extract<

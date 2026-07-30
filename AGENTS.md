@@ -114,6 +114,18 @@ to improve a build number.
   Canadian legal text. A2AJ mirrors consolidations, so spent amending
   acts read "[Amendments]" — amendment prose only exists on the Justice
   Laws Annual Statutes pages.
+- US case law is ALSO local: a 5.5 GB CourtListener bulk sqlite at
+  `%LOCALAPPDATA%\OpenLegalProducts\LegalData\providers\courtlistener\`
+  (plus `journals` and `a2aj` provider DBs beside it), queried via
+  `backend/src/lib/courtlistenerLocalBulk.ts` including
+  volume/reporter/page citation lookup. Same rule: local before network,
+  and when the network is unavoidable, exhaust a provider's BULK exports
+  (e.g. CAP static volume zips at `<slug>/<vol>.zip`, cached under
+  `alienness/us_reference/zips/`) before per-item API calls. Derived
+  stores beat raw files: query the existing sqlite/duckdb surfaces
+  (CL bulk, citator noteup.sqlite, alienness indexes, a2aj lookup.duckdb)
+  instead of re-parsing the CSVs/parquet they were built from, and never
+  rebuild an index that's already on disk (check its `meta` table first).
 - Deterministic legal-text modules (`legalTextAnchors`, `legalTextSkeleton`,
   `legalAmendOps`, `legalDeadlines`, `legalTermDrift`, `legalDraftingLint`):
   no grammar change without a corpus/gold measurement (USLM gold, CUAD,
@@ -127,9 +139,7 @@ to improve a build number.
   's/^KEY=//p'`); vitest output may contain NULs (`| tr -d '\0'`);
   `PYTHONIOENCODING=utf-8` for cp1252 consoles; python can't open
   `/c/...` paths (use `C:/...`).
-- Git: pathspec-only staging (never `git add -A`; concurrent sessions
-  share this tree). Clear credentials before pushing.
-  (the env PAT is AlbertaLawReview and 403s).
+- Git pushes: use `https://eliziff@github.com/eliziff/Beaver.git` with Git Credential Manager and clear `GITHUB_TOKEN` first.
 - npm `.CMD` shims (e.g. `claude.CMD`) re-parse argv through cmd.exe:
   multi-line or quote-bearing args silently break (empty stdout). Keep
   CLI args single-line and quote-free; ship rich payloads via stdin.

@@ -403,7 +403,11 @@ export function AssistantMessage({
                         <ActivityDisclosure isStreaming label="Thinking" />
                     )}
                 {responseError && (
-                    <p className="mt-2 text-base font-serif leading-7 text-red-700">
+                    <p
+                        role="alert"
+                        aria-atomic="true"
+                        className="mt-2 text-base font-serif leading-7 text-red-700"
+                    >
                         {responseError}
                     </p>
                 )}
@@ -442,13 +446,16 @@ export function AssistantMessage({
                     <div className="flex items-center gap-2 py-2 font-sans justify-start">
                     {!isStreaming && (
                         <button
+                            type="button"
                             className="p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                             onClick={handleCopy}
+                            title={isCopied ? "Response copied" : "Copy response"}
+                            aria-label={isCopied ? "Response copied" : "Copy response"}
                         >
                             {isCopied ? (
-                                <Check className="h-3.5 w-3.5 text-green-600" />
+                                <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" />
                             ) : (
-                                <Copy className="h-3.5 w-3.5" />
+                                <Copy aria-hidden="true" className="h-3.5 w-3.5" />
                             )}
                         </button>
                     )}

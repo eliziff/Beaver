@@ -116,11 +116,11 @@ export function AskInputPopup({
     const multi = event.items.length > 1;
     return (
         <>
-            <div data-shortcut-layer data-shortcut-open="true" className="relative mx-auto w-full max-w-xl font-serif">
+            <div data-shortcut-layer data-shortcut-open="true" className="relative mx-auto w-full max-w-2xl font-serif">
                 <details
                     open
                     data-ask-input-panel
-                    className="group h-10 overflow-hidden rounded-xl border border-gray-300 bg-white open:h-[min(16rem,45dvh)]"
+                    className="group h-10 overflow-hidden rounded-xl border border-gray-300 bg-white open:h-[min(28rem,70dvh)]"
                 >
                     <summary role="button" className={`flex h-10 cursor-pointer list-none items-center gap-2 px-4 font-sans text-sm text-gray-800 hover:bg-gray-100 [&::-webkit-details-marker]:hidden ${multi ? "pr-32" : "pr-12"}`}>
                         <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 group-open:rotate-0" />
@@ -161,7 +161,7 @@ export function AskInputPopup({
                                     inert={ui.resolved[entry.id] ? true : undefined}
                                     aria-disabled={!!ui.resolved[entry.id] || undefined}
                                 >
-                                    <legend className="mb-2 text-base text-gray-900">
+                                    <legend className="mb-3 whitespace-pre-wrap break-words text-base leading-6 text-gray-900">
                                         {entry.kind === "choice" ? entry.question : "Add the following documents if available:"}
                                     </legend>
                                     {entry.kind === "choice" ? (
@@ -180,7 +180,7 @@ export function AskInputPopup({
                         {item && (
                             <footer className="flex shrink-0 justify-end gap-2 pt-2">
                                 <button type="button" onClick={toggleSkip} className="min-h-9 px-2 font-sans text-sm text-gray-600 hover:text-gray-900">
-                                    {ui.resolved[item.id] === "skipped" ? "Unskip" : "Skip"}
+                                    {ui.resolved[item.id] === "skipped" ? "Answer instead" : "Decline to answer"}
                                 </button>
                                 <PillButton
                                     tone="black"
@@ -222,12 +222,14 @@ function Choices({ item, required }: {
 }) {
     const values = [
         ...item.options.map(({ value }) => value.trim()).filter(Boolean),
-        ...(item.allow_other ? [OTHER] : []),
+        OTHER,
     ];
     return (
         <div className="grid gap-1.5">
             {values.map((value, index) => {
-                const label = value === OTHER ? item.other_label || "Other" : value;
+                const label = value === OTHER
+                    ? item.other_label || "Write your own answer"
+                    : value;
                 return (
                     <label key={`${item.id}-${index}`} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg bg-gray-100/70 px-3 py-2.5 text-gray-700 hover:bg-gray-200/70 has-[:checked]:bg-gray-200">
                         <input
@@ -242,7 +244,7 @@ function Choices({ item, required }: {
                         {value === OTHER ? (
                             <textarea
                                 name={`${item.id}-other`}
-                                rows={1}
+                                rows={2}
                                 aria-label={label}
                                 placeholder={label}
                                 onFocus={(focusEvent) => {
@@ -250,10 +252,10 @@ function Choices({ item, required }: {
                                     if (choices) choices.value = OTHER;
                                 }}
                                 onInput={(inputEvent) => inputEvent.currentTarget.setCustomValidity("")}
-                                className="max-h-24 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent text-[15px] outline-none [field-sizing:content] placeholder:text-gray-700"
+                                className="min-h-12 max-h-32 min-w-0 flex-1 resize-y overflow-y-auto bg-transparent text-[15px] leading-5 outline-none [field-sizing:content] placeholder:text-gray-700"
                             />
                         ) : (
-                            <span className="min-w-0 flex-1 text-[15px]">{label}</span>
+                            <span className="min-w-0 flex-1 break-words text-[15px]">{label}</span>
                         )}
                     </label>
                 );
