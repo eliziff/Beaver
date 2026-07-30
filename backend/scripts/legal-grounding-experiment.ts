@@ -1,0 +1,784 @@
+/**
+ * PROVISIONAL, BENCHMARK-TESTED ONLY.
+ *
+ * Holds the model and evidence constant while changing only when Beaver
+ * structures and checks a legal answer:
+ *   control        ordinary grounded answer
+ *   compose_check  support-unit/evidence output, then contextual check
+ *   evidence_first commit evidence first, compose, then semantic check
+ *   holistic_check support-unit/evidence output, then one whole-answer check
+ *
+ * The runner reads public benchmark files in place and writes only private
+ * receipts (default: the OS temp directory). It does not download or vendor
+ * corpora. Example:
+ *
+ *   npx tsx scripts/legal-grounding-experiment.ts `
+ *     --models codex:gpt-5.6-sol,claude-p:claude-sonnet-4-6 `
+ *     --split validation --per-source 1 `
+ *     --clerc C:\path\to\CLERC\generation\test.jsonl `
+ *     --housing C:\path\to\housing_qa\data\questions.json.zip
+ */
+import "../src/lib/loadEnv";
+
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import JSZip from "jszip";
+
+import {
+  LEGAL_EVIDENCE_EXPERIMENT_MODES,
+  LEGAL_EVIDENCE_PLAN_TOOL_NAME,
+  LEGAL_EVIDENCE_TOOL_NAME,
+  createBenchmarkEvidence,
+  createLegalEvidenceTurnState,
+  finalizeLegalEvidenceExperiment,
+  legalEvidenceExperimentTools,
+  legalEvidenceReceiptEvent,
+  planLegalEvidence,
+  registerLegalEvidence,
+  renderLegalEvidenceAnswer,
+  submitLegalEvidenceAnswer,
+  type LegalEvidenceExperimentMode,
+  type LegalEvidenceReceipt,
+  type LegalSourceClass,
+} from "../src/lib/chat/legalEvidenceExperiment";
+import {
+  streamChatWithTools,
+  type NormalizedLlmUsage,
+  type NormalizedToolCall,
+  type NormalizedToolResult,
+} from "../src/lib/llm";
+
+type Arm = "control" | LegalEvidenceExperimentMode;
+type Suite = "cslb" | "clerc" | "housing";
+
+type EvidenceSpec = {
+  stableSourceId: string;
+  sourceText: string;
+  spanText: string;
+  citation: string;
+  name?: string | null;
+  dataset: string;
+  version?: string | null;
+  externalUrl?: string | null;
+  locatorKind?: LegalEvidenceReceipt["locator"]["kind"];
+  locatorLabel: string;
+};
+
+type BenchmarkCase = {
+  id: string;
+  suite: Suite;
+  jurisdiction: "CA" | "US";
+  sourceClass: LegalSourceClass;
+  prompt: string;
+  target: string;
+  expectedAnswer?: "yes" | "no";
+  adversarial: boolean;
+  goldKind:
+    | "benchmark_target"
+    | "benchmark_adversarial_target"
+    | "opinion_derived_continuation"
+    | "expert_annotated_answer";
+  referenceExpectation?: "sufficient" | "insufficient";
+  evidence: EvidenceSpec[];
+};
+
+type RunReceipt = {
+  schema_version: 1;
+  case_id: string;
+  suite: Suite;
+  jurisdiction: "CA" | "US";
+  source_class: LegalSourceClass;
+  adversarial: boolean;
+  gold_kind: BenchmarkCase["goldKind"];
+  reference_expectation: BenchmarkCase["referenceExpectation"] | null;
+  model: string;
+  effort: string;
+  arm: Arm;
+  status: "completed" | "error";
+  latency_ms: number;
+  primary_tool_calls: string[];
+  finalizer_model_calls: number;
+  finalizer_diagnostic: string | null;
+  answerability_decision: "sufficient" | "insufficient" | null;
+  holistic_verdict:
+    | "supported"
+    | "partially_supported"
+    | "unsupported"
+    | null;
+  usage: NormalizedLlmUsage;
+  answer: string;
+  target_token_f1: number;
+  expected_answer_match: boolean | null;
+  inline_citation_rate: number | null;
+  support_expectation_match: boolean | null;
+  legal_evidence_receipt: ReturnType<typeof legalEvidenceReceiptEvent>;
+  error: string | null;
+};
+
+const emptyUsage = (): NormalizedLlmUsage => ({
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: null,
+  cacheReadInputTokens: 0,
+  cacheWriteInputTokens: 0,
+});
+
+function mergeUsage(
+  left: NormalizedLlmUsage,
+  right?: NormalizedLlmUsage,
+): NormalizedLlmUsage {
+  const add = (
+    a: number | null,
+    b: number | null | undefined,
+  ): number | null => (a === null && b == null ? null : (a ?? 0) + (b ?? 0));
+  return {
+    inputTokens: add(left.inputTokens, right?.inputTokens),
+    outputTokens: add(left.outputTokens, right?.outputTokens),
+    reasoningTokens: add(left.reasoningTokens, right?.reasoningTokens),
+    cacheReadInputTokens: add(
+      left.cacheReadInputTokens,
+      right?.cacheReadInputTokens,
+    ),
+    cacheWriteInputTokens: add(
+      left.cacheWriteInputTokens,
+      right?.cacheWriteInputTokens,
+    ),
+  };
+}
+
+function flag(name: string, fallback?: string): string {
+  const index = process.argv.indexOf(`--${name}`);
+  const value = index >= 0 ? process.argv[index + 1] : fallback;
+  if (value === undefined) throw new Error(`missing --${name}`);
+  return value;
+}
+
+function listFlag(name: string, fallback: string): string[] {
+  return flag(name, fallback)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function readJsonl<T>(file: string): T[] {
+  return readFileSync(file, "utf8")
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as T);
+}
+
+type CslbRow = {
+  id: string;
+  task: string;
+  split: string;
+  input_context: string;
+  target_text: string;
+  is_adversarial: boolean;
+  source_citation: string;
+  metadata: {
+    seed_example_id?: string;
+    source_type?: "case_law" | "legislation";
+    a2aj_dataset?: string;
+    document_name?: string;
+    document_date?: string;
+    source_url?: string;
+    anchor_kind?: "paragraph" | "section";
+    anchor_id?: string;
+  };
+};
+
+function cslbCases(
+  file: string,
+  split: string,
+  perSource: number,
+): BenchmarkCase[] {
+  const all = readJsonl<CslbRow>(file);
+  const byId = new Map(all.map((row) => [row.id, row]));
+  const rows = all.filter(
+    (row) =>
+      row.split === split &&
+      row.task === "pinpoint_summarization_similarity",
+  );
+  const ordinary = (sourceType: CslbRow["metadata"]["source_type"]) =>
+    rows
+      .filter(
+        (row) =>
+          !row.is_adversarial && row.metadata.source_type === sourceType,
+      )
+      .slice(0, perSource);
+  const selected = [
+    ...ordinary("case_law"),
+    ...ordinary("legislation"),
+    ...rows.filter((row) => row.is_adversarial).slice(0, perSource),
+  ];
+  return selected.map((row) => {
+    const source =
+      (row.metadata.seed_example_id &&
+        byId.get(row.metadata.seed_example_id)) ||
+      row;
+    const metadata = source.metadata;
+    const sourceClass =
+      metadata.source_type === "legislation" ? "legislation" : "case";
+    if (
+      !metadata.a2aj_dataset ||
+      !metadata.anchor_kind ||
+      !metadata.anchor_id
+    ) {
+      throw new Error(`CSLB ${row.id} has no exact source anchor`);
+    }
+    return {
+      id: `cslb:${row.id}`,
+      suite: "cslb",
+      jurisdiction: "CA",
+      sourceClass,
+      prompt: row.input_context,
+      target: row.target_text,
+      adversarial: row.is_adversarial,
+      goldKind: row.is_adversarial
+        ? "benchmark_adversarial_target"
+        : "benchmark_target",
+      evidence: [
+        {
+          stableSourceId: `cslb:${source.id}`,
+          sourceText: source.target_text,
+          spanText: source.target_text,
+          citation: row.source_citation,
+          name: metadata.document_name,
+          dataset: `CSLB/${metadata.a2aj_dataset}`,
+          version: metadata.document_date,
+          externalUrl: metadata.source_url,
+          locatorKind: metadata.anchor_kind,
+          locatorLabel: metadata.anchor_id,
+        },
+      ],
+    };
+  });
+}
+
+type ClercRow = {
+  docid: string;
+  previous_text: string;
+  gold_text: string;
+  citations: [string, string][];
+  short_citations: string[];
+};
+
+function clercCases(file: string, count: number): BenchmarkCase[] {
+  const selected: BenchmarkCase[] = [];
+  for (const row of readJsonl<ClercRow>(file)) {
+    if (
+      selected.length >= count ||
+      row.gold_text.length > 2_000 ||
+      row.gold_text.length < 120 ||
+      row.short_citations.length < 1 ||
+      row.short_citations.length > 2
+    ) {
+      continue;
+    }
+    const fullByCitation = new Map(row.citations);
+    const evidence = row.short_citations.flatMap((entry, index) => {
+      const separator = entry.indexOf("\n\n");
+      if (separator < 1) return [];
+      const citation = entry.slice(0, separator).trim();
+      const spanText = entry.slice(separator + 2).trim();
+      const sourceText = fullByCitation.get(citation);
+      if (!sourceText || spanText.length > 3_500) return [];
+      return [
+        {
+          stableSourceId: `clerc:${row.docid}:${index}`,
+          sourceText,
+          spanText,
+          citation,
+          dataset: "CLERC/generation-test",
+          locatorKind: "paragraph" as const,
+          locatorLabel: "cited passage",
+        },
+      ];
+    });
+    if (evidence.length !== row.short_citations.length) continue;
+    selected.push({
+      id: `clerc:${row.docid}`,
+      suite: "clerc",
+      jurisdiction: "US",
+      sourceClass: "case",
+      prompt:
+        "Continue this U.S. legal analysis using only the supplied authorities:\n\n" +
+        row.previous_text.slice(-2_500),
+      target: row.gold_text,
+      adversarial: false,
+      goldKind: "opinion_derived_continuation",
+      evidence,
+    });
+  }
+  return selected;
+}
+
+type HousingRow = {
+  idx: number;
+  state: string;
+  question: string;
+  answer: "Yes" | "No";
+  statutes: Array<{
+    statute_idx: number;
+    citation: string;
+    excerpt: string;
+  }>;
+};
+
+async function housingCases(
+  file: string,
+  ids: number[],
+): Promise<BenchmarkCase[]> {
+  const zip = await JSZip.loadAsync(readFileSync(file));
+  const member = zip.file("questions.json");
+  if (!member) throw new Error("HousingQA zip has no questions.json");
+  const rows = JSON.parse(await member.async("string")) as HousingRow[];
+  const byId = new Map(rows.map((row) => [row.idx, row]));
+  return ids
+    .map((id) => {
+      const row = byId.get(id);
+      if (!row) throw new Error(`HousingQA row not found: ${id}`);
+      return row;
+    })
+    .filter((row) => {
+      if (
+        row.statutes.length >= 1 &&
+        row.statutes.length <= 3 &&
+        row.statutes.reduce(
+          (total, statute) => total + statute.excerpt.length,
+          0,
+        ) <= 3_500
+      ) {
+        return true;
+      }
+      throw new Error(`HousingQA row ${row.idx} exceeds evidence limits`);
+    })
+    .map((row) => ({
+      id: `housing:${row.idx}`,
+      suite: "housing" as const,
+      jurisdiction: "US" as const,
+      sourceClass: "legislation" as const,
+      prompt:
+        `Consider statutory law for ${row.state} in 2021. ` +
+        `${row.question} Answer yes or no, explain briefly, and cite the statute inline.`,
+      target: row.answer,
+      expectedAnswer: row.answer.toLowerCase() as "yes" | "no",
+      adversarial: false,
+      goldKind: "expert_annotated_answer" as const,
+      // Row 163 directly states the seven-business-day condition. Row 0
+      // supplies only a definition of "premises", which cannot establish the
+      // benchmark's broader proposition that eviction law exists.
+      referenceExpectation:
+        row.idx === 0 ? ("insufficient" as const) : ("sufficient" as const),
+      evidence: row.statutes.map((statute) => ({
+        stableSourceId: `housing:${statute.statute_idx}`,
+        sourceText: statute.excerpt,
+        spanText: statute.excerpt,
+        citation: statute.citation,
+        dataset: "HousingQA/questions",
+        version: "2021",
+        locatorKind: "section" as const,
+        locatorLabel: statute.citation,
+      })),
+    }));
+}
+
+function evidencePrompt(
+  receipts: LegalEvidenceReceipt[],
+): Array<Record<string, unknown>> {
+  return receipts.map((receipt) => ({
+    evidence_id: receipt.evidence_id,
+    citation: receipt.citation,
+    locator: receipt.locator.label,
+    span_text: receipt.span_text,
+  }));
+}
+
+function runTool(
+  call: NormalizedToolCall,
+  state: ReturnType<typeof createLegalEvidenceTurnState>,
+): NormalizedToolResult {
+  const result =
+    call.name === LEGAL_EVIDENCE_PLAN_TOOL_NAME
+      ? planLegalEvidence(call.input, state)
+      : call.name === LEGAL_EVIDENCE_TOOL_NAME
+        ? submitLegalEvidenceAnswer(call.input, state)
+        : { ok: false, errors: [`Unexpected tool: ${call.name}`] };
+  return {
+    tool_use_id: call.id,
+    content: JSON.stringify(result),
+    terminal: "terminal" in result && result.terminal === true,
+  };
+}
+
+function terms(text: string) {
+  return text.toLocaleLowerCase("en-US").match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function tokenF1(expected: string, actual: string) {
+  const wanted = terms(expected);
+  const got = terms(actual);
+  if (!wanted.length || !got.length) return 0;
+  const counts = new Map<string, number>();
+  wanted.forEach((term) => counts.set(term, (counts.get(term) ?? 0) + 1));
+  let overlap = 0;
+  for (const term of got) {
+    const available = counts.get(term) ?? 0;
+    if (!available) continue;
+    overlap += 1;
+    counts.set(term, available - 1);
+  }
+  const precision = overlap / got.length;
+  const recall = overlap / wanted.length;
+  return precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+}
+
+function expectedAnswerMatch(
+  expected: BenchmarkCase["expectedAnswer"],
+  answer: string,
+) {
+  if (!expected) return null;
+  const match = answer.trim().match(/\b(yes|no)\b/iu);
+  return match ? match[1].toLowerCase() === expected : false;
+}
+
+function citationRate(
+  state: ReturnType<typeof createLegalEvidenceTurnState>,
+) {
+  if (!state.answer?.length) return null;
+  const cited = state.answer.filter((claim) =>
+    claim.evidence_ids.some((id) => {
+      const citation = state.evidence.get(id)?.receipt.citation;
+      if (!citation) return false;
+      const short = citation.replace(
+        /,\s*(?:para(?:graph)?|s(?:ection)?)s?\.?\s*\d.*$/iu,
+        "",
+      );
+      const text = claim.text
+        .replace(/[*_`]/gu, "")
+        .toLocaleLowerCase("en-US");
+      return [citation, short].some(
+        (form) =>
+          form.length >= 5 &&
+          text.includes(form.toLocaleLowerCase("en-US")),
+      );
+    }),
+  ).length;
+  return cited / state.answer.length;
+}
+
+async function runCase(
+  item: BenchmarkCase,
+  model: string,
+  effort: string,
+  arm: Arm,
+  timeoutMs: number,
+): Promise<RunReceipt> {
+  const started = Date.now();
+  const state = createLegalEvidenceTurnState(
+    arm === "control" ? null : arm,
+  );
+  const receipts = item.evidence.map((source) =>
+    createBenchmarkEvidence({
+      jurisdiction: item.jurisdiction,
+      sourceClass: item.sourceClass,
+      ...source,
+    }),
+  );
+  receipts.forEach((receipt) => registerLegalEvidence(state, receipt));
+  const primaryToolCalls: string[] = [];
+  let usage = emptyUsage();
+  let finalizerModelCalls = 0;
+  let finalizerDiagnostic: string | null = null;
+  let answer = "";
+  const abortSignal = AbortSignal.timeout(timeoutMs);
+  try {
+    const structured = arm !== "control" && arm !== "posthoc";
+    const primary = await streamChatWithTools({
+      model,
+      reasoningEffort: effort,
+      enableThinking: false,
+      systemPrompt:
+        arm === "evidence_first"
+          ? "Answer only from the supplied exact passages. Before composing, call plan_grounded_evidence to decide whether those passages are sufficient. If insufficient, commit no evidence IDs and stop. If sufficient, commit the minimal evidence IDs, correct conflicting premises, cite authority inline, and finish through submit_grounded_answer without a prose copy."
+          : arm === "tiered_check"
+            ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Where a passage's exact words answer the question, make that claim a verbatim quotation of the passage with the citation in a trailing parenthetical; paraphrase only where quotation cannot answer, and cite authority inline there too. Finish through the available grounded-answer tool; do not emit a prose copy."
+            : structured
+              ? "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline. Finish through the available grounded-answer tool; do not emit a prose copy."
+              : "Answer only from the supplied exact passages. Correct any premise that conflicts with them. Put authority citations inline.",
+      messages: [
+        {
+          role: "user",
+          content: JSON.stringify({
+            question: item.prompt,
+            evidence: evidencePrompt(receipts),
+          }),
+        },
+      ],
+      tools: structured ? legalEvidenceExperimentTools(arm) : [],
+      maxIterations: arm === "evidence_first" ? 3 : structured ? 2 : 1,
+      abortSignal,
+      callbacks: {
+        onToolCallStart: (call) => primaryToolCalls.push(call.name),
+      },
+      runTools: structured
+        ? async (calls) => calls.map((call) => runTool(call, state))
+        : undefined,
+    });
+    usage = mergeUsage(usage, primary.usage);
+    if (arm === "control") {
+      answer = primary.fullText.trim();
+    } else {
+      const finalized = await finalizeLegalEvidenceExperiment({
+        state,
+        model,
+        draft: primary.fullText,
+        requestContext: item.prompt,
+        reasoningEffort: effort,
+        abortSignal,
+      });
+      finalizerModelCalls = finalized.modelCalls;
+      finalizerDiagnostic = finalized.diagnostic;
+      usage = mergeUsage(usage, finalized.usage);
+      answer = renderLegalEvidenceAnswer(state) ?? "";
+    }
+    const legalReceipt =
+      arm === "control" ? null : legalEvidenceReceiptEvent(state);
+    return {
+      schema_version: 1,
+      case_id: item.id,
+      suite: item.suite,
+      jurisdiction: item.jurisdiction,
+      source_class: item.sourceClass,
+      adversarial: item.adversarial,
+      gold_kind: item.goldKind,
+      reference_expectation: item.referenceExpectation ?? null,
+      model,
+      effort,
+      arm,
+      status: "completed",
+      latency_ms: Date.now() - started,
+      primary_tool_calls: primaryToolCalls,
+      finalizer_model_calls: finalizerModelCalls,
+      finalizer_diagnostic: finalizerDiagnostic,
+      answerability_decision: state.answerability,
+      holistic_verdict: state.holisticVerdict,
+      usage,
+      answer,
+      target_token_f1: tokenF1(item.target, answer),
+      expected_answer_match: expectedAnswerMatch(item.expectedAnswer, answer),
+      inline_citation_rate: arm === "control" ? null : citationRate(state),
+      support_expectation_match:
+        arm === "control" || !item.referenceExpectation
+          ? null
+          : arm === "evidence_first"
+            ? item.referenceExpectation === "insufficient"
+              ? state.answerability === "insufficient"
+              : state.answerability === "sufficient" &&
+                legalReceipt?.status === "passed"
+            : (legalReceipt?.status === "passed") ===
+              (item.referenceExpectation === "sufficient"),
+      legal_evidence_receipt: legalReceipt,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      schema_version: 1,
+      case_id: item.id,
+      suite: item.suite,
+      jurisdiction: item.jurisdiction,
+      source_class: item.sourceClass,
+      adversarial: item.adversarial,
+      gold_kind: item.goldKind,
+      reference_expectation: item.referenceExpectation ?? null,
+      model,
+      effort,
+      arm,
+      status: "error",
+      latency_ms: Date.now() - started,
+      primary_tool_calls: primaryToolCalls,
+      finalizer_model_calls: finalizerModelCalls,
+      finalizer_diagnostic: finalizerDiagnostic,
+      answerability_decision: state.answerability,
+      holistic_verdict: state.holisticVerdict,
+      usage,
+      answer,
+      target_token_f1: 0,
+      expected_answer_match: expectedAnswerMatch(item.expectedAnswer, answer),
+      inline_citation_rate: null,
+      support_expectation_match: null,
+      legal_evidence_receipt:
+        arm === "control" ? null : legalEvidenceReceiptEvent(state),
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function average(values: number[]) {
+  return values.length
+    ? values.reduce((total, value) => total + value, 0) / values.length
+    : 0;
+}
+
+function printSummary(rows: RunReceipt[]) {
+  const groups = new Map<string, RunReceipt[]>();
+  rows.forEach((row) => {
+    const key = `${row.model} | ${row.arm}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  });
+  console.log(
+    "\nmodel | arm | n | errors | pass | support-gate | token-F1 | cites | seconds | input | output",
+  );
+  for (const [key, group] of groups) {
+    const completed = group.filter((row) => row.status === "completed");
+    const structured = completed.filter((row) => row.legal_evidence_receipt);
+    const passed = structured.filter(
+      (row) => row.legal_evidence_receipt?.status === "passed",
+    ).length;
+    const citationRows = completed
+      .map((row) => row.inline_citation_rate)
+      .filter((value): value is number => value !== null);
+    const supportRows = completed
+      .map((row) => row.support_expectation_match)
+      .filter((value): value is boolean => value !== null);
+    console.log(
+      [
+        key,
+        group.length,
+        group.length - completed.length,
+        structured.length ? (passed / structured.length).toFixed(2) : "-",
+        supportRows.length
+          ? (
+              supportRows.filter(Boolean).length / supportRows.length
+            ).toFixed(2)
+          : "-",
+        average(completed.map((row) => row.target_token_f1)).toFixed(2),
+        citationRows.length ? average(citationRows).toFixed(2) : "-",
+        (average(group.map((row) => row.latency_ms)) / 1_000).toFixed(1),
+        completed.reduce(
+          (total, row) => total + (row.usage.inputTokens ?? 0),
+          0,
+        ),
+        completed.reduce(
+          (total, row) => total + (row.usage.outputTokens ?? 0),
+          0,
+        ),
+      ].join(" | "),
+    );
+  }
+}
+
+async function main() {
+  const repoRoot = path.resolve(__dirname, "../..");
+  const split = flag("split", "validation");
+  const perSource = Number(flag("per-source", "1"));
+  if (!Number.isInteger(perSource) || perSource < 1)
+    throw new Error("--per-source must be a positive integer");
+  const models = listFlag(
+    "models",
+    "codex:gpt-5.6-sol,claude-p:claude-sonnet-4-6",
+  );
+  const arms = listFlag(
+    "arms",
+    `control,${LEGAL_EVIDENCE_EXPERIMENT_MODES.join(",")}`,
+  ) as Arm[];
+  if (
+    arms.some(
+      (arm) =>
+        arm !== "control" &&
+        !LEGAL_EVIDENCE_EXPERIMENT_MODES.includes(
+          arm as LegalEvidenceExperimentMode,
+        ),
+    )
+  ) {
+    throw new Error(`unknown --arms value: ${arms.join(",")}`);
+  }
+  const suites = new Set(
+    listFlag("suites", "cslb,clerc,housing") as Suite[],
+  );
+  const effort = flag("effort", "low");
+  const timeoutMs = Number(flag("timeout-ms", "90000"));
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000)
+    throw new Error("--timeout-ms must be an integer of at least 1000");
+  const tempRoot = path.join(os.tmpdir(), "beaver-legal-grounding");
+  const cslbFile = flag(
+    "cslb",
+    path.join(
+      repoRoot,
+      "benchmarks/legal-generalization-corpus/cslb/repo/data/a2aj_benchmark.jsonl",
+    ),
+  );
+  const clercFile = flag(
+    "clerc",
+    process.env.CLERC_GENERATION_TEST ??
+      path.join(tempRoot, "clerc/generation/test.jsonl"),
+  );
+  const housingFile = flag(
+    "housing",
+    process.env.HOUSING_QA_QUESTIONS ??
+      path.join(tempRoot, "housing_qa/data/questions.json.zip"),
+  );
+  const housingIds = listFlag("housing-ids", "163,0").map((value) => {
+    const id = Number(value);
+    if (!Number.isInteger(id) || id < 0)
+      throw new Error(`invalid --housing-ids value: ${value}`);
+    return id;
+  });
+  const output = flag(
+    "output",
+    path.join(tempRoot, `results-${new Date().toISOString().replace(/[:.]/gu, "-")}.jsonl`),
+  );
+
+  const cases: BenchmarkCase[] = [];
+  if (suites.has("cslb")) cases.push(...cslbCases(cslbFile, split, perSource));
+  if (suites.has("clerc")) {
+    if (!existsSync(clercFile))
+      throw new Error(`CLERC file not found: ${clercFile}`);
+    cases.push(...clercCases(clercFile, perSource));
+  }
+  if (suites.has("housing")) {
+    if (!existsSync(housingFile))
+      throw new Error(`HousingQA file not found: ${housingFile}`);
+    cases.push(...(await housingCases(housingFile, housingIds)));
+  }
+  if (!cases.length) throw new Error("no benchmark cases selected");
+
+  console.log(
+    `selected ${cases.length} cases: ${cases.map((item) => item.id).join(", ")}`,
+  );
+  if (process.argv.includes("--dry-run")) return;
+
+  mkdirSync(path.dirname(output), { recursive: true });
+  writeFileSync(output, "", "utf8");
+  const rows: RunReceipt[] = [];
+  for (const model of models) {
+    for (const arm of arms) {
+      for (const item of cases) {
+        console.log(`${model} | ${arm} | ${item.id}`);
+        const row = await runCase(item, model, effort, arm, timeoutMs);
+        rows.push(row);
+        appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
+        console.log(
+          `  ${row.status} ${(row.latency_ms / 1_000).toFixed(1)}s ` +
+            `F1=${row.target_token_f1.toFixed(2)} ` +
+            `${row.error ?? row.legal_evidence_receipt?.status ?? ""}`,
+        );
+      }
+    }
+  }
+  printSummary(rows);
+  console.log(`\nprivate receipts: ${output}`);
+}
+
+void main().catch((error) => {
+  console.error(error instanceof Error ? error.stack : error);
+  process.exitCode = 1;
+});
