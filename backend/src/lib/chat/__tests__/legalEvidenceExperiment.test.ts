@@ -1,0 +1,491 @@
+import { describe, expect, it } from "vitest";
+
+import type { A2AJLocatorLookup } from "../../a2aj";
+import {
+  createA2AJLookupEvidence,
+  createBenchmarkEvidence,
+  createLegalEvidenceTurnState,
+  deterministicClaimSupport,
+  legalEvidenceExperimentTools,
+  legalEvidenceReceiptEvent,
+  planLegalEvidence,
+  registerLegalEvidence,
+  renderLegalEvidenceAnswer,
+  submitLegalEvidenceAnswer,
+  submitLegalEvidenceVerification,
+  submitHolisticLegalEvidenceVerification,
+} from "../legalEvidenceExperiment";
+
+const lookup: A2AJLocatorLookup = {
+  status: "found",
+  citation: "2024 SCC 6",
+  alternateCitation: null,
+  name: "R. v. Example",
+  dataset: "SCC",
+  url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
+  language: "en",
+  requested: { kind: "paragraph", locator: "12", label: "par12" },
+  matches: ["par12"],
+  block: {
+    kind: "paragraph",
+    label: "par12",
+    start: 0,
+    end: 45,
+    origin: "native",
+    text: "The governing test has three required elements.",
+  },
+  before: [],
+  after: [],
+  structure: {
+    status: "usable",
+    source: "flat_text",
+    counts: { paragraph: 1, page: 0, section: 0 },
+  },
+  sourceMethod: "structure_index",
+};
+
+describe("provisional legal evidence contract", () => {
+  it("renders only claims separately verified against turn-local passages", () => {
+    const state = createLegalEvidenceTurnState("compose_check");
+    const evidence = createA2AJLookupEvidence(lookup)!;
+    registerLegalEvidence(state, evidence, { lookup });
+
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "The governing test has three elements: 2024 SCC 6 at para. 12.",
+              evidence_ids: [evidence.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toBeNull();
+
+    expect(
+      submitLegalEvidenceVerification(
+        {
+          coverage: "complete",
+          claims: [
+            {
+              index: 0,
+              context_status: "preserved",
+              evidence_status: "supported",
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The governing test has three elements: [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).",
+    );
+    expect(legalEvidenceReceiptEvent(state)).toMatchObject({
+      schema_version: 4,
+      mode: "compose_check",
+      status: "passed",
+      verification: {
+        reference: "verified",
+        semantic: "model_checked",
+        coverage: "complete",
+        authority: "not_run",
+      },
+      evidence: [
+        {
+          evidence_id: evidence.evidence_id,
+          scope: "passage",
+          span_text: lookup.block!.text,
+        },
+      ],
+    });
+
+    const nextTurn = createLegalEvidenceTurnState("compose_check");
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "The same claim.",
+              evidence_ids: [evidence.evidence_id],
+            },
+          ],
+        },
+        nextTurn,
+      ),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("requires evidence-first claims to stay inside the accepted plan", () => {
+    const state = createLegalEvidenceTurnState("evidence_first");
+    const first = createA2AJLookupEvidence(lookup)!;
+    const second = { ...first, evidence_id: "e_second" };
+    registerLegalEvidence(state, first, { lookup });
+    registerLegalEvidence(state, second, { lookup });
+
+    expect(
+      planLegalEvidence(
+        {
+          answerability: "sufficient",
+          evidence_ids: [first.evidence_id],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "A proposition.",
+              evidence_ids: [second.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: ["claims[0] uses evidence outside the accepted plan"],
+    });
+  });
+
+  it("terminates an evidence-first turn when the passages are insufficient", () => {
+    const state = createLegalEvidenceTurnState("evidence_first");
+    const evidence = createA2AJLookupEvidence(lookup)!;
+    registerLegalEvidence(state, evidence, { lookup });
+
+    expect(
+      planLegalEvidence(
+        { answerability: "insufficient", evidence_ids: [] },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(state.answerability).toBe("insufficient");
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The retrieved passages do not contain enough information to answer this question.",
+    );
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "A proposition.",
+              evidence_ids: [evidence.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: ["a sufficient evidence plan is required before composing"],
+    });
+    expect(
+      planLegalEvidence(
+        {
+          answerability: "insufficient",
+          evidence_ids: [evidence.evidence_id],
+        },
+        createLegalEvidenceTurnState("evidence_first"),
+      ),
+    ).toEqual({
+      ok: false,
+      errors: ["an insufficient plan cannot include evidence_ids"],
+    });
+  });
+
+  it("rejects a document-only handle even when another handle has a passage", () => {
+    const state = createLegalEvidenceTurnState("compose_check");
+    const passage = createA2AJLookupEvidence(lookup)!;
+    const documentOnly = {
+      ...passage,
+      evidence_id: "e_document",
+      scope: "document" as const,
+      span_text: null,
+    };
+    registerLegalEvidence(state, passage, { lookup });
+    registerLegalEvidence(state, documentOnly, { lookup });
+
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "A proposition.",
+              evidence_ids: [
+                passage.evidence_id,
+                documentOnly.evidence_id,
+              ],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: [
+        "claims[0] requires an exact passage for every evidence_id",
+      ],
+    });
+  });
+
+  it("rejects duplicate evidence handles locally", () => {
+    const state = createLegalEvidenceTurnState("compose_check");
+    const evidence = createA2AJLookupEvidence(lookup)!;
+    registerLegalEvidence(state, evidence, { lookup });
+
+    expect(
+      submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "A proposition.",
+              evidence_ids: [evidence.evidence_id, evidence.evidence_id],
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: ["claims[0].evidence_ids must contain 1 to 16 handles"],
+    });
+  });
+
+  it("exposes distinct tool orderings without the removed claim taxonomy", () => {
+    expect(
+      legalEvidenceExperimentTools("compose_check").map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(["submit_grounded_answer"]);
+    expect(
+      legalEvidenceExperimentTools("evidence_first").map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(["plan_grounded_evidence", "submit_grounded_answer"]);
+    expect(
+      legalEvidenceExperimentTools("holistic_check").map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(["submit_grounded_answer"]);
+    expect(
+      JSON.stringify(legalEvidenceExperimentTools("compose_check")),
+    ).not.toContain("claim_type");
+    expect(
+      JSON.stringify(legalEvidenceExperimentTools("compose_check")),
+    ).not.toContain("atomic");
+  });
+
+  it("fails closed when context changes or coverage is incomplete", () => {
+    const state = createLegalEvidenceTurnState("compose_check");
+    const evidence = createA2AJLookupEvidence(lookup)!;
+    registerLegalEvidence(state, evidence, { lookup });
+    submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "The governing test has three elements.",
+            evidence_ids: [evidence.evidence_id],
+          },
+        ],
+      },
+      state,
+    );
+
+    expect(
+      submitLegalEvidenceVerification(
+        {
+          coverage: "incomplete",
+          claims: [
+            {
+              index: 0,
+              context_status: "changed",
+              evidence_status: "supported",
+            },
+          ],
+        },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toBeNull();
+    expect(legalEvidenceReceiptEvent(state)).toMatchObject({
+      status: "failed",
+      verification: { coverage: "incomplete", semantic: "failed" },
+      claims: [
+        {
+          context_status: "changed",
+          evidence_status: "supported",
+        },
+      ],
+    });
+  });
+
+  it("renders a holistic answer only after a whole-answer support verdict", () => {
+    const state = createLegalEvidenceTurnState("holistic_check");
+    const evidence = createA2AJLookupEvidence(lookup)!;
+    registerLegalEvidence(state, evidence, { lookup });
+    submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "The governing test has three elements: 2024 SCC 6 at para. 12.",
+            evidence_ids: [evidence.evidence_id],
+          },
+        ],
+      },
+      state,
+    );
+
+    expect(renderLegalEvidenceAnswer(state)).toBeNull();
+    expect(
+      submitHolisticLegalEvidenceVerification(
+        { verdict: "supported" },
+        state,
+      ),
+    ).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toContain(
+      "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12",
+    );
+    expect(legalEvidenceReceiptEvent(state)).toMatchObject({
+      schema_version: 4,
+      status: "passed",
+      verification: {
+        answerability: "not_run",
+        holistic: "supported",
+        semantic: "model_checked",
+        coverage: "complete",
+      },
+    });
+  });
+});
+
+describe("deterministic verbatim-quote tier (tiered_check)", () => {
+  const passage =
+    "If rent is unpaid when due, the landlord may deliver a written notice to " +
+    "terminate the lease — a date not less than seven business days after " +
+    "receipt of the notice.";
+
+  function tieredState() {
+    const state = createLegalEvidenceTurnState("tiered_check");
+    const receipt = createBenchmarkEvidence({
+      stableSourceId: "test:ala",
+      sourceText: passage,
+      spanText: passage,
+      citation: "ALA. CODE § 35-9A-421(b)",
+      dataset: "test",
+      locatorKind: "section",
+      locatorLabel: "ALA. CODE § 35-9A-421(b)",
+      jurisdiction: "US",
+      sourceClass: "legislation",
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, id: receipt.evidence_id };
+  }
+
+  const claim = (text: string, id: string) => ({
+    text,
+    evidence_ids: [id],
+  });
+
+  it("clears an exact quotation with a trailing citation tail", () => {
+    const { state, id } = tieredState();
+    expect(
+      deterministicClaimSupport(
+        claim(
+          "“If rent is unpaid when due, the landlord may deliver a written " +
+            "notice to terminate the lease — a date not less than seven " +
+            "business days after receipt of the notice.” " +
+            "(ALA. CODE § 35-9A-421(b))",
+          id,
+        ),
+        state,
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes curly quotes, dash widths, and whitespace, never words", () => {
+    const { state, id } = tieredState();
+    expect(
+      deterministicClaimSupport(
+        claim(
+          "If rent is unpaid when due,  the landlord may deliver a written " +
+            "notice to terminate the lease - a date not less than seven " +
+            "business days after receipt of the notice. " +
+            "(ALA. CODE § 35-9A-421(b))",
+          id,
+        ),
+        state,
+      ),
+    ).toBe(true);
+    expect(
+      deterministicClaimSupport(
+        claim(
+          "If rent is unpaid when due, the landlord may deliver a written " +
+            "notice to terminate the lease — a date not less than seven " +
+            "calendar days after receipt of the notice. " +
+            "(ALA. CODE § 35-9A-421(b))",
+          id,
+        ),
+        state,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses paraphrase, prose framing, and short fragments", () => {
+    const { state, id } = tieredState();
+    expect(
+      deterministicClaimSupport(
+        claim(
+          "Alabama requires seven business days' notice before termination. " +
+            "(ALA. CODE § 35-9A-421(b))",
+          id,
+        ),
+        state,
+      ),
+    ).toBe(false);
+    expect(
+      deterministicClaimSupport(
+        claim(
+          "Because the statute says “seven business days”, notice is required. " +
+            "(ALA. CODE § 35-9A-421(b))",
+          id,
+        ),
+        state,
+      ),
+    ).toBe(false);
+    expect(
+      deterministicClaimSupport(
+        claim("“seven business days” (ALA. CODE § 35-9A-421(b))", id),
+        state,
+      ),
+    ).toBe(false);
+  });
+
+  it("records the deterministic path honestly in the receipt", () => {
+    const { state, id } = tieredState();
+    const text =
+      "“If rent is unpaid when due, the landlord may deliver a written " +
+      "notice to terminate the lease — a date not less than seven business " +
+      "days after receipt of the notice.” (ALA. CODE § 35-9A-421(b))";
+    expect(
+      submitLegalEvidenceAnswer({ claims: [claim(text, id)] }, state),
+    ).toEqual({ ok: true, terminal: true });
+    state.deterministicSupport = state.answer!.map((entry) =>
+      deterministicClaimSupport(entry, state),
+    );
+    expect(state.deterministicSupport).toEqual([true]);
+    expect(renderLegalEvidenceAnswer(state)).toContain("seven business days");
+    expect(legalEvidenceReceiptEvent(state)).toMatchObject({
+      status: "passed",
+      verification: {
+        holistic: "not_run",
+        semantic: "not_run",
+        coverage: "not_run",
+      },
+      claims: [{ deterministic_support: true }],
+    });
+  });
+});
