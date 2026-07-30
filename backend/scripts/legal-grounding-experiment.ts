@@ -100,6 +100,8 @@ type RunReceipt = {
   gold_kind: BenchmarkCase["goldKind"];
   reference_expectation: BenchmarkCase["referenceExpectation"] | null;
   model: string;
+  /** Checker model when crossed; null means same-model checking. */
+  checker_model: string | null;
   effort: string;
   arm: Arm;
   status: "completed" | "error";
@@ -481,6 +483,7 @@ async function runCase(
   effort: string,
   arm: Arm,
   timeoutMs: number,
+  checkerModel: string | null = null,
 ): Promise<RunReceipt> {
   const started = Date.now();
   const state = createLegalEvidenceTurnState(
@@ -540,6 +543,7 @@ async function runCase(
       const finalized = await finalizeLegalEvidenceExperiment({
         state,
         model,
+        checkerModel: checkerModel ?? undefined,
         draft: primary.fullText,
         requestContext: item.prompt,
         reasoningEffort: effort,
@@ -562,6 +566,7 @@ async function runCase(
       gold_kind: item.goldKind,
       reference_expectation: item.referenceExpectation ?? null,
       model,
+      checker_model: checkerModel,
       effort,
       arm,
       status: "completed",
@@ -600,6 +605,7 @@ async function runCase(
       gold_kind: item.goldKind,
       reference_expectation: item.referenceExpectation ?? null,
       model,
+      checker_model: checkerModel,
       effort,
       arm,
       status: "error",
@@ -677,7 +683,10 @@ async function runPool<T extends { model: string }>(
 function printSummary(rows: RunReceipt[]) {
   const groups = new Map<string, RunReceipt[]>();
   rows.forEach((row) => {
-    const key = `${row.model} | ${row.arm}`;
+    const checker = row.checker_model
+      ? ` | checker=${row.checker_model.split(":")[0]}`
+      : "";
+    const key = `${row.model} | ${row.arm}${checker}`;
     groups.set(key, [...(groups.get(key) ?? []), row]);
   });
   console.log(
@@ -809,25 +818,46 @@ async function main() {
   if (!Number.isInteger(perModel) || perModel < 1)
     throw new Error("--per-model-concurrency must be a positive integer");
 
+  // Checker-model factor: "same" checks with the composer model; "cross"
+  // checks with the OTHER model in --models (controls for the composing
+  // model's inherent legal reliability); an explicit model id pins the
+  // checker. Control cells have no checker and run once.
+  const checkerSpecs = listFlag("checker-models", "same");
   mkdirSync(path.dirname(output), { recursive: true });
   writeFileSync(output, "", "utf8");
   const rows: RunReceipt[] = [];
   const cells = models.flatMap((model) =>
-    arms.flatMap((arm) => cases.map((item) => ({ model, arm, item }))),
+    arms.flatMap((arm) =>
+      (arm === "control" ? ["same"] : checkerSpecs).flatMap((spec) => {
+        const checker =
+          spec === "same"
+            ? null
+            : spec === "cross"
+              ? (models.find((other) => other !== model) ?? null)
+              : spec;
+        if (spec === "cross" && !checker) return [];
+        return cases.map((item) => ({ model, arm, checker, item }));
+      }),
+    ),
   );
+  console.log(`cells: ${cells.length}`);
   await runPool(cells, concurrency, perModel, async (cell) => {
-    console.log(`start | ${cell.model} | ${cell.arm} | ${cell.item.id}`);
+    const label =
+      `${cell.model} | ${cell.arm}` +
+      (cell.checker ? ` | checker=${cell.checker.split(":")[0]}` : "");
+    console.log(`start | ${label} | ${cell.item.id}`);
     const row = await runCase(
       cell.item,
       cell.model,
       effort,
       cell.arm,
       timeoutMs,
+      cell.checker,
     );
     rows.push(row);
     appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
     console.log(
-      `done  | ${cell.model} | ${cell.arm} | ${cell.item.id} | ` +
+      `done  | ${label} | ${cell.item.id} | ` +
         `${row.status} ${(row.latency_ms / 1_000).toFixed(1)}s ` +
         `F1=${row.target_token_f1.toFixed(2)} ` +
         `${row.error ?? row.legal_evidence_receipt?.status ?? ""}`,

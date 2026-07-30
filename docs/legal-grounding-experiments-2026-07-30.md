@@ -645,6 +645,78 @@ composition also stabilizes the judge), and the Codex lane stays
 disqualified as both composer and checker. Authority and current-law
 validation remain untested, as before.
 
+## Stage 5 — scale and the model-trust control
+
+### Motivation
+
+Stage 4's decisive cells number six, and every grounding decision was
+made by the composing model's own family. Two confounds follow: small-n
+(a lucky run clears gates), and model trust (the wins may reflect the
+composer/checker model being inherently more reliable at legal text
+rather than the harness). Stage 5 scales the held-constant matrix 4×
+and crosses the checker model against the composer, so the harness
+effect and the model effect separate.
+
+### Frozen Hypothesis 5
+
+Stage 4's grounding behaviour on the tiered arm is attributable to the
+harness — quote-preferring composition, the deterministic verbatim tier,
+and one fail-closed holistic escalation — and not to the composing
+model's inherent legal reliability. Concretely, on a 24-item
+held-constant matrix (12 CSLB: 4 ordinary case / 4 ordinary legislation
+/ 4 adversarial; 4 CLERC continuations; 8 HousingQA rows — the audited
+163/0 sufficiency pair plus six unaudited rows balanced yes/no across
+states, ids 286, 1, 57, 595, 290, 605):
+
+- (a) within EACH composer model, `tiered_check` preserves answerable
+  coverage relative to control (excluding correct insufficient-evidence
+  rejections) and keeps the audited pair correct for the Claude
+  composer;
+- (b) crossing the checker (Claude compositions checked by Codex and
+  vice versa) does not flip the audited pair to a false accept, and
+  same-vs-crossed verdicts agree on a majority of completed cells —
+  i.e., the checker's model family is not load-bearing for the
+  grounding decision;
+- (c) the deterministic tier's clears remain verified-verbatim under
+  audit at scale, with no false pass;
+- (d) unaudited HousingQA rows are scored on expected-answer match and
+  rendering only — their benchmark labels are NOT treated as
+  sufficiency gold.
+
+### Predictions and falsification
+
+- Weak Alabama (housing:0) rejects under every structured cell that
+  completes, regardless of checker family; sufficient housing:163
+  renders for the Claude composer under both checker families.
+- Same-model and crossed-checker pass/fail decisions agree on most
+  completed cells; disagreements are fail-closed (a rejection where the
+  other accepted), never a new false accept on the audited pair.
+- Within-composer answerable rendering: tiered ≥ control minus correct
+  rejections; adversarial CSLB rows keep the premise-correcting shape
+  (F1 comparable to Stage 4's adversarial cells).
+- Deterministic clears audit as genuine verbatim quotes; the zero-call
+  path may fire on some quote-heavy cells but is not required at scale.
+- Error rate under the bounded pool stays under 10% of cells; the pool
+  changes wall-clock only.
+
+H5 is falsified if the crossed checker false-accepts the weak
+reference for either composer; if answerable coverage under tiered
+drops below control within a composer beyond correct rejections; if
+any deterministic clear fails the verbatim audit; or if the harness
+effect vanishes at scale (tiered's grounding decisions no better than
+control while still spending checker calls).
+
+Execution notes, frozen with the hypothesis: bounded pool (concurrency
+4, per-model cap 2 keyed on the composer; a crossed cell's checker call
+may transiently exceed the checker model's lane cap — accepted, the
+checker call is one small request). The unaudited HousingQA rows'
+sufficiency is unknown by design; only the audited pair gates.
+
+### Stage 5 result
+
+Result: **pending — frozen before the run; recorded below after the
+matrix completes.**
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
