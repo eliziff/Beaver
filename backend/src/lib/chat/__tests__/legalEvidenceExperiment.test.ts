@@ -1,6 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
 import { describe, expect, it } from "vitest";
 
 import type { A2AJDocument, A2AJLocatorLookup } from "../../a2aj";
+import { fnv1a64 } from "../../legalClaimLint";
 import {
   attestedCharacterizationReceipt,
   createA2AJLookupEvidence,
@@ -16,6 +22,7 @@ import {
   submitLegalEvidenceAnswer,
   submitLegalEvidenceVerification,
   submitHolisticLegalEvidenceVerification,
+  temporalOrderInversion,
 } from "../legalEvidenceExperiment";
 
 const lookup: A2AJLocatorLookup = {
@@ -259,6 +266,91 @@ describe("provisional legal evidence contract", () => {
         coverage: "not_run",
       },
     });
+  });
+
+  it("keeps cross-block multi-spans behind the experiment flag", () => {
+    const text = [
+      "[1] Ancient forests hold clean water beneath a changing sky.",
+      "[2] The middle paragraph concerns an unrelated procedural question.",
+      "[3] Migratory birds cross open air above the northern wetlands.",
+    ].join("\n");
+    const document: A2AJDocument = {
+      dataset: "SCC",
+      citation: "2023 SCC 23",
+      alternateCitation: null,
+      name: "Reference re Impact Assessment Act",
+      date: "2023-10-13",
+      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/20102/index.do",
+      text,
+      language: "en",
+      upstreamLicense: null,
+      structure: {
+        status: "unavailable",
+        source: "flat_text",
+        counts: { paragraph: 3, page: 0, section: 0 },
+      },
+    };
+    const paragraph = (number: 1 | 3): A2AJLocatorLookup => {
+      const start = text.indexOf(`[${number}]`);
+      const end = text.indexOf("\n", start);
+      return {
+        ...lookup,
+        citation: document.citation,
+        name: document.name,
+        url: document.url,
+        requested: {
+          kind: "paragraph",
+          locator: String(number),
+          label: `par${number}`,
+        },
+        matches: [`par${number}`],
+        block: {
+          kind: "paragraph",
+          label: `par${number}`,
+          start,
+          end: end < 0 ? text.length : end,
+          origin: "native",
+          text: text.slice(start, end < 0 ? text.length : end),
+        },
+      };
+    };
+    const render = (
+      mode: "citation_structure" | "arbitrary_source_spans",
+    ) => {
+      const state = createLegalEvidenceTurnState(mode);
+      const lookups = [paragraph(1), paragraph(3)];
+      const evidence = lookups.map((item) => createA2AJLookupEvidence(item)!);
+      evidence.forEach((item, index) =>
+        registerLegalEvidence(state, item, {
+          lookup: lookups[index],
+          document,
+        }),
+      );
+      expect(
+        submitLegalEvidenceAnswer(
+          {
+            claims: [{
+              text:
+                "\u201cforests hold clean water\u201d \u2014 " +
+                "\u201cbirds cross open air\u201d",
+              evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+            }],
+          },
+          state,
+        ),
+      ).toEqual({ ok: true, terminal: true });
+      return renderLegalEvidenceAnswer(state)!;
+    };
+
+    const safe = render("citation_structure");
+    expect(safe.match(/\[2023 SCC 23 at para\./gu)).toHaveLength(2);
+    expect(safe).not.toContain("text=");
+
+    const experimental = render("arbitrary_source_spans");
+    expect(experimental.match(/\[2023 SCC 23\]/gu)).toHaveLength(1);
+    expect(experimental.match(/text=/gu)).toHaveLength(2);
+    expect(experimental).toContain("?iframe=true&site_preference=mobile#:~:");
+    expect(experimental).not.toContain("1%5D");
   });
 
   it("terminates an evidence-first turn when the passages are insufficient", () => {
@@ -1332,5 +1424,131 @@ describe("Stage 8b typed claim roles and required characterization slot", () => 
     );
     expect(result.ok).toBe(false);
     expect(bounced.lintBounced).toBe(true);
+  });
+});
+
+describe("Stage 9 — temporal-order flag and alienness advisory", () => {
+  const passage =
+    "If rent is unpaid when due, the landlord may deliver a written " +
+    "notice to terminate the lease after seven business days.";
+
+  function stageNineState() {
+    const state = createLegalEvidenceTurnState("compose_check");
+    const receipt = createBenchmarkEvidence({
+      stableSourceId: "test:9",
+      sourceText: passage,
+      spanText: passage,
+      citation: "2012 SCC 57",
+      dataset: "test",
+      locatorKind: "paragraph",
+      locatorLabel: "1",
+      jurisdiction: "CA",
+      sourceClass: "case",
+    });
+    registerLegalEvidence(state, receipt);
+    return { state, id: receipt.evidence_id };
+  }
+
+  it("temporalOrderInversion fires only on active-voice impossible orders", () => {
+    expect(
+      temporalOrderInversion(
+        "R. v. A, 2005 BCCA 293, followed R. v. B, 2012 SCC 57, on this point.",
+      ),
+    ).toMatchObject({ earlier: "2005 BCCA 293", later: "2012 SCC 57" });
+    // Correct order: a later decision may follow an earlier one.
+    expect(
+      temporalOrderInversion("2015 SCC 5 applied 2005 BCCA 293 to the facts."),
+    ).toBeNull();
+    // Passive voice inverts the relation and must not fire.
+    expect(
+      temporalOrderInversion("2005 BCCA 293 was followed in 2012 SCC 57."),
+    ).toBeNull();
+    expect(
+      temporalOrderInversion("2005 BCCA 293, followed by 2012 SCC 57, held so."),
+    ).toBeNull();
+    // Sentence boundary between the citations breaks the clause.
+    expect(
+      temporalOrderInversion(
+        "The court cited 2005 BCCA 293. It followed 2012 SCC 57.",
+      ),
+    ).toBeNull();
+    expect(temporalOrderInversion("2005 BCCA 293 settled the point.")).toBeNull();
+  });
+
+  it("rejects an impossible temporal assertion with a typed error", () => {
+    const { state, id } = stageNineState();
+    const result = submitLegalEvidenceAnswer(
+      {
+        claims: [
+          {
+            text: "In 2005 BCCA 293 the court followed 2012 SCC 57 and dismissed.",
+            evidence_ids: [id],
+          },
+        ],
+      },
+      state,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.[0]).toMatch(/temporal order is impossible/u);
+    expect(state.bounces).toHaveLength(1);
+  });
+
+  it("appends the alienness advisory to a rejection that already happened", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "advisory-test-"));
+    const indexPath = path.join(directory, "trigrams-en.sqlite");
+    const database = new DatabaseSync(indexPath);
+    database.exec(
+      "create table trigram (hash integer primary key, n integer not null) without rowid",
+    );
+    database.exec(
+      "create table meta (key text primary key, value text not null)",
+    );
+    const insert = database.prepare(
+      "insert into trigram (hash, n) values (?, ?)",
+    );
+    const tokens = passage.toLowerCase().match(/[a-z0-9']+/gu)!;
+    for (let index = 0; index + 2 < tokens.length; index += 1)
+      insert.run(fnv1a64(tokens.slice(index, index + 3).join(" ")), 2);
+    database.close();
+    try {
+      const { state, id } = stageNineState();
+      state.lintContext = { question: null, alienessIndexPath: indexPath };
+      const result = submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "In 2005 BCCA 293 the court followed 2012 SCC 57 and comprehensively regulated evictions.",
+              evidence_ids: [id],
+              kind: "conclusion",
+            },
+          ],
+        },
+        state,
+      );
+      expect(result.ok).toBe(false);
+      const advisory = result.errors?.find((error) =>
+        error.startsWith("advisory (style, not a rule)"),
+      );
+      expect(advisory).toContain("unattested in the legal corpus");
+      // Without lintContext the same rejection carries no advisory.
+      const bare = stageNineState();
+      const bareResult = submitLegalEvidenceAnswer(
+        {
+          claims: [
+            {
+              text: "In 2005 BCCA 293 the court followed 2012 SCC 57 and comprehensively regulated evictions.",
+              evidence_ids: [bare.id],
+              kind: "conclusion",
+            },
+          ],
+        },
+        bare.state,
+      );
+      expect(
+        bareResult.errors?.some((error) => error.startsWith("advisory")),
+      ).toBe(false);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

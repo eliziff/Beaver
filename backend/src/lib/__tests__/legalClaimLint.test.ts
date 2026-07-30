@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  alienPhrases,
   corpusAlienness,
   fnv1a64,
   lintLegalClaim,
@@ -81,6 +82,34 @@ describe("corpusAlienness", () => {
   it("returns null when no index exists", () => {
     expect(
       corpusAlienness("anything", {
+        indexPath: path.join(directory, "missing.sqlite"),
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("alienPhrases (Stage 9 H13-advisory)", () => {
+  it("names the maximal unattested runs in the claim's own words", () => {
+    expect(
+      alienPhrases(
+        "if rent is unpaid when due the landlord may comprehensively regulate everything",
+        { indexPath },
+      ),
+    ).toEqual(["landlord may comprehensively regulate everything"]);
+  });
+
+  it("returns [] for fully attested text and for text too short to trigram", () => {
+    expect(
+      alienPhrases("if rent is unpaid when due the landlord may", {
+        indexPath,
+      }),
+    ).toEqual([]);
+    expect(alienPhrases("rent is", { indexPath })).toEqual([]);
+  });
+
+  it("returns null when no index exists — never an empty pass", () => {
+    expect(
+      alienPhrases("anything at all here", {
         indexPath: path.join(directory, "missing.sqlite"),
       }),
     ).toBeNull();

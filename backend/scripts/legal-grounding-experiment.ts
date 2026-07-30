@@ -32,7 +32,11 @@ import path from "node:path";
 
 import JSZip from "jszip";
 
-import { standsForProfile } from "../src/lib/caselawCitator";
+import {
+  standsForProfile,
+  type StandsForRankPolicy,
+} from "../src/lib/caselawCitator";
+import { corpusAlienness } from "../src/lib/legalClaimLint";
 import {
   LEGAL_EVIDENCE_EXPERIMENT_MODES,
   LEGAL_EVIDENCE_PLAN_TOOL_NAME,
@@ -93,7 +97,7 @@ type BenchmarkCase = {
 };
 
 type RunReceipt = {
-  schema_version: 2;
+  schema_version: 3;
   case_id: string;
   suite: Suite;
   jurisdiction: "CA" | "US";
@@ -129,6 +133,24 @@ type RunReceipt = {
   /** Stage 8 coverage audit: attested characterizations registered per
    * cited neutral citation (empty object outside attested_framing). */
   attested_characterizations: Record<string, number>;
+  /** Stage 9 H19: candidate ordering policy for this cell's attested
+   * offer; null when the cell fed no candidates (non-attested arms and
+   * non-case cells, where policy is a no-op). */
+  rank_policy: StandsForRankPolicy | null;
+  /** Stage 9 H19: offered candidate span hashes per citation, in rank
+   * order, so analysis derives WHICH rank each quoted candidate held. */
+  attested_offer: Record<string, string[]>;
+  /** Stage 9 H19: best (lowest) offer rank quoted by a final claim,
+   * 1-based; null when no attested candidate was quoted. */
+  quoted_attested_rank: number | null;
+  /** Stage 9 H13 receipt-only witness: alienness spectrum of the final
+   * conclusion claim (C4 matrix growth); null when absent/no index. */
+  conclusion_alienness: {
+    unattested: number;
+    boilerplate: number;
+    attestedRare: number;
+    trigrams: number;
+  } | null;
   legal_evidence_receipt: ReturnType<typeof legalEvidenceReceiptEvent>;
   error: string | null;
 };
@@ -477,6 +499,7 @@ async function runCase(
   arm: Arm,
   timeoutMs: number,
   checkerModel: string | null = null,
+  rankPolicy: StandsForRankPolicy | null = null,
 ): Promise<RunReceipt> {
   const started = Date.now();
   const state = createLegalEvidenceTurnState(
@@ -487,10 +510,13 @@ async function runCase(
   // benchmarks are single-turn, so prior_answer never exists here.
   if (arm !== "control")
     state.premiseContext = { question: item.prompt, priorAnswer: null };
-  if (arm === "lint_gated") {
+  if (arm !== "control") {
     // Stage 7: the lint needs the question (H14) and the
     // jurisdiction-matched alienness index (H13). US cells use the
-    // CAP-bulk index built beside the Canadian default.
+    // CAP-bulk index built beside the Canadian default. Stage 9 arms
+    // this for EVERY structured arm: only lint_gated gates on it; the
+    // others use just the index path for the bounce-time alienness
+    // advisory (H13-advisory, advisory-only by registration).
     state.lintContext = {
       question: item.prompt,
       ...(item.jurisdiction === "US"
@@ -520,6 +546,12 @@ async function runCase(
   // contract then forces passage quotes or the typed statement.
   const attested: LegalEvidenceReceipt[] = [];
   const attestedByCitation: Record<string, number> = {};
+  // Stage 9 H19/H20: offered candidate evidence_ids per citation in rank
+  // order (quoted-rank analysis), span hashes for the receipt, and the
+  // newest candidate year per citation for the pre-declaration module.
+  const attestedOffer: Record<string, string[]> = {};
+  const offeredRankByEvidenceId = new Map<string, number>();
+  const newestByCitation: Record<string, string | null> = {};
   const attestedArm = arm === "attested_framing" || arm === "required_slot";
   if (attestedArm && item.sourceClass === "case") {
     // Benchmark citations carry style-of-cause and pinpoints
@@ -533,8 +565,15 @@ async function runCase(
       ),
     )) {
       attestedByCitation[citation] = 0;
-      for (const candidate of standsForProfile({ citation })?.candidates ??
-        []) {
+      attestedOffer[citation] = [];
+      newestByCitation[citation] = null;
+      // H20 cheap selection: the offer is the TOP 3 ranked candidates
+      // (Stage 8b offered up to 8 and models bailed on selection).
+      for (const candidate of standsForProfile({
+        citation,
+        size: 3,
+        rankPolicy: rankPolicy ?? undefined,
+      })?.candidates ?? []) {
         const receipt = attestedCharacterizationReceipt({
           citedCitation: citation,
           characterization: candidate,
@@ -543,6 +582,17 @@ async function runCase(
         registerLegalEvidence(state, receipt);
         attested.push(receipt);
         attestedByCitation[citation] += 1;
+        attestedOffer[citation].push(candidate.spanSha256);
+        offeredRankByEvidenceId.set(
+          receipt.evidence_id,
+          attestedOffer[citation].length,
+        );
+        if (
+          candidate.citingDate &&
+          (newestByCitation[citation] === null ||
+            candidate.citingDate > newestByCitation[citation]!)
+        )
+          newestByCitation[citation] = candidate.citingDate;
       }
     }
     // H15: every cited case needs its characterization slot filled — by
@@ -587,6 +637,25 @@ async function runCase(
     promptModules.push([
       "attested",
       "Attested characterizations of the cited cases may be supplied as additional quotable evidence. Any claim saying what a case stands for, held, establishes, or governs must be a verbatim quote of the cited passage or of an attested characterization named in its evidence ids; if none is supplied for that case, either quote the passage itself or write exactly: No attested characterization of [neutral citation] is available. Never compose your own characterization; Beaver renders attribution from the evidence receipts.",
+    ]);
+  if (attestedArm && item.sourceClass === "case")
+    // Stage 9 H20 thin-profile pre-declaration: state the selection
+    // problem's size up front so refusal is a choice, not a bail.
+    promptModules.push([
+      "predeclare",
+      `Attested characterization availability: ${Object.entries(
+        attestedByCitation,
+      )
+        .map(([citation, count]) =>
+          count
+            ? `${citation}: ${count} supplied${
+                newestByCitation[citation]
+                  ? ` (newest ${newestByCitation[citation]!.slice(0, 4)})`
+                  : ""
+              }`
+            : `${citation}: none are available`,
+        )
+        .join("; ")}.`,
     ]);
   if (arm === "required_slot" && item.sourceClass === "case")
     promptModules.push([
@@ -662,8 +731,29 @@ async function runCase(
     }
     const legalReceipt =
       arm === "control" ? null : legalEvidenceReceiptEvent(state);
+    // Stage 9 H19: which offered rank (1-based, best of any claim) did
+    // the FINAL submission quote — computed from the receipt's claims
+    // whether the cell passed or failed, so selection behavior is
+    // visible on failures too.
+    const quotedRanks = (legalReceipt?.claims ?? []).flatMap((claim) =>
+      claim.evidence_ids.flatMap((id) => {
+        const rank = offeredRankByEvidenceId.get(id);
+        return rank === undefined ? [] : [rank];
+      }),
+    );
+    // Stage 9 H13 receipt-only witness: the final conclusion claim's
+    // alienness spectrum (index omitted from the row; the log records
+    // the index build).
+    const conclusionClaim = (legalReceipt?.claims ?? []).find(
+      (claim) => claim.kind === "conclusion",
+    );
+    const conclusionSpectrum = conclusionClaim
+      ? corpusAlienness(conclusionClaim.text, {
+          indexPath: state.lintContext?.alienessIndexPath,
+        })
+      : null;
     return {
-      schema_version: 2,
+      schema_version: 3,
       case_id: item.id,
       suite: item.suite,
       jurisdiction: item.jurisdiction,
@@ -700,12 +790,28 @@ async function runCase(
             : (legalReceipt?.status === "passed") ===
               (item.referenceExpectation === "sufficient"),
       attested_characterizations: attestedByCitation,
+      rank_policy:
+        attestedArm && item.sourceClass === "case"
+          ? (rankPolicy ?? "authority")
+          : null,
+      attested_offer: attestedOffer,
+      quoted_attested_rank: quotedRanks.length
+        ? Math.min(...quotedRanks)
+        : null,
+      conclusion_alienness: conclusionSpectrum
+        ? {
+            unattested: conclusionSpectrum.unattested,
+            boilerplate: conclusionSpectrum.boilerplate,
+            attestedRare: conclusionSpectrum.attestedRare,
+            trigrams: conclusionSpectrum.trigrams,
+          }
+        : null,
       legal_evidence_receipt: legalReceipt,
       error: null,
     };
   } catch (error) {
     return {
-      schema_version: 2,
+      schema_version: 3,
       case_id: item.id,
       suite: item.suite,
       jurisdiction: item.jurisdiction,
@@ -733,6 +839,13 @@ async function runCase(
       inline_citation_rate: null,
       support_expectation_match: null,
       attested_characterizations: attestedByCitation,
+      rank_policy:
+        attestedArm && item.sourceClass === "case"
+          ? (rankPolicy ?? "authority")
+          : null,
+      attested_offer: attestedOffer,
+      quoted_attested_rank: null,
+      conclusion_alienness: null,
       legal_evidence_receipt:
         arm === "control" ? null : legalEvidenceReceiptEvent(state),
       error: error instanceof Error ? error.message : String(error),
@@ -947,6 +1060,18 @@ async function main() {
   // model's inherent legal reliability); an explicit model id pins the
   // checker. Control cells have no checker and run once.
   const checkerSpecs = listFlag("checker-models", "same");
+  // Stage 9 H19: rank policies over the attested candidate offer. A
+  // policy-variant cell exists ONLY where the policy can act — case
+  // cells of attested arms; everywhere else the cell runs once with a
+  // null policy (the offer is empty and the prompt identical, so extra
+  // variants would just resample checker noise).
+  const rankPolicies = listFlag(
+    "rank-policies",
+    "authority",
+  ) as StandsForRankPolicy[];
+  for (const policy of rankPolicies)
+    if (!["authority", "banded_recency", "flat_recency"].includes(policy))
+      throw new Error(`unknown --rank-policies entry: ${policy}`);
   mkdirSync(path.dirname(output), { recursive: true });
   // --resume 1: keep the existing output file and skip cells it already
   // holds a non-error row for; errored cells get another attempt (the
@@ -957,7 +1082,7 @@ async function main() {
     for (const row of readJsonl<RunReceipt>(output))
       if (!row.error)
         done.add(
-          `${row.model}|${row.arm}|${row.checker_model ?? "same"}|${row.case_id}`,
+          `${row.model}|${row.arm}|${row.checker_model ?? "same"}|${row.case_id}|${row.rank_policy ?? "-"}`,
         );
   } else {
     writeFileSync(output, "", "utf8");
@@ -973,14 +1098,25 @@ async function main() {
               ? (models.find((other) => other !== model) ?? null)
               : spec;
         if (spec === "cross" && !checker) return [];
-        return cases.map((item) => ({ model, arm, checker, item }));
+        return cases.flatMap((item) => {
+          const policyCell =
+            (arm === "attested_framing" || arm === "required_slot") &&
+            item.sourceClass === "case";
+          return (policyCell ? rankPolicies : [null]).map((policy) => ({
+            model,
+            arm,
+            checker,
+            item,
+            policy,
+          }));
+        });
       }),
     ),
   );
   const pendingCells = cells.filter(
     (cell) =>
       !done.has(
-        `${cell.model}|${cell.arm}|${cell.checker ?? "same"}|${cell.item.id}`,
+        `${cell.model}|${cell.arm}|${cell.checker ?? "same"}|${cell.item.id}|${cell.policy ?? "-"}`,
       ),
   );
   console.log(
@@ -990,6 +1126,7 @@ async function main() {
   await runPool(pendingCells, concurrency, perModel, async (cell) => {
     const label =
       `${cell.model} | ${cell.arm}` +
+      (cell.policy ? ` | ${cell.policy}` : "") +
       (cell.checker ? ` | checker=${cell.checker.split(":")[0]}` : "");
     console.log(`start | ${label} | ${cell.item.id}`);
     const row = await runCase(
@@ -999,6 +1136,7 @@ async function main() {
       cell.arm,
       timeoutMs,
       cell.checker,
+      cell.policy,
     );
     rows.push(row);
     appendFileSync(output, `${JSON.stringify(row)}\n`, "utf8");
