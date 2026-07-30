@@ -1944,6 +1944,48 @@ Frozen predictions:
   stay under the 300s timeout without saturating the flat-rate lane.
 Falsified by: any false pass; transport attrition >20% on any lane.
 
+### Stage 13 results (run 2026-07-30, 141 cells, attrition 1/141;
+`stage13-ladder.jsonl` + `stage13-solmax.jsonl` — the runner resume
+key omits effort, so the sol@max lane required its own file; analysis
+splits lanes by the receipt `effort` field)
+
+Case cells (18), required_slot / authority / same-model checker:
+
+| lane | pass | no-sub | typed refusals | first-sub accept | median lat |
+| --- | --- | --- | --- | --- | --- |
+| sol @low (Stage 9 bank) | 6 | 7 | 6 | 5 | 38.2s |
+| sol @medium | 6 | 3 | 10 | 5 | 27.1s |
+| sol @max | 5 | 2 | 11 | 4 | 64.0s |
+| luna @medium (Stage 11) | 4 | 3 | 10 | 4 | 34.5s |
+| luna @max | 3 (of 17) | 4 | 8 | 3 | 115.8s |
+| terra @max | 6 | 3 | 10 | 5 | 99.7s |
+
+- **P1: split verdict, informative.** Sol behaves capacity-bound —
+  no-sub falls monotonically with effort (7→3→2) and ends below the
+  13% floor — but no lane reached ≤1/18, and luna is effort-saturated
+  by medium (3→4 flat, within one cell). What effort buys is typed
+  honesty, not coverage: as sol's no-sub falls, its typed refusal
+  count rises in step (6→10→11) while pass stays flat (6→6→5). The
+  residual is task-shaped, not model-shaped: EVERY no-sub cell in
+  every medium+ lane is a CLERC opinion-continuation cell (CSLB case
+  cells all clear), concentrated on a recurring pair
+  (clerc:2176611-7107, clerc:698751-10630 in 3 of 5 strong lanes)
+  but not perfectly cell-deterministic (luna@max bailed a different
+  trio). Conclusion: the bail floor is the contract's honest price on
+  continuation-composition tasks; raising effort or tier past
+  sol@medium buys little.
+- **P2 held.** Zero refusal-despite-candidates on all codex ladder
+  lanes; no verbatim-tier false pass surfaced.
+- **P3 (cost).** Max-effort lanes run 2–4× medium latency (sol 27→64s,
+  luna 35→116s, terra 100s) with no pass gain anywhere. All under the
+  300s timeout; attrition 1/141 (one luna@max content-shaped error).
+
+Roster consequence: **sol@medium is the crowned lane** (best pass ×
+lowest bail × cheapest latency; terra@max ties on outcomes at 3.7×
+the latency). Luna@medium remains the cost baseline. Max effort is
+retired for grounding runs — it converts bails to typed refusals at
+sol but buys nothing terra/luna, and doubles-to-quadruples latency.
+
 ## Stage 12b — claude-p transport hardening (amendment to Stage 12,
 2026-07-30, commit `b7584a05`)
 
@@ -2028,6 +2070,54 @@ Falsified by: any P1 violation; answered-rate 0/32 (bed uninformative
 at this retrieval level — the next lever is retrieval, not
 composition, and the run is recorded as such); error rate >20%.
 
+### Stage 14 pilot results (run 2026-07-30, 32 tests, luna@medium,
+k=4, 0 errors → `stage14-lbrag.jsonl`)
+
+Outcomes: answered 2, declined 21, rejected 1, abstained 8. Every
+privacy_qa cell abstained (retrieval doc recall 0 on that slice);
+every cuad/maud cell where retrieval missed gold declined with a
+typed insufficiency statement naming what the passage cannot
+establish. The contract did not fabricate once on 30 retrieval-failed
+cells — the real-world bed's version of the refusal-shaped-failure
+result.
+
+- **P1 (soundness): alarm fired once, audited, resolved — no false
+  pass.** maud:002 carried one gate-accepted quote my locator could
+  not place: the model wrapped a genuinely verbatim span in curly
+  quotation marks, which the gate's normalizer tolerates but the
+  exact `indexOf` locator did not. Offline re-location with a
+  hardened locator (wrapping-glyph strip + whitespace/quote-tolerant
+  regex, exact offsets; committed) places the quote at chars
+  7441–7564 of the GOLD document. The verbatim tier was sound; the
+  measurement tool was too strict. Post-audit the cell reclassifies
+  declined → answered with a located zero-overlap quote
+  (definitions boilerplate, P=0).
+- **P2 held.** Answered ∩ gold-doc-miss = 0/32 (also post-audit:
+  all three answered cells quote the gold document). The contract
+  answers only where retrieval actually found the right document.
+- **P3 held.** Answered-only grounded char precision 0.66 as-run
+  (2 cells: 1.000 and 0.329), 0.44 post-audit (3 cells) — 57–86×
+  the 0.0077 retrieval baseline, far above the ≥0.077 bar. Recall
+  on answered cells 0.88 as-run (contractnli:004 quoted 99.8% of
+  gold).
+- **P4 missed in letter.** Grounded chars per answered cell ≈526
+  mean (584/872/123), above the ≤400 prediction. The excess is
+  gold-span coverage, not dumping — answered-cell recall 0.58–0.88
+  means the quotes ARE the gold passage; the ≤400 bar was
+  mis-calibrated against high recall. Recorded as a falsified
+  volume prediction, not a system defect.
+- Cost: 7.3 s/cell mean, ~1.8k effective input + ~0.3k output
+  tokens/cell — the cheapest lane of the program.
+
+Verdict: on real contracts with human gold, the system's precision
+when it speaks is 1–2 orders above the retrieval baseline, it never
+speaks from the wrong document, and its failure mode is a typed,
+named insufficiency — but the product retriever caps the answer rate
+at 3/32 on this bed. The next lever is retrieval (better doc
+targeting; snippet windows that cover gold spans), not composition.
+Follow-ups queued: retrieval-lever ablation (k, doc-name matching);
+Stage 13 winner lane on the same 32 for a model contrast.
+
 ## Durable receipts
 
 The experiment JSONL receipts are outside git under
@@ -2058,6 +2148,9 @@ committed.
 | `stage11-luna-baseline.jsonl` | `185FAE297F9895753A29EA0609915F70A387B94EDBD85C79B6E4D56F000FC71C` |
 | `stage12-claude5.jsonl` (cut mid-run per Eli; transport-falsified) | `951FAC9DBA05921520C2175DB77E55CD0F639FF3893789908AC9BF5C359B064E` |
 | `stage12b-transport-probe.jsonl` | `D84CC55053009ED6F6D0536F0543FA74C0079EDCBCB5FC1CBCCAA45C76BEDA3A` |
+| `stage13-ladder.jsonl` (luna@max, terra@max, sol@medium; sol@max no-op'd on the resume-key flaw) | `808AED56F24C5D36939A49F126A71AB64CD5D2CF85CBFD7D90E1F0A5F6C4D9C4` |
+| `stage13-solmax.jsonl` | `C2225BF9ADA4C6011F3F6111AF4BF8E4541D8BDB7BB8435D610703BB46111A05` |
+| `stage14-lbrag.jsonl` (pilot, pre-locator-fix scoring; maud:002 re-scored offline per the P1 audit) | `5720B4F97641655EE8C08F9D6EE9DED897E1492D9096AA684E5B46DD8AB7FD10` |
 
 ## Validation and final selection gate
 
